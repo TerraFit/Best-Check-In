@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ViewState, Booking, MonthlyData } from './types';
 import { SAMPLE_BOOKINGS, MOCK_HISTORICAL_DATA } from './constants';
