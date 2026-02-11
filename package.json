@@ -18,7 +18,7 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "types": []  // Add this line to clear default types
+    "types": []
   },
   "include": ["src", "components", "*.ts", "*.tsx"],
   "exclude": ["node_modules", "dist"]
