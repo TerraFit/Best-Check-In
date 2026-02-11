@@ -1,9 +1,4 @@
-
-import { GoogleGenAI } from "@google/genai";
 import { MonthlyData, SeasonStats } from "../types";
-
-// Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY}); to ensure the correct API key is used.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function getMarketingAdvice(data: MonthlyData[], seasonStats: SeasonStats[]) {
   const prompt = `
@@ -22,18 +17,26 @@ export async function getMarketingAdvice(data: MonthlyData[], seasonStats: Seaso
   `;
 
   try {
-    // Upgrading to gemini-3-pro-preview for complex reasoning and strategic hospitality analysis tasks.
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
-      config: {
-        // Removed explicit thinkingConfig to let the model decide the best reasoning path for strategic advice.
-        temperature: 0.7,
-      }
+    // Call our secure Netlify Function instead of using client-side API key
+    const response = await fetch('/.netlify/functions/gemini', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt })
     });
 
-    // Directly access the text property of the GenerateContentResponse object.
-    return response.text || "Unable to generate advice at this time.";
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Extract the text from the response
+    // The structure depends on how your Netlify function returns the data
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || 
+           data.text || 
+           "Unable to generate advice at this time.";
   } catch (error) {
     console.error("AI Marketing Advice Error:", error);
     return "The AI expert is currently unavailable. Please review your dashboard metrics for manual analysis.";
