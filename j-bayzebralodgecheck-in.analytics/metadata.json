@@ -1,0 +1,8 @@
+{
+  "name": "J-BayZebraLodgeCheck-In.Analytics",
+  "description": "A sophisticated check-in and data analytics platform for J-Bay Zebra Lodge, featuring guest management, seasonality reports, and AI-driven marketing insights.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}

@@ -1,0 +1,435 @@
+
+import React, { useState, useMemo } from 'react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+  AreaChart, Area, Cell, PieChart, Pie, LineChart, Line
+} from 'recharts';
+import { MonthlyData, SeasonStats, Booking, ViewState } from '../types';
+import { HIGH_SEASON_MONTHS, LOW_SEASON_MONTHS, COLORS, REFERRAL_SOURCES } from '../constants';
+import { getMarketingAdvice } from '../services/geminiService';
+
+interface DashboardProps {
+  data: MonthlyData[];
+  bookings: Booking[];
+  activeView: ViewState;
+  onNavigate?: (view: ViewState) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNavigate }) => {
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [loadingAdvice, setLoadingAdvice] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [partnerEmail, setPartnerEmail] = useState('');
+  const [partners, setPartners] = useState<string[]>([]);
+
+  const isRegistry = activeView === 'REPORTS';
+
+  const filteredBookings = useMemo(() => {
+    return bookings.filter(b => 
+      b.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      b.passportOrId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [bookings, searchTerm]);
+
+  const referralStats = useMemo(() => {
+    return REFERRAL_SOURCES.map(source => ({
+      name: source,
+      value: data.reduce((acc, curr) => acc + (curr.referralData?.[source] || 0), 0) || 0
+    })).filter(s => s.value > 0);
+  }, [data]);
+
+  const countryStats = useMemo(() => {
+    const counts: Record<string, number> = {};
+    bookings.forEach(b => {
+      counts[b.country] = (counts[b.country] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [bookings]);
+
+  const stats = useMemo(() => {
+    const monthsArr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const high = data.filter(d => HIGH_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)));
+    const low = data.filter(d => LOW_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)));
+    const mid = data.filter(d => !HIGH_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)) && !LOW_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)));
+
+    const calculateStats = (arr: MonthlyData[], name: 'High' | 'Low' | 'Mid'): SeasonStats => ({
+      season: name,
+      bookings: arr.reduce((acc, curr) => acc + curr.bookings, 0),
+      revenue: arr.reduce((acc, curr) => acc + curr.revenue, 0),
+      occupancy: arr.length > 0 ? (arr.reduce((acc, curr) => acc + (curr.occupancyPercent || 0), 0) / arr.length) : 0
+    });
+
+    return [
+      calculateStats(high, 'High'),
+      calculateStats(mid, 'Mid'),
+      calculateStats(low, 'Low')
+    ];
+  }, [data]);
+
+  const handleGetAdvice = async () => {
+    setLoadingAdvice(true);
+    const advice = await getMarketingAdvice(data, stats);
+    setAiAdvice(advice);
+    setLoadingAdvice(false);
+  };
+
+  const exportAnalyticsCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Month,Year,Bookings,Occupancy %,Estimated Revenue\n";
+    data.forEach(d => {
+      csvContent += `${d.month},${d.year},${d.bookings},${d.occupancyPercent || 0},${d.revenue}\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "JBay_Lodge_Marketing_Analytics.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const copyMarketingSummary = () => {
+    const topSource = [...referralStats].sort((a,b) => b.value - a.value)[0];
+    const topCountry = countryStats[0];
+    const avgOccupancy = Math.round(data.reduce((acc, curr) => acc + (curr.occupancyPercent || 0), 0) / data.length);
+    const summary = `
+J-BAY ZEBRA LODGE - MARKETING INTELLIGENCE SUMMARY
+--------------------------------------------------
+Overall Occupancy: ${avgOccupancy}%
+Top Performing Source: ${topSource?.name}
+Primary Market: ${topCountry?.name}
+Total Annual Revenue: R${data.reduce((acc, curr) => acc + curr.revenue, 0).toLocaleString()}
+
+Insight generated for Marketing Use.
+    `;
+    navigator.clipboard.writeText(summary.trim());
+    setCopySuccess('summary');
+    setTimeout(() => setCopySuccess(null), 2000);
+  };
+
+  const copyShareLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/share/marketing-view-${Date.now()}`);
+    setCopySuccess('link');
+    setTimeout(() => setCopySuccess(null), 2000);
+  };
+
+  const invitePartner = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (partnerEmail && !partners.includes(partnerEmail)) {
+      setPartners([...partners, partnerEmail]);
+      setPartnerEmail('');
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-8 pb-20 animate-fade-in">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-stone-800">Management Portal</h2>
+          <div className="flex gap-4 mt-2">
+             <button 
+              onClick={() => onNavigate?.('ADMIN_DASHBOARD')} 
+              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${activeView === 'ADMIN_DASHBOARD' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
+             >
+               Analytics
+             </button>
+             <button 
+              onClick={() => onNavigate?.('REPORTS')} 
+              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${activeView === 'REPORTS' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
+             >
+               Guest Register
+             </button>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setShowShareModal(true)}
+            className="bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 px-6 py-3 rounded-full flex items-center gap-2 transition-all shadow-sm text-xs font-bold uppercase tracking-widest"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            Share & Export
+          </button>
+          <button 
+            onClick={handleGetAdvice}
+            disabled={loadingAdvice}
+            className="bg-stone-900 hover:bg-black text-white px-8 py-3 rounded-full flex items-center gap-2 transition-all shadow-lg text-xs font-bold uppercase tracking-widest"
+          >
+            {loadingAdvice ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> : "AI Marketing Strategy"}
+          </button>
+        </div>
+      </header>
+
+      {!isRegistry ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {stats.map(s => (
+              <div key={s.season} className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
+                <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest mb-1">{s.season} Season</h4>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-serif font-bold text-stone-900">{Math.round(s.occupancy)}%</p>
+                  <span className="text-xs text-stone-400">Avg. Occupancy</span>
+                </div>
+                <p className="text-[10px] text-amber-700 font-bold mt-2 uppercase tracking-widest">R{s.revenue.toLocaleString()} Revenue</p>
+              </div>
+            ))}
+          </div>
+
+          {aiAdvice && (
+            <div className="bg-stone-900 text-stone-100 p-8 rounded-3xl shadow-2xl animate-fade-in border-l-8 border-amber-600">
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="text-xl font-bold flex items-center gap-2 text-amber-500 font-serif">
+                   Strategic Marketing Recommendations
+                 </h3>
+                 <button onClick={() => setAiAdvice(null)} className="text-stone-400 hover:text-white transition-colors">✕</button>
+               </div>
+               <div className="prose prose-invert max-w-none text-stone-300 leading-relaxed text-sm whitespace-pre-line">
+                 {aiAdvice}
+               </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Occupancy Percentage Trend</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={data.slice(-12)}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} domain={[0, 100]} />
+                    <Tooltip 
+                      formatter={(val) => [`${val}%`, 'Occupancy']}
+                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} 
+                    />
+                    <Line type="monotone" dataKey="occupancyPercent" stroke="#2D3E40" strokeWidth={3} dot={{ r: 4, fill: '#2D3E40' }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Revenue Growth</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.slice(-12)}>
+                    <defs>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#C5A059" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#C5A059" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                    <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                    <Area type="monotone" dataKey="revenue" stroke="#C5A059" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Origin of Guests</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={countryStats} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} width={120} />
+                    <Tooltip cursor={{fill: '#f5f5f0'}} contentStyle={{borderRadius: '16px', border: 'none'}} />
+                    <Bar dataKey="value" fill="#7D5A50" radius={[0, 10, 10, 0]} barSize={24} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Referral Attribution</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={referralStats}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {referralStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={['#2D3E40', '#C5A059', '#7D5A50', '#A0816C', '#D4C4B5', '#4B5320', '#6F4E37'][index % 7]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                    <Legend iconType="circle" wrapperStyle={{fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase'}} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-6">
+           <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="relative flex-grow max-w-md">
+                <input 
+                  type="text" 
+                  placeholder="Search Registry..."
+                  className="w-full bg-white border border-stone-200 rounded-full py-3 px-6 pl-12 outline-none focus:ring-2 ring-amber-700/20 text-sm"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+           </div>
+
+           <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-stone-50 text-stone-400 text-[10px] uppercase tracking-widest font-bold border-b border-stone-100">
+                      <th className="px-6 py-4">Guest Info</th>
+                      <th className="px-6 py-4">Sharing</th>
+                      <th className="px-6 py-4">ID / Passport</th>
+                      <th className="px-6 py-4">Stay Dates</th>
+                      <th className="px-6 py-4">Next Goal</th>
+                      <th className="px-6 py-4">Legal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {filteredBookings.map((b) => (
+                      <tr key={b.id} className="hover:bg-stone-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-stone-900 text-sm">{b.guestName}</p>
+                          <p className="text-[10px] text-stone-500 uppercase">{b.country} | {b.phone}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                           <p className="text-xs text-stone-700 font-bold">{b.adults} Adults</p>
+                           {b.kids > 0 && <p className="text-[10px] text-stone-400">{b.kids} Kids</p>}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs text-stone-600">
+                          {b.passportOrId}
+                        </td>
+                        <td className="px-6 py-4">
+                           <p className="text-xs font-bold text-stone-800">{b.checkInDate}</p>
+                           <p className="text-[10px] text-stone-400 uppercase">{b.nights} Nights</p>
+                        </td>
+                        <td className="px-6 py-4 text-xs italic text-stone-500">
+                           {b.nextDestination}
+                        </td>
+                        <td className="px-6 py-4">
+                           <div className="flex gap-2">
+                              {b.signatureData && <span title="Signed" className="text-emerald-500">✍️</span>}
+                              {b.idPhotoData && <span title="ID Captured" className="text-blue-500">📷</span>}
+                              {b.popiaMarketingConsent ? <span title="Marketing Consent" className="text-amber-500">📧</span> : <span title="No Marketing" className="text-stone-300">📧</span>}
+                           </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {showShareModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-2xl w-full my-8 overflow-hidden animate-scale-in">
+            <div className="p-8 md:p-10">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h3 className="text-2xl font-serif font-bold text-stone-900">Collaboration Hub</h3>
+                  <p className="text-stone-500 text-sm mt-1">Export analytics or invite your marketing partner.</p>
+                </div>
+                <button onClick={() => setShowShareModal(false)} className="text-stone-400 hover:text-stone-900 transition-colors p-2">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">Internal Assets</h4>
+                  <button 
+                    onClick={copyMarketingSummary}
+                    className="w-full bg-stone-50 hover:bg-amber-50 border border-stone-200 p-5 rounded-2xl text-left flex items-center justify-between group transition-all"
+                  >
+                    <div>
+                      <h4 className="font-bold text-stone-900 text-xs">Copy Stats Briefing</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5">Quick text for agency WhatsApp.</p>
+                    </div>
+                    <span className={`text-[9px] font-bold uppercase tracking-widest ${copySuccess === 'summary' ? 'text-emerald-600' : 'text-stone-400'}`}>
+                      {copySuccess === 'summary' ? 'Copied!' : 'Copy'}
+                    </span>
+                  </button>
+
+                  <button 
+                    onClick={exportAnalyticsCSV}
+                    className="w-full bg-stone-50 hover:bg-amber-50 border border-stone-200 p-5 rounded-2xl text-left flex items-center justify-between group transition-all"
+                  >
+                    <div>
+                      <h4 className="font-bold text-stone-900 text-xs">Export Marketing CSV</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5">Raw data for spreadsheets.</p>
+                    </div>
+                    <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">Invite Marketing Partner</h4>
+                  <form onSubmit={invitePartner} className="space-y-2">
+                    <input 
+                      type="email" 
+                      placeholder="Agency email..." 
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-xs outline-none focus:ring-2 ring-amber-600/20"
+                      value={partnerEmail}
+                      onChange={e => setPartnerEmail(e.target.value)}
+                    />
+                    <button type="submit" className="w-full bg-stone-900 text-white text-[10px] font-bold uppercase tracking-widest py-3 rounded-xl hover:bg-black transition-all">
+                      Grant Access
+                    </button>
+                  </form>
+                  {partners.length > 0 && (
+                    <div className="max-h-24 overflow-y-auto pr-2 space-y-2">
+                       {partners.map(p => (
+                         <div key={p} className="flex justify-between items-center bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
+                           <span className="text-[10px] font-medium text-emerald-800 truncate">{p}</span>
+                           <span className="text-[8px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full uppercase font-bold">Authorized</span>
+                         </div>
+                       ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-stone-50 border border-stone-200 p-6 rounded-3xl flex items-center justify-between">
+                <div className="flex gap-4 items-center">
+                  <div className="bg-white p-3 rounded-xl shadow-sm">
+                    <svg className="w-5 h-5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.803a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.103-1.103" /></svg>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-stone-900 text-sm italic">Direct View Link</h4>
+                    <p className="text-[10px] text-stone-500">Provide temporary restricted access.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={copyShareLink}
+                  className="bg-white border border-stone-200 px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest hover:bg-stone-100 transition-all shadow-sm"
+                >
+                  {copySuccess === 'link' ? 'Copied URL!' : 'Copy Link'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Dashboard;
