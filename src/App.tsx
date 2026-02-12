@@ -9,7 +9,7 @@ function App() {
     <AccessProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Hero onCheckIn={() => {}} />} />
+         <Route path="/" element={<Hero onCheckIn={() => navigate('/checkin')} />} />
           <Route path="/login" element={<Login />} />
           <Route 
             path="/super-admin" 
