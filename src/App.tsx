@@ -21,21 +21,22 @@ function CheckInAppWrapper() {
     }
   };
   
-  const handleNavigate = (view: string) => {
-    switch (view) {
-      case 'CHECKIN':
-        navigate('/checkin');
-        break;
-      case 'ADMIN_DASHBOARD':
-      case 'REPORTS':
-      case 'IMPORT':
-        navigate('/admin');
-        break;
-      case 'LOGIN':
-        navigate('/login');
-        break;
-      default:
-        navigate('/');
+ const handleNavigate = (view: string) => {
+  console.log('🔵 App.tsx navigate called with:', view); // ADD THIS LINE
+  switch (view) {
+    case 'CHECKIN':
+      navigate('/checkin');
+      break;
+    case 'ADMIN_DASHBOARD':
+    case 'REPORTS':
+    case 'IMPORT':
+      navigate('/admin');
+      break;
+    case 'LOGIN':
+      navigate('/login');
+      break;
+    default:
+      navigate('/');
     }
   };
   
