@@ -25,7 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
 
   // Force registry to show when view=reports in URL
   const urlParams = new URLSearchParams(window.location.search);
-  const showRegistry = urlParams.get('view') === 'reports' || activeView === 'REPORTS';
+  const showRegistry = urlParams.get('view') === 'reports';
 
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => 
@@ -221,7 +221,7 @@ Insight generated for Marketing Use.
           <div className="flex gap-4 mt-2">
             <button 
               onClick={() => window.location.href = '/admin'} 
-              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${!showRegistry ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
+              className="text-[10px] font-bold uppercase tracking-widest pb-1 transition-all text-amber-600 border-b-2 border-amber-600"
             >
               Analytics
             </button>
@@ -229,7 +229,7 @@ Insight generated for Marketing Use.
               onClick={() => {
                 window.location.href = '/admin?view=reports';
               }} 
-              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all text-stone-400 hover:text-stone-600`}
+              className="text-[10px] font-bold uppercase tracking-widest pb-1 transition-all text-stone-400 hover:text-stone-600"
             >
               Guest Register
             </button>
