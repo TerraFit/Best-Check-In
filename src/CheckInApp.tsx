@@ -285,32 +285,34 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         </div>
       )}
 
-      {currentView !== 'LOGIN' && (
-  <footer className="bg-stone-900 text-stone-500 py-16 px-6 border-t border-stone-800 mt-auto">
-    <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
-      <div className="text-center md:text-left">
-        <h4 className="text-white font-bold text-2xl mb-2 tracking-tighter">J-BAY <span className="text-amber-600">ZEBRA</span> LODGE</h4>
-        <p className="text-sm italic font-serif text-stone-400">"Enjoy Nature At Its Best"</p>
-      </div>
-      <div className="flex flex-wrap justify-center gap-10 text-[10px] font-bold uppercase tracking-widest">
-        <a href="https://www.jbayzebralodge.co.za" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Official Website</a>
-        <a href="#" className="hover:text-amber-500 transition-colors">Conservation</a>
-        <button 
-            onClick={() => {
-              if (externalNavigate) {
-                externalNavigate('LOGIN');
-              } else {
-                handleNavigate('LOGIN');
-              }
-            }}
-            className="text-stone-400 hover:text-white border border-stone-700 px-4 py-1 rounded transition-all"
-          >
-            Admin Portal
-          </button>
-        </div>
-    </footer>
-  )}
-</div>  {/* ← This closes the main container div */}
-);
+           {currentView !== 'LOGIN' && (
+        <footer className="bg-stone-900 text-stone-500 py-16 px-6 border-t border-stone-800 mt-auto">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
+            <div className="text-center md:text-left">
+              <h4 className="text-white font-bold text-2xl mb-2 tracking-tighter">J-BAY <span className="text-amber-600">ZEBRA</span> LODGE</h4>
+              <p className="text-sm italic font-serif text-stone-400">"Enjoy Nature At Its Best"</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-10 text-[10px] font-bold uppercase tracking-widest">
+              <a href="https://www.jbayzebralodge.co.za" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Official Website</a>
+              <a href="#" className="hover:text-amber-500 transition-colors">Conservation</a>
+              <button 
+                onClick={() => {
+                  if (externalNavigate) {
+                    externalNavigate('LOGIN');
+                  } else {
+                    handleNavigate('LOGIN');
+                  }
+                }}
+                className="text-stone-400 hover:text-white border border-stone-700 px-4 py-1 rounded transition-all"
+              >
+                Admin Portal
+              </button>
+            </div>
+          </div>
+        </footer>
+      )}
+    </div>
+  );
+};
 
 export default CheckInApp;
