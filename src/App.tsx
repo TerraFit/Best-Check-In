@@ -21,24 +21,33 @@ function CheckInAppWrapper() {
     }
   };
   
- const handleNavigate = (view: string) => {
-  console.log('🔵 App.tsx navigate called with:', view); // ADD THIS LINE
-  switch (view) {
-    case 'CHECKIN':
-      navigate('/checkin');
-      break;
-    case 'ADMIN_DASHBOARD':
-    case 'REPORTS':
-    case 'IMPORT':
-      navigate('/admin');
-      break;
-    case 'LOGIN':
-      navigate('/login');
-      break;
-    default:
-      navigate('/');
+  const handleNavigate = (view: string) => {
+    console.log('🔵 App.tsx navigate called with:', view);
+    switch (view) {
+      case 'CHECKIN':
+        navigate('/checkin');
+        break;
+      case 'ADMIN_DASHBOARD':
+      case 'REPORTS':
+      case 'IMPORT':
+        navigate('/admin');
+        break;
+      case 'LOGIN':
+        navigate('/login');
+        break;
+      default:
+        navigate('/');
     }
   };
+  
+  return (
+    <CheckInApp 
+      key={location.pathname}  // ← ADD THIS LINE!
+      externalNavigate={handleNavigate}
+      initialView={getInitialView()}
+    />
+  );
+}
   
   return (
     <CheckInApp 
