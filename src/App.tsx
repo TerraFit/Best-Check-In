@@ -40,17 +40,10 @@ function CheckInAppWrapper() {
     }
   };
   
+  // ✅ ONLY ONE RETURN STATEMENT!
   return (
     <CheckInApp 
-      key={location.pathname}  // ← ADD THIS LINE!
-      externalNavigate={handleNavigate}
-      initialView={getInitialView()}
-    />
-  );
-}
-  
-  return (
-    <CheckInApp 
+      key={location.pathname}
       externalNavigate={handleNavigate}
       initialView={getInitialView()}
     />
