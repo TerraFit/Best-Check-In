@@ -30,7 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
 
   // 🔴 FIX: Redirect to the actual import page when view=import
   if (showImport) {
-    window.location.href = '/admin/import';
+   window.location.href = '/admin?view=import';
     return null;
   }
 
