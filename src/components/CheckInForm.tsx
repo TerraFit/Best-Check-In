@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
 import { Booking } from '../types';
