@@ -158,7 +158,11 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
       case 'IMPORT':
         return (
           <div className="min-h-screen bg-stone-50">
-            <ImportData onImport={handleImportedData} />
+            <ImportData 
+              onImport={handleImportedData}
+              existingBookings={bookings}
+              existingMonthlyData={historicalData}
+            />
           </div>
         );
       default:
