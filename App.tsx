@@ -4,7 +4,6 @@ import ProtectedRoute from './components/ProtectedRoute.tsx';
 import SuperAdminPortal from './pages/SuperAdminPortal.tsx';
 import Login from './pages/Login.tsx';
 import Hero from './components/Hero';
-
 function App() {
   return (
     <AccessProvider>
