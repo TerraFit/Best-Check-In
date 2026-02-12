@@ -292,7 +292,13 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
               <a href="https://www.jbayzebralodge.co.za" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Official Website</a>
               <a href="#" className="hover:text-amber-500 transition-colors">Conservation</a>
               <button 
-                onClick={() => handleNavigate('ADMIN_DASHBOARD')}
+                onClick={() => {
+                  if (externalNavigate) {
+                    externalNavigate('ADMIN_DASHBOARD');
+                  } else {
+                    handleNavigate('ADMIN_DASHBOARD');
+                  }
+                }}
                 className="text-stone-400 hover:text-white border border-stone-700 px-4 py-1 rounded transition-all"
               >
                 Admin Portal
