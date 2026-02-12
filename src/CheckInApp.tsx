@@ -19,11 +19,11 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
 }) => {
   const [currentView, setCurrentView] = useState<ViewState>(initialView);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-  // Check BOTH authentication systems
-  const oldAuth = localStorage.getItem('jbay_auth_session') === 'true';
-  const newAuth = localStorage.getItem('jbay_user') !== null;
-  return oldAuth || newAuth;
-});
+    // Check BOTH authentication systems
+    const oldAuth = localStorage.getItem('jbay_auth_session') === 'true';
+    const newAuth = localStorage.getItem('jbay_user') !== null;
+    return oldAuth || newAuth;
+  });
   const [pendingView, setPendingView] = useState<ViewState | null>(null);
   const [bookings, setBookings] = useState<Booking[]>(() => {
     const saved = localStorage.getItem('jbay_bookings');
@@ -77,11 +77,11 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
   };
 
   const handleLogout = () => {
-  setIsAuthenticated(false);
-  localStorage.removeItem('jbay_auth_session');
-  localStorage.removeItem('jbay_user');  // ← ADD THIS LINE
-  setCurrentView('HOME');
-};
+    setIsAuthenticated(false);
+    localStorage.removeItem('jbay_auth_session');
+    localStorage.removeItem('jbay_user');
+    setCurrentView('HOME');
+  };
 
   const handleCheckInComplete = (newBooking: Booking) => {
     setBookings(prev => [newBooking, ...prev]);
@@ -158,7 +158,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
       case 'IMPORT':
         return (
           <div className="min-h-screen bg-stone-50">
-             <ImportData onImport={handleImportedData} />
+            <ImportData onImport={handleImportedData} />
           </div>
         );
       default:
@@ -172,36 +172,37 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <Navbar currentView={currentView} onNavigate={handleNavigate} onLogout={isAuthenticated ? handleLogout : undefined} />
       )}
       
+      {/* TOP MENU BAR - FIXED WITH WINDOW.LOCATION */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
         <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-16 z-40 shadow-md">
-           <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-             <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
-                <button 
-                  onClick={() => handleNavigate('ADMIN_DASHBOARD')}
-                  className={`whitespace-nowrap pb-1 transition-all ${currentView === 'ADMIN_DASHBOARD' ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Marketing Overview
-                </button>
-                <button 
-                  onClick={() => handleNavigate('REPORTS')}
-                  className={`whitespace-nowrap pb-1 transition-all ${currentView === 'REPORTS' ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Guest Registry (Statutory)
-                </button>
-                <button 
-                  onClick={() => handleNavigate('IMPORT')}
-                  className={`whitespace-nowrap pb-1 transition-all ${currentView === 'IMPORT' ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Data Import
-                </button>
-             </div>
-             <button 
-               onClick={handleLogout}
-               className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-500 hover:text-white transition-colors"
-             >
-               Logout
-             </button>
-           </div>
+          <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+            <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
+              <button 
+                onClick={() => window.location.href = '/admin'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.pathname === '/admin' && !window.location.search.includes('view=reports') && !window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Marketing Overview
+              </button>
+              <button 
+                onClick={() => window.location.href = '/admin?view=reports'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=reports') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Guest Registry (Statutory)
+              </button>
+              <button 
+                onClick={() => window.location.href = '/admin?view=import'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Data Import
+              </button>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-500 hover:text-white transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       )}
 
@@ -223,9 +224,9 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
             </h3>
             
             <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 mb-8 text-left">
-               <h4 className="text-amber-900 font-bold text-xs uppercase tracking-widest mb-2">Welcome Connectivity</h4>
-               <p className="text-amber-800 text-sm mb-1">Guest WiFi Password: <span className="font-mono font-bold select-all">zebralodge</span></p>
-               <p className="text-stone-500 text-[10px]">Enjoy your stay at J-Bay Zebra Lodge.</p>
+              <h4 className="text-amber-900 font-bold text-xs uppercase tracking-widest mb-2">Welcome Connectivity</h4>
+              <p className="text-amber-800 text-sm mb-1">Guest WiFi Password: <span className="font-mono font-bold select-all">zebralodge</span></p>
+              <p className="text-stone-500 text-[10px]">Enjoy your stay at J-Bay Zebra Lodge.</p>
             </div>
 
             <div className="space-y-4 mb-8">
@@ -285,7 +286,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         </div>
       )}
 
-           {currentView !== 'LOGIN' && (
+      {currentView !== 'LOGIN' && (
         <footer className="bg-stone-900 text-stone-500 py-16 px-6 border-t border-stone-800 mt-auto">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
             <div className="text-center md:text-left">
