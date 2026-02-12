@@ -156,15 +156,15 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
           </div>
         );
       case 'IMPORT':
-        return (
-          <div className="min-h-screen bg-stone-50">
-            <ImportData 
-              onImport={handleImportedData}
-              existingBookings={bookings}
-              existingMonthlyData={historicalData}
-            />
-          </div>
-        );
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <ImportData 
+        onImport={handleImportedData}
+        existingBookings={bookings}
+        existingMonthlyData={historicalData}
+      />
+    </div>
+  );
       default:
         return <Hero onCheckIn={() => handleNavigate('CHECKIN')} />;
     }
