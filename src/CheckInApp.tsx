@@ -296,18 +296,21 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <a href="https://www.jbayzebralodge.co.za" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Official Website</a>
         <a href="#" className="hover:text-amber-500 transition-colors">Conservation</a>
         <button 
-          onClick={() => {
-            if (externalNavigate) {
-              externalNavigate('LOGIN');
-            } else {
-              handleNavigate('LOGIN');
-            }
-          }}
-          className="text-stone-400 hover:text-white border border-stone-700 px-4 py-1 rounded transition-all"
-        >
-          Admin Portal
-        </button>
-      </div>
-    </div>
-  </footer>
-)}
+            onClick={() => {
+              if (externalNavigate) {
+                externalNavigate('LOGIN');
+              } else {
+                handleNavigate('LOGIN');
+              }
+            }}
+            className="text-stone-400 hover:text-white border border-stone-700 px-4 py-1 rounded transition-all"
+          >
+            Admin Portal
+          </button>
+        </div>
+    </footer>
+  )}
+</div>  {/* ← This closes the main container div */}
+);
+
+export default CheckInApp;
