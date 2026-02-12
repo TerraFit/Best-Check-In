@@ -26,6 +26,13 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
   // Force registry to show when view=reports in URL
   const urlParams = new URLSearchParams(window.location.search);
   const showRegistry = urlParams.get('view') === 'reports';
+  const showImport = urlParams.get('view') === 'import'; // ADD THIS LINE
+
+  // 🔴 FIX: Redirect to the actual import page when view=import
+  if (showImport) {
+    window.location.href = '/admin/import';
+    return null;
+  }
 
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => 
