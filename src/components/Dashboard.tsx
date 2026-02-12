@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -24,7 +23,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
   const [partnerEmail, setPartnerEmail] = useState('');
   const [partners, setPartners] = useState<string[]>([]);
 
-  const isRegistry = activeView === 'REPORTS';
+  // 🔴 FORCE REGISTRY TO SHOW WHEN CLICKED - IGNORE activeView
+  const urlParams = new URLSearchParams(window.location.search);
+  const showRegistry = urlParams.get('view') === 'reports' || activeView === 'REPORTS';
 
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => 
@@ -33,14 +34,17 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
     );
   }, [bookings, searchTerm]);
 
+  // Only compute stats if we're showing analytics
   const referralStats = useMemo(() => {
+    if (showRegistry) return [];
     return REFERRAL_SOURCES.map(source => ({
       name: source,
       value: data.reduce((acc, curr) => acc + (curr.referralData?.[source] || 0), 0) || 0
     })).filter(s => s.value > 0);
-  }, [data]);
+  }, [data, showRegistry]);
 
   const countryStats = useMemo(() => {
+    if (showRegistry) return [];
     const counts: Record<string, number> = {};
     bookings.forEach(b => {
       counts[b.country] = (counts[b.country] || 0) + 1;
@@ -48,9 +52,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [bookings]);
+  }, [bookings, showRegistry]);
 
   const stats = useMemo(() => {
+    if (showRegistry) return [];
     const monthsArr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const high = data.filter(d => HIGH_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)));
     const low = data.filter(d => LOW_SEASON_MONTHS.includes(monthsArr.indexOf(d.month)));
@@ -68,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
       calculateStats(mid, 'Mid'),
       calculateStats(low, 'Low')
     ];
-  }, [data]);
+  }, [data, showRegistry]);
 
   const handleGetAdvice = async () => {
     setLoadingAdvice(true);
@@ -125,24 +130,110 @@ Insight generated for Marketing Use.
     }
   };
 
+  // 🔴 IF SHOW REGISTRY, RENDER REGISTRY
+  if (showRegistry) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-3xl font-serif font-bold text-stone-900">Guest Registry (Statutory)</h2>
+            <p className="text-stone-500 text-sm mt-1">Immigration Act Section 40 - Daily Register</p>
+          </div>
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Search by name or ID..."
+              className="w-64 bg-white border border-stone-200 rounded-full py-2 px-4 pl-10 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-stone-50 text-stone-500 text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">Guest Name</th>
+                  <th className="px-6 py-4">ID/Passport</th>
+                  <th className="px-6 py-4">Country</th>
+                  <th className="px-6 py-4">Check-In</th>
+                  <th className="px-6 py-4">Check-Out</th>
+                  <th className="px-6 py-4">Nights</th>
+                  <th className="px-6 py-4">Next Destination</th>
+                  <th className="px-6 py-4">Signed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredBookings.length > 0 ? (
+                  filteredBookings.map((b) => (
+                    <tr key={b.id} className="hover:bg-stone-50 transition-colors">
+                      <td className="px-6 py-4 font-medium">{b.guestName}</td>
+                      <td className="px-6 py-4 font-mono text-sm">{b.passportOrId}</td>
+                      <td className="px-6 py-4">{b.country}</td>
+                      <td className="px-6 py-4">{b.checkInDate}</td>
+                      <td className="px-6 py-4">{b.checkOutDate}</td>
+                      <td className="px-6 py-4">{b.nights}</td>
+                      <td className="px-6 py-4">{b.nextDestination}</td>
+                      <td className="px-6 py-4">
+                        {b.signatureData ? (
+                          <span className="text-emerald-600 font-bold">✓</span>
+                        ) : (
+                          <span className="text-stone-300">✗</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-stone-500">
+                      No guest registrations found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={() => onNavigate?.('ADMIN_DASHBOARD')}
+            className="text-sm text-stone-500 hover:text-stone-900 font-medium"
+          >
+            ← Back to Analytics
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔵 OTHERWISE SHOW ANALYTICS DASHBOARD
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 pb-20 animate-fade-in">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-stone-800">Management Portal</h2>
           <div className="flex gap-4 mt-2">
-             <button 
+            <button 
               onClick={() => onNavigate?.('ADMIN_DASHBOARD')} 
               className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${activeView === 'ADMIN_DASHBOARD' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
-             >
-               Analytics
-             </button>
-             <button 
-              onClick={() => onNavigate?.('REPORTS')} 
-              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${activeView === 'REPORTS' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
-             >
-               Guest Register
-             </button>
+            >
+              Analytics
+            </button>
+            <button 
+              onClick={() => {
+                // Force registry view
+                window.location.href = '/admin?view=reports';
+              }} 
+              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all text-stone-400 hover:text-stone-600`}
+            >
+              Guest Register
+            </button>
           </div>
         </div>
         <div className="flex gap-3">
@@ -163,180 +254,114 @@ Insight generated for Marketing Use.
         </div>
       </header>
 
-      {!isRegistry ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {stats.map(s => (
-              <div key={s.season} className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
-                <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest mb-1">{s.season} Season</h4>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-serif font-bold text-stone-900">{Math.round(s.occupancy)}%</p>
-                  <span className="text-xs text-stone-400">Avg. Occupancy</span>
-                </div>
-                <p className="text-[10px] text-amber-700 font-bold mt-2 uppercase tracking-widest">R{s.revenue.toLocaleString()} Revenue</p>
-              </div>
-            ))}
+      {/* Analytics Dashboard Content */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {stats.map(s => (
+          <div key={s.season} className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
+            <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest mb-1">{s.season} Season</h4>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl font-serif font-bold text-stone-900">{Math.round(s.occupancy)}%</p>
+              <span className="text-xs text-stone-400">Avg. Occupancy</span>
+            </div>
+            <p className="text-[10px] text-amber-700 font-bold mt-2 uppercase tracking-widest">R{s.revenue.toLocaleString()} Revenue</p>
           </div>
+        ))}
+      </div>
 
-          {aiAdvice && (
-            <div className="bg-stone-900 text-stone-100 p-8 rounded-3xl shadow-2xl animate-fade-in border-l-8 border-amber-600">
-               <div className="flex justify-between items-center mb-6">
-                 <h3 className="text-xl font-bold flex items-center gap-2 text-amber-500 font-serif">
-                   Strategic Marketing Recommendations
-                 </h3>
-                 <button onClick={() => setAiAdvice(null)} className="text-stone-400 hover:text-white transition-colors">✕</button>
-               </div>
-               <div className="prose prose-invert max-w-none text-stone-300 leading-relaxed text-sm whitespace-pre-line">
-                 {aiAdvice}
-               </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Occupancy Percentage Trend</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.slice(-12)}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} domain={[0, 100]} />
-                    <Tooltip 
-                      formatter={(val) => [`${val}%`, 'Occupancy']}
-                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} 
-                    />
-                    <Line type="monotone" dataKey="occupancyPercent" stroke="#2D3E40" strokeWidth={3} dot={{ r: 4, fill: '#2D3E40' }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Revenue Growth</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.slice(-12)}>
-                    <defs>
-                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#C5A059" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#C5A059" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
-                    <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-                    <Area type="monotone" dataKey="revenue" stroke="#C5A059" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Origin of Guests</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={countryStats} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
-                    <XAxis type="number" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} width={120} />
-                    <Tooltip cursor={{fill: '#f5f5f0'}} contentStyle={{borderRadius: '16px', border: 'none'}} />
-                    <Bar dataKey="value" fill="#7D5A50" radius={[0, 10, 10, 0]} barSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Referral Attribution</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={referralStats}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {referralStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#2D3E40', '#C5A059', '#7D5A50', '#A0816C', '#D4C4B5', '#4B5320', '#6F4E37'][index % 7]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-                    <Legend iconType="circle" wrapperStyle={{fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase'}} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+      {aiAdvice && (
+        <div className="bg-stone-900 text-stone-100 p-8 rounded-3xl shadow-2xl animate-fade-in border-l-8 border-amber-600">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-amber-500 font-serif">
+              Strategic Marketing Recommendations
+            </h3>
+            <button onClick={() => setAiAdvice(null)} className="text-stone-400 hover:text-white transition-colors">✕</button>
           </div>
-        </>
-      ) : (
-        <div className="space-y-6">
-           <div className="flex flex-col md:flex-row justify-between gap-4">
-              <div className="relative flex-grow max-w-md">
-                <input 
-                  type="text" 
-                  placeholder="Search Registry..."
-                  className="w-full bg-white border border-stone-200 rounded-full py-3 px-6 pl-12 outline-none focus:ring-2 ring-amber-700/20 text-sm"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-           </div>
-
-           <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-stone-50 text-stone-400 text-[10px] uppercase tracking-widest font-bold border-b border-stone-100">
-                      <th className="px-6 py-4">Guest Info</th>
-                      <th className="px-6 py-4">Sharing</th>
-                      <th className="px-6 py-4">ID / Passport</th>
-                      <th className="px-6 py-4">Stay Dates</th>
-                      <th className="px-6 py-4">Next Goal</th>
-                      <th className="px-6 py-4">Legal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {filteredBookings.map((b) => (
-                      <tr key={b.id} className="hover:bg-stone-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-stone-900 text-sm">{b.guestName}</p>
-                          <p className="text-[10px] text-stone-500 uppercase">{b.country} | {b.phone}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                           <p className="text-xs text-stone-700 font-bold">{b.adults} Adults</p>
-                           {b.kids > 0 && <p className="text-[10px] text-stone-400">{b.kids} Kids</p>}
-                        </td>
-                        <td className="px-6 py-4 font-mono text-xs text-stone-600">
-                          {b.passportOrId}
-                        </td>
-                        <td className="px-6 py-4">
-                           <p className="text-xs font-bold text-stone-800">{b.checkInDate}</p>
-                           <p className="text-[10px] text-stone-400 uppercase">{b.nights} Nights</p>
-                        </td>
-                        <td className="px-6 py-4 text-xs italic text-stone-500">
-                           {b.nextDestination}
-                        </td>
-                        <td className="px-6 py-4">
-                           <div className="flex gap-2">
-                              {b.signatureData && <span title="Signed" className="text-emerald-500">✍️</span>}
-                              {b.idPhotoData && <span title="ID Captured" className="text-blue-500">📷</span>}
-                              {b.popiaMarketingConsent ? <span title="Marketing Consent" className="text-amber-500">📧</span> : <span title="No Marketing" className="text-stone-300">📧</span>}
-                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-           </div>
+          <div className="prose prose-invert max-w-none text-stone-300 leading-relaxed text-sm whitespace-pre-line">
+            {aiAdvice}
+          </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Occupancy Percentage Trend</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.slice(-12)}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} domain={[0, 100]} />
+                <Tooltip 
+                  formatter={(val) => [`${val}%`, 'Occupancy']}
+                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} 
+                />
+                <Line type="monotone" dataKey="occupancyPercent" stroke="#2D3E40" strokeWidth={3} dot={{ r: 4, fill: '#2D3E40' }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Revenue Growth</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.slice(-12)}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#C5A059" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#C5A059" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} />
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                <Area type="monotone" dataKey="revenue" stroke="#C5A059" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Origin of Guests</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={countryStats} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} width={120} />
+                <Tooltip cursor={{fill: '#f5f5f0'}} contentStyle={{borderRadius: '16px', border: 'none'}} />
+                <Bar dataKey="value" fill="#7D5A50" radius={[0, 10, 10, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Referral Attribution</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={referralStats}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {referralStats.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={['#2D3E40', '#C5A059', '#7D5A50', '#A0816C', '#D4C4B5', '#4B5320', '#6F4E37'][index % 7]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                <Legend iconType="circle" wrapperStyle={{fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase'}} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
 
       {showShareModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
@@ -396,12 +421,12 @@ Insight generated for Marketing Use.
                   </form>
                   {partners.length > 0 && (
                     <div className="max-h-24 overflow-y-auto pr-2 space-y-2">
-                       {partners.map(p => (
-                         <div key={p} className="flex justify-between items-center bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
-                           <span className="text-[10px] font-medium text-emerald-800 truncate">{p}</span>
-                           <span className="text-[8px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full uppercase font-bold">Authorized</span>
-                         </div>
-                       ))}
+                      {partners.map(p => (
+                        <div key={p} className="flex justify-between items-center bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
+                          <span className="text-[10px] font-medium text-emerald-800 truncate">{p}</span>
+                          <span className="text-[8px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full uppercase font-bold">Authorized</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
