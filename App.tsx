@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AccessProvider } from './context/AccessContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import SuperAdminPortal from './pages/SuperAdminPortal';
-import Login from './pages/Login';
+import { AccessProvider } from './context/AccessContext.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+import SuperAdminPortal from './pages/SuperAdminPortal.jsx';
+import Login from './pages/Login.jsx';
 import Hero from './components/Hero';
 
 function App() {
