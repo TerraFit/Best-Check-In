@@ -6,7 +6,7 @@ import Hero from './components/Hero';
 import Dashboard from './components/Dashboard';
 import CheckInForm from './components/CheckInForm';
 import ImportData from './components/ImportData';
-import Login from './components/Login';
+import Login from './pages/Login.tsx';
 
 interface CheckInAppProps {
   externalNavigate?: (view: string) => void;
