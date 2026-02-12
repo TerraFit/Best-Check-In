@@ -23,7 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
   const [partnerEmail, setPartnerEmail] = useState('');
   const [partners, setPartners] = useState<string[]>([]);
 
-  // 🔴 FORCE REGISTRY TO SHOW WHEN CLICKED - IGNORE activeView
+  // Force registry to show when view=reports in URL
   const urlParams = new URLSearchParams(window.location.search);
   const showRegistry = urlParams.get('view') === 'reports' || activeView === 'REPORTS';
 
@@ -130,7 +130,7 @@ Insight generated for Marketing Use.
     }
   };
 
-  // 🔴 IF SHOW REGISTRY, RENDER REGISTRY
+  // SHOW REGISTRY VIEW
   if (showRegistry) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -202,7 +202,7 @@ Insight generated for Marketing Use.
         
         <div className="mt-6 flex justify-end">
           <button
-            onClick={() => onNavigate?.('ADMIN_DASHBOARD')}
+            onClick={() => window.location.href = '/admin'}
             className="text-sm text-stone-500 hover:text-stone-900 font-medium"
           >
             ← Back to Analytics
@@ -212,7 +212,7 @@ Insight generated for Marketing Use.
     );
   }
 
-  // 🔵 OTHERWISE SHOW ANALYTICS DASHBOARD
+  // SHOW ANALYTICS DASHBOARD
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 pb-20 animate-fade-in">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -220,14 +220,13 @@ Insight generated for Marketing Use.
           <h2 className="text-3xl font-bold text-stone-800">Management Portal</h2>
           <div className="flex gap-4 mt-2">
             <button 
-              onClick={() => onNavigate?.('ADMIN_DASHBOARD')} 
-              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${activeView === 'ADMIN_DASHBOARD' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
+              onClick={() => window.location.href = '/admin'} 
+              className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all ${!showRegistry ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400 hover:text-stone-600'}`}
             >
               Analytics
             </button>
             <button 
               onClick={() => {
-                // Force registry view
                 window.location.href = '/admin?view=reports';
               }} 
               className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all text-stone-400 hover:text-stone-600`}
