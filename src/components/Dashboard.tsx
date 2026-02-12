@@ -26,12 +26,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
   // Force registry to show when view=reports in URL
   const urlParams = new URLSearchParams(window.location.search);
   const showRegistry = urlParams.get('view') === 'reports';
-  const showImport = urlParams.get('view') === 'import'; // ADD THIS LINE
+  const showImport = urlParams.get('view') === 'import';
 
-  // 🔴 FIX: Redirect to the actual import page when view=import
+  // 🔴 FIX: DO NOT REDIRECT - just let CheckInApp handle it
   if (showImport) {
-   window.location.href = '/admin?view=import';
-    return null;
+    return null; // Simply return nothing - parent component will render ImportData
   }
 
   const filteredBookings = useMemo(() => {
