@@ -7,7 +7,30 @@ import Dashboard from './components/Dashboard';
 import CheckInForm from './components/CheckInForm';
 import ImportData from './components/ImportData';
 import Login from './components/Login';
+interface CheckInAppProps {
+  externalNavigate?: (view: string) => void;
+}
 
+const CheckInApp: React.FC<CheckInAppProps> = ({ externalNavigate }) => {
+  // Use externalNavigate if provided, otherwise use internal state
+  const handleNavigate = (view: ViewState) => {
+    if (externalNavigate) {
+      externalNavigate(view);
+    } else {
+      // Your existing handleNavigate logic
+      const isAdminView = ['ADMIN_DASHBOARD', 'REPORTS', 'IMPORT'].includes(view);
+      if (isAdminView && !isAuthenticated) {
+        setPendingView(view);
+        setCurrentView('LOGIN');
+      } else {
+        setCurrentView(view);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+  
+  // Rest of your component...
+};
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
