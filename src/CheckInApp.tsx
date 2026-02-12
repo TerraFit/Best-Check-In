@@ -7,34 +7,18 @@ import Dashboard from './components/Dashboard';
 import CheckInForm from './components/CheckInForm';
 import ImportData from './components/ImportData';
 import Login from './components/Login';
+
 interface CheckInAppProps {
   externalNavigate?: (view: string) => void;
+  initialView?: ViewState;
 }
 
-const CheckInApp: React.FC<CheckInAppProps> = ({ externalNavigate }) => {
-  // Use externalNavigate if provided, otherwise use internal state
-  const handleNavigate = (view: ViewState) => {
-    if (externalNavigate) {
-      externalNavigate(view);
-    } else {
-      // Your existing handleNavigate logic
-      const isAdminView = ['ADMIN_DASHBOARD', 'REPORTS', 'IMPORT'].includes(view);
-      if (isAdminView && !isAuthenticated) {
-        setPendingView(view);
-        setCurrentView('LOGIN');
-      } else {
-        setCurrentView(view);
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-  
-  // Rest of your component...
-};
-const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewState>('HOME');
+const CheckInApp: React.FC<CheckInAppProps> = ({ 
+  externalNavigate, 
+  initialView = 'HOME' 
+}) => {
+  const [currentView, setCurrentView] = useState<ViewState>(initialView);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check for remembered session on initial load
     return localStorage.getItem('jbay_auth_session') === 'true';
   });
   const [pendingView, setPendingView] = useState<ViewState | null>(null);
@@ -59,8 +43,14 @@ const App: React.FC = () => {
   }, [historicalData]);
 
   const handleNavigate = (view: ViewState) => {
-    const isAdminView = ['ADMIN_DASHBOARD', 'REPORTS', 'IMPORT'].includes(view);
+    // Use external navigate if provided (for React Router integration)
+    if (externalNavigate) {
+      externalNavigate(view);
+      return;
+    }
     
+    // Otherwise use internal state (original behavior)
+    const isAdminView = ['ADMIN_DASHBOARD', 'REPORTS', 'IMPORT'].includes(view);
     if (isAdminView && !isAuthenticated) {
       setPendingView(view);
       setCurrentView('LOGIN');
@@ -97,7 +87,6 @@ const App: React.FC = () => {
   const handleImportedData = (newBookings: Booking[], newMonthly: MonthlyData[]) => {
     setBookings(prev => [...newBookings, ...prev]);
     setHistoricalData(prev => {
-      // Merge monthly data based on month/year
       const combined = [...prev];
       newMonthly.forEach(newItem => {
         const idx = combined.findIndex(i => i.month === newItem.month && i.year === newItem.year);
