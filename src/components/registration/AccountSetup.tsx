@@ -295,4 +295,47 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
               className="sr-only"
             />
             <div className="flex items-center gap-3">
-              <svg className="w-6 h-6" fill="none" view
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+              </svg>
+              <span className="font-medium">EFT / Bank Transfer</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Terms */}
+      <div className="bg-stone-50 p-6 rounded-xl">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            required
+            className="w-5 h-5 mt-0.5 rounded border-stone-300 text-amber-600"
+          />
+          <span className="text-sm text-stone-600">
+            I agree to the <a href="#" className="text-amber-700 font-bold hover:underline">Terms of Service</a> and 
+            <a href="#" className="text-amber-700 font-bold hover:underline ml-1">Privacy Policy</a>. I understand that 
+            my subscription will automatically renew unless cancelled.
+          </span>
+        </label>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-8 py-4 border border-stone-200 rounded-xl font-bold text-stone-600 hover:bg-stone-50 transition-all text-sm uppercase tracking-widest"
+        >
+          Back
+        </button>
+        <button
+          type="submit"
+          disabled={processing}
+          className="px-8 py-4 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-all shadow-lg text-sm uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {processing ? 'Processing...' : 'Complete Registration'}
+        </button>
+      </div>
+    </form>
+  );
+}
