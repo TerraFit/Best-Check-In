@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccess } from '../context/AccessContext';
 import { Navigate } from 'react-router-dom';
 
@@ -6,17 +6,30 @@ export default function SuperAdminPortal() {
   const { isSuperAdmin, loginAs } = useAccess();
   const [hotelName, setHotelName] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [currentCreds, setCurrentCreds] = useState({ email: '', password: '' });
   const [hotels, setHotels] = useState(() => {
-    // Load existing hotels from localStorage (replace with Netlify Blobs later)
+    // Load existing hotels from localStorage
     return JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
   });
+
+  // ✅ ESCAPE KEY HANDLER - Properly placed after state declarations
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowCredentials(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
 
   // Redirect non-super-admins
   if (!isSuperAdmin) {
     return <Navigate to="/" replace />;
   }
 
-  const createHotel = (e) => {
+  const createHotel = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Generate unique tenant ID from hotel name
@@ -54,26 +67,17 @@ export default function SuperAdminPortal() {
     const managers = JSON.parse(localStorage.getItem('jbay_managers') || '[]');
     localStorage.setItem('jbay_managers', JSON.stringify([...managers, managerAccount]));
 
-    // Show credentials
-    alert(`
-      ✅ HOTEL CREATED SUCCESSFULLY
-      
-      Hotel: ${hotelName}
-      Manager: ${managerEmail}
-      Temporary Password: ${tempPassword}
-      Tenant ID: ${tenantId}
-      
-      Save these credentials! They won't be shown again.
-    `);
+    // Show credentials in a modal instead of alert
+    setCurrentCreds({ email: managerEmail, password: tempPassword });
+    setShowCredentials(true);
 
     // Clear form
     setHotelName('');
     setManagerEmail('');
   };
 
-  const loginAsHotel = (email, role, tenantId) => {
+  const loginAsHotel = (email: string, role: string, tenantId: string) => {
     loginAs(email, role, tenantId);
-    alert(`Now logged in as ${email} (${role})`);
     window.location.href = '/admin';
   };
 
@@ -82,23 +86,27 @@ export default function SuperAdminPortal() {
       {/* Super Admin Header */}
       <div className="bg-stone-900 text-white py-6 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="bg-amber-600 text-xs uppercase tracking-wider px-3 py-1 rounded-full font-bold">
-              Super Admin
-            </span>
-            <span className="text-stone-400">Root Access · All Tenants</span>
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="bg-amber-600 text-xs uppercase tracking-wider px-3 py-1 rounded-full font-bold">
+                  Super Admin
+                </span>
+                <span className="text-stone-400">Root Access · All Tenants</span>
+              </div>
+              <h1 className="text-3xl font-serif font-bold">Hotel Management Portal</h1>
+              <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
+            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('jbay_user');
+                window.location.href = '/';
+              }}
+              className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
+            >
+              Logout
+            </button>
           </div>
-          <h1 className="text-3xl font-serif font-bold">Hotel Management Portal</h1>
-          <button
-  onClick={() => {
-    localStorage.removeItem('jbay_user');
-    window.location.href = '/';
-  }}
-  className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg ml-4"
->
-  Logout
-</button>
-          <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
         </div>
       </div>
 
@@ -221,6 +229,47 @@ export default function SuperAdminPortal() {
           </div>
         </div>
       </div>
+
+      {/* Manager Credentials Modal */}
+      {showCredentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+            <h3 className="text-2xl font-serif font-bold text-stone-900 mb-2">Manager Access</h3>
+            <p className="text-stone-500 text-sm mb-6">Use these credentials to log in as the hotel manager.</p>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Email</label>
+                  <p className="font-mono text-sm bg-white p-2 rounded-lg border border-amber-100 mt-1">{currentCreds.email}</p>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Temporary Password</label>
+                  <p className="font-mono text-sm bg-white p-2 rounded-lg border border-amber-100 mt-1">{currentCreds.password}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  loginAs(currentCreds.email, 'tenant_admin', currentCreds.email.split('@')[0]);
+                  window.location.href = '/admin';
+                }}
+                className="flex-1 bg-stone-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-stone-800"
+              >
+                Login Now
+              </button>
+              <button
+                onClick={() => setShowCredentials(false)}
+                className="px-6 py-3 border border-stone-200 rounded-xl text-sm font-bold text-stone-600 hover:bg-stone-50"
+              >
+                Close (ESC)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
