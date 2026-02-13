@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
 import CheckInApp from './CheckInApp';
+import BusinessRegistration from './pages/BusinessRegistration'; // ← ADD THIS IMPORT
 
 function CheckInAppWrapper() {
   const navigate = useNavigate();
@@ -40,7 +41,6 @@ function CheckInAppWrapper() {
     }
   };
   
-  // ✅ ONLY ONE RETURN STATEMENT!
   return (
     <CheckInApp 
       key={location.pathname}
@@ -53,13 +53,16 @@ function CheckInAppWrapper() {
 function AppContent() {
   return (
     <Routes>
-      {/* Original check-in app routes */}
+      {/* Public routes */}
       <Route path="/" element={<CheckInAppWrapper />} />
       <Route path="/checkin" element={<CheckInAppWrapper />} />
+      <Route path="/register" element={<BusinessRegistration />} /> {/* ← ADD THIS ROUTE */}
+      
+      {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
+      <Route path="/login" element={<Login />} />
       
       {/* Super Admin routes */}
-      <Route path="/login" element={<Login />} />
       <Route 
         path="/super-admin" 
         element={
