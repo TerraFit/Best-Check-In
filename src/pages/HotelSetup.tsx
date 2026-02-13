@@ -138,4 +138,67 @@ export default function HotelSetup() {
                               }
                             }
                           })}
-                          className="w
+                          className="w-full px-3 py-2 border border-stone-200 rounded-lg mt-1"
+                          placeholder="31 Aug"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-stone-500">Price Multiplier</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="3"
+                          value={config.seasons[season].multiplier}
+                          onChange={e => setConfig({
+                            ...config,
+                            seasons: {
+                              ...config.seasons,
+                              [season]: {
+                                ...config.seasons[season],
+                                multiplier: parseFloat(e.target.value)
+                              }
+                            }
+                          })}
+                          className="w-full px-3 py-2 border border-stone-200 rounded-lg mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-stone-100 pt-8">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                <h3 className="font-bold text-amber-900 mb-3">Import Existing Data (Optional)</h3>
+                <p className="text-sm text-amber-800 mb-4">
+                  Would you like to download a CSV template for importing your existing guest data?
+                </p>
+                
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={csvTemplate}
+                    onChange={e => setCsvTemplate(e.target.checked)}
+                    className="w-5 h-5 rounded border-stone-300 text-amber-600"
+                  />
+                  <span className="text-sm text-stone-700">
+                    Yes, send me the CSV template after setup
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-amber-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-700 transition-colors"
+            >
+              Complete Setup & Access Dashboard
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
