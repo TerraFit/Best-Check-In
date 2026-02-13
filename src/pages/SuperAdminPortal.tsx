@@ -89,6 +89,15 @@ export default function SuperAdminPortal() {
             <span className="text-stone-400">Root Access · All Tenants</span>
           </div>
           <h1 className="text-3xl font-serif font-bold">Hotel Management Portal</h1>
+          <button
+  onClick={() => {
+    localStorage.removeItem('jbay_user');
+    window.location.href = '/';
+  }}
+  className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg ml-4"
+>
+  Logout
+</button>
           <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
         </div>
       </div>
