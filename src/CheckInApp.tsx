@@ -156,15 +156,15 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
           </div>
         );
       case 'IMPORT':
-  return (
-    <div className="min-h-screen bg-stone-50">
-      <ImportData 
-        onImport={handleImportedData}
-        existingBookings={bookings}
-        existingMonthlyData={historicalData}
-      />
-    </div>
-  );
+        return (
+          <div className="min-h-screen bg-stone-50">
+            <ImportData 
+              onImport={handleImportedData}
+              existingBookings={bookings}
+              existingMonthlyData={historicalData}
+            />
+          </div>
+        );
       default:
         return <Hero onCheckIn={() => handleNavigate('CHECKIN')} />;
     }
@@ -176,7 +176,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <Navbar currentView={currentView} onNavigate={handleNavigate} onLogout={isAuthenticated ? handleLogout : undefined} />
       )}
       
-      {/* TOP MENU BAR - FIXED WITH WINDOW.LOCATION */}
+      {/* TOP MENU BAR */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
         <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-16 z-40 shadow-md">
           <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
