@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
 import { Booking } from '../types';
-import { getRegionsForCountry } from '../services/regionService';
+import { getRegionsForCountry } from './services/regionService';  // ← Note: './services' not '../services'
 
 interface CheckInFormProps {
   onComplete: (booking: Booking) => void;
