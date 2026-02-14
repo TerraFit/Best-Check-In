@@ -4,7 +4,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
 import CheckInApp from './CheckInApp';
-import BusinessRegistration from './pages/BusinessRegistration'; // ← ADD THIS IMPORT
+import BusinessRegistration from './pages/BusinessRegistration';
+import ApproveBusinesses from './pages/Admin/ApproveBusinesses'; // ← ADD THIS IMPORT
+import RegistrationSuccess from './pages/RegistrationSuccess'; // ← ADD THIS IMPORT
 
 function CheckInAppWrapper() {
   const navigate = useNavigate();
@@ -56,7 +58,8 @@ function AppContent() {
       {/* Public routes */}
       <Route path="/" element={<CheckInAppWrapper />} />
       <Route path="/checkin" element={<CheckInAppWrapper />} />
-      <Route path="/register" element={<BusinessRegistration />} /> {/* ← ADD THIS ROUTE */}
+      <Route path="/register" element={<BusinessRegistration />} />
+      <Route path="/registration-success" element={<RegistrationSuccess />} /> {/* ← ADD THIS ROUTE */}
       
       {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
@@ -71,6 +74,14 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
+      <Route 
+        path="/super-admin/approve" 
+        element={
+          <ProtectedRoute requiredRole="super_admin">
+            <ApproveBusinesses />
+          </ProtectedRoute>
+        } 
+      /> {/* ← ADD THIS ROUTE */}
       <Route path="/unauthorized" element={<div>Unauthorized</div>} />
     </Routes>
   );
