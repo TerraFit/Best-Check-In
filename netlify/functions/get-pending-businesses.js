@@ -26,7 +26,8 @@ export async function handler(event) {
   }
 
   try {
-    // Fetch all pending businesses
+    console.log('📦 Fetching pending businesses...');
+    
     const { data: businesses, error } = await supabase
       .from('businesses')
       .select('*')
@@ -38,14 +39,22 @@ export async function handler(event) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Database error', details: error.message })
+        body: JSON.stringify({ 
+          error: 'Database error', 
+          details: error.message,
+          // Return empty array as fallback
+          data: [] 
+        })
       };
     }
 
+    console.log(`✅ Found ${businesses?.length || 0} pending businesses`);
+    
+    // ALWAYS return an array
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(businesses)
+      body: JSON.stringify(businesses || [])
     };
 
   } catch (error) {
@@ -53,7 +62,11 @@ export async function handler(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: error.message,
+        // Return empty array as fallback
+        data: [] 
+      })
     };
   }
 }
