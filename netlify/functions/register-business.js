@@ -8,7 +8,6 @@ const supabase = createClient(
 );
 
 export async function handler(event) {
-  // Always return JSON, even on error
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -16,27 +15,21 @@ export async function handler(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers,
-      body: ''
-    };
+    return { statusCode: 204, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
     };
   }
 
   try {
     console.log('📦 Received registration request');
     
-    // Parse request body
     const data = JSON.parse(event.body);
     console.log('✅ Parsed data:', { 
       email: data.email,
@@ -44,20 +37,16 @@ export async function handler(event) {
       hasPassword: !!data.password
     });
 
-    // Validate required fields
     if (!data.email || !data.password) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'Missing required fields',
-          details: 'Email and password are required'
-        })
+        body: JSON.stringify({ error: 'Email and password required' })
       };
     }
 
-    // Check if email already exists
-    const { data: existing, error: checkError } = await supabase
+    // Check if email exists
+    const { data: existing } = await supabase
       .from('businesses')
       .select('email')
       .eq('email', data.email)
@@ -67,39 +56,35 @@ export async function handler(event) {
       return {
         statusCode: 409,
         headers,
-        body: JSON.stringify({ 
-          error: 'Email already registered',
-          details: 'This email is already in use'
-        })
+        body: JSON.stringify({ error: 'Email already registered' })
       };
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    console.log('🔐 Password hashed');
-
-    // Prepare business data
+    
     const businessId = uuidv4();
+    
+    // Prepare data EXACTLY matching your table schema
     const businessRecord = {
       id: businessId,
-      registered_name: data.registeredName,
-      business_number: data.businessNumber,
-      trading_name: data.tradingName,
-      phone: data.phone,
+      registered_name: data.registeredName || '',
+      business_number: data.businessNumber || '',
+      trading_name: data.tradingName || '',
+      phone: data.phone || '',
       email: data.email,
       password_hash: hashedPassword,
-      physical_address: data.physicalAddress,
-      postal_address: data.sameAsPhysical ? data.physicalAddress : data.postalAddress,
+      physical_address: data.physicalAddress || { line1: '', city: '', province: '', postalCode: '', country: 'South Africa' },
+      postal_address: data.postalAddress || { line1: '', city: '', province: '', postalCode: '', country: 'South Africa' },
       directors: data.directors || [],
-      subscription_tier: 'trial',
-      payment_method: 'pending',
+      subscription_tier: data.subscriptionTier || 'monthly',
+      payment_method: data.paymentMethod || 'card',
       status: 'pending',
       created_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving to Supabase...');
+    console.log('💾 Inserting:', JSON.stringify(businessRecord, null, 2));
 
-    // Insert into database
     const { data: business, error: insertError } = await supabase
       .from('businesses')
       .insert([businessRecord])
@@ -107,7 +92,7 @@ export async function handler(event) {
       .single();
 
     if (insertError) {
-      console.error('❌ Supabase error:', insertError);
+      console.error('❌ Insert error:', insertError);
       return {
         statusCode: 500,
         headers,
@@ -121,28 +106,21 @@ export async function handler(event) {
 
     console.log('✅ Business created:', business.id);
 
-    // Return success
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        businessId: business.id,
-        message: 'Registration successful! Please check your email.'
+      body: JSON.stringify({ 
+        success: true, 
+        businessId: business.id 
       })
     };
 
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
-    console.error('Stack:', error.stack);
-    
+    console.error('🔥 Fatal error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message
-      })
+      body: JSON.stringify({ error: error.message })
     };
   }
 }
