@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Business, Director } from '../types';
+import { Director } from '../types';
 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
@@ -29,7 +29,9 @@ export default function BusinessRegistration() {
       postalCode: '',
       country: 'South Africa'
     },
-    sameAsPhysical: false
+    sameAsPhysical: false,
+    subscriptionTier: 'monthly',
+    paymentMethod: 'card'
   });
 
   const [directors, setDirectors] = useState<Director[]>([{
@@ -37,8 +39,6 @@ export default function BusinessRegistration() {
     idNumber: '',
     idPhotoUrl: ''
   }]);
-
-  const [idPhotos, setIdPhotos] = useState<File[]>([]);
 
   const handleDirectorChange = (index: number, field: keyof Director, value: string) => {
     const updated = [...directors];
@@ -75,19 +75,35 @@ export default function BusinessRegistration() {
       return;
     }
 
-    // Prepare business data
-    const businessData: Omit<Business, 'id' | 'createdAt' | 'status' | 'subscriptionTier' | 'subscriptionExpiry'> = {
+    // Validate password length
+    if (formData.password.length < 8) {
+      alert("Password must be at least 8 characters");
+      return;
+    }
+
+    // Prepare complete business data
+    const businessData = {
       registeredName: formData.registeredName,
       businessNumber: formData.businessNumber,
       tradingName: formData.tradingName,
-      directors,
       phone: formData.phone,
       email: formData.email,
+      password: formData.password,
       physicalAddress: formData.physicalAddress,
       postalAddress: formData.sameAsPhysical ? formData.physicalAddress : formData.postalAddress,
+      sameAsPhysical: formData.sameAsPhysical,
+      directors: directors,
+      subscriptionTier: formData.subscriptionTier,
+      paymentMethod: formData.paymentMethod
     };
 
-    // Submit to Netlify Function
+    console.log("🚀 Submitting registration:", {
+      email: businessData.email,
+      tradingName: businessData.tradingName,
+      hasPassword: !!businessData.password,
+      directorsCount: businessData.directors.length
+    });
+
     try {
       const response = await fetch('/.netlify/functions/register-business', {
         method: 'POST',
@@ -95,16 +111,20 @@ export default function BusinessRegistration() {
         body: JSON.stringify(businessData)
       });
 
+      const result = await response.json();
+      console.log("📡 Response status:", response.status);
+      console.log("📦 Response data:", result);
+
       if (response.ok) {
         navigate('/registration-success', { 
           state: { email: formData.email }
         });
       } else {
-        alert('Registration failed. Please try again.');
+        alert(`Registration failed: ${result.error || result.message || 'Please try again.'}`);
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      alert('Network error. Please try again.');
+      console.error('🔥 Network error:', error);
+      alert('Network error. Please check your connection and try again.');
     }
   };
 
@@ -135,6 +155,7 @@ export default function BusinessRegistration() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+          {/* Step 1: Business Details */}
           {step === 1 && (
             <div className="space-y-8">
               <h2 className="text-3xl font-serif font-bold text-stone-900">Business Registration</h2>
@@ -150,6 +171,7 @@ export default function BusinessRegistration() {
                     value={formData.registeredName}
                     onChange={e => setFormData({...formData, registeredName: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="J-Bay Zebra Lodge Pty Ltd"
                   />
                 </div>
                 <div>
@@ -162,6 +184,7 @@ export default function BusinessRegistration() {
                     value={formData.businessNumber}
                     onChange={e => setFormData({...formData, businessNumber: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="2020/123456/07"
                   />
                 </div>
                 <div>
@@ -174,6 +197,7 @@ export default function BusinessRegistration() {
                     value={formData.tradingName}
                     onChange={e => setFormData({...formData, tradingName: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="J-Bay Zebra Lodge"
                   />
                 </div>
                 <div>
@@ -186,10 +210,12 @@ export default function BusinessRegistration() {
                     value={formData.phone}
                     onChange={e => setFormData({...formData, phone: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="+27 82 123 4567"
                   />
                 </div>
               </div>
 
+              {/* Physical Address */}
               <div className="border-t border-stone-100 pt-8">
                 <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">Physical Address</h3>
                 <div className="grid md:grid-cols-2 gap-6">
@@ -273,6 +299,7 @@ export default function BusinessRegistration() {
                 </div>
               </div>
 
+              {/* Postal Address */}
               <div className="border-t border-stone-100 pt-8">
                 <div className="flex items-center gap-4 mb-6">
                   <input
@@ -375,6 +402,7 @@ export default function BusinessRegistration() {
             </div>
           )}
 
+          {/* Step 2: Director Information */}
           {step === 2 && (
             <div className="space-y-8">
               <h2 className="text-3xl font-serif font-bold text-stone-900">Director Information</h2>
@@ -453,12 +481,12 @@ export default function BusinessRegistration() {
                           />
                           <label
                             htmlFor={`id-${index}`}
-                            className="cursor-pointer inline-flex items-center gap-2 text-stone-600"
+                            className="cursor-pointer inline-flex flex-col items-center gap-2 text-stone-600"
                           >
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            Upload ID Photo
+                            <span className="text-sm">Click to upload ID photo</span>
                           </label>
                         </div>
                       )}
@@ -480,6 +508,7 @@ export default function BusinessRegistration() {
             </div>
           )}
 
+          {/* Step 3: Account Setup */}
           {step === 3 && (
             <div className="space-y-8">
               <h2 className="text-3xl font-serif font-bold text-stone-900">Account Setup</h2>
@@ -504,6 +533,8 @@ export default function BusinessRegistration() {
                   <input
                     type="email"
                     required
+                    value={formData.email}
+                    onChange={e => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl"
                   />
                 </div>
@@ -517,7 +548,9 @@ export default function BusinessRegistration() {
                     value={formData.password}
                     onChange={e => setFormData({...formData, password: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl"
+                    placeholder="••••••••"
                   />
+                  <p className="text-[10px] text-stone-400 mt-1">Minimum 8 characters</p>
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
@@ -529,31 +562,154 @@ export default function BusinessRegistration() {
                     value={formData.confirmPassword}
                     onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl"
+                    placeholder="••••••••"
                   />
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                <h3 className="font-bold text-amber-900 mb-2">Subscription Summary</h3>
-                <p className="text-amber-800 text-sm mb-4">14-day free trial, then R299/month</p>
-                <ul className="text-sm text-amber-700 space-y-2">
-                  <li>✓ Unlimited guest check-ins</li>
-                  <li>✓ POPIA & Immigration Act compliant</li>
-                  <li>✓ Digital indemnity forms</li>
-                  <li>✓ Marketing analytics dashboard</li>
-                  <li>✓ CSV data import/export</li>
-                  <li>✓ 24/7 email support</li>
-                </ul>
+              {/* Subscription Tiers */}
+              <div className="border-t border-stone-100 pt-8">
+                <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">Choose Your Plan</h3>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                  <label className={`border-2 rounded-2xl p-6 cursor-pointer transition-all ${
+                    formData.subscriptionTier === 'monthly' 
+                      ? 'border-amber-600 bg-amber-50' 
+                      : 'border-stone-200 hover:border-amber-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="tier"
+                      value="monthly"
+                      checked={formData.subscriptionTier === 'monthly'}
+                      onChange={e => setFormData({...formData, subscriptionTier: e.target.value})}
+                      className="sr-only"
+                    />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-stone-900">Monthly</h4>
+                        <p className="text-2xl font-serif font-bold text-amber-700 mt-2">R299</p>
+                        <p className="text-xs text-stone-500">per month</p>
+                      </div>
+                      {formData.subscriptionTier === 'monthly' && (
+                        <div className="bg-amber-600 text-white p-1 rounded-full">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+
+                  <label className={`border-2 rounded-2xl p-6 cursor-pointer transition-all relative overflow-hidden ${
+                    formData.subscriptionTier === 'annual' 
+                      ? 'border-amber-600 bg-amber-50' 
+                      : 'border-stone-200 hover:border-amber-200'
+                  }`}>
+                    <div className="absolute top-0 right-0 bg-amber-600 text-white px-3 py-1 text-[10px] font-bold uppercase">
+                      Save 17%
+                    </div>
+                    <input
+                      type="radio"
+                      name="tier"
+                      value="annual"
+                      checked={formData.subscriptionTier === 'annual'}
+                      onChange={e => setFormData({...formData, subscriptionTier: e.target.value})}
+                      className="sr-only"
+                    />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-stone-900">Annual</h4>
+                        <p className="text-2xl font-serif font-bold text-amber-700 mt-2">R2,990</p>
+                        <p className="text-xs text-stone-500">R249/month</p>
+                      </div>
+                      {formData.subscriptionTier === 'annual' && (
+                        <div className="bg-amber-600 text-white p-1 rounded-full">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="border-t border-stone-100 pt-8">
+                <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">Payment Method</h3>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <label className={`border rounded-xl p-4 cursor-pointer transition-all ${
+                    formData.paymentMethod === 'card' 
+                      ? 'border-amber-600 bg-amber-50' 
+                      : 'border-stone-200 hover:border-amber-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="card"
+                      checked={formData.paymentMethod === 'card'}
+                      onChange={e => setFormData({...formData, paymentMethod: e.target.value})}
+                      className="sr-only"
+                    />
+                    <div className="flex items-center gap-3">
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
+                        <path d="M2 10h20" stroke="currentColor" strokeWidth="2"/>
+                      </svg>
+                      <span className="font-medium">Credit / Debit Card</span>
+                    </div>
+                  </label>
+
+                  <label className={`border rounded-xl p-4 cursor-pointer transition-all ${
+                    formData.paymentMethod === 'eft' 
+                      ? 'border-amber-600 bg-amber-50' 
+                      : 'border-stone-200 hover:border-amber-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="eft"
+                      checked={formData.paymentMethod === 'eft'}
+                      onChange={e => setFormData({...formData, paymentMethod: e.target.value})}
+                      className="sr-only"
+                    />
+                    <div className="flex items-center gap-3">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                      </svg>
+                      <span className="font-medium">EFT / Bank Transfer</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Terms */}
+              <div className="bg-stone-50 p-6 rounded-xl">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    required
+                    className="w-5 h-5 mt-0.5 rounded border-stone-300 text-amber-600"
+                  />
+                  <span className="text-sm text-stone-600">
+                    I agree to the <a href="#" className="text-amber-700 font-bold hover:underline">Terms of Service</a> and 
+                    <a href="#" className="text-amber-700 font-bold hover:underline ml-1">Privacy Policy</a>. I understand that 
+                    my subscription will automatically renew unless cancelled.
+                  </span>
+                </label>
               </div>
             </div>
           )}
 
+          {/* Navigation Buttons */}
           <div className="flex justify-between mt-8 pt-8 border-t border-stone-100">
             {step > 1 && (
               <button
                 type="button"
                 onClick={() => setStep(step - 1)}
-                className="px-8 py-3 border border-stone-200 rounded-xl text-stone-600 font-bold hover:bg-stone-50"
+                className="px-8 py-3 border border-stone-200 rounded-xl text-stone-600 font-bold hover:bg-stone-50 transition-all text-sm uppercase tracking-widest"
               >
                 Back
               </button>
@@ -562,14 +718,14 @@ export default function BusinessRegistration() {
               <button
                 type="button"
                 onClick={() => setStep(step + 1)}
-                className="ml-auto px-8 py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800"
+                className="ml-auto px-8 py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800 transition-all text-sm uppercase tracking-widest"
               >
                 Continue
               </button>
             ) : (
               <button
                 type="submit"
-                className="ml-auto px-8 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700"
+                className="ml-auto px-8 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-all text-sm uppercase tracking-widest shadow-lg"
               >
                 Complete Registration
               </button>
