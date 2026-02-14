@@ -13,7 +13,7 @@ export default function SuperAdminPortal() {
     return JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
   });
 
-  // ✅ ESCAPE KEY HANDLER - Properly placed after state declarations
+  // ESCAPE KEY HANDLER
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -97,15 +97,25 @@ export default function SuperAdminPortal() {
               <h1 className="text-3xl font-serif font-bold">Hotel Management Portal</h1>
               <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
             </div>
-            <button
-              onClick={() => {
-                localStorage.removeItem('jbay_user');
-                window.location.href = '/';
-              }}
-              className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
-            >
-              Logout
-            </button>
+            
+            {/* NEW BUTTONS SECTION */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => window.location.href = '/super-admin/approve'}
+                className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
+              >
+                Pending Approvals
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('jbay_user');
+                  window.location.href = '/';
+                }}
+                className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>
