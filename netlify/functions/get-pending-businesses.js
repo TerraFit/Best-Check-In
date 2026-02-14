@@ -1,10 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
 export async function handler(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -13,20 +8,30 @@ export async function handler(event) {
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'GET') {
+  // Log environment variables (without exposing full values)
+  console.log('🔍 SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+  console.log('🔍 SUPABASE_SERVICE_KEY exists:', !!process.env.SUPABASE_SERVICE_KEY);
+  
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('❌ Missing Supabase environment variables');
     return {
-      statusCode: 405,
+      statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ 
+        error: 'Configuration error',
+        details: 'Missing Supabase credentials',
+        data: []
+      })
     };
   }
 
   try {
-    console.log('📦 Fetching pending businesses...');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    
+    console.log('✅ Supabase client created');
     
     const { data: businesses, error } = await supabase
       .from('businesses')
@@ -42,15 +47,11 @@ export async function handler(event) {
         body: JSON.stringify({ 
           error: 'Database error', 
           details: error.message,
-          // Return empty array as fallback
-          data: [] 
+          data: []
         })
       };
     }
 
-    console.log(`✅ Found ${businesses?.length || 0} pending businesses`);
-    
-    // ALWAYS return an array
     return {
       statusCode: 200,
       headers,
@@ -64,8 +65,7 @@ export async function handler(event) {
       headers,
       body: JSON.stringify({ 
         error: error.message,
-        // Return empty array as fallback
-        data: [] 
+        data: []
       })
     };
   }
