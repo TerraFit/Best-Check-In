@@ -2,9 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useAccess } from '../../context/AccessContext';
 import { Navigate } from 'react-router-dom';
 
+interface Business {
+  id: string;
+  registered_name: string;
+  business_number: string;
+  trading_name: string;
+  phone: string;
+  email: string;
+  directors: any[];
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
 export default function ApproveBusinesses() {
   const { isSuperAdmin } = useAccess();
-  const [pendingBusinesses, setPendingBusinesses] = useState([]);
+  const [pendingBusinesses, setPendingBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,21 +37,24 @@ export default function ApproveBusinesses() {
 
   const approveBusiness = async (businessId: string) => {
     try {
-      await fetch('/.netlify/functions/approve-business', {
+      // Update status to approved
+      const approveResponse = await fetch('/.netlify/functions/approve-business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId })
       });
       
-      // Refresh list
-      fetchPendingBusinesses();
-      
-      // Generate and send credentials
-      await fetch('/.netlify/functions/send-business-credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId })
-      });
+      if (approveResponse.ok) {
+        // Send credentials email
+        await fetch('/.netlify/functions/send-business-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId })
+        });
+        
+        // Refresh list
+        fetchPendingBusinesses();
+      }
     } catch (error) {
       console.error('Approval failed:', error);
     }
@@ -63,14 +78,14 @@ export default function ApproveBusinesses() {
         </div>
       ) : (
         <div className="space-y-4">
-          {pendingBusinesses.map((business: any) => (
+          {pendingBusinesses.map((business) => (
             <div key={business.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-xl font-bold text-stone-900">{business.tradingName}</h3>
-                  <p className="text-stone-500 text-sm mt-1">{business.registeredName}</p>
+                  <h3 className="text-xl font-bold text-stone-900">{business.trading_name}</h3>
+                  <p className="text-stone-500 text-sm mt-1">{business.registered_name}</p>
                   <div className="flex gap-4 mt-3 text-xs">
-                    <span className="bg-stone-100 px-3 py-1 rounded-full">Reg: {business.businessNumber}</span>
+                    <span className="bg-stone-100 px-3 py-1 rounded-full">Reg: {business.business_number}</span>
                     <span className="bg-stone-100 px-3 py-1 rounded-full">{business.phone}</span>
                     <span className="bg-stone-100 px-3 py-1 rounded-full">{business.email}</span>
                   </div>
@@ -83,6 +98,10 @@ export default function ApproveBusinesses() {
                       </div>
                     ))}
                   </div>
+                  
+                  <p className="text-xs text-stone-400 mt-2">
+                    Registered: {new Date(business.created_at).toLocaleDateString()}
+                  </p>
                 </div>
                 
                 <button
