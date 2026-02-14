@@ -8,102 +8,140 @@ const supabase = createClient(
 );
 
 export async function handler(event) {
-  // Log EVERYTHING at the start
-  console.log("🔵 FUNCTION STARTED");
-  console.log("🔵 HTTP Method:", event.httpMethod);
-  console.log("🔵 Headers:", JSON.stringify(event.headers));
-  
+  // Always return JSON, even on error
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers,
+      body: ''
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
-    console.log("🔴 Not a POST request");
-    return { 
-      statusCode: 405, 
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    // Log the raw body
-    console.log("🔵 Raw body:", event.body);
+    console.log('📦 Received registration request');
     
+    // Parse request body
     const data = JSON.parse(event.body);
-    console.log("🔵 Parsed data:", JSON.stringify(data, null, 2));
-    
+    console.log('✅ Parsed data:', { 
+      email: data.email,
+      tradingName: data.tradingName,
+      hasPassword: !!data.password
+    });
+
     // Validate required fields
     if (!data.email || !data.password) {
-      console.log("🔴 Missing required fields");
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        headers,
+        body: JSON.stringify({ 
+          error: 'Missing required fields',
+          details: 'Email and password are required'
+        })
+      };
+    }
+
+    // Check if email already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('businesses')
+      .select('email')
+      .eq('email', data.email)
+      .maybeSingle();
+
+    if (existing) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Email already registered',
+          details: 'This email is already in use'
+        })
       };
     }
 
     // Hash password
-    console.log("🔵 Hashing password...");
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    console.log("🔵 Password hashed successfully");
+    console.log('🔐 Password hashed');
 
-    // Prepare data for Supabase
+    // Prepare business data
     const businessId = uuidv4();
-    const dbRecord = {
+    const businessRecord = {
       id: businessId,
       registered_name: data.registeredName,
       business_number: data.businessNumber,
       trading_name: data.tradingName,
       phone: data.phone,
-      physical_address: data.physicalAddress,
-      postal_address: data.sameAsPhysical ? data.physicalAddress : data.postalAddress,
-      directors: data.directors,
       email: data.email,
       password_hash: hashedPassword,
-      subscription_tier: data.subscriptionTier || 'monthly',
-      payment_method: data.paymentMethod || 'card',
+      physical_address: data.physicalAddress,
+      postal_address: data.sameAsPhysical ? data.physicalAddress : data.postalAddress,
+      directors: data.directors || [],
+      subscription_tier: 'trial',
+      payment_method: 'pending',
       status: 'pending',
       created_at: new Date().toISOString()
     };
-    
-    console.log("🔵 Attempting Supabase insert...");
-    console.log("🔵 Supabase URL:", process.env.SUPABASE_URL ? "Set" : "MISSING");
-    console.log("🔵 Supabase Key:", process.env.SUPABASE_SERVICE_KEY ? "Set" : "MISSING");
 
-    // Save to Supabase
-    const { data: business, error: dbError } = await supabase
+    console.log('💾 Saving to Supabase...');
+
+    // Insert into database
+    const { data: business, error: insertError } = await supabase
       .from('businesses')
-      .insert([dbRecord])
+      .insert([businessRecord])
       .select()
       .single();
 
-    if (dbError) {
-      console.log("🔴 Supabase error:", JSON.stringify(dbError));
+    if (insertError) {
+      console.error('❌ Supabase error:', insertError);
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ 
-          error: 'Database error', 
-          details: dbError.message,
-          code: dbError.code
+          error: 'Database error',
+          details: insertError.message,
+          code: insertError.code
         })
       };
     }
 
-    console.log("✅ Success! Business created:", business.id);
+    console.log('✅ Business created:', business.id);
 
+    // Return success
     return {
       statusCode: 200,
-      body: JSON.stringify({ 
-        success: true, 
+      headers,
+      body: JSON.stringify({
+        success: true,
         businessId: business.id,
-        message: 'Registration successful'
+        message: 'Registration successful! Please check your email.'
       })
     };
 
   } catch (error) {
-    console.log("🔥 Fatal error:", error);
-    console.log("🔥 Error stack:", error.stack);
+    console.error('🔥 Unhandled error:', error);
+    console.error('Stack:', error.stack);
+    
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ 
-        error: 'Registration failed',
-        message: error.message,
-        stack: error.stack
+        error: 'Internal server error',
+        details: error.message
       })
     };
   }
