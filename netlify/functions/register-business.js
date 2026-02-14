@@ -1,77 +1,110 @@
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
-import QRCode from 'qrcode';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function handler(event) {
+  // Log EVERYTHING at the start
+  console.log("🔵 FUNCTION STARTED");
+  console.log("🔵 HTTP Method:", event.httpMethod);
+  console.log("🔵 Headers:", JSON.stringify(event.headers));
+  
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    console.log("🔴 Not a POST request");
+    return { 
+      statusCode: 405, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    };
   }
 
   try {
-    const businessData = JSON.parse(event.body);
+    // Log the raw body
+    console.log("🔵 Raw body:", event.body);
+    
+    const data = JSON.parse(event.body);
+    console.log("🔵 Parsed data:", JSON.stringify(data, null, 2));
+    
+    // Validate required fields
+    if (!data.email || !data.password) {
+      console.log("🔴 Missing required fields");
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing required fields' })
+      };
+    }
 
-    // 1. Save business to database
+    // Hash password
+    console.log("🔵 Hashing password...");
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    console.log("🔵 Password hashed successfully");
+
+    // Prepare data for Supabase
+    const businessId = uuidv4();
+    const dbRecord = {
+      id: businessId,
+      registered_name: data.registeredName,
+      business_number: data.businessNumber,
+      trading_name: data.tradingName,
+      phone: data.phone,
+      physical_address: data.physicalAddress,
+      postal_address: data.sameAsPhysical ? data.physicalAddress : data.postalAddress,
+      directors: data.directors,
+      email: data.email,
+      password_hash: hashedPassword,
+      subscription_tier: data.subscriptionTier || 'monthly',
+      payment_method: data.paymentMethod || 'card',
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+    
+    console.log("🔵 Attempting Supabase insert...");
+    console.log("🔵 Supabase URL:", process.env.SUPABASE_URL ? "Set" : "MISSING");
+    console.log("🔵 Supabase Key:", process.env.SUPABASE_SERVICE_KEY ? "Set" : "MISSING");
+
+    // Save to Supabase
     const { data: business, error: dbError } = await supabase
       .from('businesses')
-      .insert([{
-        ...businessData,
-        status: 'pending',
-        subscription_tier: 'trial',
-        subscription_expiry: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        created_at: new Date().toISOString()
-      }])
+      .insert([dbRecord])
       .select()
       .single();
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      console.log("🔴 Supabase error:", JSON.stringify(dbError));
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ 
+          error: 'Database error', 
+          details: dbError.message,
+          code: dbError.code
+        })
+      };
+    }
 
-    // 2. Generate QR Code
-    const qrCodeDataUrl = await QRCode.toDataURL(
-      `https://fastcheckin.app/activate/${business.id}`,
-      { width: 300 }
-    );
-
-    // 3. Generate PDF with credentials
-    // (You'd use a PDF library like puppeteer or pdfkit)
-
-    // 4. Send email with links and QR code
-    await resend.emails.send({
-      from: 'Fast Checkin <noreply@fastcheckin.app>',
-      to: [businessData.email],
-      subject: 'Welcome to Fast Checkin - Complete Your Setup',
-      html: `
-        <h1>Welcome ${businessData.tradingName}!</h1>
-        <p>Your registration is pending approval. Once approved, you'll receive:</p>
-        <ul>
-          <li>Link to create your admin account</li>
-          <li>QR code for guest check-in</li>
-          <li>Setup instructions for your property</li>
-        </ul>
-        <p>We'll notify you within 24 hours.</p>
-      `
-    });
+    console.log("✅ Success! Business created:", business.id);
 
     return {
       statusCode: 200,
       body: JSON.stringify({ 
         success: true, 
         businessId: business.id,
-        message: 'Registration submitted successfully'
+        message: 'Registration successful'
       })
     };
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.log("🔥 Fatal error:", error);
+    console.log("🔥 Error stack:", error.stack);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Registration failed' })
+      body: JSON.stringify({ 
+        error: 'Registration failed',
+        message: error.message,
+        stack: error.stack
+      })
     };
   }
 }
