@@ -172,41 +172,91 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col relative">
-      {/* FIRST LINE - App Navigation with FASTCHECKIN logo */}
+      {/* LINE 1: Main Navigation with FASTCHECKIN logo */}
       {currentView !== 'HOME' && currentView !== 'LOGIN' && (
-        <Navbar 
-          currentView={currentView} 
-          onNavigate={handleNavigate} 
-          onLogout={isAuthenticated ? handleLogout : undefined} 
-          showFastCheckinLogo={true} // New prop to show logo in navbar
-        />
+        <div className="bg-stone-900 text-white sticky top-0 z-50 shadow-lg">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex justify-between items-center">
+              {/* FASTCHECKIN Logo - Left side */}
+              <div 
+                onClick={() => handleNavigate('HOME')}
+                className="cursor-pointer"
+              >
+                <h1 className="text-xl font-bold tracking-tighter">
+                  FAST<span className="text-amber-500">CHECKIN</span>
+                </h1>
+                <p className="text-[8px] text-stone-400 tracking-wider">Streamlined Hotel Check-ins</p>
+              </div>
+              
+              {/* Navigation buttons - Right side */}
+              <div className="flex items-center gap-8">
+                <button
+                  onClick={() => handleNavigate('HOME')}
+                  className={`text-sm hover:text-amber-400 transition-colors ${
+                    currentView === 'HOME' ? 'text-amber-400' : ''
+                  }`}
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => handleNavigate('CHECKIN')}
+                  className={`text-sm hover:text-amber-400 transition-colors ${
+                    currentView === 'CHECKIN' ? 'text-amber-400' : ''
+                  }`}
+                >
+                  Guest Check-In
+                </button>
+                <button
+                  onClick={() => {
+                    if (isAuthenticated) {
+                      handleNavigate('ADMIN_DASHBOARD');
+                    } else {
+                      handleNavigate('LOGIN');
+                    }
+                  }}
+                  className={`text-sm hover:text-amber-400 transition-colors ${
+                    currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT' ? 'text-amber-400' : ''
+                  }`}
+                >
+                  Management
+                </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={handleLogout}
+                    className="text-sm text-stone-400 hover:text-white transition-colors"
+                  >
+                    Logout
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       
-      {/* SECOND LINE - Business-specific menu (only when in admin views) */}
+      {/* LINE 2: Business-specific menu (only when in admin views) - NO LOGO */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
-        <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-16 z-40 shadow-md">
+        <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-[72px] z-40 shadow-md">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="flex justify-between items-center">
-              <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
-                <button 
-                  onClick={() => window.location.href = '/admin'}
-                  className={`whitespace-nowrap pb-1 transition-all ${window.location.pathname === '/admin' && !window.location.search.includes('view=reports') && !window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Marketing Overview
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/admin?view=reports'}
-                  className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=reports') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Guest Registry (Statutory)
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/admin?view=import'}
-                  className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-                >
-                  Data Import
-                </button>
-              </div>
+            <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
+              <button 
+                onClick={() => window.location.href = '/admin'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.pathname === '/admin' && !window.location.search.includes('view=reports') && !window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Marketing Overview
+              </button>
+              <button 
+                onClick={() => window.location.href = '/admin?view=reports'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=reports') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Guest Registry (Statutory)
+              </button>
+              <button 
+                onClick={() => window.location.href = '/admin?view=import'}
+                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+              >
+                Data Import
+              </button>
             </div>
           </div>
         </div>
@@ -304,7 +354,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
             <div className="flex flex-wrap justify-center gap-10 text-[10px] font-bold uppercase tracking-widest">
               <a href="https://www.fastcheckin.app" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">About</a>
               <a href="#" className="hover:text-amber-500 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-amber-500 transition-colors">Terms</a>
+              <a href="#" className="hover:text-almber-500 transition-colors">Terms</a>
               <button 
                 onClick={() => {
                   if (externalNavigate) {
