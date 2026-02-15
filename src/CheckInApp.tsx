@@ -176,29 +176,37 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <Navbar currentView={currentView} onNavigate={handleNavigate} onLogout={isAuthenticated ? handleLogout : undefined} />
       )}
       
-      {/* TOP MENU BAR */}
+      {/* TOP MENU BAR - WITH FASTCHECKIN LOGO */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
         <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-16 z-40 shadow-md">
           <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-            <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
-              <button 
+            <div className="flex items-center gap-8">
+              <div 
                 onClick={() => window.location.href = '/admin'}
-                className={`whitespace-nowrap pb-1 transition-all ${window.location.pathname === '/admin' && !window.location.search.includes('view=reports') && !window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+                className="text-white font-bold text-sm tracking-tighter cursor-pointer hover:text-amber-500 transition-colors"
               >
-                Marketing Overview
-              </button>
-              <button 
-                onClick={() => window.location.href = '/admin?view=reports'}
-                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=reports') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-              >
-                Guest Registry (Statutory)
-              </button>
-              <button 
-                onClick={() => window.location.href = '/admin?view=import'}
-                className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
-              >
-                Data Import
-              </button>
+                FAST<span className="text-amber-500">CHECKIN</span>
+              </div>
+              <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
+                <button 
+                  onClick={() => window.location.href = '/admin'}
+                  className={`whitespace-nowrap pb-1 transition-all ${window.location.pathname === '/admin' && !window.location.search.includes('view=reports') && !window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+                >
+                  Marketing Overview
+                </button>
+                <button 
+                  onClick={() => window.location.href = '/admin?view=reports'}
+                  className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=reports') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+                >
+                  Guest Registry (Statutory)
+                </button>
+                <button 
+                  onClick={() => window.location.href = '/admin?view=import'}
+                  className={`whitespace-nowrap pb-1 transition-all ${window.location.search.includes('view=import') ? 'text-amber-500 border-b-2 border-amber-500' : 'hover:text-stone-200'}`}
+                >
+                  Data Import
+                </button>
+              </div>
             </div>
             <button 
               onClick={handleLogout}
