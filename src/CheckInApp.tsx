@@ -294,12 +294,15 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <footer className="bg-stone-900 text-stone-500 py-16 px-6 border-t border-stone-800 mt-auto">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
             <div className="text-center md:text-left">
-              <h4 className="text-white font-bold text-2xl mb-2 tracking-tighter">J-BAY <span className="text-amber-600">ZEBRA</span> LODGE</h4>
-              <p className="text-sm italic font-serif text-stone-400">"Enjoy Nature At Its Best"</p>
+              <h4 className="text-white font-bold text-2xl mb-2 tracking-tighter">
+                FAST<span className="text-amber-600">CHECKIN</span>
+              </h4>
+              <p className="text-sm italic font-serif text-stone-400">"Streamlined Hotel Check-ins"</p>
             </div>
             <div className="flex flex-wrap justify-center gap-10 text-[10px] font-bold uppercase tracking-widest">
-              <a href="https://www.jbayzebralodge.co.za" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Official Website</a>
-              <a href="#" className="hover:text-amber-500 transition-colors">Conservation</a>
+              <a href="https://www.fastcheckin.app" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">About</a>
+              <a href="#" className="hover:text-amber-500 transition-colors">Privacy</a>
+              <a href="#" className="hover:text-amber-500 transition-colors">Terms</a>
               <button 
                 onClick={() => {
                   if (externalNavigate) {
