@@ -1,4 +1,3 @@
-
 export type SettlementMethod = 'Cash' | 'Card' | 'Instant EFT' | 'Instant EFT (RSA resident only)' | 'Part of a package';
 export type ReferralSource = 'Word of mouth' | 'Booking.com' | 'Google' | 'Facebook / Instagram' | 'Travel Agency' | 'LinkedIn' | 'Youtube.com' | 'Research engine' | 'TikTok';
 
@@ -33,6 +32,9 @@ export interface Booking {
   lodgeRepName?: string;
   lodgeRepSignature?: string;
   lodgeRepDate?: string;
+  tenantId?: string; // ← ADD THIS LINE for multi-tenant isolation
+  source?: 'csv_import' | 'live_checkin' | 'manual'; // ← ADD THIS for data tracking
+  season?: 'High' | 'Low' | 'Mid'; // ← ADD THIS for analytics
 }
 
 export interface SeasonStats {
@@ -49,6 +51,7 @@ export interface MonthlyData {
   revenue: number;
   referralData?: Record<string, number>;
   occupancyPercent?: number; // Added for marketing overview
+  tenantId?: string; // ← ADD THIS (optional, for filtering)
 }
 
 export type ViewState = 'HOME' | 'CHECKIN' | 'ADMIN_DASHBOARD' | 'REPORTS' | 'IMPORT' | 'LOGIN';
