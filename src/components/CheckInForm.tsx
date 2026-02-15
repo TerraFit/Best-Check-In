@@ -138,6 +138,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete }) => {
         alert("Please scroll to the bottom of the indemnity and tick the box to accept the terms.");
         return;
       }
+
+      // Get current tenant ID if logged in as manager
+      let tenantId = 'default';
+      try {
+        const user = JSON.parse(localStorage.getItem('jbay_user') || '{}');
+        if (user?.tenantId) {
+          tenantId = user.tenantId;
+        }
+      } catch (e) {
+        console.log('No tenant ID found, using default');
+      }
+
       const newBooking: Booking = {
         id: Math.random().toString(36).substr(2, 9),
         guestName: formData.fullName,
@@ -165,6 +177,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete }) => {
         idPhotoData: formData.idPhoto,
         popiaMarketingConsent: formData.popiaConsent,
         timestamp: new Date().toISOString(),
+        tenantId: tenantId,  // ← ADDED TENANT ID
+        source: 'live_checkin',  // ← ADDED SOURCE
       };
       onComplete(newBooking);
     }
@@ -295,7 +309,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete }) => {
                   <input required type="number" min="1" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.adults} onChange={e => setFormData({...formData, adults: parseInt(e.target.value)})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Children (Sharing)</label>
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Children (Under 16 sharing with adults)</label>
                   <input required type="number" min="0" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.kids} onChange={e => setFormData({...formData, kids: parseInt(e.target.value)})} />
                 </div>
                 <div className="space-y-1">
@@ -308,9 +322,33 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete }) => {
                 </div>
               </div>
 
+              {/* REFERRAL SOURCE - ADDED */}
               <div className="space-y-1 group">
-                 <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Next Destination *</label>
-                 <input required type="text" placeholder="Where is your journey continuing?" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic" value={formData.nextDestination} onChange={e => setFormData({...formData, nextDestination: e.target.value})} />
+                <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                  How did you hear about us? *
+                </label>
+                <select 
+                  required
+                  value={formData.referral}
+                  onChange={e => setFormData({...formData, referral: e.target.value})}
+                  className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg"
+                >
+                  <option value="">Select referral source</option>
+                  <option value="Word of mouth">Word of mouth</option>
+                  <option value="Booking.com">Booking.com</option>
+                  <option value="Google">Google</option>
+                  <option value="Facebook / Instagram">Facebook / Instagram</option>
+                  <option value="Travel Agency">Travel Agency</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="YouTube">YouTube</option>
+                  <option value="Research engine">Research engine</option>
+                  <option value="TikTok">TikTok</option>
+                </select>
+              </div>
+
+              <div className="space-y-1 group">
+                <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Next Destination *</label>
+                <input required type="text" placeholder="Where is your journey continuing?" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic" value={formData.nextDestination} onChange={e => setFormData({...formData, nextDestination: e.target.value})} />
               </div>
               <div className="space-y-1 group">
                 <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Method of Settlement *</label>
