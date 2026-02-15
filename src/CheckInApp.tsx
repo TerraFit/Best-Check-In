@@ -172,21 +172,21 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col relative">
+      {/* FIRST LINE - App Navigation with FASTCHECKIN logo */}
       {currentView !== 'HOME' && currentView !== 'LOGIN' && (
-        <Navbar currentView={currentView} onNavigate={handleNavigate} onLogout={isAuthenticated ? handleLogout : undefined} />
+        <Navbar 
+          currentView={currentView} 
+          onNavigate={handleNavigate} 
+          onLogout={isAuthenticated ? handleLogout : undefined} 
+          showFastCheckinLogo={true} // New prop to show logo in navbar
+        />
       )}
       
-      {/* TOP MENU BAR - WITH FASTCHECKIN LOGO */}
+      {/* SECOND LINE - Business-specific menu (only when in admin views) */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
         <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-16 z-40 shadow-md">
-          <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-            <div className="flex items-center gap-8">
-              <div 
-                onClick={() => window.location.href = '/admin'}
-                className="text-white font-bold text-sm tracking-tighter cursor-pointer hover:text-amber-500 transition-colors"
-              >
-                FAST<span className="text-amber-500">CHECKIN</span>
-              </div>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex justify-between items-center">
               <div className="flex gap-10 text-[10px] uppercase font-bold tracking-widest overflow-x-auto">
                 <button 
                   onClick={() => window.location.href = '/admin'}
@@ -208,12 +208,6 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
                 </button>
               </div>
             </div>
-            <button 
-              onClick={handleLogout}
-              className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-500 hover:text-white transition-colors"
-            >
-              Logout
-            </button>
           </div>
         </div>
       )}
