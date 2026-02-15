@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   AreaChart, Area, Cell, PieChart, Pie, LineChart, Line
@@ -22,6 +22,32 @@ const Dashboard: React.FC<DashboardProps> = ({ data, bookings, activeView, onNav
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [partnerEmail, setPartnerEmail] = useState('');
   const [partners, setPartners] = useState<string[]>([]);
+  const [hotelName, setHotelName] = useState('Management Portal');
+
+  // Get hotel name from user data
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('jbay_user') || '{}');
+      
+      // Try to get hotel name from different sources
+      if (user?.hotelName) {
+        setHotelName(user.hotelName);
+      } else if (user?.email) {
+        // Try to find hotel from localStorage hotels data
+        const hotels = JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
+        const hotel = hotels.find((h: any) => h.managerEmail === user.email);
+        if (hotel?.name) {
+          setHotelName(hotel.name);
+        } else {
+          // Fallback to email-based name
+          const namePart = user.email.split('@')[0];
+          setHotelName(namePart.charAt(0).toUpperCase() + namePart.slice(1) + "'s Hotel");
+        }
+      }
+    } catch (e) {
+      console.log('Not logged in as manager');
+    }
+  }, []);
 
   // Force registry to show when view=reports in URL
   const urlParams = new URLSearchParams(window.location.search);
@@ -142,7 +168,7 @@ Insight generated for Marketing Use.
       <div className="p-6 max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-3xl font-serif font-bold text-stone-900">Guest Registry (Statutory)</h2>
+            <h2 className="text-3xl font-serif font-bold text-stone-900">{hotelName} - Guest Registry</h2>
             <p className="text-stone-500 text-sm mt-1">Immigration Act Section 40 - Daily Register</p>
           </div>
           <div className="relative">
@@ -223,7 +249,7 @@ Insight generated for Marketing Use.
     <div className="p-6 max-w-7xl mx-auto space-y-8 pb-20 animate-fade-in">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-stone-800">Management Portal</h2>
+          <h2 className="text-3xl font-bold text-stone-800">{hotelName}</h2>
           <div className="flex gap-4 mt-2">
             <button 
               onClick={() => window.location.href = '/admin'} 
