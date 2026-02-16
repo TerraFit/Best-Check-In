@@ -36,11 +36,10 @@ exports.handler = async function(event, context) {
 
   try {
     const data = JSON.parse(event.body);
-    console.log("✅ Received:", { 
-      email: data.email, 
-      hasPassword: !!data.password,
-      tradingName: data.tradingName 
-    });
+    console.log("✅ Received data keys:", Object.keys(data));
+    console.log("✅ Email present:", !!data.email);
+    console.log("✅ Password present:", !!data.password);
+    console.log("✅ Password length:", data.password?.length);
 
     // Validate required fields
     if (!data.email || !data.password) {
@@ -51,10 +50,36 @@ exports.handler = async function(event, context) {
       };
     }
 
+    // Check if email already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('businesses')
+      .select('email')
+      .eq('email', data.email)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('❌ Check error:', checkError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Database check failed' })
+      };
+    }
+
+    if (existing) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ error: 'Email already registered' })
+      };
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
     
     const businessId = uuidv4();
+    
+    // Prepare business record matching your frontend structure
     const businessRecord = {
       id: businessId,
       registered_name: data.registeredName || '',
@@ -64,7 +89,7 @@ exports.handler = async function(event, context) {
       email: data.email,
       password_hash: hashedPassword,
       physical_address: data.physicalAddress || {},
-      postal_address: data.postalAddress || {},
+      postal_address: data.postalAddress || data.physicalAddress || {},
       directors: data.directors || [],
       subscription_tier: data.subscriptionTier || 'monthly',
       payment_method: data.paymentMethod || 'card',
@@ -72,7 +97,7 @@ exports.handler = async function(event, context) {
       created_at: new Date().toISOString()
     };
 
-    console.log("💾 Inserting business:", businessId);
+    console.log("💾 Inserting business...");
 
     const { data: business, error: insertError } = await supabase
       .from('businesses')
@@ -86,7 +111,7 @@ exports.handler = async function(event, context) {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Database error',
+          error: 'Database insert failed',
           details: insertError.message
         })
       };
