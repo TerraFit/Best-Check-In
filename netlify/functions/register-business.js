@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -11,11 +11,9 @@ console.log('- SUPABASE_SERVICE_KEY exists:', !!supabaseKey);
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export async function handler(event) {
+exports.handler = async function(event, context) {
   console.log("\n=== NEW REQUEST ===");
   console.log("Method:", event.httpMethod);
-  console.log("Headers:", JSON.stringify(event.headers, null, 2));
-  console.log("Raw body:", event.body);
   
   const headers = {
     'Content-Type': 'application/json',
@@ -29,53 +27,89 @@ export async function handler(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    };
   }
 
   try {
-    // Parse and log the complete request
     const data = JSON.parse(event.body);
-    console.log("✅ PARSED DATA:", JSON.stringify(data, null, 2));
-    
-    // Check specifically for password
-    console.log("🔑 Password field present:", !!data.password);
-    console.log("🔑 Password length:", data.password?.length || 0);
+    console.log("✅ Received:", { 
+      email: data.email, 
+      hasPassword: !!data.password,
+      tradingName: data.tradingName 
+    });
 
     // Validate required fields
-    const missing = [];
-    if (!data.email) missing.push('email');
-    if (!data.password) missing.push('password');
-    if (!data.registeredName) missing.push('registeredName');
-    
-    if (missing.length > 0) {
-      console.log("❌ Missing fields:", missing);
+    if (!data.email || !data.password) {
       return {
         statusCode: 400,
         headers,
+        body: JSON.stringify({ error: 'Email and password required' })
+      };
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    
+    const businessId = uuidv4();
+    const businessRecord = {
+      id: businessId,
+      registered_name: data.registeredName || '',
+      business_number: data.businessNumber || '',
+      trading_name: data.tradingName || '',
+      phone: data.phone || '',
+      email: data.email,
+      password_hash: hashedPassword,
+      physical_address: data.physicalAddress || {},
+      postal_address: data.postalAddress || {},
+      directors: data.directors || [],
+      subscription_tier: data.subscriptionTier || 'monthly',
+      payment_method: data.paymentMethod || 'card',
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+
+    console.log("💾 Inserting business:", businessId);
+
+    const { data: business, error: insertError } = await supabase
+      .from('businesses')
+      .insert([businessRecord])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('❌ Insert error:', insertError);
+      return {
+        statusCode: 500,
+        headers,
         body: JSON.stringify({ 
-          error: 'Missing required fields', 
-          missing 
+          error: 'Database error',
+          details: insertError.message
         })
       };
     }
 
-    // If we get here, data is valid
+    console.log("✅ Business created:", business.id);
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
-        message: "Validation passed!",
-        receivedEmail: data.email
+        businessId: business.id,
+        message: 'Registration successful!'
       })
     };
 
   } catch (error) {
-    console.error("🔥 Parse error:", error);
+    console.error('🔥 Error:', error);
     return {
-      statusCode: 400,
+      statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Invalid JSON', details: error.message })
+      body: JSON.stringify({ error: error.message })
     };
   }
-}
+};
