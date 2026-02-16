@@ -66,67 +66,71 @@ export default function BusinessRegistration() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate passwords match
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match");
-      return;
-    }
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // Validate passwords match
+  if (formData.password !== formData.confirmPassword) {
+    alert("Passwords don't match");
+    return;
+  }
 
-    // Validate password length
-    if (formData.password.length < 8) {
-      alert("Password must be at least 8 characters");
-      return;
-    }
+  if (formData.password.length < 8) {
+    alert("Password must be at least 8 characters");
+    return;
+  }
 
-    // Prepare complete business data
-    const businessData = {
-      registeredName: formData.registeredName,
-      businessNumber: formData.businessNumber,
-      tradingName: formData.tradingName,
-      phone: formData.phone,
-      email: formData.email,
-      password: formData.password,
-      physicalAddress: formData.physicalAddress,
-      postalAddress: formData.sameAsPhysical ? formData.physicalAddress : formData.postalAddress,
-      sameAsPhysical: formData.sameAsPhysical,
-      directors: directors,
-      subscriptionTier: formData.subscriptionTier,
-      paymentMethod: formData.paymentMethod
-    };
+  // Create data object step by step
+  console.log("🔍 Step 1 - Password from form:", {
+    password: formData.password ? '***' : 'MISSING',
+    length: formData.password.length
+  });
 
-    console.log("🚀 Submitting registration:", {
-      email: businessData.email,
-      tradingName: businessData.tradingName,
-      hasPassword: !!businessData.password,
-      directorsCount: businessData.directors.length
+  const businessData = {
+    registeredName: formData.registeredName,
+    businessNumber: formData.businessNumber,
+    tradingName: formData.tradingName,
+    phone: formData.phone,
+    email: formData.email,
+    password: formData.password, // This MUST be here
+    physicalAddress: formData.physicalAddress,
+    postalAddress: formData.sameAsPhysical ? formData.physicalAddress : formData.postalAddress,
+    sameAsPhysical: formData.sameAsPhysical,
+    directors: directors,
+    subscriptionTier: formData.subscriptionTier,
+    paymentMethod: formData.paymentMethod
+  };
+
+  console.log("🔍 Step 2 - Final object keys:", Object.keys(businessData));
+  console.log("🔍 Step 3 - Password in object:", !!businessData.password);
+  console.log("🔍 Step 4 - Password length:", businessData.password?.length);
+
+  // Log the actual JSON being sent
+  const jsonString = JSON.stringify(businessData);
+  console.log("🔍 Step 5 - JSON being sent:", jsonString.substring(0, 200) + "...");
+
+  try {
+    const response = await fetch('/.netlify/functions/register-business', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonString
     });
 
-    try {
-      const response = await fetch('/.netlify/functions/register-business', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(businessData)
+    const result = await response.json();
+    console.log("📡 Response:", result);
+
+    if (response.ok) {
+      navigate('/registration-success', { 
+        state: { email: formData.email }
       });
-
-      const result = await response.json();
-      console.log("📡 Response status:", response.status);
-      console.log("📦 Response data:", result);
-
-      if (response.ok) {
-        navigate('/registration-success', { 
-          state: { email: formData.email }
-        });
-      } else {
-        alert(`Registration failed: ${result.error || result.message || 'Please try again.'}`);
-      }
-    } catch (error) {
-      console.error('🔥 Network error:', error);
-      alert('Network error. Please check your connection and try again.');
+    } else {
+      alert(`Registration failed: ${result.error || result.message || 'Please try again.'}`);
     }
-  };
+  } catch (error) {
+    console.error('🔥 Network error:', error);
+    alert('Network error. Please check your connection and try again.');
+  }
+};
 
   return (
     <div className="min-h-screen bg-stone-50 py-12 px-4">
