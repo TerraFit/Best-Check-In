@@ -10,6 +10,7 @@ interface BusinessProfile {
   phone: string;
   total_rooms?: number;
   avg_price?: number;
+  status?: string; // Add status field
   seasons?: {
     low: { enabled: boolean; multiplier: number; start?: string; end?: string };
     medium: { enabled: boolean; multiplier: number; start?: string; end?: string };
@@ -33,6 +34,13 @@ export default function BusinessDashboard() {
     try {
       const response = await fetch(`/.netlify/functions/get-business/${user?.tenantId}`);
       const data = await response.json();
+      
+      // Double-check approval status - THIS IS THE ONLY NEW LOGIC
+      if (data.status !== 'approved') {
+        navigate('/business/pending');
+        return;
+      }
+      
       setBusiness(data);
       setShowSetup(!data.setup_complete);
     } catch (error) {
