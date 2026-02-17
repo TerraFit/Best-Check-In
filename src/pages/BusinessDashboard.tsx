@@ -10,7 +10,7 @@ interface BusinessProfile {
   phone: string;
   total_rooms?: number;
   avg_price?: number;
-  status?: string; // Add status field
+  status?: string;
   seasons?: {
     low: { enabled: boolean; multiplier: number; start?: string; end?: string };
     medium: { enabled: boolean; multiplier: number; start?: string; end?: string };
@@ -35,7 +35,7 @@ export default function BusinessDashboard() {
       const response = await fetch(`/.netlify/functions/get-business/${user?.tenantId}`);
       const data = await response.json();
       
-      // Double-check approval status - THIS IS THE ONLY NEW LOGIC
+      // Double-check approval status
       if (data.status !== 'approved') {
         navigate('/business/pending');
         return;
@@ -283,30 +283,88 @@ function BusinessSetup({ business, onComplete }: { business: any; onComplete: ()
 }
 
 function BusinessOverview({ business }: { business: any }) {
+  const downloadQRCode = () => {
+    // Create a canvas to generate the QR code with text
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = document.querySelector('#qr-code-img') as HTMLImageElement;
+    
+    canvas.width = 300;
+    canvas.height = 380;
+    
+    if (ctx && img && img.complete) {
+      // White background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw QR code
+      ctx.drawImage(img, 50, 30, 200, 200);
+      
+      // Add text
+      ctx.fillStyle = '#1e1e1e';
+      ctx.font = 'bold 20px "Inter", sans-serif';
+      ctx.fillText('FASTCHECKIN', 70, 260);
+      
+      ctx.font = '16px "Inter", sans-serif';
+      ctx.fillText(business.trading_name, 90, 290);
+      
+      ctx.font = 'italic 14px "Inter", sans-serif';
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('Scan Me to Check In', 80, 320);
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `${business.trading_name.replace(/\s+/g, '-')}-checkin-qr.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } else {
+      // Fallback if image not ready
+      alert('QR code is still loading. Please try again in a moment.');
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Welcome Card */}
       <div className="bg-white rounded-2xl shadow-xl p-8">
-        <h2 className="text-3xl font-serif font-bold text-stone-900 mb-2">
-          Welcome back, {business?.trading_name}!
-        </h2>
-        <p className="text-stone-500 mb-6">
-          Your business is ready to accept check-ins.
-        </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-3xl font-serif font-bold text-stone-900 mb-2">
+              Welcome back, {business?.trading_name}!
+            </h2>
+            <p className="text-stone-500 mb-6">
+              Your business is ready to accept check-ins.
+            </p>
+          </div>
+          
+          {/* Download QR Code Button */}
+          <button
+            onClick={downloadQRCode}
+            className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download QR Code
+          </button>
+        </div>
 
-        {/* QR Code */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 inline-block">
-          <h3 className="font-bold text-amber-900 mb-3">Your Check-in QR Code</h3>
-          <div className="bg-white p-4 rounded-xl">
+        {/* QR Code Display with Logo and Text */}
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-8 inline-block mt-6">
+          <div className="bg-white p-4 rounded-xl shadow-lg">
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${window.location.origin}/checkin/${business.id}`}
+              id="qr-code-img"
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${window.location.origin}/checkin/${business.id}`}
               alt="Check-in QR Code"
-              className="w-32 h-32"
+              className="w-48 h-48 mx-auto"
+              crossOrigin="anonymous"
             />
           </div>
-          <p className="text-xs text-amber-700 mt-3">
-            Guests scan this code to check in
-          </p>
+          <div className="text-center mt-4">
+            <p className="font-bold text-amber-900">FASTCHECKIN</p>
+            <p className="text-amber-700 text-sm">{business.trading_name}</p>
+            <p className="text-xs text-amber-600 italic mt-1">Scan Me to Check In</p>
+          </div>
         </div>
       </div>
 
