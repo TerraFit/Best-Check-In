@@ -7,8 +7,9 @@ import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
 import ApproveBusinesses from './pages/Admin/ApproveBusinesses';
 import RegistrationSuccess from './pages/RegistrationSuccess';
-import BusinessLogin from './pages/BusinessLogin'; // ← ADD THIS IMPORT
-import BusinessDashboard from './pages/BusinessDashboard'; // ← ADD THIS IMPORT
+import BusinessLogin from './pages/BusinessLogin';
+import BusinessDashboard from './pages/BusinessDashboard';
+import HomePage from './pages/HomePage'; // ← ADD THIS IMPORT
 
 function CheckInAppWrapper() {
   const navigate = useNavigate();
@@ -70,13 +71,13 @@ function CheckInAppWrapper() {
 function AppContent() {
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<CheckInAppWrapper />} />
+      {/* Public routes - ONLY THIS LINE CHANGES */}
+      <Route path="/" element={<HomePage />} /> {/* ← CHANGED FROM CheckInAppWrapper TO HomePage */}
       <Route path="/checkin" element={<CheckInAppWrapper />} />
-      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} /> {/* ← ADD THIS ROUTE */}
+      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} />
       <Route path="/register" element={<BusinessRegistration />} />
       <Route path="/registration-success" element={<RegistrationSuccess />} />
-      <Route path="/business/login" element={<BusinessLogin />} /> {/* ← ADD THIS ROUTE */}
+      <Route path="/business/login" element={<BusinessLogin />} />
       
       {/* Protected Business routes */}
       <Route 
@@ -86,7 +87,7 @@ function AppContent() {
             <BusinessDashboard />
           </ProtectedRoute>
         } 
-      /> {/* ← ADD THIS ROUTE */}
+      />
       
       {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
