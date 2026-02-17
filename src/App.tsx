@@ -5,15 +5,30 @@ import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
-import ApproveBusinesses from './pages/Admin/ApproveBusinesses'; // ← ADD THIS IMPORT
-import RegistrationSuccess from './pages/RegistrationSuccess'; // ← ADD THIS IMPORT
+import ApproveBusinesses from './pages/Admin/ApproveBusinesses';
+import RegistrationSuccess from './pages/RegistrationSuccess';
+import BusinessLogin from './pages/BusinessLogin'; // ← ADD THIS IMPORT
+import BusinessDashboard from './pages/BusinessDashboard'; // ← ADD THIS IMPORT
 
 function CheckInAppWrapper() {
   const navigate = useNavigate();
   const location = useLocation();
   
+  // Get business ID from URL if present
+  const getBusinessId = () => {
+    const pathParts = location.pathname.split('/');
+    if (pathParts[1] === 'checkin' && pathParts[2]) {
+      return pathParts[2];
+    }
+    return null;
+  };
+
   // Convert path to ViewState
   const getInitialView = () => {
+    const businessId = getBusinessId();
+    if (businessId) {
+      return 'CHECKIN';
+    }
     switch (location.pathname) {
       case '/checkin':
         return 'CHECKIN';
@@ -58,8 +73,20 @@ function AppContent() {
       {/* Public routes */}
       <Route path="/" element={<CheckInAppWrapper />} />
       <Route path="/checkin" element={<CheckInAppWrapper />} />
+      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} /> {/* ← ADD THIS ROUTE */}
       <Route path="/register" element={<BusinessRegistration />} />
-      <Route path="/registration-success" element={<RegistrationSuccess />} /> {/* ← ADD THIS ROUTE */}
+      <Route path="/registration-success" element={<RegistrationSuccess />} />
+      <Route path="/business/login" element={<BusinessLogin />} /> {/* ← ADD THIS ROUTE */}
+      
+      {/* Protected Business routes */}
+      <Route 
+        path="/business/dashboard" 
+        element={
+          <ProtectedRoute requiredRole="tenant_admin">
+            <BusinessDashboard />
+          </ProtectedRoute>
+        } 
+      /> {/* ← ADD THIS ROUTE */}
       
       {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
@@ -81,7 +108,7 @@ function AppContent() {
             <ApproveBusinesses />
           </ProtectedRoute>
         } 
-      /> {/* ← ADD THIS ROUTE */}
+      />
       <Route path="/unauthorized" element={<div>Unauthorized</div>} />
     </Routes>
   );
