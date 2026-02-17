@@ -31,7 +31,13 @@ export default function BusinessLogin() {
         // Login with proper role and tenant ID
         loginAs(data.business.email, 'tenant_admin', data.business.id);
         
-        navigate('/business/dashboard');
+        // Check if business is approved - THIS IS THE ONLY NEW LOGIC
+        if (data.business.status === 'approved') {
+          navigate('/business/dashboard');
+        } else {
+          // Show pending approval message
+          navigate('/business/pending');
+        }
       } else {
         setError(data.error || 'Invalid credentials');
       }
