@@ -8,10 +8,47 @@ export default function SuperAdminPortal() {
   const [managerEmail, setManagerEmail] = useState('');
   const [showCredentials, setShowCredentials] = useState(false);
   const [currentCreds, setCurrentCreds] = useState({ email: '', password: '' });
-  const [hotels, setHotels] = useState(() => {
-    // Load existing hotels from localStorage
-    return JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
-  });
+  const [hotels, setHotels] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load hotels from BOTH localStorage AND Supabase
+  useEffect(() => {
+    loadHotels();
+  }, []);
+
+  const loadHotels = async () => {
+    setLoading(true);
+    
+    // 1. Load from localStorage (manual hotels)
+    const localHotels = JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
+    
+    // 2. Load from Supabase (approved businesses)
+    try {
+      const response = await fetch('/.netlify/functions/get-approved-businesses');
+      if (response.ok) {
+        const approvedBusinesses = await response.json();
+        // Convert approved businesses to hotel format
+        const approvedHotels = approvedBusinesses.map((b: any) => ({
+          id: b.id,
+          name: b.trading_name || b.registered_name,
+          managerEmail: b.email,
+          createdAt: b.created_at,
+          approvedAt: b.approved_at,
+          fromSupabase: true
+        }));
+        // Combine both sources (localStorage + Supabase)
+        setHotels([...localHotels, ...approvedHotels]);
+      } else {
+        // If Supabase fails, just use localStorage
+        setHotels(localHotels);
+      }
+    } catch (error) {
+      console.error('Failed to fetch approved businesses:', error);
+      setHotels(localHotels);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ESCAPE KEY HANDLER
   useEffect(() => {
@@ -44,30 +81,21 @@ export default function SuperAdminPortal() {
       managerEmail: managerEmail,
       createdAt: new Date().toISOString(),
       createdBy: 'super_admin',
-      status: 'active'
+      status: 'active',
+      fromLocal: true
     };
 
-    // Save hotel
+    // Save to localStorage
     const updatedHotels = [...hotels, newHotel];
     setHotels(updatedHotels);
-    localStorage.setItem('jbay_hotels', JSON.stringify(updatedHotels));
+    localStorage.setItem('jbay_hotels', JSON.stringify(
+      updatedHotels.filter(h => h.fromLocal)
+    ));
 
     // Create manager account with one-time credential
     const tempPassword = Math.random().toString(36).slice(-8);
-    const managerAccount = {
-      email: managerEmail,
-      role: 'tenant_admin',
-      tenantId: tenantId,
-      hotelName: hotelName,
-      tempPassword: tempPassword,
-      created: new Date().toISOString()
-    };
     
-    // Save manager account
-    const managers = JSON.parse(localStorage.getItem('jbay_managers') || '[]');
-    localStorage.setItem('jbay_managers', JSON.stringify([...managers, managerAccount]));
-
-    // Show credentials in a modal instead of alert
+    // Show credentials
     setCurrentCreds({ email: managerEmail, password: tempPassword });
     setShowCredentials(true);
 
@@ -98,7 +126,7 @@ export default function SuperAdminPortal() {
               <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
             </div>
             
-            {/* NEW BUTTONS SECTION */}
+            {/* BUTTONS SECTION */}
             <div className="flex items-center gap-4">
               <button
                 onClick={() => window.location.href = '/super-admin/approve'}
@@ -178,15 +206,24 @@ export default function SuperAdminPortal() {
         <div className="bg-white rounded-2xl shadow-lg border border-stone-200 p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-serif font-bold text-stone-900">Active Hotels</h2>
-            <span className="bg-stone-100 text-stone-700 px-4 py-2 rounded-full text-sm font-bold">
-              {hotels.length} Properties
-            </span>
+            {loading ? (
+              <span className="text-stone-400 text-sm">Loading...</span>
+            ) : (
+              <span className="bg-stone-100 text-stone-700 px-4 py-2 rounded-full text-sm font-bold">
+                {hotels.length} Properties
+              </span>
+            )}
           </div>
 
-          {hotels.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-stone-200 border-t-amber-600"></div>
+              <p className="mt-4 text-stone-500">Loading hotels...</p>
+            </div>
+          ) : hotels.length === 0 ? (
             <div className="text-center py-16 bg-stone-50 rounded-xl border-2 border-dashed border-stone-300">
               <p className="text-stone-500 text-lg">No hotels created yet</p>
-              <p className="text-stone-400 text-sm mt-2">Use the form above to grant your first hotel admin access</p>
+              <p className="text-stone-400 text-sm mt-2">Use the form above or approve businesses to get started</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -200,6 +237,11 @@ export default function SuperAdminPortal() {
                         <span className="text-xs bg-stone-100 px-2 py-1 rounded-full text-stone-600">
                           ID: {hotel.id}
                         </span>
+                        {hotel.approvedAt && (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                            Approved {new Date(hotel.approvedAt).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -208,9 +250,6 @@ export default function SuperAdminPortal() {
                         className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-200 transition-colors"
                       >
                         🔑 Login as Manager
-                      </button>
-                      <button className="border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm hover:bg-stone-50 transition-colors">
-                        View Stats
                       </button>
                     </div>
                   </div>
