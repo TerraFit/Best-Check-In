@@ -93,10 +93,22 @@ export default function ApproveBusinesses() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Header with Back Button - THIS IS THE ONLY CHANGE */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-serif font-bold text-stone-900">
-          Pending Business Approvals
-        </h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => window.location.href = '/super-admin'}
+            className="text-stone-600 hover:text-stone-900 flex items-center gap-2 text-sm font-medium bg-stone-100 hover:bg-stone-200 px-4 py-2 rounded-lg transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Super Admin
+          </button>
+          <h1 className="text-3xl font-serif font-bold text-stone-900">
+            Pending Business Approvals
+          </h1>
+        </div>
         <button
           onClick={fetchPendingBusinesses}
           className="text-sm text-stone-600 hover:text-stone-900 flex items-center gap-2"
