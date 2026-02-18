@@ -1,11 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
-const { Resend } = require('resend');
-const { v4: uuidv4 } = require('uuid');
+import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+import { v4 as uuidv4 } from 'uuid';
 
-// IMPORTANT: Move Supabase client creation INSIDE the handler
-// to ensure environment variables are available
-
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
