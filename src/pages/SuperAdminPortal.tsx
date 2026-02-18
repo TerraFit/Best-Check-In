@@ -1,324 +1,420 @@
-import React, { useState, useEffect } from 'react';
-import { useAccess } from '../context/AccessContext';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+interface Business {
+  id: string;
+  registered_name: string;
+  trading_name: string;
+  phone: string;
+  email: string;
+  physical_address: {
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+  };
+  subscription_tier: 'monthly' | 'annual';
+  payment_status: 'paid' | 'overdue' | 'critical';
+  last_payment_date?: string;
+  payment_due_date?: string;
+  days_overdue?: number;
+  created_at: string;
+  directors: any[];
+  status: string;
+}
+
+type FilterType = {
+  province: string;
+  city: string;
+  search: string;
+};
 
 export default function SuperAdminPortal() {
-  const { isSuperAdmin, loginAs } = useAccess();
-  const [hotelName, setHotelName] = useState('');
-  const [managerEmail, setManagerEmail] = useState('');
-  const [showCredentials, setShowCredentials] = useState(false);
-  const [currentCreds, setCurrentCreds] = useState({ email: '', password: '' });
-  const [hotels, setHotels] = useState([]);
+  const navigate = useNavigate();
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  
+  // Filter states
+  const [filters, setFilters] = useState<FilterType>({
+    province: '',
+    city: '',
+    search: ''
+  });
+  
+  // Unique values for filter dropdowns
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
 
-  // Load hotels from BOTH localStorage AND Supabase
   useEffect(() => {
-    loadHotels();
+    fetchBusinesses();
   }, []);
 
-  const loadHotels = async () => {
-    setLoading(true);
-    
-    // 1. Load from localStorage (manual hotels)
-    const localHotels = JSON.parse(localStorage.getItem('jbay_hotels') || '[]');
-    
-    // 2. Load from Supabase (approved businesses)
+  useEffect(() => {
+    applyFilters();
+  }, [businesses, filters]);
+
+  const fetchBusinesses = async () => {
     try {
       const response = await fetch('/.netlify/functions/get-approved-businesses');
-      if (response.ok) {
-        const approvedBusinesses = await response.json();
-        // Convert approved businesses to hotel format
-        const approvedHotels = approvedBusinesses.map((b: any) => ({
-          id: b.id,
-          name: b.trading_name || b.registered_name,
-          managerEmail: b.email,
-          createdAt: b.created_at,
-          approvedAt: b.approved_at,
-          fromSupabase: true
-        }));
-        // Combine both sources (localStorage + Supabase)
-        setHotels([...localHotels, ...approvedHotels]);
-      } else {
-        // If Supabase fails, just use localStorage
-        setHotels(localHotels);
-      }
+      const data = await response.json();
+      
+      // Calculate overdue days and payment status
+      const businessesWithStatus = data.map((b: any) => {
+        const daysOverdue = calculateOverdueDays(b);
+        return {
+          ...b,
+          days_overdue: daysOverdue,
+          payment_status: getPaymentStatus(daysOverdue)
+        };
+      });
+      
+      // Sort alphabetically by trading name
+      const sorted = businessesWithStatus.sort((a, b) => 
+        a.trading_name.localeCompare(b.trading_name)
+      );
+      
+      setBusinesses(sorted);
+      
+      // Extract unique provinces and cities for filters
+      const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
+      const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
+      
+      setProvinces(uniqueProvinces);
+      setCities(uniqueCities);
+      
     } catch (error) {
-      console.error('Failed to fetch approved businesses:', error);
-      setHotels(localHotels);
+      console.error('Error fetching businesses:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ESCAPE KEY HANDLER
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowCredentials(false);
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, []);
+  const calculateOverdueDays = (business: Business): number => {
+    if (!business.payment_due_date) return 0;
+    const dueDate = new Date(business.payment_due_date);
+    const today = new Date();
+    const diffTime = today.getTime() - dueDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
 
-  // Redirect non-super-admins
-  if (!isSuperAdmin) {
-    return <Navigate to="/" replace />;
+  const getPaymentStatus = (daysOverdue: number): 'paid' | 'overdue' | 'critical' => {
+    if (daysOverdue === 0) return 'paid';
+    if (daysOverdue >= 10) return 'critical';
+    if (daysOverdue >= 5) return 'overdue';
+    return 'paid'; // 1-4 days still considered paid but will show orange soon
+  };
+
+  const getStatusColor = (status: string, daysOverdue: number = 0) => {
+    if (status !== 'approved') return 'bg-gray-100 text-gray-800';
+    
+    if (daysOverdue >= 10) return 'bg-red-100 text-red-800 border-l-4 border-red-600';
+    if (daysOverdue >= 5) return 'bg-orange-100 text-orange-800 border-l-4 border-orange-500';
+    if (daysOverdue > 0) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-green-100 text-green-800';
+  };
+
+  const getStatusText = (business: Business) => {
+    if (business.status !== 'approved') return business.status;
+    
+    if (business.days_overdue >= 10) 
+      return `⚠️ CRITICAL: ${business.days_overdue} days overdue`;
+    if (business.days_overdue >= 5) 
+      return `⚠️ Overdue: ${business.days_overdue} days`;
+    if (business.days_overdue > 0) 
+      return `⚠️ Payment due: ${business.days_overdue} days`;
+    return '✓ Active';
+  };
+
+  const applyFilters = () => {
+    let filtered = [...businesses];
+
+    if (filters.province) {
+      filtered = filtered.filter(b => b.physical_address?.province === filters.province);
+    }
+
+    if (filters.city) {
+      filtered = filtered.filter(b => b.physical_address?.city === filters.city);
+    }
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(b => 
+        b.trading_name.toLowerCase().includes(searchLower) ||
+        b.registered_name.toLowerCase().includes(searchLower) ||
+        b.email.toLowerCase().includes(searchLower)
+      );
+    }
+
+    setFilteredBusinesses(filtered);
+  };
+
+  const handleSendReminder = async (businessId: string, daysOverdue: number) => {
+    setSendingReminder(businessId);
+    try {
+      const response = await fetch('/.netlify/functions/send-payment-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, daysOverdue })
+      });
+
+      if (response.ok) {
+        alert('Payment reminder sent successfully!');
+      }
+    } catch (error) {
+      console.error('Error sending reminder:', error);
+      alert('Failed to send reminder');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
+
+  const handleDeleteBusiness = async (businessId: string) => {
+    try {
+      const response = await fetch('/.netlify/functions/delete-business', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId })
+      });
+
+      if (response.ok) {
+        setBusinesses(businesses.filter(b => b.id !== businessId));
+        setShowDeleteConfirm(null);
+        alert('Business permanently deleted');
+      }
+    } catch (error) {
+      console.error('Error deleting business:', error);
+      alert('Failed to delete business');
+    }
+  };
+
+  const handleArchiveBusiness = async (businessId: string) => {
+    try {
+      const response = await fetch('/.netlify/functions/archive-business', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId })
+      });
+
+      if (response.ok) {
+        setBusinesses(businesses.filter(b => b.id !== businessId));
+        alert('Business archived');
+      }
+    } catch (error) {
+      console.error('Error archiving business:', error);
+      alert('Failed to archive business');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-gray-600">Loading businesses...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const createHotel = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Generate unique tenant ID from hotel name
-    const tenantId = hotelName.toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    
-    const newHotel = {
-      id: tenantId,
-      name: hotelName,
-      managerEmail: managerEmail,
-      createdAt: new Date().toISOString(),
-      createdBy: 'super_admin',
-      status: 'active',
-      fromLocal: true
-    };
-
-    // Save to localStorage
-    const updatedHotels = [...hotels, newHotel];
-    setHotels(updatedHotels);
-    localStorage.setItem('jbay_hotels', JSON.stringify(
-      updatedHotels.filter(h => h.fromLocal)
-    ));
-
-    // Create manager account with one-time credential
-    const tempPassword = Math.random().toString(36).slice(-8);
-    
-    // Show credentials
-    setCurrentCreds({ email: managerEmail, password: tempPassword });
-    setShowCredentials(true);
-
-    // Clear form
-    setHotelName('');
-    setManagerEmail('');
-  };
-
-  const loginAsHotel = (email: string, role: string, tenantId: string) => {
-    loginAs(email, role, tenantId);
-    window.location.href = '/admin';
-  };
-
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Super Admin Header */}
-      <div className="bg-stone-900 text-white py-6 px-6">
-        <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="bg-amber-600 text-xs uppercase tracking-wider px-3 py-1 rounded-full font-bold">
-                  Super Admin
-                </span>
-                <span className="text-stone-400">Root Access · All Tenants</span>
-              </div>
-              <h1 className="text-3xl font-serif font-bold">Hotel Management Portal</h1>
-              <p className="text-stone-400 mt-2">Create hotels, grant admin access, and monitor all properties</p>
+              <h1 className="text-3xl font-bold text-gray-900">Super Admin Portal</h1>
+              <p className="text-gray-600 mt-1">Manage all businesses and subscriptions</p>
             </div>
-            
-            {/* BUTTONS SECTION */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.location.href = '/super-admin/approve'}
-                className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
-              >
-                Pending Approvals
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('jbay_user');
-                  window.location.href = '/';
-                }}
-                className="text-stone-400 hover:text-white text-[9px] uppercase tracking-widest border border-stone-700 px-4 py-2 rounded-lg"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              Create New Business
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Create Hotel Form */}
-        <div className="bg-white rounded-2xl shadow-lg border border-stone-200 p-8 mb-12">
-          <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Grant Admin Access to New Hotel</h2>
-          
-          <form onSubmit={createHotel} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-stone-700 mb-2">
-                  Hotel / Lodge Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={hotelName}
-                  onChange={(e) => setHotelName(e.target.value)}
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                  placeholder="e.g. J-Bay Zebra Lodge"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-stone-700 mb-2">
-                  Manager Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={managerEmail}
-                  onChange={(e) => setManagerEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                  placeholder="manager@hotel.com"
-                />
-              </div>
+      {/* Filters */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Filters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Business name or email..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              />
             </div>
-            
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-              <h3 className="font-bold text-amber-900 text-sm uppercase tracking-wider mb-2">
-                ⚡ One-Click Provisioning
-              </h3>
-              <p className="text-amber-800 text-sm">
-                This will create a tenant ID, generate a temporary password, and grant full admin rights 
-                to the manager. They can log in immediately and start managing their hotel's check-in system.
-              </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Province</label>
+              <select
+                value={filters.province}
+                onChange={(e) => setFilters({ ...filters, province: e.target.value, city: '' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All Provinces</option>
+                {provinces.map(province => (
+                  <option key={province} value={province}>{province}</option>
+                ))}
+              </select>
             </div>
-
-            <button
-              type="submit"
-              className="bg-stone-900 text-white font-bold py-4 px-8 rounded-xl hover:bg-stone-800 transition-colors shadow-lg"
-            >
-              Create Hotel & Grant Admin Access
-            </button>
-          </form>
-        </div>
-
-        {/* Active Hotels List */}
-        <div className="bg-white rounded-2xl shadow-lg border border-stone-200 p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-serif font-bold text-stone-900">Active Hotels</h2>
-            {loading ? (
-              <span className="text-stone-400 text-sm">Loading...</span>
-            ) : (
-              <span className="bg-stone-100 text-stone-700 px-4 py-2 rounded-full text-sm font-bold">
-                {hotels.length} Properties
-              </span>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City/Town</label>
+              <select
+                value={filters.city}
+                onChange={(e) => setFilters({ ...filters, city: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All Cities</option>
+                {cities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => setFilters({ province: '', city: '', search: '' })}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Clear Filters
+              </button>
+            </div>
           </div>
+          <p className="text-sm text-gray-500 mt-4">
+            Showing {filteredBusinesses.length} of {businesses.length} businesses
+          </p>
+        </div>
+      </div>
 
-          {loading ? (
-            <div className="text-center py-16">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-stone-200 border-t-amber-600"></div>
-              <p className="mt-4 text-stone-500">Loading hotels...</p>
-            </div>
-          ) : hotels.length === 0 ? (
-            <div className="text-center py-16 bg-stone-50 rounded-xl border-2 border-dashed border-stone-300">
-              <p className="text-stone-500 text-lg">No hotels created yet</p>
-              <p className="text-stone-400 text-sm mt-2">Use the form above or approve businesses to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {hotels.map((hotel) => (
-                <div key={hotel.id} className="border border-stone-200 rounded-xl p-5 hover:border-amber-300 transition-colors">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-stone-900 text-lg">{hotel.name}</h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-sm text-stone-600">Manager: {hotel.managerEmail}</span>
-                        <span className="text-xs bg-stone-100 px-2 py-1 rounded-full text-stone-600">
-                          ID: {hotel.id}
-                        </span>
-                        {hotel.approvedAt && (
-                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                            Approved {new Date(hotel.approvedAt).toLocaleDateString()}
-                          </span>
+      {/* Businesses List */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="space-y-4">
+          {filteredBusinesses.map((business) => (
+            <div key={business.id} className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        {business.trading_name}
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(business.status, business.days_overdue)}`}>
+                        {getStatusText(business)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{business.registered_name}</p>
+                    
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Contact</p>
+                        <p className="text-sm">{business.phone}</p>
+                        <p className="text-sm">{business.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Location</p>
+                        <p className="text-sm">{business.physical_address?.city}</p>
+                        <p className="text-sm">{business.physical_address?.province}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Subscription</p>
+                        <p className="text-sm capitalize">{business.subscription_tier}</p>
+                        {business.last_payment_date && (
+                          <p className="text-xs text-gray-500">
+                            Last payment: {new Date(business.last_payment_date).toLocaleDateString()}
+                          </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    {/* Payment Reminder Button - Only show for overdue */}
+                    {(business.days_overdue || 0) > 0 && (
                       <button
-                        onClick={() => loginAsHotel(hotel.managerEmail, 'tenant_admin', hotel.id)}
-                        className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-200 transition-colors"
+                        onClick={() => handleSendReminder(business.id, business.days_overdue || 0)}
+                        disabled={sendingReminder === business.id}
+                        className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm"
                       >
-                        🔑 Login as Manager
+                        {sendingReminder === business.id ? 'Sending...' : 'Send Reminder'}
                       </button>
-                    </div>
+                    )}
+
+                    {/* Archive Button */}
+                    <button
+                      onClick={() => handleArchiveBusiness(business.id)}
+                      className="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
+                    >
+                      Archive
+                    </button>
+
+                    {/* Delete Button */}
+                    {showDeleteConfirm === business.id ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDeleteBusiness(business.id)}
+                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(null)}
+                          className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowDeleteConfirm(business.id)}
+                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
+
+                {/* Warning for critical overdue */}
+                {business.days_overdue >= 10 && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">
+                      ⚠️ Payment {business.days_overdue} days overdue. Service will be suspended in {14 - business.days_overdue} days.
+                    </p>
+                  </div>
+                )}
+
+                {/* Warning for overdue */}
+                {business.days_overdue >= 5 && business.days_overdue < 10 && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <p className="text-sm text-orange-800">
+                      ⚠️ Payment {business.days_overdue} days overdue. Please send reminder.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {filteredBusinesses.length === 0 && (
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <p className="text-gray-500 text-lg">No businesses found</p>
+              <p className="text-gray-400 mt-2">Try adjusting your filters</p>
             </div>
           )}
         </div>
-
-        {/* Quick Access Panel */}
-        <div className="mt-8 bg-gradient-to-r from-stone-900 to-stone-800 rounded-2xl p-8 text-white">
-          <h3 className="font-serif text-xl font-bold mb-4">Super Admin Quick Actions</h3>
-          <div className="grid md:grid-cols-3 gap-4">
-            <button className="bg-white/10 hover:bg-white/20 p-4 rounded-xl text-left transition-colors">
-              <div className="font-bold">Export All Data</div>
-              <div className="text-sm text-stone-400">CSV of every hotel's check-ins</div>
-            </button>
-            <button className="bg-white/10 hover:bg-white/20 p-4 rounded-xl text-left transition-colors">
-              <div className="font-bold">System Health</div>
-              <div className="text-sm text-stone-400">View all tenants and usage</div>
-            </button>
-            <button className="bg-white/10 hover:bg-white/20 p-4 rounded-xl text-left transition-colors">
-              <div className="font-bold">Create Staff Account</div>
-              <div className="text-sm text-stone-400">Add viewer access for hotel staff</div>
-            </button>
-          </div>
-        </div>
       </div>
-
-      {/* Manager Credentials Modal */}
-      {showCredentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
-            <h3 className="text-2xl font-serif font-bold text-stone-900 mb-2">Manager Access</h3>
-            <p className="text-stone-500 text-sm mb-6">Use these credentials to log in as the hotel manager.</p>
-            
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Email</label>
-                  <p className="font-mono text-sm bg-white p-2 rounded-lg border border-amber-100 mt-1">{currentCreds.email}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Temporary Password</label>
-                  <p className="font-mono text-sm bg-white p-2 rounded-lg border border-amber-100 mt-1">{currentCreds.password}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  loginAs(currentCreds.email, 'tenant_admin', currentCreds.email.split('@')[0]);
-                  window.location.href = '/admin';
-                }}
-                className="flex-1 bg-stone-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-stone-800"
-              >
-                Login Now
-              </button>
-              <button
-                onClick={() => setShowCredentials(false)}
-                className="px-6 py-3 border border-stone-200 rounded-xl text-sm font-bold text-stone-600 hover:bg-stone-50"
-              >
-                Close (ESC)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
