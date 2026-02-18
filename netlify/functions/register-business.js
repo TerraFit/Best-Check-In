@@ -1,17 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-console.log('🚀 Environment check:');
-console.log('- SUPABASE_URL exists:', !!supabaseUrl);
-console.log('- SUPABASE_SERVICE_KEY exists:', !!supabaseKey);
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-exports.handler = async function(event, context) {
+export const handler = async function(event, context) {
   console.log("\n=== NEW REQUEST ===");
   console.log("Method:", event.httpMethod);
   
@@ -33,6 +24,12 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({ error: 'Method Not Allowed' }) 
     };
   }
+
+  // Initialize Supabase inside handler
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
 
   try {
     const data = JSON.parse(event.body);
