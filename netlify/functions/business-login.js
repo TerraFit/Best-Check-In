@@ -1,12 +1,7 @@
-const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
+import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*'
@@ -15,6 +10,12 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
+
+  // Initialize Supabase inside handler
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
 
   try {
     const { email, password } = JSON.parse(event.body);
