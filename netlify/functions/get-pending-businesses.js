@@ -37,9 +37,29 @@ export const handler = async function(event) {
     
     console.log('✅ Supabase client created');
     
+    // Fetch ALL pending businesses with complete data
     const { data: businesses, error } = await supabase
       .from('businesses')
-      .select('*')
+      .select(`
+        id,
+        registered_name,
+        business_number,
+        trading_name,
+        phone,
+        email,
+        physical_address,
+        postal_address,
+        directors,
+        subscription_tier,
+        payment_method,
+        status,
+        total_rooms,
+        avg_price,
+        seasons,
+        setup_complete,
+        approved_at,
+        created_at
+      `)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
@@ -54,6 +74,17 @@ export const handler = async function(event) {
           data: []
         })
       };
+    }
+
+    // Log what we're sending back
+    console.log(`✅ Found ${businesses?.length || 0} pending businesses`);
+    if (businesses && businesses.length > 0) {
+      console.log('📸 Sample director data:', businesses[0].directors.map(d => ({
+        name: d.name,
+        idNumber: d.idNumber,
+        hasIdPhoto: !!d.idPhoto,
+        idPhotoLength: d.idPhoto?.length || 0
+      })));
     }
 
     return {
