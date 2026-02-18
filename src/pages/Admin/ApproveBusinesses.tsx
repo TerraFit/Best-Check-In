@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useAccess } from '../../context/AccessContext';
-import { Navigate } from 'react-router-dom';
+// In src/pages/Admin/ApproveBusinesses.tsx
+
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+
+interface Director {
+  name: string;
+  idNumber: string;
+  idPhoto?: string; // base64 string
+}
 
 interface Business {
   id: string;
@@ -9,196 +16,230 @@ interface Business {
   trading_name: string;
   phone: string;
   email: string;
-  directors: any[];
-  status: 'pending' | 'approved' | 'rejected';
+  physical_address: any;
+  postal_address: any;
+  directors: Director[];
+  subscription_tier: string;
+  payment_method: string;
+  status: string;
+  total_rooms?: number;
+  avg_price?: number;
+  seasons?: any;
+  setup_complete?: boolean;
   created_at: string;
 }
 
 export default function ApproveBusinesses() {
-  const { isSuperAdmin } = useAccess();
-  const [pendingBusinesses, setPendingBusinesses] = useState<Business[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [showIdModal, setShowIdModal] = useState(false);
+  const [selectedIdPhoto, setSelectedIdPhoto] = useState('');
 
   useEffect(() => {
     fetchPendingBusinesses();
   }, []);
 
   const fetchPendingBusinesses = async () => {
-    setError(null);
     try {
       const response = await fetch('/.netlify/functions/get-pending-businesses');
       const data = await response.json();
-      
-      console.log('📦 API Response:', data); // Debug log
-      
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        setPendingBusinesses(data);
-      } else if (data && Array.isArray(data.data)) {
-        setPendingBusinesses(data.data);
-      } else {
-        console.error('Unexpected API response format:', data);
-        setPendingBusinesses([]);
-        setError('Received invalid data format from server');
-      }
+      setBusinesses(data);
     } catch (error) {
-      console.error('Failed to fetch:', error);
-      setError('Failed to load pending businesses');
-      setPendingBusinesses([]);
+      console.error('Error fetching businesses:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const approveBusiness = async (businessId: string) => {
+  const handleApprove = async (businessId: string) => {
     try {
-      // Update status to approved
-      const approveResponse = await fetch('/.netlify/functions/approve-business', {
+      const response = await fetch('/.netlify/functions/approve-business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId })
       });
-      
-      const approveData = await approveResponse.json();
-      
-      if (approveResponse.ok) {
-        // Send credentials email
-        const emailResponse = await fetch('/.netlify/functions/send-business-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessId })
-        });
-        
-        const emailData = await emailResponse.json();
-        console.log('📧 Email response:', emailData);
-        
-        // Refresh list
-        fetchPendingBusinesses();
-        
-        // Optional: Show success message
-        alert('Business approved and credentials sent!');
-      } else {
-        alert(`Approval failed: ${approveData.error || 'Unknown error'}`);
+
+      if (response.ok) {
+        // Remove from list
+        setBusinesses(businesses.filter(b => b.id !== businessId));
       }
     } catch (error) {
-      console.error('Approval failed:', error);
-      alert('Failed to approve business. Check console for details.');
+      console.error('Error approving business:', error);
     }
   };
 
-  if (!isSuperAdmin) {
-    return <Navigate to="/" replace />;
+  const viewIdPhoto = (photoBase64: string) => {
+    setSelectedIdPhoto(photoBase64);
+    setShowIdModal(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-gray-600">Loading pending businesses...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header with Back Button - THIS IS THE ONLY CHANGE */}
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => window.location.href = '/super-admin'}
-            className="text-stone-600 hover:text-stone-900 flex items-center gap-2 text-sm font-medium bg-stone-100 hover:bg-stone-200 px-4 py-2 rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Super Admin
-          </button>
-          <h1 className="text-3xl font-serif font-bold text-stone-900">
-            Pending Business Approvals
+    <div className="min-h-screen bg-gray-100 p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Pending Business Approvals ({businesses.length})
           </h1>
+          <button
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Back to Dashboard
+          </button>
         </div>
-        <button
-          onClick={fetchPendingBusinesses}
-          className="text-sm text-stone-600 hover:text-stone-900 flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
-        </button>
-      </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-stone-200 border-t-amber-600"></div>
-          <p className="mt-4 text-stone-500">Loading pending approvals...</p>
-        </div>
-      ) : pendingBusinesses.length === 0 ? (
-        <div className="text-center py-16 bg-stone-50 rounded-2xl border-2 border-dashed border-stone-300">
-          <svg className="w-16 h-16 text-stone-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p className="text-stone-500 text-lg">No pending approvals</p>
-          <p className="text-stone-400 text-sm mt-2">New business registrations will appear here</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {pendingBusinesses.map((business) => (
-            <div key={business.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
+        {businesses.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <p className="text-gray-500 text-lg">No pending businesses to approve</p>
+            <p className="text-gray-400 mt-2">Check back later for new registrations</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {businesses.map((business) => (
+              <div key={business.id} className="bg-white rounded-lg shadow overflow-hidden">
+                {/* Business Header */}
+                <div className="bg-orange-50 px-6 py-4 border-b border-orange-100">
+                  <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-xl font-bold text-stone-900">{business.trading_name}</h3>
-                      <p className="text-stone-500 text-sm mt-1">{business.registered_name}</p>
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        {business.trading_name}
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        Registered as: {business.registered_name}
+                      </p>
                     </div>
-                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase">
+                    <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
                       Pending
                     </span>
                   </div>
-                  
-                  <div className="flex flex-wrap gap-4 mt-4 text-xs">
-                    <span className="bg-stone-100 px-3 py-1.5 rounded-full font-medium">
-                      Reg: {business.business_number}
-                    </span>
-                    <span className="bg-stone-100 px-3 py-1.5 rounded-full font-medium">
-                      {business.phone}
-                    </span>
-                    <span className="bg-stone-100 px-3 py-1.5 rounded-full font-medium">
-                      {business.email}
-                    </span>
-                  </div>
-                  
-                  {business.directors && business.directors.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="font-bold text-xs uppercase tracking-widest text-stone-400 mb-2">
-                        Directors ({business.directors.length})
-                      </h4>
-                      <div className="space-y-1">
-                        {business.directors.map((d: any, i: number) => (
-                          <div key={i} className="text-sm text-stone-600">
-                            • {d.name} - <span className="font-mono">{d.idNumber}</span>
+                </div>
+
+                {/* Business Details */}
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Column - Business Info */}
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Business Information</h3>
+                      <dl className="space-y-3">
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Business Number</dt>
+                          <dd className="text-sm text-gray-900">{business.business_number}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Contact</dt>
+                          <dd className="text-sm text-gray-900">{business.phone}</dd>
+                          <dd className="text-sm text-gray-900">{business.email}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Subscription</dt>
+                          <dd className="text-sm text-gray-900 capitalize">{business.subscription_tier}</dd>
+                          <dd className="text-sm text-gray-900">Payment: {business.payment_method}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Physical Address</dt>
+                          <dd className="text-sm text-gray-900 whitespace-pre-line">
+                            {business.physical_address?.street}<br />
+                            {business.physical_address?.city}, {business.physical_address?.province}<br />
+                            {business.physical_address?.postalCode}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+
+                    {/* Right Column - Directors with ID Photos */}
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Directors / Owners</h3>
+                      <div className="space-y-4">
+                        {business.directors.map((director, index) => (
+                          <div key={index} className="border rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900">{director.name}</p>
+                                <p className="text-sm text-gray-600">ID: {director.idNumber}</p>
+                              </div>
+                              {director.idPhoto && (
+                                <button
+                                  onClick={() => viewIdPhoto(director.idPhoto!)}
+                                  className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100"
+                                >
+                                  View ID Photo
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  )}
-                  
-                  <p className="text-xs text-stone-400 mt-4">
-                    Registered: {new Date(business.created_at).toLocaleDateString()} at{' '}
-                    {new Date(business.created_at).toLocaleTimeString()}
-                  </p>
+                  </div>
+
+                  {/* Approve Button */}
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={() => handleApprove(business.id)}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                    >
+                      Approve Business
+                    </button>
+                  </div>
                 </div>
-                
-                <button
-                  onClick={() => approveBusiness(business.id)}
-                  className="w-full md:w-auto bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition-colors shadow-lg text-sm uppercase tracking-widest"
-                >
-                  Approve & Send Credentials
-                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ID Photo Modal */}
+        {showIdModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold">ID Document</h3>
+                  <button
+                    onClick={() => setShowIdModal(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="bg-gray-100 rounded-lg p-4 flex justify-center">
+                  <img 
+                    src={selectedIdPhoto} 
+                    alt="ID Document" 
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => {
+                      // Download the image
+                      const link = document.createElement('a');
+                      link.href = selectedIdPhoto;
+                      link.download = 'id-document.png';
+                      link.click();
+                    }}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                  >
+                    Download Image
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
