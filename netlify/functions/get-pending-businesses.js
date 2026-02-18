@@ -1,12 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
-export async function handler(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
 
   // Log environment variables (without exposing full values)
   console.log('🔍 SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
@@ -69,4 +73,4 @@ export async function handler(event) {
       })
     };
   }
-}
+};
