@@ -9,6 +9,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+[functions."check-payments"]
+  schedule = "0 8 * * *"  # Runs at 8 AM daily
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
