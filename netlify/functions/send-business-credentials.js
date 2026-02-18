@@ -1,12 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-export async function handler(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -25,6 +20,12 @@ export async function handler(event) {
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
+
+  // Initialize Supabase inside handler
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
 
   try {
     const { businessId } = JSON.parse(event.body);
@@ -91,4 +92,4 @@ export async function handler(event) {
       body: JSON.stringify({ error: error.message })
     };
   }
-}
+};
