@@ -9,8 +9,12 @@ import ApproveBusinesses from './pages/Admin/ApproveBusinesses';
 import RegistrationSuccess from './pages/RegistrationSuccess';
 import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
-import BusinessPending from './pages/BusinessPending'; // ← ADD THIS IMPORT
+import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
+
+// NEW IMPORTS for messaging system
+import BusinessMessages from './pages/business/BusinessMessages';
+import AdminMessages from './pages/admin/AdminMessages';
 
 function CheckInAppWrapper() {
   const navigate = useNavigate();
@@ -79,7 +83,7 @@ function AppContent() {
       <Route path="/register" element={<BusinessRegistration />} />
       <Route path="/registration-success" element={<RegistrationSuccess />} />
       <Route path="/business/login" element={<BusinessLogin />} />
-      <Route path="/business/pending" element={<BusinessPending />} /> {/* ← ADD THIS ROUTE */}
+      <Route path="/business/pending" element={<BusinessPending />} />
       
       {/* Protected Business routes */}
       <Route 
@@ -87,6 +91,16 @@ function AppContent() {
         element={
           <ProtectedRoute requiredRole="tenant_admin">
             <BusinessDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* NEW: Business Messages Route */}
+      <Route 
+        path="/business/messages" 
+        element={
+          <ProtectedRoute requiredRole="tenant_admin">
+            <BusinessMessages />
           </ProtectedRoute>
         } 
       />
@@ -112,6 +126,17 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
+      
+      {/* NEW: Admin Messages Route */}
+      <Route 
+        path="/admin/messages" 
+        element={
+          <ProtectedRoute requiredRole="super_admin">
+            <AdminMessages />
+          </ProtectedRoute>
+        } 
+      />
+      
       <Route path="/unauthorized" element={<div>Unauthorized</div>} />
     </Routes>
   );
