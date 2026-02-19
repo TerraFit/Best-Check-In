@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BusinessOverview from '../components/BusinessOverview'; // You'll need to create this component
 
 interface Business {
   id: string;
@@ -35,6 +36,10 @@ export default function SuperAdminPortal() {
   const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  
+  // Business Overview state
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
+  const [showOverview, setShowOverview] = useState(false);
   
   // Delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -227,6 +232,11 @@ export default function SuperAdminPortal() {
     });
   };
 
+  const openBusinessOverview = (businessId: string) => {
+    setSelectedBusinessId(businessId);
+    setShowOverview(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-8">
@@ -403,6 +413,18 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
+                    {/* Business Overview Button - NEW */}
+                    <button
+                      onClick={() => openBusinessOverview(business.id)}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-1"
+                      title="View Business Overview Dashboard"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Overview
+                    </button>
+
                     {/* Payment Reminder Button - Only show for overdue */}
                     {(business.days_overdue || 0) > 0 && (
                       <button
@@ -523,6 +545,14 @@ export default function SuperAdminPortal() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Business Overview Modal */}
+      {showOverview && selectedBusinessId && (
+        <BusinessOverview 
+          businessId={selectedBusinessId} 
+          onClose={() => setShowOverview(false)} 
+        />
       )}
     </div>
   );
