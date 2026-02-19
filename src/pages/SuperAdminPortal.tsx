@@ -36,6 +36,7 @@ export default function SuperAdminPortal() {
   const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
   
   // Business Overview state
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export default function SuperAdminPortal() {
 
   useEffect(() => {
     fetchBusinesses();
+    fetchPendingCount();
   }, []);
 
   useEffect(() => {
@@ -101,6 +103,16 @@ export default function SuperAdminPortal() {
       console.error('Error fetching businesses:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingCount = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/get-pending-businesses');
+      const data = await response.json();
+      setPendingCount(data.length || 0);
+    } catch (error) {
+      console.error('Error fetching pending count:', error);
     }
   };
 
@@ -198,6 +210,8 @@ export default function SuperAdminPortal() {
         setBusinesses(businesses.filter(b => b.id !== deleteConfirm.businessId));
         setDeleteConfirm(null);
         alert('Business permanently deleted');
+        // Refresh pending count in case the deleted business was pending
+        fetchPendingCount();
       }
     } catch (error) {
       console.error('Error deleting business:', error);
@@ -294,15 +308,26 @@ export default function SuperAdminPortal() {
               </nav>
             </div>
 
-            {/* Right side - Create Business Button */}
+            {/* Right side - Pending Approvals Badge with Count */}
             <button
-              onClick={() => navigate('/register')}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+              onClick={() => {
+                // If you have tabs, switch to pending
+                // If not, navigate to pending approvals page
+                navigate('/admin/pending-approvals');
+              }}
+              className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Create New Business
+              <span>Pending Approvals</span>
+              
+              {/* Count Badge */}
+              {pendingCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white group-hover:bg-red-600 transition-colors">
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -413,7 +438,7 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
-                    {/* Business Overview Button - NEW */}
+                    {/* Business Overview Button */}
                     <button
                       onClick={() => openBusinessOverview(business.id)}
                       className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-1"
