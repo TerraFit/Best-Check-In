@@ -5,14 +5,14 @@ import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
-import ApproveBusinesses from './pages/Admin/ApproveBusinesses';
+import ApproveBusinesses from './pages/admin/ApproveBusinesses'; // Fixed: Admin → admin
 import RegistrationSuccess from './pages/RegistrationSuccess';
 import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
 
-// NEW IMPORTS for messaging system
+// IMPORTS for messaging system
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 
@@ -95,7 +95,7 @@ function AppContent() {
         } 
       />
       
-      {/* NEW: Business Messages Route */}
+      {/* Business Messages Route */}
       <Route 
         path="/business/messages" 
         element={
@@ -127,7 +127,7 @@ function AppContent() {
         } 
       />
       
-      {/* NEW: Admin Messages Route */}
+      {/* Admin Messages Route */}
       <Route 
         path="/admin/messages" 
         element={
