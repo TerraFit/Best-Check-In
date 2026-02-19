@@ -311,9 +311,7 @@ export default function SuperAdminPortal() {
             {/* Right side - Pending Approvals Badge with Count */}
             <button
               onClick={() => {
-                // If you have tabs, switch to pending
-                // If not, navigate to pending approvals page
-                navigate('/admin/pending-approvals');
+                navigate('/super-admin/approve');  // ✅ FIXED: now points to the working URL
               }}
               className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
             >
