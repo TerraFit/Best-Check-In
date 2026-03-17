@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BusinessOverview from '../components/BusinessOverview'; // You'll need to create this component
+import BusinessOverview from '../components/BusinessOverview';
+import QRCodeModal from '../components/QRCodeModal'; // Add this import
 
 interface Business {
   id: string;
@@ -41,6 +42,10 @@ export default function SuperAdminPortal() {
   // Business Overview state
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(false);
+  
+  // QR Code Modal state
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedQRBusiness, setSelectedQRBusiness] = useState<{id: string, name: string} | null>(null);
   
   // Delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -251,6 +256,12 @@ export default function SuperAdminPortal() {
     setShowOverview(true);
   };
 
+  // NEW: Function to open QR Code modal
+  const openQRModal = (businessId: string, businessName: string) => {
+    setSelectedQRBusiness({ id: businessId, name: businessName });
+    setShowQRModal(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-8">
@@ -311,7 +322,7 @@ export default function SuperAdminPortal() {
             {/* Right side - Pending Approvals Badge with Count */}
             <button
               onClick={() => {
-                navigate('/super-admin/approve');  // ✅ FIXED: now points to the working URL
+                navigate('/super-admin/approve');
               }}
               className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
             >
@@ -436,6 +447,18 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
+                    {/* QR Code Button - NEW */}
+                    <button
+                      onClick={() => openQRModal(business.id, business.trading_name)}
+                      className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1"
+                      title="View and Download QR Code"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      QR Code
+                    </button>
+
                     {/* Business Overview Button */}
                     <button
                       onClick={() => openBusinessOverview(business.id)}
@@ -575,6 +598,18 @@ export default function SuperAdminPortal() {
         <BusinessOverview 
           businessId={selectedBusinessId} 
           onClose={() => setShowOverview(false)} 
+        />
+      )}
+
+      {/* QR Code Modal - NEW */}
+      {showQRModal && selectedQRBusiness && (
+        <QRCodeModal
+          businessId={selectedQRBusiness.id}
+          businessName={selectedQRBusiness.name}
+          onClose={() => {
+            setShowQRModal(false);
+            setSelectedQRBusiness(null);
+          }}
         />
       )}
     </div>
