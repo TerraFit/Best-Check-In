@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { v4 as uuidv4 } from 'uuid';
+import QRCode from 'qrcode';
 
 export const handler = async function(event) {
   const headers = {
@@ -22,7 +23,6 @@ export const handler = async function(event) {
     };
   }
 
-  // Initialize Supabase inside handler
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
@@ -39,7 +39,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Get business details first (to use in email)
+    // Get business details
     const { data: business, error: fetchError } = await supabase
       .from('businesses')
       .select('*')
@@ -71,7 +71,6 @@ export const handler = async function(event) {
 
     if (tokenError) {
       console.error('❌ Error saving verification token:', tokenError);
-      // Continue anyway - business can still be approved
     }
 
     // Update business status to approved
@@ -103,29 +102,73 @@ export const handler = async function(event) {
       };
     }
 
-    // Send welcome email (don't fail if email doesn't work)
+    // Generate UNIQUE QR Code for this specific business
+    const checkInUrl = `https://fastcheckin.co.za/checkin/${businessId}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(checkInUrl, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#f59e0b', // Brand orange
+        light: '#ffffff'
+      }
+    });
+
+    // Convert to buffer for attachment
+    const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+
+    // Send welcome email with QR code
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       
       await resend.emails.send({
-        from: 'FastCheckin <welcome@fastcheckin.co.za>',
+        from: 'FastCheckin <onboarding@resend.dev>',
         to: [business.email],
-        subject: `Welcome to FastCheckin, ${business.trading_name}!`,
+        subject: `🎉 Welcome to FastCheckin, ${business.trading_name}!`,
         html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #1e1e1e;">Welcome to FastCheckin!</h1>
-            <p>Dear ${business.trading_name},</p>
-            <p>Your business has been approved! Please verify your email address to get started:</p>
-            <a href="${verificationLink}" style="display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0;">Verify Email Address</a>
-            <p>This link expires in 48 hours.</p>
-            <p>Best regards,<br>The FastCheckin Team</p>
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #f59e0b; margin: 0;">FastCheckin</h1>
+              <p style="color: #666; margin: 5px 0 0;">Seamless Check-in, Smarter Stay</p>
+            </div>
+            
+            <h2 style="color: #333; margin-bottom: 20px;">Welcome, ${business.trading_name}!</h2>
+            
+            <p style="color: #555; line-height: 1.6;">Your business has been approved! Here's your personalized QR code for guest check-ins:</p>
+            
+            <div style="background: #f3f4f6; padding: 30px; border-radius: 8px; margin: 30px 0; text-align: center;">
+              <img src="${qrCodeDataUrl}" alt="QR Code" style="display: block; margin: 0 auto 20px; max-width: 200px; border: 4px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+              <p style="color: #333; font-weight: bold; margin: 10px 0;">Scan to check in to ${business.trading_name}</p>
+              <p style="color: #777; font-size: 14px; word-break: break-all;">${checkInUrl}</p>
+            </div>
+            
+            <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 30px 0;">
+              <h3 style="color: #0284c7; margin: 0 0 10px 0;">✨ Next Steps:</h3>
+              <ol style="color: #555; line-height: 1.8; margin: 0; padding-left: 20px;">
+                <li><strong>Download your QR code</strong> (attached to this email)</li>
+                <li><strong>Print and display</strong> at your reception desk</li>
+                <li><strong>Verify your email</strong> to access your dashboard</li>
+                <li><strong>Customize your check-in page</strong> with your logo and colors</li>
+              </ol>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationLink}" style="display: inline-block; background: #f59e0b; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                ✓ Verify Email & Access Dashboard
+              </a>
+            </div>
           </div>
-        `
+        `,
+        attachments: [{
+          filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`,
+          content: qrBuffer.toString('base64'),
+          encoding: 'base64',
+          contentType: 'image/png'
+        }]
       });
-      console.log('✅ Welcome email sent to:', business.email);
+
+      console.log('✅ Welcome email with QR code sent to:', business.email);
     } catch (emailError) {
       console.error('❌ Email sending failed:', emailError);
-      // Don't fail the approval if email fails
     }
 
     return {
@@ -134,7 +177,9 @@ export const handler = async function(event) {
       body: JSON.stringify({ 
         success: true, 
         message: 'Business approved successfully',
-        business: data
+        business: data,
+        checkInUrl,
+        qrCode: qrCodeDataUrl
       })
     };
 
