@@ -57,7 +57,7 @@ export const handler = async function(event) {
 
     // Generate verification token
     const verificationToken = uuidv4();
-    const verificationLink = `https://fastcheckin.netlify.app/verify-email/${verificationToken}`;
+    const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
 
     // Save verification token
     const { error: tokenError } = await supabase
@@ -108,7 +108,7 @@ export const handler = async function(event) {
       const resend = new Resend(process.env.RESEND_API_KEY);
       
       await resend.emails.send({
-        from: 'FastCheckin <welcome@fastcheckin.app>',
+        from: 'FastCheckin <welcome@fastcheckin.co.za>',
         to: [business.email],
         subject: `Welcome to FastCheckin, ${business.trading_name}!`,
         html: `
