@@ -116,6 +116,31 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
     }
   };
 
+  // NEW: Send QR Code via Email
+  const sendEmail = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/send-qr-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          businessName,
+          qrCodeUrl,
+          checkInUrl
+        })
+      });
+
+      if (response.ok) {
+        alert(`QR Code sent successfully to ${businessName}`);
+      } else {
+        alert('Failed to send email. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('Error sending email. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -128,18 +153,23 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full">
+      <div className="bg-white rounded-lg max-w-lg w-full relative">
+        {/* Close Button - Top Right */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 shadow-md hover:shadow-lg transition-all z-10"
+          aria-label="Close"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold text-gray-900">
               {businessName} - Check-in QR Code
             </h3>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
           </div>
 
           <div className="bg-orange-50 p-6 rounded-lg flex justify-center mb-4">
@@ -167,6 +197,7 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
               </svg>
               Download PNG
             </button>
+            
             <button
               onClick={printQR}
               className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 flex items-center justify-center gap-2 font-medium"
@@ -175,6 +206,18 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               Print
+            </button>
+
+            {/* NEW: Send Email Button */}
+            <button
+              onClick={sendEmail}
+              className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 font-medium"
+              title="Send QR Code to business owner"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Send
             </button>
           </div>
 
