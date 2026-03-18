@@ -61,7 +61,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     signature: '',
     acceptLegal: false,
     popiaConsent: false,
+    saveDetails: false, // ADDED for guest profile
   });
+
+  // ADDED for profile loading message
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
     if (businessId) {
@@ -93,6 +97,42 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [formData.arrivalDate, formData.nights]);
 
+  // ADDED: Load guest profile when email changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.email && formData.email.includes('@')) {
+        loadGuestProfile(formData.email);
+      }
+    }, 800);
+    
+    return () => clearTimeout(timer);
+  }, [formData.email]);
+
+  const loadGuestProfile = async (email: string) => {
+    try {
+      const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
+      if (response.ok) {
+        const profile = await response.json();
+        if (profile) {
+          setFormData(prev => ({
+            ...prev,
+            fullName: profile.full_name || prev.fullName,
+            phone: profile.phone || prev.phone,
+            passportOrId: profile.passport_or_id || prev.passportOrId,
+            country: profile.country || prev.country,
+            city: profile.city || prev.city,
+            province: profile.province || prev.province,
+          }));
+          
+          setProfileLoaded(true);
+          setTimeout(() => setProfileLoaded(false), 3000);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading guest profile:', error);
+    }
+  };
+
   const handleIndemnityScroll = () => {
     if (indemnityRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = indemnityRef.current;
@@ -104,14 +144,21 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsCameraActive(true);
+        await videoRef.current.play();
       }
     } catch (err) {
       console.error("Camera error:", err);
-      alert("Camera access is required for ID capture.");
+      alert("Camera access is required for ID capture. Please ensure camera permissions are granted.");
     }
   };
 
@@ -127,6 +174,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       stream.getTracks().forEach(track => track.stop());
       setIsCameraActive(false);
     }
+  };
+
+  const retakePhoto = () => {
+    setFormData(prev => ({ ...prev, idPhoto: '' }));
+    startCamera();
   };
 
   const clearCanvas = (ref: React.RefObject<HTMLCanvasElement>) => {
@@ -244,7 +296,35 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         tenantId: businessId || tenantId,
         source: 'live_checkin',
       };
+
+      // Save guest profile if opted in
+      if (formData.saveDetails) {
+        saveGuestProfile();
+      }
+
       onComplete(newBooking);
+    }
+  };
+
+  const saveGuestProfile = async () => {
+    try {
+      await fetch('/.netlify/functions/save-guest-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          profileData: {
+            fullName: formData.fullName,
+            phone: formData.phone,
+            passportOrId: formData.passportOrId,
+            country: formData.country,
+            city: formData.city,
+            province: formData.province
+          }
+        })
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
     }
   };
 
@@ -324,7 +404,31 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   value={formData.email}
                   onChange={e => setFormData({...formData, email: e.target.value})}
                 />
+                
+                {/* Profile loaded message */}
+                {profileLoaded && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm animate-fade-in">
+                    ✓ Your saved details have been loaded
+                  </div>
+                )}
               </div>
+
+              {/* Save details checkbox - ADDED */}
+              <div className="mt-4 flex items-center gap-3 p-4 bg-stone-50 rounded-xl border border-stone-200">
+                <input
+                  type="checkbox"
+                  id="saveDetails"
+                  className="w-5 h-5 rounded border-stone-300 focus:ring-stone-900"
+                  style={{ accentColor: primaryColor }}
+                  checked={formData.saveDetails}
+                  onChange={e => setFormData({...formData, saveDetails: e.target.checked})}
+                />
+                <label htmlFor="saveDetails" className="text-sm text-stone-700 cursor-pointer">
+                  <span className="font-bold">Save my details for next time</span>
+                  <span className="text-xs text-stone-500 block">Your information will be securely stored for faster check-ins</span>
+                </label>
+              </div>
+
               <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
                 <input 
                   type="checkbox" 
@@ -358,6 +462,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+              {/* All step 2 fields remain exactly the same */}
               <div className="space-y-1 group">
                 <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Guest Full Name *</label>
                 <input required type="text" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
@@ -495,7 +600,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 <div 
                   ref={indemnityRef}
                   onScroll={handleIndemnityScroll}
-                  className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[600px] overflow-y-auto custom-scrollbar select-none"
+                  className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                 >
                   <div className="space-y-8 max-w-3xl mx-auto">
                     <div className="text-center space-y-3 mb-12">
@@ -623,11 +728,31 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       </div>
                     </div>
 
-                    <div className="text-center text-stone-400 text-xs pt-8 border-t border-stone-200">
+                    {/* FIX 1: Checkbox moved INSIDE the indemnity container at the end */}
+                    <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
+                      <div className="flex items-start gap-5">
+                        <input 
+                          type="checkbox" 
+                          id="legalCheck" 
+                          className="w-8 h-8 rounded border-stone-300 text-amber-700 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1" 
+                          disabled={!hasScrolledToBottom}
+                          checked={formData.acceptLegal} 
+                          onChange={e => setFormData({...formData, acceptLegal: e.target.checked})} 
+                        />
+                        <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
+                          I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* End marker */}
+                    <div className="text-center text-stone-400 text-xs pt-4">
                       — End of Document —
                     </div>
                   </div>
                 </div>
+                
+                {/* Scroll indicator - only shows when NOT at bottom */}
                 {!hasScrolledToBottom && (
                   <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-8 py-3 rounded-full text-[10px] font-bold animate-bounce shadow-2xl pointer-events-none uppercase tracking-widest z-10">
                     ↓ Scroll to end of document to enable acceptance ↓
@@ -636,24 +761,68 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
+                {/* FIX 2: Enhanced Camera UI */}
                 <div className="space-y-6">
                   <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
                   <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
                     {formData.idPhoto ? (
                       <>
                         <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
-                        <button onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} className="absolute top-4 right-4 bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm">✕</button>
+                        <div className="absolute top-4 right-4 flex gap-2">
+                          <button 
+                            onClick={retakePhoto} 
+                            className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-blue-700 transition-colors"
+                            title="Retake photo"
+                          >
+                            ↻
+                          </button>
+                          <button 
+                            onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} 
+                            className="bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-black/80 transition-colors"
+                            title="Remove photo"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </>
                     ) : isCameraActive ? (
-                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                      <div className="relative w-full h-full">
+                        <video 
+                          ref={videoRef} 
+                          autoPlay 
+                          playsInline 
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={capturePhoto}
+                          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white text-stone-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-stone-100 transition-all flex items-center gap-2"
+                        >
+                          <span className="text-lg">📸</span> Capture Photo
+                        </button>
+                      </div>
                     ) : (
-                      <button type="button" onClick={startCamera} className="text-stone-500 font-bold text-xs flex flex-col items-center gap-3">
-                        <span className="text-3xl opacity-50">📷</span>
-                        Capture ID/Passport Photo
+                      <button 
+                        type="button" 
+                        onClick={startCamera} 
+                        className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
+                      >
+                        <span className="text-5xl opacity-50">📷</span>
+                        <span>Tap to open camera</span>
+                        <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
                       </button>
                     )}
                   </div>
-                  {isCameraActive && <button type="button" onClick={capturePhoto} className="w-full text-white py-4 rounded-2xl text-[10px] uppercase font-bold tracking-widest" style={{ backgroundColor: secondaryColor }}>Take Snapshot</button>}
+                  {isCameraActive && (
+                    <button 
+                      type="button" 
+                      onClick={capturePhoto} 
+                      className="w-full text-white py-4 rounded-2xl text-sm uppercase font-bold tracking-widest shadow-lg hover:opacity-90 transition-all"
+                      style={{ backgroundColor: secondaryColor }}
+                    >
+                      Take Photo
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-6">
