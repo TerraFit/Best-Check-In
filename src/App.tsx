@@ -11,6 +11,7 @@ import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
+import ResetPassword from './pages/ResetPassword'; // NEW IMPORT
 
 // IMPORTS for messaging system
 import BusinessMessages from './pages/business/BusinessMessages';
@@ -84,6 +85,9 @@ function AppContent() {
       <Route path="/registration-success" element={<RegistrationSuccess />} />
       <Route path="/business/login" element={<BusinessLogin />} />
       <Route path="/business/pending" element={<BusinessPending />} />
+      
+      {/* NEW: Password Reset Route */}
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
       
       {/* Protected Business routes */}
       <Route 
