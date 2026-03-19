@@ -75,11 +75,11 @@ export const handler = async function(event) {
       console.error('Error saving reset token:', tokenError);
     }
 
-    // Send reset email
+    // Send reset email - UPDATED WITH YOUR VERIFIED DOMAIN
     const resend = new Resend(process.env.RESEND_API_KEY);
     
     await resend.emails.send({
-      from: 'FastCheckin <onboarding@resend.dev>', // Update to your domain when verified
+      from: 'FastCheckin <noreply@fastcheckin.co.za>', // ✅ Updated to your verified domain
       to: [business.email],
       subject: 'Reset your FastCheckin password',
       html: `
