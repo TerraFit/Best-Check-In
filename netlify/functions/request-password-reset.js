@@ -3,6 +3,9 @@ import { Resend } from 'resend';
 import { v4 as uuidv4 } from 'uuid';
 
 export const handler = async function(event) {
+  console.log('🔵 FUNCTION STARTED');
+  console.log('🔵 Time:', new Date().toISOString());
+  
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -11,10 +14,12 @@ export const handler = async function(event) {
   };
 
   if (event.httpMethod === 'OPTIONS') {
+    console.log('🔵 Handling OPTIONS preflight');
     return { statusCode: 204, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
+    console.log('🔵 Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       headers,
@@ -22,6 +27,7 @@ export const handler = async function(event) {
     };
   }
 
+  console.log('🔵 Initializing Supabase...');
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
@@ -29,8 +35,10 @@ export const handler = async function(event) {
 
   try {
     const { email } = JSON.parse(event.body);
+    console.log('🔵 Email received:', email);
 
     if (!email) {
+      console.log('🔵 No email provided');
       return {
         statusCode: 400,
         headers,
@@ -39,6 +47,7 @@ export const handler = async function(event) {
     }
 
     // Check if business exists
+    console.log('🔵 Checking business for email:', email);
     const { data: business, error: fetchError } = await supabase
       .from('businesses')
       .select('id, trading_name, email')
@@ -46,7 +55,7 @@ export const handler = async function(event) {
       .single();
 
     if (fetchError || !business) {
-      // Return success even if email not found (security best practice)
+      console.log('🔵 No business found for email:', email);
       return {
         statusCode: 200,
         headers,
@@ -57,29 +66,40 @@ export const handler = async function(event) {
       };
     }
 
+    console.log('🔵 Business found:', business.id, business.trading_name);
+
     // Generate reset token
     const resetToken = uuidv4();
     const resetLink = `https://fastcheckin.co.za/reset-password/${resetToken}`;
+    console.log('🔵 Reset token generated:', resetToken);
 
     // Save reset token to database
+    console.log('🔵 Saving token to database...');
     const { error: tokenError } = await supabase
       .from('password_resets')
       .insert([{
         token: resetToken,
         business_id: business.id,
         email: business.email,
-        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
       }]);
 
     if (tokenError) {
-      console.error('Error saving reset token:', tokenError);
+      console.error('❌ Error saving reset token:', tokenError);
+    } else {
+      console.log('✅ Token saved successfully');
     }
 
-    // Send reset email - UPDATED WITH YOUR VERIFIED DOMAIN
+    // Check Resend API key
+    console.log('🔵 Checking RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
+    
+    // Initialize Resend
+    console.log('🔵 Initializing Resend...');
     const resend = new Resend(process.env.RESEND_API_KEY);
     
-    await resend.emails.send({
-      from: 'FastCheckin <noreply@fastcheckin.co.za>', // ✅ Updated to your verified domain
+    // Prepare email
+    const emailData = {
+      from: 'FastCheckin <noreply@fastcheckin.co.za>',
       to: [business.email],
       subject: 'Reset your FastCheckin password',
       html: `
@@ -92,8 +112,14 @@ export const handler = async function(event) {
           <p>If you didn't request this, you can safely ignore this email.</p>
         </div>
       `
-    });
+    };
+    
+    console.log('🔵 Sending email with data:', JSON.stringify(emailData, null, 2));
+    
+    const emailResult = await resend.emails.send(emailData);
+    console.log('✅ Resend API response:', JSON.stringify(emailResult, null, 2));
 
+    console.log('🔵 Function completed successfully');
     return {
       statusCode: 200,
       headers,
@@ -104,7 +130,8 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('Error in password reset:', error);
+    console.error('❌ CATASTROPHIC ERROR:', error);
+    console.error('❌ Error stack:', error.stack);
     return {
       statusCode: 500,
       headers,
