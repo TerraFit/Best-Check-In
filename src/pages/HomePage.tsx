@@ -5,11 +5,13 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-orange-50 to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+      {/* Hero Section - Restored original background */}
+      <div className="relative bg-gradient-to-br from-stone-50 to-stone-100 overflow-hidden">
+        {/* Decorative background elements - restore the original look */}
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')] bg-cover bg-center opacity-10"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="text-center">
-            {/* Small logo at top - subtle */}
+            {/* Small logo added subtly above */}
             <div className="flex justify-center mb-6">
               <img 
                 src="/fastcheckin-logo.png" 
@@ -18,7 +20,7 @@ export default function HomePage() {
               />
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
               Transform Your{' '}
               <span className="text-orange-500">Check-In Experience</span>
             </h1>
@@ -26,17 +28,30 @@ export default function HomePage() {
               The all-in-one digital check-in solution for South African hotels and guest houses
             </p>
             
-            {/* Changed from "100+ Hotels" to authentic message */}
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-8">
-              <span>✓</span>
-              <span>Trusted by hoteliers across South Africa</span>
-              <span>✓</span>
+            {/* Changed from false claim to authentic messaging */}
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500 mb-8">
+              <span className="flex items-center gap-2">
+                <span className="text-orange-500">✓</span>
+                <span>POPIA Compliant</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-orange-500">✓</span>
+                <span>Digital Indemnity Forms</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-orange-500">✓</span>
+                <span>ID Capture</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-orange-500">✓</span>
+                <span>Guest Registry</span>
+              </span>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => navigate('/register')}
-                className="px-8 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                className="px-8 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors shadow-md"
               >
                 Start Your 14-Day Free Trial
               </button>
@@ -48,44 +63,44 @@ export default function HomePage() {
               </button>
             </div>
             <p className="mt-4 text-sm text-gray-500">
-              ✦ No credit card required ✦ Cancel anytime ✦ South African owned
+              ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
             </p>
           </div>
         </div>
       </div>
 
-      {/* Features Grid - Keep exactly as it was */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      {/* Features Section - Restored original */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
           Everything you need to run your front desk
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📱</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Digital Check-In</h3>
             <p className="text-gray-600">Guests check in using their own device. No more paper forms.</p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">🔒</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">POPIA Compliant</h3>
             <p className="text-gray-600">Fully compliant with South African data protection laws.</p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📸</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">ID Capture</h3>
             <p className="text-gray-600">Take photos of IDs directly through the web app.</p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">✍️</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Digital Signatures</h3>
             <p className="text-gray-600">Guests sign indemnity forms electronically.</p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📊</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Analytics Dashboard</h3>
             <p className="text-gray-600">Track occupancy, revenue, and guest origins.</p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📋</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Statutory Register</h3>
             <p className="text-gray-600">Automated guest registry for Immigration Act compliance.</p>
@@ -93,8 +108,8 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Pricing Section - Keep exactly as it was */}
-      <div className="bg-gray-50 py-16">
+      {/* Pricing Section - Restored original */}
+      <div className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
             Simple, Transparent Pricing
@@ -103,7 +118,7 @@ export default function HomePage() {
             Start with a 14-day free trial. No credit card required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly</h3>
               <div className="mb-4">
                 <span className="text-4xl font-bold text-orange-500">R299</span>
@@ -136,12 +151,12 @@ export default function HomePage() {
                 Start Free Trial
               </button>
             </div>
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-8 rounded-xl shadow-lg text-white">
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-8 rounded-2xl shadow-lg text-white">
               <h3 className="text-2xl font-bold mb-2">Annual</h3>
               <div className="mb-4">
                 <span className="text-4xl font-bold">R2,990</span>
                 <span className="text-white/80"> / year</span>
-                <span className="ml-2 text-sm bg-white/20 px-2 py-1 rounded">Save 17%</span>
+                <span className="ml-2 text-sm bg-white/20 px-2 py-1 rounded">SAVE 17%</span>
               </div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center gap-2">
@@ -174,7 +189,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* CTA Section - Keep exactly as it was */}
+      {/* CTA Section - Restored original */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
@@ -194,6 +209,36 @@ export default function HomePage() {
           </p>
         </div>
       </div>
+
+      {/* Footer - Restored original */}
+      <footer className="bg-gray-900 text-gray-400 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="text-center md:text-left">
+              <img 
+                src="/fastcheckin-logo.png" 
+                alt="FastCheckin" 
+                className="h-10 w-auto mb-2"
+              />
+              <p className="text-sm">Streamlined Hotel Check-ins</p>
+            </div>
+            <div className="flex gap-8 text-sm">
+              <a href="#" className="hover:text-white transition-colors">About</a>
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+              <button 
+                onClick={() => navigate('/login')}
+                className="hover:text-white transition-colors"
+              >
+                Super Admin
+              </button>
+            </div>
+          </div>
+          <div className="text-center text-xs mt-8">
+            &copy; {new Date().getFullYear()} FastCheckin. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
