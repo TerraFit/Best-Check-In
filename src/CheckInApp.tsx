@@ -182,7 +182,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
                 <img 
                   src="/fastcheckin-logo.png" 
                   alt="FastCheckin" 
-                  className="h-10 w-auto object-contain"
+                  className="h-12 w-auto object-contain"
                 />
               </div>
               
@@ -347,7 +347,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
               <img 
                 src="/fastcheckin-logo.png" 
                 alt="FastCheckin" 
-                className="h-12 w-auto object-contain mb-2"
+                className="h-20 w-auto object-contain mb-3"
               />
               <p className="text-sm italic font-serif text-stone-400">"Streamlined Hotel Check-ins"</p>
             </div>
