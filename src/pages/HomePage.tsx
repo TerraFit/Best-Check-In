@@ -4,11 +4,17 @@ export default function HomePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section - Restored original background */}
-      <div className="relative bg-gradient-to-br from-stone-50 to-stone-100 overflow-hidden">
-        {/* Decorative background elements - restore the original look */}
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')] bg-cover bg-center opacity-10"></div>
+    <div className="min-h-screen bg-stone-900">
+      {/* Hero Section - Original dark theme with background image */}
+      <div className="relative bg-stone-900 overflow-hidden">
+        {/* Background image with overlay */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ 
+            backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')"
+          }}
+        ></div>
+        
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="text-center">
             {/* Small logo added subtly above */}
@@ -20,30 +26,29 @@ export default function HomePage() {
               />
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
               Transform Your{' '}
-              <span className="text-orange-500">Check-In Experience</span>
+              <span className="text-amber-500">Check-In Experience</span>
             </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-stone-300 mb-8 max-w-2xl mx-auto">
               The all-in-one digital check-in solution for South African hotels and guest houses
             </p>
             
-            {/* Changed from false claim to authentic messaging */}
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500 mb-8">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-300 mb-8">
               <span className="flex items-center gap-2">
-                <span className="text-orange-500">✓</span>
+                <span className="text-amber-500">✓</span>
                 <span>POPIA Compliant</span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-orange-500">✓</span>
+                <span className="text-amber-500">✓</span>
                 <span>Digital Indemnity Forms</span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-orange-500">✓</span>
+                <span className="text-amber-500">✓</span>
                 <span>ID Capture</span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-orange-500">✓</span>
+                <span className="text-amber-500">✓</span>
                 <span>Guest Registry</span>
               </span>
             </div>
@@ -51,93 +56,93 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => navigate('/register')}
-                className="px-8 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors shadow-md"
+                className="px-8 py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors shadow-md"
               >
                 Start Your 14-Day Free Trial
               </button>
               <button
                 onClick={() => navigate('/business/login')}
-                className="px-8 py-3 bg-white text-orange-500 border-2 border-orange-500 rounded-lg font-semibold hover:bg-orange-50 transition-colors"
+                className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
               >
                 Business Login
               </button>
             </div>
-            <p className="mt-4 text-sm text-gray-500">
+            <p className="mt-4 text-sm text-stone-400">
               ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
             </p>
           </div>
         </div>
       </div>
 
-      {/* Features Section - Restored original */}
+      {/* Features Section - Original dark theme */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
+        <h2 className="text-3xl font-bold text-center text-white mb-12">
           Everything you need to run your front desk
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">📱</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Digital Check-In</h3>
-            <p className="text-gray-600">Guests check in using their own device. No more paper forms.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">Digital Check-In</h3>
+            <p className="text-stone-300">Guests check in using their own device. No more paper forms.</p>
           </div>
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">🔒</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">POPIA Compliant</h3>
-            <p className="text-gray-600">Fully compliant with South African data protection laws.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">POPIA Compliant</h3>
+            <p className="text-stone-300">Fully compliant with South African data protection laws.</p>
           </div>
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">📸</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">ID Capture</h3>
-            <p className="text-gray-600">Take photos of IDs directly through the web app.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">ID Capture</h3>
+            <p className="text-stone-300">Take photos of IDs directly through the web app.</p>
           </div>
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">✍️</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Digital Signatures</h3>
-            <p className="text-gray-600">Guests sign indemnity forms electronically.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">Digital Signatures</h3>
+            <p className="text-stone-300">Guests sign indemnity forms electronically.</p>
           </div>
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Analytics Dashboard</h3>
-            <p className="text-gray-600">Track occupancy, revenue, and guest origins.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">Analytics Dashboard</h3>
+            <p className="text-stone-300">Track occupancy, revenue, and guest origins.</p>
           </div>
-          <div className="text-center p-6">
+          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
             <div className="text-4xl mb-4">📋</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Statutory Register</h3>
-            <p className="text-gray-600">Automated guest registry for Immigration Act compliance.</p>
+            <h3 className="text-xl font-semibold text-white mb-2">Statutory Register</h3>
+            <p className="text-stone-300">Automated guest registry for Immigration Act compliance.</p>
           </div>
         </div>
       </div>
 
-      {/* Pricing Section - Restored original */}
-      <div className="bg-gray-50 py-20">
+      {/* Pricing Section - Original dark theme */}
+      <div className="bg-stone-800/50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
+          <h2 className="text-3xl font-bold text-center text-white mb-4">
             Simple, Transparent Pricing
           </h2>
-          <p className="text-center text-gray-600 mb-12">
+          <p className="text-center text-stone-300 mb-12">
             Start with a 14-day free trial. No credit card required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly</h3>
+            <div className="bg-stone-800 p-8 rounded-2xl shadow-lg border border-stone-700">
+              <h3 className="text-2xl font-bold text-white mb-2">Monthly</h3>
               <div className="mb-4">
-                <span className="text-4xl font-bold text-orange-500">R299</span>
-                <span className="text-gray-500"> / month</span>
+                <span className="text-4xl font-bold text-amber-500">R299</span>
+                <span className="text-stone-400"> / month</span>
               </div>
               <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 text-stone-300">
                   <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Unlimited check-ins
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 text-stone-300">
                   <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Full compliance suite
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 text-stone-300">
                   <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -146,33 +151,33 @@ export default function HomePage() {
               </ul>
               <button
                 onClick={() => navigate('/register')}
-                className="w-full py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                className="w-full py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors"
               >
                 Start Free Trial
               </button>
             </div>
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-8 rounded-2xl shadow-lg text-white">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-8 rounded-2xl shadow-lg text-stone-900">
               <h3 className="text-2xl font-bold mb-2">Annual</h3>
               <div className="mb-4">
                 <span className="text-4xl font-bold">R2,990</span>
-                <span className="text-white/80"> / year</span>
-                <span className="ml-2 text-sm bg-white/20 px-2 py-1 rounded">SAVE 17%</span>
+                <span className="text-stone-800"> / year</span>
+                <span className="ml-2 text-sm bg-stone-900/20 px-2 py-1 rounded">SAVE 17%</span>
               </div>
               <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <li className="flex items-center gap-2 text-stone-800">
+                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Everything in Monthly
                 </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <li className="flex items-center gap-2 text-stone-800">
+                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Priority support
                 </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <li className="flex items-center gap-2 text-stone-800">
+                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Custom branding
@@ -180,7 +185,7 @@ export default function HomePage() {
               </ul>
               <button
                 onClick={() => navigate('/register')}
-                className="w-full py-3 bg-white text-orange-500 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                className="w-full py-3 bg-stone-900 text-amber-500 rounded-lg font-semibold hover:bg-stone-800 transition-colors"
               >
                 Start Free Trial
               </button>
@@ -189,29 +194,29 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* CTA Section - Restored original */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 py-16">
+      {/* CTA Section - Original dark theme */}
+      <div className="bg-gradient-to-r from-amber-500 to-amber-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
+          <h2 className="text-3xl font-bold text-stone-900 mb-4">
             Ready to digitize your check-in process?
           </h2>
-          <p className="text-white/90 mb-8">
+          <p className="text-stone-800 mb-8">
             Join hoteliers across South Africa using FastCheckin
           </p>
           <button
             onClick={() => navigate('/register')}
-            className="px-8 py-3 bg-white text-orange-500 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+            className="px-8 py-3 bg-stone-900 text-amber-500 rounded-lg font-semibold hover:bg-stone-800 transition-colors"
           >
             Get Started Today
           </button>
-          <p className="text-white/80 text-sm mt-4">
+          <p className="text-stone-800 text-sm mt-4">
             14-day free trial • No credit card required • Cancel anytime
           </p>
         </div>
       </div>
 
-      {/* Footer - Restored original */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      {/* Footer - Original dark theme */}
+      <footer className="bg-stone-900 text-stone-400 py-12 border-t border-stone-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-center md:text-left">
