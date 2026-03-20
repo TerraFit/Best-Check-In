@@ -74,7 +74,7 @@ export const handler = async function(event) {
     }
 
     await resend.emails.send({
-      from: 'FastCheckin Billing <billing@fastcheckin.app>',
+      from: 'FastCheckin Billing <billing@fastcheckin.co.za>', // ← CHANGE THIS LINE
       to: [business.email],
       subject: subject,
       html: `
@@ -89,7 +89,7 @@ export const handler = async function(event) {
             <p><strong>Subscription:</strong> ${business.subscription_tier}</p>
             <p><strong>Amount Due:</strong> ${business.subscription_tier === 'monthly' ? 'R299' : 'R2,990'}</p>
           </div>
-          <a href="https://fastcheckin.app/billing/${business.id}" 
+          <a href="https://fastcheckin.co.za/billing/${business.id}" 
              style="display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">
             Update Payment Method
           </a>
