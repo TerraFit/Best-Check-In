@@ -7,9 +7,9 @@ interface LogoProps {
 
 export default function Logo({ size = 'md', className = '' }: LogoProps) {
   const sizes = {
-    sm: 'w-24',
-    md: 'w-32',
-    lg: 'w-40'
+    sm: 'h-8',
+    md: 'h-10',
+    lg: 'h-12'
   };
 
   return (
@@ -17,7 +17,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
       <img 
         src="/fastcheckin-logo.png" 
         alt="FastCheckin" 
-        className={`${sizes[size]} h-auto`}
+        className={`${sizes[size]} w-auto object-contain`}
       />
     </Link>
   );
