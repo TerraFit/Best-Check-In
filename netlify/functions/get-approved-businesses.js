@@ -12,25 +12,27 @@ export const handler = async function(event) {
   );
 
   try {
-    // Add directors field - but we'll clean it
+    const { businessId } = event.queryStringParameters || {};
+
+    if (!businessId) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Business ID required' })
+      };
+    }
+
     const { data, error } = await supabase
-      .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, status, directors')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
+      .from('directors')
+      .select('*')
+      .eq('business_id', businessId);
 
     if (error) throw error;
-
-    // Remove idPhoto from directors to keep size small
-    const cleanedData = data?.map(business => ({
-      ...business,
-      directors: business.directors?.map(({ idPhoto, ...director }) => director) || []
-    })) || [];
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(cleanedData || [])
+      body: JSON.stringify(data || [])
     };
   } catch (error) {
     console.error('Error:', error);
