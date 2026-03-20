@@ -7,20 +7,20 @@ export default function HomePage() {
     <div className="min-h-screen bg-stone-900">
       {/* Hero Section - Dark theme with visible background image */}
       <div className="relative bg-stone-900 overflow-hidden">
-        {/* Background image with higher opacity */}
+        {/* Background image with FULL visibility */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-40"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ 
             backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')"
           }}
         ></div>
         
-        {/* Dark overlay to ensure text remains readable */}
-        <div className="absolute inset-0 bg-stone-900/60"></div>
+        {/* Light overlay for text readability */}
+        <div className="absolute inset-0 bg-stone-900/40"></div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="text-center">
-            {/* Small logo added subtly above */}
+            {/* Small logo */}
             <div className="flex justify-center mb-6">
               <img 
                 src="/fastcheckin-logo.png" 
@@ -33,11 +33,11 @@ export default function HomePage() {
               Transform Your{' '}
               <span className="text-amber-500">Check-In Experience</span>
             </h1>
-            <p className="text-xl text-stone-200 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-white mb-8 max-w-2xl mx-auto">
               The all-in-one digital check-in solution for South African hotels and guest houses
             </p>
             
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-200 mb-8">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white mb-8">
               <span className="flex items-center gap-2">
                 <span className="text-amber-500">✓</span>
                 <span>POPIA Compliant</span>
@@ -70,14 +70,14 @@ export default function HomePage() {
                 Business Login
               </button>
             </div>
-            <p className="mt-4 text-sm text-stone-300">
+            <p className="mt-4 text-sm text-white/80">
               ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
             </p>
           </div>
         </div>
       </div>
 
-      {/* Features Section - Original dark theme */}
+      {/* Features Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h2 className="text-3xl font-bold text-center text-white mb-12">
           Everything you need to run your front desk
@@ -116,7 +116,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Pricing Section - Original dark theme */}
+      {/* Pricing Section */}
       <div className="bg-stone-800/50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-white mb-4">
@@ -197,7 +197,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* CTA Section - Original dark theme */}
+      {/* CTA Section */}
       <div className="bg-gradient-to-r from-amber-500 to-amber-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-stone-900 mb-4">
@@ -218,7 +218,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Footer - Original dark theme */}
+      {/* Footer */}
       <footer className="bg-stone-900 text-stone-400 py-12 border-t border-stone-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
