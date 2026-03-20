@@ -6,7 +6,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-stone-900">
       {/* Hero Section */}
-      <div className="relative bg-stone-900 overflow-hidden min-h-screen flex items-center">
+      <div className="relative bg-stone-900 overflow-hidden">
         {/* Background image */}
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -15,77 +15,71 @@ export default function HomePage() {
           }}
         ></div>
         
-        {/* Light overlay - gradient from left to right to create brighter area on left */}
-        <div className="absolute inset-0 bg-gradient-to-r from-stone-900/30 via-stone-900/50 to-stone-900/70"></div>
+        {/* Light overlay for text readability */}
+        <div className="absolute inset-0 bg-stone-900/40"></div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-12">
-            {/* Left side - Logo and text */}
-            <div className="flex-1 text-center md:text-left">
-              {/* Logo - TWICE the size and left-aligned */}
-              <div className="flex justify-center md:justify-start mb-8">
-                <img 
-                  src="/fastcheckin-logo.png" 
-                  alt="FastCheckin" 
-                  className="h-24 w-auto"
-                />
-              </div>
-              
-              {/* Main Heading */}
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-                Transform Your{' '}
-                <span className="text-amber-500">Check-In Experience</span>
-              </h1>
-              
-              {/* Subtitle - Half size */}
-              <p className="text-2xl text-white mb-8 max-w-2xl">
-                The all-in-one digital check-in solution for South African hotels and guest houses
-              </p>
-              
-              {/* Feature badges */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 text-sm text-white mb-8">
-                <span className="flex items-center gap-2">
-                  <span className="text-amber-500">✓</span>
-                  <span>POPIA Compliant</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="text-amber-500">✓</span>
-                  <span>Digital Indemnity Forms</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="text-amber-500">✓</span>
-                  <span>ID Capture</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="text-amber-500">✓</span>
-                  <span>Guest Registry</span>
-                </span>
-              </div>
-              
-              {/* Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                <button
-                  onClick={() => navigate('/register')}
-                  className="px-8 py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors shadow-md"
-                >
-                  Start Your 14-Day Free Trial
-                </button>
-                <button
-                  onClick={() => navigate('/business/login')}
-                  className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
-                >
-                  Business Login
-                </button>
-              </div>
-              
-              {/* Free trial notice */}
-              <p className="mt-4 text-sm text-white/80">
-                ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
-              </p>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
+          {/* Logo - Left aligned, twice as large */}
+          <div className="flex justify-start mb-8">
+            <img 
+              src="/fastcheckin-logo.png" 
+              alt="FastCheckin" 
+              className="h-24 w-auto"
+            />
+          </div>
+          
+          {/* Text content - Centered as original */}
+          <div className="text-center">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
+              Transform Your{' '}
+              <span className="text-amber-500">Check-In Experience</span>
+            </h1>
+            
+            {/* Subtitle - Slightly larger (text-2xl instead of text-xl) */}
+            <p className="text-2xl text-white mb-8 max-w-2xl mx-auto">
+              The all-in-one digital check-in solution for South African hotels and guest houses
+            </p>
+            
+            {/* Feature badges */}
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white mb-8">
+              <span className="flex items-center gap-2">
+                <span className="text-amber-500">✓</span>
+                <span>POPIA Compliant</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-amber-500">✓</span>
+                <span>Digital Indemnity Forms</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-amber-500">✓</span>
+                <span>ID Capture</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-amber-500">✓</span>
+                <span>Guest Registry</span>
+              </span>
             </div>
             
-            {/* Right side - Optional decorative element (empty for now) */}
-            <div className="flex-1 hidden md:block"></div>
+            {/* Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => navigate('/register')}
+                className="px-8 py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors shadow-md"
+              >
+                Start Your 14-Day Free Trial
+              </button>
+              <button
+                onClick={() => navigate('/business/login')}
+                className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
+              >
+                Business Login
+              </button>
+            </div>
+            
+            {/* Free trial notice */}
+            <p className="mt-4 text-sm text-white/80">
+              ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
+            </p>
           </div>
         </div>
       </div>
