@@ -11,7 +11,7 @@ export const handler = async function(event) {
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { data, error } = await resend.emails.send({
-      from: 'FastCheckin <onboarding@resend.dev>', // Use Resend's test domain first
+      from: 'FastCheckin <test@fastcheckin.co.za>', // ← CHANGE THIS LINE
       to: [email],
       subject: 'Test Email from FastCheckin',
       html: '<p>Your Resend integration is working! 🎉</p>'
