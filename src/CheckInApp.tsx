@@ -172,20 +172,21 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col relative">
-      {/* LINE 1: Main Navigation with FASTCHECKIN logo */}
+      {/* LINE 1: Main Navigation with FastCheckin Logo */}
       {currentView !== 'HOME' && currentView !== 'LOGIN' && (
         <div className="bg-stone-900 text-white sticky top-0 z-50 shadow-lg">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex justify-between items-center">
-              {/* FASTCHECKIN Logo - Left side */}
+              {/* FastCheckin Logo - Left side */}
               <div 
                 onClick={() => handleNavigate('HOME')}
                 className="cursor-pointer"
               >
-                <h1 className="text-xl font-bold tracking-tighter">
-                  FAST<span className="text-amber-500">CHECKIN</span>
-                </h1>
-                <p className="text-[8px] text-stone-400 tracking-wider">Streamlined Hotel Check-ins</p>
+                <img 
+                  src="/fastcheckin-logo.png" 
+                  alt="FastCheckin" 
+                  className="h-10 w-auto object-contain"
+                />
               </div>
               
               {/* Navigation buttons - Right side */}
@@ -234,7 +235,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         </div>
       )}
       
-      {/* LINE 2: Business-specific menu (only when in admin views) - NO LOGO */}
+      {/* LINE 2: Business-specific menu (only when in admin views) */}
       {(currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT') && (
         <div className="bg-stone-900 text-stone-400 py-3 border-b border-stone-800 sticky top-[72px] z-40 shadow-md">
           <div className="max-w-7xl mx-auto px-6">
@@ -346,15 +347,17 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         <footer className="bg-stone-900 text-stone-500 py-16 px-6 border-t border-stone-800 mt-auto">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
             <div className="text-center md:text-left">
-              <h4 className="text-white font-bold text-2xl mb-2 tracking-tighter">
-                FAST<span className="text-amber-600">CHECKIN</span>
-              </h4>
+              <img 
+                src="/fastcheckin-logo.png" 
+                alt="FastCheckin" 
+                className="h-12 w-auto object-contain mb-2"
+              />
               <p className="text-sm italic font-serif text-stone-400">"Streamlined Hotel Check-ins"</p>
             </div>
             <div className="flex flex-wrap justify-center gap-10 text-[10px] font-bold uppercase tracking-widest">
               <a href="https://www.fastcheckin.app" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">About</a>
               <a href="#" className="hover:text-amber-500 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-almber-500 transition-colors">Terms</a>
+              <a href="#" className="hover:text-amber-500 transition-colors">Terms</a>
               <button 
                 onClick={() => {
                   if (externalNavigate) {
