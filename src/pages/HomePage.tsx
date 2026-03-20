@@ -5,15 +5,18 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-stone-900">
-      {/* Hero Section - Original dark theme with background image */}
+      {/* Hero Section - Dark theme with visible background image */}
       <div className="relative bg-stone-900 overflow-hidden">
-        {/* Background image with overlay */}
+        {/* Background image with higher opacity */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-20"
+          className="absolute inset-0 bg-cover bg-center opacity-40"
           style={{ 
             backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')"
           }}
         ></div>
+        
+        {/* Dark overlay to ensure text remains readable */}
+        <div className="absolute inset-0 bg-stone-900/60"></div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="text-center">
@@ -30,11 +33,11 @@ export default function HomePage() {
               Transform Your{' '}
               <span className="text-amber-500">Check-In Experience</span>
             </h1>
-            <p className="text-xl text-stone-300 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-stone-200 mb-8 max-w-2xl mx-auto">
               The all-in-one digital check-in solution for South African hotels and guest houses
             </p>
             
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-300 mb-8">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-200 mb-8">
               <span className="flex items-center gap-2">
                 <span className="text-amber-500">✓</span>
                 <span>POPIA Compliant</span>
@@ -67,7 +70,7 @@ export default function HomePage() {
                 Business Login
               </button>
             </div>
-            <p className="mt-4 text-sm text-stone-400">
+            <p className="mt-4 text-sm text-stone-300">
               ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
             </p>
           </div>
