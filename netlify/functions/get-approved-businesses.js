@@ -13,7 +13,7 @@ export const handler = async function(event) {
   );
 
   try {
-    // Select directors BUT exclude the large idPhoto field
+    // REMOVED days_overdue - this column does NOT exist in your table
     const { data, error } = await supabase
       .from('businesses')
       .select('id, registered_name, trading_name, business_number, phone, email, physical_address, postal_address, subscription_tier, payment_method, status, total_rooms, avg_price, seasons, setup_complete, approved_at, created_at, last_payment_date, payment_due_date, payment_status, payment_reminder_sent, payment_reminder_count, deleted_at, directors')
