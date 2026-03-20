@@ -12,20 +12,11 @@ export const handler = async function(event) {
   );
 
   try {
-    const { businessId } = event.queryStringParameters || {};
-
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID required' })
-      };
-    }
-
     const { data, error } = await supabase
-      .from('directors')
-      .select('*')
-      .eq('business_id', businessId);
+      .from('businesses')
+      .select('id, trading_name, registered_name, email, phone, status')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
 
