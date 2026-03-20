@@ -102,25 +102,42 @@ export const handler = async function(event) {
       };
     }
 
-    // Generate UNIQUE QR Code for this specific business
+    // Generate QR Code
     const checkInUrl = `https://fastcheckin.co.za/checkin/${businessId}`;
     const qrCodeDataUrl = await QRCode.toDataURL(checkInUrl, {
       width: 300,
       margin: 2,
       color: {
-        dark: '#f59e0b', // Brand orange
+        dark: '#f59e0b',
         light: '#ffffff'
       }
     });
 
-    // Convert to buffer for attachment
     const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
 
-    // Send welcome email with QR code
+    // Send welcome email - WITH PROPER ERROR HANDLING
+    console.log('📧 Attempting to send email to:', business.email);
+    console.log('🔑 Checking RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'exists' : 'MISSING');
+    
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    
+    // Test the Resend connection with a simple email first
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      
-      await resend.emails.send({
+      const testResult = await resend.emails.send({
+        from: 'FastCheckin <onboarding@resend.dev>',
+        to: [business.email],
+        subject: 'Test - FastCheckin Approval',
+        html: '<p>This is a test email from FastCheckin approval function.</p>'
+      });
+      console.log('📧 Test email result:', testResult);
+    } catch (testError) {
+      console.error('❌ Test email failed:', testError);
+      console.error('❌ Error details:', JSON.stringify(testError, null, 2));
+    }
+    
+    // Now send the real email
+    try {
+      const emailResult = await resend.emails.send({
         from: 'FastCheckin <onboarding@resend.dev>',
         to: [business.email],
         subject: `🎉 Welcome to FastCheckin, ${business.trading_name}!`,
@@ -166,9 +183,14 @@ export const handler = async function(event) {
         }]
       });
 
-      console.log('✅ Welcome email with QR code sent to:', business.email);
+      console.log('✅ Email sent successfully!');
+      console.log('📧 Email result:', JSON.stringify(emailResult, null, 2));
+      
     } catch (emailError) {
-      console.error('❌ Email sending failed:', emailError);
+      console.error('❌ EMAIL SEND FAILED!');
+      console.error('❌ Error name:', emailError.name);
+      console.error('❌ Error message:', emailError.message);
+      console.error('❌ Full error object:', emailError);
     }
 
     return {
