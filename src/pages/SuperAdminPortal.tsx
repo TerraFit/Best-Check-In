@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
-import QRCodeModal from '../components/QRCodeModal'; // Add this import
+import QRCodeModal from '../components/QRCodeModal';
 
 interface Business {
   id: string;
@@ -134,7 +134,7 @@ export default function SuperAdminPortal() {
     if (daysOverdue === 0) return 'paid';
     if (daysOverdue >= 10) return 'critical';
     if (daysOverdue >= 5) return 'overdue';
-    return 'paid'; // 1-4 days still considered paid but will show orange soon
+    return 'paid';
   };
 
   const getStatusColor = (status: string, daysOverdue: number = 0) => {
@@ -215,7 +215,6 @@ export default function SuperAdminPortal() {
         setBusinesses(businesses.filter(b => b.id !== deleteConfirm.businessId));
         setDeleteConfirm(null);
         alert('Business permanently deleted');
-        // Refresh pending count in case the deleted business was pending
         fetchPendingCount();
       }
     } catch (error) {
@@ -256,7 +255,6 @@ export default function SuperAdminPortal() {
     setShowOverview(true);
   };
 
-  // NEW: Function to open QR Code modal
   const openQRModal = (businessId: string, businessName: string) => {
     setSelectedQRBusiness({ id: businessId, name: businessName });
     setShowQRModal(true);
@@ -283,7 +281,11 @@ export default function SuperAdminPortal() {
             {/* Logo and Navigation */}
             <div className="flex items-center space-x-8">
               <div className="flex items-center">
-                <span className="text-2xl font-bold text-orange-500">FastCheckin</span>
+                <img 
+                  src="/fastcheckin-logo.png" 
+                  alt="FastCheckin" 
+                  className="h-10 w-auto object-contain"
+                />
                 <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Admin</span>
               </div>
               
@@ -447,7 +449,6 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
-                    {/* QR Code Button - NEW */}
                     <button
                       onClick={() => openQRModal(business.id, business.trading_name)}
                       className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1"
@@ -459,7 +460,6 @@ export default function SuperAdminPortal() {
                       QR Code
                     </button>
 
-                    {/* Business Overview Button */}
                     <button
                       onClick={() => openBusinessOverview(business.id)}
                       className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-1"
@@ -471,7 +471,6 @@ export default function SuperAdminPortal() {
                       Overview
                     </button>
 
-                    {/* Payment Reminder Button - Only show for overdue */}
                     {(business.days_overdue || 0) > 0 && (
                       <button
                         onClick={() => handleSendReminder(business.id, business.days_overdue || 0)}
@@ -482,7 +481,6 @@ export default function SuperAdminPortal() {
                       </button>
                     )}
 
-                    {/* Archive Button */}
                     <button
                       onClick={() => handleArchiveBusiness(business.id)}
                       className="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
@@ -490,7 +488,6 @@ export default function SuperAdminPortal() {
                       Archive
                     </button>
 
-                    {/* Delete Button */}
                     <button
                       onClick={() => openDeleteConfirm(business.id, business.trading_name)}
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
@@ -500,7 +497,6 @@ export default function SuperAdminPortal() {
                   </div>
                 </div>
 
-                {/* Warning for critical overdue */}
                 {business.days_overdue >= 10 && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm text-red-800">
@@ -509,7 +505,6 @@ export default function SuperAdminPortal() {
                   </div>
                 )}
 
-                {/* Warning for overdue */}
                 {business.days_overdue >= 5 && business.days_overdue < 10 && (
                   <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                     <p className="text-sm text-orange-800">
@@ -601,7 +596,7 @@ export default function SuperAdminPortal() {
         />
       )}
 
-      {/* QR Code Modal - NEW */}
+      {/* QR Code Modal */}
       {showQRModal && selectedQRBusiness && (
         <QRCodeModal
           businessId={selectedQRBusiness.id}
