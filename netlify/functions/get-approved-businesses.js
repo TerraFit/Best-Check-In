@@ -12,19 +12,25 @@ export const handler = async function(event) {
   );
 
   try {
-    // SIMPLE - just get basic info
+    // Add directors field - but we'll clean it
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, status')
+      .select('id, trading_name, registered_name, email, phone, status, directors')
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
+    // Remove idPhoto from directors to keep size small
+    const cleanedData = data?.map(business => ({
+      ...business,
+      directors: business.directors?.map(({ idPhoto, ...director }) => director) || []
+    })) || [];
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data || [])
+      body: JSON.stringify(cleanedData || [])
     };
   } catch (error) {
     console.error('Error:', error);
