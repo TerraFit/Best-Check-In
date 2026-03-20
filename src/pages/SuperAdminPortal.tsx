@@ -445,6 +445,23 @@ export default function SuperAdminPortal() {
                         )}
                       </div>
                     </div>
+
+                    {/* NEW: Directors / Owners Section */}
+                    {business.directors && business.directors.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs text-gray-500 font-medium">Directors / Owners</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {business.directors.map((director, idx) => (
+                            <span 
+                              key={idx} 
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                            >
+                              {director.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
