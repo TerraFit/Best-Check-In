@@ -16,7 +16,7 @@ export const handler = async function(event) {
     // Select directors BUT exclude the large idPhoto field
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, registered_name, trading_name, business_number, phone, email, physical_address, postal_address, subscription_tier, payment_method, status, total_rooms, avg_price, seasons, setup_complete, approved_at, created_at, last_payment_date, payment_due_date, payment_status, days_overdue, payment_reminder_sent, payment_reminder_count, deleted_at, directors')
+      .select('id, registered_name, trading_name, business_number, phone, email, physical_address, postal_address, subscription_tier, payment_method, status, total_rooms, avg_price, seasons, setup_complete, approved_at, created_at, last_payment_date, payment_due_date, payment_status, payment_reminder_sent, payment_reminder_count, deleted_at, directors')
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
 
