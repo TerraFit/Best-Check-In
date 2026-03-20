@@ -19,7 +19,6 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
 }) => {
   const [currentView, setCurrentView] = useState<ViewState>(initialView);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check BOTH authentication systems
     const oldAuth = localStorage.getItem('jbay_auth_session') === 'true';
     const newAuth = localStorage.getItem('jbay_user') !== null;
     return oldAuth || newAuth;
@@ -46,13 +45,11 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
   }, [historicalData]);
 
   const handleNavigate = (view: ViewState) => {
-    // Use external navigate if provided (for React Router integration)
     if (externalNavigate) {
       externalNavigate(view);
       return;
     }
     
-    // Otherwise use internal state (original behavior)
     const isAdminView = ['ADMIN_DASHBOARD', 'REPORTS', 'IMPORT'].includes(view);
     if (isAdminView && !isAuthenticated) {
       setPendingView(view);
