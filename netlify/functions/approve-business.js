@@ -115,30 +115,16 @@ export const handler = async function(event) {
 
     const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
 
-    // Send welcome email - WITH PROPER ERROR HANDLING
+    // Send welcome email
     console.log('📧 Attempting to send email to:', business.email);
     console.log('🔑 Checking RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'exists' : 'MISSING');
     
     const resend = new Resend(process.env.RESEND_API_KEY);
     
-    // Test the Resend connection with a simple email first
-    try {
-      const testResult = await resend.emails.send({
-        from: 'FastCheckin <onboarding@resend.dev>',
-        to: [business.email],
-        subject: 'Test - FastCheckin Approval',
-        html: '<p>This is a test email from FastCheckin approval function.</p>'
-      });
-      console.log('📧 Test email result:', testResult);
-    } catch (testError) {
-      console.error('❌ Test email failed:', testError);
-      console.error('❌ Error details:', JSON.stringify(testError, null, 2));
-    }
-    
-    // Now send the real email
+    // Now send the real email with VERIFIED DOMAIN
     try {
       const emailResult = await resend.emails.send({
-        from: 'FastCheckin <onboarding@resend.dev>',
+        from: 'FastCheckin <welcome@fastcheckin.co.za>', // ✅ UPDATED with verified domain
         to: [business.email],
         subject: `🎉 Welcome to FastCheckin, ${business.trading_name}!`,
         html: `
