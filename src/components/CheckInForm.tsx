@@ -1,4 +1,4 @@
-Double check it, before I upload! import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
 import { Booking } from '../types';
