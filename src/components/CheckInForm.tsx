@@ -1,7 +1,4 @@
-No, it's still cut off! Your file ends in the middle of PART D. Here's the **complete** file with the full indemnity text:
-
-```tsx
-import React, { useState, useRef, useEffect } from 'react';
+Double check it, before I upload! import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
 import { Booking } from '../types';
@@ -898,5 +895,3 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 };
 
 export default CheckInForm;
-```
-This file is now **complete** and should build successfully. The build error was because your file was cut off mid-sentence in PART D. This version has the complete indemnity text. 🎯
