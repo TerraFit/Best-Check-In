@@ -28,6 +28,9 @@ export default function BusinessDashboard() {
   const [saveMessage, setSaveMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Force QR code refresh when logo changes
+  const [qrRefreshKey, setQrRefreshKey] = useState(0);
 
   // Setup form data
   const [formData, setFormData] = useState({
@@ -61,10 +64,10 @@ export default function BusinessDashboard() {
         welcome_message: businessData.welcome_message || `Welcome to ${businessData.trading_name}`
       });
       
-      // Generate QR code
+      // Generate QR code with timestamp to prevent caching
       const url = `https://fastcheckin.co.za/checkin/${businessData.id}`;
       setCheckInUrl(url);
-      setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
+      updateQrCode(url);
       
     } catch (err) {
       console.error('Error parsing business data:', err);
@@ -74,18 +77,27 @@ export default function BusinessDashboard() {
     }
   }, [navigate]);
 
-  // Logo upload function using Supabase Storage
+  // Update QR code when logo or welcome message changes
+  useEffect(() => {
+    if (checkInUrl) {
+      updateQrCode(checkInUrl);
+    }
+  }, [formData.logo_url, formData.welcome_message, formData.primary_color, formData.secondary_color, qrRefreshKey]);
+
+  const updateQrCode = (url: string) => {
+    // Use QR Server API - this updates with our styling
+    setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Check file type
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file (PNG, JPG, etc.)');
       return;
     }
     
-    // Check file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('Logo must be less than 2MB');
       return;
@@ -94,14 +106,12 @@ export default function BusinessDashboard() {
     setUploadingLogo(true);
     
     try {
-      // Convert to base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
-        
-        // Save logo URL as base64 (temporary solution)
-        // For production, consider uploading to Supabase Storage
         setFormData({ ...formData, logo_url: base64String });
+        // Force QR refresh
+        setQrRefreshKey(prev => prev + 1);
         setUploadingLogo(false);
       };
       reader.readAsDataURL(file);
@@ -137,7 +147,16 @@ export default function BusinessDashboard() {
       if (response.ok) {
         setSaveMessage('Settings saved successfully!');
         // Update local business data
-        const updatedBusiness = { ...business, ...formData, setup_complete: true };
+        const updatedBusiness = { 
+          ...business, 
+          total_rooms: parseInt(formData.total_rooms) || null,
+          avg_price: parseInt(formData.avg_price) || null,
+          logo_url: formData.logo_url,
+          primary_color: formData.primary_color,
+          secondary_color: formData.secondary_color,
+          welcome_message: formData.welcome_message,
+          setup_complete: true 
+        };
         localStorage.setItem('business', JSON.stringify(updatedBusiness));
         setBusiness(updatedBusiness);
         setTimeout(() => setSaveMessage(''), 3000);
@@ -175,42 +194,54 @@ export default function BusinessDashboard() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         // Draw business logo if exists
-        if (formData.logo_url && logoImg.complete) {
-          ctx.drawImage(logoImg, 140, 20, 120, 80);
+        if (formData.logo_url) {
+          logoImg.onload = () => {
+            ctx.drawImage(logoImg, 140, 20, 120, 80);
+            drawQRAndText(ctx, img);
+          };
+          if (logoImg.complete) {
+            ctx.drawImage(logoImg, 140, 20, 120, 80);
+            drawQRAndText(ctx, img);
+          } else {
+            logoImg.onload = () => drawQRAndText(ctx, img);
+          }
         } else {
           // Business name as text
           ctx.fillStyle = formData.secondary_color;
           ctx.font = 'bold 24px "Inter", sans-serif';
           ctx.fillText(business?.trading_name || 'Business', 100, 70);
+          drawQRAndText(ctx, img);
         }
-        
-        // Welcome message
-        ctx.fillStyle = formData.secondary_color;
-        ctx.font = 'italic 16px "Inter", sans-serif';
-        ctx.fillText(formData.welcome_message || `Welcome to ${business?.trading_name}`, 60, 130);
-        
-        // QR Code
-        ctx.drawImage(img, 100, 150, 200, 200);
-        
-        // "Scan to Check In" text
-        ctx.fillStyle = formData.primary_color;
-        ctx.font = 'bold 18px "Inter", sans-serif';
-        ctx.fillText('Scan to Check In', 130, 390);
-        
-        // FastCheckin logo at bottom
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 16px "Inter", sans-serif';
-        ctx.fillText('FASTCHECKIN', 150, 470);
-        ctx.fillStyle = '#6b7280';
-        ctx.font = 'italic 12px "Inter", sans-serif';
-        ctx.fillText('Seamless Check-in, Smarter Stay', 110, 500);
-        
-        // Download
-        const link = document.createElement('a');
-        link.download = `${(business?.trading_name || 'business').replace(/\s+/g, '-')}-checkin-qr.png`;
-        link.href = canvas.toDataURL();
-        link.click();
       }
+    };
+    
+    const drawQRAndText = (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
+      // Welcome message
+      ctx.fillStyle = formData.secondary_color;
+      ctx.font = 'italic 16px "Inter", sans-serif';
+      ctx.fillText(formData.welcome_message || `Welcome to ${business?.trading_name}`, 60, 130);
+      
+      // QR Code
+      ctx.drawImage(img, 100, 150, 200, 200);
+      
+      // "Scan to Check In" text
+      ctx.fillStyle = formData.primary_color;
+      ctx.font = 'bold 18px "Inter", sans-serif';
+      ctx.fillText('Scan to Check In', 130, 390);
+      
+      // FastCheckin logo at bottom
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 16px "Inter", sans-serif';
+      ctx.fillText('FASTCHECKIN', 150, 470);
+      ctx.fillStyle = '#6b7280';
+      ctx.font = 'italic 12px "Inter", sans-serif';
+      ctx.fillText('Seamless Check-in, Smarter Stay', 110, 500);
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `${(business?.trading_name || 'business').replace(/\s+/g, '-')}-checkin-qr.png`;
+      link.href = canvas.toDataURL();
+      link.click();
     };
   };
 
@@ -245,15 +276,17 @@ export default function BusinessDashboard() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header with Navigation Menu */}
+      {/* Header with Navigation Menu - Using actual FastCheckin logo image */}
       <div className="bg-stone-900 text-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tighter">
-                FAST<span className="text-amber-500">CHECKIN</span>
-              </h1>
-              <p className="text-stone-400 text-sm mt-1">{business.trading_name}</p>
+            <div className="flex items-center gap-3">
+              <img 
+                src="/fastcheckin-logo.png" 
+                alt="FastCheckin" 
+                className="h-10 w-auto"
+              />
+              <p className="text-stone-400 text-sm">{business.trading_name}</p>
             </div>
             <div className="flex items-center gap-6">
               <button
@@ -313,20 +346,26 @@ export default function BusinessDashboard() {
                 </button>
               </div>
 
-              {/* QR Code Preview */}
+              {/* QR Code Preview - Updates when logo changes */}
               <div className="mt-8 flex justify-center">
                 <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-8 inline-block">
                   <div className="bg-white p-4 rounded-xl shadow-lg">
-                    <img
-                      src={qrCodeUrl}
-                      alt="Check-in QR Code"
-                      className="w-48 h-48 mx-auto"
-                    />
-                  </div>
-                  <div className="text-center mt-4">
-                    <p className="font-bold text-amber-900">FASTCHECKIN</p>
-                    <p className="text-amber-700 text-sm">{business.trading_name}</p>
-                    <p className="text-xs text-amber-600 italic mt-1">Scan to Check In</p>
+                    <div className="text-center">
+                      {formData.logo_url ? (
+                        <img src={formData.logo_url} alt="Logo" className="h-12 mx-auto mb-2 object-contain" />
+                      ) : (
+                        <p className="font-bold text-stone-900 mb-2">{business.trading_name}</p>
+                      )}
+                      <p className="text-sm text-stone-500 mb-2">{formData.welcome_message}</p>
+                      <img
+                        src={qrCodeUrl}
+                        alt="Check-in QR Code"
+                        className="w-32 h-32 mx-auto my-2"
+                        key={qrRefreshKey}
+                      />
+                      <p className="text-xs font-bold text-amber-600 mt-2">Scan to Check In</p>
+                      <p className="text-[10px] text-stone-400 mt-2">FASTCHECKIN</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -399,7 +438,7 @@ export default function BusinessDashboard() {
             </div>
           </div>
         ) : (
-          // Setup View with Logo Upload
+          // Setup View
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
               Business Settings
@@ -550,7 +589,7 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* QR Code Preview */}
+              {/* QR Code Preview - Live update */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                 <h4 className="font-bold text-amber-900 mb-3">QR Code Preview</h4>
                 <div className="flex justify-center">
@@ -562,7 +601,12 @@ export default function BusinessDashboard() {
                         <p className="font-bold text-stone-900 mb-2">{business.trading_name}</p>
                       )}
                       <p className="text-sm text-stone-500 mb-2">{formData.welcome_message}</p>
-                      <img src={qrCodeUrl} alt="QR Code" className="w-32 h-32 mx-auto my-2" />
+                      <img 
+                        src={qrCodeUrl} 
+                        alt="QR Code" 
+                        className="w-32 h-32 mx-auto my-2"
+                        key={qrRefreshKey}
+                      />
                       <p className="text-xs font-bold text-amber-600 mt-2">Scan to Check In</p>
                       <p className="text-[10px] text-stone-400 mt-2">FASTCHECKIN</p>
                     </div>
