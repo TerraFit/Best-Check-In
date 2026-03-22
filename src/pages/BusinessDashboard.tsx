@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface BusinessProfile {
@@ -26,6 +26,8 @@ export default function BusinessDashboard() {
   const [checkInUrl, setCheckInUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Setup form data
   const [formData, setFormData] = useState({
@@ -72,6 +74,44 @@ export default function BusinessDashboard() {
     }
   }, [navigate]);
 
+  // Logo upload function using Supabase Storage
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+    
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo must be less than 2MB');
+      return;
+    }
+    
+    setUploadingLogo(true);
+    
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        
+        // Save logo URL as base64 (temporary solution)
+        // For production, consider uploading to Supabase Storage
+        setFormData({ ...formData, logo_url: base64String });
+        setUploadingLogo(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      alert('Failed to upload logo. Please try again.');
+      setUploadingLogo(false);
+    }
+  };
+
   const handleSaveSetup = async () => {
     setSaving(true);
     setSaveMessage('');
@@ -92,6 +132,8 @@ export default function BusinessDashboard() {
         })
       });
 
+      const result = await response.json();
+
       if (response.ok) {
         setSaveMessage('Settings saved successfully!');
         // Update local business data
@@ -100,7 +142,7 @@ export default function BusinessDashboard() {
         setBusiness(updatedBusiness);
         setTimeout(() => setSaveMessage(''), 3000);
       } else {
-        setSaveMessage('Failed to save settings. Please try again.');
+        setSaveMessage(result.error || 'Failed to save settings. Please try again.');
       }
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -121,7 +163,6 @@ export default function BusinessDashboard() {
     img.crossOrigin = 'Anonymous';
     img.src = qrCodeUrl;
     
-    // Load business logo if exists
     const logoImg = new Image();
     if (formData.logo_url) {
       logoImg.src = formData.logo_url;
@@ -358,7 +399,7 @@ export default function BusinessDashboard() {
             </div>
           </div>
         ) : (
-          // Setup View
+          // Setup View with Logo Upload
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
               Business Settings
@@ -408,7 +449,7 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Branding */}
+              {/* Branding with Logo Upload */}
               <div className="border-t border-stone-100 pt-8">
                 <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
                   Branding & Appearance
@@ -417,17 +458,43 @@ export default function BusinessDashboard() {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                      Logo URL
+                      Business Logo
                     </label>
-                    <input
-                      type="url"
-                      value={formData.logo_url}
-                      onChange={(e) => setFormData({...formData, logo_url: e.target.value})}
-                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                      placeholder="https://your-logo-url.png"
-                    />
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        className="px-4 py-3 bg-stone-100 text-stone-700 rounded-xl hover:bg-stone-200 transition-colors"
+                      >
+                        {uploadingLogo ? 'Uploading...' : 'Choose Logo Image'}
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      {formData.logo_url && (
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={formData.logo_url} 
+                            alt="Logo preview" 
+                            className="h-12 w-12 object-contain border rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, logo_url: ''})}
+                            className="text-red-500 text-sm hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-stone-400 mt-1">
-                      Upload your logo to a service like Imgur and paste the URL here
+                      Upload your logo (PNG, JPG, max 2MB)
                     </p>
                   </div>
                   <div>
