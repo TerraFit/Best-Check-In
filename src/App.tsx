@@ -5,15 +5,15 @@ import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
-import ApproveBusinesses from './pages/admin/ApproveBusinesses'; // Fixed: Admin → admin
+import ApproveBusinesses from './pages/admin/ApproveBusinesses';
 import RegistrationSuccess from './pages/RegistrationSuccess';
 import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
-import ResetPassword from './pages/ResetPassword'; // NEW IMPORT
+import ResetPassword from './pages/ResetPassword';
+import BusinessAnalytics from './pages/business/BusinessAnalytics';
 
-// IMPORTS for messaging system
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 
@@ -21,7 +21,6 @@ function CheckInAppWrapper() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get business ID from URL if present
   const getBusinessId = () => {
     const pathParts = location.pathname.split('/');
     if (pathParts[1] === 'checkin' && pathParts[2]) {
@@ -30,7 +29,6 @@ function CheckInAppWrapper() {
     return null;
   };
 
-  // Convert path to ViewState
   const getInitialView = () => {
     const businessId = getBusinessId();
     if (businessId) {
@@ -77,7 +75,6 @@ function CheckInAppWrapper() {
 function AppContent() {
   return (
     <Routes>
-      {/* Public routes */}
       <Route path="/" element={<HomePage />} />
       <Route path="/checkin" element={<CheckInAppWrapper />} />
       <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} />
@@ -85,11 +82,8 @@ function AppContent() {
       <Route path="/registration-success" element={<RegistrationSuccess />} />
       <Route path="/business/login" element={<BusinessLogin />} />
       <Route path="/business/pending" element={<BusinessPending />} />
-      
-      {/* NEW: Password Reset Route */}
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
-      {/* Protected Business routes */}
       <Route 
         path="/business/dashboard" 
         element={
@@ -99,7 +93,15 @@ function AppContent() {
         } 
       />
       
-      {/* Business Messages Route */}
+      <Route 
+        path="/business/analytics/:businessId" 
+        element={
+          <ProtectedRoute requiredRole="tenant_admin">
+            <BusinessAnalytics />
+          </ProtectedRoute>
+        } 
+      />
+      
       <Route 
         path="/business/messages" 
         element={
@@ -109,11 +111,9 @@ function AppContent() {
         } 
       />
       
-      {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
       <Route path="/login" element={<Login />} />
       
-      {/* Super Admin routes */}
       <Route 
         path="/super-admin" 
         element={
@@ -131,7 +131,6 @@ function AppContent() {
         } 
       />
       
-      {/* Admin Messages Route */}
       <Route 
         path="/admin/messages" 
         element={
