@@ -29,10 +29,8 @@ export default function BusinessDashboard() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Force QR code refresh when logo changes
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
 
-  // Setup form data
   const [formData, setFormData] = useState({
     total_rooms: '',
     avg_price: '',
@@ -54,7 +52,6 @@ export default function BusinessDashboard() {
       const businessData = JSON.parse(storedBusiness);
       setBusiness(businessData);
       
-      // Load existing data into form
       setFormData({
         total_rooms: businessData.total_rooms?.toString() || '',
         avg_price: businessData.avg_price?.toString() || '',
@@ -64,7 +61,6 @@ export default function BusinessDashboard() {
         welcome_message: businessData.welcome_message || `Welcome to ${businessData.trading_name}`
       });
       
-      // Generate QR code with timestamp to prevent caching
       const url = `https://fastcheckin.co.za/checkin/${businessData.id}`;
       setCheckInUrl(url);
       updateQrCode(url);
@@ -77,7 +73,6 @@ export default function BusinessDashboard() {
     }
   }, [navigate]);
 
-  // Update QR code when logo or welcome message changes
   useEffect(() => {
     if (checkInUrl) {
       updateQrCode(checkInUrl);
@@ -85,7 +80,6 @@ export default function BusinessDashboard() {
   }, [formData.logo_url, formData.welcome_message, formData.primary_color, formData.secondary_color, qrRefreshKey]);
 
   const updateQrCode = (url: string) => {
-    // Use QR Server API - this updates with our styling
     setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
   };
 
@@ -110,7 +104,6 @@ export default function BusinessDashboard() {
       reader.onloadend = async () => {
         const base64String = reader.result as string;
         setFormData({ ...formData, logo_url: base64String });
-        // Force QR refresh
         setQrRefreshKey(prev => prev + 1);
         setUploadingLogo(false);
       };
@@ -146,7 +139,6 @@ export default function BusinessDashboard() {
 
       if (response.ok) {
         setSaveMessage('Settings saved successfully!');
-        // Update local business data
         const updatedBusiness = { 
           ...business, 
           total_rooms: parseInt(formData.total_rooms) || null,
@@ -189,11 +181,9 @@ export default function BusinessDashboard() {
     
     img.onload = () => {
       if (ctx) {
-        // White background
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw business logo if exists
         if (formData.logo_url) {
           logoImg.onload = () => {
             ctx.drawImage(logoImg, 140, 20, 120, 80);
@@ -206,7 +196,6 @@ export default function BusinessDashboard() {
             logoImg.onload = () => drawQRAndText(ctx, img);
           }
         } else {
-          // Business name as text
           ctx.fillStyle = formData.secondary_color;
           ctx.font = 'bold 24px "Inter", sans-serif';
           ctx.fillText(business?.trading_name || 'Business', 100, 70);
@@ -216,20 +205,16 @@ export default function BusinessDashboard() {
     };
     
     const drawQRAndText = (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
-      // Welcome message
       ctx.fillStyle = formData.secondary_color;
       ctx.font = 'italic 16px "Inter", sans-serif';
       ctx.fillText(formData.welcome_message || `Welcome to ${business?.trading_name}`, 60, 130);
       
-      // QR Code
       ctx.drawImage(img, 100, 150, 200, 200);
       
-      // "Scan to Check In" text
       ctx.fillStyle = formData.primary_color;
       ctx.font = 'bold 18px "Inter", sans-serif';
       ctx.fillText('Scan to Check In', 130, 390);
       
-      // FastCheckin logo at bottom
       ctx.fillStyle = '#f59e0b';
       ctx.font = 'bold 16px "Inter", sans-serif';
       ctx.fillText('FASTCHECKIN', 150, 470);
@@ -237,7 +222,6 @@ export default function BusinessDashboard() {
       ctx.font = 'italic 12px "Inter", sans-serif';
       ctx.fillText('Seamless Check-in, Smarter Stay', 110, 500);
       
-      // Download
       const link = document.createElement('a');
       link.download = `${(business?.trading_name || 'business').replace(/\s+/g, '-')}-checkin-qr.png`;
       link.href = canvas.toDataURL();
@@ -276,7 +260,6 @@ export default function BusinessDashboard() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header with Navigation Menu - Using actual FastCheckin logo image */}
       <div className="bg-stone-900 text-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -322,9 +305,7 @@ export default function BusinessDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'dashboard' ? (
-          // Dashboard View
           <div className="space-y-8">
-            {/* QR Code Card */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="flex justify-between items-start">
                 <div>
@@ -346,7 +327,6 @@ export default function BusinessDashboard() {
                 </button>
               </div>
 
-              {/* QR Code Preview - Updates when logo changes */}
               <div className="mt-8 flex justify-center">
                 <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-8 inline-block">
                   <div className="bg-white p-4 rounded-xl shadow-lg">
@@ -370,7 +350,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Check-in Link */}
               <div className="mt-6 text-center">
                 <p className="text-sm text-stone-500 mb-2">Or share this direct link:</p>
                 <div className="flex gap-2">
@@ -393,7 +372,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Stats */}
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Rooms</h4>
@@ -419,7 +397,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Actions */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
@@ -429,7 +406,7 @@ export default function BusinessDashboard() {
                 <p className="text-amber-100 text-sm">Direct link for your guests</p>
               </button>
               <button
-                onClick={() => window.location.href = '/admin'}
+                onClick={() => navigate(`/business/analytics/${business.id}`)}
                 className="bg-stone-900 text-white p-6 rounded-xl text-left hover:bg-stone-800 transition-colors"
               >
                 <h3 className="text-xl font-bold mb-2">Management Portal</h3>
@@ -438,7 +415,6 @@ export default function BusinessDashboard() {
             </div>
           </div>
         ) : (
-          // Setup View
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
               Business Settings
@@ -458,7 +434,6 @@ export default function BusinessDashboard() {
             )}
 
             <form onSubmit={(e) => { e.preventDefault(); handleSaveSetup(); }} className="space-y-8">
-              {/* Business Details */}
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
@@ -488,7 +463,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Branding with Logo Upload */}
               <div className="border-t border-stone-100 pt-8">
                 <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
                   Branding & Appearance
@@ -589,7 +563,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* QR Code Preview - Live update */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                 <h4 className="font-bold text-amber-900 mb-3">QR Code Preview</h4>
                 <div className="flex justify-center">
