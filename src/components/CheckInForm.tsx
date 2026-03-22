@@ -61,10 +61,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     signature: '',
     acceptLegal: false,
     popiaConsent: false,
-    saveDetails: false, // ADDED for guest profile
+    saveDetails: false,
   });
 
-  // ADDED for profile loading message
   const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
@@ -97,7 +96,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [formData.arrivalDate, formData.nights]);
 
-  // ADDED: Load guest profile when email changes
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -242,6 +240,29 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
+  // NEW: Function to save booking to database
+  const saveBookingToDatabase = async (booking: any) => {
+    try {
+      console.log('💾 Saving booking to database:', booking);
+      
+      const response = await fetch('/.netlify/functions/create-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking)
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log('✅ Booking saved to database:', result);
+      } else {
+        console.error('❌ Failed to save booking:', result);
+      }
+    } catch (error) {
+      console.error('Error saving booking:', error);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) setStep(2);
@@ -266,6 +287,33 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('No tenant ID found, using default');
       }
 
+      // Create booking object for Supabase database
+      const dbBooking = {
+        business_id: businessId, // This is the business ID from the QR code
+        guest_name: formData.fullName,
+        guest_email: formData.email,
+        guest_phone: formData.phone,
+        guest_id_number: formData.passportOrId,
+        guest_id_photo: formData.idPhoto,
+        guest_signature: formData.signature,
+        check_in_date: formData.arrivalDate,
+        check_out_date: formData.departureDate,
+        nights: formData.nights,
+        adults: formData.adults,
+        children: formData.kids,
+        total_amount: 0,
+        status: 'checked_in',
+        guest_province: formData.province,
+        guest_city: formData.city,
+        guest_country: formData.country,
+        marketing_consent: formData.popiaConsent,
+        created_at: new Date().toISOString()
+      };
+
+      // Save to database
+      saveBookingToDatabase(dbBooking);
+
+      // Create local booking for existing system
       const newBooking: Booking = {
         id: Math.random().toString(36).substr(2, 9),
         guestName: formData.fullName,
@@ -302,6 +350,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         saveGuestProfile();
       }
 
+      // Call the original onComplete for local storage
       onComplete(newBooking);
     }
   };
@@ -405,7 +454,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   onChange={e => setFormData({...formData, email: e.target.value})}
                 />
                 
-                {/* Profile loaded message */}
                 {profileLoaded && (
                   <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm animate-fade-in">
                     ✓ Your saved details have been loaded
@@ -413,7 +461,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 )}
               </div>
 
-              {/* Save details checkbox - ADDED */}
               <div className="mt-4 flex items-center gap-3 p-4 bg-stone-50 rounded-xl border border-stone-200">
                 <input
                   type="checkbox"
@@ -684,178 +731,4 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       </p>
                       <p className="mb-4">
                         <strong>Rules and Safety:</strong> I agree to abide by all rules, regulations, and safety instructions provided by the 
-                        Lodge, its staff, or guides, whether given verbally or in writing. I accept that failure to do so may result in the 
-                        termination of my stay without refund and will vitiate any protection offered by this Agreement.
-                      </p>
-                      <p className="mb-4">
-                        <strong>Health and Fitness:</strong> I warrant that I am in good health, physically fit, and have no known medical, 
-                        psychological, or physical condition that would prevent my safe participation in the activities I intend to undertake. 
-                        I am responsible for carrying any necessary personal medication.
-                      </p>
-                      <p className="mb-4">
-                        <strong>Emergency Medical Consent:</strong> In the event of a medical emergency, I authorise the Released Parties to 
-                        secure, at my sole expense, such medical treatment and transport as they, in their sole discretion, deem necessary.
-                      </p>
-                      <p className="mb-4">
-                        <strong>Limitation of Liability for Property:</strong> The Lodge provides a safe in each room for valuables. The Lodge's 
-                        liability for loss of or damage to guest property is strictly limited to a maximum amount of ZAR 5,000 (Five Thousand Rand), 
-                        unless such loss is directly attributable to the proven gross negligence of the Lodge and the property was deposited with 
-                        the front desk for safekeeping. The Lodge is not liable for loss of money, jewellery, or other high-value items kept in 
-                        guest rooms.
-                      </p>
-                      <p className="mb-4">
-                        <strong>Severability & Governing Law:</strong> This Agreement shall be governed by and construed in accordance with the 
-                        laws of the Republic of South Africa.
-                      </p>
-                    </div>
-
-                    <div>
-                      <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART E: DECLARATION AND SIGNATURE</h4>
-                      <p className="font-bold text-stone-900 text-sm mb-6">
-                        I HEREBY CERTIFY THAT I HAVE READ THIS ENTIRE DOCUMENT, I UNDERSTAND ITS CONTENTS COMPLETELY, AND I SIGN IT OF MY 
-                        OWN FREE WILL. I UNDERSTAND THAT I AM GIVING UP SUBSTANTIAL LEGAL RIGHTS.
-                      </p>
-                      
-                      <p className="mb-6 font-bold text-stone-800 bg-stone-50 p-6 border border-stone-200 rounded-2xl leading-relaxed italic">
-                        "We confirm that the contents of this document was explained to us, the guest, and that they were given sufficient 
-                        opportunity to read and ask questions before signing."
-                      </p>
-
-                      <div className="bg-stone-50 p-8 rounded-3xl space-y-4 mt-8 border border-stone-200 shadow-sm">
-                        <p className="text-sm"><strong>PRIMARY GUEST:</strong> {formData.fullName || '________________'}</p>
-                        <p className="text-sm"><strong>ID/Passport Number:</strong> {formData.passportOrId || '________________'}</p>
-                        <p className="text-sm"><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                      </div>
-                    </div>
-
-                    {/* FIX 1: Checkbox moved INSIDE the indemnity container at the end */}
-                    <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
-                      <div className="flex items-start gap-5">
-                        <input 
-                          type="checkbox" 
-                          id="legalCheck" 
-                          className="w-8 h-8 rounded border-stone-300 text-amber-700 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1" 
-                          disabled={!hasScrolledToBottom}
-                          checked={formData.acceptLegal} 
-                          onChange={e => setFormData({...formData, acceptLegal: e.target.checked})} 
-                        />
-                        <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
-                          I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* End marker */}
-                    <div className="text-center text-stone-400 text-xs pt-4">
-                      — End of Document —
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Scroll indicator - only shows when NOT at bottom */}
-                {!hasScrolledToBottom && (
-                  <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-8 py-3 rounded-full text-[10px] font-bold animate-bounce shadow-2xl pointer-events-none uppercase tracking-widest z-10">
-                    ↓ Scroll to end of document to enable acceptance ↓
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
-                {/* FIX 2: Enhanced Camera UI */}
-                <div className="space-y-6">
-                  <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
-                  <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
-                    {formData.idPhoto ? (
-                      <>
-                        <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
-                        <div className="absolute top-4 right-4 flex gap-2">
-                          <button 
-                            onClick={retakePhoto} 
-                            className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-blue-700 transition-colors"
-                            title="Retake photo"
-                          >
-                            ↻
-                          </button>
-                          <button 
-                            onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} 
-                            className="bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-black/80 transition-colors"
-                            title="Remove photo"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </>
-                    ) : isCameraActive ? (
-                      <div className="relative w-full h-full">
-                        <video 
-                          ref={videoRef} 
-                          autoPlay 
-                          playsInline 
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={capturePhoto}
-                          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white text-stone-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-stone-100 transition-all flex items-center gap-2"
-                        >
-                          <span className="text-lg">📸</span> Capture Photo
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        type="button" 
-                        onClick={startCamera} 
-                        className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
-                      >
-                        <span className="text-5xl opacity-50">📷</span>
-                        <span>Tap to open camera</span>
-                        <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
-                      </button>
-                    )}
-                  </div>
-                  {isCameraActive && (
-                    <button 
-                      type="button" 
-                      onClick={capturePhoto} 
-                      className="w-full text-white py-4 rounded-2xl text-sm uppercase font-bold tracking-widest shadow-lg hover:opacity-90 transition-all"
-                      style={{ backgroundColor: secondaryColor }}
-                    >
-                      Take Photo
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
-                    <button type="button" onClick={() => clearCanvas(canvasRef)} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
-                  </div>
-                  <canvas 
-                    ref={canvasRef} 
-                    width={500} 
-                    height={200} 
-                    className="w-full h-40 bg-stone-50 border border-stone-200 rounded-3xl cursor-crosshair touch-none shadow-inner"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-20 flex justify-between pt-10 border-t border-stone-100 items-center">
-              <button type="button" onClick={() => setStep(2)} className="text-stone-400 font-bold hover:text-stone-900 uppercase text-[10px] tracking-widest transition-colors">Return to Details</button>
-              <button 
-                type="submit" 
-                disabled={!hasScrolledToBottom || !formData.acceptLegal || !formData.signature}
-                className="text-white px-20 py-6 rounded-full font-bold hover:opacity-90 transition-all shadow-2xl text-[10px] uppercase tracking-[0.2em] disabled:opacity-20 disabled:cursor-not-allowed transform hover:-translate-y-1 active:scale-95"
-                style={{ backgroundColor: secondaryColor }}
-              >
-                Seal & Complete Registration
-              </button>
-            </div>
-          </div>
-        )}
-      </form>
-    </div>
-  );
-};
-
-export default CheckInForm;
+                        Lodge, its staff,
