@@ -55,7 +55,6 @@ export default function BusinessAnalytics() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header with Navigation */}
       <div className="bg-stone-900 text-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -121,7 +120,6 @@ export default function BusinessAnalytics() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Bookings</h4>
@@ -143,7 +141,6 @@ export default function BusinessAnalytics() {
               </div>
             </div>
 
-            {/* Monthly Chart */}
             <div className="bg-white rounded-xl shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Performance</h3>
               <div className="overflow-x-auto">
@@ -183,7 +180,7 @@ export default function BusinessAnalytics() {
                     <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                     <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                     <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody>
                   {analytics?.recent_checkins?.map((guest, idx) => (
@@ -215,7 +212,6 @@ export default function BusinessAnalytics() {
             <p className="text-stone-500 mb-8">
               Configure your business details and preferences.
             </p>
-
             <button
               onClick={() => navigate('/business/dashboard', { state: { openSettings: true } })}
               className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition-colors"
