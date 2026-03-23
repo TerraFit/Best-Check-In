@@ -1,24 +1,46 @@
-import { useParams } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+import { useAccess } from '../context/AccessContext';
 
-export default function BusinessAnalytics() {
-  const { businessId } = useParams();
+export default function ProtectedRoute({ children, requiredRole, requiredTenantId }) {
+  const { user, isSuperAdmin, isTenantAdmin, isViewer } = useAccess();
   
-  console.log('BusinessAnalytics page loaded!');
-  console.log('Business ID:', businessId);
-  
-  return (
-    <div className="min-h-screen bg-stone-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-stone-900 mb-4">Business Analytics</h1>
-        <p className="text-stone-600">Business ID: {businessId}</p>
-        <p className="text-stone-600 mt-4">This page is working!</p>
-        <button 
-          onClick={() => window.location.href = '/business/dashboard'}
-          className="mt-6 px-4 py-2 bg-amber-600 text-white rounded-lg"
-        >
-          Back to Dashboard
-        </button>
-      </div>
-    </div>
-  );
+  // Check if user is logged in via business dashboard
+  const businessUser = localStorage.getItem('business');
+  const isBusinessUser = !!businessUser;
+
+  // Not logged in at all? Go to login
+  if (!user && !isBusinessUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Super Admin can access ANYTHING
+  if (isSuperAdmin) {
+    return children;
+  }
+
+  // Business users (tenant_admin) should have access to their own pages
+  if (isBusinessUser && requiredRole === 'tenant_admin') {
+    return children;
+  }
+
+  // Check role requirement
+  if (requiredRole === 'super_admin' && !isSuperAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Check tenant access (only applies to regular users, not business users)
+  if (requiredTenantId && user?.tenantId !== requiredTenantId && !isBusinessUser) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  // Check specific role
+  if (requiredRole === 'tenant_admin' && !isTenantAdmin && !isBusinessUser) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (requiredRole === 'viewer' && !isViewer && !isTenantAdmin && !isBusinessUser) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
 }
