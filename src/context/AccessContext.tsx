@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const AccessContext = createContext();
@@ -8,13 +6,9 @@ export const AccessProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user from Netlify Identity or localStorage (for testing)
   useEffect(() => {
-    // For testing: you can set a test user
-    // In production, this would come from Netlify Identity / your auth system
     const loadUser = async () => {
       try {
-        // Check for existing session
         const storedUser = localStorage.getItem('jbay_user');
         if (storedUser) {
           setUser(JSON.parse(storedUser));
@@ -28,34 +22,21 @@ export const AccessProvider = ({ children }) => {
     loadUser();
   }, []);
 
-  // SUPER ADMIN: You bypass everything
   const isSuperAdmin = user?.role === 'super_admin';
-  
-  // TENANT ADMIN: Hotel manager with full access to their hotel
   const isTenantAdmin = user?.role === 'tenant_admin';
-  
-  // VIEWER: Read-only staff
   const isViewer = user?.role === 'viewer';
 
-  // Permission checker
   const can = (permission, resource) => {
-    // SUPER ADMIN: YES to everything, everywhere
     if (isSuperAdmin) return true;
-    
-    // Not logged in? NO
     if (!user) return false;
     
-    // TENANT ADMIN: Only their own hotel
     if (isTenantAdmin) {
-      // Must have tenantId and it must match
       if (!resource?.tenantId || resource.tenantId !== user.tenantId) {
         return false;
       }
-      // Full CRUD on their hotel
       return ['create', 'read', 'update', 'delete'].includes(permission);
     }
     
-    // VIEWER: Read-only on their hotel
     if (isViewer) {
       if (!resource?.tenantId || resource.tenantId !== user.tenantId) {
         return false;
@@ -66,7 +47,6 @@ export const AccessProvider = ({ children }) => {
     return false;
   };
 
-  // Login function (for testing - replace with real auth later)
   const loginAs = (email, role, tenantId = null) => {
     const newUser = {
       email,
@@ -80,7 +60,6 @@ export const AccessProvider = ({ children }) => {
     return newUser;
   };
 
-  // Logout
   const logout = () => {
     setUser(null);
     localStorage.removeItem('jbay_user');
