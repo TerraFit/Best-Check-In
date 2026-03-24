@@ -113,11 +113,11 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  // ✅ LOAD BOOKINGS - MAIN FUNCTION
+  // LOAD BOOKINGS - MAIN FUNCTION
   const loadBookings = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
-      console.error('❌ No business ID found');
+      console.error('No business ID found');
       setAnalyticsError('No business ID found');
       return;
     }
@@ -137,7 +137,7 @@ export default function BusinessDashboard() {
       if (!Array.isArray(data?.bookings)) throw new Error('Invalid data from server');
 
       let bookings = data.bookings;
-      console.log('📊 Raw bookings count:', bookings.length);
+      console.log('Raw bookings count:', bookings.length);
 
       // Apply date filters
       const from = dateFrom ? new Date(dateFrom) : null;
@@ -154,7 +154,7 @@ export default function BusinessDashboard() {
         );
       });
 
-      console.log('📊 After filter bookings count:', bookings.length);
+      console.log('After filter bookings count:', bookings.length);
 
       const today = new Date().toISOString().split('T')[0];
       const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
@@ -228,7 +228,7 @@ export default function BusinessDashboard() {
         recent_checkins: bookings.slice(0, 10),
       };
       
-      console.log('✅ Setting analytics data:', analyticsData);
+      console.log('Setting analytics data:', analyticsData);
       setAnalytics(analyticsData);
     } catch (err: any) {
       console.error('Error loading bookings:', err);
@@ -277,10 +277,10 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  // ✅ FORCE LOAD ANALYTICS when tab changes
+  // Force load analytics when tab changes
   useEffect(() => {
     if (activeTab === 'analytics') {
-      console.log('🔄 Analytics tab opened, loading bookings...');
+      console.log('Analytics tab opened, loading bookings...');
       setTimeout(() => {
         if (business?.id) {
           loadBookings();
@@ -299,7 +299,7 @@ export default function BusinessDashboard() {
   // Reload when filters change
   useEffect(() => {
     if (activeTab === 'analytics' && business?.id) {
-      console.log('🔄 Filters changed, reloading analytics');
+      console.log('Filters changed, reloading analytics');
       loadBookings();
     }
   }, [dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
@@ -677,7 +677,7 @@ export default function BusinessDashboard() {
             <div className="flex justify-end">
               <button
                 onClick={() => {
-                  console.log('🔄 Manual refresh triggered');
+                  console.log('Manual refresh triggered');
                   loadBookings();
                 }}
                 disabled={analyticsLoading}
@@ -892,7 +892,7 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </>
+                         </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
@@ -914,7 +914,6 @@ export default function BusinessDashboard() {
                     </table>
                   </div>
                 </div>
-              </>
             ) : (
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
