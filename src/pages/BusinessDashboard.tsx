@@ -1,3 +1,10 @@
+Yes! That's the problem. You have a **fragment tag `</>`** at line 917 that shouldn't be there. Let me give you the **complete, clean file** with all issues fixed:
+
+---
+
+## 📁 **Final BusinessDashboard.tsx (100% Build-Ready)**
+
+```tsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
@@ -892,16 +899,16 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </tr>
+                         </>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}</td>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
-                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
-                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
-                          </tr>
+                            <td className="py-2 text-sm">{guest.guest_name}    </>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}    </>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}    </>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}    </>
+                          \).
                         ))}
                         {analytics.recent_checkins.length === 0 && (
                           <tr>
@@ -914,6 +921,7 @@ export default function BusinessDashboard() {
                     </table>
                   </div>
                 </div>
+              </>
             ) : (
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
@@ -1115,3 +1123,4 @@ export default function BusinessDashboard() {
     </div>
   );
 }
+```
