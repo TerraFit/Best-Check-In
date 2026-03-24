@@ -277,22 +277,18 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  // ✅ FORCE LOAD ANALYTICS when tab changes - with a delay to ensure business is loaded
+  // ✅ FORCE LOAD ANALYTICS when tab changes
   useEffect(() => {
     if (activeTab === 'analytics') {
       console.log('🔄 Analytics tab opened, loading bookings...');
-      // Small delay to ensure business data is available
       setTimeout(() => {
         if (business?.id) {
           loadBookings();
         } else {
           console.log('Business not loaded yet, waiting...');
-          // Try again after another delay
           setTimeout(() => {
             if (business?.id) {
               loadBookings();
-            } else {
-              console.error('Business still not loaded');
             }
           }, 500);
         }
@@ -834,7 +830,7 @@ export default function BusinessDashboard() {
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
                             <th className="text-right py-2 text-sm text-stone-500">Density</th>
-                           </tr>
+                          </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -896,15 +892,15 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                           </>
+                         </>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}    </>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}    </>
-                            <td className="py-2 text-sm text-right">{guest.nights || 1}    </>
-                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}    </>
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                         {analytics.recent_checkins.length === 0 && (
