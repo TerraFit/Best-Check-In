@@ -627,7 +627,7 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* REFRESH DATA BUTTON - ADDED HERE */}
+            {/* REFRESH DATA BUTTON */}
             <div className="flex justify-end">
               <button
                 onClick={() => {
@@ -773,7 +773,7 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                            </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -834,7 +834,7 @@ export default function BusinessDashboard() {
                       <tbody>
                         {analytics.recent_checkins.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}   </td>
+                            <td className="py-2 text-sm">{guest.guest_name}    </td>
                             <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
                             <td className="py-2 text-sm text-right">{guest.nights}</td>
                             <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
