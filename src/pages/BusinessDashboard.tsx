@@ -62,11 +62,9 @@ export default function BusinessDashboard() {
 
   // Helper function to get business ID from multiple sources
   const getBusinessIdFromStorage = (): string | null => {
-    // Try new auth first
     let id = getBusinessId();
     if (id) return id;
     
-    // Try old business key
     const oldBusiness = localStorage.getItem('business');
     if (oldBusiness) {
       try {
@@ -77,9 +75,7 @@ export default function BusinessDashboard() {
       }
     }
     
-    // Try from business state
     if (business?.id) return business.id;
-    
     return null;
   };
 
@@ -111,7 +107,6 @@ export default function BusinessDashboard() {
         const bookings = data.bookings;
         console.log('📊 Raw bookings count:', bookings.length);
         
-        // Apply filters
         let filteredBookings = [...bookings];
         if (filterCountry) {
           filteredBookings = filteredBookings.filter((b: any) => b.guest_country === filterCountry);
@@ -132,12 +127,9 @@ export default function BusinessDashboard() {
           ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
           : 0;
         
-        // Calculate today's bookings
         const today = new Date().toISOString().split('T')[0];
         const today_bookings = filteredBookings.filter((b: any) => b.check_in_date === today).length;
-        console.log('📊 Today\'s bookings:', today_bookings);
         
-        // Group by month
         const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; occupancy: number }> = {};
         filteredBookings.forEach((booking: any) => {
           if (booking.check_in_date) {
@@ -246,7 +238,6 @@ export default function BusinessDashboard() {
   };
 
   useEffect(() => {
-    // Try to get business ID from multiple sources
     let businessId = getBusinessId();
     
     if (!businessId) {
@@ -649,14 +640,25 @@ export default function BusinessDashboard() {
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
                   <p className="font-medium text-stone-900">{business.trading_name}</p>
+                  <p className="text-sm text-stone-600">{business.registered_name}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
                   <p className="font-medium text-stone-900">{business.phone}</p>
+                  <p className="text-sm text-stone-600">{business.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
+                  <p className="font-medium text-stone-900">Thornhill, Eastern Cape</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
+                  <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
                   <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
+                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
                 </div>
               </div>
             </div>
@@ -792,30 +794,35 @@ export default function BusinessDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
-                    {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
-                      <div key={country} className="flex justify-between py-1">
-                        <span className="text-sm text-stone-600">{country}</span>
-                        <span className="text-sm font-medium text-stone-900">{count}</span>
-                      </div>
-                    ))}
-                    {Object.keys(analytics.guest_origins.countries).length === 0 && (
-                      <p className="text-sm text-stone-400">No data available</p>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
-                    {Object.entries(analytics.guest_origins.cities)
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 10)
-                      .map(([city, count]) => (
-                        <div key={city} className="flex justify-between py-1">
-                          <span className="text-sm text-stone-600">{city}</span>
+                    <div className="space-y-2">
+                      {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
+                        <div key={country} className="flex justify-between py-1">
+                          <span className="text-sm text-stone-600">{country}</span>
                           <span className="text-sm font-medium text-stone-900">{count}</span>
                         </div>
                       ))}
-                    {Object.keys(analytics.guest_origins.cities).length === 0 && (
-                      <p className="text-sm text-stone-400">No data available</p>
-                    )}
+                      {Object.keys(analytics.guest_origins.countries).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
+                    <div className="space-y-2">
+                      {Object.entries(analytics.guest_origins.cities)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([city, count]) => (
+                          <div key={city} className="flex justify-between py-1">
+                            <span className="text-sm text-stone-600">{city}</span>
+                            <span className="text-sm font-medium text-stone-900">{count}</span>
+                          </div>
+                        ))}
+                      {Object.keys(analytics.guest_origins.cities).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -834,7 +841,7 @@ export default function BusinessDashboard() {
                       <tbody>
                         {analytics.recent_checkins.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}    </td>
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
                             <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
                             <td className="py-2 text-sm text-right">{guest.nights}</td>
                             <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
