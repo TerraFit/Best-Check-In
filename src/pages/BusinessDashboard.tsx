@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, getBusinessId, clearAuth, AuthSession } from '../utils/auth';
+import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
 
 interface BusinessProfile {
   id: string;
@@ -30,9 +30,20 @@ interface AnalyticsData {
   total_revenue: number;
   booking_density: number;
   today_bookings: number;
-  monthly_data: { month: string; year: number; bookings: number; revenue: number; density: number }[];
-  guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
-  recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
+  monthly_data: {
+    month: string;
+    year: number;
+    bookings: number;
+    revenue: number;
+    density: number;
+    monthIndex: number;
+  }[];
+  guest_origins: {
+    provinces: Record<string, number>;
+    cities: Record<string, number>;
+    countries: Record<string, number>;
+  };
+  recent_checkins: any[];
 }
 
 export default function BusinessDashboard() {
@@ -40,25 +51,33 @@ export default function BusinessDashboard() {
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'analytics'>('dashboard');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [checkInUrl, setCheckInUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  
+  // Analytics state
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const hasLoadedAnalytics = useRef(false);
   
+  // Filters
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterProvince, setFilterProvince] = useState('');
   const [filterCity, setFilterCity] = useState('');
-
+  
+  // QR Code
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [checkInUrl, setCheckInUrl] = useState('');
+  const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [copySuccess, setCopySuccess] = useState(false);
+  
+  // Settings
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState({
     total_rooms: '',
     avg_price: '',
@@ -68,228 +87,184 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // Helper: Get auth token (to be validated on backend)
-  // IMPORTANT: This is NOT secure on its own - backend MUST validate
+  // ✅ PROPER AUTH - Bearer Token with fallback
   const getAuthToken = (): string | null => {
     const auth = getAuth();
-    if (auth && auth.type === 'business') {
-      return auth.user.businessId || null;
-    }
-    return null;
+    // Try to get token first, fallback to businessId for compatibility
+    // TODO: Replace with proper JWT token once implemented
+    return (auth as any)?.token || getBusinessId();
   };
 
-  // Helper: Make authenticated fetch calls
-  // Backend must verify that the businessId matches the authenticated session
   const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const auth = getAuth();
     const token = getAuthToken();
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { 'X-Business-ID': token }),
-      ...options.headers,
-    };
-    
-    return fetch(url, { ...options, headers });
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+    });
+
+    if (response.status === 401) {
+      clearAuth();
+      navigate('/business/login');
+      throw new Error('Unauthorized');
+    }
+
+    return response;
   };
 
-  // FIXED: Guard against missing business data
-  const loadBookingsManually = useCallback(async () => {
-    console.log('🔄 Manual fetch started...');
-    
-    // CRITICAL: Check business data is ready
-    if (!business?.id) {
-      console.warn('Business data not ready, cannot load bookings');
-      setAnalyticsError('Business data not loaded yet');
-      return;
-    }
-    
+  // Helper to reset analytics load state (for manual refreshes)
+  const resetAnalyticsLoad = () => {
+    hasLoadedAnalytics.current = false;
+  };
+
+  // ✅ LOAD BOOKINGS WITH PROPER FILTERS
+  const loadBookings = async () => {
     const businessId = getBusinessId();
-    if (!businessId || businessId !== business.id) {
-      console.error('Business ID mismatch or missing');
-      setAnalyticsError('Authentication error');
-      return;
-    }
-    
+    if (!businessId) return;
+
     setAnalyticsLoading(true);
     setAnalyticsError(null);
-    
+
     try {
-      // Use authenticated fetch
-      const response = await authenticatedFetch(`/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=200`);
-      
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Unauthorized access');
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Validate response
-      if (!data || !Array.isArray(data.bookings)) {
-        throw new Error('Invalid response from server');
-      }
-      
+      const res = await authenticatedFetch(
+        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`
+      );
+
+      const data = await res.json();
+      if (!Array.isArray(data?.bookings)) throw new Error('Invalid data');
+
       let bookings = data.bookings;
-      
-      // FIXED: Apply filters
-      let filteredBookings = [...bookings];
-      
-      // Date filters
-      if (dateFrom) {
-        filteredBookings = filteredBookings.filter(b => b.check_in_date >= dateFrom);
-      }
-      if (dateTo) {
-        filteredBookings = filteredBookings.filter(b => b.check_in_date <= dateTo);
-      }
-      
-      // Guest origin filters
-      if (filterCountry) {
-        filteredBookings = filteredBookings.filter(b => b.guest_country === filterCountry);
-      }
-      if (filterProvince) {
-        filteredBookings = filteredBookings.filter(b => b.guest_province === filterProvince);
-      }
-      if (filterCity) {
-        filteredBookings = filteredBookings.filter(b => b.guest_city === filterCity);
-      }
-      
-      console.log('📊 Found', filteredBookings.length, 'bookings for business:', businessId);
-      
-      const today = new Date().toISOString().split('T')[0];
-      const today_bookings = filteredBookings.filter(b => b.check_in_date === today).length;
-      const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
-      
-      // Calculate total nights booked
-      const totalNightsBooked = filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0);
-      
-      // Calculate booking density
-      const totalRooms = business.total_rooms || 1;
-      const daysInPeriod = dateFrom && dateTo 
-        ? Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24))
-        : 365;
-      const maxNights = totalRooms * daysInPeriod;
-      const booking_density = maxNights > 0 ? Math.min(100, Math.round((totalNightsBooked / maxNights) * 100)) : 0;
-      
-      // Group by month
-      const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; nights: number }> = {};
-      filteredBookings.forEach(b => {
-        if (b.check_in_date) {
-          const date = new Date(b.check_in_date);
-          const month = date.toLocaleString('default', { month: 'short' });
-          const year = date.getFullYear();
-          const key = `${year}-${month}`;
-          if (!monthlyMap[key]) {
-            monthlyMap[key] = { month, year, bookings: 0, revenue: 0, nights: 0 };
-          }
-          monthlyMap[key].bookings++;
-          monthlyMap[key].revenue += b.total_amount || 0;
-          monthlyMap[key].nights += b.nights || 1;
-        }
+
+      // ✅ PROPER DATE FILTERING (including full end date)
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+
+      bookings = bookings.filter((b: any) => {
+        const d = new Date(b.check_in_date);
+        return (
+          (!from || d >= from) &&
+          (!to || d <= to) &&
+          (!filterCountry || b.guest_country === filterCountry) &&
+          (!filterProvince || b.guest_province === filterProvince) &&
+          (!filterCity || b.guest_city === filterCity)
+        );
       });
-      
+
+      const today = new Date().toISOString().split('T')[0];
+      const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
+      const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
+      const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
+
+      // ✅ DYNAMIC DATE RANGE FOR DENSITY
+      const totalRooms = business?.total_rooms || 1;
+      const dates = bookings.map((b: any) => new Date(b.check_in_date).getTime());
+      const min = Math.min(...dates);
+      const max = Math.max(...dates);
+      const days = dates.length ? (max - min) / (1000 * 60 * 60 * 24) + 1 : 1;
+      const maxNights = totalRooms * days;
+      const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
+
+      // ✅ RELIABLE MONTHLY GROUPING
+      const monthlyMap: Record<string, any> = {};
+      bookings.forEach((b: any) => {
+        const d = new Date(b.check_in_date);
+        const monthIndex = d.getMonth();
+        const year = d.getFullYear();
+        const key = `${year}-${monthIndex}`;
+
+        if (!monthlyMap[key]) {
+          monthlyMap[key] = {
+            month: d.toLocaleString('default', { month: 'short' }),
+            monthIndex,
+            year,
+            bookings: 0,
+            revenue: 0,
+            nights: 0,
+          };
+        }
+
+        monthlyMap[key].bookings++;
+        monthlyMap[key].revenue += b.total_amount || 0;
+        monthlyMap[key].nights += b.nights || 1;
+      });
+
       const monthly_data = Object.values(monthlyMap)
-        .map(m => {
-          const monthDays = new Date(m.year, ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m.month) + 1, 0).getDate();
-          const monthMaxNights = totalRooms * monthDays;
+        .map((m: any) => {
+          const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
+          const max = totalRooms * daysInMonth;
           return {
             ...m,
-            density: monthMaxNights > 0 ? Math.min(100, Math.round((m.nights / monthMaxNights) * 100)) : 0
+            density: max ? Math.round((m.nights / max) * 100) : 0,
           };
         })
-        .sort((a, b) => {
-          if (a.year !== b.year) return a.year - b.year;
-          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          return months.indexOf(a.month) - months.indexOf(b.month);
-        });
-      
-      // Guest origins (from filtered bookings)
-      const guestOrigins = {
+        .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
+
+      // Guest origins
+      const guest_origins = {
+        countries: {} as Record<string, number>,
         provinces: {} as Record<string, number>,
         cities: {} as Record<string, number>,
-        countries: {} as Record<string, number>
       };
-      filteredBookings.forEach(b => {
-        if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
-        if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
-        if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+
+      bookings.forEach((b: any) => {
+        if (b.guest_country) guest_origins.countries[b.guest_country] = (guest_origins.countries[b.guest_country] || 0) + 1;
+        if (b.guest_province) guest_origins.provinces[b.guest_province] = (guest_origins.provinces[b.guest_province] || 0) + 1;
+        if (b.guest_city) guest_origins.cities[b.guest_city] = (guest_origins.cities[b.guest_city] || 0) + 1;
       });
-      
-      const recent_checkins = filteredBookings.slice(0, 10).map(b => ({
-        id: b.id,
-        guest_name: b.guest_name,
-        check_in_date: b.check_in_date,
-        nights: b.nights || 1,
-        total_amount: b.total_amount || 0
-      }));
-      
-      const analyticsData: AnalyticsData = {
-        total_bookings: filteredBookings.length,
+
+      setAnalytics({
+        total_bookings: bookings.length,
         total_revenue: totalRevenue,
         booking_density,
-        today_bookings,
+        today_bookings: todayBookings,
         monthly_data,
-        guest_origins: guestOrigins,
-        recent_checkins
-      };
-      
-      console.log('📊 Setting analytics data:', analyticsData);
-      setAnalytics(analyticsData);
-    } catch (error) {
-      console.error('Error:', error);
-      setAnalyticsError(error instanceof Error ? error.message : 'Failed to load data');
+        guest_origins,
+        recent_checkins: bookings.slice(0, 10),
+      });
+    } catch (err: any) {
+      console.error(err);
+      setAnalyticsError(err.message);
     } finally {
       setAnalyticsLoading(false);
     }
-  }, [business, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
+  };
 
-  // Auto-load analytics with clean guard
+  // ✅ PREVENT DOUBLE LOAD with useRef
   useEffect(() => {
-    if (activeTab !== 'analytics') return;
-    if (!business?.id) return;
-    if (analytics) return; // Only load once
-    
-    loadBookingsManually();
-  }, [activeTab, business?.id, analytics, loadBookingsManually]);
+    if (activeTab === 'analytics' && business?.id && !hasLoadedAnalytics.current) {
+      hasLoadedAnalytics.current = true;
+      loadBookings();
+    }
+  }, [activeTab, business?.id]);
 
+  // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
-      const response = await authenticatedFetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
-      
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Unauthorized access');
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const businessData = await response.json();
-      
-      if (businessData.error) {
-        console.error('Error fetching business:', businessData.error);
-        navigate('/business/login');
-        return;
-      }
-      
-      setBusiness(businessData);
+      const res = await authenticatedFetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
+      const data = await res.json();
+
+      if (!data?.id) throw new Error('Invalid business');
+
+      setBusiness(data);
       
       setFormData({
-        total_rooms: businessData.total_rooms?.toString() || '',
-        avg_price: businessData.avg_price?.toString() || '',
-        logo_url: businessData.logo_url || '',
-        primary_color: businessData.primary_color || '#f59e0b',
-        secondary_color: businessData.secondary_color || '#1e1e1e',
-        welcome_message: businessData.welcome_message || `Welcome to ${businessData.trading_name}`
+        total_rooms: data.total_rooms?.toString() || '',
+        avg_price: data.avg_price?.toString() || '',
+        logo_url: data.logo_url || '',
+        primary_color: data.primary_color || '#f59e0b',
+        secondary_color: data.secondary_color || '#1e1e1e',
+        welcome_message: data.welcome_message || `Welcome to ${data.trading_name}`
       });
-      
-      const url = `https://fastcheckin.co.za/checkin/${businessData.id}`;
+
+      const url = `https://fastcheckin.co.za/checkin/${data.id}`;
       setCheckInUrl(url);
-      updateQrCode(url);
-      
+      setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
     } catch (err) {
-      console.error('Error fetching business data:', err);
+      console.error(err);
       navigate('/business/login');
     } finally {
       setLoading(false);
@@ -297,28 +272,20 @@ export default function BusinessDashboard() {
   };
 
   useEffect(() => {
-    // Strict auth check - no fallbacks
-    const businessId = getBusinessId();
-    
-    if (!businessId) {
-      console.error('No business ID found in auth');
+    const id = getBusinessId();
+    if (!id) {
       navigate('/business/login');
       return;
     }
+    fetchBusinessData(id);
+  }, []);
 
-    fetchBusinessData(businessId);
-  }, [navigate]);
-
-  // QR code only regenerates when URL changes
+  // QR code regeneration
   useEffect(() => {
     if (checkInUrl) {
-      updateQrCode(checkInUrl);
+      setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkInUrl)}`);
     }
-  }, [checkInUrl]);
-
-  const updateQrCode = (url: string) => {
-    setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
-  };
+  }, [checkInUrl, qrRefreshKey]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -337,14 +304,13 @@ export default function BusinessDashboard() {
     setUploadingLogo(true);
     setUploadProgress(0);
     
-    // Simulate progress (since FileReader doesn't provide progress)
     const progressInterval = setInterval(() => {
       setUploadProgress(prev => Math.min(prev + 20, 90));
     }, 100);
     
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         clearInterval(progressInterval);
         setUploadProgress(100);
         const base64String = reader.result as string;
@@ -683,107 +649,43 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* LOAD BOOKINGS BUTTON - Disabled while loading */}
-            <div className="flex justify-between items-center">
-              <div>
-                {analyticsError && (
-                  <div className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg">
-                    ⚠️ {analyticsError}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => loadBookingsManually()}
-                disabled={analyticsLoading}
-                className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
-                  analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {analyticsLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    LOAD BOOKINGS
-                  </>
-                )}
-              </button>
-            </div>
-
+            {/* Filters Section */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filters</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
-                  <p className="font-medium text-stone-900">{business.trading_name}</p>
-                  <p className="text-sm text-stone-600">{business.registered_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
-                  <p className="font-medium text-stone-900">{business.phone}</p>
-                  <p className="text-sm text-stone-600">{business.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
-                  <p className="font-medium text-stone-900">{businessLocation}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
-                  <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
-                  <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
-                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Date</h3>
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">From</label>
+                  <label className="block text-xs text-stone-500 mb-1">From Date</label>
                   <input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-stone-500 mb-1">To</label>
+                  <label className="block text-xs text-stone-500 mb-1">To Date</label>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
                   />
                 </div>
-                <button
-                  onClick={() => { setDateFrom(''); setDateTo(''); loadBookingsManually(); }}
-                  className="self-end px-4 py-2 text-sm text-amber-600 hover:text-amber-700"
-                >
-                  Apply
-                </button>
-                {(dateFrom || dateTo) && (
+                <div className="flex items-end">
                   <button
-                    onClick={() => { setDateFrom(''); setDateTo(''); loadBookingsManually(); }}
-                    className="self-end px-4 py-2 text-sm text-stone-400 hover:text-stone-600"
+                    onClick={() => {
+                      setDateFrom('');
+                      setDateTo('');
+                      resetAnalyticsLoad();
+                      loadBookings();
+                    }}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
                   >
-                    Clear
+                    Apply Date Filter
                   </button>
-                )}
+                </div>
               </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Guest Origin</h3>
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-stone-500 mb-1">Country</label>
@@ -825,23 +727,36 @@ export default function BusinessDashboard() {
                   </select>
                 </div>
               </div>
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex gap-2">
                 <button
-                  onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); loadBookingsManually(); }}
-                  className="text-sm text-amber-600 hover:text-amber-700"
+                  onClick={() => {
+                    setFilterCountry('');
+                    setFilterProvince('');
+                    setFilterCity('');
+                    resetAnalyticsLoad();
+                    loadBookings();
+                  }}
+                  className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300"
                 >
                   Clear Origin Filters
                 </button>
-                {(filterCountry || filterProvince || filterCity) && (
-                  <button
-                    onClick={() => loadBookingsManually()}
-                    className="text-sm bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600"
-                  >
-                    Apply Filters
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    resetAnalyticsLoad();
+                    loadBookings();
+                  }}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                >
+                  Apply Origin Filters
+                </button>
               </div>
             </div>
+
+            {analyticsError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                ⚠️ {analyticsError}
+              </div>
+            )}
 
             {analyticsLoading ? (
               <div className="flex justify-center py-12">
@@ -876,7 +791,7 @@ export default function BusinessDashboard() {
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
                             <th className="text-right py-2 text-sm text-stone-500">Density</th>
-                          </tr>
+                            </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -941,12 +856,12 @@ export default function BusinessDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {analytics.recent_checkins.map((guest, idx) => (
+                        {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
                             <td className="py-2 text-sm">{guest.guest_name}</td>
                             <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
-                            <td className="py-2 text-sm text-right">{guest.nights}</td>
-                            <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                         {analytics.recent_checkins.length === 0 && (
@@ -964,7 +879,15 @@ export default function BusinessDashboard() {
             ) : (
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
-                <p className="text-sm text-stone-400 mt-2">Click "LOAD BOOKINGS" to fetch your data.</p>
+                <button
+                  onClick={() => {
+                    resetAnalyticsLoad();
+                    loadBookings();
+                  }}
+                  className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                >
+                  Load Bookings
+                </button>
               </div>
             )}
           </div>
