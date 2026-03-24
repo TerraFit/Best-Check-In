@@ -60,13 +60,36 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // ========== fetchAnalytics FUNCTION ==========
+  // Helper function to get business ID from multiple sources
+  const getBusinessIdFromStorage = (): string | null => {
+    // Try new auth first
+    let id = getBusinessId();
+    if (id) return id;
+    
+    // Try old business key
+    const oldBusiness = localStorage.getItem('business');
+    if (oldBusiness) {
+      try {
+        const businessData = JSON.parse(oldBusiness);
+        if (businessData.id) return businessData.id;
+      } catch (e) {
+        console.error('Error parsing old business:', e);
+      }
+    }
+    
+    // Try from business state
+    if (business?.id) return business.id;
+    
+    return null;
+  };
+
+  // ========== fetchAnalytics FUNCTION - FIXED ==========
   const fetchAnalytics = async () => {
     console.log('🔍 fetchAnalytics called');
     setAnalyticsLoading(true);
     try {
-      const businessId = getBusinessId();
-      console.log('🔍 Business ID from auth:', businessId);
+      const businessId = getBusinessIdFromStorage();
+      console.log('🔍 Business ID from storage:', businessId);
       
       if (!businessId) {
         console.error('No business ID found');
@@ -223,15 +246,22 @@ export default function BusinessDashboard() {
   };
 
   useEffect(() => {
-    const auth = getAuth();
-    console.log('🔍 BusinessDashboard - auth:', auth);
+    // Try to get business ID from multiple sources
+    let businessId = getBusinessId();
     
-    if (!auth || auth.type !== 'business') {
-      navigate('/business/login');
-      return;
+    if (!businessId) {
+      const oldBusiness = localStorage.getItem('business');
+      if (oldBusiness) {
+        try {
+          const businessData = JSON.parse(oldBusiness);
+          businessId = businessData.id;
+          console.log('🔍 Using business ID from old storage:', businessId);
+        } catch (e) {
+          console.error('Error parsing old business:', e);
+        }
+      }
     }
-
-    const businessId = getBusinessId();
+    
     if (!businessId) {
       navigate('/business/login');
       return;
@@ -241,11 +271,11 @@ export default function BusinessDashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    if (activeTab === 'analytics' && business?.id) {
-      console.log('🔄 Fetching analytics for business:', business.id);
+    if (activeTab === 'analytics') {
+      console.log('🔄 Fetching analytics');
       fetchAnalytics();
     }
-  }, [activeTab, business?.id, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
+  }, [activeTab, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
 
   useEffect(() => {
     if (checkInUrl) {
@@ -727,7 +757,7 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -798,8 +828,8 @@ export default function BusinessDashboard() {
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-stone-400">
                               No check-ins yet
-                            </td>
-                          </tr>
+                             </td>
+                           </tr>
                         )}
                       </tbody>
                     </table>
