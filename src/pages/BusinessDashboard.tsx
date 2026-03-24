@@ -60,20 +60,14 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // Helper function to calculate nights
-  const calculateNights = (checkInDate: string, checkOutDate: string): number => {
-    if (!checkInDate || !checkOutDate) return 1;
-    const start = new Date(checkInDate);
-    const end = new Date(checkOutDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  // Fetch analytics from Supabase via Netlify function
+  // Fetch analytics from Supabase
   const fetchAnalytics = async () => {
+    console.log('🔍 fetchAnalytics called');
     setAnalyticsLoading(true);
     try {
       const businessId = getBusinessId();
+      console.log('🔍 Business ID from auth:', businessId);
+      
       if (!businessId) {
         console.error('No business ID found');
         setAnalyticsLoading(false);
@@ -85,12 +79,16 @@ export default function BusinessDashboard() {
       if (dateFrom) url += `&startDate=${dateFrom}`;
       if (dateTo) url += `&endDate=${dateTo}`;
       
+      console.log('🔍 Fetching URL:', url);
+      
       const response = await fetch(url);
       const data = await response.json();
+      console.log('🔍 API Response:', data);
       
       if (response.ok && data.bookings) {
         const bookings = data.bookings;
-        const summary = data.summary;
+        
+        console.log('📊 Bookings count:', bookings.length);
         
         // Apply additional filters (country, province, city)
         let filteredBookings = bookings;
@@ -104,16 +102,16 @@ export default function BusinessDashboard() {
           filteredBookings = filteredBookings.filter((b: any) => b.guest_city === filterCity);
         }
         
-        // Recalculate summary for filtered data
+        // Calculate totals
         const filteredTotalBookings = filteredBookings.length;
         const filteredTotalRevenue = filteredBookings.reduce((sum: number, b: any) => sum + (b.total_amount || 0), 0);
         
-        // Calculate occupancy rate (requires total_rooms from business profile)
+        // Calculate occupancy rate
         const occupancy_rate = business?.total_rooms && business.total_rooms > 0
           ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
           : 0;
         
-        // Transform monthly_data from filtered bookings
+        // Group by month
         const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; occupancy: number }> = {};
         filteredBookings.forEach((booking: any) => {
           if (booking.check_in_date) {
@@ -136,16 +134,16 @@ export default function BusinessDashboard() {
           return months.indexOf(a.month) - months.indexOf(b.month);
         });
         
-        // Get recent check-ins (first 10 from filtered)
+        // Get recent check-ins
         const recent_checkins = filteredBookings.slice(0, 10).map((booking: any) => ({
           id: booking.id,
           guest_name: booking.guest_name,
           check_in_date: booking.check_in_date,
-          nights: booking.nights || calculateNights(booking.check_in_date, booking.check_out_date),
+          nights: booking.nights || 1,
           total_amount: booking.total_amount || 0
         }));
         
-        // Calculate guest origins from filtered bookings
+        // Calculate guest origins
         const guestOrigins = {
           provinces: {} as Record<string, number>,
           cities: {} as Record<string, number>,
@@ -164,14 +162,17 @@ export default function BusinessDashboard() {
           }
         });
         
-        setAnalytics({
+        const analyticsData = {
           total_bookings: filteredTotalBookings,
           total_revenue: filteredTotalRevenue,
           occupancy_rate,
           monthly_data,
           guest_origins: guestOrigins,
           recent_checkins
-        });
+        };
+        
+        console.log('📊 Setting analytics data:', analyticsData);
+        setAnalytics(analyticsData);
       } else {
         console.error('Error fetching analytics:', data.error);
         setAnalytics(null);
@@ -241,6 +242,7 @@ export default function BusinessDashboard() {
   // Fetch analytics when analytics tab is opened or filters change
   useEffect(() => {
     if (activeTab === 'analytics' && business?.id) {
+      console.log('🔄 Fetching analytics for business:', business.id);
       fetchAnalytics();
     }
   }, [activeTab, business?.id, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
@@ -750,7 +752,7 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                           </tr>
+                          </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -758,7 +760,7 @@ export default function BusinessDashboard() {
                               <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
-                             </tr>
+                            </tr>
                           ))}
                         </tbody>
                       </table>
@@ -813,7 +815,7 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </tr>
+                        </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins?.map((guest, idx) => (
