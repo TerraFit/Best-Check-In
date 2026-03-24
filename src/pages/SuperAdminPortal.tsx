@@ -66,14 +66,26 @@ export default function SuperAdminPortal() {
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
 
+  // Check authentication on mount
   useEffect(() => {
+    const adminAuth = localStorage.getItem('fastcheckin_admin');
+    if (!adminAuth) {
+      navigate('/super-admin-login');
+      return;
+    }
     fetchBusinesses();
     fetchPendingCount();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     applyFilters();
   }, [businesses, filters]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('fastcheckin_admin');
+    localStorage.removeItem('jbay_user'); // Clean up legacy auth
+    navigate('/super-admin-login');
+  };
 
   const fetchBusinesses = async () => {
     try {
@@ -321,25 +333,38 @@ export default function SuperAdminPortal() {
               </nav>
             </div>
 
-            {/* Right side - Pending Approvals Badge with Count */}
-            <button
-              onClick={() => {
-                navigate('/super-admin/approve');
-              }}
-              className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Pending Approvals</span>
-              
-              {/* Count Badge */}
-              {pendingCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white group-hover:bg-red-600 transition-colors">
-                  {pendingCount > 99 ? '99+' : pendingCount}
-                </span>
-              )}
-            </button>
+            {/* Right side - Pending Approvals and Logout */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  navigate('/super-admin/approve');
+                }}
+                className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Pending Approvals</span>
+                
+                {/* Count Badge */}
+                {pendingCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white group-hover:bg-red-600 transition-colors">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -446,7 +471,7 @@ export default function SuperAdminPortal() {
                       </div>
                     </div>
 
-                    {/* NEW: Directors / Owners Section */}
+                    {/* Directors / Owners Section */}
                     {business.directors && business.directors.length > 0 && (
                       <div className="mt-4">
                         <p className="text-xs text-gray-500 font-medium">Directors / Owners</p>
