@@ -76,7 +76,6 @@ export default function BusinessDashboard() {
       return;
     }
 
-    // Fetch business data from API using businessId
     fetchBusinessData(businessId);
   }, [navigate]);
 
@@ -107,7 +106,7 @@ export default function BusinessDashboard() {
       updateQrCode(url);
       
     } catch (err) {
-      console.error('Error parsing business data:', err);
+      console.error('Error fetching business data:', err);
       navigate('/business/login');
     } finally {
       setLoading(false);
@@ -477,7 +476,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* FIXED: Quick Actions - View Analytics button now goes to business analytics, NOT admin */}
+            {/* Quick Actions - FIXED: View Analytics button now goes to business analytics */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
