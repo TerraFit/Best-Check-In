@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
-import SuperAdminLogin from './pages/SuperAdminLogin';  // ✅ NEW - Correct import
+import SuperAdminLogin from './pages/SuperAdminLogin';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
 import ApproveBusinesses from './pages/admin/ApproveBusinesses';
@@ -16,7 +16,6 @@ import BusinessAnalytics from './pages/business/BusinessAnalytics';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 
-// Simple wrapper for check-in routes
 function CheckInWrapper() {
   return <CheckInApp />;
 }
@@ -30,19 +29,24 @@ function AppContent() {
       <Route path="/registration-success" element={<RegistrationSuccess />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
-      {/* ========== BUSINESS AUTH ROUTES ========== */}
+      {/* ========== AUTH ROUTES ========== */}
       <Route path="/business/login" element={<BusinessLogin />} />
-      <Route path="/business/pending" element={<BusinessPending />} />
+      <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+      <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
       
-      {/* ========== SUPER ADMIN AUTH ROUTES ========== */}
-      <Route path="/super-admin-login" element={<SuperAdminLogin />} />  {/* ✅ CORRECT */}
-      <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />  {/* Redirect old route */}
-      
-      {/* ========== PROTECTED BUSINESS ROUTES ========== */}
+      {/* ========== BUSINESS PROTECTED ROUTES ========== */}
+      <Route 
+        path="/business/pending" 
+        element={
+          <ProtectedRoute requiredRole="business">
+            <BusinessPending />
+          </ProtectedRoute>
+        } 
+      />
       <Route 
         path="/business/dashboard" 
         element={
-          <ProtectedRoute requiredRole="tenant_admin">
+          <ProtectedRoute requiredRole="business">
             <BusinessDashboard />
           </ProtectedRoute>
         } 
@@ -50,7 +54,7 @@ function AppContent() {
       <Route 
         path="/business/analytics/:businessId" 
         element={
-          <ProtectedRoute requiredRole="tenant_admin">
+          <ProtectedRoute requiredRole="business">
             <BusinessAnalytics />
           </ProtectedRoute>
         } 
@@ -58,7 +62,7 @@ function AppContent() {
       <Route 
         path="/business/messages" 
         element={
-          <ProtectedRoute requiredRole="tenant_admin">
+          <ProtectedRoute requiredRole="business">
             <BusinessMessages />
           </ProtectedRoute>
         } 
@@ -85,8 +89,9 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
+      {/* FIXED: Changed from /admin/messages to /super-admin/messages */}
       <Route 
-        path="/admin/messages" 
+        path="/super-admin/messages" 
         element={
           <ProtectedRoute requiredRole="super_admin">
             <AdminMessages />
@@ -96,11 +101,36 @@ function AppContent() {
       
       {/* ========== REDIRECT OLD ROUTES ========== */}
       <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} />
+      <Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} />
       
       {/* 404 */}
-      <Route path="/unauthorized" element={<div className="p-8 text-center">Unauthorized Access</div>} />
-      <Route path="*" element={<div className="p-8 text-center">Page Not Found</div>} />
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  );
+}
+
+function UnauthorizedPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-red-600 mb-4">Unauthorized Access</h1>
+        <p className="text-gray-600 mb-6">You don't have permission to view this page.</p>
+        <a href="/" className="text-orange-500 hover:underline">Return to Home</a>
+      </div>
+    </div>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+        <p className="text-gray-600 mb-6">Page not found</p>
+        <a href="/" className="text-orange-500 hover:underline">Return Home</a>
+      </div>
+    </div>
   );
 }
 
