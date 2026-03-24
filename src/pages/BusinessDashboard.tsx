@@ -60,148 +60,88 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // Helper function to get business ID from multiple sources
-  const getBusinessIdFromStorage = (): string | null => {
-    let id = getBusinessId();
-    if (id) return id;
-    
-    const oldBusiness = localStorage.getItem('business');
-    if (oldBusiness) {
-      try {
-        const businessData = JSON.parse(oldBusiness);
-        if (businessData.id) return businessData.id;
-      } catch (e) {
-        console.error('Error parsing old business:', e);
-      }
-    }
-    
-    if (business?.id) return business.id;
-    return null;
-  };
+  const BUSINESS_ID = 'b4345be3-e2db-4103-acd9-89416533323e';
 
-  // ========== fetchAnalytics FUNCTION ==========
-  const fetchAnalytics = async () => {
-    console.log('🔍 fetchAnalytics called');
+  // WORKING MANUAL FETCH FUNCTION
+  const loadBookingsManually = async () => {
+    console.log('🔄 Manual fetch started...');
     setAnalyticsLoading(true);
     try {
-      const businessId = getBusinessIdFromStorage();
-      console.log('🔍 Business ID from storage:', businessId);
-      
-      if (!businessId) {
-        console.error('No business ID found');
-        setAnalyticsLoading(false);
-        return;
-      }
-      
-      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`;
-      if (dateFrom) url += `&startDate=${dateFrom}`;
-      if (dateTo) url += `&endDate=${dateTo}`;
-      
-      console.log('🔍 Fetching URL:', url);
-      
-      const response = await fetch(url);
+      const response = await fetch(`/.netlify/functions/get-business-bookings?businessId=${BUSINESS_ID}&limit=500`);
       const data = await response.json();
-      console.log('🔍 API Response:', data);
+      const bookings = data.bookings;
       
-      if (response.ok && data.bookings && Array.isArray(data.bookings)) {
-        const bookings = data.bookings;
-        console.log('📊 Raw bookings count:', bookings.length);
-        
-        let filteredBookings = [...bookings];
-        if (filterCountry) {
-          filteredBookings = filteredBookings.filter((b: any) => b.guest_country === filterCountry);
+      console.log('📊 Found', bookings.length, 'bookings');
+      
+      const today = new Date().toISOString().split('T')[0];
+      const today_bookings = bookings.filter(b => b.check_in_date === today).length;
+      const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+      
+      // Group by month
+      const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number }> = {};
+      bookings.forEach(b => {
+        if (b.check_in_date) {
+          const date = new Date(b.check_in_date);
+          const month = date.toLocaleString('default', { month: 'short' });
+          const year = date.getFullYear();
+          const key = `${year}-${month}`;
+          if (!monthlyMap[key]) {
+            monthlyMap[key] = { month, year, bookings: 0, revenue: 0 };
+          }
+          monthlyMap[key].bookings++;
+          monthlyMap[key].revenue += b.total_amount || 0;
         }
-        if (filterProvince) {
-          filteredBookings = filteredBookings.filter((b: any) => b.guest_province === filterProvince);
-        }
-        if (filterCity) {
-          filteredBookings = filteredBookings.filter((b: any) => b.guest_city === filterCity);
-        }
-        
-        console.log('📊 Filtered bookings count:', filteredBookings.length);
-        
-        const filteredTotalBookings = filteredBookings.length;
-        const filteredTotalRevenue = filteredBookings.reduce((sum: number, b: any) => sum + (b.total_amount || 0), 0);
-        
-        const occupancy_rate = business?.total_rooms && business.total_rooms > 0
-          ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
-          : 0;
-        
-        const today = new Date().toISOString().split('T')[0];
-        const today_bookings = filteredBookings.filter((b: any) => b.check_in_date === today).length;
-        
-        const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; occupancy: number }> = {};
-        filteredBookings.forEach((booking: any) => {
-          if (booking.check_in_date) {
-            const date = new Date(booking.check_in_date);
-            const month = date.toLocaleString('default', { month: 'short' });
-            const year = date.getFullYear();
-            const key = `${year}-${month}`;
-            
-            if (!monthlyMap[key]) {
-              monthlyMap[key] = { month, year, bookings: 0, revenue: 0, occupancy: 0 };
-            }
-            monthlyMap[key].bookings++;
-            monthlyMap[key].revenue += booking.total_amount || 0;
-          }
-        });
-        
-        const monthly_data = Object.values(monthlyMap).sort((a, b) => {
-          if (a.year !== b.year) return a.year - b.year;
-          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          return months.indexOf(a.month) - months.indexOf(b.month);
-        });
-        
-        const recent_checkins = filteredBookings.slice(0, 10).map((booking: any) => ({
-          id: booking.id,
-          guest_name: booking.guest_name,
-          check_in_date: booking.check_in_date,
-          nights: booking.nights || 1,
-          total_amount: booking.total_amount || 0
-        }));
-        
-        const guestOrigins = {
-          provinces: {} as Record<string, number>,
-          cities: {} as Record<string, number>,
-          countries: {} as Record<string, number>
-        };
-        
-        filteredBookings.forEach((booking: any) => {
-          if (booking.guest_country) {
-            guestOrigins.countries[booking.guest_country] = (guestOrigins.countries[booking.guest_country] || 0) + 1;
-          }
-          if (booking.guest_province) {
-            guestOrigins.provinces[booking.guest_province] = (guestOrigins.provinces[booking.guest_province] || 0) + 1;
-          }
-          if (booking.guest_city) {
-            guestOrigins.cities[booking.guest_city] = (guestOrigins.cities[booking.guest_city] || 0) + 1;
-          }
-        });
-        
-        const analyticsData: AnalyticsData = {
-          total_bookings: filteredTotalBookings,
-          total_revenue: filteredTotalRevenue,
-          occupancy_rate,
-          today_bookings,
-          monthly_data,
-          guest_origins: guestOrigins,
-          recent_checkins
-        };
-        
-        console.log('📊 FINAL ANALYTICS DATA:', analyticsData);
-        setAnalytics(analyticsData);
-      } else {
-        console.error('Error: No bookings in response', data);
-        setAnalytics(null);
-      }
+      });
+      const monthly_data = Object.values(monthlyMap).sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months.indexOf(a.month) - months.indexOf(b.month);
+      });
+      
+      // Guest origins
+      const guestOrigins = {
+        provinces: {} as Record<string, number>,
+        cities: {} as Record<string, number>,
+        countries: {} as Record<string, number>
+      };
+      bookings.forEach(b => {
+        if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
+        if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
+        if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+      });
+      
+      const recent_checkins = bookings.slice(0, 10).map(b => ({
+        id: b.id,
+        guest_name: b.guest_name,
+        check_in_date: b.check_in_date,
+        nights: b.nights || 1,
+        total_amount: b.total_amount || 0
+      }));
+      
+      const occupancy_rate = business?.total_rooms && business.total_rooms > 0
+        ? Math.round((bookings.length / business.total_rooms) * 100)
+        : 0;
+      
+      const analyticsData: AnalyticsData = {
+        total_bookings: bookings.length,
+        total_revenue: totalRevenue,
+        occupancy_rate,
+        today_bookings,
+        monthly_data,
+        guest_origins: guestOrigins,
+        recent_checkins
+      };
+      
+      console.log('📊 Setting analytics data:', analyticsData);
+      setAnalytics(analyticsData);
+      alert(`✅ Loaded ${bookings.length} bookings!`);
     } catch (error) {
-      console.error('Error fetching analytics:', error);
-      setAnalytics(null);
+      console.error('Error:', error);
+      alert('Error loading data');
     } finally {
       setAnalyticsLoading(false);
     }
   };
-  // ========== END fetchAnalytics ==========
 
   const fetchBusinessData = async (businessId: string) => {
     try {
@@ -260,13 +200,6 @@ export default function BusinessDashboard() {
 
     fetchBusinessData(businessId);
   }, [navigate]);
-
-  useEffect(() => {
-    if (activeTab === 'analytics') {
-      console.log('🔄 Fetching analytics');
-      fetchAnalytics();
-    }
-  }, [activeTab, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
 
   useEffect(() => {
     if (checkInUrl) {
@@ -618,19 +551,16 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* REFRESH DATA BUTTON */}
+            {/* LOAD BOOKINGS BUTTON */}
             <div className="flex justify-end">
               <button
-                onClick={() => {
-                  console.log('🔄 Manual refresh triggered');
-                  fetchAnalytics();
-                }}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2 text-sm shadow-md"
+                onClick={loadBookingsManually}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh Data
+                LOAD BOOKINGS
               </button>
             </div>
 
@@ -862,7 +792,7 @@ export default function BusinessDashboard() {
             ) : (
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
-                <p className="text-sm text-stone-400 mt-2">Complete check-ins to see your business performance.</p>
+                <p className="text-sm text-stone-400 mt-2">Click "LOAD BOOKINGS" to fetch your data.</p>
               </div>
             )}
           </div>
