@@ -1,92 +1,86 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getAuth, clearAuth, AuthSession } from '../utils/auth';
 
-const AccessContext = createContext();
+interface AccessContextType {
+  user: any | null;
+  isAuthenticated: boolean;
+  isBusiness: boolean;
+  isSuperAdmin: boolean;
+  loginAs: (email: string, role: 'business' | 'super_admin', tenantId?: string) => void;
+  logout: () => void;
+}
 
-export const AccessProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const AccessContext = createContext<AccessContextType | undefined>(undefined);
+
+export function AccessProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<any | null>(null);
+  const [isBusiness, setIsBusiness] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const storedUser = localStorage.getItem('jbay_user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error('Failed to load user:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
+    // Sync with unified auth system
+    const auth = getAuth();
+    if (auth) {
+      setUser(auth.user);
+      setIsAuthenticated(true);
+      setIsBusiness(auth.type === 'business');
+      setIsSuperAdmin(auth.type === 'super_admin');
+    } else {
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsBusiness(false);
+      setIsSuperAdmin(false);
+    }
   }, []);
 
-  const isSuperAdmin = user?.role === 'super_admin';
-  const isTenantAdmin = user?.role === 'tenant_admin';
-  const isViewer = user?.role === 'viewer';
-
-  const can = (permission, resource) => {
-    if (isSuperAdmin) return true;
-    if (!user) return false;
-    
-    if (isTenantAdmin) {
-      if (!resource?.tenantId || resource.tenantId !== user.tenantId) {
-        return false;
+  const loginAs = (email: string, role: 'business' | 'super_admin', tenantId?: string) => {
+    // This is for testing/legacy - in production, use the login endpoints
+    const authSession: AuthSession = {
+      type: role,
+      user: {
+        id: role === 'super_admin' ? 'super-admin' : tenantId || 'temp-id',
+        email,
+        name: role === 'super_admin' ? 'Super Administrator' : 'Business User',
+        businessId: role === 'business' ? tenantId : undefined,
+        role: role === 'super_admin' ? 'super_admin' : 'business'
       }
-      return ['create', 'read', 'update', 'delete'].includes(permission);
-    }
-    
-    if (isViewer) {
-      if (!resource?.tenantId || resource.tenantId !== user.tenantId) {
-        return false;
-      }
-      return permission === 'read';
-    }
-    
-    return false;
-  };
-
-  const loginAs = (email, role, tenantId = null) => {
-    const newUser = {
-      email,
-      role,
-      tenantId,
-      name: email.split('@')[0],
-      id: `user-${Date.now()}`
     };
-    setUser(newUser);
-    localStorage.setItem('jbay_user', JSON.stringify(newUser));
-    return newUser;
+    localStorage.setItem('fastcheckin_auth', JSON.stringify(authSession));
+    setUser(authSession.user);
+    setIsAuthenticated(true);
+    setIsBusiness(role === 'business');
+    setIsSuperAdmin(role === 'super_admin');
   };
 
   const logout = () => {
+    clearAuth();
     setUser(null);
-    localStorage.removeItem('jbay_user');
-  };
-
-  const value = {
-    user,
-    isSuperAdmin,
-    isTenantAdmin,
-    isViewer,
-    can,
-    loginAs,
-    logout,
-    loading
+    setIsAuthenticated(false);
+    setIsBusiness(false);
+    setIsSuperAdmin(false);
   };
 
   return (
-    <AccessContext.Provider value={value}>
-      {!loading && children}
+    <AccessContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        isBusiness,
+        isSuperAdmin,
+        loginAs,
+        logout
+      }}
+    >
+      {children}
     </AccessContext.Provider>
   );
-};
+}
 
-export const useAccess = () => {
+export function useAccess() {
   const context = useContext(AccessContext);
-  if (!context) {
-    throw new Error('useAccess must be used within AccessProvider');
+  if (context === undefined) {
+    throw new Error('useAccess must be used within an AccessProvider');
   }
   return context;
-};
+}
