@@ -1,10 +1,3 @@
-Yes! That's the problem. You have a **fragment tag `</>`** at line 917 that shouldn't be there. Let me give you the **complete, clean file** with all issues fixed:
-
----
-
-## 📁 **Final BusinessDashboard.tsx (100% Build-Ready)**
-
-```tsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
@@ -59,25 +52,21 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'analytics'>('dashboard');
   
-  // Analytics state
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   
-  // Filters
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterProvince, setFilterProvince] = useState('');
   const [filterCity, setFilterCity] = useState('');
   
-  // QR Code
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [copySuccess, setCopySuccess] = useState(false);
   
-  // Settings
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -93,7 +82,6 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // Helper: Get auth token with businessId fallback
   const getAuthToken = (): string | null => {
     const auth = getAuth();
     return (auth as any)?.token || getBusinessId();
@@ -120,7 +108,6 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  // LOAD BOOKINGS - MAIN FUNCTION
   const loadBookings = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
@@ -129,7 +116,7 @@ export default function BusinessDashboard() {
       return;
     }
 
-    console.log('🔄 loadBookings() called for business:', businessId);
+    console.log('loadBookings called for business:', businessId);
     setAnalyticsLoading(true);
     setAnalyticsError(null);
 
@@ -146,7 +133,6 @@ export default function BusinessDashboard() {
       let bookings = data.bookings;
       console.log('Raw bookings count:', bookings.length);
 
-      // Apply date filters
       const from = dateFrom ? new Date(dateFrom) : null;
       const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
 
@@ -168,7 +154,6 @@ export default function BusinessDashboard() {
       const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
       const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
 
-      // Calculate booking density
       const totalRooms = business?.total_rooms || 1;
       const dates = bookings.map((b: any) => new Date(b.check_in_date).getTime());
       const min = Math.min(...dates);
@@ -177,7 +162,6 @@ export default function BusinessDashboard() {
       const maxNights = totalRooms * days;
       const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
 
-      // Monthly grouping
       const monthlyMap: Record<string, any> = {};
       bookings.forEach((b: any) => {
         const d = new Date(b.check_in_date);
@@ -212,7 +196,6 @@ export default function BusinessDashboard() {
         })
         .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
 
-      // Guest origins
       const guest_origins = {
         countries: {} as Record<string, number>,
         provinces: {} as Record<string, number>,
@@ -245,7 +228,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
       const res = await authenticatedFetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
@@ -284,7 +266,6 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  // Force load analytics when tab changes
   useEffect(() => {
     if (activeTab === 'analytics') {
       console.log('Analytics tab opened, loading bookings...');
@@ -303,7 +284,6 @@ export default function BusinessDashboard() {
     }
   }, [activeTab, business?.id]);
 
-  // Reload when filters change
   useEffect(() => {
     if (activeTab === 'analytics' && business?.id) {
       console.log('Filters changed, reloading analytics');
@@ -311,7 +291,6 @@ export default function BusinessDashboard() {
     }
   }, [dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
 
-  // QR code regeneration
   useEffect(() => {
     if (checkInUrl) {
       setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkInUrl)}`);
@@ -680,7 +659,6 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* Refresh Button */}
             <div className="flex justify-end">
               <button
                 onClick={() => {
@@ -708,7 +686,6 @@ export default function BusinessDashboard() {
               </button>
             </div>
 
-            {/* Filters Section */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h3 className="text-lg font-semibold text-stone-900 mb-4">Filters</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -837,7 +814,7 @@ export default function BusinessDashboard() {
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
                             <th className="text-right py-2 text-sm text-stone-500">Density</th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -899,16 +876,16 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </>
+                        </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}    </>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}    </>
-                            <td className="py-2 text-sm text-right">{guest.nights || 1}    </>
-                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}    </>
-                          \).
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
+                          </tr>
                         ))}
                         {analytics.recent_checkins.length === 0 && (
                           <tr>
@@ -1123,4 +1100,3 @@ export default function BusinessDashboard() {
     </div>
   );
 }
-```
