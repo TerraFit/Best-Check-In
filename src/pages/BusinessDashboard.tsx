@@ -17,19 +17,36 @@ interface BusinessProfile {
   setup_complete: boolean;
 }
 
+interface AnalyticsData {
+  total_bookings: number;
+  total_revenue: number;
+  occupancy_rate: number;
+  monthly_data: { month: string; bookings: number; revenue: number; occupancy: number }[];
+  guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
+  recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
+}
+
 export default function BusinessDashboard() {
   const navigate = useNavigate();
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'setup'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'analytics'>('dashboard');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  
+  // Date filters for analytics
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterProvince, setFilterProvince] = useState('');
+  const [filterCity, setFilterCity] = useState('');
 
   const [formData, setFormData] = useState({
     total_rooms: '',
@@ -73,6 +90,13 @@ export default function BusinessDashboard() {
     }
   }, [navigate]);
 
+  // Fetch analytics when analytics tab is opened or filters change
+  useEffect(() => {
+    if (activeTab === 'analytics' && business?.id) {
+      fetchAnalytics();
+    }
+  }, [activeTab, business?.id, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
+
   useEffect(() => {
     if (checkInUrl) {
       updateQrCode(checkInUrl);
@@ -81,6 +105,26 @@ export default function BusinessDashboard() {
 
   const updateQrCode = (url: string) => {
     setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
+  };
+
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      let url = `/.netlify/functions/get-business-analytics?businessId=${business?.id}`;
+      if (dateFrom) url += `&dateFrom=${dateFrom}`;
+      if (dateTo) url += `&dateTo=${dateTo}`;
+      if (filterCountry) url += `&country=${encodeURIComponent(filterCountry)}`;
+      if (filterProvince) url += `&province=${encodeURIComponent(filterProvince)}`;
+      if (filterCity) url += `&city=${encodeURIComponent(filterCity)}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      setAnalytics(data.analytics || null);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    } finally {
+      setAnalyticsLoading(false);
+    }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,6 +327,16 @@ export default function BusinessDashboard() {
                 Dashboard
               </button>
               <button
+                onClick={() => setActiveTab('analytics')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'analytics' 
+                    ? 'bg-amber-500 text-white' 
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                Analytics
+              </button>
+              <button
                 onClick={() => setActiveTab('setup')}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   activeTab === 'setup' 
@@ -304,8 +358,9 @@ export default function BusinessDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' ? (
+        {activeTab === 'dashboard' && (
           <div className="space-y-8">
+            {/* QR Code Card */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="flex justify-between items-start">
                 <div>
@@ -372,6 +427,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Quick Stats */}
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Rooms</h4>
@@ -397,6 +453,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Quick Actions */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
@@ -406,15 +463,210 @@ export default function BusinessDashboard() {
                 <p className="text-amber-100 text-sm">Direct link for your guests</p>
               </button>
               <button
-                onClick={() => navigate(`/business/analytics/${business.id}`)}
+                onClick={() => setActiveTab('analytics')}
                 className="bg-stone-900 text-white p-6 rounded-xl text-left hover:bg-stone-800 transition-colors"
               >
-                <h3 className="text-xl font-bold mb-2">Management Portal</h3>
-                <p className="text-stone-400 text-sm">View analytics and guest registry</p>
+                <h3 className="text-xl font-bold mb-2">View Analytics</h3>
+                <p className="text-stone-400 text-sm">See your business performance</p>
               </button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="space-y-8">
+            {/* Business Information Card */}
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
+                  <p className="font-medium text-stone-900">{business.trading_name}</p>
+                  <p className="text-sm text-stone-600">{business.registered_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
+                  <p className="font-medium text-stone-900">{business.phone}</p>
+                  <p className="text-sm text-stone-600">{business.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
+                  <p className="font-medium text-stone-900">Thornhill, Eastern Cape</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
+                  <p className="font-medium text-stone-900">{new Date(business.created_at).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
+                  <p className="font-medium text-stone-900 capitalize">{business.subscription_tier} Plan</p>
+                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Date Filters */}
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Date</h3>
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="self-end px-4 py-2 text-sm text-stone-600 hover:text-stone-900"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            {analyticsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+              </div>
+            ) : analytics ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings || 0}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics.total_revenue?.toLocaleString() || 0}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Occupancy Rate</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.occupancy_rate || 0}%</p>
+                  </div>
+                </div>
+
+                {/* Monthly Trend */}
+                {analytics.monthly_data && analytics.monthly_data.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Monthly Booking Trend</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-stone-200">
+                            <th className="text-left py-2 text-sm text-stone-500">Month</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Occupancy</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.monthly_data.map((month, idx) => (
+                            <tr key={idx} className="border-b border-stone-100">
+                              <td className="py-2 text-sm font-medium">{month.month}</td>
+                              <td className="py-2 text-sm text-right">{month.bookings}</td>
+                              <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
+                              <td className="py-2 text-sm text-right">{month.occupancy}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Guest Origins */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
+                    <div className="space-y-2">
+                      {Object.entries(analytics.guest_origins?.countries || {}).map(([country, count]) => (
+                        <div key={country} className="flex justify-between items-center">
+                          <span className="text-sm text-stone-600">{country}</span>
+                          <span className="text-sm font-medium text-stone-900">{count}</span>
+                        </div>
+                      ))}
+                      {Object.keys(analytics.guest_origins?.countries || {}).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
+                    <div className="space-y-2">
+                      {Object.entries(analytics.guest_origins?.cities || {})
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([city, count]) => (
+                          <div key={city} className="flex justify-between items-center">
+                            <span className="text-sm text-stone-600">{city}</span>
+                            <span className="text-sm font-medium text-stone-900">{count}</span>
+                          </div>
+                        ))}
+                      {Object.keys(analytics.guest_origins?.cities || {}).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Check-ins */}
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                  <h3 className="text-lg font-semibold text-stone-900 mb-4">Recent Check-ins</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-stone-200">
+                          <th className="text-left py-2 text-sm text-stone-500">Guest Name</th>
+                          <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
+                          <th className="text-right py-2 text-sm text-stone-500">Nights</th>
+                          <th className="text-right py-2 text-sm text-stone-500">Amount</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.recent_checkins?.map((guest, idx) => (
+                          <tr key={idx} className="border-b border-stone-100">
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights}</td>
+                            <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
+                          </tr>
+                        ))}
+                        {(!analytics.recent_checkins || analytics.recent_checkins.length === 0) && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-stone-400">
+                              No check-ins yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                <p className="text-stone-500">No analytics data available yet.</p>
+                <p className="text-sm text-stone-400 mt-2">Complete check-ins to see your business performance.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'setup' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
               Business Settings
