@@ -83,7 +83,7 @@ export default function BusinessDashboard() {
     return null;
   };
 
-  // ========== fetchAnalytics FUNCTION - FIXED ==========
+  // ========== fetchAnalytics FUNCTION ==========
   const fetchAnalytics = async () => {
     console.log('🔍 fetchAnalytics called');
     setAnalyticsLoading(true);
@@ -627,6 +627,22 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
+            {/* REFRESH DATA BUTTON - ADDED HERE */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered');
+                  fetchAnalytics();
+                }}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2 text-sm shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Data
+              </button>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -757,7 +773,7 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                           </tr>
+                            </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -818,7 +834,7 @@ export default function BusinessDashboard() {
                       <tbody>
                         {analytics.recent_checkins.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{guest.guest_name}   </td>
                             <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
                             <td className="py-2 text-sm text-right">{guest.nights}</td>
                             <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
@@ -828,8 +844,8 @@ export default function BusinessDashboard() {
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-stone-400">
                               No check-ins yet
-                             </td>
-                           </tr>
+                            </td>
+                          </tr>
                         )}
                       </tbody>
                     </table>
