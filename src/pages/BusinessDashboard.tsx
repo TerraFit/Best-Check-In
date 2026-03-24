@@ -819,4 +819,216 @@ export default function BusinessDashboard() {
                         {analytics.recent_checkins?.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
                             <td className="py-2 text-sm">{guest.guest_name}</td>
-                            <td className="py-2 text-sm
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights}</td>
+                            <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
+                          </tr>
+                        ))}
+                        {(!analytics.recent_checkins || analytics.recent_checkins.length === 0) && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-stone-400">
+                              No check-ins yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                <p className="text-stone-500">No analytics data available yet.</p>
+                <p className="text-sm text-stone-400 mt-2">Complete check-ins to see your business performance.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'setup' && (
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
+              Business Settings
+            </h2>
+            <p className="text-stone-500 mb-8">
+              Configure your property details and customize your check-in page.
+            </p>
+
+            {saveMessage && (
+              <div className={`mb-6 p-4 rounded-lg ${
+                saveMessage.includes('success') 
+                  ? 'bg-green-50 text-green-700 border border-green-200' 
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {saveMessage}
+              </div>
+            )}
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveSetup(); }} className="space-y-8">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                    Total Number of Rooms *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.total_rooms}
+                    onChange={(e) => setFormData({...formData, total_rooms: e.target.value})}
+                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g., 20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                    Average Room Price (ZAR) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.avg_price}
+                    onChange={(e) => setFormData({...formData, avg_price: e.target.value})}
+                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g., 1200"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-stone-100 pt-8">
+                <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
+                  Branding & Appearance
+                </h3>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                      Business Logo
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        className="px-4 py-3 bg-stone-100 text-stone-700 rounded-xl hover:bg-stone-200 transition-colors"
+                      >
+                        {uploadingLogo ? 'Uploading...' : 'Choose Logo Image'}
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      {formData.logo_url && (
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={formData.logo_url} 
+                            alt="Logo preview" 
+                            className="h-12 w-12 object-contain border rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, logo_url: ''})}
+                            className="text-red-500 text-sm hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-stone-400 mt-1">
+                      Upload your logo (PNG, JPG, max 2MB)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                      Welcome Message
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.welcome_message}
+                      onChange={(e) => setFormData({...formData, welcome_message: e.target.value})}
+                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                      placeholder="Welcome to our establishment"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                      Primary Color
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="color"
+                        value={formData.primary_color}
+                        onChange={(e) => setFormData({...formData, primary_color: e.target.value})}
+                        className="w-12 h-12 border border-stone-200 rounded-lg cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={formData.primary_color}
+                        onChange={(e) => setFormData({...formData, primary_color: e.target.value})}
+                        className="flex-1 px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
+                      Secondary Color
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="color"
+                        value={formData.secondary_color}
+                        onChange={(e) => setFormData({...formData, secondary_color: e.target.value})}
+                        className="w-12 h-12 border border-stone-200 rounded-lg cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={formData.secondary_color}
+                        onChange={(e) => setFormData({...formData, secondary_color: e.target.value})}
+                        className="flex-1 px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                <h4 className="font-bold text-amber-900 mb-3">QR Code Preview</h4>
+                <div className="flex justify-center">
+                  <div className="bg-white p-4 rounded-xl shadow-lg inline-block">
+                    <div className="text-center">
+                      {formData.logo_url ? (
+                        <img src={formData.logo_url} alt="Logo" className="h-12 mx-auto mb-2 object-contain" />
+                      ) : (
+                        <p className="font-bold text-stone-900 mb-2">{business.trading_name}</p>
+                      )}
+                      <p className="text-sm text-stone-500 mb-2">{formData.welcome_message}</p>
+                      <img 
+                        src={qrCodeUrl} 
+                        alt="QR Code" 
+                        className="w-32 h-32 mx-auto my-2"
+                        key={qrRefreshKey}
+                      />
+                      <p className="text-xs font-bold text-amber-600 mt-2">Scan to Check In</p>
+                      <p className="text-[10px] text-stone-400 mt-2">FASTCHECKIN</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full bg-amber-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
