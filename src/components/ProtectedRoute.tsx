@@ -1,50 +1,31 @@
-// src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
-import { useAccess } from '../context/AccessContext';
+import { getAuth } from '../utils/auth';
 
-export default function ProtectedRoute({ children, requiredRole, requiredTenantId }: { 
-  children: React.ReactNode; 
-  requiredRole?: string; 
-  requiredTenantId?: string;
-}) {
-  const { user, isSuperAdmin, isTenantAdmin, isViewer } = useAccess();
-  
-  // Check for business auth first (for business dashboard)
-  const businessAuth = localStorage.getItem('business');
-  
-  // For business routes, use business auth
-  if (requiredRole === 'tenant_admin' && businessAuth) {
-    return children;
-  }
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRole: 'business' | 'super_admin';
+}
 
-  // Not logged in? Go to login
-  if (!user && !businessAuth) {
-    return <Navigate to="/login" replace />;
-  }
+export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+  const auth = getAuth();
 
-  // Super Admin can access ANYTHING
-  if (isSuperAdmin) {
-    return children;
-  }
-
-  // Check role requirement
-  if (requiredRole === 'super_admin' && !isSuperAdmin) {
-    return <Navigate to="/super-admin-login" replace />;
-  }
-
-  // Check tenant access
-  if (requiredTenantId && user?.tenantId !== requiredTenantId) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
-  // Check specific role
-  if (requiredRole === 'tenant_admin' && !isTenantAdmin) {
+  // Not logged in at all
+  if (!auth) {
+    if (requiredRole === 'super_admin') {
+      return <Navigate to="/super-admin-login" replace />;
+    }
     return <Navigate to="/business/login" replace />;
   }
 
-  if (requiredRole === 'viewer' && !isViewer && !isTenantAdmin) {
+  // Role mismatch - redirect to appropriate login
+  if (auth.type !== requiredRole) {
+    console.warn(`Role mismatch: Expected ${requiredRole}, got ${auth.type}`);
+    if (requiredRole === 'super_admin') {
+      return <Navigate to="/super-admin-login" replace />;
+    }
     return <Navigate to="/business/login" replace />;
   }
 
+  // Authenticated and role matches
   return children;
 }
