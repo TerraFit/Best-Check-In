@@ -75,15 +75,15 @@ function CheckInAppWrapper() {
 function AppContent() {
   return (
     <Routes>
+      {/* Public routes - specific paths first */}
       <Route path="/" element={<HomePage />} />
-      <Route path="/checkin" element={<CheckInAppWrapper />} />
-      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} />
       <Route path="/register" element={<BusinessRegistration />} />
       <Route path="/registration-success" element={<RegistrationSuccess />} />
       <Route path="/business/login" element={<BusinessLogin />} />
       <Route path="/business/pending" element={<BusinessPending />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
+      {/* Business Dashboard routes - MUST come before /checkin/:businessId */}
       <Route 
         path="/business/dashboard" 
         element={
@@ -111,9 +111,15 @@ function AppContent() {
         } 
       />
       
+      {/* Check-in routes - these come AFTER business routes so they don't interfere */}
+      <Route path="/checkin" element={<CheckInAppWrapper />} />
+      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} />
+      
+      {/* Admin routes */}
       <Route path="/admin" element={<CheckInAppWrapper />} />
       <Route path="/login" element={<Login />} />
       
+      {/* Super Admin routes */}
       <Route 
         path="/super-admin" 
         element={
