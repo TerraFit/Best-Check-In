@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
+import { getAuth, clearAuth } from '../utils/auth';
 
 interface Business {
   id: string;
@@ -66,10 +67,12 @@ export default function SuperAdminPortal() {
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
 
-  // Check authentication on mount
+  // FIXED: Use unified auth system
   useEffect(() => {
-    const adminAuth = localStorage.getItem('fastcheckin_admin');
-    if (!adminAuth) {
+    const auth = getAuth();
+    console.log('🔍 SuperAdminPortal - auth:', auth);
+    
+    if (!auth || auth.type !== 'super_admin') {
       navigate('/super-admin-login');
       return;
     }
@@ -81,9 +84,9 @@ export default function SuperAdminPortal() {
     applyFilters();
   }, [businesses, filters]);
 
+  // FIXED: Use unified clearAuth
   const handleLogout = () => {
-    localStorage.removeItem('fastcheckin_admin');
-    localStorage.removeItem('jbay_user'); // Clean up legacy auth
+    clearAuth();
     navigate('/super-admin-login');
   };
 
