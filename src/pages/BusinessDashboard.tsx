@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
 
 interface BusinessProfile {
   id: string;
@@ -15,6 +16,8 @@ interface BusinessProfile {
   secondary_color?: string;
   welcome_message?: string;
   setup_complete: boolean;
+  created_at?: string;
+  subscription_tier?: string;
 }
 
 interface AnalyticsData {
@@ -57,16 +60,37 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
+  // FIXED: Use unified auth system
   useEffect(() => {
-    const storedBusiness = localStorage.getItem('business');
+    const auth = getAuth();
+    console.log('🔍 BusinessDashboard - auth:', auth);
     
-    if (!storedBusiness) {
+    if (!auth || auth.type !== 'business') {
       navigate('/business/login');
       return;
     }
 
+    const businessId = getBusinessId();
+    if (!businessId) {
+      navigate('/business/login');
+      return;
+    }
+
+    // Fetch business data from API using businessId
+    fetchBusinessData(businessId);
+  }, [navigate]);
+
+  const fetchBusinessData = async (businessId: string) => {
     try {
-      const businessData = JSON.parse(storedBusiness);
+      const response = await fetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
+      const businessData = await response.json();
+      
+      if (businessData.error) {
+        console.error('Error fetching business:', businessData.error);
+        navigate('/business/login');
+        return;
+      }
+      
       setBusiness(businessData);
       
       setFormData({
@@ -88,7 +112,7 @@ export default function BusinessDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  };
 
   // Fetch analytics when analytics tab is opened or filters change
   useEffect(() => {
@@ -193,7 +217,6 @@ export default function BusinessDashboard() {
           welcome_message: formData.welcome_message,
           setup_complete: true 
         };
-        localStorage.setItem('business', JSON.stringify(updatedBusiness));
         setBusiness(updatedBusiness);
         setTimeout(() => setSaveMessage(''), 3000);
       } else {
@@ -273,8 +296,9 @@ export default function BusinessDashboard() {
     };
   };
 
+  // FIXED: Clear unified auth on logout
   const handleLogout = () => {
-    localStorage.removeItem('business');
+    clearAuth();
     navigate('/business/login');
   };
 
@@ -453,7 +477,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* FIXED: Quick Actions - View Analytics button now goes to business analytics, NOT admin */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
@@ -463,11 +487,11 @@ export default function BusinessDashboard() {
                 <p className="text-amber-100 text-sm">Direct link for your guests</p>
               </button>
               <button
-                onClick={() => setActiveTab('analytics')}
+                onClick={() => navigate(`/business/analytics/${business?.id}`)}
                 className="bg-stone-900 text-white p-6 rounded-xl text-left hover:bg-stone-800 transition-colors"
               >
                 <h3 className="text-xl font-bold mb-2">View Analytics</h3>
-                <p className="text-stone-400 text-sm">See your business performance</p>
+                <p className="text-stone-400 text-sm">See your business performance and guest registry</p>
               </button>
             </div>
           </div>
@@ -495,11 +519,11 @@ export default function BusinessDashboard() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
-                  <p className="font-medium text-stone-900">{new Date(business.created_at).toLocaleDateString()}</p>
+                  <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
-                  <p className="font-medium text-stone-900 capitalize">{business.subscription_tier} Plan</p>
+                  <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
                   <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
                 </div>
               </div>
@@ -570,7 +594,7 @@ export default function BusinessDashboard() {
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
                             <th className="text-right py-2 text-sm text-stone-500">Occupancy</th>
-                           </tr>
+                          </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -634,7 +658,7 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </tr>
+                        </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins?.map((guest, idx) => (
