@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
+import { getAuth, getBusinessId, clearAuth, AuthSession } from '../utils/auth';
 
 interface BusinessProfile {
   id: string;
@@ -18,14 +18,19 @@ interface BusinessProfile {
   setup_complete: boolean;
   created_at?: string;
   subscription_tier?: string;
+  physical_address?: {
+    city: string;
+    province: string;
+    country: string;
+  };
 }
 
 interface AnalyticsData {
   total_bookings: number;
   total_revenue: number;
-  occupancy_rate: number;
+  booking_density: number;
   today_bookings: number;
-  monthly_data: { month: string; year: number; bookings: number; revenue: number; occupancy: number }[];
+  monthly_data: { month: string; year: number; bookings: number; revenue: number; density: number }[];
   guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
   recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
 }
@@ -40,10 +45,13 @@ export default function BusinessDashboard() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -60,57 +68,156 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  const BUSINESS_ID = 'b4345be3-e2db-4103-acd9-89416533323e';
+  // Helper: Get auth token (to be validated on backend)
+  // IMPORTANT: This is NOT secure on its own - backend MUST validate
+  const getAuthToken = (): string | null => {
+    const auth = getAuth();
+    if (auth && auth.type === 'business') {
+      return auth.user.businessId || null;
+    }
+    return null;
+  };
 
-  // WORKING MANUAL FETCH FUNCTION
-  const loadBookingsManually = async () => {
+  // Helper: Make authenticated fetch calls
+  // Backend must verify that the businessId matches the authenticated session
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const auth = getAuth();
+    const token = getAuthToken();
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { 'X-Business-ID': token }),
+      ...options.headers,
+    };
+    
+    return fetch(url, { ...options, headers });
+  };
+
+  // FIXED: Guard against missing business data
+  const loadBookingsManually = useCallback(async () => {
     console.log('🔄 Manual fetch started...');
+    
+    // CRITICAL: Check business data is ready
+    if (!business?.id) {
+      console.warn('Business data not ready, cannot load bookings');
+      setAnalyticsError('Business data not loaded yet');
+      return;
+    }
+    
+    const businessId = getBusinessId();
+    if (!businessId || businessId !== business.id) {
+      console.error('Business ID mismatch or missing');
+      setAnalyticsError('Authentication error');
+      return;
+    }
+    
     setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    
     try {
-      const response = await fetch(`/.netlify/functions/get-business-bookings?businessId=${BUSINESS_ID}&limit=500`);
-      const data = await response.json();
-      const bookings = data.bookings;
+      // Use authenticated fetch
+      const response = await authenticatedFetch(`/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=200`);
       
-      console.log('📊 Found', bookings.length, 'bookings');
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Unauthorized access');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Validate response
+      if (!data || !Array.isArray(data.bookings)) {
+        throw new Error('Invalid response from server');
+      }
+      
+      let bookings = data.bookings;
+      
+      // FIXED: Apply filters
+      let filteredBookings = [...bookings];
+      
+      // Date filters
+      if (dateFrom) {
+        filteredBookings = filteredBookings.filter(b => b.check_in_date >= dateFrom);
+      }
+      if (dateTo) {
+        filteredBookings = filteredBookings.filter(b => b.check_in_date <= dateTo);
+      }
+      
+      // Guest origin filters
+      if (filterCountry) {
+        filteredBookings = filteredBookings.filter(b => b.guest_country === filterCountry);
+      }
+      if (filterProvince) {
+        filteredBookings = filteredBookings.filter(b => b.guest_province === filterProvince);
+      }
+      if (filterCity) {
+        filteredBookings = filteredBookings.filter(b => b.guest_city === filterCity);
+      }
+      
+      console.log('📊 Found', filteredBookings.length, 'bookings for business:', businessId);
       
       const today = new Date().toISOString().split('T')[0];
-      const today_bookings = bookings.filter(b => b.check_in_date === today).length;
-      const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+      const today_bookings = filteredBookings.filter(b => b.check_in_date === today).length;
+      const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+      
+      // Calculate total nights booked
+      const totalNightsBooked = filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0);
+      
+      // Calculate booking density
+      const totalRooms = business.total_rooms || 1;
+      const daysInPeriod = dateFrom && dateTo 
+        ? Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24))
+        : 365;
+      const maxNights = totalRooms * daysInPeriod;
+      const booking_density = maxNights > 0 ? Math.min(100, Math.round((totalNightsBooked / maxNights) * 100)) : 0;
       
       // Group by month
-      const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number }> = {};
-      bookings.forEach(b => {
+      const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; nights: number }> = {};
+      filteredBookings.forEach(b => {
         if (b.check_in_date) {
           const date = new Date(b.check_in_date);
           const month = date.toLocaleString('default', { month: 'short' });
           const year = date.getFullYear();
           const key = `${year}-${month}`;
           if (!monthlyMap[key]) {
-            monthlyMap[key] = { month, year, bookings: 0, revenue: 0 };
+            monthlyMap[key] = { month, year, bookings: 0, revenue: 0, nights: 0 };
           }
           monthlyMap[key].bookings++;
           monthlyMap[key].revenue += b.total_amount || 0;
+          monthlyMap[key].nights += b.nights || 1;
         }
       });
-      const monthly_data = Object.values(monthlyMap).sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return months.indexOf(a.month) - months.indexOf(b.month);
-      });
       
-      // Guest origins
+      const monthly_data = Object.values(monthlyMap)
+        .map(m => {
+          const monthDays = new Date(m.year, ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m.month) + 1, 0).getDate();
+          const monthMaxNights = totalRooms * monthDays;
+          return {
+            ...m,
+            density: monthMaxNights > 0 ? Math.min(100, Math.round((m.nights / monthMaxNights) * 100)) : 0
+          };
+        })
+        .sort((a, b) => {
+          if (a.year !== b.year) return a.year - b.year;
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return months.indexOf(a.month) - months.indexOf(b.month);
+        });
+      
+      // Guest origins (from filtered bookings)
       const guestOrigins = {
         provinces: {} as Record<string, number>,
         cities: {} as Record<string, number>,
         countries: {} as Record<string, number>
       };
-      bookings.forEach(b => {
+      filteredBookings.forEach(b => {
         if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
         if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
         if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
       });
       
-      const recent_checkins = bookings.slice(0, 10).map(b => ({
+      const recent_checkins = filteredBookings.slice(0, 10).map(b => ({
         id: b.id,
         guest_name: b.guest_name,
         check_in_date: b.check_in_date,
@@ -118,14 +225,10 @@ export default function BusinessDashboard() {
         total_amount: b.total_amount || 0
       }));
       
-      const occupancy_rate = business?.total_rooms && business.total_rooms > 0
-        ? Math.round((bookings.length / business.total_rooms) * 100)
-        : 0;
-      
       const analyticsData: AnalyticsData = {
-        total_bookings: bookings.length,
+        total_bookings: filteredBookings.length,
         total_revenue: totalRevenue,
-        occupancy_rate,
+        booking_density,
         today_bookings,
         monthly_data,
         guest_origins: guestOrigins,
@@ -134,18 +237,34 @@ export default function BusinessDashboard() {
       
       console.log('📊 Setting analytics data:', analyticsData);
       setAnalytics(analyticsData);
-      alert(`✅ Loaded ${bookings.length} bookings!`);
     } catch (error) {
       console.error('Error:', error);
-      alert('Error loading data');
+      setAnalyticsError(error instanceof Error ? error.message : 'Failed to load data');
     } finally {
       setAnalyticsLoading(false);
     }
-  };
+  }, [business, dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
+
+  // Auto-load analytics with clean guard
+  useEffect(() => {
+    if (activeTab !== 'analytics') return;
+    if (!business?.id) return;
+    if (analytics) return; // Only load once
+    
+    loadBookingsManually();
+  }, [activeTab, business?.id, analytics, loadBookingsManually]);
 
   const fetchBusinessData = async (businessId: string) => {
     try {
-      const response = await fetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
+      const response = await authenticatedFetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
+      
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Unauthorized access');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const businessData = await response.json();
       
       if (businessData.error) {
@@ -178,22 +297,11 @@ export default function BusinessDashboard() {
   };
 
   useEffect(() => {
-    let businessId = getBusinessId();
+    // Strict auth check - no fallbacks
+    const businessId = getBusinessId();
     
     if (!businessId) {
-      const oldBusiness = localStorage.getItem('business');
-      if (oldBusiness) {
-        try {
-          const businessData = JSON.parse(oldBusiness);
-          businessId = businessData.id;
-          console.log('🔍 Using business ID from old storage:', businessId);
-        } catch (e) {
-          console.error('Error parsing old business:', e);
-        }
-      }
-    }
-    
-    if (!businessId) {
+      console.error('No business ID found in auth');
       navigate('/business/login');
       return;
     }
@@ -201,11 +309,12 @@ export default function BusinessDashboard() {
     fetchBusinessData(businessId);
   }, [navigate]);
 
+  // QR code only regenerates when URL changes
   useEffect(() => {
     if (checkInUrl) {
       updateQrCode(checkInUrl);
     }
-  }, [formData.logo_url, formData.welcome_message, formData.primary_color, formData.secondary_color, qrRefreshKey]);
+  }, [checkInUrl]);
 
   const updateQrCode = (url: string) => {
     setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
@@ -226,20 +335,33 @@ export default function BusinessDashboard() {
     }
     
     setUploadingLogo(true);
+    setUploadProgress(0);
+    
+    // Simulate progress (since FileReader doesn't provide progress)
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 20, 90));
+    }, 100);
     
     try {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
+        clearInterval(progressInterval);
+        setUploadProgress(100);
         const base64String = reader.result as string;
         setFormData({ ...formData, logo_url: base64String });
         setQrRefreshKey(prev => prev + 1);
-        setUploadingLogo(false);
+        setTimeout(() => {
+          setUploadingLogo(false);
+          setUploadProgress(0);
+        }, 500);
       };
       reader.readAsDataURL(file);
     } catch (error) {
+      clearInterval(progressInterval);
       console.error('Error uploading logo:', error);
       alert('Failed to upload logo. Please try again.');
       setUploadingLogo(false);
+      setUploadProgress(0);
     }
   };
 
@@ -248,9 +370,8 @@ export default function BusinessDashboard() {
     setSaveMessage('');
     
     try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
+      const response = await authenticatedFetch('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId: business?.id,
           total_rooms: parseInt(formData.total_rooms) || null,
@@ -356,6 +477,16 @@ export default function BusinessDashboard() {
     };
   };
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(checkInUrl);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      alert('Failed to copy link');
+    }
+  };
+
   const handleLogout = () => {
     clearAuth();
     navigate('/business/login');
@@ -384,6 +515,10 @@ export default function BusinessDashboard() {
       </div>
     );
   }
+
+  const businessLocation = business.physical_address 
+    ? `${business.physical_address.city}, ${business.physical_address.province}`
+    : 'Location not set';
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -497,13 +632,10 @@ export default function BusinessDashboard() {
                     className="flex-1 px-4 py-2 border border-stone-200 rounded-lg bg-stone-50 text-sm"
                   />
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(checkInUrl);
-                      alert('Link copied to clipboard!');
-                    }}
-                    className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300"
+                    onClick={handleCopyLink}
+                    className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 transition-colors"
                   >
-                    Copy
+                    {copySuccess ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -551,16 +683,35 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* LOAD BOOKINGS BUTTON */}
-            <div className="flex justify-end">
+            {/* LOAD BOOKINGS BUTTON - Disabled while loading */}
+            <div className="flex justify-between items-center">
+              <div>
+                {analyticsError && (
+                  <div className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg">
+                    ⚠️ {analyticsError}
+                  </div>
+                )}
+              </div>
               <button
-                onClick={loadBookingsManually}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium"
+                onClick={() => loadBookingsManually()}
+                disabled={analyticsLoading}
+                className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
+                  analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                LOAD BOOKINGS
+                {analyticsLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    LOAD BOOKINGS
+                  </>
+                )}
               </button>
             </div>
 
@@ -579,7 +730,7 @@ export default function BusinessDashboard() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
-                  <p className="font-medium text-stone-900">Thornhill, Eastern Cape</p>
+                  <p className="font-medium text-stone-900">{businessLocation}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
@@ -615,11 +766,19 @@ export default function BusinessDashboard() {
                   />
                 </div>
                 <button
-                  onClick={() => { setDateFrom(''); setDateTo(''); }}
-                  className="self-end px-4 py-2 text-sm text-stone-600 hover:text-stone-900"
+                  onClick={() => { setDateFrom(''); setDateTo(''); loadBookingsManually(); }}
+                  className="self-end px-4 py-2 text-sm text-amber-600 hover:text-amber-700"
                 >
-                  Clear
+                  Apply
                 </button>
+                {(dateFrom || dateTo) && (
+                  <button
+                    onClick={() => { setDateFrom(''); setDateTo(''); loadBookingsManually(); }}
+                    className="self-end px-4 py-2 text-sm text-stone-400 hover:text-stone-600"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
 
@@ -666,12 +825,22 @@ export default function BusinessDashboard() {
                   </select>
                 </div>
               </div>
-              <button
-                onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); }}
-                className="mt-4 text-sm text-amber-600 hover:text-amber-700"
-              >
-                Clear Origin Filters
-              </button>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); loadBookingsManually(); }}
+                  className="text-sm text-amber-600 hover:text-amber-700"
+                >
+                  Clear Origin Filters
+                </button>
+                {(filterCountry || filterProvince || filterCity) && (
+                  <button
+                    onClick={() => loadBookingsManually()}
+                    className="text-sm bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600"
+                  >
+                    Apply Filters
+                  </button>
+                )}
+              </div>
             </div>
 
             {analyticsLoading ? (
@@ -690,8 +859,9 @@ export default function BusinessDashboard() {
                     <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics.total_revenue?.toLocaleString() || 0}</p>
                   </div>
                   <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Occupancy Rate</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.occupancy_rate}%</p>
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Booking Density</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.booking_density}%</p>
+                    <p className="text-xs text-stone-400 mt-1">Nights booked vs capacity</p>
                   </div>
                 </div>
 
@@ -705,7 +875,8 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                           </tr>
+                            <th className="text-right py-2 text-sm text-stone-500">Density</th>
+                          </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -713,6 +884,7 @@ export default function BusinessDashboard() {
                               <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
+                              <td className="py-2 text-sm text-right">{month.density}%</td>
                             </tr>
                           ))}
                         </tbody>
@@ -724,7 +896,7 @@ export default function BusinessDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
                       {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
                         <div key={country} className="flex justify-between py-1">
                           <span className="text-sm text-stone-600">{country}</span>
@@ -739,7 +911,7 @@ export default function BusinessDashboard() {
 
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
                       {Object.entries(analytics.guest_origins.cities)
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, 10)
@@ -864,7 +1036,7 @@ export default function BusinessDashboard() {
                         disabled={uploadingLogo}
                         className="px-4 py-3 bg-stone-100 text-stone-700 rounded-xl hover:bg-stone-200 transition-colors"
                       >
-                        {uploadingLogo ? 'Uploading...' : 'Choose Logo Image'}
+                        {uploadingLogo ? (uploadProgress > 0 ? `${uploadProgress}%` : 'Uploading...') : 'Choose Logo Image'}
                       </button>
                       <input
                         ref={fileInputRef}
