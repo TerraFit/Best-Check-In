@@ -56,7 +56,6 @@ export default function BusinessDashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const hasLoadedAnalytics = useRef(false);
   
   // Filters
   const [dateFrom, setDateFrom] = useState('');
@@ -87,11 +86,9 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // ✅ PROPER AUTH - Bearer Token with fallback
+  // Helper: Get auth token with businessId fallback
   const getAuthToken = (): string | null => {
     const auth = getAuth();
-    // Try to get token first, fallback to businessId for compatibility
-    // TODO: Replace with proper JWT token once implemented
     return (auth as any)?.token || getBusinessId();
   };
 
@@ -116,16 +113,16 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  // Helper to reset analytics load state (for manual refreshes)
-  const resetAnalyticsLoad = () => {
-    hasLoadedAnalytics.current = false;
-  };
-
-  // ✅ LOAD BOOKINGS WITH PROPER FILTERS
+  // ✅ LOAD BOOKINGS - MAIN FUNCTION
   const loadBookings = async () => {
     const businessId = getBusinessId();
-    if (!businessId) return;
+    if (!businessId) {
+      console.error('No business ID found');
+      setAnalyticsError('No business ID found');
+      return;
+    }
 
+    console.log('🔄 Loading bookings for business:', businessId);
     setAnalyticsLoading(true);
     setAnalyticsError(null);
 
@@ -135,11 +132,14 @@ export default function BusinessDashboard() {
       );
 
       const data = await res.json();
-      if (!Array.isArray(data?.bookings)) throw new Error('Invalid data');
+      console.log('API Response:', data);
+      
+      if (!Array.isArray(data?.bookings)) throw new Error('Invalid data from server');
 
       let bookings = data.bookings;
+      console.log('📊 Raw bookings count:', bookings.length);
 
-      // ✅ PROPER DATE FILTERING (including full end date)
+      // Apply date filters
       const from = dateFrom ? new Date(dateFrom) : null;
       const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
 
@@ -154,12 +154,14 @@ export default function BusinessDashboard() {
         );
       });
 
+      console.log('📊 Filtered bookings count:', bookings.length);
+
       const today = new Date().toISOString().split('T')[0];
       const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
       const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
       const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
 
-      // ✅ DYNAMIC DATE RANGE FOR DENSITY
+      // Calculate booking density
       const totalRooms = business?.total_rooms || 1;
       const dates = bookings.map((b: any) => new Date(b.check_in_date).getTime());
       const min = Math.min(...dates);
@@ -168,7 +170,7 @@ export default function BusinessDashboard() {
       const maxNights = totalRooms * days;
       const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
 
-      // ✅ RELIABLE MONTHLY GROUPING
+      // Monthly grouping
       const monthlyMap: Record<string, any> = {};
       bookings.forEach((b: any) => {
         const d = new Date(b.check_in_date);
@@ -225,21 +227,31 @@ export default function BusinessDashboard() {
         guest_origins,
         recent_checkins: bookings.slice(0, 10),
       });
+      
+      console.log('✅ Analytics set successfully');
     } catch (err: any) {
-      console.error(err);
+      console.error('Error loading bookings:', err);
       setAnalyticsError(err.message);
     } finally {
       setAnalyticsLoading(false);
     }
   };
 
-  // ✅ PREVENT DOUBLE LOAD with useRef
+  // Auto-load when analytics tab is opened
   useEffect(() => {
-    if (activeTab === 'analytics' && business?.id && !hasLoadedAnalytics.current) {
-      hasLoadedAnalytics.current = true;
+    if (activeTab === 'analytics' && business?.id) {
+      console.log('🔄 Auto-loading analytics for business:', business.id);
       loadBookings();
     }
   }, [activeTab, business?.id]);
+
+  // Reload when filters change
+  useEffect(() => {
+    if (activeTab === 'analytics' && business?.id) {
+      console.log('🔄 Filters changed, reloading analytics');
+      loadBookings();
+    }
+  }, [dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
 
   // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
@@ -649,6 +661,34 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
+            {/* Refresh Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered');
+                  loadBookings();
+                }}
+                disabled={analyticsLoading}
+                className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
+                  analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {analyticsLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh Data
+                  </>
+                )}
+              </button>
+            </div>
+
             {/* Filters Section */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h3 className="text-lg font-semibold text-stone-900 mb-4">Filters</h3>
@@ -676,12 +716,10 @@ export default function BusinessDashboard() {
                     onClick={() => {
                       setDateFrom('');
                       setDateTo('');
-                      resetAnalyticsLoad();
-                      loadBookings();
                     }}
-                    className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+                    className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300"
                   >
-                    Apply Date Filter
+                    Clear Dates
                   </button>
                 </div>
               </div>
@@ -733,21 +771,10 @@ export default function BusinessDashboard() {
                     setFilterCountry('');
                     setFilterProvince('');
                     setFilterCity('');
-                    resetAnalyticsLoad();
-                    loadBookings();
                   }}
                   className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300"
                 >
                   Clear Origin Filters
-                </button>
-                <button
-                  onClick={() => {
-                    resetAnalyticsLoad();
-                    loadBookings();
-                  }}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                >
-                  Apply Origin Filters
                 </button>
               </div>
             </div>
@@ -853,7 +880,7 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                        </tr>
+                         </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
@@ -880,10 +907,7 @@ export default function BusinessDashboard() {
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
                 <button
-                  onClick={() => {
-                    resetAnalyticsLoad();
-                    loadBookings();
-                  }}
+                  onClick={() => loadBookings()}
                   className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                 >
                   Load Bookings
