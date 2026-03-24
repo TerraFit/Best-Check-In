@@ -113,53 +113,103 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  // ✅ LOAD BOOKINGS - MAIN FUNCTION
+  // ✅ LOAD BOOKINGS - WITH EXTENSIVE DEBUG LOGGING
   const loadBookings = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
-      console.error('No business ID found');
+      console.error('❌ No business ID found');
       setAnalyticsError('No business ID found');
       return;
     }
 
-    console.log('🔄 Loading bookings for business:', businessId);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔄 LOAD BOOKINGS STARTED');
+    console.log('📌 Business ID:', businessId);
+    console.log('📌 Date filters:', { from: dateFrom, to: dateTo });
+    console.log('📌 Origin filters:', { country: filterCountry, province: filterProvince, city: filterCity });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     setAnalyticsLoading(true);
     setAnalyticsError(null);
 
     try {
-      const res = await authenticatedFetch(
-        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`
-      );
-
-      const data = await res.json();
-      console.log('API Response:', data);
+      const url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`;
+      console.log('🔗 Fetching URL:', url);
       
-      if (!Array.isArray(data?.bookings)) throw new Error('Invalid data from server');
+      const res = await authenticatedFetch(url);
+      console.log('📡 Response status:', res.status);
+      
+      const data = await res.json();
+      
+      // 🔍 DEBUG: Log the entire response
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📡 FULL API RESPONSE:');
+      console.log(JSON.stringify(data, null, 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📡 Response type:', typeof data);
+      console.log('📡 Has "bookings" property?', data?.bookings !== undefined);
+      console.log('📡 Is "bookings" an array?', Array.isArray(data?.bookings));
+      console.log('📡 Bookings array length:', data?.bookings?.length);
+      
+      if (!Array.isArray(data?.bookings)) {
+        console.error('❌ Invalid data structure - bookings is not an array');
+        console.error('❌ Actual data structure:', Object.keys(data));
+        throw new Error('Invalid data from server');
+      }
 
       let bookings = data.bookings;
       console.log('📊 Raw bookings count:', bookings.length);
+      
+      // 🔍 DEBUG: Log the first booking to see field names
+      if (bookings.length > 0) {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📊 FIRST BOOKING SAMPLE:');
+        console.log(JSON.stringify(bookings[0], null, 2));
+        console.log('📊 Field names in first booking:', Object.keys(bookings[0]));
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      } else {
+        console.warn('⚠️⚠️⚠️ NO BOOKINGS FOUND IN DATABASE ⚠️⚠️⚠️');
+        console.warn('This is why your analytics show 0.');
+        console.warn('Please create a test check-in at /checkin/' + businessId);
+      }
 
       // Apply date filters
       const from = dateFrom ? new Date(dateFrom) : null;
       const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
-
+      
+      console.log('🔍 Applying filters...');
+      console.log('  From date:', from);
+      console.log('  To date:', to);
+      
+      const beforeFilterCount = bookings.length;
       bookings = bookings.filter((b: any) => {
         const d = new Date(b.check_in_date);
-        return (
+        const match = (
           (!from || d >= from) &&
           (!to || d <= to) &&
           (!filterCountry || b.guest_country === filterCountry) &&
           (!filterProvince || b.guest_province === filterProvince) &&
           (!filterCity || b.guest_city === filterCity)
         );
+        if (!match && beforeFilterCount > 0) {
+          console.log('  🔍 Filtered out booking:', b.id, 'check_in_date:', b.check_in_date);
+        }
+        return match;
       });
-
-      console.log('📊 Filtered bookings count:', bookings.length);
+      
+      console.log('📊 After filter bookings count:', bookings.length, '(was', beforeFilterCount, ')');
 
       const today = new Date().toISOString().split('T')[0];
+      console.log('📅 Today\'s date:', today);
+      
       const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
       const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
       const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
+
+      console.log('💰 Calculated totals:');
+      console.log('  Total Revenue:', totalRevenue);
+      console.log('  Total Nights:', totalNights);
+      console.log('  Today\'s Bookings:', todayBookings);
 
       // Calculate booking density
       const totalRooms = business?.total_rooms || 1;
@@ -170,28 +220,36 @@ export default function BusinessDashboard() {
       const maxNights = totalRooms * days;
       const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
 
+      console.log('📊 Density calculation:');
+      console.log('  Total Rooms:', totalRooms);
+      console.log('  Date range days:', days);
+      console.log('  Max possible nights:', maxNights);
+      console.log('  Booking Density:', booking_density + '%');
+
       // Monthly grouping
       const monthlyMap: Record<string, any> = {};
       bookings.forEach((b: any) => {
-        const d = new Date(b.check_in_date);
-        const monthIndex = d.getMonth();
-        const year = d.getFullYear();
-        const key = `${year}-${monthIndex}`;
+        if (b.check_in_date) {
+          const d = new Date(b.check_in_date);
+          const monthIndex = d.getMonth();
+          const year = d.getFullYear();
+          const key = `${year}-${monthIndex}`;
 
-        if (!monthlyMap[key]) {
-          monthlyMap[key] = {
-            month: d.toLocaleString('default', { month: 'short' }),
-            monthIndex,
-            year,
-            bookings: 0,
-            revenue: 0,
-            nights: 0,
-          };
+          if (!monthlyMap[key]) {
+            monthlyMap[key] = {
+              month: d.toLocaleString('default', { month: 'short' }),
+              monthIndex,
+              year,
+              bookings: 0,
+              revenue: 0,
+              nights: 0,
+            };
+          }
+
+          monthlyMap[key].bookings++;
+          monthlyMap[key].revenue += b.total_amount || 0;
+          monthlyMap[key].nights += b.nights || 1;
         }
-
-        monthlyMap[key].bookings++;
-        monthlyMap[key].revenue += b.total_amount || 0;
-        monthlyMap[key].nights += b.nights || 1;
       });
 
       const monthly_data = Object.values(monthlyMap)
@@ -204,6 +262,8 @@ export default function BusinessDashboard() {
           };
         })
         .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
+
+      console.log('📅 Monthly data:', monthly_data.length, 'months');
 
       // Guest origins
       const guest_origins = {
@@ -218,7 +278,12 @@ export default function BusinessDashboard() {
         if (b.guest_city) guest_origins.cities[b.guest_city] = (guest_origins.cities[b.guest_city] || 0) + 1;
       });
 
-      setAnalytics({
+      console.log('🌍 Guest origins:');
+      console.log('  Countries:', Object.keys(guest_origins.countries).length);
+      console.log('  Provinces:', Object.keys(guest_origins.provinces).length);
+      console.log('  Cities:', Object.keys(guest_origins.cities).length);
+
+      const analyticsData = {
         total_bookings: bookings.length,
         total_revenue: totalRevenue,
         booking_density,
@@ -226,14 +291,22 @@ export default function BusinessDashboard() {
         monthly_data,
         guest_origins,
         recent_checkins: bookings.slice(0, 10),
-      });
+      };
       
-      console.log('✅ Analytics set successfully');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('✅ FINAL ANALYTICS DATA:');
+      console.log(JSON.stringify(analyticsData, null, 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      setAnalytics(analyticsData);
     } catch (err: any) {
-      console.error('Error loading bookings:', err);
+      console.error('❌❌❌ ERROR LOADING BOOKINGS ❌❌❌');
+      console.error(err);
       setAnalyticsError(err.message);
     } finally {
       setAnalyticsLoading(false);
+      console.log('🏁 LOAD BOOKINGS COMPLETED');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     }
   };
 
@@ -880,7 +953,7 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                         </tr>
+                        </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
