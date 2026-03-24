@@ -24,7 +24,7 @@ interface AnalyticsData {
   total_bookings: number;
   total_revenue: number;
   occupancy_rate: number;
-  monthly_data: { month: string; bookings: number; revenue: number; occupancy: number }[];
+  monthly_data: { month: string; year?: number; bookings: number; revenue: number; occupancy: number }[];
   guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
   recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
 }
@@ -60,25 +60,131 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // FIXED: Use unified auth system
-  useEffect(() => {
-    const auth = getAuth();
-    console.log('🔍 BusinessDashboard - auth:', auth);
-    
-    if (!auth || auth.type !== 'business') {
-      navigate('/business/login');
-      return;
+  // Helper function to calculate nights
+  const calculateNights = (checkInDate: string, checkOutDate: string): number => {
+    if (!checkInDate || !checkOutDate) return 1;
+    const start = new Date(checkInDate);
+    const end = new Date(checkOutDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // Fetch analytics from Supabase via Netlify function
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const businessId = getBusinessId();
+      if (!businessId) {
+        console.error('No business ID found');
+        setAnalyticsLoading(false);
+        return;
+      }
+      
+      // Build URL with filters
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`;
+      if (dateFrom) url += `&startDate=${dateFrom}`;
+      if (dateTo) url += `&endDate=${dateTo}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (response.ok && data.bookings) {
+        const bookings = data.bookings;
+        const summary = data.summary;
+        
+        // Apply additional filters (country, province, city)
+        let filteredBookings = bookings;
+        if (filterCountry) {
+          filteredBookings = filteredBookings.filter((b: any) => b.guest_country === filterCountry);
+        }
+        if (filterProvince) {
+          filteredBookings = filteredBookings.filter((b: any) => b.guest_province === filterProvince);
+        }
+        if (filterCity) {
+          filteredBookings = filteredBookings.filter((b: any) => b.guest_city === filterCity);
+        }
+        
+        // Recalculate summary for filtered data
+        const filteredTotalBookings = filteredBookings.length;
+        const filteredTotalRevenue = filteredBookings.reduce((sum: number, b: any) => sum + (b.total_amount || 0), 0);
+        
+        // Calculate occupancy rate (requires total_rooms from business profile)
+        const occupancy_rate = business?.total_rooms && business.total_rooms > 0
+          ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
+          : 0;
+        
+        // Transform monthly_data from filtered bookings
+        const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; occupancy: number }> = {};
+        filteredBookings.forEach((booking: any) => {
+          if (booking.check_in_date) {
+            const date = new Date(booking.check_in_date);
+            const month = date.toLocaleString('default', { month: 'short' });
+            const year = date.getFullYear();
+            const key = `${year}-${month}`;
+            
+            if (!monthlyMap[key]) {
+              monthlyMap[key] = { month, year, bookings: 0, revenue: 0, occupancy: 0 };
+            }
+            monthlyMap[key].bookings++;
+            monthlyMap[key].revenue += booking.total_amount || 0;
+          }
+        });
+        
+        const monthly_data = Object.values(monthlyMap).sort((a, b) => {
+          if (a.year !== b.year) return a.year - b.year;
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return months.indexOf(a.month) - months.indexOf(b.month);
+        });
+        
+        // Get recent check-ins (first 10 from filtered)
+        const recent_checkins = filteredBookings.slice(0, 10).map((booking: any) => ({
+          id: booking.id,
+          guest_name: booking.guest_name,
+          check_in_date: booking.check_in_date,
+          nights: booking.nights || calculateNights(booking.check_in_date, booking.check_out_date),
+          total_amount: booking.total_amount || 0
+        }));
+        
+        // Calculate guest origins from filtered bookings
+        const guestOrigins = {
+          provinces: {} as Record<string, number>,
+          cities: {} as Record<string, number>,
+          countries: {} as Record<string, number>
+        };
+        
+        filteredBookings.forEach((booking: any) => {
+          if (booking.guest_country) {
+            guestOrigins.countries[booking.guest_country] = (guestOrigins.countries[booking.guest_country] || 0) + 1;
+          }
+          if (booking.guest_province) {
+            guestOrigins.provinces[booking.guest_province] = (guestOrigins.provinces[booking.guest_province] || 0) + 1;
+          }
+          if (booking.guest_city) {
+            guestOrigins.cities[booking.guest_city] = (guestOrigins.cities[booking.guest_city] || 0) + 1;
+          }
+        });
+        
+        setAnalytics({
+          total_bookings: filteredTotalBookings,
+          total_revenue: filteredTotalRevenue,
+          occupancy_rate,
+          monthly_data,
+          guest_origins: guestOrigins,
+          recent_checkins
+        });
+      } else {
+        console.error('Error fetching analytics:', data.error);
+        setAnalytics(null);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      setAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
     }
+  };
 
-    const businessId = getBusinessId();
-    if (!businessId) {
-      navigate('/business/login');
-      return;
-    }
-
-    fetchBusinessData(businessId);
-  }, [navigate]);
-
+  // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
       const response = await fetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
@@ -113,6 +219,25 @@ export default function BusinessDashboard() {
     }
   };
 
+  // Auth check on mount
+  useEffect(() => {
+    const auth = getAuth();
+    console.log('🔍 BusinessDashboard - auth:', auth);
+    
+    if (!auth || auth.type !== 'business') {
+      navigate('/business/login');
+      return;
+    }
+
+    const businessId = getBusinessId();
+    if (!businessId) {
+      navigate('/business/login');
+      return;
+    }
+
+    fetchBusinessData(businessId);
+  }, [navigate]);
+
   // Fetch analytics when analytics tab is opened or filters change
   useEffect(() => {
     if (activeTab === 'analytics' && business?.id) {
@@ -128,26 +253,6 @@ export default function BusinessDashboard() {
 
   const updateQrCode = (url: string) => {
     setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
-  };
-
-  const fetchAnalytics = async () => {
-    setAnalyticsLoading(true);
-    try {
-      let url = `/.netlify/functions/get-business-analytics?businessId=${business?.id}`;
-      if (dateFrom) url += `&dateFrom=${dateFrom}`;
-      if (dateTo) url += `&dateTo=${dateTo}`;
-      if (filterCountry) url += `&country=${encodeURIComponent(filterCountry)}`;
-      if (filterProvince) url += `&province=${encodeURIComponent(filterProvince)}`;
-      if (filterCity) url += `&city=${encodeURIComponent(filterCity)}`;
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      setAnalytics(data.analytics || null);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-    } finally {
-      setAnalyticsLoading(false);
-    }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -295,7 +400,6 @@ export default function BusinessDashboard() {
     };
   };
 
-  // FIXED: Clear unified auth on logout
   const handleLogout = () => {
     clearAuth();
     navigate('/business/login');
@@ -471,12 +575,14 @@ export default function BusinessDashboard() {
                 )}
               </div>
               <div className="bg-white rounded-xl shadow p-6">
-                <h4 className="text-xs uppercase tracking-widest text-stone-400">Check-ins Today</h4>
-                <p className="text-3xl font-serif font-bold text-stone-900 mt-2">0</p>
+                <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Check-ins</h4>
+                <p className="text-3xl font-serif font-bold text-stone-900 mt-2">
+                  {analytics?.total_bookings || 0}
+                </p>
               </div>
             </div>
 
-            {/* Quick Actions - FIXED: View Analytics button now goes to business analytics */}
+            {/* Quick Actions */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
@@ -486,7 +592,7 @@ export default function BusinessDashboard() {
                 <p className="text-amber-100 text-sm">Direct link for your guests</p>
               </button>
               <button
-                onClick={() => navigate(`/business/analytics/${business?.id}`)}
+                onClick={() => setActiveTab('analytics')}
                 className="bg-stone-900 text-white p-6 rounded-xl text-left hover:bg-stone-800 transition-colors"
               >
                 <h3 className="text-xl font-bold mb-2">View Analytics</h3>
@@ -559,6 +665,58 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Guest Origin Filters */}
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Guest Origin</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">Country</label>
+                  <select
+                    value={filterCountry}
+                    onChange={(e) => setFilterCountry(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Countries</option>
+                    {analytics?.guest_origins?.countries && Object.keys(analytics.guest_origins.countries).map(country => (
+                      <option key={country} value={country}>{country}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">Province</label>
+                  <select
+                    value={filterProvince}
+                    onChange={(e) => setFilterProvince(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Provinces</option>
+                    {analytics?.guest_origins?.provinces && Object.keys(analytics.guest_origins.provinces).map(province => (
+                      <option key={province} value={province}>{province}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">City</label>
+                  <select
+                    value={filterCity}
+                    onChange={(e) => setFilterCity(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Cities</option>
+                    {analytics?.guest_origins?.cities && Object.keys(analytics.guest_origins.cities).map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); }}
+                className="mt-4 text-sm text-amber-600 hover:text-amber-700"
+              >
+                Clear Origin Filters
+              </button>
+            </div>
+
             {/* Stats Cards */}
             {analyticsLoading ? (
               <div className="flex justify-center py-12">
@@ -566,7 +724,7 @@ export default function BusinessDashboard() {
               </div>
             ) : analytics ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
                     <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings || 0}</p>
@@ -592,17 +750,15 @@ export default function BusinessDashboard() {
                             <th className="text-left py-2 text-sm text-stone-500">Month</th>
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                            <th className="text-right py-2 text-sm text-stone-500">Occupancy</th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
                             <tr key={idx} className="border-b border-stone-100">
-                              <td className="py-2 text-sm font-medium">{month.month}</td>
+                              <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
-                              <td className="py-2 text-sm text-right">{month.occupancy}%</td>
-                            </tr>
+                             </tr>
                           ))}
                         </tbody>
                       </table>
@@ -657,222 +813,10 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                        </tr>
+                         </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins?.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
                             <td className="py-2 text-sm">{guest.guest_name}</td>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
-                            <td className="py-2 text-sm text-right">{guest.nights}</td>
-                            <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
-                          </tr>
-                        ))}
-                        {(!analytics.recent_checkins || analytics.recent_checkins.length === 0) && (
-                          <tr>
-                            <td colSpan={4} className="py-8 text-center text-stone-400">
-                              No check-ins yet
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-                <p className="text-stone-500">No analytics data available yet.</p>
-                <p className="text-sm text-stone-400 mt-2">Complete check-ins to see your business performance.</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'setup' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
-              Business Settings
-            </h2>
-            <p className="text-stone-500 mb-8">
-              Configure your property details and customize your check-in page.
-            </p>
-
-            {saveMessage && (
-              <div className={`mb-6 p-4 rounded-lg ${
-                saveMessage.includes('success') 
-                  ? 'bg-green-50 text-green-700 border border-green-200' 
-                  : 'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                {saveMessage}
-              </div>
-            )}
-
-            <form onSubmit={(e) => { e.preventDefault(); handleSaveSetup(); }} className="space-y-8">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                    Total Number of Rooms *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.total_rooms}
-                    onChange={(e) => setFormData({...formData, total_rooms: e.target.value})}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                    placeholder="e.g., 20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                    Average Room Price (ZAR) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.avg_price}
-                    onChange={(e) => setFormData({...formData, avg_price: e.target.value})}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                    placeholder="e.g., 1200"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-stone-100 pt-8">
-                <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
-                  Branding & Appearance
-                </h3>
-                
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                      Business Logo
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingLogo}
-                        className="px-4 py-3 bg-stone-100 text-stone-700 rounded-xl hover:bg-stone-200 transition-colors"
-                      >
-                        {uploadingLogo ? 'Uploading...' : 'Choose Logo Image'}
-                      </button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                      />
-                      {formData.logo_url && (
-                        <div className="flex items-center gap-2">
-                          <img 
-                            src={formData.logo_url} 
-                            alt="Logo preview" 
-                            className="h-12 w-12 object-contain border rounded"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({...formData, logo_url: ''})}
-                            className="text-red-500 text-sm hover:text-red-700"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-xs text-stone-400 mt-1">
-                      Upload your logo (PNG, JPG, max 2MB)
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                      Welcome Message
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.welcome_message}
-                      onChange={(e) => setFormData({...formData, welcome_message: e.target.value})}
-                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                      placeholder="Welcome to our establishment"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                      Primary Color
-                    </label>
-                    <div className="flex gap-3">
-                      <input
-                        type="color"
-                        value={formData.primary_color}
-                        onChange={(e) => setFormData({...formData, primary_color: e.target.value})}
-                        className="w-12 h-12 border border-stone-200 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={formData.primary_color}
-                        onChange={(e) => setFormData({...formData, primary_color: e.target.value})}
-                        className="flex-1 px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-                      Secondary Color
-                    </label>
-                    <div className="flex gap-3">
-                      <input
-                        type="color"
-                        value={formData.secondary_color}
-                        onChange={(e) => setFormData({...formData, secondary_color: e.target.value})}
-                        className="w-12 h-12 border border-stone-200 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={formData.secondary_color}
-                        onChange={(e) => setFormData({...formData, secondary_color: e.target.value})}
-                        className="flex-1 px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                <h4 className="font-bold text-amber-900 mb-3">QR Code Preview</h4>
-                <div className="flex justify-center">
-                  <div className="bg-white p-4 rounded-xl shadow-lg inline-block">
-                    <div className="text-center">
-                      {formData.logo_url ? (
-                        <img src={formData.logo_url} alt="Logo" className="h-12 mx-auto mb-2 object-contain" />
-                      ) : (
-                        <p className="font-bold text-stone-900 mb-2">{business.trading_name}</p>
-                      )}
-                      <p className="text-sm text-stone-500 mb-2">{formData.welcome_message}</p>
-                      <img 
-                        src={qrCodeUrl} 
-                        alt="QR Code" 
-                        className="w-32 h-32 mx-auto my-2"
-                        key={qrRefreshKey}
-                      />
-                      <p className="text-xs font-bold text-amber-600 mt-2">Scan to Check In</p>
-                      <p className="text-[10px] text-stone-400 mt-2">FASTCHECKIN</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full bg-amber-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save Settings'}
-              </button>
-            </form>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+                            <td className="py-2 text-sm
