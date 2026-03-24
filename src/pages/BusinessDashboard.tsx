@@ -24,6 +24,7 @@ interface AnalyticsData {
   total_bookings: number;
   total_revenue: number;
   occupancy_rate: number;
+  today_bookings: number;
   monthly_data: { month: string; year: number; bookings: number; revenue: number; occupancy: number }[];
   guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
   recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
@@ -59,7 +60,7 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // ========== CORRECTED fetchAnalytics FUNCTION ==========
+  // ========== fetchAnalytics FUNCTION ==========
   const fetchAnalytics = async () => {
     console.log('🔍 fetchAnalytics called');
     setAnalyticsLoading(true);
@@ -83,7 +84,6 @@ export default function BusinessDashboard() {
       const data = await response.json();
       console.log('🔍 API Response:', data);
       
-      // Your API returns: { bookings: [...], summary: {...}, period: {...} }
       if (response.ok && data.bookings && Array.isArray(data.bookings)) {
         const bookings = data.bookings;
         console.log('📊 Raw bookings count:', bookings.length);
@@ -108,6 +108,11 @@ export default function BusinessDashboard() {
         const occupancy_rate = business?.total_rooms && business.total_rooms > 0
           ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
           : 0;
+        
+        // Calculate today's bookings
+        const today = new Date().toISOString().split('T')[0];
+        const today_bookings = filteredBookings.filter((b: any) => b.check_in_date === today).length;
+        console.log('📊 Today\'s bookings:', today_bookings);
         
         // Group by month
         const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number; occupancy: number }> = {};
@@ -162,6 +167,7 @@ export default function BusinessDashboard() {
           total_bookings: filteredTotalBookings,
           total_revenue: filteredTotalRevenue,
           occupancy_rate,
+          today_bookings,
           monthly_data,
           guest_origins: guestOrigins,
           recent_checkins
@@ -563,9 +569,9 @@ export default function BusinessDashboard() {
                 </p>
               </div>
               <div className="bg-white rounded-xl shadow p-6">
-                <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Check-ins</h4>
+                <h4 className="text-xs uppercase tracking-widest text-stone-400">Check-ins Today</h4>
                 <p className="text-3xl font-serif font-bold text-stone-900 mt-2">
-                  {analytics?.total_bookings || 0}
+                  {analytics?.today_bookings || 0}
                 </p>
               </div>
             </div>
