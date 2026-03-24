@@ -1,8 +1,10 @@
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+// src/App.tsx - UPDATED with correct route ordering
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import Login from './pages/Login';
+import SuperAdminLogin from './pages/SuperAdminLogin'; // NEW
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
 import ApproveBusinesses from './pages/admin/ApproveBusinesses';
@@ -13,77 +15,32 @@ import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
 import ResetPassword from './pages/ResetPassword';
 import BusinessAnalytics from './pages/business/BusinessAnalytics';
-
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 
-function CheckInAppWrapper() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const getBusinessId = () => {
-    const pathParts = location.pathname.split('/');
-    if (pathParts[1] === 'checkin' && pathParts[2]) {
-      return pathParts[2];
-    }
-    return null;
-  };
-
-  const getInitialView = () => {
-    const businessId = getBusinessId();
-    if (businessId) {
-      return 'CHECKIN';
-    }
-    switch (location.pathname) {
-      case '/checkin':
-        return 'CHECKIN';
-      case '/admin':
-        return 'ADMIN_DASHBOARD';
-      default:
-        return 'HOME';
-    }
-  };
-  
-  const handleNavigate = (view: string) => {
-    console.log('🔵 App.tsx navigate called with:', view);
-    switch (view) {
-      case 'CHECKIN':
-        navigate('/checkin');
-        break;
-      case 'ADMIN_DASHBOARD':
-      case 'REPORTS':
-      case 'IMPORT':
-        navigate('/admin');
-        break;
-      case 'LOGIN':
-        navigate('/login');
-        break;
-      default:
-        navigate('/');
-    }
-  };
-  
-  return (
-    <CheckInApp 
-      key={location.pathname}
-      externalNavigate={handleNavigate}
-      initialView={getInitialView()}
-    />
-  );
+// This wrapper is ONLY for check-in routes now
+function CheckInWrapper() {
+  return <CheckInApp />;
 }
 
 function AppContent() {
   return (
     <Routes>
-      {/* Public routes - specific paths first */}
+      {/* ===== PUBLIC ROUTES ===== */}
       <Route path="/" element={<HomePage />} />
       <Route path="/register" element={<BusinessRegistration />} />
       <Route path="/registration-success" element={<RegistrationSuccess />} />
-      <Route path="/business/login" element={<BusinessLogin />} />
-      <Route path="/business/pending" element={<BusinessPending />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
-      {/* Business Dashboard routes - MUST come before /checkin/:businessId */}
+      {/* ===== BUSINESS AUTH ROUTES ===== */}
+      <Route path="/business/login" element={<BusinessLogin />} />
+      <Route path="/business/pending" element={<BusinessPending />} />
+      
+      {/* ===== SUPER ADMIN AUTH ROUTES ===== */}
+      <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+      <Route path="/login" element={<Login />} />
+      
+      {/* ===== PROTECTED BUSINESS ROUTES ===== */}
       <Route 
         path="/business/dashboard" 
         element={
@@ -92,7 +49,6 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
-      
       <Route 
         path="/business/analytics/:businessId" 
         element={
@@ -101,7 +57,6 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
-      
       <Route 
         path="/business/messages" 
         element={
@@ -111,15 +66,11 @@ function AppContent() {
         } 
       />
       
-      {/* Check-in routes - these come AFTER business routes so they don't interfere */}
-      <Route path="/checkin" element={<CheckInAppWrapper />} />
-      <Route path="/checkin/:businessId" element={<CheckInAppWrapper />} />
+      {/* ===== CHECK-IN ROUTES (NO WRAPPER INTERFERENCE) ===== */}
+      <Route path="/checkin" element={<CheckInWrapper />} />
+      <Route path="/checkin/:businessId" element={<CheckInWrapper />} />
       
-      {/* Admin routes */}
-      <Route path="/admin" element={<CheckInAppWrapper />} />
-      <Route path="/login" element={<Login />} />
-      
-      {/* Super Admin routes */}
+      {/* ===== SUPER ADMIN PROTECTED ROUTES ===== */}
       <Route 
         path="/super-admin" 
         element={
@@ -136,7 +87,6 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
-      
       <Route 
         path="/admin/messages" 
         element={
@@ -146,7 +96,12 @@ function AppContent() {
         } 
       />
       
-      <Route path="/unauthorized" element={<div>Unauthorized</div>} />
+      {/* LEGACY ADMIN ROUTE - Keep for backward compatibility */}
+      <Route path="/admin" element={<CheckInWrapper />} />
+      
+      {/* 404 */}
+      <Route path="/unauthorized" element={<div>Unauthorized Access</div>} />
+      <Route path="*" element={<div>Page Not Found</div>} />
     </Routes>
   );
 }
