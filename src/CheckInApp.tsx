@@ -264,6 +264,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         {renderContent()}
       </main>
 
+      {/* FIXED SUCCESS MODAL - Two buttons: Hotel Website & FastCheckin App */}
       {showSuccessCard && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center animate-scale-in">
@@ -283,6 +284,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
               <p className="text-stone-500 text-[10px]">Enjoy your stay at J-Bay Zebra Lodge.</p>
             </div>
 
+            {/* TWO BUTTONS: Hotel Website + FastCheckin App */}
             <div className="space-y-4 mb-8">
               <a 
                 href="https://www.jbayzebralodge.co.za"
@@ -290,43 +292,53 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
                 rel="noopener noreferrer"
                 className="block w-full bg-stone-900 text-white font-bold py-5 rounded-2xl transition-all shadow-lg text-lg transform hover:-translate-y-1 text-center"
               >
-                Visit Our Official Website
+                Visit J-Bay Zebra Lodge Website
               </a>
               
-              <div className="bg-stone-50 p-6 rounded-2xl border border-stone-100 text-left">
-                <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <input 
-                      type="checkbox" 
-                      id="whatsapp" 
-                      disabled={whatsappStatus === 'sending'}
-                      className="w-6 h-6 rounded-md border-stone-300 text-amber-700 focus:ring-amber-700 cursor-pointer disabled:opacity-50" 
-                      checked={wantsWhatsApp}
-                      onChange={(e) => handleWhatsAppToggle(e.target.checked)}
-                    />
-                    <label htmlFor="whatsapp" className="text-sm font-semibold text-stone-700 leading-tight cursor-pointer">
-                      Send my indemnity copy to WhatsApp
-                    </label>
-                  </div>
-                  
-                  {whatsappStatus !== 'idle' && (
-                    <div className="mt-3 pl-9 animate-fade-in">
-                      {whatsappStatus === 'sending' ? (
-                        <div className="flex items-center gap-2 text-stone-500 text-xs">
-                          <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Generating WhatsApp link...</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span>Sent!</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              <a 
+                href="https://fastcheckin.co.za"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-stone-100 text-stone-700 font-bold py-5 rounded-2xl transition-all shadow-md text-lg transform hover:-translate-y-1 text-center hover:bg-stone-200"
+              >
+                Get FastCheckin App
+              </a>
+            </div>
+
+            {/* WhatsApp Option (unchanged) */}
+            <div className="bg-stone-50 p-6 rounded-2xl border border-stone-100 text-left mb-8">
+              <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="whatsapp" 
+                    disabled={whatsappStatus === 'sending'}
+                    className="w-6 h-6 rounded-md border-stone-300 text-amber-700 focus:ring-amber-700 cursor-pointer disabled:opacity-50" 
+                    checked={wantsWhatsApp}
+                    onChange={(e) => handleWhatsAppToggle(e.target.checked)}
+                  />
+                  <label htmlFor="whatsapp" className="text-sm font-semibold text-stone-700 leading-tight cursor-pointer">
+                    Send my indemnity copy to WhatsApp
+                  </label>
                 </div>
+                
+                {whatsappStatus !== 'idle' && (
+                  <div className="mt-3 pl-9 animate-fade-in">
+                    {whatsappStatus === 'sending' ? (
+                      <div className="flex items-center gap-2 text-stone-500 text-xs">
+                        <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Generating WhatsApp link...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Sent!</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
