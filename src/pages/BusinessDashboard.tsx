@@ -24,7 +24,7 @@ interface AnalyticsData {
   total_bookings: number;
   total_revenue: number;
   occupancy_rate: number;
-  monthly_data: { month: string; year?: number; bookings: number; revenue: number; occupancy: number }[];
+  monthly_data: { month: string; year: number; bookings: number; revenue: number; occupancy: number }[];
   guest_origins: { provinces: Record<string, number>; cities: Record<string, number>; countries: Record<string, number> };
   recent_checkins: { id: string; guest_name: string; check_in_date: string; nights: number; total_amount: number }[];
 }
@@ -44,7 +44,6 @@ export default function BusinessDashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   
-  // Date filters for analytics
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
@@ -60,7 +59,7 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
-  // Fetch analytics from Supabase
+  // ========== CORRECTED fetchAnalytics FUNCTION ==========
   const fetchAnalytics = async () => {
     console.log('🔍 fetchAnalytics called');
     setAnalyticsLoading(true);
@@ -74,7 +73,6 @@ export default function BusinessDashboard() {
         return;
       }
       
-      // Build URL with filters
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`;
       if (dateFrom) url += `&startDate=${dateFrom}`;
       if (dateTo) url += `&endDate=${dateTo}`;
@@ -85,13 +83,13 @@ export default function BusinessDashboard() {
       const data = await response.json();
       console.log('🔍 API Response:', data);
       
-      if (response.ok && data.bookings) {
+      // Your API returns: { bookings: [...], summary: {...}, period: {...} }
+      if (response.ok && data.bookings && Array.isArray(data.bookings)) {
         const bookings = data.bookings;
+        console.log('📊 Raw bookings count:', bookings.length);
         
-        console.log('📊 Bookings count:', bookings.length);
-        
-        // Apply additional filters (country, province, city)
-        let filteredBookings = bookings;
+        // Apply filters
+        let filteredBookings = [...bookings];
         if (filterCountry) {
           filteredBookings = filteredBookings.filter((b: any) => b.guest_country === filterCountry);
         }
@@ -102,11 +100,11 @@ export default function BusinessDashboard() {
           filteredBookings = filteredBookings.filter((b: any) => b.guest_city === filterCity);
         }
         
-        // Calculate totals
+        console.log('📊 Filtered bookings count:', filteredBookings.length);
+        
         const filteredTotalBookings = filteredBookings.length;
         const filteredTotalRevenue = filteredBookings.reduce((sum: number, b: any) => sum + (b.total_amount || 0), 0);
         
-        // Calculate occupancy rate
         const occupancy_rate = business?.total_rooms && business.total_rooms > 0
           ? Math.round((filteredTotalBookings / business.total_rooms) * 100)
           : 0;
@@ -134,7 +132,6 @@ export default function BusinessDashboard() {
           return months.indexOf(a.month) - months.indexOf(b.month);
         });
         
-        // Get recent check-ins
         const recent_checkins = filteredBookings.slice(0, 10).map((booking: any) => ({
           id: booking.id,
           guest_name: booking.guest_name,
@@ -143,7 +140,6 @@ export default function BusinessDashboard() {
           total_amount: booking.total_amount || 0
         }));
         
-        // Calculate guest origins
         const guestOrigins = {
           provinces: {} as Record<string, number>,
           cities: {} as Record<string, number>,
@@ -162,7 +158,7 @@ export default function BusinessDashboard() {
           }
         });
         
-        const analyticsData = {
+        const analyticsData: AnalyticsData = {
           total_bookings: filteredTotalBookings,
           total_revenue: filteredTotalRevenue,
           occupancy_rate,
@@ -171,10 +167,10 @@ export default function BusinessDashboard() {
           recent_checkins
         };
         
-        console.log('📊 Setting analytics data:', analyticsData);
+        console.log('📊 FINAL ANALYTICS DATA:', analyticsData);
         setAnalytics(analyticsData);
       } else {
-        console.error('Error fetching analytics:', data.error);
+        console.error('Error: No bookings in response', data);
         setAnalytics(null);
       }
     } catch (error) {
@@ -184,8 +180,8 @@ export default function BusinessDashboard() {
       setAnalyticsLoading(false);
     }
   };
+  // ========== END fetchAnalytics ==========
 
-  // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
       const response = await fetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
@@ -220,7 +216,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Auth check on mount
   useEffect(() => {
     const auth = getAuth();
     console.log('🔍 BusinessDashboard - auth:', auth);
@@ -239,7 +234,6 @@ export default function BusinessDashboard() {
     fetchBusinessData(businessId);
   }, [navigate]);
 
-  // Fetch analytics when analytics tab is opened or filters change
   useEffect(() => {
     if (activeTab === 'analytics' && business?.id) {
       console.log('🔄 Fetching analytics for business:', business.id);
@@ -275,7 +269,7 @@ export default function BusinessDashboard() {
     
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64String = reader.result as string;
         setFormData({ ...formData, logo_url: base64String });
         setQrRefreshKey(prev => prev + 1);
@@ -489,7 +483,6 @@ export default function BusinessDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
-            {/* QR Code Card */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="flex justify-between items-start">
                 <div>
@@ -556,25 +549,18 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Stats */}
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Rooms</h4>
                 <p className="text-3xl font-serif font-bold text-stone-900 mt-2">
                   {business.total_rooms || '—'}
                 </p>
-                {!business.total_rooms && (
-                  <p className="text-xs text-amber-600 mt-2">Set up in Settings</p>
-                )}
               </div>
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Avg. Price</h4>
                 <p className="text-3xl font-serif font-bold text-stone-900 mt-2">
                   {business.avg_price ? `R${business.avg_price}` : '—'}
                 </p>
-                {!business.avg_price && (
-                  <p className="text-xs text-amber-600 mt-2">Set up in Settings</p>
-                )}
               </div>
               <div className="bg-white rounded-xl shadow p-6">
                 <h4 className="text-xs uppercase tracking-widest text-stone-400">Total Check-ins</h4>
@@ -584,7 +570,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Actions */}
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => window.open(`/checkin/${business.id}`, '_blank')}
@@ -606,37 +591,24 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* Business Information Card */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
                   <p className="font-medium text-stone-900">{business.trading_name}</p>
-                  <p className="text-sm text-stone-600">{business.registered_name}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
                   <p className="font-medium text-stone-900">{business.phone}</p>
-                  <p className="text-sm text-stone-600">{business.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
-                  <p className="font-medium text-stone-900">Thornhill, Eastern Cape</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
-                  <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
                   <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
-                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
                 </div>
               </div>
             </div>
 
-            {/* Date Filters */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Date</h3>
               <div className="flex flex-wrap gap-4">
@@ -667,7 +639,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Guest Origin Filters */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Guest Origin</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -719,7 +690,6 @@ export default function BusinessDashboard() {
               </button>
             </div>
 
-            {/* Stats Cards */}
             {analyticsLoading ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -729,7 +699,7 @@ export default function BusinessDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings || 0}</p>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings}</p>
                   </div>
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
@@ -737,12 +707,11 @@ export default function BusinessDashboard() {
                   </div>
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h4 className="text-sm uppercase tracking-widest text-stone-400">Occupancy Rate</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.occupancy_rate || 0}%</p>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.occupancy_rate}%</p>
                   </div>
                 </div>
 
-                {/* Monthly Trend */}
-                {analytics.monthly_data && analytics.monthly_data.length > 0 && (
+                {analytics.monthly_data.length > 0 && (
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Monthly Booking Trend</h3>
                     <div className="overflow-x-auto">
@@ -768,43 +737,36 @@ export default function BusinessDashboard() {
                   </div>
                 )}
 
-                {/* Guest Origins */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
-                    <div className="space-y-2">
-                      {Object.entries(analytics.guest_origins?.countries || {}).map(([country, count]) => (
-                        <div key={country} className="flex justify-between items-center">
-                          <span className="text-sm text-stone-600">{country}</span>
+                    {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
+                      <div key={country} className="flex justify-between py-1">
+                        <span className="text-sm text-stone-600">{country}</span>
+                        <span className="text-sm font-medium text-stone-900">{count}</span>
+                      </div>
+                    ))}
+                    {Object.keys(analytics.guest_origins.countries).length === 0 && (
+                      <p className="text-sm text-stone-400">No data available</p>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
+                    {Object.entries(analytics.guest_origins.cities)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 10)
+                      .map(([city, count]) => (
+                        <div key={city} className="flex justify-between py-1">
+                          <span className="text-sm text-stone-600">{city}</span>
                           <span className="text-sm font-medium text-stone-900">{count}</span>
                         </div>
                       ))}
-                      {Object.keys(analytics.guest_origins?.countries || {}).length === 0 && (
-                        <p className="text-sm text-stone-400">No data available</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
-                    <div className="space-y-2">
-                      {Object.entries(analytics.guest_origins?.cities || {})
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 10)
-                        .map(([city, count]) => (
-                          <div key={city} className="flex justify-between items-center">
-                            <span className="text-sm text-stone-600">{city}</span>
-                            <span className="text-sm font-medium text-stone-900">{count}</span>
-                          </div>
-                        ))}
-                      {Object.keys(analytics.guest_origins?.cities || {}).length === 0 && (
-                        <p className="text-sm text-stone-400">No data available</p>
-                      )}
-                    </div>
+                    {Object.keys(analytics.guest_origins.cities).length === 0 && (
+                      <p className="text-sm text-stone-400">No data available</p>
+                    )}
                   </div>
                 </div>
 
-                {/* Recent Check-ins */}
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                   <h3 className="text-lg font-semibold text-stone-900 mb-4">Recent Check-ins</h3>
                   <div className="overflow-x-auto">
@@ -818,7 +780,7 @@ export default function BusinessDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {analytics.recent_checkins?.map((guest, idx) => (
+                        {analytics.recent_checkins.map((guest, idx) => (
                           <tr key={idx} className="border-b border-stone-100">
                             <td className="py-2 text-sm">{guest.guest_name}</td>
                             <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
@@ -826,7 +788,7 @@ export default function BusinessDashboard() {
                             <td className="py-2 text-sm text-right">R {guest.total_amount?.toLocaleString() || 0}</td>
                           </tr>
                         ))}
-                        {(!analytics.recent_checkins || analytics.recent_checkins.length === 0) && (
+                        {analytics.recent_checkins.length === 0 && (
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-stone-400">
                               No check-ins yet
