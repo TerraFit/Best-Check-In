@@ -32,10 +32,12 @@ export const getAuth = (): AuthSession | null => {
 
 export const clearAuth = () => {
   localStorage.removeItem(AUTH_KEY);
-  // Clean up legacy keys
+  // Clean up ALL legacy keys
   localStorage.removeItem('business');
   localStorage.removeItem('fastcheckin_admin');
   localStorage.removeItem('jbay_user');
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
 };
 
 export const isBusinessAuthenticated = (): boolean => {
