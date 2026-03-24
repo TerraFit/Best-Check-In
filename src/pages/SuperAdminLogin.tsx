@@ -1,7 +1,7 @@
-// src/pages/SuperAdminLogin.tsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
+import { setAuth } from '../utils/auth';
 
 export default function SuperAdminLogin() {
   const navigate = useNavigate();
@@ -25,8 +25,15 @@ export default function SuperAdminLogin() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Store super admin separately
-        localStorage.setItem('fastcheckin_admin', JSON.stringify(data.admin));
+        setAuth({
+          type: 'super_admin',
+          user: {
+            id: 'super-admin',
+            email: data.admin.email,
+            name: data.admin.name,
+            role: 'super_admin'
+          }
+        });
         navigate('/super-admin');
       } else {
         setError(data.error || 'Invalid credentials');
@@ -101,7 +108,7 @@ export default function SuperAdminLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
