@@ -52,21 +52,25 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'analytics'>('dashboard');
   
+  // Analytics state
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   
+  // Filters
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterProvince, setFilterProvince] = useState('');
   const [filterCity, setFilterCity] = useState('');
   
+  // QR Code
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [copySuccess, setCopySuccess] = useState(false);
   
+  // Settings
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -82,6 +86,7 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
+  // Helper: Get auth token with businessId fallback
   const getAuthToken = (): string | null => {
     const auth = getAuth();
     return (auth as any)?.token || getBusinessId();
@@ -108,126 +113,7 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  const loadBookings = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) {
-      console.error('No business ID found');
-      setAnalyticsError('No business ID found');
-      return;
-    }
-
-    console.log('loadBookings called for business:', businessId);
-    setAnalyticsLoading(true);
-    setAnalyticsError(null);
-
-    try {
-      const res = await authenticatedFetch(
-        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`
-      );
-
-      const data = await res.json();
-      console.log('API Response received, bookings count:', data.bookings?.length);
-      
-      if (!Array.isArray(data?.bookings)) throw new Error('Invalid data from server');
-
-      let bookings = data.bookings;
-      console.log('Raw bookings count:', bookings.length);
-
-      const from = dateFrom ? new Date(dateFrom) : null;
-      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
-
-      bookings = bookings.filter((b: any) => {
-        const d = new Date(b.check_in_date);
-        return (
-          (!from || d >= from) &&
-          (!to || d <= to) &&
-          (!filterCountry || b.guest_country === filterCountry) &&
-          (!filterProvince || b.guest_province === filterProvince) &&
-          (!filterCity || b.guest_city === filterCity)
-        );
-      });
-
-      console.log('After filter bookings count:', bookings.length);
-
-      const today = new Date().toISOString().split('T')[0];
-      const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
-      const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
-      const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
-
-      const totalRooms = business?.total_rooms || 1;
-      const dates = bookings.map((b: any) => new Date(b.check_in_date).getTime());
-      const min = Math.min(...dates);
-      const max = Math.max(...dates);
-      const days = dates.length ? (max - min) / (1000 * 60 * 60 * 24) + 1 : 1;
-      const maxNights = totalRooms * days;
-      const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
-
-      const monthlyMap: Record<string, any> = {};
-      bookings.forEach((b: any) => {
-        const d = new Date(b.check_in_date);
-        const monthIndex = d.getMonth();
-        const year = d.getFullYear();
-        const key = `${year}-${monthIndex}`;
-
-        if (!monthlyMap[key]) {
-          monthlyMap[key] = {
-            month: d.toLocaleString('default', { month: 'short' }),
-            monthIndex,
-            year,
-            bookings: 0,
-            revenue: 0,
-            nights: 0,
-          };
-        }
-
-        monthlyMap[key].bookings++;
-        monthlyMap[key].revenue += b.total_amount || 0;
-        monthlyMap[key].nights += b.nights || 1;
-      });
-
-      const monthly_data = Object.values(monthlyMap)
-        .map((m: any) => {
-          const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
-          const max = totalRooms * daysInMonth;
-          return {
-            ...m,
-            density: max ? Math.round((m.nights / max) * 100) : 0,
-          };
-        })
-        .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
-
-      const guest_origins = {
-        countries: {} as Record<string, number>,
-        provinces: {} as Record<string, number>,
-        cities: {} as Record<string, number>,
-      };
-
-      bookings.forEach((b: any) => {
-        if (b.guest_country) guest_origins.countries[b.guest_country] = (guest_origins.countries[b.guest_country] || 0) + 1;
-        if (b.guest_province) guest_origins.provinces[b.guest_province] = (guest_origins.provinces[b.guest_province] || 0) + 1;
-        if (b.guest_city) guest_origins.cities[b.guest_city] = (guest_origins.cities[b.guest_city] || 0) + 1;
-      });
-
-      const analyticsData = {
-        total_bookings: bookings.length,
-        total_revenue: totalRevenue,
-        booking_density,
-        today_bookings: todayBookings,
-        monthly_data,
-        guest_origins,
-        recent_checkins: bookings.slice(0, 10),
-      };
-      
-      console.log('Setting analytics data:', analyticsData);
-      setAnalytics(analyticsData);
-    } catch (err: any) {
-      console.error('Error loading bookings:', err);
-      setAnalyticsError(err.message);
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  };
-
+  // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
       const res = await authenticatedFetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
@@ -266,31 +152,7 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'analytics') {
-      console.log('Analytics tab opened, loading bookings...');
-      setTimeout(() => {
-        if (business?.id) {
-          loadBookings();
-        } else {
-          console.log('Business not loaded yet, waiting...');
-          setTimeout(() => {
-            if (business?.id) {
-              loadBookings();
-            }
-          }, 500);
-        }
-      }, 100);
-    }
-  }, [activeTab, business?.id]);
-
-  useEffect(() => {
-    if (activeTab === 'analytics' && business?.id) {
-      console.log('Filters changed, reloading analytics');
-      loadBookings();
-    }
-  }, [dateFrom, dateTo, filterCountry, filterProvince, filterCity]);
-
+  // QR code regeneration
   useEffect(() => {
     if (checkInUrl) {
       setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkInUrl)}`);
@@ -657,329 +519,329 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-       {activeTab === 'analytics' && (
-  <div className="space-y-8">
-    {/* LOAD BOOKINGS BUTTON */}
-    <div className="flex justify-end">
-      <button
-        onClick={async () => {
-          console.log('🔍 Manual load started');
-          const businessId = getBusinessId();
-          if (!businessId) {
-            alert('No business ID found');
-            return;
-          }
-          
-          try {
-            const response = await fetch(`/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`);
-            const data = await response.json();
-            console.log('📊 Data loaded:', data);
-            
-            if (data.bookings && data.bookings.length > 0) {
-              const bookings = data.bookings;
-              const totalBookings = bookings.length;
-              const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
-              const today = new Date().toISOString().split('T')[0];
-              const todayBookings = bookings.filter(b => b.check_in_date === today).length;
-              
-              // Group by month for display
-              const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number }> = {};
-              bookings.forEach(b => {
-                if (b.check_in_date) {
-                  const date = new Date(b.check_in_date);
-                  const month = date.toLocaleString('default', { month: 'short' });
-                  const year = date.getFullYear();
-                  const key = `${year}-${month}`;
-                  if (!monthlyMap[key]) {
-                    monthlyMap[key] = { month, year, bookings: 0, revenue: 0 };
+        {activeTab === 'analytics' && (
+          <div className="space-y-8">
+            {/* LOAD BOOKINGS BUTTON */}
+            <div className="flex justify-end">
+              <button
+                onClick={async () => {
+                  console.log('🔍 Manual load started');
+                  const businessId = getBusinessId();
+                  if (!businessId) {
+                    alert('No business ID found');
+                    return;
                   }
-                  monthlyMap[key].bookings++;
-                  monthlyMap[key].revenue += b.total_amount || 0;
-                }
-              });
-              
-              const monthly_data = Object.values(monthlyMap).sort((a, b) => {
-                if (a.year !== b.year) return a.year - b.year;
-                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                return months.indexOf(a.month) - months.indexOf(b.month);
-              });
-              
-              // Guest origins
-              const guestOrigins = {
-                countries: {} as Record<string, number>,
-                provinces: {} as Record<string, number>,
-                cities: {} as Record<string, number>
-              };
-              bookings.forEach(b => {
-                if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
-                if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
-                if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
-              });
-              
-              setAnalytics({
-                total_bookings: totalBookings,
-                total_revenue: totalRevenue,
-                booking_density: 0,
-                today_bookings: todayBookings,
-                monthly_data: monthly_data,
-                guest_origins: guestOrigins,
-                recent_checkins: bookings.slice(0, 10)
-              });
-              
-              alert(`✅ Loaded ${totalBookings} bookings!`);
-            } else {
-              alert('No bookings found');
-            }
-          } catch (error) {
-            console.error('Error:', error);
-            alert('Error loading data');
-          }
-        }}
-        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        LOAD BOOKINGS
-      </button>
-    </div>
-
-    <div className="bg-white rounded-2xl shadow-xl p-8">
-      <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
-          <p className="font-medium text-stone-900">{business.trading_name}</p>
-          <p className="text-sm text-stone-600">{business.registered_name}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
-          <p className="font-medium text-stone-900">{business.phone}</p>
-          <p className="text-sm text-stone-600">{business.email}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
-          <p className="font-medium text-stone-900">{businessLocation}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
-          <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
-          <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
-          <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div className="bg-white rounded-2xl shadow-xl p-8">
-      <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Date</h3>
-      <div className="flex flex-wrap gap-4">
-        <div>
-          <label className="block text-xs text-stone-500 mb-1">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-stone-200 rounded-lg"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-stone-500 mb-1">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-stone-200 rounded-lg"
-          />
-        </div>
-        <button
-          onClick={() => { setDateFrom(''); setDateTo(''); }}
-          className="self-end px-4 py-2 text-sm text-stone-600 hover:text-stone-900"
-        >
-          Clear
-        </button>
-      </div>
-    </div>
-
-    <div className="bg-white rounded-2xl shadow-xl p-8">
-      <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Guest Origin</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs text-stone-500 mb-1">Country</label>
-          <select
-            value={filterCountry}
-            onChange={(e) => setFilterCountry(e.target.value)}
-            className="w-full px-3 py-2 border border-stone-200 rounded-lg"
-          >
-            <option value="">All Countries</option>
-            {analytics?.guest_origins?.countries && Object.keys(analytics.guest_origins.countries).map(country => (
-              <option key={country} value={country}>{country}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-stone-500 mb-1">Province</label>
-          <select
-            value={filterProvince}
-            onChange={(e) => setFilterProvince(e.target.value)}
-            className="w-full px-3 py-2 border border-stone-200 rounded-lg"
-          >
-            <option value="">All Provinces</option>
-            {analytics?.guest_origins?.provinces && Object.keys(analytics.guest_origins.provinces).map(province => (
-              <option key={province} value={province}>{province}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-stone-500 mb-1">City</label>
-          <select
-            value={filterCity}
-            onChange={(e) => setFilterCity(e.target.value)}
-            className="w-full px-3 py-2 border border-stone-200 rounded-lg"
-          >
-            <option value="">All Cities</option>
-            {analytics?.guest_origins?.cities && Object.keys(analytics.guest_origins.cities).map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <button
-        onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); }}
-        className="mt-4 text-sm text-amber-600 hover:text-amber-700"
-      >
-        Clear Origin Filters
-      </button>
-    </div>
-
-    {analyticsLoading ? (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-      </div>
-    ) : analytics ? (
-      <>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
-            <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings}</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
-            <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics.total_revenue?.toLocaleString() || 0}</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h4 className="text-sm uppercase tracking-widest text-stone-400">Booking Density</h4>
-            <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.booking_density}%</p>
-            <p className="text-xs text-stone-400 mt-1">Nights booked vs capacity</p>
-          </div>
-        </div>
-
-        {analytics.monthly_data.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-lg font-semibold text-stone-900 mb-4">Monthly Booking Trend</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-stone-200">
-                    <th className="text-left py-2 text-sm text-stone-500">Month</th>
-                    <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
-                    <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
-                    <th className="text-right py-2 text-sm text-stone-500">Density</th>
-                   </tr>
-                </thead>
-                <tbody>
-                  {analytics.monthly_data.map((month, idx) => (
-                    <tr key={idx} className="border-b border-stone-100">
-                      <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
-                      <td className="py-2 text-sm text-right">{month.bookings}</td>
-                      <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
-                      <td className="py-2 text-sm text-right">{month.density}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  
+                  try {
+                    const response = await fetch(`/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`);
+                    const data = await response.json();
+                    console.log('📊 Data loaded:', data);
+                    
+                    if (data.bookings && data.bookings.length > 0) {
+                      const bookings = data.bookings;
+                      const totalBookings = bookings.length;
+                      const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+                      const today = new Date().toISOString().split('T')[0];
+                      const todayBookings = bookings.filter(b => b.check_in_date === today).length;
+                      
+                      // Group by month for display
+                      const monthlyMap: Record<string, { month: string; year: number; bookings: number; revenue: number }> = {};
+                      bookings.forEach(b => {
+                        if (b.check_in_date) {
+                          const date = new Date(b.check_in_date);
+                          const month = date.toLocaleString('default', { month: 'short' });
+                          const year = date.getFullYear();
+                          const key = `${year}-${month}`;
+                          if (!monthlyMap[key]) {
+                            monthlyMap[key] = { month, year, bookings: 0, revenue: 0 };
+                          }
+                          monthlyMap[key].bookings++;
+                          monthlyMap[key].revenue += b.total_amount || 0;
+                        }
+                      });
+                      
+                      const monthly_data = Object.values(monthlyMap).sort((a, b) => {
+                        if (a.year !== b.year) return a.year - b.year;
+                        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        return months.indexOf(a.month) - months.indexOf(b.month);
+                      });
+                      
+                      // Guest origins
+                      const guestOrigins = {
+                        countries: {} as Record<string, number>,
+                        provinces: {} as Record<string, number>,
+                        cities: {} as Record<string, number>
+                      };
+                      bookings.forEach(b => {
+                        if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
+                        if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
+                        if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+                      });
+                      
+                      setAnalytics({
+                        total_bookings: totalBookings,
+                        total_revenue: totalRevenue,
+                        booking_density: 0,
+                        today_bookings: todayBookings,
+                        monthly_data: monthly_data,
+                        guest_origins: guestOrigins,
+                        recent_checkins: bookings.slice(0, 10)
+                      });
+                      
+                      alert(`✅ Loaded ${totalBookings} bookings!`);
+                    } else {
+                      alert('No bookings found');
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error loading data');
+                  }
+                }}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                LOAD BOOKINGS
+              </button>
             </div>
+
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Business Name</p>
+                  <p className="font-medium text-stone-900">{business.trading_name}</p>
+                  <p className="text-sm text-stone-600">{business.registered_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Contact</p>
+                  <p className="font-medium text-stone-900">{business.phone}</p>
+                  <p className="text-sm text-stone-600">{business.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Location</p>
+                  <p className="font-medium text-stone-900">{businessLocation}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Registration Date</p>
+                  <p className="font-medium text-stone-900">{business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-stone-400">Subscription</p>
+                  <p className="font-medium text-stone-900 capitalize">{business.subscription_tier || 'Monthly'} Plan</p>
+                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Date</h3>
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="px-3 py-2 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="self-end px-4 py-2 text-sm text-stone-600 hover:text-stone-900"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h3 className="text-lg font-semibold text-stone-900 mb-4">Filter by Guest Origin</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">Country</label>
+                  <select
+                    value={filterCountry}
+                    onChange={(e) => setFilterCountry(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Countries</option>
+                    {analytics?.guest_origins?.countries && Object.keys(analytics.guest_origins.countries).map(country => (
+                      <option key={country} value={country}>{country}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">Province</label>
+                  <select
+                    value={filterProvince}
+                    onChange={(e) => setFilterProvince(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Provinces</option>
+                    {analytics?.guest_origins?.provinces && Object.keys(analytics.guest_origins.provinces).map(province => (
+                      <option key={province} value={province}>{province}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">City</label>
+                  <select
+                    value={filterCity}
+                    onChange={(e) => setFilterCity(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                  >
+                    <option value="">All Cities</option>
+                    {analytics?.guest_origins?.cities && Object.keys(analytics.guest_origins.cities).map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={() => { setFilterCountry(''); setFilterProvince(''); setFilterCity(''); }}
+                className="mt-4 text-sm text-amber-600 hover:text-amber-700"
+              >
+                Clear Origin Filters
+              </button>
+            </div>
+
+            {analyticsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+              </div>
+            ) : analytics ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics.total_revenue?.toLocaleString() || 0}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Booking Density</h4>
+                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.booking_density}%</p>
+                    <p className="text-xs text-stone-400 mt-1">Nights booked vs capacity</p>
+                  </div>
+                </div>
+
+                {analytics.monthly_data.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Monthly Booking Trend</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-stone-200">
+                            <th className="text-left py-2 text-sm text-stone-500">Month</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
+                            <th className="text-right py-2 text-sm text-stone-500">Density</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.monthly_data.map((month, idx) => (
+                            <tr key={idx} className="border-b border-stone-100">
+                              <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
+                              <td className="py-2 text-sm text-right">{month.bookings}</td>
+                              <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
+                              <td className="py-2 text-sm text-right">{month.density}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
+                        <div key={country} className="flex justify-between py-1">
+                          <span className="text-sm text-stone-600">{country}</span>
+                          <span className="text-sm font-medium text-stone-900">{count}</span>
+                        </div>
+                      ))}
+                      {Object.keys(analytics.guest_origins.countries).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {Object.entries(analytics.guest_origins.cities)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([city, count]) => (
+                          <div key={city} className="flex justify-between py-1">
+                            <span className="text-sm text-stone-600">{city}</span>
+                            <span className="text-sm font-medium text-stone-900">{count}</span>
+                          </div>
+                        ))}
+                      {Object.keys(analytics.guest_origins.cities).length === 0 && (
+                        <p className="text-sm text-stone-400">No data available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                  <h3 className="text-lg font-semibold text-stone-900 mb-4">Recent Check-ins</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-stone-200">
+                          <th className="text-left py-2 text-sm text-stone-500">Guest Name</th>
+                          <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
+                          <th className="text-right py-2 text-sm text-stone-500">Nights</th>
+                          <th className="text-right py-2 text-sm text-stone-500">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.recent_checkins.map((guest: any, idx: number) => (
+                          <tr key={idx} className="border-b border-stone-100">
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
+                           </tr>
+                        ))}
+                        {analytics.recent_checkins.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-stone-400">
+                              No check-ins yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                <p className="text-stone-500">No analytics data available yet.</p>
+                <p className="text-sm text-stone-400 mt-2">Click "LOAD BOOKINGS" to fetch your data.</p>
+              </div>
+            )}
           </div>
         )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-lg font-semibold text-stone-900 mb-4">Guest Origins by Country</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
-                <div key={country} className="flex justify-between py-1">
-                  <span className="text-sm text-stone-600">{country}</span>
-                  <span className="text-sm font-medium text-stone-900">{count}</span>
-                </div>
-              ))}
-              {Object.keys(analytics.guest_origins.countries).length === 0 && (
-                <p className="text-sm text-stone-400">No data available</p>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-lg font-semibold text-stone-900 mb-4">Top Cities</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {Object.entries(analytics.guest_origins.cities)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 10)
-                .map(([city, count]) => (
-                  <div key={city} className="flex justify-between py-1">
-                    <span className="text-sm text-stone-600">{city}</span>
-                    <span className="text-sm font-medium text-stone-900">{count}</span>
-                  </div>
-                ))}
-              {Object.keys(analytics.guest_origins.cities).length === 0 && (
-                <p className="text-sm text-stone-400">No data available</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h3 className="text-lg font-semibold text-stone-900 mb-4">Recent Check-ins</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-stone-200">
-                  <th className="text-left py-2 text-sm text-stone-500">Guest Name</th>
-                  <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
-                  <th className="text-right py-2 text-sm text-stone-500">Nights</th>
-                  <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analytics.recent_checkins.map((guest: any, idx: number) => (
-                  <tr key={idx} className="border-b border-stone-100">
-                    <td className="py-2 text-sm">{guest.guest_name}</td>
-                    <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
-                    <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
-                    <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
-                  </tr>
-                ))}
-                {analytics.recent_checkins.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-stone-400">
-                      No check-ins yet
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </>
-    ) : (
-      <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-        <p className="text-stone-500">No analytics data available yet.</p>
-        <p className="text-sm text-stone-400 mt-2">Click "LOAD BOOKINGS" to fetch your data.</p>
-      </div>
-    )}
-  </div>
-)}
 
         {activeTab === 'setup' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
