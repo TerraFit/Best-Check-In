@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
-import { analyticsService, AnalyticsSummary, AnalyticsFilters } from '../services/analyticsService';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 interface BusinessProfile {
   id: string;
@@ -32,13 +32,15 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'analytics'>('dashboard');
   
-  // Analytics state
-  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  
-  // Filters
-  const [filters, setFilters] = useState<AnalyticsFilters>({});
+  // Use the analytics hook
+  const {
+    analytics,
+    loading: analyticsLoading,
+    error: analyticsError,
+    filters,
+    setFilters,
+    refresh: refreshAnalytics
+  } = useAnalytics(business?.total_rooms || 1);
   
   // QR Code
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -89,29 +91,6 @@ export default function BusinessDashboard() {
     return response;
   };
 
-  // Load analytics using the service
-  const loadAnalytics = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) {
-      setAnalyticsError('No business ID found');
-      return;
-    }
-
-    setAnalyticsLoading(true);
-    setAnalyticsError(null);
-
-    try {
-      analyticsService.setBusinessContext(businessId, business?.total_rooms || 1);
-      const result = await analyticsService.getAnalytics(filters);
-      setAnalytics(result);
-    } catch (err: any) {
-      console.error('Error loading analytics:', err);
-      setAnalyticsError(err.message || 'Failed to load analytics');
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  };
-
   // Fetch business data
   const fetchBusinessData = async (businessId: string) => {
     try {
@@ -150,13 +129,6 @@ export default function BusinessDashboard() {
     }
     fetchBusinessData(id);
   }, []);
-
-  // Load analytics when tab changes or filters change
-  useEffect(() => {
-    if (activeTab === 'analytics' && business?.id) {
-      loadAnalytics();
-    }
-  }, [activeTab, business?.id, filters]);
 
   // QR code regeneration
   useEffect(() => {
@@ -530,7 +502,7 @@ export default function BusinessDashboard() {
             {/* Refresh Button */}
             <div className="flex justify-end">
               <button
-                onClick={() => loadAnalytics()}
+                onClick={() => refreshAnalytics()}
                 disabled={analyticsLoading}
                 className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
                   analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
@@ -799,7 +771,7 @@ export default function BusinessDashboard() {
               <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                 <p className="text-stone-500">No analytics data available yet.</p>
                 <button
-                  onClick={() => loadAnalytics()}
+                  onClick={() => refreshAnalytics()}
                   className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                 >
                   Load Analytics
