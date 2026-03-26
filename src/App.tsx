@@ -12,7 +12,6 @@ import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
 import ResetPassword from './pages/ResetPassword';
-import BusinessAnalytics from './pages/business/BusinessAnalytics';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 
