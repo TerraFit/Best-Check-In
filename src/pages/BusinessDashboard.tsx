@@ -29,6 +29,7 @@ interface AnalyticsData {
   total_bookings: number;
   total_revenue: number;
   booking_density: number;
+  occupancy_rate: number;  // ← ADD THIS
   today_bookings: number;
   monthly_data: {
     month: string;
