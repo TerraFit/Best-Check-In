@@ -266,11 +266,10 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  // ========== ADDED: Auto-load analytics when dashboard mounts ==========
+  // Auto-load analytics when dashboard mounts
   useEffect(() => {
     console.log('🔄 Dashboard mounted, loading analytics automatically...');
     
-    // Small delay to ensure business data is loaded
     setTimeout(() => {
       const businessId = getBusinessId();
       if (businessId) {
@@ -289,7 +288,6 @@ export default function BusinessDashboard() {
       }
     }, 500);
   }, []);
-  // ========== END AUTO-LOAD ANALYTICS ==========
 
   useEffect(() => {
     if (activeTab === 'analytics') {
@@ -849,7 +847,7 @@ export default function BusinessDashboard() {
                             <th className="text-right py-2 text-sm text-stone-500">Bookings</th>
                             <th className="text-right py-2 text-sm text-stone-500">Revenue</th>
                             <th className="text-right py-2 text-sm text-stone-500">Density</th>
-                            </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {analytics.monthly_data.map((month, idx) => (
@@ -858,7 +856,7 @@ export default function BusinessDashboard() {
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
                               <td className="py-2 text-sm text-right">{month.density}%<\/td>
-                             </tr>
+                              </tr>
                           ))}
                         </tbody>
                       </table>
@@ -916,17 +914,17 @@ export default function BusinessDashboard() {
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}<\/td>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}<\/td>
-                            <td className="py-2 text-sm text-right">{guest.nights || 1}<\/td>
-                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}<\/td>
+                            <td className="py-2 text-sm">{guest.guest_name}</td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                         {analytics.recent_checkins.length === 0 && (
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-stone-400">
                               No check-ins yet
-                            <\/td>
+                            </td>
                           </tr>
                         )}
                       </tbody>
