@@ -210,14 +210,15 @@ export default function BusinessDashboard() {
       });
 
       const analyticsData = {
-        total_bookings: bookings.length,
-        total_revenue: totalRevenue,
-        booking_density,
-        today_bookings: todayBookings,
-        monthly_data,
-        guest_origins,
-        recent_checkins: bookings.slice(0, 10),
-      };
+  total_bookings: bookings.length,
+  total_revenue: totalRevenue,
+  booking_density,
+  occupancy_rate: booking_density,  // ← ADD THIS
+  today_bookings: todayBookings,
+  monthly_data,
+  guest_origins,
+  recent_checkins: bookings.slice(0, 10),
+};
       
       console.log('Setting analytics data:', analyticsData);
       setAnalytics(analyticsData);
