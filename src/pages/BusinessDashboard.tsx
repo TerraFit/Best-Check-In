@@ -108,7 +108,166 @@ export default function BusinessDashboard() {
 
     return response;
   };
+const loadBookings = async () => {
+  const businessId = getBusinessId();
 
+  console.log('================ DEBUG START ================');
+  console.log('Business ID:', businessId);
+
+  setAnalyticsLoading(true);
+  setAnalyticsError(null);
+
+  try {
+    const res = await authenticatedFetch(
+      `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`
+    );
+
+    const data = await res.json();
+
+    console.log('RAW API RESPONSE:', data);
+    console.log('RAW BOOKINGS ARRAY:', data?.bookings);
+    console.log('BOOKINGS COUNT (before filter):', data?.bookings?.length);
+
+    if (!Array.isArray(data?.bookings)) {
+      console.error('❌ bookings is not an array');
+      throw new Error('Invalid data from server');
+    }
+
+    let bookings = data.bookings;
+
+    // 🔎 Log sample booking
+    if (bookings.length > 0) {
+      console.log('SAMPLE BOOKING:', bookings[0]);
+    } else {
+      console.log('⚠️ NO BOOKINGS IN RAW API RESPONSE');
+    }
+
+    // Apply filters
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+
+    console.log('FILTERS:', { 
+      dateFrom, 
+      dateTo, 
+      from: from?.toISOString(), 
+      to: to?.toISOString(), 
+      filterCountry, 
+      filterProvince, 
+      filterCity 
+    });
+
+    const beforeFilterCount = bookings.length;
+    
+    bookings = bookings.filter((b: any) => {
+      const d = new Date(b.check_in_date);
+
+      const pass =
+        (!from || d >= from) &&
+        (!to || d <= to) &&
+        (!filterCountry || b.guest_country === filterCountry) &&
+        (!filterProvince || b.guest_province === filterProvince) &&
+        (!filterCity || b.guest_city === filterCity);
+
+      if (!pass && beforeFilterCount > 0) {
+        console.log('❌ FILTERED OUT:', {
+          id: b.id,
+          check_in_date: b.check_in_date,
+          parsed_date: d.toISOString(),
+          guest_country: b.guest_country,
+          guest_province: b.guest_province,
+          guest_city: b.guest_city
+        });
+      }
+
+      return pass;
+    });
+
+    console.log('BOOKINGS COUNT (after filter):', bookings.length);
+    console.log('================ DEBUG END ================');
+    
+    // ========== CONTINUE WITH REST OF FUNCTION ==========
+    const today = new Date().toISOString().split('T')[0];
+    const totalRevenue = bookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
+    const totalNights = bookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
+    const todayBookings = bookings.filter((b: any) => b.check_in_date === today).length;
+
+    const totalRooms = business?.total_rooms || 1;
+    const dates = bookings.map((b: any) => new Date(b.check_in_date).getTime());
+    const min = Math.min(...dates);
+    const max = Math.max(...dates);
+    const days = dates.length ? (max - min) / (1000 * 60 * 60 * 24) + 1 : 1;
+    const maxNights = totalRooms * days;
+    const booking_density = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
+
+    const monthlyMap: Record<string, any> = {};
+    bookings.forEach((b: any) => {
+      if (b.check_in_date) {
+        const d = new Date(b.check_in_date);
+        const monthIndex = d.getMonth();
+        const year = d.getFullYear();
+        const key = `${year}-${monthIndex}`;
+
+        if (!monthlyMap[key]) {
+          monthlyMap[key] = {
+            month: d.toLocaleString('default', { month: 'short' }),
+            monthIndex,
+            year,
+            bookings: 0,
+            revenue: 0,
+            nights: 0,
+          };
+        }
+
+        monthlyMap[key].bookings++;
+        monthlyMap[key].revenue += b.total_amount || 0;
+        monthlyMap[key].nights += b.nights || 1;
+      }
+    });
+
+    const monthly_data = Object.values(monthlyMap)
+      .map((m: any) => {
+        const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
+        const max = totalRooms * daysInMonth;
+        return {
+          ...m,
+          density: max ? Math.round((m.nights / max) * 100) : 0,
+        };
+      })
+      .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
+
+    const guest_origins = {
+      countries: {} as Record<string, number>,
+      provinces: {} as Record<string, number>,
+      cities: {} as Record<string, number>,
+    };
+
+    bookings.forEach((b: any) => {
+      if (b.guest_country) guest_origins.countries[b.guest_country] = (guest_origins.countries[b.guest_country] || 0) + 1;
+      if (b.guest_province) guest_origins.provinces[b.guest_province] = (guest_origins.provinces[b.guest_province] || 0) + 1;
+      if (b.guest_city) guest_origins.cities[b.guest_city] = (guest_origins.cities[b.guest_city] || 0) + 1;
+    });
+
+    const analyticsData = {
+      total_bookings: bookings.length,
+      total_revenue: totalRevenue,
+      booking_density,
+      occupancy_rate: booking_density,
+      today_bookings: todayBookings,
+      monthly_data,
+      guest_origins,
+      recent_checkins: bookings.slice(0, 10),
+    };
+    
+    console.log('📊 FINAL ANALYTICS DATA:', analyticsData);
+    setAnalytics(analyticsData);
+    
+  } catch (err: any) {
+    console.error('Error loading bookings:', err);
+    setAnalyticsError(err.message);
+  } finally {
+    setAnalyticsLoading(false);
+  }
+};
   const loadBookings = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
