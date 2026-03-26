@@ -11,6 +11,7 @@ export interface AuthUser {
 export interface AuthSession {
   type: AuthType;
   user: AuthUser;
+  token?: string;
 }
 
 const AUTH_KEY = 'fastcheckin_auth';
@@ -32,7 +33,7 @@ export const getAuth = (): AuthSession | null => {
 
 export const clearAuth = () => {
   localStorage.removeItem(AUTH_KEY);
-  // Clean up ALL legacy keys
+  // Clean up legacy keys
   localStorage.removeItem('business');
   localStorage.removeItem('fastcheckin_admin');
   localStorage.removeItem('jbay_user');
@@ -50,10 +51,24 @@ export const isSuperAdminAuthenticated = (): boolean => {
   return auth?.type === 'super_admin';
 };
 
+// FIXED: Proper getBusinessId with fallback
 export const getBusinessId = (): string | null => {
+  // Try new auth first
   const auth = getAuth();
   if (auth?.type === 'business' && auth.user.businessId) {
     return auth.user.businessId;
   }
+  
+  // Fallback to legacy localStorage for existing logins
+  const legacy = localStorage.getItem('business');
+  if (legacy) {
+    try {
+      const parsed = JSON.parse(legacy);
+      return parsed.id || null;
+    } catch {
+      return null;
+    }
+  }
+  
   return null;
 };
