@@ -51,7 +51,7 @@ export const isSuperAdminAuthenticated = (): boolean => {
   return auth?.type === 'super_admin';
 };
 
-// FIXED: Proper getBusinessId with fallback
+// FIXED: Proper getBusinessId with fallback to legacy
 export const getBusinessId = (): string | null => {
   // Try new auth first
   const auth = getAuth();
