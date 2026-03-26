@@ -809,7 +809,30 @@ export default function BusinessDashboard() {
                 Clear Origin Filters
               </button>
             </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <div className="bg-white rounded-2xl shadow-xl p-8">
+    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
+    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics?.total_bookings || 0}</p>
+  </div>
+  <div className="bg-white rounded-2xl shadow-xl p-8">
+    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
+    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics?.total_revenue?.toLocaleString() || 0}</p>
+  </div>
+  <div className="bg-white rounded-2xl shadow-xl p-8">
+    <h4 className="text-sm uppercase tracking-widest text-stone-400">Occupancy Rate</h4>
+    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">
+      {(() => {
+        const totalRooms = business?.total_rooms || 1;
+        const totalNights = analytics?.recent_checkins?.reduce((sum, b) => sum + (b.nights || 1), 0) || 0;
+        const days = 365;
+        const maxNights = totalRooms * days;
+        const occupancy = maxNights ? Math.min(100, Math.round((totalNights / maxNights) * 100)) : 0;
+        return occupancy;
+      })()}%
+    </p>
+    <p className="text-xs text-stone-400 mt-1">Nights booked vs annual capacity</p>
+  </div>
+</div>
             {analyticsError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                 ⚠️ {analyticsError}
