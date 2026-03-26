@@ -266,28 +266,30 @@ export default function BusinessDashboard() {
     fetchBusinessData(id);
   }, []);
 
-  // Auto-load analytics when dashboard mounts
+  // ========== ADDED: Auto-load analytics when dashboard mounts ==========
   useEffect(() => {
-    const loadOnMount = async () => {
-      console.log('🔄 Dashboard mounted, loading analytics...');
+    console.log('🔄 Dashboard mounted, loading analytics automatically...');
+    
+    // Small delay to ensure business data is loaded
+    setTimeout(() => {
       const businessId = getBusinessId();
-      
-      if (!businessId) {
-        console.log('No business ID found, will retry...');
+      if (businessId) {
+        console.log('✅ Business ID found:', businessId);
+        loadBookings();
+      } else {
+        console.log('⏳ No business ID yet, checking again...');
         setTimeout(() => {
           const retryId = getBusinessId();
           if (retryId) {
             loadBookings();
+          } else {
+            console.error('❌ Could not get business ID after retry');
           }
         }, 1000);
-        return;
       }
-      
-      loadBookings();
-    };
-    
-    loadOnMount();
+    }, 500);
   }, []);
+  // ========== END AUTO-LOAD ANALYTICS ==========
 
   useEffect(() => {
     if (activeTab === 'analytics') {
@@ -671,7 +673,6 @@ export default function BusinessDashboard() {
 
         {activeTab === 'analytics' && (
           <div className="space-y-8">
-            {/* LOAD BOOKINGS BUTTON */}
             <div className="flex justify-end">
               <button
                 onClick={() => {
@@ -856,8 +857,8 @@ export default function BusinessDashboard() {
                               <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
-                              <td className="py-2 text-sm text-right">{month.density}%</td>
-                            </tr>
+                              <td className="py-2 text-sm text-right">{month.density}%<\/td>
+                             </tr>
                           ))}
                         </tbody>
                       </table>
@@ -910,22 +911,22 @@ export default function BusinessDashboard() {
                           <th className="text-left py-2 text-sm text-stone-500">Check-in Date</th>
                           <th className="text-right py-2 text-sm text-stone-500">Nights</th>
                           <th className="text-right py-2 text-sm text-stone-500">Amount</th>
-                        </tr>
+                         </tr>
                       </thead>
                       <tbody>
                         {analytics.recent_checkins.map((guest: any, idx: number) => (
                           <tr key={idx} className="border-b border-stone-100">
-                            <td className="py-2 text-sm">{guest.guest_name}</td>
-                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}</td>
-                            <td className="py-2 text-sm text-right">{guest.nights || 1}</td>
-                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}</td>
+                            <td className="py-2 text-sm">{guest.guest_name}<\/td>
+                            <td className="py-2 text-sm">{new Date(guest.check_in_date).toLocaleDateString()}<\/td>
+                            <td className="py-2 text-sm text-right">{guest.nights || 1}<\/td>
+                            <td className="py-2 text-sm text-right">R {(guest.total_amount || 0).toLocaleString()}<\/td>
                           </tr>
                         ))}
                         {analytics.recent_checkins.length === 0 && (
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-stone-400">
                               No check-ins yet
-                            </td>
+                            <\/td>
                           </tr>
                         )}
                       </tbody>
