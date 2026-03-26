@@ -845,22 +845,6 @@ export default function BusinessDashboard() {
               </div>
             ) : analytics ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Bookings</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.total_bookings}</p>
-                  </div>
-                  <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Total Revenue</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">R {analytics.total_revenue?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <h4 className="text-sm uppercase tracking-widest text-stone-400">Booking Density</h4>
-                    <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{analytics.booking_density}%</p>
-                    <p className="text-xs text-stone-400 mt-1">Nights booked vs capacity</p>
-                  </div>
-                </div>
-
                 {analytics.monthly_data.length > 0 && (
                   <div className="bg-white rounded-2xl shadow-xl p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">Monthly Booking Trend</h3>
