@@ -671,34 +671,77 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {activeTab === 'analytics' && (
-          <div className="space-y-8">
-            <div className="flex justify-end">
-              <button
-                onClick={() => {
-                  console.log('Manual refresh triggered');
-                  loadBookings();
-                }}
-                disabled={analyticsLoading}
-                className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
-                  analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {analyticsLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh Data
-                  </>
-                )}
-              </button>
-            </div>
+       {activeTab === 'analytics' && (
+  <div className="space-y-8">
+    {/* DEBUG BUTTON - Add this first */}
+    <div className="flex justify-end">
+      <button
+        onClick={async () => {
+          console.log('🔵🔵🔵 DEBUG BUTTON CLICKED 🔵🔵🔵');
+          const businessId = getBusinessId();
+          console.log('Business ID from getBusinessId():', businessId);
+          
+          if (!businessId) {
+            alert('No business ID found!');
+            return;
+          }
+          
+          const url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=500`;
+          console.log('Fetching:', url);
+          
+          try {
+            const response = await fetch(url);
+            const data = await response.json();
+            console.log('API Response:', data);
+            console.log('Bookings count:', data.bookings?.length);
+            
+            if (data.bookings && data.bookings.length > 0) {
+              const totalRevenue = data.bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+              alert(`✅ Found ${data.bookings.length} bookings!\nRevenue: R${totalRevenue}`);
+            } else {
+              alert('❌ No bookings found');
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            alert('Error fetching data');
+          }
+        }}
+        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        DEBUG TEST
+      </button>
+    </div>
+
+    {/* Your existing Refresh Data button */}
+    <div className="flex justify-end">
+      <button
+        onClick={() => {
+          console.log('Manual refresh triggered');
+          loadBookings();
+        }}
+        disabled={analyticsLoading}
+        className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 text-sm shadow-md font-medium ${
+          analyticsLoading ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+      >
+        {analyticsLoading ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            Loading...
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh Data
+          </>
+        )}
+      </button>
+    </div>
 
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Business Information</h2>
