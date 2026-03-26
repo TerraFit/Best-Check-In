@@ -20,6 +20,7 @@ interface BusinessBranding {
     province: string;
     postalCode: string;
   };
+  avg_price?: number;
 }
 
 interface CheckInFormProps {
@@ -65,6 +66,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   });
 
   const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Calculate total amount based on nights and room price
+  const calculateTotalAmount = async (nights: number): Promise<number> => {
+    try {
+      if (businessId) {
+        const response = await fetch(`/.netlify/functions/get-business-profile?businessId=${businessId}`);
+        const businessData = await response.json();
+        const roomPrice = businessData.avg_price || 1500;
+        return nights * roomPrice;
+      }
+      return nights * 1500; // Default fallback
+    } catch (error) {
+      console.error('Error getting room price:', error);
+      return nights * 1500;
+    }
+  };
 
   useEffect(() => {
     if (businessId) {
@@ -254,15 +271,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Booking saved to database:', result);
+        return true;
       } else {
         console.error('❌ Failed to save booking:', result);
+        return false;
       }
     } catch (error) {
       console.error('Error saving booking:', error);
+      return false;
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) setStep(2);
     else if (step === 2) setStep(3);
@@ -276,15 +296,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         return;
       }
 
-      let tenantId = 'default';
-      try {
-        const user = JSON.parse(localStorage.getItem('jbay_user') || '{}');
-        if (user?.tenantId) {
-          tenantId = user.tenantId;
-        }
-      } catch (e) {
-        console.log('No tenant ID found, using default');
-      }
+      // Calculate total amount based on nights
+      const totalAmount = await calculateTotalAmount(formData.nights);
 
       const dbBooking = {
         business_id: businessId,
@@ -299,7 +312,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         nights: formData.nights,
         adults: formData.adults,
         children: formData.kids,
-        total_amount: 0,
+        total_amount: totalAmount,
         status: 'checked_in',
         guest_province: formData.province,
         guest_city: formData.city,
@@ -308,7 +321,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         created_at: new Date().toISOString()
       };
 
-      saveBookingToDatabase(dbBooking);
+      // Save to database
+      const saved = await saveBookingToDatabase(dbBooking);
 
       const newBooking: Booking = {
         id: Math.random().toString(36).substr(2, 9),
@@ -329,7 +343,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         settlementMethod: formData.settlement as any,
         referralSource: formData.referral as any,
         roomType: 'Suite',
-        totalAmount: 0,
+        totalAmount: totalAmount,
         status: 'Checked-In',
         year: new Date().getFullYear(),
         month: new Date().toLocaleString('default', { month: 'short' }),
@@ -337,7 +351,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         idPhotoData: formData.idPhoto,
         popiaMarketingConsent: formData.popiaConsent,
         timestamp: new Date().toISOString(),
-        tenantId: businessId || tenantId,
+        tenantId: businessId || 'default',
         source: 'live_checkin',
       };
 
