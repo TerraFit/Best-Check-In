@@ -1,5 +1,9 @@
+// src/hooks/useAnalytics.ts
 import { useState, useEffect, useCallback } from 'react';
-import { getBusinessId, getAuth } from './auth';
+import { getBusinessId, getAuth } from './auth';  // ← Same directory
+
+// OR if auth is in utils:
+// import { getBusinessId, getAuth } from '../utils/auth';
 
 export interface AnalyticsFilters {
   dateFrom?: string;
@@ -55,11 +59,8 @@ export const useAnalytics = (totalRooms?: number) => {
       if (filters?.dateFrom) url += `&startDate=${filters.dateFrom}`;
       if (filters?.dateTo) url += `&endDate=${filters.dateTo}`;
       
-      console.log('🔍 Fetching URL:', url);
-      
       const response = await fetch(url);
       const data = await response.json();
-      console.log('📡 API Response:', data);
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch bookings');
@@ -70,7 +71,6 @@ export const useAnalytics = (totalRooms?: number) => {
       }
       
       let bookings = data.bookings;
-      console.log('📊 Raw bookings count:', bookings.length);
       
       // Apply filters
       if (filters?.country) {
