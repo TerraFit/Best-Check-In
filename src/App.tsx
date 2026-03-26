@@ -51,14 +51,6 @@ function AppContent() {
         } 
       />
       <Route 
-        path="/business/analytics/:businessId" 
-        element={
-          <ProtectedRoute requiredRole="business">
-            <BusinessAnalytics />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
         path="/business/messages" 
         element={
           <ProtectedRoute requiredRole="business">
