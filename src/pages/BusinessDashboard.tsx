@@ -855,7 +855,7 @@ export default function BusinessDashboard() {
                               <td className="py-2 text-sm font-medium">{month.month} {month.year}</td>
                               <td className="py-2 text-sm text-right">{month.bookings}</td>
                               <td className="py-2 text-sm text-right">R {month.revenue.toLocaleString()}</td>
-                              <td className="py-2 text-sm text-right">{month.density}%<\/td>
+                              <td className="py-2 text-sm text-right">{month.density}%</td>
                               </tr>
                           ))}
                         </tbody>
