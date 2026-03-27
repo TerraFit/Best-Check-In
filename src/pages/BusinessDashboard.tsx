@@ -88,7 +88,6 @@ export default function BusinessDashboard() {
   };
 
   // ================= LOAD ANALYTICS =================
-  // ================= LOAD ANALYTICS =================
 const loadAnalytics = async () => {
   const businessId = getBusinessId();
   console.log('🔍 loadAnalytics called!', { businessId, dateFrom, dateTo, filters });
