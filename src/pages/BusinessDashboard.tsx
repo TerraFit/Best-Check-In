@@ -247,7 +247,7 @@ export default function BusinessDashboard() {
     if (business) {
       loadAnalytics();
     }
-  }, [dateFrom, dateTo, filters.country, filters.province, filters.city]);
+}, [dateFrom, dateTo, filters.country, filters.province, filters.city, business]); // ← ADD business here
 
   // ================= UI =================
   if (loading) return <div className="p-10 text-center">Loading...</div>;
