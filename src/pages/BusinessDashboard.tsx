@@ -89,6 +89,66 @@ export default function BusinessDashboard() {
 
   // ================= LOAD ANALYTICS =================
   const loadAnalytics = async () => {
+  const businessId = getBusinessId();
+  console.log('🔍 loadAnalytics called!', { businessId, dateFrom, dateTo, filters });
+  
+  if (!businessId) {
+    console.log('❌ No business ID found!');
+    setError('No business ID found');
+    return;
+  }
+
+  setAnalyticsLoading(true);
+  setError(null);
+
+  try {
+    console.log('📡 Fetching bookings...');
+    const res = await authenticatedFetch(
+      `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=1000`
+    );
+
+    console.log('📡 Response status:', res.status);
+    const data = await res.json();
+    console.log('📊 API Response data:', data);
+    
+    let rawBookings = data?.bookings || [];
+    console.log('📊 Raw bookings count:', rawBookings.length);
+
+    // ===== DATE FILTER =====
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+
+    const filteredBookings = rawBookings.filter((b: any) => {
+      const d = new Date(b.check_in_date);
+      return (
+        (!from || d >= from) &&
+        (!to || d <= to) &&
+        (!filters.country || b.guest_country === filters.country) &&
+        (!filters.province || b.guest_province === filters.province) &&
+        (!filters.city || b.guest_city === filters.city)
+      );
+    });
+
+    console.log('📊 Filtered bookings count:', filteredBookings.length);
+    console.log('📊 First filtered booking:', filteredBookings[0]);
+    
+    setBookings(filteredBookings);
+
+    // ... rest of your analytics calculation code...
+    // Make sure to log each step
+
+    const totalBookings = filteredBookings.length;
+    console.log('📊 Total bookings for analytics:', totalBookings);
+    
+    // ... continue with rest of the function...
+  } catch (err) {
+    console.error('❌ Error in loadAnalytics:', err);
+    setError('Failed to load analytics');
+  } finally {
+    setAnalyticsLoading(false);
+  }
+};
+  const loadAnalytics = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
       setError('No business ID found');
