@@ -248,13 +248,17 @@ const loadAnalytics = async () => {
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-load when filters change
-  useEffect(() => {
-    if (business) {
-      loadAnalytics();
-    }
-}, [dateFrom, dateTo, filters.country, filters.province, filters.city, business]); // ← ADD business here
-
+ // Auto-load when filters change or business loads
+useEffect(() => {
+  console.log('🔄 useEffect triggered - business:', business?.trading_name);
+  if (business) {
+    console.log('📡 Calling loadAnalytics from useEffect');
+    loadAnalytics();
+  } else {
+    console.log('⚠️ business is null, waiting...');
+  }
+}, [dateFrom, dateTo, filters.country, filters.province, filters.city, business]);
+  
   // ================= UI =================
   if (loading) return <div className="p-10 text-center">Loading...</div>;
   if (!business) return <div className="p-10 text-center text-red-600">No business data found</div>;
