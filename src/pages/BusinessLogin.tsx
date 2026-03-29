@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { setAuth } from '../utils/auth';
+import { setAuth, clearSuperAdminAuth } from '../utils/auth';
 
 export default function BusinessLogin() {
   const navigate = useNavigate();
@@ -21,7 +21,12 @@ export default function BusinessLogin() {
     setLoading(true);
     setError('');
 
+    // ✅ CRITICAL: Clear any existing super admin auth before business login
+    clearSuperAdminAuth();
+
     try {
+      console.log('🔐 Business login attempt for:', formData.email);
+      
       const response = await fetch('/.netlify/functions/business-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,28 +34,44 @@ export default function BusinessLogin() {
       });
 
       const data = await response.json();
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response data:', data);
 
       if (response.ok && data.success) {
-        // Store auth using unified system
+        console.log('✅ Login successful for:', data.business.trading_name);
+        
+        // Store business auth
         setAuth({
           type: 'business',
           user: {
             id: data.business.id,
             email: data.business.email,
             name: data.business.trading_name,
-            businessId: data.business.id
+            businessId: data.business.id,
+            role: 'business'
           }
         });
         
+        // Store legacy format for compatibility
+        localStorage.setItem('business', JSON.stringify({
+          id: data.business.id,
+          trading_name: data.business.trading_name,
+          email: data.business.email,
+          status: data.business.status
+        }));
+        
+        // ✅ Force redirect to business dashboard
         if (data.business.status === 'pending') {
-          navigate('/business/pending');
+          window.location.href = '/business/pending';
         } else {
-          navigate('/business/dashboard');
+          window.location.href = '/business/dashboard';
         }
       } else {
+        console.log('❌ Login failed:', data.error);
         setError(data.error || 'Invalid email or password');
       }
     } catch (err) {
+      console.error('❌ Login error:', err);
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
