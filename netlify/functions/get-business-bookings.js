@@ -57,8 +57,8 @@ export const handler = async (event) => {
       .from('bookings')
       .select('*')
       .eq('business_id', businessId)
-      .in('status', ['checked_in', 'completed'])  // Only relevant statuses
-      .order('created_at', { ascending: false })   // Most recent first
+      .in('status', ['checked_in', 'completed'])
+      .order('created_at', { ascending: false })
       .limit(parseInt(limit));
 
     // Add optional date filters
@@ -86,9 +86,35 @@ export const handler = async (event) => {
       acc[b.status] = (acc[b.status] || 0) + 1;
       return acc;
     }, {});
+    
+    const bookingsByMonth = bookings.reduce((acc, b) => {
+      if (b.check_in_date) {
+        const date = new Date(b.check_in_date);
+        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        acc[monthYear] = (acc[monthYear] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    
+    const guestOrigins = {
+      provinces: {},
+      cities: {},
+      countries: {}
+    };
+    
+    bookings.forEach(b => {
+      if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
+      if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+      if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
+    });
+
+    const averageNights = bookings.length > 0
+      ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
+      : 0;
 
     console.log(`📊 ${bookings.length} bookings returned for business ${businessId}`);
 
+    // ✅ CRITICAL: Include success: true in response
     return {
       statusCode: 200,
       headers,
@@ -98,10 +124,14 @@ export const handler = async (event) => {
         summary: {
           total_bookings: bookings.length,
           total_revenue: totalRevenue,
-          status_breakdown: statusBreakdown,
-          average_nights: bookings.length > 0
-            ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
-            : 0
+          average_nights: averageNights,
+          bookings_by_status: statusBreakdown,
+          bookings_by_month: bookingsByMonth,
+          guest_origins: guestOrigins
+        },
+        period: {
+          start_date: startDate || 'all',
+          end_date: endDate || 'all'
         }
       })
     };
@@ -111,8 +141,8 @@ export const handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: err.message || 'Internal Server Error',
-        success: false
+        success: false,
+        error: err.message || 'Internal Server Error'
       })
     };
   }
