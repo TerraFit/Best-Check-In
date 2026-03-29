@@ -76,7 +76,7 @@ export const handler = async (event) => {
       adults: body.adults || 1,
       children: body.children || 0,
       total_amount: body.total_amount || 0,
-      status: 'checked_in',  // FORCED - don't trust frontend
+      status: 'checked_in',
       guest_province: body.guest_province || '',
       guest_city: body.guest_city || '',
       guest_country: body.guest_country || 'South Africa',
@@ -123,8 +123,8 @@ export const handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: err.message || 'Internal Server Error',
-        success: false
+        success: false,
+        error: err.message || 'Internal Server Error'
       })
     };
   }
