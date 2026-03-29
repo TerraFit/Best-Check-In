@@ -21,7 +21,7 @@ export default function BusinessLogin() {
     setLoading(true);
     setError('');
 
-    // ✅ CRITICAL: Clear any existing super admin auth before business login
+    // Clear any existing super admin auth before business login
     clearSuperAdminAuth();
 
     try {
@@ -60,7 +60,7 @@ export default function BusinessLogin() {
           status: data.business.status
         }));
         
-        // ✅ Force redirect to business dashboard
+        // Force redirect to business dashboard
         if (data.business.status === 'pending') {
           window.location.href = '/business/pending';
         } else {
