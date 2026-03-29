@@ -18,7 +18,6 @@ const AUTH_KEY = 'fastcheckin_auth';
 const BUSINESS_AUTH_KEY = 'fastcheckin_business_auth';
 const SUPER_ADMIN_AUTH_KEY = 'fastcheckin_admin_auth';
 
-// Get main auth (for backward compatibility)
 export const getAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(AUTH_KEY);
   if (!stored) return null;
@@ -30,11 +29,10 @@ export const getAuth = (): AuthSession | null => {
   }
 };
 
-// Set auth based on type - SEPARATE storage
 export const setAuth = (session: AuthSession): void => {
+  console.log('💾 Setting auth:', session);
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   
-  // Store separately by type for clean separation
   if (session.type === 'business') {
     localStorage.setItem(BUSINESS_AUTH_KEY, JSON.stringify(session));
     localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
@@ -42,9 +40,11 @@ export const setAuth = (session: AuthSession): void => {
     localStorage.setItem(SUPER_ADMIN_AUTH_KEY, JSON.stringify(session));
     localStorage.removeItem(BUSINESS_AUTH_KEY);
   }
+  
+  // Dispatch storage event for cross-tab sync
+  window.dispatchEvent(new Event('storage'));
 };
 
-// Clear ALL auth
 export const clearAuth = (): void => {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(BUSINESS_AUTH_KEY);
@@ -54,20 +54,19 @@ export const clearAuth = (): void => {
   localStorage.removeItem('jbay_user');
   localStorage.removeItem('user');
   localStorage.removeItem('token');
+  window.dispatchEvent(new Event('storage'));
 };
 
-// Clear ONLY business auth (for logout from business)
 export const clearBusinessAuth = (): void => {
   localStorage.removeItem(BUSINESS_AUTH_KEY);
   localStorage.removeItem('business');
-  // Only remove the main auth if it's business type
   const auth = getAuth();
   if (auth?.type === 'business') {
     localStorage.removeItem(AUTH_KEY);
   }
+  window.dispatchEvent(new Event('storage'));
 };
 
-// Clear ONLY super admin auth
 export const clearSuperAdminAuth = (): void => {
   localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
   localStorage.removeItem('fastcheckin_admin');
@@ -75,9 +74,9 @@ export const clearSuperAdminAuth = (): void => {
   if (auth?.type === 'super_admin') {
     localStorage.removeItem(AUTH_KEY);
   }
+  window.dispatchEvent(new Event('storage'));
 };
 
-// Get business auth specifically
 export const getBusinessAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(BUSINESS_AUTH_KEY);
   if (!stored) return null;
@@ -89,7 +88,6 @@ export const getBusinessAuth = (): AuthSession | null => {
   }
 };
 
-// Get super admin auth specifically
 export const getSuperAdminAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(SUPER_ADMIN_AUTH_KEY);
   if (!stored) return null;
@@ -112,19 +110,16 @@ export const isSuperAdminAuthenticated = (): boolean => {
 };
 
 export const getBusinessId = (): string | null => {
-  // Try business-specific auth first
   const businessAuth = getBusinessAuth();
   if (businessAuth?.type === 'business' && businessAuth.user.businessId) {
     return businessAuth.user.businessId;
   }
   
-  // Try main auth
   const auth = getAuth();
   if (auth?.type === 'business' && auth.user.businessId) {
     return auth.user.businessId;
   }
   
-  // Fallback to legacy
   const legacy = localStorage.getItem('business');
   if (legacy) {
     try {
