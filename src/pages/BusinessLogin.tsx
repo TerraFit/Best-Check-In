@@ -60,12 +60,18 @@ export default function BusinessLogin() {
           status: data.business.status
         }));
         
-        // Force redirect to business dashboard
-        if (data.business.status === 'pending') {
-          window.location.href = '/business/pending';
-        } else {
-          window.location.href = '/business/dashboard';
-        }
+        console.log('✅ Auth stored in localStorage');
+        console.log('🔍 Verifying auth:', localStorage.getItem('fastcheckin_business_auth'));
+        
+        // ✅ FIX: Use navigate instead of window.location.href
+        // Small delay ensures localStorage is written
+        setTimeout(() => {
+          if (data.business.status === 'pending') {
+            navigate('/business/pending');
+          } else {
+            navigate('/business/dashboard');
+          }
+        }, 100);
       } else {
         console.log('❌ Login failed:', data.error);
         setError(data.error || 'Invalid email or password');
