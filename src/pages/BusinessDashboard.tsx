@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, getBusinessId, clearAuth } from '../utils/auth';
+import { getBusinessId, clearAuth, getAuth } from '../utils/auth';
+
+interface Booking {
+  id: string;
+  guest_name: string;
+  guest_email?: string;
+  check_in_date: string;
+  nights: number;
+  total_amount: number;
+  status: string;
+  created_at?: string;
+}
 
 interface BusinessProfile {
   id: string;
@@ -8,441 +19,286 @@ interface BusinessProfile {
   registered_name: string;
   email: string;
   phone: string;
-  total_rooms?: number;
-  avg_price?: number;
-  setup_complete: boolean;
-  created_at?: string;
-  subscription_tier?: string;
-  physical_address?: {
-    city: string;
-    province: string;
-    country: string;
-  };
-}
-
-interface AnalyticsData {
-  total_bookings: number;
-  total_revenue: number;
-  total_nights: number;
-  occupancy_rate: number;
-  today_bookings: number;
-  monthly_data: {
-    month: string;
-    year: number;
-    bookings: number;
-    revenue: number;
-    nights: number;
-    density: number;
-    monthIndex: number;
-  }[];
-  guest_origins: {
-    countries: Record<string, number>;
-    provinces: Record<string, number>;
-    cities: Record<string, number>;
-  };
-  recent_checkins: any[];
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  welcome_message?: string;
 }
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
-
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [bookings, setBookings] = useState<any[]>([]);
-
   const [loading, setLoading] = useState(true);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-
-  const [filters, setFilters] = useState({
-    country: '',
-    province: '',
-    city: '',
-  });
-
-  const getAuthToken = () => {
+  // Helper to get auth token
+  const getAuthToken = (): string | null => {
     const auth = getAuth();
-    return (auth as any)?.token || getBusinessId();
+    return (auth as any)?.token || null;
   };
 
-  const authenticatedFetch = async (url: string) => {
+  // Authenticated fetch wrapper
+  const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
     const token = getAuthToken();
-
     const res = await fetch(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-      },
+        ...options.headers
+      }
     });
 
     if (res.status === 401) {
       clearAuth();
       navigate('/business/login');
-      throw new Error('Unauthorized');
+      throw new Error('Unauthorized - Please log in again');
     }
 
     return res;
   };
 
-// ================= LOAD ANALYTICS =================
-const loadAnalytics = async () => {
-  const businessId = getBusinessId();
-  console.log('🔍 loadAnalytics called!', { businessId, dateFrom, dateTo, filters });
-  
-  if (!businessId) {
-    console.log('❌ No business ID found!');
-    setError('No business ID found');
-    return;
-  }
-
-  setAnalyticsLoading(true);
-  setError(null);
-
-  try {
-    console.log('📡 Fetching bookings...');
-    const res = await authenticatedFetch(
-      `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=1000`
-    );
-
-    console.log('📡 Response status:', res.status);
-    const data = await res.json();
-    console.log('📊 API Response data:', data);
-    
-    let rawBookings = data?.bookings || [];
-    console.log('📊 Raw bookings count:', rawBookings.length);
-    console.log('📊 Raw bookings sample:', rawBookings.slice(0, 3));
-
-    // ===== DATE FILTER =====
-    const from = dateFrom ? new Date(dateFrom) : null;
-    const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
-
-    const filteredBookings = rawBookings.filter((b: any) => {
-      const d = new Date(b.check_in_date);
-      const matches = (
-        (!from || d >= from) &&
-        (!to || d <= to) &&
-        (!filters.country || b.guest_country === filters.country) &&
-        (!filters.province || b.guest_province === filters.province) &&
-        (!filters.city || b.guest_city === filters.city)
-      );
-      return matches;
-    });
-
-    console.log('📊 Filtered bookings count:', filteredBookings.length);
-    console.log('📊 First filtered booking:', filteredBookings[0]);
-    
-    setBookings(filteredBookings);
-
-    // ===== CORE METRICS =====
-    const totalBookings = filteredBookings.length;
-    const totalRevenue = filteredBookings.reduce((s: number, b: any) => s + (b.total_amount || 0), 0);
-    const totalNights = filteredBookings.reduce((s: number, b: any) => s + (b.nights || 1), 0);
-
-    const today = new Date().toLocaleDateString('en-CA');
-    const todayBookings = filteredBookings.filter((b: any) => b.check_in_date === today).length;
-
-    // ===== DATE RANGE =====
-    let days = 365;
-    if (from && to) {
-      days = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24) + 1;
-    }
-
-    const totalRooms = business?.total_rooms || 1;
-    const maxNights = totalRooms * days;
-    const occupancyRate = maxNights ? Math.round((totalNights / maxNights) * 100) : 0;
-
-    // ===== MONTHLY =====
-    const monthlyMap: Record<string, any> = {};
-
-    filteredBookings.forEach((b: any) => {
-      const d = new Date(b.check_in_date);
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-
-      if (!monthlyMap[key]) {
-        monthlyMap[key] = {
-          month: d.toLocaleString('default', { month: 'short' }),
-          monthIndex: d.getMonth(),
-          year: d.getFullYear(),
-          bookings: 0,
-          revenue: 0,
-          nights: 0,
-        };
+  // Load bookings from API
+  const loadBookings = async (): Promise<void> => {
+    try {
+      const businessId = getBusinessId();
+      if (!businessId) {
+        console.warn('⚠️ No businessId found in localStorage');
+        setLoading(false);
+        return;
       }
 
-      monthlyMap[key].bookings++;
-      monthlyMap[key].revenue += b.total_amount || 0;
-      monthlyMap[key].nights += b.nights || 1;
-    });
+      console.log('📡 Fetching bookings for business:', businessId);
+      
+      const res = await authenticatedFetch(
+        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
+      );
 
-    const monthlyData = Object.values(monthlyMap)
-      .map((m: any) => {
-        const daysInMonth = new Date(m.year, m.monthIndex + 1, 0).getDate();
-        const max = totalRooms * daysInMonth;
-        return {
-          ...m,
-          density: max ? Math.round((m.nights / max) * 100) : 0,
-        };
-      })
-      .sort((a: any, b: any) => a.year - b.year || a.monthIndex - b.monthIndex);
+      const data = await res.json();
+      
+      // Validate response
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load bookings');
+      }
+      
+      const rawBookings: Booking[] = data?.bookings || [];
+      console.log(`📦 Loaded ${rawBookings.length} bookings from API`);
 
-    // ===== GUEST ORIGINS =====
-    const guestOrigins = {
-      countries: {} as Record<string, number>,
-      provinces: {} as Record<string, number>,
-      cities: {} as Record<string, number>,
-    };
+      setBookings(rawBookings);
+    } catch (err) {
+      console.error('❌ loadBookings error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    filteredBookings.forEach((b: any) => {
-      if (b.guest_country)
-        guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
-      if (b.guest_province)
-        guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
-      if (b.guest_city)
-        guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
-    });
+  // Load business profile
+  const loadBusinessProfile = async (): Promise<void> => {
+    try {
+      const businessId = getBusinessId();
+      if (!businessId) return;
 
-    // ===== RECENT CHECK-INS =====
-    const recentCheckins = filteredBookings.slice(0, 10).map((b: any) => ({
-      guest_name: b.guest_name,
-      check_in_date: b.check_in_date,
-      nights: b.nights || 1,
-      total_amount: b.total_amount || 0,
-    }));
+      const res = await authenticatedFetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      
+      if (res.ok) {
+        const data = await res.json();
+        setBusiness(data);
+        console.log('✅ Business profile loaded:', data.trading_name);
+      }
+    } catch (err) {
+      console.error('Failed to load business profile:', err);
+    }
+  };
 
-    console.log('📊 Setting analytics with recent_checkins count:', recentCheckins.length);
-
-    setAnalytics({
-      total_bookings: totalBookings,
-      total_revenue: totalRevenue,
-      total_nights: totalNights,
-      occupancy_rate: occupancyRate,
-      today_bookings: todayBookings,
-      monthly_data: monthlyData,
-      guest_origins: guestOrigins,
-      recent_checkins: recentCheckins,
-    });
-    
-    console.log('✅ Analytics set successfully!');
-  } catch (err) {
-    console.error('❌ Error in loadAnalytics:', err);
-    setError('Failed to load analytics');
-  } finally {
-    setAnalyticsLoading(false);
-  }
-};
-  // ================= INIT =================
+  // Initial load
   useEffect(() => {
     const id = getBusinessId();
     if (!id) {
+      console.log('No business ID found, redirecting to login');
       navigate('/business/login');
       return;
     }
+    
+    loadBusinessProfile();
+    loadBookings();
+  }, [navigate]);
 
-    fetch(`/.netlify/functions/get-business-profile?businessId=${id}`)
-      .then((res) => res.json())
-      .then(setBusiness)
-      .catch(() => setError('Failed to load business data'))
-      .finally(() => setLoading(false));
-  }, []);
+  // Helper: Get today's date in South Africa timezone
+  const getTodaySA = (): string => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+  };
 
- // Auto-load when filters change or business loads
-useEffect(() => {
-  console.log('🔄 useEffect triggered - business:', business?.trading_name);
-  if (business) {
-    console.log('📡 Calling loadAnalytics from useEffect');
-    loadAnalytics();
-  } else {
-    console.log('⚠️ business is null, waiting...');
+  // Calculate dashboard metrics
+  const calculateMetrics = () => {
+    const totalBookings = bookings.length;
+    const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    const todayBookings = bookings.filter(b => b.check_in_date === getTodaySA()).length;
+    const avgStay = totalBookings > 0 
+      ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / totalBookings).toFixed(1)
+      : '0';
+    
+    return { totalBookings, totalRevenue, todayBookings, avgStay };
+  };
+
+  // Get status badge color
+  const getStatusBadge = (status: string): string => {
+    switch (status) {
+      case 'checked_in':
+        return 'bg-green-100 text-green-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      case 'confirmed':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
-}, [dateFrom, dateTo, filters.country, filters.province, filters.city, business]);
-  
-  // ================= UI =================
-  if (loading) return <div className="p-10 text-center">Loading...</div>;
-  if (!business) return <div className="p-10 text-center text-red-600">No business data found</div>;
 
-  return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold">{business.trading_name}</h1>
-
-      {/* FILTERS */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h3 className="font-bold mb-4">Filters</h3>
-
-        <div className="flex gap-4 flex-wrap items-end">
-          <div>
-            <label className="text-sm block">From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="border rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm block">To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="border rounded px-3 py-2"
-            />
-          </div>
-
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
+          <p className="text-red-600 mb-4">⚠️ {error}</p>
           <button
-            onClick={() => {
-              setDateFrom('');
-              setDateTo('');
-              setFilters({ country: '', province: '', city: '' });
-            }}
-            className="bg-gray-200 px-4 py-2 rounded"
+            onClick={() => window.location.reload()}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
           >
-            Clear Filters
+            Retry
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* ERROR */}
-      {error && (
-        <div className="bg-red-50 text-red-700 p-4 rounded shadow">
-          ⚠️ {error}
+  const { totalBookings, totalRevenue, todayBookings, avgStay } = calculateMetrics();
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {business?.trading_name || 'Business Dashboard'}
+          </h1>
+          {business?.welcome_message && (
+            <p className="text-gray-500 mt-1">{business.welcome_message}</p>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* METRICS */}
-      {analytics && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded shadow">
-            <p className="text-gray-500 text-sm">Total Bookings</p>
-            <h2 className="text-4xl font-bold">{analytics.total_bookings}</h2>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-sm font-medium text-gray-500">Total Bookings</p>
+            <p className="text-3xl font-bold text-gray-900 mt-2">{totalBookings}</p>
           </div>
 
-          <div className="bg-white p-6 rounded shadow">
-            <p className="text-gray-500 text-sm">Revenue</p>
-            <h2 className="text-4xl font-bold">R {analytics.total_revenue.toLocaleString()}</h2>
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-sm font-medium text-gray-500">Total Revenue</p>
+            <p className="text-3xl font-bold text-gray-900 mt-2">
+              R {totalRevenue.toLocaleString()}
+            </p>
           </div>
 
-          <div className="bg-white p-6 rounded shadow">
-            <p className="text-gray-500 text-sm">Occupancy Rate</p>
-            <h2 className="text-4xl font-bold">{analytics.occupancy_rate}%</h2>
-            <p className="text-xs text-gray-400">{analytics.total_nights} nights booked</p>
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-sm font-medium text-gray-500">Average Stay</p>
+            <p className="text-3xl font-bold text-gray-900 mt-2">{avgStay} nights</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-sm font-medium text-gray-500">Check-ins Today</p>
+            <p className="text-3xl font-bold text-gray-900 mt-2">{todayBookings}</p>
           </div>
         </div>
-      )}
 
-      {/* TODAY'S CHECK-INS */}
-      {analytics && (
-        <div className="bg-white p-6 rounded shadow">
-          <h3 className="font-bold mb-2">Check-ins Today</h3>
-          <p className="text-3xl font-bold">{analytics.today_bookings}</p>
-        </div>
-      )}
-
-      {/* MONTHLY TREND */}
-      {analytics?.monthly_data.length > 0 && (
-        <div className="bg-white p-6 rounded shadow overflow-x-auto">
-          <h3 className="font-bold mb-4">Monthly Booking Trend</h3>
-
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2">Month</th>
-                <th className="text-right py-2">Bookings</th>
-                <th className="text-right py-2">Revenue</th>
-                <th className="text-right py-2">Nights</th>
-                <th className="text-right py-2">Occupancy</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytics.monthly_data.map((m, i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-2">
-                    {m.month} {m.year}
-                  </td>
-                  <td className="text-right">{m.bookings}</td>
-                  <td className="text-right">R {m.revenue.toLocaleString()}</td>
-                  <td className="text-right">{m.nights}</td>
-                  <td className="text-right">{m.density}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* GUEST ORIGINS */}
-      {analytics && Object.keys(analytics.guest_origins.countries).length > 0 && (
-        <div className="bg-white p-6 rounded shadow">
-          <h3 className="font-bold mb-4">Guest Origins</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold mb-2">Countries</h4>
-              {Object.entries(analytics.guest_origins.countries).map(([country, count]) => (
-                <div key={country} className="flex justify-between py-1">
-                  <span>{country}</span>
-                  <span className="font-bold">{count}</span>
-                </div>
-              ))}
+        {/* Recent Check-ins Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Check-ins</h2>
+          </div>
+          
+          <div className="overflow-x-auto">
+            {bookings.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400">No bookings found</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  When guests check in, they'll appear here
+                </p>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Guest Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Check-in Date
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nights
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {bookings.slice(0, 20).map((booking, index) => (
+                    <tr key={booking.id || index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {booking.guest_name || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.check_in_date || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        {booking.nights || 1}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        R {(booking.total_amount || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                          {booking.status || 'pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          
+          {bookings.length > 20 && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <p className="text-sm text-gray-500">
+                Showing 20 of {bookings.length} bookings
+              </p>
             </div>
-            <div>
-              <h4 className="font-semibold mb-2">Top Cities</h4>
-              {Object.entries(analytics.guest_origins.cities)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 10)
-                .map(([city, count]) => (
-                  <div key={city} className="flex justify-between py-1">
-                    <span>{city}</span>
-                    <span className="font-bold">{count}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* RECENT CHECK-INS */}
-      {analytics?.recent_checkins?.length > 0 && (
-        <div className="bg-white p-6 rounded shadow overflow-x-auto">
-          <h3 className="font-bold mb-4">Recent Check-ins</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2">Guest Name</th>
-                <th className="text-left py-2">Check-in Date</th>
-                <th className="text-right py-2">Nights</th>
-                <th className="text-right py-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytics.recent_checkins.map((guest, i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-2">{guest.guest_name}</td>
-                  <td className="py-2">{guest.check_in_date}</td>
-                  <td className="text-right">{guest.nights}</td>
-                  <td className="text-right">R {guest.total_amount.toLocaleString()}</td>
-                </tr>
-              ))}
-              {analytics.recent_checkins.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-8 text-center text-gray-400">
-                    No check-ins found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* LOADING INDICATOR */}
-      {analyticsLoading && (
-        <div className="text-center py-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-sm text-gray-500 mt-2">Loading analytics...</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
