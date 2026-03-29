@@ -1,17 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const handler = async function(event) {
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
+  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers,
+      body: ''
+    };
   }
 
+  // Only allow GET requests
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -20,31 +31,37 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  // Basic auth check
+  const authHeader = event.headers.authorization;
+  if (!authHeader) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Unauthorized - Missing auth token' })
+    };
+  }
 
   try {
-    const { businessId, startDate, endDate, limit = 100 } = event.queryStringParameters || {};
+    const { businessId, startDate, endDate, limit = 5000 } = event.queryStringParameters || {};
 
     if (!businessId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Business ID required' })
+        body: JSON.stringify({ error: 'Missing businessId' })
       };
     }
 
-    // Build query
+    // Build query with controlled status filtering
     let query = supabase
       .from('bookings')
       .select('*')
       .eq('business_id', businessId)
-      .order('check_in_date', { ascending: false })
+      .in('status', ['checked_in', 'completed'])  // Only relevant statuses
+      .order('created_at', { ascending: false })   // Most recent first
       .limit(parseInt(limit));
 
-    // Add date filters if provided
+    // Add optional date filters
     if (startDate) {
       query = query.gte('check_in_date', startDate);
     }
@@ -55,7 +72,7 @@ export const handler = async function(event) {
     const { data: bookings, error } = await query;
 
     if (error) {
-      console.error('❌ Error fetching bookings:', error);
+      console.error('❌ Supabase error:', error);
       return {
         statusCode: 500,
         headers,
@@ -64,95 +81,39 @@ export const handler = async function(event) {
     }
 
     // Calculate summary statistics
-    const summary = {
-      total_bookings: bookings.length,
-      total_revenue: bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0),
-      average_stay: calculateAverageStay(bookings),
-      bookings_by_status: groupByStatus(bookings),
-      bookings_by_month: groupByMonth(bookings),
-      guest_origins: {
-        provinces: groupByProvince(bookings),
-        cities: groupByCity(bookings),
-        countries: groupByCountry(bookings)
-      }
-    };
+    const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    const statusBreakdown = bookings.reduce((acc, b) => {
+      acc[b.status] = (acc[b.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    console.log(`📊 ${bookings.length} bookings returned for business ${businessId}`);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        bookings,
-        summary,
-        period: {
-          start_date: startDate || 'all',
-          end_date: endDate || 'all'
+        success: true,
+        bookings: bookings || [],
+        summary: {
+          total_bookings: bookings.length,
+          total_revenue: totalRevenue,
+          status_breakdown: statusBreakdown,
+          average_nights: bookings.length > 0
+            ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
+            : 0
         }
       })
     };
-
-  } catch (error) {
-    console.error('🔥 Unhandled error:', error);
+  } catch (err) {
+    console.error('❌ get-business-bookings error:', err);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({
+        error: err.message || 'Internal Server Error',
+        success: false
+      })
     };
   }
 };
-
-// Helper functions
-function calculateAverageStay(bookings) {
-  const stays = bookings.filter(b => b.check_in_date && b.check_out_date);
-  if (stays.length === 0) return 0;
-  
-  const totalNights = stays.reduce((sum, b) => {
-    const nights = Math.ceil(
-      (new Date(b.check_out_date) - new Date(b.check_in_date)) / (1000 * 60 * 60 * 24)
-    );
-    return sum + nights;
-  }, 0);
-  
-  return (totalNights / stays.length).toFixed(1);
-}
-
-function groupByStatus(bookings) {
-  return bookings.reduce((acc, b) => {
-    acc[b.status] = (acc[b.status] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function groupByMonth(bookings) {
-  return bookings.reduce((acc, b) => {
-    const month = new Date(b.check_in_date).toLocaleString('default', { month: 'short', year: 'numeric' });
-    acc[month] = (acc[month] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function groupByProvince(bookings) {
-  return bookings.reduce((acc, b) => {
-    if (b.guest_province) {
-      acc[b.guest_province] = (acc[b.guest_province] || 0) + 1;
-    }
-    return acc;
-  }, {});
-}
-
-function groupByCity(bookings) {
-  return bookings.reduce((acc, b) => {
-    if (b.guest_city) {
-      acc[b.guest_city] = (acc[b.guest_city] || 0) + 1;
-    }
-    return acc;
-  }, {});
-}
-
-function groupByCountry(bookings) {
-  return bookings.reduce((acc, b) => {
-    if (b.guest_country) {
-      acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
-    }
-    return acc;
-  }, {});
-}
