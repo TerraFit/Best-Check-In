@@ -1,6 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { useAccess } from '../context/AccessContext';
-import { getAuth } from '../utils/auth';
+import { getBusinessAuth, getSuperAdminAuth } from '../utils/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,42 +7,42 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, isSuperAdmin, isBusiness } = useAccess();
+  // ✅ Get auth separately - NO CROSS CONTAMINATION
+  const businessAuth = getBusinessAuth();
+  const superAdminAuth = getSuperAdminAuth();
   
-  // ✅ Always check auth directly from localStorage for most reliable state
-  const auth = getAuth();
-  const isBusinessAuthed = auth?.type === 'business';
-  const isSuperAdminAuthed = auth?.type === 'super_admin';
+  const isBusinessAuthed = businessAuth?.type === 'business';
+  const isSuperAdminAuthed = superAdminAuth?.type === 'super_admin';
   
   console.log('🔒 ProtectedRoute check:', {
     requiredRole,
     isBusinessAuthed,
     isSuperAdminAuthed,
-    hasAuth: !!auth,
-    path: window.location.pathname,
-    user: user?.email
+    path: window.location.pathname
   });
   
-  // For business routes (including /business/dashboard)
-  if (requiredRole === 'business' || requiredRole === 'tenant_admin' || window.location.pathname.startsWith('/business')) {
+  // ✅ For business routes - ONLY check business auth
+  if (requiredRole === 'business' || requiredRole === 'tenant_admin') {
     if (isBusinessAuthed) {
-      console.log('✅ Business auth valid, rendering children');
+      console.log('✅ Business auth valid, rendering dashboard');
       return <>{children}</>;
     }
-    console.log('❌ Business auth required, redirecting to /business/login');
+    console.log('❌ No business auth, redirecting to business login');
     return <Navigate to="/business/login" replace />;
   }
   
-  // For super admin routes
+  // ✅ For super admin routes - ONLY check super admin auth
   if (requiredRole === 'super_admin') {
-    if (isSuperAdminAuthed || isSuperAdmin) {
+    if (isSuperAdminAuthed) {
+      console.log('✅ Super admin auth valid');
       return <>{children}</>;
     }
+    console.log('❌ No super admin auth, redirecting to super admin login');
     return <Navigate to="/super-admin-login" replace />;
   }
   
-  // Default fallback - redirect to business login
-  if (!isBusinessAuthed && !isSuperAdminAuthed && !user) {
+  // ✅ Default fallback for routes without specific role
+  if (!isBusinessAuthed && !isSuperAdminAuthed) {
     return <Navigate to="/business/login" replace />;
   }
   
