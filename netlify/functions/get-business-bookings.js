@@ -25,15 +25,19 @@ export const handler = async (event) => {
     };
   }
 
-  // ✅ Get token from Authorization header
+  // ✅ Log auth header for debugging
   const authHeader = event.headers.authorization || event.headers.Authorization;
-  console.log('🔐 Auth header present:', !!authHeader);
+  console.log('🔐 Auth header received:', authHeader ? 'Yes (starts with: ' + authHeader.substring(0, 30) + '...)' : 'NO');
   
-  // ✅ For now, just log but don't require token for debugging
-  // We'll add proper validation later
-  if (!authHeader) {
-    console.log('⚠️ No auth header provided, but continuing for debugging');
-  }
+  // ✅ TEMPORARILY DISABLE AUTH CHECK FOR DEBUGGING
+  // Remove this in production after fixing the token issue
+  // if (!authHeader) {
+  //   return {
+  //     statusCode: 401,
+  //     headers,
+  //     body: JSON.stringify({ error: 'Unauthorized - Missing auth token' })
+  //   };
+  // }
 
   try {
     const { businessId, startDate, endDate, limit = 5000 } = event.queryStringParameters || {};
@@ -73,7 +77,38 @@ export const handler = async (event) => {
       };
     }
 
-    console.log(`✅ Found ${bookings.length} bookings for business ${businessId}`);
+    const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    const statusBreakdown = bookings.reduce((acc, b) => {
+      acc[b.status] = (acc[b.status] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const bookingsByMonth = bookings.reduce((acc, b) => {
+      if (b.check_in_date) {
+        const date = new Date(b.check_in_date);
+        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        acc[monthYear] = (acc[monthYear] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    
+    const guestOrigins = {
+      provinces: {},
+      cities: {},
+      countries: {}
+    };
+    
+    bookings.forEach(b => {
+      if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
+      if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+      if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
+    });
+
+    const averageNights = bookings.length > 0
+      ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
+      : 0;
+
+    console.log(`✅ ${bookings.length} bookings returned for business ${businessId}`);
 
     return {
       statusCode: 200,
@@ -83,16 +118,27 @@ export const handler = async (event) => {
         bookings: bookings || [],
         summary: {
           total_bookings: bookings.length,
-          total_revenue: bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
+          total_revenue: totalRevenue,
+          average_nights: averageNights,
+          bookings_by_status: statusBreakdown,
+          bookings_by_month: bookingsByMonth,
+          guest_origins: guestOrigins
+        },
+        period: {
+          start_date: startDate || 'all',
+          end_date: endDate || 'all'
         }
       })
     };
   } catch (err) {
-    console.error('❌ Error:', err);
+    console.error('❌ get-business-bookings error:', err);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: err.message || 'Internal Server Error' })
+      body: JSON.stringify({
+        success: false,
+        error: err.message || 'Internal Server Error'
+      })
     };
   }
 };
