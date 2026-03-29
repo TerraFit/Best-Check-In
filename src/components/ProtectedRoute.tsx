@@ -1,45 +1,49 @@
 import { Navigate } from 'react-router-dom';
 import { useAccess } from '../context/AccessContext';
+import { getAuth } from '../utils/auth';
 
-export default function ProtectedRoute({ children, requiredRole, requiredTenantId }) {
-  const { user, isSuperAdmin, isTenantAdmin, isViewer } = useAccess();
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRole?: 'business' | 'super_admin' | 'tenant_admin';
+}
+
+export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+  const { user, isSuperAdmin, isBusiness } = useAccess();
   
-  // Check for business auth (new system)
-  const businessAuth = localStorage.getItem('fastcheckin_auth');
-  // Check for legacy business auth
-  const legacyBusiness = localStorage.getItem('business');
-  
-  // User is considered authenticated if ANY of these exist
-  const isAuthenticated = !!(user || businessAuth || legacyBusiness);
+  // Check for business auth directly
+  const auth = getAuth();
+  const isBusinessAuthed = auth?.type === 'business';
+  const isSuperAdminAuthed = auth?.type === 'super_admin';
   
   console.log('🔒 ProtectedRoute check:', {
     requiredRole,
-    isAuthenticated,
-    hasBusinessAuth: !!businessAuth,
-    hasLegacyBusiness: !!legacyBusiness,
-    isSuperAdmin
+    isBusinessAuthed,
+    isSuperAdminAuthed,
+    hasAuth: !!auth,
+    path: window.location.pathname
   });
   
   // For business routes
   if (requiredRole === 'business' || requiredRole === 'tenant_admin') {
-    if (isAuthenticated) {
-      return children;
+    if (isBusinessAuthed || isBusiness) {
+      return <>{children}</>;
     }
+    // Redirect to BUSINESS login, not super admin
     return <Navigate to="/business/login" replace />;
   }
   
   // For super admin routes
   if (requiredRole === 'super_admin') {
-    if (isSuperAdmin || businessAuth?.type === 'super_admin') {
-      return children;
+    if (isSuperAdminAuthed || isSuperAdmin) {
+      return <>{children}</>;
     }
     return <Navigate to="/super-admin-login" replace />;
   }
   
-  // Default fallback
-  if (!isAuthenticated) {
+  // Default fallback - check any auth
+  if (!isBusinessAuthed && !isSuperAdminAuthed && !user) {
     return <Navigate to="/business/login" replace />;
   }
   
-  return children;
+  return <>{children}</>;
 }
