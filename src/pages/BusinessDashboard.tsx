@@ -11,6 +11,9 @@ interface Booking {
   total_amount: number;
   status: string;
   created_at?: string;
+  guest_country?: string;
+  guest_province?: string;
+  guest_city?: string;
 }
 
 interface BusinessProfile {
@@ -76,16 +79,34 @@ export default function BusinessDashboard() {
       );
 
       const data = await res.json();
+      console.log('📦 API Response:', data);
       
-      // Validate response
-      if (!data.success) {
+      // ✅ Handle both API response formats
+      // Format 1: { success: true, bookings: [...] }
+      // Format 2: { bookings: [...] } (no success field)
+      let rawBookings: Booking[] = [];
+      
+      if (data.success === false) {
         throw new Error(data.error || 'Failed to load bookings');
       }
       
-      const rawBookings: Booking[] = data?.bookings || [];
-      console.log(`📦 Loaded ${rawBookings.length} bookings from API`);
+      // Check if data has bookings array
+      if (data.bookings && Array.isArray(data.bookings)) {
+        rawBookings = data.bookings;
+      } else if (Array.isArray(data)) {
+        rawBookings = data;
+      }
+      
+      // Filter out bookings with null or mismatched business_id
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      
+      console.log(`📦 Raw bookings: ${rawBookings.length}, Valid: ${validBookings.length}`);
+      
+      if (validBookings.length === 0 && rawBookings.length > 0) {
+        console.warn('⚠️ Found bookings but none match current business ID');
+      }
 
-      setBookings(rawBookings);
+      setBookings(validBookings);
     } catch (err) {
       console.error('❌ loadBookings error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load bookings');
