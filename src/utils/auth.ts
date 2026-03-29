@@ -16,7 +16,7 @@ export interface AuthSession {
 
 const AUTH_KEY = 'fastcheckin_auth';
 
-export const setAuth = (session: AuthSession) => {
+export const setAuth = (session: AuthSession): void => {
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
 };
 
@@ -31,9 +31,8 @@ export const getAuth = (): AuthSession | null => {
   }
 };
 
-export const clearAuth = () => {
+export const clearAuth = (): void => {
   localStorage.removeItem(AUTH_KEY);
-  // Clean up legacy keys
   localStorage.removeItem('business');
   localStorage.removeItem('fastcheckin_admin');
   localStorage.removeItem('jbay_user');
@@ -51,7 +50,6 @@ export const isSuperAdminAuthenticated = (): boolean => {
   return auth?.type === 'super_admin';
 };
 
-// FIXED: Proper getBusinessId with fallback to legacy
 export const getBusinessId = (): string | null => {
   // Try new auth first
   const auth = getAuth();
@@ -64,9 +62,24 @@ export const getBusinessId = (): string | null => {
   if (legacy) {
     try {
       const parsed = JSON.parse(legacy);
-      return parsed.id || null;
+      if (parsed.id) return parsed.id;
     } catch {
-      return null;
+      // Ignore parse errors
+    }
+  }
+  
+  // Additional fallback for direct business_id storage
+  const directId = localStorage.getItem('business_id');
+  if (directId) return directId;
+  
+  // Last resort: check for jbay_user
+  const jbayUser = localStorage.getItem('jbay_user');
+  if (jbayUser) {
+    try {
+      const parsed = JSON.parse(jbayUser);
+      if (parsed.tenantId) return parsed.tenantId;
+    } catch {
+      // Ignore
     }
   }
   
