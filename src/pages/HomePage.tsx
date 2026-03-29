@@ -7,19 +7,15 @@ export default function HomePage() {
     <div className="min-h-screen bg-stone-900">
       {/* Hero Section */}
       <div className="relative bg-stone-900 overflow-hidden">
-        {/* Background image */}
         <div 
           className="absolute inset-0 bg-cover bg-center"
           style={{ 
             backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')"
           }}
         ></div>
-        
-        {/* Light overlay for text readability */}
         <div className="absolute inset-0 bg-stone-900/40"></div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
-          {/* Logo - Left aligned, twice as large */}
           <div className="flex justify-start mb-8">
             <img 
               src="/fastcheckin-logo.png" 
@@ -28,19 +24,16 @@ export default function HomePage() {
             />
           </div>
           
-          {/* Text content - Centered as original */}
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
               Transform Your{' '}
               <span className="text-amber-500">Check-In Experience</span>
             </h1>
             
-            {/* Subtitle - Slightly larger (text-2xl instead of text-xl) */}
             <p className="text-2xl text-white mb-8 max-w-2xl mx-auto">
               The all-in-one digital check-in solution for South African hotels and guest houses
             </p>
             
-            {/* Feature badges */}
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white mb-8">
               <span className="flex items-center gap-2">
                 <span className="text-amber-500">✓</span>
@@ -60,7 +53,6 @@ export default function HomePage() {
               </span>
             </div>
             
-            {/* Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => navigate('/register')}
@@ -68,6 +60,7 @@ export default function HomePage() {
               >
                 Start Your 14-Day Free Trial
               </button>
+              {/* ✅ FIXED: Correct business login URL */}
               <button
                 onClick={() => navigate('/business/login')}
                 className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
@@ -76,7 +69,6 @@ export default function HomePage() {
               </button>
             </div>
             
-            {/* Free trial notice */}
             <p className="mt-4 text-sm text-white/80">
               ✦ 14-day free trial ✦ No credit card required ✦ Cancel anytime
             </p>
