@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getAuth, clearAuth, AuthSession } from '../utils/auth';
+import { getAuth, clearAuth, getBusinessAuth, getSuperAdminAuth } from '../utils/auth';
 
 interface AccessContextType {
   user: any | null;
@@ -19,13 +19,31 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Sync with unified auth system
-    const auth = getAuth();
-    if (auth) {
-      setUser(auth.user);
+    // Check both types of auth
+    const businessAuth = getBusinessAuth();
+    const superAdminAuth = getSuperAdminAuth();
+    const mainAuth = getAuth();
+    
+    if (businessAuth?.type === 'business') {
+      setUser(businessAuth.user);
       setIsAuthenticated(true);
-      setIsBusiness(auth.type === 'business');
-      setIsSuperAdmin(auth.type === 'super_admin');
+      setIsBusiness(true);
+      setIsSuperAdmin(false);
+    } else if (superAdminAuth?.type === 'super_admin') {
+      setUser(superAdminAuth.user);
+      setIsAuthenticated(true);
+      setIsBusiness(false);
+      setIsSuperAdmin(true);
+    } else if (mainAuth?.type === 'business') {
+      setUser(mainAuth.user);
+      setIsAuthenticated(true);
+      setIsBusiness(true);
+      setIsSuperAdmin(false);
+    } else if (mainAuth?.type === 'super_admin') {
+      setUser(mainAuth.user);
+      setIsAuthenticated(true);
+      setIsBusiness(false);
+      setIsSuperAdmin(true);
     } else {
       setUser(null);
       setIsAuthenticated(false);
@@ -36,7 +54,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
 
   const loginAs = (email: string, role: 'business' | 'super_admin', tenantId?: string) => {
     // This is for testing/legacy - in production, use the login endpoints
-    const authSession: AuthSession = {
+    const authSession = {
       type: role,
       user: {
         id: role === 'super_admin' ? 'super-admin' : tenantId || 'temp-id',
@@ -46,7 +64,9 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         role: role === 'super_admin' ? 'super_admin' : 'business'
       }
     };
-    localStorage.setItem('fastcheckin_auth', JSON.stringify(authSession));
+    // Use the setAuth function which handles separate storage
+    const { setAuth } = require('../utils/auth');
+    setAuth(authSession);
     setUser(authSession.user);
     setIsAuthenticated(true);
     setIsBusiness(role === 'business');
