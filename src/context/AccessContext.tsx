@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getAuth, clearAuth, getBusinessAuth, getSuperAdminAuth } from '../utils/auth';
+import { getAuth, clearAuth, getBusinessAuth, getSuperAdminAuth, setAuth } from '../utils/auth';
 
 interface AccessContextType {
   user: any | null;
@@ -17,43 +17,73 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const [isBusiness, setIsBusiness] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check both types of auth
+  const loadAuth = () => {
+    console.log('🔍 Loading auth from storage...');
+    
     const businessAuth = getBusinessAuth();
     const superAdminAuth = getSuperAdminAuth();
     const mainAuth = getAuth();
-    
+
+    console.log('businessAuth:', businessAuth);
+    console.log('superAdminAuth:', superAdminAuth);
+    console.log('mainAuth:', mainAuth);
+
     if (businessAuth?.type === 'business') {
       setUser(businessAuth.user);
       setIsAuthenticated(true);
       setIsBusiness(true);
       setIsSuperAdmin(false);
-    } else if (superAdminAuth?.type === 'super_admin') {
+      console.log('✅ Business auth loaded');
+      return;
+    }
+
+    if (superAdminAuth?.type === 'super_admin') {
       setUser(superAdminAuth.user);
       setIsAuthenticated(true);
       setIsBusiness(false);
       setIsSuperAdmin(true);
-    } else if (mainAuth?.type === 'business') {
+      console.log('✅ Super admin auth loaded');
+      return;
+    }
+
+    if (mainAuth?.type === 'business') {
       setUser(mainAuth.user);
       setIsAuthenticated(true);
       setIsBusiness(true);
       setIsSuperAdmin(false);
-    } else if (mainAuth?.type === 'super_admin') {
+      console.log('✅ Business auth loaded from main');
+      return;
+    }
+
+    if (mainAuth?.type === 'super_admin') {
       setUser(mainAuth.user);
       setIsAuthenticated(true);
       setIsBusiness(false);
       setIsSuperAdmin(true);
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-      setIsBusiness(false);
-      setIsSuperAdmin(false);
+      console.log('✅ Super admin auth loaded from main');
+      return;
     }
+
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsBusiness(false);
+    setIsSuperAdmin(false);
+    console.log('❌ No auth found');
+  };
+
+  useEffect(() => {
+    loadAuth();
+    setLoading(false);
+
+    // Listen for storage changes (important for cross-tab consistency)
+    window.addEventListener('storage', loadAuth);
+
+    return () => window.removeEventListener('storage', loadAuth);
   }, []);
 
   const loginAs = (email: string, role: 'business' | 'super_admin', tenantId?: string) => {
-    // This is for testing/legacy - in production, use the login endpoints
     const authSession = {
       type: role,
       user: {
@@ -64,22 +94,23 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         role: role === 'super_admin' ? 'super_admin' : 'business'
       }
     };
-    // Use the setAuth function which handles separate storage
-    const { setAuth } = require('../utils/auth');
     setAuth(authSession);
-    setUser(authSession.user);
-    setIsAuthenticated(true);
-    setIsBusiness(role === 'business');
-    setIsSuperAdmin(role === 'super_admin');
+    loadAuth();
   };
 
   const logout = () => {
     clearAuth();
-    setUser(null);
-    setIsAuthenticated(false);
-    setIsBusiness(false);
-    setIsSuperAdmin(false);
+    loadAuth();
   };
+
+  // Don't render children until auth is loaded to prevent redirect loops
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <AccessContext.Provider
