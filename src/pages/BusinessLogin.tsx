@@ -41,8 +41,8 @@ export default function BusinessLogin() {
         console.log('✅ Login successful for:', data.business.trading_name);
         
         // Store business auth
-        setAuth({
-          type: 'business',
+        const authData = {
+          type: 'business' as const,
           user: {
             id: data.business.id,
             email: data.business.email,
@@ -50,7 +50,9 @@ export default function BusinessLogin() {
             businessId: data.business.id,
             role: 'business'
           }
-        });
+        };
+        
+        setAuth(authData);
         
         // Store legacy format for compatibility
         localStorage.setItem('business', JSON.stringify({
@@ -60,18 +62,16 @@ export default function BusinessLogin() {
           status: data.business.status
         }));
         
-        console.log('✅ Auth stored in localStorage');
-        console.log('🔍 Verifying auth:', localStorage.getItem('fastcheckin_business_auth'));
+        console.log('✅ Auth stored, verifying...');
+        console.log('Business auth:', localStorage.getItem('fastcheckin_business_auth'));
         
-        // ✅ FIX: Use navigate instead of window.location.href
-        // Small delay ensures localStorage is written
-        setTimeout(() => {
-          if (data.business.status === 'pending') {
-            navigate('/business/pending');
-          } else {
-            navigate('/business/dashboard');
-          }
-        }, 100);
+        // ✅ IMPORTANT: Use window.location.href for hard redirect to ensure clean state
+        // This avoids React Router interfering with the redirect
+        if (data.business.status === 'pending') {
+          window.location.href = '/business/pending';
+        } else {
+          window.location.href = '/business/dashboard';
+        }
       } else {
         console.log('❌ Login failed:', data.error);
         setError(data.error || 'Invalid email or password');
