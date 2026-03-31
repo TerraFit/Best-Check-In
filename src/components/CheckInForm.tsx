@@ -299,27 +299,28 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       // Calculate total amount based on nights
       const totalAmount = await calculateTotalAmount(formData.nights);
 
-      const dbBooking = {
-        business_id: businessId,
-        guest_name: formData.fullName,
-        guest_email: formData.email,
-        guest_phone: formData.phone,
-        guest_id_number: formData.passportOrId,
-        guest_id_photo: formData.idPhoto,
-        guest_signature: formData.signature,
-        check_in_date: formData.arrivalDate,
-        check_out_date: formData.departureDate,
-        nights: formData.nights,
-        adults: formData.adults,
-        children: formData.kids,
-        total_amount: totalAmount,
-        status: 'checked_in',
-        guest_province: formData.province,
-        guest_city: formData.city,
-        guest_country: formData.country,
-        marketing_consent: formData.popiaConsent,
-        created_at: new Date().toISOString()
-      };
+     const dbBooking = {
+  business_id: businessId,
+  guest_name: formData.fullName,
+  guest_email: formData.email,
+  guest_phone: formData.phone,
+  guest_id_number: formData.passportOrId,
+  guest_id_photo: formData.idPhoto,
+  guest_signature: formData.signature,
+  check_in_date: formData.arrivalDate,
+  check_out_date: formData.departureDate,
+  nights: formData.nights,
+  adults: formData.adults,
+  children: formData.kids,
+  total_amount: totalAmount,
+  status: 'checked_in',
+  guest_province: formData.province,
+  guest_city: formData.city,
+  guest_country: formData.country,
+  referral_source: formData.referral,  // ← ADD THIS LINE
+  marketing_consent: formData.popiaConsent,
+  created_at: new Date().toISOString()
+};
 
       // Save to database
       const saved = await saveBookingToDatabase(dbBooking);
