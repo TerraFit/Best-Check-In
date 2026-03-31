@@ -610,4 +610,67 @@ export default function BusinessDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Reports & Analytics</h3>
             <p className="text-gray-500 mb-4">Export your data for deeper analysis:</p>
-            <div className="flex
+            <div className="flex gap-4">
+              <button
+                onClick={exportToCSV}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export to CSV
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Report
+              </button>
+            </div>
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">Summary Statistics</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-gray-500">Date range:</span> {dateRange}</div>
+                <div><span className="text-gray-500">Total bookings:</span> {filteredBookings.length}</div>
+                <div><span className="text-gray-500">Total revenue:</span> R {metrics.totalRevenue.toLocaleString()}</div>
+                <div><span className="text-gray-500">Average stay:</span> {metrics.avgStay} nights</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 mb-2">Business Information</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-gray-500">Business ID:</span> {getBusinessId()}</div>
+                  <div><span className="text-gray-500">Trading Name:</span> {business?.trading_name}</div>
+                  <div><span className="text-gray-500">Registered Name:</span> {business?.registered_name}</div>
+                  <div><span className="text-gray-500">Email:</span> {business?.email}</div>
+                  <div><span className="text-gray-500">Phone:</span> {business?.phone}</div>
+                  {business?.total_rooms && <div><span className="text-gray-500">Total Rooms:</span> {business.total_rooms}</div>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* QR Code Modal */}
+      {showQRModal && business && (
+        <QRCodeModal
+          businessId={business.id}
+          businessName={business.trading_name}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
+    </div>
+  );
+}
