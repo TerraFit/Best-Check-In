@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getBusinessId, getAuth } from '../utils/auth';
+import { getBusinessId } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
 
 // Types
@@ -63,39 +63,17 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
-  // Secure auth token retrieval
-  const getAuthToken = useCallback((): string | null => {
-    const auth = getAuth();
-    return auth?.token || null;
-  }, []);
-
-  // Authenticated fetch with proper error handling
-  const authenticatedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const token = getAuthToken();
-    
-    if (!token) {
-      console.error('No auth token available, redirecting to login');
-      navigate('/business/login');
-      throw new Error('No authentication token');
-    }
-
+  // ✅ Simple fetch - no auth headers (matches your backend)
+  const fetchData = useCallback(async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
         ...options.headers
       }
     });
-
-    if (response.status === 401) {
-      console.error('Auth token invalid or expired');
-      navigate('/business/login');
-      throw new Error('Session expired');
-    }
-
     return response;
-  }, [navigate, getAuthToken]);
+  }, []);
 
   // Load business profile
   const loadBusinessProfile = useCallback(async () => {
@@ -103,31 +81,36 @@ export default function BusinessDashboard() {
     if (!businessId) return;
 
     try {
-      const res = await authenticatedFetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (res.ok) {
         const data = await res.json();
         setBusiness(data);
+        console.log('✅ Business profile loaded:', data.trading_name);
       }
     } catch (err) {
       console.error('Failed to load business profile:', err);
     }
-  }, [authenticatedFetch]);
+  }, [fetchData]);
 
   // Load bookings
   const loadBookings = useCallback(async () => {
     const businessId = getBusinessId();
     if (!businessId) {
-      navigate('/business/login');
+      console.warn('⚠️ No businessId found');
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const res = await authenticatedFetch(
+      console.log('📡 Fetching bookings for business:', businessId);
+      
+      const res = await fetchData(
         `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
       );
 
       const data = await res.json();
+      console.log('📦 API Response:', data);
       
       let rawBookings: Booking[] = [];
       if (data.bookings && Array.isArray(data.bookings)) {
@@ -137,6 +120,7 @@ export default function BusinessDashboard() {
       }
       
       const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      console.log(`📦 Loaded ${validBookings.length} bookings`);
       setBookings(validBookings);
     } catch (err) {
       console.error('Error loading bookings:', err);
@@ -144,7 +128,7 @@ export default function BusinessDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authenticatedFetch, navigate]);
+  }, [fetchData]);
 
   // Apply filters to bookings
   const applyFilters = useCallback(() => {
@@ -243,6 +227,11 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const refreshData = () => {
+    setRefreshing(true);
+    loadBookings();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -289,7 +278,7 @@ export default function BusinessDashboard() {
                 QR Code
               </button>
               <button
-                onClick={() => { setRefreshing(true); loadBookings(); }}
+                onClick={refreshData}
                 disabled={refreshing}
                 className="p-2 text-gray-500 hover:text-orange-500 rounded-lg hover:bg-gray-100 transition-colors"
                 title="Refresh data"
