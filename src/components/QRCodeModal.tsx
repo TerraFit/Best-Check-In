@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 interface Props {
   businessId: string;
   businessName: string;
-  businessLogo?: string;
+  businessLogo?: string;  // ← ADD THIS LINE
   onClose: () => void;
 }
 
@@ -246,7 +246,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
                 <img src="${qrCodeUrl}" alt="Check-in QR Code" class="qr-code">
               </div>
               <div class="instruction">
-                Open your camera app and point it at the QR code
+                Open your camera and point it at the QR code
               </div>
               <div class="instruction-small">
                 No app download required • Takes less than 1 minute
@@ -272,7 +272,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
   const generatePDF = async () => {
     if (!qrCodeUrl) return;
     
-    // Create a canvas for the poster
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -280,11 +279,9 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
     canvas.width = 800;
     canvas.height = 1100;
     
-    // White background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Load QR code
     const img = new Image();
     img.crossOrigin = 'Anonymous';
     
@@ -294,13 +291,21 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       img.src = qrCodeUrl;
     });
     
-    // Draw QR code
     const qrSize = 400;
     const qrX = (canvas.width - qrSize) / 2;
     const qrY = 280;
     ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
     
-    // Draw text elements
+    if (businessLogo) {
+      const logo = new Image();
+      await new Promise((resolve) => {
+        logo.onload = resolve;
+        logo.src = businessLogo;
+      });
+      const logoSize = 60;
+      ctx.drawImage(logo, (canvas.width - logoSize) / 2, 40, logoSize, logoSize);
+    }
+    
     ctx.fillStyle = '#1e1e1e';
     ctx.font = 'bold 28px "Playfair Display", serif';
     ctx.textAlign = 'center';
@@ -326,7 +331,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
     ctx.fillStyle = '#d1d5db';
     ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 40);
     
-    // Open PDF print window
     const pdfWindow = window.open('', '_blank');
     if (pdfWindow) {
       pdfWindow.document.write(`
@@ -428,7 +432,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-xl">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 hover:bg-gray-100 transition-all z-10"
@@ -440,34 +443,25 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
         </button>
 
         <div className="p-6 md:p-8">
-          {/* Preview Header */}
           <div className="text-center mb-4">
             <h3 className="text-lg font-medium text-gray-700">Print-Ready QR Display</h3>
             <p className="text-sm text-gray-400">Designed for guests to scan easily</p>
           </div>
 
-          {/* QR Poster Preview */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-lg mb-6">
             <div className="p-8 text-center">
-              {/* Business Logo Placeholder */}
-              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-orange-600 text-2xl">🏨</span>
-              </div>
+              {businessLogo ? (
+                <img src={businessLogo} alt={businessName} className="h-16 w-auto mx-auto mb-3 rounded-lg" />
+              ) : (
+                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-orange-600 text-2xl">🏨</span>
+                </div>
+              )}
               
-              {/* Welcome Text */}
               <p className="text-sm text-gray-500 mb-1">Welcome to</p>
+              <h2 className="text-2xl md:text-3xl font-serif font-bold text-gray-900 mb-2">{businessName}</h2>
+              <div className="text-3xl md:text-4xl font-bold text-orange-500 my-4">📱 Scan to Check In</div>
               
-              {/* Business Name */}
-              <h2 className="text-2xl md:text-3xl font-serif font-bold text-gray-900 mb-2">
-                {businessName}
-              </h2>
-              
-              {/* Main Call to Action */}
-              <div className="text-3xl md:text-4xl font-bold text-orange-500 my-4">
-                📱 Scan to Check In
-              </div>
-              
-              {/* QR Code */}
               <div className="flex justify-center my-4">
                 <img 
                   src={qrCodeUrl} 
@@ -476,24 +470,15 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
                 />
               </div>
               
-              {/* Instructions */}
-              <p className="text-gray-600 text-sm md:text-base mt-4">
-                Open your camera and point it at the QR code
-              </p>
-              <p className="text-gray-400 text-xs mt-1">
-                No app download required • Takes less than 1 minute
-              </p>
+              <p className="text-gray-600 text-sm md:text-base mt-4">Open your camera and point it at the QR code</p>
+              <p className="text-gray-400 text-xs mt-1">No app download required • Takes less than 1 minute</p>
               
-              {/* Powered By */}
               <div className="mt-6 pt-4 border-t border-gray-100">
-                <p className="text-gray-300 text-xs">
-                  Powered by FastCheckin
-                </p>
+                <p className="text-gray-300 text-xs">Powered by FastCheckin</p>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={downloadSimplePNG}
