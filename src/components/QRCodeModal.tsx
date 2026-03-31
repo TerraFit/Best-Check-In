@@ -4,15 +4,15 @@ import QRCode from 'qrcode';
 interface Props {
   businessId: string;
   businessName: string;
+  businessLogo?: string;
   onClose: () => void;
 }
 
-export default function QRCodeModal({ businessId, businessName, onClose }: Props) {
+export default function QRCodeModal({ businessId, businessName, businessLogo, onClose }: Props) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
-  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     generateQR();
@@ -26,10 +26,10 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
       setCheckInUrl(url);
       
       const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 400,
+        width: 600,
         margin: 2,
         color: {
-          dark: '#f59e0b',
+          dark: '#1e1e1e',
           light: '#ffffff'
         }
       });
@@ -42,116 +42,224 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
     }
   };
 
-  const downloadQR = () => {
+  const downloadPNG = () => {
     if (!qrCodeUrl) return;
+    // Create a canvas to combine elements for a better download
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    canvas.width = 800;
+    canvas.height = 1000;
+    
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Load and draw QR code
+    const img = new Image();
+    img.onload = () => {
+      const qrSize = 400;
+      const qrX = (canvas.width - qrSize) / 2;
+      const qrY = 280;
+      ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
+      
+      // Business Logo (if available)
+      if (businessLogo) {
+        const logo = new Image();
+        logo.onload = () => {
+          const logoSize = 60;
+          ctx.drawImage(logo, (canvas.width - logoSize) / 2, 40, logoSize, logoSize);
+          finalizeDrawing();
+        };
+        logo.src = businessLogo;
+        logo.crossOrigin = 'Anonymous';
+      } else {
+        finalizeDrawing();
+      }
+      
+      function finalizeDrawing() {
+        // Business Name
+        ctx.fillStyle = '#1e1e1e';
+        ctx.font = 'bold 28px "Playfair Display", serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(businessName, canvas.width / 2, 140);
+        
+        // Welcome line
+        ctx.font = '16px "Inter", sans-serif';
+        ctx.fillStyle = '#666666';
+        ctx.fillText('Welcome to', canvas.width / 2, 100);
+        
+        // Main Call to Action
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 24px "Inter", sans-serif';
+        ctx.fillText('Scan to Check In', canvas.width / 2, qrY + qrSize + 60);
+        
+        // Instructions
+        ctx.font = '14px "Inter", sans-serif';
+        ctx.fillStyle = '#4b5563';
+        ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, qrY + qrSize + 100);
+        
+        ctx.font = '12px "Inter", sans-serif';
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, qrY + qrSize + 130);
+        
+        // Powered by line
+        ctx.font = '10px "Inter", sans-serif';
+        ctx.fillStyle = '#d1d5db';
+        ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 40);
+        
+        // Download
+        const link = document.createElement('a');
+        link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-poster.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      }
+    };
+    img.src = qrCodeUrl;
+    img.crossOrigin = 'Anonymous';
+  };
+
+  const downloadSimplePNG = () => {
     const link = document.createElement('a');
     link.href = qrCodeUrl;
-    link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-qr.png`;
-    document.body.appendChild(link);
+    link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`;
     link.click();
-    document.body.removeChild(link);
   };
 
   const printQR = () => {
     if (!qrCodeUrl) return;
+    
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
           <head>
-            <title>QR Code - ${businessName}</title>
-            <meta charset="utf-8">
+            <title>Check-in QR Code - ${businessName}</title>
+            <meta charset="UTF-8">
             <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
-                min-height: 100vh; 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-                background: #f9fafb;
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
               }
-              .container { 
-                text-align: center; 
+              body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #ffffff;
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 40px;
+              }
+              .poster {
+                max-width: 800px;
+                width: 100%;
+                margin: 0 auto;
+                text-align: center;
                 background: white;
-                padding: 48px;
-                border-radius: 24px;
-                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.02);
-                max-width: 500px;
-                margin: 20px;
               }
-              h1 { 
-                color: #f59e0b; 
+              .business-logo {
+                max-width: 80px;
+                height: auto;
+                margin: 0 auto 20px;
+              }
+              .business-name {
+                font-family: 'Playfair Display', serif;
+                font-size: 32px;
+                font-weight: 700;
+                color: #1e1e1e;
                 margin-bottom: 8px;
-                font-size: 28px;
-                font-weight: bold;
               }
-              h2 { 
-                color: #1f2937; 
+              .welcome-text {
+                font-size: 16px;
+                color: #666;
                 margin-bottom: 24px;
-                font-size: 20px;
-                font-weight: 600;
+              }
+              .cta {
+                font-size: 28px;
+                font-weight: 700;
+                color: #f59e0b;
+                margin: 32px 0 24px;
+                letter-spacing: -0.5px;
               }
               .qr-container {
-                background: #fffbeb;
+                display: flex;
+                justify-content: center;
+                margin: 24px 0;
                 padding: 24px;
-                border-radius: 16px;
-                margin-bottom: 24px;
+                background: #fff;
               }
-              img { 
-                max-width: 280px; 
+              .qr-code {
+                max-width: 320px;
                 width: 100%;
                 height: auto;
-                display: block;
-                margin: 0 auto;
+                border-radius: 24px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.08);
               }
-              .instruction { 
-                color: #6b7280; 
-                margin-top: 20px;
-                font-size: 14px;
-              }
-              .url {
-                color: #f59e0b;
-                word-break: break-all;
-                font-size: 12px;
-                margin-top: 12px;
-                padding: 12px;
-                background: #fef3c7;
-                border-radius: 8px;
-                font-family: monospace;
-              }
-              .footer {
+              .instruction {
+                font-size: 15px;
+                color: #4b5563;
                 margin-top: 24px;
-                font-size: 11px;
+                line-height: 1.5;
+              }
+              .instruction-small {
+                font-size: 12px;
                 color: #9ca3af;
+                margin-top: 8px;
+              }
+              .powered-by {
+                margin-top: 48px;
+                padding-top: 24px;
                 border-top: 1px solid #e5e7eb;
-                padding-top: 16px;
+                font-size: 11px;
+                color: #d1d5db;
+              }
+              .powered-by a {
+                color: #9ca3af;
+                text-decoration: none;
               }
               @media print {
-                body { background: white; }
-                .container { box-shadow: none; padding: 20px; }
-                .qr-container { background: white; }
+                body {
+                  padding: 0;
+                  background: white;
+                }
+                .poster {
+                  box-shadow: none;
+                }
+                .qr-code {
+                  box-shadow: none;
+                  border: 1px solid #e5e7eb;
+                }
               }
             </style>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
           </head>
           <body>
-            <div class="container">
-              <h1>FastCheckin</h1>
-              <h2>${escapeHtml(businessName)}</h2>
+            <div class="poster">
+              ${businessLogo ? `<img src="${businessLogo}" alt="${businessName}" class="business-logo" onerror="this.style.display='none'">` : ''}
+              <div class="welcome-text">Welcome to</div>
+              <div class="business-name">${businessName}</div>
+              <div class="cta">📱 Scan to Check In</div>
               <div class="qr-container">
-                <img src="${qrCodeUrl}" alt="QR Code">
+                <img src="${qrCodeUrl}" alt="Check-in QR Code" class="qr-code">
               </div>
-              <p class="instruction">Scan to check in to ${escapeHtml(businessName)}</p>
-              <div class="url">${escapeHtml(checkInUrl)}</div>
-              <div class="footer">Powered by FastCheckin</div>
+              <div class="instruction">
+                Open your camera app and point it at the QR code
+              </div>
+              <div class="instruction-small">
+                No app download required • Takes less than 1 minute
+              </div>
+              <div class="powered-by">
+                Powered by <a href="https://fastcheckin.co.za" target="_blank">FastCheckin</a>
+              </div>
             </div>
             <script>
-              window.onload = () => {
-                setTimeout(() => {
+              window.onload = function() {
+                setTimeout(function() {
                   window.print();
-                  window.onafterprint = () => window.close();
-                }, 300);
+                }, 500);
               };
             </script>
           </body>
@@ -161,124 +269,110 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
     }
   };
 
-  // Helper to escape HTML
-  const escapeHtml = (text: string) => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  };
-
-  // Generate PDF (creates a printable poster)
   const generatePDF = async () => {
     if (!qrCodeUrl) return;
     
-    try {
-      const pdfWindow = window.open('', '_blank');
-      if (!pdfWindow) {
-        alert('Please allow pop-ups to generate PDF');
-        return;
-      }
-      
+    // Create a canvas for the poster
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    canvas.width = 800;
+    canvas.height = 1100;
+    
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Load QR code
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = qrCodeUrl;
+    });
+    
+    // Draw QR code
+    const qrSize = 400;
+    const qrX = (canvas.width - qrSize) / 2;
+    const qrY = 280;
+    ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
+    
+    // Draw text elements
+    ctx.fillStyle = '#1e1e1e';
+    ctx.font = 'bold 28px "Playfair Display", serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(businessName, canvas.width / 2, 140);
+    
+    ctx.font = '16px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText('Welcome to', canvas.width / 2, 100);
+    
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 26px "Inter", sans-serif';
+    ctx.fillText('Scan to Check In', canvas.width / 2, qrY + qrSize + 60);
+    
+    ctx.font = '15px "Inter", sans-serif';
+    ctx.fillStyle = '#4b5563';
+    ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, qrY + qrSize + 100);
+    
+    ctx.font = '12px "Inter", sans-serif';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, qrY + qrSize + 130);
+    
+    ctx.font = '10px "Inter", sans-serif';
+    ctx.fillStyle = '#d1d5db';
+    ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 40);
+    
+    // Open PDF print window
+    const pdfWindow = window.open('', '_blank');
+    if (pdfWindow) {
       pdfWindow.document.write(`
-        <!DOCTYPE html>
         <html>
           <head>
-            <title>QR Code - ${businessName}</title>
-            <meta charset="utf-8">
+            <title>Check-in Poster - ${businessName}</title>
             <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
               body { 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
+                margin: 0; 
+                padding: 20px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
                 min-height: 100vh;
                 background: #f9fafb;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
               }
-              .poster {
-                background: white;
-                width: 600px;
-                padding: 40px;
-                text-align: center;
-                border-radius: 24px;
-                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-              }
-              h1 { 
-                color: #f59e0b; 
-                font-size: 32px;
-                margin-bottom: 8px;
-              }
-              h2 { 
-                color: #1f2937; 
-                font-size: 24px;
-                margin-bottom: 32px;
-              }
-              .qr-wrapper {
-                background: #fffbeb;
-                padding: 32px;
-                border-radius: 24px;
-                margin-bottom: 24px;
-              }
-              img { 
-                max-width: 320px;
-                width: 100%;
+              img {
+                max-width: 100%;
                 height: auto;
-                display: block;
-                margin: 0 auto;
-              }
-              .url {
-                font-family: monospace;
-                font-size: 12px;
-                color: #f59e0b;
-                background: #fef3c7;
-                padding: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
                 border-radius: 8px;
-                word-break: break-all;
-                margin-top: 16px;
-              }
-              .footer {
-                margin-top: 24px;
-                font-size: 11px;
-                color: #9ca3af;
               }
               @media print {
-                body { background: white; }
-                .poster { box-shadow: none; }
+                body { background: white; padding: 0; }
+                img { box-shadow: none; }
               }
             </style>
           </head>
           <body>
-            <div class="poster">
-              <h1>FastCheckin</h1>
-              <h2>${escapeHtml(businessName)}</h2>
-              <div class="qr-wrapper">
-                <img src="${qrCodeUrl}" alt="QR Code">
-              </div>
-              <p>Scan with your phone camera to check in</p>
-              <div class="url">${escapeHtml(checkInUrl)}</div>
-              <div class="footer">FastCheckin - Seamless Digital Check-in</div>
-            </div>
+            <img src="${canvas.toDataURL()}" alt="Check-in Poster">
             <script>
               window.onload = () => {
                 setTimeout(() => {
                   window.print();
-                  window.onafterprint = () => window.close();
-                }, 500);
+                  window.close();
+                }, 1000);
               };
             </script>
           </body>
         </html>
       `);
       pdfWindow.document.close();
-    } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Failed to generate PDF. Please try the Print option instead.');
     }
   };
 
   const sendEmail = async () => {
-    if (sendingEmail) return;
-    setSendingEmail(true);
     try {
       const response = await fetch('/.netlify/functions/send-qr-email', {
         method: 'POST',
@@ -291,32 +385,23 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
         })
       });
 
-      const result = await response.json();
-      if (response.ok && result.success) {
-        alert('QR Code sent successfully! Check your email.');
+      if (response.ok) {
+        alert(`QR Code sent successfully to ${businessName}`);
       } else {
-        alert(result.error || 'Failed to send email. Please try again.');
+        alert('Failed to send email. Please try again.');
       }
     } catch (error) {
       console.error('Error sending email:', error);
       alert('Error sending email. Please try again.');
-    } finally {
-      setSendingEmail(false);
     }
-  };
-
-  // Handle close without any navigation
-  const handleClose = () => {
-    // Just call onClose - no navigation, no page reload
-    onClose();
   };
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
-        <div className="bg-white rounded-lg p-8" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-center mt-4 text-gray-500">Generating QR Code...</p>
+          <p className="text-center mt-4 text-gray-500">Preparing your QR code...</p>
         </div>
       </div>
     );
@@ -324,13 +409,13 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
 
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
-        <div className="bg-white rounded-lg max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center">
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Error</h3>
           <p className="text-gray-600 mb-4">{error}</p>
           <button
-            onClick={handleClose}
+            onClick={onClose}
             className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
           >
             Close
@@ -341,61 +426,95 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
   }
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={handleClose}
-    >
-      <div 
-        className="bg-white rounded-lg max-w-lg w-full relative shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-xl">
         {/* Close Button */}
         <button
-          onClick={handleClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 hover:bg-gray-100 transition-all z-10"
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 hover:bg-gray-100 transition-all z-10"
           aria-label="Close"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        <div className="p-6">
-          <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-            {businessName}
-          </h3>
-          <p className="text-sm text-gray-500 text-center mb-4">Check-in QR Code</p>
-
-          {/* QR Code Image */}
-          <div className="bg-orange-50 p-6 rounded-lg flex justify-center mb-4">
-            <img 
-              src={qrCodeUrl} 
-              alt={`QR Code for ${businessName}`}
-              className="max-w-full h-auto border-4 border-white shadow-lg rounded-lg"
-              style={{ maxWidth: '280px' }}
-            />
+        <div className="p-6 md:p-8">
+          {/* Preview Header */}
+          <div className="text-center mb-4">
+            <h3 className="text-lg font-medium text-gray-700">Print-Ready QR Display</h3>
+            <p className="text-sm text-gray-400">Designed for guests to scan easily</p>
           </div>
 
-          {/* Check-in URL */}
-          <div className="text-sm text-gray-600 mb-4 p-3 bg-gray-50 rounded-lg">
-            <p className="font-medium mb-1">Check-in URL:</p>
-            <p className="font-mono text-orange-600 text-xs break-all">
-              {checkInUrl}
-            </p>
+          {/* QR Poster Preview */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-lg mb-6">
+            <div className="p-8 text-center">
+              {/* Business Logo Placeholder */}
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-orange-600 text-2xl">🏨</span>
+              </div>
+              
+              {/* Welcome Text */}
+              <p className="text-sm text-gray-500 mb-1">Welcome to</p>
+              
+              {/* Business Name */}
+              <h2 className="text-2xl md:text-3xl font-serif font-bold text-gray-900 mb-2">
+                {businessName}
+              </h2>
+              
+              {/* Main Call to Action */}
+              <div className="text-3xl md:text-4xl font-bold text-orange-500 my-4">
+                📱 Scan to Check In
+              </div>
+              
+              {/* QR Code */}
+              <div className="flex justify-center my-4">
+                <img 
+                  src={qrCodeUrl} 
+                  alt={`Check-in QR Code for ${businessName}`}
+                  className="w-64 h-64 md:w-80 md:h-80 border-2 border-gray-200 rounded-xl shadow-md"
+                />
+              </div>
+              
+              {/* Instructions */}
+              <p className="text-gray-600 text-sm md:text-base mt-4">
+                Open your camera and point it at the QR code
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                No app download required • Takes less than 1 minute
+              </p>
+              
+              {/* Powered By */}
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                <p className="text-gray-300 text-xs">
+                  Powered by FastCheckin
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
-              onClick={downloadQR}
+              onClick={downloadSimplePNG}
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex flex-col items-center gap-1 text-xs font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>QR Only</span>
+            </button>
+            
+            <button
+              onClick={downloadPNG}
               className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex flex-col items-center gap-1 text-xs font-medium transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              <span>Download</span>
+              <span>Poster (PNG)</span>
             </button>
-            
+
             <button
               onClick={printQR}
               className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 flex flex-col items-center gap-1 text-xs font-medium transition-colors"
@@ -412,29 +531,25 @@ export default function QRCodeModal({ businessId, businessName, onClose }: Props
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l5.414 5.414c.39.39.586.902.586 1.414V19a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
               </svg>
               <span>PDF</span>
             </button>
+          </div>
 
+          <div className="mt-4 flex justify-center">
             <button
               onClick={sendEmail}
-              disabled={sendingEmail}
-              className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center gap-1 text-xs font-medium transition-colors"
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 text-sm font-medium transition-colors"
             >
-              {sendingEmail ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              )}
-              <span>Send</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Send to Email
             </button>
           </div>
 
           <p className="text-xs text-gray-400 text-center mt-4">
-            Display this QR code at your reception. Guests scan with their phone camera to check in.
+            Print and display at your reception. Guests scan with their phone camera to check in.
           </p>
         </div>
       </div>
