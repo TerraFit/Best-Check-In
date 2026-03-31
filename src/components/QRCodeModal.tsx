@@ -6,7 +6,6 @@ interface Props {
   businessName: string;
   businessLogo?: string;
   onClose: () => void;
-  onLogoUpdate?: (logoUrl: string) => void;
 }
 
 export default function QRCodeModal({ businessId, businessName, businessLogo, onClose }: Props) {
@@ -14,14 +13,12 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [localLogo, setLocalLogo] = useState(businessLogo || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const posterRef = useRef<HTMLDivElement>(null);
 
-  // Poster dimensions - A4 ratio at 150 DPI (print quality)
+  // Poster dimensions - A4 at 150 DPI
   const POSTER_WIDTH = 1240;
-  const POSTER_HEIGHT = 1754; // A4 ratio (1:√2)
+  const POSTER_HEIGHT = 1754;
 
   useEffect(() => {
     generateQR();
@@ -34,12 +31,11 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       const url = `https://fastcheckin.co.za/checkin/${businessId}`;
       setCheckInUrl(url);
       
-      // Fixed size QR code - no scaling
       const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 400, // Fixed width for QR
+        width: 500, // Larger for better print quality
         margin: 1,
         color: {
-          dark: '#1e1e1e',
+          dark: '#000000',
           light: '#ffffff'
         }
       });
@@ -57,7 +53,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, GIF, etc.)');
+      alert('Please upload an image file (PNG, JPG, etc.)');
       return;
     }
 
@@ -66,92 +62,88 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       return;
     }
 
-    setUploadingLogo(true);
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64Logo = reader.result as string;
-      setLocalLogo(base64Logo);
-      setUploadingLogo(false);
+      setLocalLogo(reader.result as string);
     };
     reader.readAsDataURL(file);
   };
 
-  // Generate print-ready poster with fixed dimensions
+  // Generate poster with precise positioning
   const generatePoster = async (): Promise<string> => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Set fixed dimensions for print quality
       canvas.width = POSTER_WIDTH;
       canvas.height = POSTER_HEIGHT;
       
       // White background
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Load QR code image
+      // Load QR code
       const qrImg = new Image();
       qrImg.crossOrigin = 'Anonymous';
       qrImg.onload = () => {
-        // Fixed QR size - 500px (large, centered)
+        // QR Code - 500px square, centered
         const QR_SIZE = 500;
         const QR_X = (canvas.width - QR_SIZE) / 2;
-        const QR_Y = 500;
+        const QR_Y = 650;
         ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
-        // Load logo if exists
+        // Draw logo if exists
         if (localLogo) {
-          const logo = new Image();
-          logo.onload = () => {
+          const logoImg = new Image();
+          logoImg.onload = () => {
             const LOGO_SIZE = 100;
             const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
             const LOGO_Y = 100;
-            ctx.drawImage(logo, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
-            drawText();
+            ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+            drawAllText();
           };
-          logo.src = localLogo;
-          logo.crossOrigin = 'Anonymous';
+          logoImg.src = localLogo;
+          logoImg.crossOrigin = 'Anonymous';
         } else {
-          drawText();
+          drawAllText();
         }
 
-        function drawText() {
+        function drawAllText() {
           // Welcome text
-          ctx.font = '24px "Inter", sans-serif';
+          ctx.font = '400 28px "Inter", sans-serif';
           ctx.fillStyle = '#666666';
           ctx.textAlign = 'center';
-          ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 260 : 180);
+          ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 270 : 180);
 
-          // Business Name - large
-          ctx.font = 'bold 48px "Playfair Display", serif';
+          // Business Name - Large
+          ctx.font = '700 56px "Playfair Display", serif';
           ctx.fillStyle = '#1e1e1e';
-          ctx.fillText(businessName, canvas.width / 2, localLogo ? 340 : 260);
+          ctx.fillText(businessName, canvas.width / 2, localLogo ? 350 : 260);
 
-          // Hero CTA - large and bold
-          ctx.font = 'bold 42px "Inter", sans-serif';
+          // Main CTA - Bold Orange
+          ctx.font = '700 48px "Inter", sans-serif';
           ctx.fillStyle = '#f59e0b';
-          ctx.fillText('Scan to Check In', canvas.width / 2, QR_Y + QR_SIZE + 90);
+          ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y + QR_SIZE + 100);
 
           // Instructions
-          ctx.font = '24px "Inter", sans-serif';
+          ctx.font = '400 24px "Inter", sans-serif';
           ctx.fillStyle = '#4b5563';
-          ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 170);
+          ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 180);
 
           // Micro instructions
-          ctx.font = '20px "Inter", sans-serif';
+          ctx.font = '400 20px "Inter", sans-serif';
           ctx.fillStyle = '#9ca3af';
-          ctx.fillText('No app download required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 230);
+          ctx.fillText('No app download required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 240);
 
-          // Powered by - subtle
-          ctx.font = '16px "Inter", sans-serif';
+          // Powered by - bottom
+          ctx.font = '400 14px "Inter", sans-serif';
           ctx.fillStyle = '#d1d5db';
           ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 70);
           
-          ctx.font = '14px "Inter", sans-serif';
+          ctx.font = '400 12px "Inter", sans-serif';
           ctx.fillStyle = '#e5e7eb';
-          ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 35);
+          ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 40);
 
           resolve(canvas.toDataURL('image/png'));
         }
@@ -193,8 +185,8 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
                 box-shadow: 0 4px 12px rgba(0,0,0,0.1);
               }
               @media print {
-                body { background: white; padding: 0; }
-                img { box-shadow: none; }
+                body { background: white; padding: 0; margin: 0; }
+                img { box-shadow: none; max-width: 100%; height: auto; }
               }
             </style>
           </head>
@@ -246,16 +238,12 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
     }
   };
 
-  const handleClose = () => {
-    onClose();
-  };
-
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl p-6">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-center mt-3 text-gray-500 text-sm">Generating QR Code...</p>
+          <p className="text-center mt-3 text-gray-500 text-sm">Preparing your QR code...</p>
         </div>
       </div>
     );
@@ -268,17 +256,17 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
           <div className="text-red-500 text-3xl mb-3">⚠️</div>
           <h3 className="text-md font-semibold text-gray-900 mb-2">Error</h3>
           <p className="text-gray-600 text-sm mb-4">{error}</p>
-          <button onClick={handleClose} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm">Close</button>
+          <button onClick={onClose} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm">Close</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={handleClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl max-w-2xl w-full relative shadow-xl" onClick={(e) => e.stopPropagation()}>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 hover:bg-gray-100 transition-all z-10"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,16 +277,16 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
         <div className="p-6">
           {/* Header */}
           <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Print-Ready QR Display</h3>
-            <p className="text-sm text-gray-500">A4 size poster (210 x 297mm) • Print quality</p>
+            <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
+            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Perfect for printing</p>
           </div>
 
           {/* Logo Upload */}
           <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (Optional)</label>
             <div className="flex items-center gap-4">
               {localLogo ? (
-                <img src={localLogo} alt="Business Logo" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
+                <img src={localLogo} alt="Logo" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
               ) : (
                 <div className="h-16 w-16 bg-gray-200 rounded-lg flex items-center justify-center">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,14 +301,12 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
                   accept="image/*"
                   onChange={handleLogoUpload}
                   className="hidden"
-                  disabled={uploadingLogo}
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingLogo}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                 >
-                  {uploadingLogo ? 'Uploading...' : 'Choose Image'}
+                  Upload Logo
                 </button>
                 <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 2MB</p>
               </div>
@@ -331,40 +317,42 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
           </div>
 
           {/* Preview */}
-          <div className="bg-gray-100 rounded-lg p-4 mb-4 text-center">
-            <p className="text-xs text-gray-400 mb-2">Preview (print quality: 1240 x 1754 px)</p>
-            <div className="bg-white rounded-lg p-4 inline-block mx-auto">
-              {localLogo && <img src={localLogo} alt={businessName} className="h-8 w-auto mx-auto mb-2" />}
-              <p className="text-xs text-gray-500">Welcome to</p>
-              <p className="text-sm font-bold text-gray-900">{businessName}</p>
-              <div className="text-sm font-bold text-orange-500 my-2">📱 Scan to Check In</div>
-              <img src={qrCodeUrl} alt="QR Code" className="w-32 h-32 mx-auto border border-gray-200 rounded-lg" />
-              <p className="text-[10px] text-gray-500 mt-2">Open camera and point at QR code</p>
-              <p className="text-[9px] text-gray-400">No app required • Takes less than 1 minute</p>
+          <div className="bg-gray-100 rounded-lg p-6 mb-4">
+            <p className="text-xs text-gray-400 text-center mb-3">Preview (actual print size when downloaded)</p>
+            <div className="bg-white rounded-xl p-6 shadow-sm max-w-md mx-auto">
+              {localLogo && (
+                <img src={localLogo} alt={businessName} className="h-12 w-auto mx-auto mb-3" />
+              )}
+              <p className="text-xs text-gray-500 text-center">Welcome to</p>
+              <p className="text-lg font-bold text-gray-900 text-center">{businessName}</p>
+              <div className="text-center my-3">
+                <span className="text-orange-500 font-bold text-sm">📱 SCAN TO CHECK IN</span>
+              </div>
+              <div className="flex justify-center my-3">
+                <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40 border border-gray-200 rounded-lg" />
+              </div>
+              <p className="text-[10px] text-gray-500 text-center mt-2">Open your camera and point it at the QR code</p>
+              <p className="text-[9px] text-gray-400 text-center">No app required • Takes less than 1 minute</p>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button onClick={downloadQR} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex flex-col items-center gap-1 text-xs font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <button onClick={downloadQR} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium">
               QR Only
             </button>
-            <button onClick={downloadPoster} className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex flex-col items-center gap-1 text-xs font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            <button onClick={downloadPoster} className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium">
               Download Poster
             </button>
-            <button onClick={printPoster} className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 flex flex-col items-center gap-1 text-xs font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            <button onClick={printPoster} className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
               Print Poster
             </button>
-            <button onClick={sendEmail} className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex flex-col items-center gap-1 text-xs font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            <button onClick={sendEmail} className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
               Send Email
             </button>
           </div>
 
-          <p className="text-xs text-gray-400 text-center mt-4">
+          <p className="text-[10px] text-gray-400 text-center">
             Poster size: A4 (210 x 297mm) • Print on paper, laminate, display at reception
           </p>
         </div>
