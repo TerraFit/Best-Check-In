@@ -63,15 +63,9 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
-  // ✅ Simple fetch - no auth headers (matches your backend)
-  const fetchData = useCallback(async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
+  // ✅ SIMPLE FETCH - NO AUTH TOKENS
+  const simpleFetch = useCallback(async (url: string) => {
+    const response = await fetch(url);
     return response;
   }, []);
 
@@ -81,7 +75,7 @@ export default function BusinessDashboard() {
     if (!businessId) return;
 
     try {
-      const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      const res = await simpleFetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (res.ok) {
         const data = await res.json();
         setBusiness(data);
@@ -90,7 +84,7 @@ export default function BusinessDashboard() {
     } catch (err) {
       console.error('Failed to load business profile:', err);
     }
-  }, [fetchData]);
+  }, [simpleFetch]);
 
   // Load bookings
   const loadBookings = useCallback(async () => {
@@ -105,7 +99,7 @@ export default function BusinessDashboard() {
     try {
       console.log('📡 Fetching bookings for business:', businessId);
       
-      const res = await fetchData(
+      const res = await simpleFetch(
         `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
       );
 
@@ -128,7 +122,7 @@ export default function BusinessDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [fetchData]);
+  }, [simpleFetch]);
 
   // Apply filters to bookings
   const applyFilters = useCallback(() => {
