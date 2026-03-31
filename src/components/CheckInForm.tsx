@@ -485,19 +485,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
-                <input 
-                  type="checkbox" 
-                  id="popia" 
-                  className="mt-1 w-5 h-5 rounded border-stone-300 focus:ring-stone-900"
-                  style={{ accentColor: primaryColor }}
-                  checked={formData.popiaConsent}
-                  onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
-                />
-                <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
-                  I agree to receive marketing communications and news from {businessName} (POPIA Marketing Consent).
-                </label>
-              </div>
-            </div>
+  <input 
+    type="checkbox" 
+    id="popia" 
+    className="mt-1 w-5 h-5 rounded border-stone-300 focus:ring-stone-900"
+    style={{ accentColor: primaryColor }}
+    checked={formData.popiaConsent}
+    onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
+  />
+  <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
+    I agree to receive marketing communications and news from {businessName} (POPIA Marketing Consent).
+  </label>
+</div>
             
             <button 
               type="submit" 
