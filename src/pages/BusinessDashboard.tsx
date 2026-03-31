@@ -63,31 +63,38 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
-  // ✅ SIMPLE FETCH - NO AUTH TOKEN LOGIC
-  const fetchData = async (url: string) => {
+  // ✅ SIMPLE FETCH - NO AUTH, NO TOKENS
+  const simpleFetch = useCallback(async (url: string) => {
+    console.log('📡 Fetching:', url);
     const response = await fetch(url);
     return response;
-  };
+  }, []);
 
   // Load business profile
-  const loadBusinessProfile = async () => {
+  const loadBusinessProfile = useCallback(async () => {
     const businessId = getBusinessId();
-    if (!businessId) return;
+    if (!businessId) {
+      console.log('⚠️ No businessId found');
+      return;
+    }
 
     try {
-      const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      console.log('📡 Loading business profile for:', businessId);
+      const res = await simpleFetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (res.ok) {
         const data = await res.json();
         setBusiness(data);
         console.log('✅ Business profile loaded:', data.trading_name);
+      } else {
+        console.log('❌ Failed to load business profile:', res.status);
       }
     } catch (err) {
       console.error('Failed to load business profile:', err);
     }
-  };
+  }, [simpleFetch]);
 
   // Load bookings
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     const businessId = getBusinessId();
     if (!businessId) {
       console.warn('⚠️ No businessId found');
@@ -99,12 +106,12 @@ export default function BusinessDashboard() {
     try {
       console.log('📡 Fetching bookings for business:', businessId);
       
-      const res = await fetchData(
+      const res = await simpleFetch(
         `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
       );
 
       const data = await res.json();
-      console.log('📦 API Response:', data);
+      console.log('📦 API Response status:', res.status);
       
       let rawBookings: Booking[] = [];
       if (data.bookings && Array.isArray(data.bookings)) {
@@ -122,7 +129,7 @@ export default function BusinessDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [simpleFetch]);
 
   // Apply filters to bookings
   const applyFilters = useCallback(() => {
@@ -155,7 +162,7 @@ export default function BusinessDashboard() {
   useEffect(() => {
     loadBusinessProfile();
     loadBookings();
-  }, []);
+  }, [loadBusinessProfile, loadBookings]);
 
   // Apply filters when dependencies change
   useEffect(() => {
@@ -225,6 +232,24 @@ export default function BusinessDashboard() {
     setRefreshing(true);
     loadBookings();
   };
+
+  // Check if we're authenticated
+  const businessId = getBusinessId();
+  if (!businessId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-gray-500">No business found. Please log in.</p>
+          <button
+            onClick={() => window.location.href = '/business/login'}
+            className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
