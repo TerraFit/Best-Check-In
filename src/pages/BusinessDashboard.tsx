@@ -73,6 +73,7 @@ export default function BusinessDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [profileForm, setProfileForm] = useState({
     total_rooms: '',
     avg_price: '',
@@ -153,6 +154,34 @@ export default function BusinessDashboard() {
     }
   };
 
+  // Handle logo file upload
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, GIF, etc.)');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo must be less than 2MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Logo = reader.result as string;
+      setProfileForm({ ...profileForm, logo_url: base64Logo });
+      setUploadingLogo(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Save business profile
   const saveBusinessProfile = async () => {
     const businessId = getBusinessId();
@@ -189,7 +218,6 @@ export default function BusinessDashboard() {
   const applyFilters = useCallback(() => {
     let filtered = [...bookings];
     
-    // Date range filter (preset)
     const days = DATE_RANGES[dateRange];
     if (days) {
       const cutoffDate = new Date();
@@ -197,7 +225,6 @@ export default function BusinessDashboard() {
       filtered = filtered.filter(b => new Date(b.check_in_date) >= cutoffDate);
     }
     
-    // Custom date range filter
     if (startDate) {
       filtered = filtered.filter(b => b.check_in_date >= startDate);
     }
@@ -205,7 +232,6 @@ export default function BusinessDashboard() {
       filtered = filtered.filter(b => b.check_in_date <= endDate);
     }
     
-    // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(b => 
@@ -215,7 +241,6 @@ export default function BusinessDashboard() {
       );
     }
     
-    // Status filter
     if (statusFilter) {
       filtered = filtered.filter(b => b.status === statusFilter);
     }
@@ -331,7 +356,6 @@ export default function BusinessDashboard() {
   const requestIDPhoto = (booking: Booking) => {
     if (confirm(`Request ID photo for ${booking.guest_name}? This will send a verification request.`)) {
       alert(`ID photo request sent to ${booking.guest_email}`);
-      // In production, this would trigger an email/sms
     }
   };
 
@@ -511,7 +535,6 @@ export default function BusinessDashboard() {
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Guest Origins Chart */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
                 {guestOriginData.length === 0 ? (
@@ -542,7 +565,6 @@ export default function BusinessDashboard() {
                 )}
               </div>
 
-              {/* Referral Sources Chart */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
                 {referralData.length === 0 ? (
@@ -781,7 +803,7 @@ export default function BusinessDashboard() {
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
+                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {paginatedBookings.map((booking, index) => (
@@ -1133,15 +1155,44 @@ export default function BusinessDashboard() {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
-                    <input
-                      type="text"
-                      value={profileForm.logo_url}
-                      onChange={(e) => setProfileForm({ ...profileForm, logo_url: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="https://your-domain.com/logo.png"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Upload an image URL to display your business logo on the check-in page</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Business Logo</label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.logo_url ? (
+                        <img src={profileForm.logo_url} alt="Business Logo Preview" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
+                      ) : (
+                        <div className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          id="logo-upload"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                          disabled={uploadingLogo}
+                        />
+                        <button
+                          onClick={() => document.getElementById('logo-upload')?.click()}
+                          disabled={uploadingLogo}
+                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                        >
+                          {uploadingLogo ? 'Uploading...' : 'Choose Image'}
+                        </button>
+                        <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF up to 2MB</p>
+                      </div>
+                      {profileForm.logo_url && (
+                        <button
+                          onClick={() => setProfileForm({ ...profileForm, logo_url: '' })}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
