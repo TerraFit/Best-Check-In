@@ -484,19 +484,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </label>
               </div>
 
+              {/* UPDATED MARKETING CONSENT - GUEST-FRIENDLY VERSION */}
               <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
-  <input 
-    type="checkbox" 
-    id="popia" 
-    className="mt-1 w-5 h-5 rounded border-stone-300 focus:ring-stone-900"
-    style={{ accentColor: primaryColor }}
-    checked={formData.popiaConsent}
-    onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
-  />
-  <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
-    I agree to receive marketing communications and news from {businessName} (POPIA Marketing Consent).
-  </label>
-</div>
+                <input 
+                  type="checkbox" 
+                  id="popia" 
+                  className="mt-1 w-5 h-5 rounded border-stone-300 focus:ring-stone-900"
+                  style={{ accentColor: primaryColor }}
+                  checked={formData.popiaConsent}
+                  onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
+                />
+                <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
+                  Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName}</span>. 
+                  Unsubscribe anytime.
+                </label>
+              </div>
+            </div>
             
             <button 
               type="submit" 
@@ -508,6 +511,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           </div>
         )}
 
+        {/* Step 2 and 3 remain unchanged */}
         {step === 2 && (
           <div className="p-10 md:p-16 animate-fade-in flex-grow overflow-y-auto">
             <div className="border-b border-stone-100 pb-8 mb-10">
