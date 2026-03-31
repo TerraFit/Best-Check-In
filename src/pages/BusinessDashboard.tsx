@@ -63,19 +63,19 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
-  // ✅ SIMPLE FETCH - NO AUTH TOKENS
-  const simpleFetch = useCallback(async (url: string) => {
+  // ✅ SIMPLE FETCH - NO AUTH TOKEN LOGIC
+  const fetchData = async (url: string) => {
     const response = await fetch(url);
     return response;
-  }, []);
+  };
 
   // Load business profile
-  const loadBusinessProfile = useCallback(async () => {
+  const loadBusinessProfile = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
 
     try {
-      const res = await simpleFetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (res.ok) {
         const data = await res.json();
         setBusiness(data);
@@ -84,10 +84,10 @@ export default function BusinessDashboard() {
     } catch (err) {
       console.error('Failed to load business profile:', err);
     }
-  }, [simpleFetch]);
+  };
 
   // Load bookings
-  const loadBookings = useCallback(async () => {
+  const loadBookings = async () => {
     const businessId = getBusinessId();
     if (!businessId) {
       console.warn('⚠️ No businessId found');
@@ -99,7 +99,7 @@ export default function BusinessDashboard() {
     try {
       console.log('📡 Fetching bookings for business:', businessId);
       
-      const res = await simpleFetch(
+      const res = await fetchData(
         `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
       );
 
@@ -122,7 +122,7 @@ export default function BusinessDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [simpleFetch]);
+  };
 
   // Apply filters to bookings
   const applyFilters = useCallback(() => {
@@ -155,7 +155,7 @@ export default function BusinessDashboard() {
   useEffect(() => {
     loadBusinessProfile();
     loadBookings();
-  }, [loadBusinessProfile, loadBookings]);
+  }, []);
 
   // Apply filters when dependencies change
   useEffect(() => {
@@ -475,7 +475,7 @@ export default function BusinessDashboard() {
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      </tr>
+                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {paginatedBookings.map((booking, index) => (
