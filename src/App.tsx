@@ -14,6 +14,7 @@ import HomePage from './pages/HomePage';
 import ResetPassword from './pages/ResetPassword';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
+import ScrollToTop from './components/ScrollToTop';
 
 function CheckInWrapper() {
   return <CheckInApp />;
@@ -21,83 +22,78 @@ function CheckInWrapper() {
 
 function AppContent() {
   return (
-    <Routes>
-      {/* ========== PUBLIC ROUTES ========== */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/register" element={<BusinessRegistration />} />
-      <Route path="/registration-success" element={<RegistrationSuccess />} />
-      <Route path="/reset-password/:token" element={<ResetPassword />} />
-      
-      {/* ========== AUTH ROUTES ========== */}
-      <Route path="/business/login" element={<BusinessLogin />} />
-      <Route path="/super-admin-login" element={<SuperAdminLogin />} />
-      <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
-      
-      {/* ========== BUSINESS PROTECTED ROUTES ========== */}
-      <Route 
-        path="/business/pending" 
-        element={
-          <ProtectedRoute requiredRole="business">
-            <BusinessPending />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/business/dashboard" 
-        element={
-          <ProtectedRoute requiredRole="business">
-            <BusinessDashboard />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/business/messages" 
-        element={
-          <ProtectedRoute requiredRole="business">
-            <BusinessMessages />
-          </ProtectedRoute>
-        } 
-      />
-      
-      {/* ========== CHECK-IN ROUTES ========== */}
-      <Route path="/checkin" element={<CheckInWrapper />} />
-      <Route path="/checkin/:businessId" element={<CheckInWrapper />} />
-      
-      {/* ========== SUPER ADMIN PROTECTED ROUTES ========== */}
-      <Route 
-        path="/super-admin" 
-        element={
-          <ProtectedRoute requiredRole="super_admin">
-            <SuperAdminPortal />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/super-admin/approve" 
-        element={
-          <ProtectedRoute requiredRole="super_admin">
-            <ApproveBusinesses />
-          </ProtectedRoute>
-        } 
-      />
-      {/* FIXED: Changed from /admin/messages to /super-admin/messages */}
-      <Route 
-        path="/super-admin/messages" 
-        element={
-          <ProtectedRoute requiredRole="super_admin">
-            <AdminMessages />
-          </ProtectedRoute>
-        } 
-      />
-      
-      {/* ========== REDIRECT OLD ROUTES ========== */}
-      <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} />
-      <Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} />
-      
-      {/* 404 */}
-      <Route path="/unauthorized" element={<UnauthorizedPage />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/register" element={<BusinessRegistration />} />
+        <Route path="/registration-success" element={<RegistrationSuccess />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        
+        <Route path="/business/login" element={<BusinessLogin />} />
+        <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+        <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
+        
+        <Route 
+          path="/business/pending" 
+          element={
+            <ProtectedRoute requiredRole="business">
+              <BusinessPending />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/business/dashboard" 
+          element={
+            <ProtectedRoute requiredRole="business">
+              <BusinessDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/business/messages" 
+          element={
+            <ProtectedRoute requiredRole="business">
+              <BusinessMessages />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route path="/checkin" element={<CheckInWrapper />} />
+        <Route path="/checkin/:businessId" element={<CheckInWrapper />} />
+        
+        <Route 
+          path="/super-admin" 
+          element={
+            <ProtectedRoute requiredRole="super_admin">
+              <SuperAdminPortal />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/super-admin/approve" 
+          element={
+            <ProtectedRoute requiredRole="super_admin">
+              <ApproveBusinesses />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/super-admin/messages" 
+          element={
+            <ProtectedRoute requiredRole="super_admin">
+              <AdminMessages />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} />
+        <Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} />
+        
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </>
   );
 }
 
