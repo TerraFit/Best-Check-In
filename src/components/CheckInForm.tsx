@@ -34,6 +34,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   
   const [branding, setBranding] = useState<BusinessBranding | null>(null);
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
+  const [loading, setLoading] = useState(false);
   
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,7 +77,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const roomPrice = businessData.avg_price || 1500;
         return nights * roomPrice;
       }
-      return nights * 1500; // Default fallback
+      return nights * 1500;
     } catch (error) {
       console.error('Error getting room price:', error);
       return nights * 1500;
@@ -282,11 +283,72 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  const sendConfirmationEmail = async (booking: any) => {
+    try {
+      console.log('📧 Sending confirmation email to:', booking.guest_email);
+      
+      const response = await fetch('/.netlify/functions/send-confirmation-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...booking,
+          business_name: branding?.trading_name || businessName
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Confirmation email sent');
+      } else {
+        console.error('❌ Email failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Email error:', error);
+    }
+  };
+
+  const sendWhatsAppConfirmation = async (booking: any) => {
+    if (!booking.guest_phone) return;
+    
+    try {
+      console.log('💬 Sending WhatsApp to:', booking.guest_phone);
+      
+      const response = await fetch('/.netlify/functions/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: booking.guest_phone,
+          guest_name: booking.guest_name,
+          business_name: branding?.trading_name || businessName,
+          check_in_date: booking.check_in_date
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ WhatsApp sent');
+      } else {
+        console.error('❌ WhatsApp failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ WhatsApp error:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step === 1) setStep(2);
-    else if (step === 2) setStep(3);
-    else if (step === 3) {
+    
+    if (loading) return;
+    
+    if (step === 1) {
+      setStep(2);
+      return;
+    }
+    
+    if (step === 2) {
+      setStep(3);
+      return;
+    }
+    
+    if (step === 3) {
       if (!formData.signature) {
         alert("Please provide your digital signature.");
         return;
@@ -296,71 +358,82 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         return;
       }
 
-      // Calculate total amount based on nights
-      const totalAmount = await calculateTotalAmount(formData.nights);
+      setLoading(true);
 
-      const dbBooking = {
-        business_id: businessId,
-        guest_name: formData.fullName,
-        guest_email: formData.email,
-        guest_phone: formData.phone,
-        guest_id_number: formData.passportOrId,
-        guest_id_photo: formData.idPhoto,
-        guest_signature: formData.signature,
-        check_in_date: formData.arrivalDate,
-        check_out_date: formData.departureDate,
-        nights: formData.nights,
-        adults: formData.adults,
-        children: formData.kids,
-        total_amount: totalAmount,
-        status: 'checked_in',
-        guest_province: formData.province,
-        guest_city: formData.city,
-        guest_country: formData.country,
-        referral_source: formData.referral,  // ← CRITICAL ADDITION
-        marketing_consent: formData.popiaConsent,
-        created_at: new Date().toISOString()
-      };
+      try {
+        const totalAmount = await calculateTotalAmount(formData.nights);
 
-      // Save to database
-      const saved = await saveBookingToDatabase(dbBooking);
+        const dbBooking = {
+          business_id: businessId,
+          guest_name: formData.fullName,
+          guest_email: formData.email,
+          guest_phone: formData.phone,
+          guest_id_number: formData.passportOrId,
+          guest_id_photo: formData.idPhoto,
+          guest_signature: formData.signature,
+          check_in_date: formData.arrivalDate,
+          check_out_date: formData.departureDate,
+          nights: formData.nights,
+          adults: formData.adults,
+          children: formData.kids,
+          total_amount: totalAmount,
+          status: 'checked_in',
+          guest_province: formData.province,
+          guest_city: formData.city,
+          guest_country: formData.country,
+          referral_source: formData.referral,
+          marketing_consent: formData.popiaConsent,
+          created_at: new Date().toISOString()
+        };
 
-      const newBooking: Booking = {
-        id: Math.random().toString(36).substr(2, 9),
-        guestName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        country: formData.country,
-        city: formData.city,
-        province: formData.province,
-        passportOrId: formData.passportOrId,
-        nextDestination: formData.nextDestination,
-        checkInDate: formData.arrivalDate,
-        checkOutDate: formData.departureDate,
-        nights: formData.nights,
-        adults: formData.adults,
-        kids: formData.kids,
-        guests: formData.adults + formData.kids,
-        settlementMethod: formData.settlement as any,
-        referralSource: formData.referral as any,
-        roomType: 'Suite',
-        totalAmount: totalAmount,
-        status: 'Checked-In',
-        year: new Date().getFullYear(),
-        month: new Date().toLocaleString('default', { month: 'short' }),
-        signatureData: formData.signature,
-        idPhotoData: formData.idPhoto,
-        popiaMarketingConsent: formData.popiaConsent,
-        timestamp: new Date().toISOString(),
-        tenantId: businessId || 'default',
-        source: 'live_checkin',
-      };
+        await saveBookingToDatabase(dbBooking);
+        
+        // Send confirmations (fire and forget)
+        sendConfirmationEmail(dbBooking);
+        sendWhatsAppConfirmation(dbBooking);
 
-      if (formData.saveDetails) {
-        saveGuestProfile();
+        const newBooking: Booking = {
+          id: Math.random().toString(36).substr(2, 9),
+          guestName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          country: formData.country,
+          city: formData.city,
+          province: formData.province,
+          passportOrId: formData.passportOrId,
+          nextDestination: formData.nextDestination,
+          checkInDate: formData.arrivalDate,
+          checkOutDate: formData.departureDate,
+          nights: formData.nights,
+          adults: formData.adults,
+          kids: formData.kids,
+          guests: formData.adults + formData.kids,
+          settlementMethod: formData.settlement as any,
+          referralSource: formData.referral as any,
+          roomType: 'Suite',
+          totalAmount: totalAmount,
+          status: 'Checked-In',
+          year: new Date().getFullYear(),
+          month: new Date().toLocaleString('default', { month: 'short' }),
+          signatureData: formData.signature,
+          idPhotoData: formData.idPhoto,
+          popiaMarketingConsent: formData.popiaConsent,
+          timestamp: new Date().toISOString(),
+          tenantId: businessId || 'default',
+          source: 'live_checkin',
+        };
+
+        if (formData.saveDetails) {
+          await saveGuestProfile();
+        }
+
+        onComplete(newBooking);
+      } catch (error) {
+        console.error('Check-in error:', error);
+        alert('Something went wrong. Please try again.');
+      } finally {
+        setLoading(false);
       }
-
-      onComplete(newBooking);
     }
   };
 
@@ -485,7 +558,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </label>
               </div>
 
-              {/* UPDATED MARKETING CONSENT - GUEST-FRIENDLY VERSION */}
               <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
                 <input 
                   type="checkbox" 
@@ -504,7 +576,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             
             <button 
               type="submit" 
-              className="mt-16 text-white px-14 py-5 rounded-full font-bold hover:opacity-90 transition-all uppercase tracking-widest text-[10px] shadow-2xl transform hover:-translate-y-1"
+              disabled={loading}
+              className="mt-16 text-white px-14 py-5 rounded-full font-bold hover:opacity-90 transition-all uppercase tracking-widest text-[10px] shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: secondaryColor }}
             >
               Begin Statutory Check-In
@@ -639,7 +712,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               <button type="button" onClick={() => setStep(1)} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">Back</button>
               <button 
                 type="submit" 
-                className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
+                disabled={loading}
+                className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: secondaryColor }}
               >
                 Continue to Indemnity
@@ -897,11 +971,21 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               <button type="button" onClick={() => setStep(2)} className="text-stone-400 font-bold hover:text-stone-900 uppercase text-[10px] tracking-widest transition-colors">Return to Details</button>
               <button 
                 type="submit" 
-                disabled={!hasScrolledToBottom || !formData.acceptLegal || !formData.signature}
-                className="text-white px-20 py-6 rounded-full font-bold hover:opacity-90 transition-all shadow-2xl text-[10px] uppercase tracking-[0.2em] disabled:opacity-20 disabled:cursor-not-allowed transform hover:-translate-y-1 active:scale-95"
+                disabled={loading || !hasScrolledToBottom || !formData.acceptLegal || !formData.signature}
+                className="text-white px-20 py-6 rounded-full font-bold hover:opacity-90 transition-all shadow-2xl text-[10px] uppercase tracking-[0.2em] disabled:opacity-20 disabled:cursor-not-allowed transform hover:-translate-y-1 active:scale-95 flex items-center gap-3"
                 style={{ backgroundColor: secondaryColor }}
               >
-                Seal & Complete Registration
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  'Seal & Complete Registration'
+                )}
               </button>
             </div>
           </div>
