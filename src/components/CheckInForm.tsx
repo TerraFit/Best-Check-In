@@ -381,7 +381,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           guest_province: formData.province,
           guest_city: formData.city,
           guest_country: formData.country,
-          referral_source: formData.referral,
+         const dbBooking = {
+  // ... other fields
+  booking_source: formData.referral,  // ← Use booking_source instead
+  // ...
+};
           marketing_consent: formData.popiaConsent,
           created_at: new Date().toISOString()
         };
