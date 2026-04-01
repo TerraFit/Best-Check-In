@@ -5,18 +5,20 @@ interface Props {
   businessId: string;
   businessName: string;
   businessLogo?: string;
+  businessPhone?: string;
   onClose: () => void;
 }
 
-export default function QRCodeModal({ businessId, businessName, businessLogo, onClose }: Props) {
+export default function QRCodeModal({ businessId, businessName, businessLogo, businessPhone, onClose }: Props) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
   const [localLogo, setLocalLogo] = useState(businessLogo || '');
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Poster dimensions - A4 at 150 DPI
   const POSTER_WIDTH = 1240;
   const POSTER_HEIGHT = 1754;
 
@@ -32,7 +34,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       setCheckInUrl(url);
       
       const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 500, // Larger for better print quality
+        width: 500,
         margin: 1,
         color: {
           dark: '#000000',
@@ -69,7 +71,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
     reader.readAsDataURL(file);
   };
 
-  // Generate poster with precise positioning
   const generatePoster = async (): Promise<string> => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
@@ -79,21 +80,17 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       canvas.width = POSTER_WIDTH;
       canvas.height = POSTER_HEIGHT;
       
-      // White background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Load QR code
       const qrImg = new Image();
       qrImg.crossOrigin = 'Anonymous';
       qrImg.onload = () => {
-        // QR Code - 500px square, centered
         const QR_SIZE = 500;
         const QR_X = (canvas.width - QR_SIZE) / 2;
         const QR_Y = 650;
         ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
-        // Draw logo if exists
         if (localLogo) {
           const logoImg = new Image();
           logoImg.onload = () => {
@@ -110,33 +107,27 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
         }
 
         function drawAllText() {
-          // Welcome text
           ctx.font = '400 28px "Inter", sans-serif';
           ctx.fillStyle = '#666666';
           ctx.textAlign = 'center';
           ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 270 : 180);
 
-          // Business Name - Large
           ctx.font = '700 56px "Playfair Display", serif';
           ctx.fillStyle = '#1e1e1e';
           ctx.fillText(businessName, canvas.width / 2, localLogo ? 350 : 260);
 
-          // Main CTA - Bold Orange
           ctx.font = '700 48px "Inter", sans-serif';
           ctx.fillStyle = '#f59e0b';
           ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y + QR_SIZE + 100);
 
-          // Instructions
           ctx.font = '400 24px "Inter", sans-serif';
           ctx.fillStyle = '#4b5563';
           ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 180);
 
-          // Micro instructions
           ctx.font = '400 20px "Inter", sans-serif';
           ctx.fillStyle = '#9ca3af';
           ctx.fillText('No app download required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 240);
 
-          // Powered by - bottom
           ctx.font = '400 14px "Inter", sans-serif';
           ctx.fillStyle = '#d1d5db';
           ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 70);
@@ -215,6 +206,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
   };
 
   const sendEmail = async () => {
+    setSendingEmail(true);
     try {
       const response = await fetch('/.netlify/functions/send-qr-email', {
         method: 'POST',
@@ -228,13 +220,50 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
       });
 
       if (response.ok) {
-        alert(`QR Code sent successfully to ${businessName}`);
+        alert(`✅ QR Code sent successfully to ${businessName}`);
       } else {
-        alert('Failed to send email. Please try again.');
+        alert('❌ Failed to send email. Please try again.');
       }
     } catch (error) {
       console.error('Error sending email:', error);
       alert('Error sending email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const sendWhatsApp = async () => {
+    if (!businessPhone) {
+      alert('No phone number configured for this business');
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      const response = await fetch('/.netlify/functions/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: businessPhone,
+          guest_name: businessName,
+          business_name: businessName,
+          check_in_date: new Date().toISOString(),
+          qr_code_url: qrCodeUrl
+        })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        alert('✅ WhatsApp message sent successfully!');
+      } else {
+        alert(`❌ Failed to send WhatsApp: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('WhatsApp error:', error);
+      alert('Failed to send WhatsApp message');
+    } finally {
+      setSendingWhatsApp(false);
     }
   };
 
@@ -275,13 +304,11 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
         </button>
 
         <div className="p-6">
-          {/* Header */}
           <div className="text-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
             <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Perfect for printing</p>
           </div>
 
-          {/* Logo Upload */}
           <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (Optional)</label>
             <div className="flex items-center gap-4">
@@ -316,7 +343,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
             </div>
           </div>
 
-          {/* Preview */}
           <div className="bg-gray-100 rounded-lg p-6 mb-4">
             <p className="text-xs text-gray-400 text-center mb-3">Preview (actual print size when downloaded)</p>
             <div className="bg-white rounded-xl p-6 shadow-sm max-w-md mx-auto">
@@ -336,20 +362,41 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, on
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-            <button onClick={downloadQR} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+            <button 
+              onClick={downloadQR} 
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+            >
               QR Only
             </button>
-            <button onClick={downloadPoster} className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium">
+            <button 
+              onClick={downloadPoster} 
+              className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium"
+            >
               Download Poster
             </button>
-            <button onClick={printPoster} className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+            <button 
+              onClick={printPoster} 
+              className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
+            >
               Print Poster
             </button>
-            <button onClick={sendEmail} className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
-              Send Email
+            <button 
+              onClick={sendEmail} 
+              disabled={sendingEmail}
+              className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {sendingEmail ? 'Sending...' : 'Send Email'}
             </button>
+            {businessPhone && (
+              <button 
+                onClick={sendWhatsApp} 
+                disabled={sendingWhatsApp}
+                className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sendingWhatsApp ? 'Sending...' : '📱 WhatsApp'}
+              </button>
+            )}
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
