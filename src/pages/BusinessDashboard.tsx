@@ -21,6 +21,7 @@ interface Booking {
   guest_province?: string;
   guest_city?: string;
   referral_source?: string;
+  booking_source?: string;  // ← ADDED
   business_id: string;
   marketing_consent?: boolean;
 }
@@ -145,6 +146,14 @@ export default function BusinessDashboard() {
       
       const validBookings = rawBookings.filter(b => b.business_id === businessId);
       console.log(`📦 Loaded ${validBookings.length} bookings`);
+      
+      // Debug: Log referral data
+      console.log('📊 Sample referral data:', validBookings.slice(0, 3).map(b => ({
+        name: b.guest_name,
+        booking_source: b.booking_source,
+        referral_source: b.referral_source
+      })));
+      
       setBookings(validBookings);
     } catch (err) {
       console.error('Error loading bookings:', err);
@@ -159,20 +168,17 @@ export default function BusinessDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file (PNG, JPG, GIF, etc.)');
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('Logo must be less than 2MB');
       return;
     }
 
     setUploadingLogo(true);
-    // Convert to base64
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64Logo = reader.result as string;
@@ -289,14 +295,17 @@ export default function BusinessDashboard() {
     return Object.entries(countries).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
-  // Referral source data for pie chart
+  // Referral source data for pie chart - FIXED to use both fields
   const referralData = useMemo(() => {
     const sources: Record<string, number> = {};
     filteredBookings.forEach(b => {
-      if (b.referral_source) {
-        sources[b.referral_source] = (sources[b.referral_source] || 0) + 1;
+      // Check both fields - booking_source has the data from our SQL updates
+      const source = b.booking_source || b.referral_source;
+      if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
+        sources[source] = (sources[source] || 0) + 1;
       }
     });
+    console.log('📊 Referral data for chart:', sources);
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
@@ -324,7 +333,7 @@ export default function BusinessDashboard() {
       b.nights || 1,
       b.total_amount || 0,
       b.status || 'pending',
-      `"${b.referral_source || ''}"`
+      `"${b.booking_source || b.referral_source || ''}"`
     ]);
     
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -352,7 +361,6 @@ export default function BusinessDashboard() {
     loadBookings();
   };
 
-  // Request ID photo (requires confirmation)
   const requestIDPhoto = (booking: Booking) => {
     if (confirm(`Request ID photo for ${booking.guest_name}? This will send a verification request.`)) {
       alert(`ID photo request sent to ${booking.guest_email}`);
@@ -657,6 +665,7 @@ export default function BusinessDashboard() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
@@ -668,6 +677,7 @@ export default function BusinessDashboard() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.check_out_date || 'N/A'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{booking.nights || 1}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">R {(booking.total_amount || 0).toLocaleString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.booking_source || booking.referral_source || 'N/A'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
                               {booking.status || 'pending'}
@@ -686,7 +696,7 @@ export default function BusinessDashboard() {
         {/* CHECK-INS TAB */}
         {activeTab === 'checkins' && (
           <div className="space-y-6">
-            {/* Filters */}
+            {/* Filters - Same as before */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -801,9 +811,10 @@ export default function BusinessDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                       </tr>
+                      </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {paginatedBookings.map((booking, index) => (
@@ -837,6 +848,9 @@ export default function BusinessDashboard() {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             R {(booking.total_amount || 0).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.booking_source || booking.referral_source || 'N/A'}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
@@ -897,10 +911,9 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB */}
+        {/* REPORTS TAB - Same structure with fixed referralData */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
-            {/* Date Range Filter for Reports */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -965,7 +978,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Report Summary */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Summary</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -994,7 +1006,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins</h3>
@@ -1057,7 +1068,6 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Export Options */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Report</h3>
               <div className="flex gap-4">
@@ -1084,14 +1094,13 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
+        {/* SETTINGS TAB - Same as before */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
             
             {!editingProfile ? (
               <div className="space-y-6">
-                {/* Current Business Information Display */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm font-medium text-gray-700 mb-2">Business Information</p>
