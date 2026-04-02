@@ -19,7 +19,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   const [sendingEmail, setSendingEmail] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
 
   // A4 dimensions at 96 DPI
   const A4_WIDTH = 794;
@@ -84,28 +83,23 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       
       if (!ctx) return;
 
-      // White background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Load images
       const qrImg = await loadImage(qrCodeUrl);
       
-      // Layout constants - LARGER LOGO for print
-      const LOGO_SIZE = 120;  // Increased from 100 for better print visibility
+      const LOGO_SIZE = 120;
       const QR_SIZE = 320;
       const QR_X = (canvas.width - QR_SIZE) / 2;
       const QR_Y = 380;
       
-      // Draw logo (top center) - LARGER for print
       if (localLogo) {
         const logoImg = await loadImage(localLogo);
         const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
-        const LOGO_Y = 60;  // Moved up slightly
+        const LOGO_Y = 60;
         ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
       }
 
-      // Draw text
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#6b7280';
       ctx.textAlign = 'center';
@@ -174,7 +168,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
       const qrImg = await loadImage(qrCodeUrl);
       
-      const LOGO_SIZE = 120;  // LARGER for print
+      const LOGO_SIZE = 120;
       const QR_SIZE = 320;
       const QR_X = (canvas.width - QR_SIZE) / 2;
       const QR_Y = 380;
@@ -225,17 +219,28 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             <head>
               <title>Check-in Poster - ${businessName}</title>
               <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                  display: flex; 
+                  justify-content: center; 
+                  align-items: center; 
+                  min-height: 100vh; 
+                  background: #f0f0f0;
+                  padding: 20px;
+                }
+                img { 
+                  max-width: 100%; 
+                  height: auto; 
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
                 @media print {
-                  body { margin: 0; padding: 0; }
-                  img { 
-                    max-width: 100%;
-                    height: auto;
-                  }
+                  body { background: white; padding: 0; margin: 0; }
+                  img { box-shadow: none; max-width: 100%; height: auto; }
                 }
               </style>
             </head>
-            <body style="display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;">
-              <img src="${canvas.toDataURL('image/png')}" style="max-width: 100%; height: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <body>
+              <img src="${canvas.toDataURL('image/png')}" alt="Check-in Poster">
               <script>
                 window.onload = () => {
                   setTimeout(() => {
@@ -401,25 +406,25 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             </div>
           </div>
 
-          {/* ACTUAL SIZE PREVIEW - Now with logo visible */}
+          {/* ACTUAL SIZE PREVIEW - EXACT match to print */}
           <div className="bg-gray-100 rounded-lg p-6 mb-4 overflow-auto flex justify-center">
             <div 
-              ref={previewRef}
               style={{
                 width: `${A4_WIDTH}px`,
                 minWidth: `${A4_WIDTH}px`,
                 height: `${A4_HEIGHT}px`,
                 backgroundColor: 'white',
                 position: 'relative',
-                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                fontFamily: 'Inter, system-ui, sans-serif'
               }}
             >
-              {/* Logo */}
+              {/* LOGO - EXACT same size as print (120px) */}
               {localLogo && (
                 <div style={{ textAlign: 'center', paddingTop: '60px' }}>
                   <img 
                     src={localLogo} 
-                    alt="Business Logo" 
+                    alt={`${businessName} logo`}
                     style={{
                       height: '120px',
                       width: 'auto',
@@ -434,7 +439,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
               {/* Welcome text */}
               <div style={{ textAlign: 'center', marginTop: localLogo ? '30px' : '160px' }}>
-                <p style={{ fontFamily: 'Inter, system-ui', fontSize: '18px', color: '#6b7280', marginBottom: '8px' }}>
+                <p style={{ fontSize: '18px', color: '#6b7280', marginBottom: '8px' }}>
                   Welcome to
                 </p>
                 <h1 style={{ 
@@ -452,7 +457,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
               {/* CTA and QR */}
               <div style={{ textAlign: 'center', marginTop: '30px' }}>
                 <p style={{ 
-                  fontFamily: 'Inter, system-ui', 
                   fontSize: '22px', 
                   fontWeight: 700, 
                   color: '#f97316',
@@ -477,20 +481,20 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
               {/* Instructions */}
               <div style={{ textAlign: 'center', marginTop: '40px' }}>
-                <p style={{ fontFamily: 'Inter, system-ui', fontSize: '16px', color: '#374151', marginBottom: '8px' }}>
+                <p style={{ fontSize: '16px', color: '#374151', marginBottom: '8px' }}>
                   Open your camera and point it at the QR code
                 </p>
-                <p style={{ fontFamily: 'Inter, system-ui', fontSize: '13px', color: '#9ca3af' }}>
+                <p style={{ fontSize: '13px', color: '#9ca3af' }}>
                   No app required • Takes less than 1 minute
                 </p>
               </div>
 
               {/* Footer */}
               <div style={{ textAlign: 'center', position: 'absolute', bottom: '30px', left: 0, right: 0 }}>
-                <p style={{ fontFamily: 'Inter, system-ui', fontSize: '11px', color: '#d1d5db', margin: 0 }}>
+                <p style={{ fontSize: '11px', color: '#d1d5db', margin: 0 }}>
                   Powered by FastCheckin
                 </p>
-                <p style={{ fontFamily: 'Inter, system-ui', fontSize: '10px', color: '#e5e7eb', margin: 0 }}>
+                <p style={{ fontSize: '10px', color: '#e5e7eb', margin: 0 }}>
                   www.fastcheckin.co.za
                 </p>
               </div>
@@ -538,7 +542,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
-            Exact A4 size (210 x 297mm) • Preview shows actual proportions • Logo size optimized for print
+            Exact A4 size (210 x 297mm) • Logo displays at 120px (print-optimized)
           </p>
         </div>
       </div>
