@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import * as XLSX from 'xlsx';
 
 // Types
 interface Booking {
@@ -21,7 +22,7 @@ interface Booking {
   guest_province?: string;
   guest_city?: string;
   referral_source?: string;
-  booking_source?: string;  // ← ADDED
+  booking_source?: string;
   business_id: string;
   marketing_consent?: boolean;
 }
@@ -146,14 +147,6 @@ export default function BusinessDashboard() {
       
       const validBookings = rawBookings.filter(b => b.business_id === businessId);
       console.log(`📦 Loaded ${validBookings.length} bookings`);
-      
-      // Debug: Log referral data
-      console.log('📊 Sample referral data:', validBookings.slice(0, 3).map(b => ({
-        name: b.guest_name,
-        booking_source: b.booking_source,
-        referral_source: b.referral_source
-      })));
-      
       setBookings(validBookings);
     } catch (err) {
       console.error('Error loading bookings:', err);
@@ -295,17 +288,15 @@ export default function BusinessDashboard() {
     return Object.entries(countries).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
-  // Referral source data for pie chart - FIXED to use both fields
+  // Referral source data for pie chart
   const referralData = useMemo(() => {
     const sources: Record<string, number> = {};
     filteredBookings.forEach(b => {
-      // Check both fields - booking_source has the data from our SQL updates
       const source = b.booking_source || b.referral_source;
       if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
         sources[source] = (sources[source] || 0) + 1;
       }
     });
-    console.log('📊 Referral data for chart:', sources);
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
@@ -345,6 +336,82 @@ export default function BusinessDashboard() {
     a.click();
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
+
+  // NEW: Export to XLSX (Excel)
+  const exportToXLSX = useCallback(() => {
+    // Prepare data for Excel
+    const excelData = filteredBookings.map(b => ({
+      'Guest Name': b.guest_name || '',
+      'Email': b.guest_email || '',
+      'Phone': b.guest_phone || '',
+      'ID Number': b.guest_id_number || '',
+      'Country': b.guest_country || '',
+      'Province': b.guest_province || '',
+      'City': b.guest_city || '',
+      'Check-in Date': b.check_in_date || '',
+      'Check-out Date': b.check_out_date || '',
+      'Nights': b.nights || 1,
+      'Total Amount (ZAR)': b.total_amount || 0,
+      'Status': b.status || 'pending',
+      'Referral Source': b.booking_source || b.referral_source || ''
+    }));
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    // Auto-size columns (optional - set column widths)
+    const colWidths = [
+      { wch: 25 }, // Guest Name
+      { wch: 30 }, // Email
+      { wch: 15 }, // Phone
+      { wch: 20 }, // ID Number
+      { wch: 15 }, // Country
+      { wch: 20 }, // Province
+      { wch: 20 }, // City
+      { wch: 15 }, // Check-in Date
+      { wch: 15 }, // Check-out Date
+      { wch: 8 },  // Nights
+      { wch: 18 }, // Total Amount
+      { wch: 12 }, // Status
+      { wch: 20 }, // Referral Source
+    ];
+    ws['!cols'] = colWidths;
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Bookings Report');
+
+    // Add summary sheet with metrics
+    const summaryData = [
+      { Metric: 'Business Name', Value: business?.trading_name || 'N/A' },
+      { Metric: 'Report Generated', Value: new Date().toLocaleString() },
+      { Metric: 'Date Range', Value: startDate && endDate ? `${startDate} to ${endDate}` : dateRange },
+      { Metric: 'Total Bookings', Value: filteredBookings.length },
+      { Metric: 'Total Revenue', Value: `R ${metrics.totalRevenue.toLocaleString()}` },
+      { Metric: 'Average Stay', Value: `${metrics.avgStay} nights` },
+      { Metric: '', Value: '' },
+      { Metric: 'Referral Source Breakdown', Value: '' },
+    ];
+    
+    // Add referral breakdown
+    referralData.forEach(r => {
+      summaryData.push({ Metric: `  ${r.name}`, Value: `${r.value} bookings` });
+    });
+    
+    summaryData.push({ Metric: '', Value: '' });
+    summaryData.push({ Metric: 'Guest Origin Breakdown', Value: '' });
+    
+    guestOriginData.forEach(o => {
+      summaryData.push({ Metric: `  ${o.name}`, Value: `${o.value} bookings` });
+    });
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    // Generate Excel file
+    XLSX.writeFile(wb, `${business?.trading_name || 'bookings'}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -420,15 +487,6 @@ export default function BusinessDashboard() {
               >
                 <svg className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button
-                onClick={exportToCSV}
-                className="p-2 text-gray-500 hover:text-orange-500 rounded-lg hover:bg-gray-100 transition-colors"
-                title="Export CSV"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               </button>
               <button
@@ -693,10 +751,10 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* CHECK-INS TAB */}
+        {/* CHECK-INS TAB - Same as before */}
         {activeTab === 'checkins' && (
           <div className="space-y-6">
-            {/* Filters - Same as before */}
+            {/* Filters */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -789,7 +847,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Check-ins Table with Full Details */}
+            {/* Check-ins Table */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
@@ -832,7 +890,7 @@ export default function BusinessDashboard() {
                           </td>
                           <td className="px-4 py-4 text-sm font-mono text-gray-500">
                             {booking.guest_id_number ? (
-                              <span title="Click to request photo" className="cursor-help">
+                              <span className="cursor-help">
                                 {booking.guest_id_number.substring(0, 8)}...
                               </span>
                             ) : 'N/A'}
@@ -911,9 +969,10 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB - Same structure with fixed referralData */}
+        {/* REPORTS TAB - Updated with XLS Export */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
+            {/* Date Range Filter for Reports */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -978,6 +1037,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Report Summary */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Summary</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1006,6 +1066,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins</h3>
@@ -1068,9 +1129,10 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
+            {/* Export Options - UPDATED with XLS */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Report</h3>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-4">
                 <button
                   onClick={exportToCSV}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
@@ -1079,6 +1141,15 @@ export default function BusinessDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Export to CSV
+                </button>
+                <button
+                  onClick={exportToXLSX}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export to Excel (XLSX)
                 </button>
                 <button
                   onClick={() => window.print()}
@@ -1090,11 +1161,14 @@ export default function BusinessDashboard() {
                   Print Report
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-4">
+                Excel export includes: Detailed bookings sheet + Summary sheet with metrics and breakdowns
+              </p>
             </div>
           </div>
         )}
 
-        {/* SETTINGS TAB - Same as before */}
+        {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
@@ -1241,6 +1315,7 @@ export default function BusinessDashboard() {
           businessId={business.id}
           businessName={business.trading_name}
           businessLogo={business.logo_url}
+          businessPhone={business.phone}
           onClose={() => setShowQRModal(false)}
         />
       )}
