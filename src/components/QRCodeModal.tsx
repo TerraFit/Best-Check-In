@@ -15,6 +15,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   const [error, setError] = useState('');
   const [checkInUrl, setCheckInUrl] = useState('');
   const [localLogo, setLocalLogo] = useState(businessLogo || '');
+  const [logoDimensions, setLogoDimensions] = useState({ width: 0, height: 0 });
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -24,17 +25,38 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   // A4 dimensions at 96 DPI
   const A4_WIDTH = 794;
   const A4_HEIGHT = 1123;
+  const MAX_LOGO_WIDTH = 200;
+  const MAX_LOGO_HEIGHT = 120;
 
   useEffect(() => {
     generateQR();
   }, [businessId]);
 
-  // Draw preview whenever QR or logo changes
+  // Calculate logo dimensions when logo changes
+  useEffect(() => {
+    if (localLogo) {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(
+          MAX_LOGO_WIDTH / img.width,
+          MAX_LOGO_HEIGHT / img.height,
+          1
+        );
+        setLogoDimensions({
+          width: img.width * ratio,
+          height: img.height * ratio
+        });
+      };
+      img.src = localLogo;
+    }
+  }, [localLogo]);
+
+  // Draw preview whenever QR, logo, or dimensions change
   useEffect(() => {
     if (!loading && qrCodeUrl && previewCanvasRef.current) {
       drawPoster(previewCanvasRef.current);
     }
-  }, [loading, qrCodeUrl, localLogo, businessName]);
+  }, [loading, qrCodeUrl, localLogo, businessName, logoDimensions]);
 
   const generateQR = async () => {
     setLoading(true);
@@ -93,7 +115,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const LOGO_SIZE = 120;
     const QR_SIZE = 320;
     const QR_X = (canvas.width - QR_SIZE) / 2;
     const QR_Y = 380;
@@ -138,13 +159,13 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
       
       // Load logo if exists
-      if (localLogo) {
+      if (localLogo && logoDimensions.width > 0) {
         const logoImg = new Image();
         logoImg.crossOrigin = 'Anonymous';
         logoImg.onload = () => {
-          const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
+          const LOGO_X = (canvas.width - logoDimensions.width) / 2;
           const LOGO_Y = 60;
-          ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+          ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
           draw();
         };
         logoImg.src = localLogo;
@@ -170,16 +191,15 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
       const qrImg = await loadImage(qrCodeUrl);
       
-      const LOGO_SIZE = 120;
       const QR_SIZE = 320;
       const QR_X = (canvas.width - QR_SIZE) / 2;
       const QR_Y = 380;
       
-      if (localLogo) {
+      if (localLogo && logoDimensions.width > 0) {
         const logoImg = await loadImage(localLogo);
-        const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
+        const LOGO_X = (canvas.width - logoDimensions.width) / 2;
         const LOGO_Y = 60;
-        ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+        ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
       }
 
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
@@ -250,16 +270,15 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
       const qrImg = await loadImage(qrCodeUrl);
       
-      const LOGO_SIZE = 120;
       const QR_SIZE = 320;
       const QR_X = (canvas.width - QR_SIZE) / 2;
       const QR_Y = 380;
       
-      if (localLogo) {
+      if (localLogo && logoDimensions.width > 0) {
         const logoImg = await loadImage(localLogo);
-        const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
+        const LOGO_X = (canvas.width - logoDimensions.width) / 2;
         const LOGO_Y = 60;
-        ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+        ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
       }
 
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
@@ -450,7 +469,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         <div className="p-6">
           <div className="text-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
-            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Preview scaled to fit • Logo prints at full 120px</p>
+            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Logo maintains original proportions</p>
           </div>
 
           {/* Logo Upload */}
@@ -458,7 +477,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (Optional)</label>
             <div className="flex items-center gap-4">
               {localLogo ? (
-                <img src={localLogo} alt="Logo" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
+                <img src={localLogo} alt="Logo" className="h-16 w-auto object-contain border rounded-lg p-1 bg-white" />
               ) : (
                 <div className="h-16 w-16 bg-gray-200 rounded-lg flex items-center justify-center">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,7 +499,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
                 >
                   Upload Logo
                 </button>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 2MB</p>
+                <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 2MB • Preserves original aspect ratio</p>
               </div>
               {localLogo && (
                 <button onClick={() => setLocalLogo('')} className="text-red-500 hover:text-red-700 text-sm">Remove</button>
@@ -488,7 +507,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             </div>
           </div>
 
-          {/* Canvas Preview - Scaled with CSS but renders at full A4 size */}
+          {/* Canvas Preview */}
           <div className="bg-gray-100 rounded-lg p-6 mb-4 flex justify-center overflow-auto">
             <canvas
               ref={previewCanvasRef}
@@ -544,7 +563,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
-            Canvas renders at exact A4 dimensions (794×1123px) • Preview scaled to fit screen • Logo prints at 120px
+            Canvas renders at exact A4 dimensions (794×1123px) • Logo maintains original aspect ratio • Max width: 200px, Max height: 120px
           </p>
         </div>
       </div>
