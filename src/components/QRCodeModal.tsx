@@ -17,10 +17,13 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   const [localLogo, setLocalLogo] = useState(businessLogo || '');
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const POSTER_WIDTH = 1240;
-  const POSTER_HEIGHT = 1754;
+  // A4 dimensions at 96 DPI for perfect print
+  const A4_WIDTH = 794;
+  const A4_HEIGHT = 1123;
 
   useEffect(() => {
     generateQR();
@@ -34,8 +37,8 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       setCheckInUrl(url);
       
       const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 500,
-        margin: 1,
+        width: 400,
+        margin: 2,
         color: {
           dark: '#000000',
           light: '#ffffff'
@@ -71,32 +74,38 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     reader.readAsDataURL(file);
   };
 
-  const generatePoster = async (): Promise<string> => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
+  // Draw the poster on canvas (used for both preview and download)
+  const drawPoster = async (canvas: HTMLCanvasElement): Promise<void> => {
+    return new Promise((resolve, reject) => {
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        reject('Could not get canvas context');
+        return;
+      }
 
-      canvas.width = POSTER_WIDTH;
-      canvas.height = POSTER_HEIGHT;
-      
+      canvas.width = A4_WIDTH;
+      canvas.height = A4_HEIGHT;
+
+      // White background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Load QR code
       const qrImg = new Image();
       qrImg.crossOrigin = 'Anonymous';
       qrImg.onload = () => {
-        const QR_SIZE = 500;
+        // Layout calculations
+        const LOGO_SIZE = 100;
+        const QR_SIZE = 320;
         const QR_X = (canvas.width - QR_SIZE) / 2;
-        const QR_Y = 650;
-        ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
-
+        const QR_Y = 380;
+        
+        // Draw logo (top center) - FIRST, as visual anchor
         if (localLogo) {
           const logoImg = new Image();
           logoImg.onload = () => {
-            const LOGO_SIZE = 100;
             const LOGO_X = (canvas.width - LOGO_SIZE) / 2;
-            const LOGO_Y = 100;
+            const LOGO_Y = 70;
             ctx.drawImage(logoImg, LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
             drawAllText();
           };
@@ -107,94 +116,129 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         }
 
         function drawAllText() {
-          ctx.font = '400 28px "Inter", sans-serif';
-          ctx.fillStyle = '#666666';
+          // "Welcome to" text
+          ctx.font = '400 18px "Inter", system-ui, sans-serif';
+          ctx.fillStyle = '#6b7280';
           ctx.textAlign = 'center';
-          ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 270 : 180);
+          ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 230 : 160);
 
-          ctx.font = '700 56px "Playfair Display", serif';
-          ctx.fillStyle = '#1e1e1e';
-          ctx.fillText(businessName, canvas.width / 2, localLogo ? 350 : 260);
+          // Business name
+          ctx.font = '700 42px "Playfair Display", Georgia, serif';
+          ctx.fillStyle = '#111827';
+          ctx.fillText(businessName, canvas.width / 2, localLogo ? 290 : 220);
 
-          ctx.font = '700 48px "Inter", sans-serif';
-          ctx.fillStyle = '#f59e0b';
-          ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y + QR_SIZE + 100);
+          // CTA
+          ctx.font = '700 22px "Inter", system-ui, sans-serif';
+          ctx.fillStyle = '#f97316';
+          ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y - 40);
 
-          ctx.font = '400 24px "Inter", sans-serif';
-          ctx.fillStyle = '#4b5563';
-          ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 180);
+          // QR code
+          ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
-          ctx.font = '400 20px "Inter", sans-serif';
+          // Instructions
+          ctx.font = '400 16px "Inter", system-ui, sans-serif';
+          ctx.fillStyle = '#374151';
+          ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 50);
+
+          ctx.font = '400 13px "Inter", system-ui, sans-serif';
           ctx.fillStyle = '#9ca3af';
-          ctx.fillText('No app download required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 240);
+          ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
-          ctx.font = '400 14px "Inter", sans-serif';
+          // Footer
+          ctx.font = '400 11px "Inter", system-ui, sans-serif';
           ctx.fillStyle = '#d1d5db';
-          ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 70);
+          ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 50);
           
-          ctx.font = '400 12px "Inter", sans-serif';
+          ctx.font = '400 10px "Inter", system-ui, sans-serif';
           ctx.fillStyle = '#e5e7eb';
-          ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 40);
+          ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 30);
 
-          resolve(canvas.toDataURL('image/png'));
+          resolve();
         }
       };
       qrImg.src = qrCodeUrl;
     });
   };
 
+  // Update preview canvas whenever logo or QR changes
+  useEffect(() => {
+    if (!loading && qrCodeUrl && previewCanvasRef.current) {
+      drawPoster(previewCanvasRef.current).catch(console.error);
+    }
+  }, [loading, qrCodeUrl, localLogo, businessName]);
+
   const downloadPoster = async () => {
-    const posterUrl = await generatePoster();
-    const link = document.createElement('a');
-    link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-poster.png`;
-    link.href = posterUrl;
-    link.click();
+    setDownloading(true);
+    try {
+      const canvas = document.createElement('canvas');
+      await drawPoster(canvas);
+      
+      const link = document.createElement('a');
+      link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-poster.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Error generating poster:', error);
+      alert('Failed to generate poster. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const printPoster = async () => {
-    const posterUrl = await generatePoster();
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Check-in Poster - ${businessName}</title>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
-                min-height: 100vh; 
-                background: #f0f0f0;
-                padding: 20px;
-              }
-              img { 
-                max-width: 100%; 
-                height: auto; 
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-              }
-              @media print {
-                body { background: white; padding: 0; margin: 0; }
-                img { box-shadow: none; max-width: 100%; height: auto; }
-              }
-            </style>
-          </head>
-          <body>
-            <img src="${posterUrl}" alt="Check-in Poster">
-            <script>
-              window.onload = () => {
-                setTimeout(() => {
-                  window.print();
-                  window.close();
-                }, 500);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+    setDownloading(true);
+    try {
+      const canvas = document.createElement('canvas');
+      await drawPoster(canvas);
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Check-in Poster - ${businessName}</title>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                  display: flex; 
+                  justify-content: center; 
+                  align-items: center; 
+                  min-height: 100vh; 
+                  background: #f0f0f0;
+                  padding: 20px;
+                }
+                img { 
+                  max-width: 100%; 
+                  height: auto; 
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+                @media print {
+                  body { background: white; padding: 0; margin: 0; }
+                  img { box-shadow: none; max-width: 100%; height: auto; }
+                }
+              </style>
+            </head>
+            <body>
+              <img src="${canvas.toDataURL('image/png')}" alt="Check-in Poster">
+              <script>
+                window.onload = () => {
+                  setTimeout(() => {
+                    window.print();
+                    window.close();
+                  }, 500);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    } catch (error) {
+      console.error('Error printing poster:', error);
+      alert('Failed to print poster. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -252,12 +296,10 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         })
       });
 
-      const result = await response.json();
-      
       if (response.ok) {
         alert('✅ WhatsApp message sent successfully!');
       } else {
-        alert(`❌ Failed to send WhatsApp: ${result.error || 'Unknown error'}`);
+        alert('❌ Failed to send WhatsApp message');
       }
     } catch (error) {
       console.error('WhatsApp error:', error);
@@ -293,7 +335,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-2xl w-full relative shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl max-w-5xl w-full relative shadow-xl" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 hover:bg-gray-100 transition-all z-10"
@@ -306,10 +348,11 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         <div className="p-6">
           <div className="text-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
-            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Perfect for printing</p>
+            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • What you see is what you get</p>
           </div>
 
-          <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          {/* Logo Upload */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (Optional)</label>
             <div className="flex items-center gap-4">
               {localLogo ? (
@@ -343,25 +386,27 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             </div>
           </div>
 
-          <div className="bg-gray-100 rounded-lg p-6 mb-4">
-            <p className="text-xs text-gray-400 text-center mb-3">Preview (actual print size when downloaded)</p>
-            <div className="bg-white rounded-xl p-6 shadow-sm max-w-md mx-auto">
-              {localLogo && (
-                <img src={localLogo} alt={businessName} className="h-12 w-auto mx-auto mb-3" />
-              )}
-              <p className="text-xs text-gray-500 text-center">Welcome to</p>
-              <p className="text-lg font-bold text-gray-900 text-center">{businessName}</p>
-              <div className="text-center my-3">
-                <span className="text-orange-500 font-bold text-sm">📱 SCAN TO CHECK IN</span>
-              </div>
-              <div className="flex justify-center my-3">
-                <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40 border border-gray-200 rounded-lg" />
-              </div>
-              <p className="text-[10px] text-gray-500 text-center mt-2">Open your camera and point it at the QR code</p>
-              <p className="text-[9px] text-gray-400 text-center">No app required • Takes less than 1 minute</p>
+          {/* EXACT PREVIEW - Same size as download */}
+          <div className="bg-gray-100 rounded-lg p-6 mb-4 flex justify-center overflow-auto">
+            <div className="shadow-xl" style={{ maxWidth: '100%', overflow: 'auto' }}>
+              <canvas
+                ref={previewCanvasRef}
+                width={A4_WIDTH}
+                height={A4_HEIGHT}
+                style={{
+                  width: 'auto',
+                  height: 'auto',
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
+                }}
+              />
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
             <button 
               onClick={downloadQR} 
@@ -371,13 +416,15 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             </button>
             <button 
               onClick={downloadPoster} 
-              className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium"
+              disabled={downloading}
+              className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Download Poster
+              {downloading ? 'Generating...' : 'Download Poster'}
             </button>
             <button 
               onClick={printPoster} 
-              className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
+              disabled={downloading}
+              className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Print Poster
             </button>
@@ -400,7 +447,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
-            Poster size: A4 (210 x 297mm) • Print on paper, laminate, display at reception
+            Exact A4 size (210 x 297mm) • Preview shows actual proportions • Print on paper, laminate, display at reception
           </p>
         </div>
       </div>
