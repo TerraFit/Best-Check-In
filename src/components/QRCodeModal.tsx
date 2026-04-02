@@ -25,8 +25,10 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   // A4 dimensions at 96 DPI
   const A4_WIDTH = 794;
   const A4_HEIGHT = 1123;
-  const MAX_LOGO_WIDTH = 200;
-  const MAX_LOGO_HEIGHT = 120;
+  
+  // Logo size limits - INCREASED BY 15%
+  const MAX_LOGO_WIDTH = 230;    // Was 200, now 15% larger
+  const MAX_LOGO_HEIGHT = 138;   // Was 120, now 15% larger
 
   useEffect(() => {
     generateQR();
@@ -121,15 +123,19 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
     // Helper to draw everything after images load
     const draw = () => {
+      // Calculate Y position - closer to text when logo present
+      const welcomeTextY = localLogo ? 215 : 160;  // Was 240, now closer (215)
+      const businessNameY = localLogo ? 280 : 230; // Was 310, now closer (280)
+      
       // Draw text
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#6b7280';
       ctx.textAlign = 'center';
-      ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 240 : 160);
+      ctx.fillText('Welcome to', canvas.width / 2, welcomeTextY);
 
       ctx.font = '700 42px "Playfair Display", Georgia, serif';
       ctx.fillStyle = '#111827';
-      ctx.fillText(businessName, canvas.width / 2, localLogo ? 310 : 230);
+      ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
@@ -164,7 +170,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoImg.crossOrigin = 'Anonymous';
         logoImg.onload = () => {
           const LOGO_X = (canvas.width - logoDimensions.width) / 2;
-          const LOGO_Y = 60;
+          const LOGO_Y = 45;  // Moved up from 60 to bring closer to text
           ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
           draw();
         };
@@ -198,18 +204,22 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       if (localLogo && logoDimensions.width > 0) {
         const logoImg = await loadImage(localLogo);
         const LOGO_X = (canvas.width - logoDimensions.width) / 2;
-        const LOGO_Y = 60;
+        const LOGO_Y = 45;  // Moved up from 60
         ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
       }
+
+      // Calculate Y positions - closer to text
+      const welcomeTextY = localLogo ? 215 : 160;
+      const businessNameY = localLogo ? 280 : 230;
 
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#6b7280';
       ctx.textAlign = 'center';
-      ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 240 : 160);
+      ctx.fillText('Welcome to', canvas.width / 2, welcomeTextY);
 
       ctx.font = '700 42px "Playfair Display", Georgia, serif';
       ctx.fillStyle = '#111827';
-      ctx.fillText(businessName, canvas.width / 2, localLogo ? 310 : 230);
+      ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
@@ -277,18 +287,21 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       if (localLogo && logoDimensions.width > 0) {
         const logoImg = await loadImage(localLogo);
         const LOGO_X = (canvas.width - logoDimensions.width) / 2;
-        const LOGO_Y = 60;
+        const LOGO_Y = 45;
         ctx.drawImage(logoImg, LOGO_X, LOGO_Y, logoDimensions.width, logoDimensions.height);
       }
+
+      const welcomeTextY = localLogo ? 215 : 160;
+      const businessNameY = localLogo ? 280 : 230;
 
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#6b7280';
       ctx.textAlign = 'center';
-      ctx.fillText('Welcome to', canvas.width / 2, localLogo ? 240 : 160);
+      ctx.fillText('Welcome to', canvas.width / 2, welcomeTextY);
 
       ctx.font = '700 42px "Playfair Display", Georgia, serif';
       ctx.fillStyle = '#111827';
-      ctx.fillText(businessName, canvas.width / 2, localLogo ? 310 : 230);
+      ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
@@ -469,7 +482,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         <div className="p-6">
           <div className="text-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
-            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Logo maintains original proportions</p>
+            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Logo 15% larger, positioned closer to text</p>
           </div>
 
           {/* Logo Upload */}
@@ -563,7 +576,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
-            Canvas renders at exact A4 dimensions (794×1123px) • Logo maintains original aspect ratio • Max width: 200px, Max height: 120px
+            Canvas renders at exact A4 dimensions (794×1123px) • Logo 15% larger • Positioned closer to welcome text
           </p>
         </div>
       </div>
