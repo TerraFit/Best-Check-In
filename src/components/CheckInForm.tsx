@@ -306,33 +306,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const sendWhatsAppConfirmation = async (booking: any) => {
-    if (!booking.guest_phone) return;
-    
-    try {
-      console.log('💬 Sending WhatsApp to:', booking.guest_phone);
-      
-      const response = await fetch('/.netlify/functions/send-whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: booking.guest_phone,
-          guest_name: booking.guest_name,
-          business_name: branding?.trading_name || businessName,
-          check_in_date: booking.check_in_date
-        })
-      });
-      
-      if (response.ok) {
-        console.log('✅ WhatsApp sent');
-      } else {
-        console.error('❌ WhatsApp failed:', await response.text());
-      }
-    } catch (error) {
-      console.error('❌ WhatsApp error:', error);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -381,20 +354,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           guest_province: formData.province,
           guest_city: formData.city,
           guest_country: formData.country,
-         const dbBooking = {
-  // ... other fields
-  booking_source: formData.referral,  // ← Use booking_source instead
-  // ...
-};
+          booking_source: formData.referral,
+          referral_source: formData.referral,
           marketing_consent: formData.popiaConsent,
           created_at: new Date().toISOString()
         };
 
         await saveBookingToDatabase(dbBooking);
         
-        // Send confirmations (fire and forget)
+        // Send confirmation email (fire and forget)
         sendConfirmationEmail(dbBooking);
-        sendWhatsAppConfirmation(dbBooking);
 
         const newBooking: Booking = {
           id: Math.random().toString(36).substr(2, 9),
