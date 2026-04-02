@@ -19,6 +19,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   const [sendingEmail, setSendingEmail] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   // A4 dimensions at 96 DPI
   const A4_WIDTH = 794;
@@ -51,6 +52,13 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       setLoading(false);
     }
   };
+
+  // Scroll to top of preview when component loads or logo changes
+  useEffect(() => {
+    if (previewContainerRef.current) {
+      previewContainerRef.current.scrollTop = 0;
+    }
+  }, [localLogo, qrCodeUrl]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -368,7 +376,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         <div className="p-6">
           <div className="text-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
-            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Actual size preview below</p>
+            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • Scroll to see full poster</p>
           </div>
 
           {/* Logo Upload */}
@@ -406,20 +414,24 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
             </div>
           </div>
 
-          {/* ACTUAL SIZE PREVIEW - EXACT match to print */}
-          <div className="bg-gray-100 rounded-lg p-6 mb-4 overflow-auto flex justify-center">
+          {/* SCROLLABLE PREVIEW - Scrolls from top to bottom */}
+          <div 
+            ref={previewContainerRef}
+            className="bg-gray-100 rounded-lg p-6 mb-4 overflow-auto"
+            style={{ maxHeight: '70vh' }}
+          >
             <div 
               style={{
                 width: `${A4_WIDTH}px`,
-                minWidth: `${A4_WIDTH}px`,
                 height: `${A4_HEIGHT}px`,
                 backgroundColor: 'white',
                 position: 'relative',
+                margin: '0 auto',
                 boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
                 fontFamily: 'Inter, system-ui, sans-serif'
               }}
             >
-              {/* LOGO - EXACT same size as print (120px) */}
+              {/* LOGO - Top of poster */}
               {localLogo && (
                 <div style={{ textAlign: 'center', paddingTop: '60px' }}>
                   <img 
@@ -542,7 +554,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           </div>
 
           <p className="text-[10px] text-gray-400 text-center">
-            Exact A4 size (210 x 297mm) • Logo displays at 120px (print-optimized)
+            Exact A4 size (210 x 297mm) • Scroll within preview to see full poster • Logo displays at 120px
           </p>
         </div>
       </div>
