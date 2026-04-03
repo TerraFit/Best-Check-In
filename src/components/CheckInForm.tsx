@@ -451,11 +451,21 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       {businessId && branding && (
         <div className="text-center mb-8">
           {branding.logo_url ? (
-            <img 
-              src={branding.logo_url} 
-              alt={businessName}
-              className="h-20 mx-auto mb-4 object-contain"
-            />
+            <div className="flex justify-center mb-4">
+              <img 
+                src={branding.logo_url} 
+                alt={businessName}
+                className="logo-high-res"
+                style={{
+                  maxHeight: '120px',
+                  maxWidth: '280px',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  imageRendering: 'auto'
+                }}
+              />
+            </div>
           ) : (
             <h1 className="text-3xl font-bold mb-2" style={{ color: secondaryColor }}>
               {businessName}
