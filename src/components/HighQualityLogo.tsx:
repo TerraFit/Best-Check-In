@@ -1,0 +1,25 @@
+interface HighQualityLogoProps {
+  src: string;
+  alt: string;
+  className?: string;
+  maxHeight?: number;
+  maxWidth?: number;
+}
+
+export default function HighQualityLogo({ src, alt, className = '', maxHeight = 80, maxWidth = 200 }: HighQualityLogoProps) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`object-contain ${className}`}
+      style={{
+        maxHeight: `${maxHeight}px`,
+        maxWidth: `${maxWidth}px`,
+        imageRendering: 'auto',
+        width: 'auto',
+        height: 'auto'
+      }}
+      loading="eager"
+    />
+  );
+}
