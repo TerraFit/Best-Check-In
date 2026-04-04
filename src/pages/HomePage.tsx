@@ -20,7 +20,8 @@ export default function HomePage() {
             <img 
               src="/fastcheckin-logo.png" 
               alt="FastCheckin" 
-              className="h-24 w-auto"
+              className="h-24 w-auto object-contain"
+              style={{ imageRendering: 'auto' }}
             />
           </div>
           
@@ -60,7 +61,6 @@ export default function HomePage() {
               >
                 Start Your 14-Day Free Trial
               </button>
-              {/* ✅ FIXED: Correct business login URL */}
               <button
                 onClick={() => navigate('/business/login')}
                 className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
@@ -225,7 +225,8 @@ export default function HomePage() {
               <img 
                 src="/fastcheckin-logo.png" 
                 alt="FastCheckin" 
-                className="h-12 w-auto mb-2"
+                className="h-12 w-auto object-contain mb-2"
+                style={{ imageRendering: 'auto' }}
               />
               <p className="text-sm">Streamlined Hotel Check-ins</p>
             </div>
