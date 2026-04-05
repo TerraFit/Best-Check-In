@@ -84,6 +84,7 @@ export const handler: Handler = async (event) => {
 
 function generateEmailTemplate(booking: BookingData): string {
   const businessName = booking.business_name || 'your accommodation';
+  const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
   const checkInDate = new Date(booking.check_in_date).toLocaleDateString('en-ZA', {
     weekday: 'long',
     year: 'numeric',
@@ -135,6 +136,11 @@ function generateEmailTemplate(booking: BookingData): string {
         .content {
           padding: 40px 30px;
         }
+        .greeting {
+          font-size: 18px;
+          margin-bottom: 24px;
+          color: #1e1e1e;
+        }
         .booking-details {
           background: #f9fafb;
           border-radius: 16px;
@@ -170,6 +176,66 @@ function generateEmailTemplate(booking: BookingData): string {
           margin: 24px 0;
           text-align: center;
         }
+        .newsletter-block {
+          background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
+          border: 2px solid #f59e0b;
+          border-radius: 20px;
+          padding: 30px;
+          margin: 30px 0;
+          text-align: center;
+        }
+        .newsletter-block h2 {
+          color: #1e1e1e;
+          font-size: 24px;
+          margin-top: 0;
+          margin-bottom: 16px;
+        }
+        .newsletter-block .prize {
+          font-size: 18px;
+          font-weight: 700;
+          color: #f59e0b;
+          margin-bottom: 20px;
+        }
+        .benefits {
+          text-align: left;
+          display: inline-block;
+          margin: 20px 0;
+          list-style: none;
+          padding-left: 0;
+        }
+        .benefits li {
+          margin: 10px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .benefits li::before {
+          content: "✓";
+          color: #10b981;
+          font-weight: bold;
+          font-size: 18px;
+        }
+        .subscribe-btn {
+          display: inline-block;
+          background: #f59e0b;
+          color: #1e1e1e;
+          padding: 14px 40px;
+          text-decoration: none;
+          border-radius: 9999px;
+          font-weight: 700;
+          font-size: 16px;
+          margin: 20px 0 10px;
+          transition: all 0.3s ease;
+        }
+        .subscribe-btn:hover {
+          background: #f97316;
+          transform: scale(1.05);
+        }
+        .fine-print {
+          font-size: 11px;
+          color: #9ca3af;
+          margin-top: 16px;
+        }
         .footer {
           background: #f9fafb;
           padding: 24px 30px;
@@ -178,12 +244,20 @@ function generateEmailTemplate(booking: BookingData): string {
           color: #6b7280;
           border-top: 1px solid #e5e7eb;
         }
+        .divider {
+          height: 1px;
+          background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+          margin: 24px 0;
+        }
         @media (max-width: 600px) {
           .container {
             margin: 20px;
           }
           .content {
             padding: 24px 20px;
+          }
+          .newsletter-block {
+            padding: 20px;
           }
         }
       </style>
@@ -195,9 +269,9 @@ function generateEmailTemplate(booking: BookingData): string {
         </div>
         
         <div class="content">
-          <p style="font-size: 18px; margin-bottom: 16px;">
-            Hi <strong>${booking.guest_name}</strong>,
-          </p>
+          <div class="greeting">
+            Hi <strong>${guestName}</strong>,
+          </div>
           
           <p>
             Welcome to <strong>${businessName}</strong>! We're thrilled to have you stay with us.
@@ -206,7 +280,7 @@ function generateEmailTemplate(booking: BookingData): string {
           
           <div class="booking-details">
             <h3 style="margin-top: 0; margin-bottom: 16px; color: #f59e0b;">
-              📋 Stay Details
+              📋 Your Stay Details
             </h3>
             
             <div class="detail-row">
@@ -221,7 +295,7 @@ function generateEmailTemplate(booking: BookingData): string {
             
             <div class="detail-row">
               <span class="detail-label">Nights:</span>
-              <span class="detail-value">${booking.nights} nights</span>
+              <span class="detail-value">${booking.nights} night${booking.nights !== 1 ? 's' : ''}</span>
             </div>
             
             ${booking.total_amount ? `
@@ -232,6 +306,44 @@ function generateEmailTemplate(booking: BookingData): string {
             ` : ''}
           </div>
           
+          <p style="font-size: 14px; color: #6b7280;">
+            The indemnity form is attached to this email for your records.
+          </p>
+          
+          <div class="divider"></div>
+          
+          <!-- 🎁 HIGH-CONVERTING NEWSLETTER BLOCK -->
+          <div class="newsletter-block">
+            <h2>🎁 Win Your Next Stay With Us</h2>
+            <div class="prize">
+              ✨ TWO nights for TWO (B&B) + welcome bottle of champagne ✨
+            </div>
+            
+            <p style="color: #4b5563; margin-bottom: 16px;">
+              As a valued guest, you're invited to enter our exclusive draw:
+            </p>
+            
+            <ul class="benefits">
+              <li>Get exclusive deals and special offers</li>
+              <li>Be first to hear about promotions</li>
+              <li>Stand a chance to stay with us again — on us</li>
+            </ul>
+            
+            <a href="https://fastcheckin.co.za/subscribe?email=${encodeURIComponent(booking.guest_email)}&business=${encodeURIComponent(businessName)}" class="subscribe-btn">
+              📧 Subscribe now (takes 10 seconds)
+            </a>
+            
+            <p style="font-size: 13px; color: #6b7280; margin-top: 12px;">
+              💡 Want better odds? Share this with friends and family — they can enter too!
+            </p>
+            
+            <div class="fine-print">
+              *T&C's apply. Winner announced in the September newsletter. Draw takes place on 30 October.
+            </div>
+          </div>
+          
+          <div class="divider"></div>
+          
           <div style="text-align: center;">
             <a href="https://fastcheckin.co.za" class="button">
               View Your Stay
@@ -239,7 +351,7 @@ function generateEmailTemplate(booking: BookingData): string {
           </div>
           
           <div style="background: #fef3c7; padding: 16px; border-radius: 12px; margin-top: 24px;">
-            <p style="margin: 0; font-size: 14px;">
+            <p style="margin: 0; font-size: 13px; color: #92400e;">
               💡 <strong>Pro tip:</strong> Save this email for quick access to your stay details.
             </p>
           </div>
@@ -247,7 +359,7 @@ function generateEmailTemplate(booking: BookingData): string {
         
         <div class="footer">
           <p style="margin-bottom: 8px;">
-            Need help? Contact us at <a href="mailto:support@fastcheckin.co.za">support@fastcheckin.co.za</a>
+            Need help? Contact us at <a href="mailto:support@fastcheckin.co.za" style="color: #f59e0b;">support@fastcheckin.co.za</a>
           </p>
           <p style="margin: 0;">
             © ${new Date().getFullYear()} FastCheckin. All rights reserved.
