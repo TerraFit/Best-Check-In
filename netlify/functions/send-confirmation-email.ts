@@ -1,4 +1,5 @@
 import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
 interface BookingData {
   guest_name: string;
@@ -9,10 +10,10 @@ interface BookingData {
   business_name?: string;
   business_logo?: string;
   total_amount?: number;
+  business_id?: string;
 }
 
 export const handler: Handler = async (event) => {
-  // Log every attempt
   console.log('📧 Email function triggered', new Date().toISOString());
 
   try {
@@ -22,13 +23,24 @@ export const handler: Handler = async (event) => {
 
     const booking: BookingData = JSON.parse(event.body);
     console.log('📧 Sending email to:', booking.guest_email);
-    console.log('📧 Booking details:', {
-      guest_name: booking.guest_name,
-      check_in: booking.check_in_date,
-      nights: booking.nights
-    });
 
-    // Using Resend (recommended - free tier 3000 emails/month)
+    // Get business newsletter settings
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!
+    );
+
+    let newsletterSettings = null;
+    if (booking.business_id) {
+      const { data: business } = await supabase
+        .from('businesses')
+        .select('newsletter_enabled, newsletter_title, newsletter_prize, newsletter_cta, newsletter_terms, newsletter_draw_date, newsletter_share_text, trading_name')
+        .eq('id', booking.business_id)
+        .single();
+      
+      newsletterSettings = business;
+    }
+
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     
     if (!RESEND_API_KEY) {
@@ -39,7 +51,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const emailHtml = generateEmailTemplate(booking);
+    const emailHtml = generateEmailTemplate(booking, newsletterSettings);
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -48,7 +60,7 @@ export const handler: Handler = async (event) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'FastCheckin <checkin@fastcheckin.co.za>',
+        from: `${newsletterSettings?.trading_name || 'FastCheckin'} <checkin@fastcheckin.co.za>`,
         to: [booking.guest_email],
         subject: `✅ Check-in Confirmed: ${booking.business_name || 'Your Stay'}`,
         html: emailHtml,
@@ -82,7 +94,7 @@ export const handler: Handler = async (event) => {
   }
 };
 
-function generateEmailTemplate(booking: BookingData): string {
+function generateEmailTemplate(booking: BookingData, settings: any): string {
   const businessName = booking.business_name || 'your accommodation';
   const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
   const checkInDate = new Date(booking.check_in_date).toLocaleDateString('en-ZA', {
@@ -97,6 +109,9 @@ function generateEmailTemplate(booking: BookingData): string {
     month: 'long',
     day: 'numeric'
   });
+
+  const newsletterEnabled = settings?.newsletter_enabled || false;
+  const subscribeUrl = `https://fastcheckin.co.za/subscribe?business=${booking.business_id}&email=${encodeURIComponent(booking.guest_email)}&name=${encodeURIComponent(booking.guest_name)}`;
 
   return `
     <!DOCTYPE html>
@@ -310,13 +325,13 @@ function generateEmailTemplate(booking: BookingData): string {
             The indemnity form is attached to this email for your records.
           </p>
           
+          ${newsletterEnabled ? `
           <div class="divider"></div>
           
-          <!-- 🎁 HIGH-CONVERTING NEWSLETTER BLOCK -->
           <div class="newsletter-block">
-            <h2>🎁 Win Your Next Stay With Us</h2>
+            <h2>🎁 ${settings.newsletter_title || 'Win Your Next Stay With Us'}</h2>
             <div class="prize">
-              ✨ TWO nights for TWO (B&B) + welcome bottle of champagne ✨
+              ✨ ${settings.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'} ✨
             </div>
             
             <p style="color: #4b5563; margin-bottom: 16px;">
@@ -329,18 +344,20 @@ function generateEmailTemplate(booking: BookingData): string {
               <li>Stand a chance to stay with us again — on us</li>
             </ul>
             
-            <a href="https://fastcheckin.co.za/subscribe?email=${encodeURIComponent(booking.guest_email)}&business=${encodeURIComponent(businessName)}" class="subscribe-btn">
-              📧 Subscribe now (takes 10 seconds)
+            <a href="${subscribeUrl}" class="subscribe-btn">
+              📧 ${settings.newsletter_cta || 'Subscribe now (takes 10 seconds)'}
             </a>
             
             <p style="font-size: 13px; color: #6b7280; margin-top: 12px;">
-              💡 Want better odds? Share this with friends and family — they can enter too!
+              💡 ${settings.newsletter_share_text || 'Want better odds? Share this with friends and family — they can enter too!'}
             </p>
             
             <div class="fine-print">
-              *T&C's apply. Winner announced in the September newsletter. Draw takes place on 30 October.
+              ${settings.newsletter_terms || '*T&C\'s apply. Winner announced monthly.'}
+              ${settings.newsletter_draw_date ? ` Draw takes place on ${new Date(settings.newsletter_draw_date).toLocaleDateString()}.` : ''}
             </div>
           </div>
+          ` : ''}
           
           <div class="divider"></div>
           
