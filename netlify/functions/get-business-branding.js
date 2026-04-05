@@ -26,9 +26,9 @@ export const handler = async function(event) {
   );
 
   try {
-    const { id } = event.queryStringParameters || {};
-
-    if (!id) {
+    const businessId = event.queryStringParameters?.id;
+    
+    if (!businessId) {
       return {
         statusCode: 400,
         headers,
@@ -38,16 +38,16 @@ export const handler = async function(event) {
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, trading_name, registered_name, logo_url, primary_color, secondary_color, welcome_message, phone, email, physical_address')
-      .eq('id', id)
+      .select('*')
+      .eq('id', businessId)
       .single();
 
     if (error) {
-      console.error('❌ Error fetching business:', error);
+      console.error('Error fetching business:', error);
       return {
-        statusCode: 500,
+        statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Failed to fetch business' })
+        body: JSON.stringify({ error: 'Business not found' })
       };
     }
 
@@ -58,7 +58,7 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('🔥 Error:', error);
+    console.error('Error:', error);
     return {
       statusCode: 500,
       headers,
