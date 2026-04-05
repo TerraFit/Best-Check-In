@@ -15,6 +15,7 @@ import ResetPassword from './pages/ResetPassword';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 import ScrollToTop from './components/ScrollToTop';
+import NewsletterSubscribe from './pages/NewsletterSubscribe';  // ← ADD THIS
 
 function CheckInWrapper() {
   return <CheckInApp />;
@@ -61,6 +62,9 @@ function AppContent() {
         
         <Route path="/checkin" element={<CheckInWrapper />} />
         <Route path="/checkin/:businessId" element={<CheckInWrapper />} />
+        
+        {/* Newsletter Subscription Route */}
+        <Route path="/subscribe" element={<NewsletterSubscribe />} />  {/* ← ADD THIS */}
         
         <Route 
           path="/super-admin" 
