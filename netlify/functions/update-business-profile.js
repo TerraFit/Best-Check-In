@@ -34,7 +34,15 @@ export const handler = async function(event) {
       primary_color, 
       secondary_color, 
       welcome_message,
-      setup_complete 
+      setup_complete,
+      // Newsletter fields
+      newsletter_enabled,
+      newsletter_title,
+      newsletter_prize,
+      newsletter_cta,
+      newsletter_terms,
+      newsletter_draw_date,
+      newsletter_share_text
     } = JSON.parse(event.body);
 
     if (!businessId) {
@@ -54,6 +62,15 @@ export const handler = async function(event) {
     if (secondary_color !== undefined) updateData.secondary_color = secondary_color;
     if (welcome_message !== undefined) updateData.welcome_message = welcome_message;
     if (setup_complete !== undefined) updateData.setup_complete = setup_complete;
+    
+    // Newsletter fields
+    if (newsletter_enabled !== undefined) updateData.newsletter_enabled = newsletter_enabled;
+    if (newsletter_title !== undefined) updateData.newsletter_title = newsletter_title;
+    if (newsletter_prize !== undefined) updateData.newsletter_prize = newsletter_prize;
+    if (newsletter_cta !== undefined) updateData.newsletter_cta = newsletter_cta;
+    if (newsletter_terms !== undefined) updateData.newsletter_terms = newsletter_terms;
+    if (newsletter_draw_date !== undefined) updateData.newsletter_draw_date = newsletter_draw_date;
+    if (newsletter_share_text !== undefined) updateData.newsletter_share_text = newsletter_share_text;
     
     updateData.updated_at = new Date().toISOString();
 
