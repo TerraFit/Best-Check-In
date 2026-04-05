@@ -3,6 +3,71 @@ import { useNavigate } from 'react-router-dom';
 export default function HomePage() {
   const navigate = useNavigate();
 
+  const pricingPlans = [
+    {
+      name: 'Starter',
+      priceMonthly: 349,
+      priceYearly: 3490,
+      maxRooms: 5,
+      features: [
+        'Digital guest check-in forms',
+        'Booking dashboard',
+        'Guest data export (CSV)',
+        'Basic branding'
+      ],
+      isPopular: false,
+      buttonText: 'Start Free Trial',
+      buttonVariant: 'outline'
+    },
+    {
+      name: 'Growth',
+      priceMonthly: 649,
+      priceYearly: 6490,
+      maxRooms: 10,
+      features: [
+        'Everything in Starter',
+        'Automated email confirmations',
+        'Guest history tracking',
+        'Regional data auto-fill',
+        'Priority email support'
+      ],
+      isPopular: true,
+      buttonText: 'Start Free Trial',
+      buttonVariant: 'primary'
+    },
+    {
+      name: 'Pro',
+      priceMonthly: 949,
+      priceYearly: 9490,
+      maxRooms: 15,
+      features: [
+        'Everything in Growth',
+        'Custom branding (logo + colors)',
+        'Analytics dashboard',
+        'Multi-user access',
+        'Export to integrations (Mailchimp-ready)'
+      ],
+      isPopular: false,
+      buttonText: 'Start Free Trial',
+      buttonVariant: 'outline'
+    },
+    {
+      name: 'Business',
+      priceMonthly: 1290,
+      priceYearly: 12900,
+      maxRooms: 20,
+      features: [
+        'Everything in Pro',
+        'Advanced analytics',
+        'Priority support (fast response)',
+        'Early access to new features'
+      ],
+      isPopular: false,
+      buttonText: 'Start Free Trial',
+      buttonVariant: 'outline'
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-stone-900">
       {/* Hero Section */}
@@ -115,83 +180,88 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Pricing Section */}
+      {/* Pricing Section - New Cards */}
       <div className="bg-stone-800/50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center text-white mb-4">
-            Simple, Transparent Pricing
-          </h2>
-          <p className="text-center text-stone-300 mb-12">
-            Start with a 14-day free trial. No credit card required.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-stone-800 p-8 rounded-2xl shadow-lg border border-stone-700">
-              <h3 className="text-2xl font-bold text-white mb-2">Monthly</h3>
-              <div className="mb-4">
-                <span className="text-4xl font-bold text-amber-500">R299</span>
-                <span className="text-stone-400"> / month</span>
-              </div>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-2 text-stone-300">
-                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Unlimited check-ins
-                </li>
-                <li className="flex items-center gap-2 text-stone-300">
-                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Full compliance suite
-                </li>
-                <li className="flex items-center gap-2 text-stone-300">
-                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Analytics dashboard
-                </li>
-              </ul>
-              <button
-                onClick={() => navigate('/register')}
-                className="w-full py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors"
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-white mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-stone-300">
+              Start with a 14-day free trial. No credit card required.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {pricingPlans.map((plan) => (
+              <div
+                key={plan.name}
+                className={`relative bg-stone-800 rounded-2xl shadow-lg overflow-hidden transition-transform hover:scale-105 ${
+                  plan.isPopular ? 'ring-2 ring-amber-500' : 'border border-stone-700'
+                }`}
               >
-                Start Free Trial
-              </button>
-            </div>
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-8 rounded-2xl shadow-lg text-stone-900">
-              <h3 className="text-2xl font-bold mb-2">Annual</h3>
-              <div className="mb-4">
-                <span className="text-4xl font-bold">R2,990</span>
-                <span className="text-stone-800"> / year</span>
-                <span className="ml-2 text-sm bg-stone-900/20 px-2 py-1 rounded">SAVE 17%</span>
+                {plan.isPopular && (
+                  <div className="absolute top-0 right-0 bg-amber-500 text-stone-900 px-4 py-1 text-xs font-bold uppercase tracking-wider">
+                    Most Popular
+                  </div>
+                )}
+                
+                <div className="p-6">
+                  <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                  <p className="text-stone-400 text-sm mb-4">Up to {plan.maxRooms} rooms</p>
+                  
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold text-amber-500">R{plan.priceMonthly}</span>
+                      <span className="text-stone-400">/month</span>
+                    </div>
+                    <div className="text-sm text-stone-400">
+                      or <span className="text-white">R{plan.priceYearly}</span>/year
+                    </div>
+                  </div>
+
+                  <ul className="space-y-3 mb-8">
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-stone-300 text-sm">
+                        <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => navigate('/register')}
+                    className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+                      plan.buttonVariant === 'primary'
+                        ? 'bg-amber-500 text-stone-900 hover:bg-amber-400'
+                        : 'bg-stone-700 text-white hover:bg-stone-600'
+                    }`}
+                  >
+                    {plan.buttonText}
+                  </button>
+                </div>
               </div>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-2 text-stone-800">
-                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Everything in Monthly
-                </li>
-                <li className="flex items-center gap-2 text-stone-800">
-                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Priority support
-                </li>
-                <li className="flex items-center gap-2 text-stone-800">
-                  <svg className="w-5 h-5 text-stone-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Custom branding
-                </li>
-              </ul>
-              <button
-                onClick={() => navigate('/register')}
-                className="w-full py-3 bg-stone-900 text-amber-500 rounded-lg font-semibold hover:bg-stone-800 transition-colors"
-              >
-                Start Free Trial
-              </button>
-            </div>
+            ))}
+          </div>
+
+          {/* Enterprise Tier */}
+          <div className="mt-12 bg-gradient-to-r from-stone-800 to-stone-800/50 rounded-2xl p-8 text-center border border-stone-700">
+            <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
+            <p className="text-amber-500 font-semibold mb-4">Custom Pricing</p>
+            <ul className="flex flex-wrap justify-center gap-6 mb-6 text-stone-300 text-sm">
+              <li>✓ 20+ rooms</li>
+              <li>✓ Multi-property support</li>
+              <li>✓ Dedicated onboarding</li>
+              <li>✓ API access (coming soon)</li>
+            </ul>
+            <button
+              onClick={() => window.location.href = 'mailto:sales@fastcheckin.co.za'}
+              className="px-8 py-3 bg-transparent border-2 border-amber-500 text-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
+            >
+              Contact Us
+            </button>
           </div>
         </div>
       </div>
