@@ -44,6 +44,14 @@ interface BusinessProfile {
   };
 }
 
+interface Subscriber {
+  id: string;
+  email: string;
+  guest_name: string;
+  created_at: string;
+  source: string;
+}
+
 // Constants
 const ITEMS_PER_PAGE = 10;
 const DATE_RANGES = {
@@ -82,6 +90,11 @@ export default function BusinessDashboard() {
     logo_url: '',
     welcome_message: ''
   });
+
+  // Subscribers state
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [showSubscribers, setShowSubscribers] = useState(false);
+  const [loadingSubscribers, setLoadingSubscribers] = useState(false);
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -154,6 +167,66 @@ export default function BusinessDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  // Load subscribers
+  const loadSubscribers = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setLoadingSubscribers(true);
+    try {
+      const response = await fetch(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
+      const data = await response.json();
+      setSubscribers(data.subscribers || []);
+      setShowSubscribers(true);
+    } catch (err) {
+      console.error('Error loading subscribers:', err);
+      alert('Failed to load subscribers');
+    } finally {
+      setLoadingSubscribers(false);
+    }
+  };
+
+  // Export subscribers to CSV (MailChimp compatible)
+  const exportSubscribersToCSV = () => {
+    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Date', 'Source'];
+    const rows = subscribers.map(s => [
+      s.email,
+      s.guest_name?.split(' ')[0] || '',
+      s.guest_name?.split(' ')[1] || '',
+      new Date(s.created_at).toLocaleDateString(),
+      s.source || 'email'
+    ]);
+    
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${business?.trading_name || 'subscribers'}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Export to MailChimp format
+  const exportToMailChimp = () => {
+    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Source'];
+    const rows = subscribers.map(s => [
+      s.email,
+      s.guest_name?.split(' ')[0] || '',
+      s.guest_name?.split(' ')[1] || '',
+      'FastCheckin Check-in'
+    ]);
+    
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${business?.trading_name || 'subscribers'}_mailchimp_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Handle logo file upload
@@ -337,9 +410,8 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
 
-  // NEW: Export to XLSX (Excel)
+  // Export to XLSX (Excel)
   const exportToXLSX = useCallback(() => {
-    // Prepare data for Excel
     const excelData = filteredBookings.map(b => ({
       'Guest Name': b.guest_name || '',
       'Email': b.guest_email || '',
@@ -356,32 +428,19 @@ export default function BusinessDashboard() {
       'Referral Source': b.booking_source || b.referral_source || ''
     }));
 
-    // Create worksheet
     const ws = XLSX.utils.json_to_sheet(excelData);
     
-    // Auto-size columns (optional - set column widths)
     const colWidths = [
-      { wch: 25 }, // Guest Name
-      { wch: 30 }, // Email
-      { wch: 15 }, // Phone
-      { wch: 20 }, // ID Number
-      { wch: 15 }, // Country
-      { wch: 20 }, // Province
-      { wch: 20 }, // City
-      { wch: 15 }, // Check-in Date
-      { wch: 15 }, // Check-out Date
-      { wch: 8 },  // Nights
-      { wch: 18 }, // Total Amount
-      { wch: 12 }, // Status
-      { wch: 20 }, // Referral Source
+      { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 },
+      { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
+      { wch: 15 }, { wch: 8 },  { wch: 18 }, { wch: 12 },
+      { wch: 20 }
     ];
     ws['!cols'] = colWidths;
 
-    // Create workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Bookings Report');
 
-    // Add summary sheet with metrics
     const summaryData = [
       { Metric: 'Business Name', Value: business?.trading_name || 'N/A' },
       { Metric: 'Report Generated', Value: new Date().toLocaleString() },
@@ -393,7 +452,6 @@ export default function BusinessDashboard() {
       { Metric: 'Referral Source Breakdown', Value: '' },
     ];
     
-    // Add referral breakdown
     referralData.forEach(r => {
       summaryData.push({ Metric: `  ${r.name}`, Value: `${r.value} bookings` });
     });
@@ -409,7 +467,6 @@ export default function BusinessDashboard() {
     wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-    // Generate Excel file
     XLSX.writeFile(wb, `${business?.trading_name || 'bookings'}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
 
@@ -604,9 +661,7 @@ export default function BusinessDashboard() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
                 {guestOriginData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">
-                    No data available
-                  </div>
+                  <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
@@ -634,9 +689,7 @@ export default function BusinessDashboard() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
                 {referralData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">
-                    No data available
-                  </div>
+                  <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
@@ -751,7 +804,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* CHECK-INS TAB - Same as before */}
+        {/* CHECK-INS TAB */}
         {activeTab === 'checkins' && (
           <div className="space-y-6">
             {/* Filters */}
@@ -969,7 +1022,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB - Updated with XLS Export */}
+        {/* REPORTS TAB - With Subscribers Section */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
             {/* Date Range Filter for Reports */}
@@ -1129,7 +1182,82 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Export Options - UPDATED with XLS */}
+            {/* Newsletter Subscribers Section */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">📧 Newsletter Subscribers</h3>
+                <button
+                  onClick={loadSubscribers}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Load Subscribers
+                </button>
+              </div>
+              
+              {showSubscribers && (
+                <>
+                  <div className="flex gap-3 mb-4">
+                    <button
+                      onClick={exportSubscribersToCSV}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                    >
+                      Export to CSV
+                    </button>
+                    <button
+                      onClick={exportToMailChimp}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                    >
+                      Export to MailChimp
+                    </button>
+                  </div>
+                  
+                  {loadingSubscribers ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
+                      <p className="text-gray-500 mt-2">Loading subscribers...</p>
+                    </div>
+                  ) : subscribers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      No subscribers yet. Newsletter promotions will build this list.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest Name</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Signup Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {subscribers.map((sub, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-900">{sub.email}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{sub.guest_name || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                {new Date(sub.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                                  {sub.source || 'email'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                       </table>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Export Options */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Report</h3>
               <div className="flex flex-wrap gap-4">
