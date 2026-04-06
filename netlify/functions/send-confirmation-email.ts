@@ -153,7 +153,7 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
         }
         .greeting {
           font-size: 18px;
-          margin-bottom: 24px;
+          margin-bottom: 16px;
           color: #1e1e1e;
         }
         .booking-details {
@@ -162,6 +162,11 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           padding: 24px;
           margin: 24px 0;
           border: 1px solid #e5e7eb;
+        }
+        .booking-details h3 {
+          margin-top: 0;
+          margin-bottom: 16px;
+          color: #f59e0b;
         }
         .detail-row {
           display: flex;
@@ -180,16 +185,15 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           color: #1e1e1e;
           font-weight: 500;
         }
-        .button {
-          display: inline-block;
-          background: #f59e0b;
-          color: white;
-          padding: 14px 32px;
-          text-decoration: none;
-          border-radius: 9999px;
-          font-weight: 600;
-          margin: 24px 0;
-          text-align: center;
+        .indemnity-note {
+          font-size: 14px;
+          color: #6b7280;
+          margin: 16px 0;
+        }
+        .divider {
+          height: 1px;
+          background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+          margin: 30px 0;
         }
         .newsletter-block {
           background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
@@ -205,7 +209,7 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           margin-top: 0;
           margin-bottom: 16px;
         }
-        .newsletter-block .prize {
+        .prize {
           font-size: 18px;
           font-weight: 700;
           color: #f59e0b;
@@ -246,10 +250,37 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           background: #f97316;
           transform: scale(1.05);
         }
+        .share-text {
+          font-size: 13px;
+          color: #6b7280;
+          margin-top: 12px;
+        }
         .fine-print {
           font-size: 11px;
           color: #9ca3af;
           margin-top: 16px;
+        }
+        .view-stay-btn {
+          display: inline-block;
+          background: #f59e0b;
+          color: white;
+          padding: 14px 32px;
+          text-decoration: none;
+          border-radius: 9999px;
+          font-weight: 600;
+          margin: 24px 0;
+          text-align: center;
+        }
+        .pro-tip {
+          background: #fef3c7;
+          padding: 16px;
+          border-radius: 12px;
+          margin-top: 24px;
+        }
+        .pro-tip p {
+          margin: 0;
+          font-size: 13px;
+          color: #92400e;
         }
         .footer {
           background: #f9fafb;
@@ -259,10 +290,9 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           color: #6b7280;
           border-top: 1px solid #e5e7eb;
         }
-        .divider {
-          height: 1px;
-          background: linear-gradient(to right, transparent, #e5e7eb, transparent);
-          margin: 24px 0;
+        .footer a {
+          color: #f59e0b;
+          text-decoration: none;
         }
         @media (max-width: 600px) {
           .container {
@@ -294,9 +324,7 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           </p>
           
           <div class="booking-details">
-            <h3 style="margin-top: 0; margin-bottom: 16px; color: #f59e0b;">
-              📋 Your Stay Details
-            </h3>
+            <h3>📋 Stay Details</h3>
             
             <div class="detail-row">
               <span class="detail-label">Check-in:</span>
@@ -321,17 +349,18 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             ` : ''}
           </div>
           
-          <p style="font-size: 14px; color: #6b7280;">
+          <div class="indemnity-note">
             The indemnity form is attached to this email for your records.
-          </p>
+          </div>
           
           ${newsletterEnabled ? `
           <div class="divider"></div>
           
+          <!-- 🎁 HIGH-CONVERTING NEWSLETTER BLOCK -->
           <div class="newsletter-block">
-            <h2>🎁 ${settings.newsletter_title || 'Win Your Next Stay With Us'}</h2>
+            <h2>🎁 ${settings?.newsletter_title || 'Win Your Next Stay With Us'}</h2>
             <div class="prize">
-              ✨ ${settings.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'} ✨
+              ✨ ${settings?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'} ✨
             </div>
             
             <p style="color: #4b5563; margin-bottom: 16px;">
@@ -345,16 +374,16 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             </ul>
             
             <a href="${subscribeUrl}" class="subscribe-btn">
-              📧 ${settings.newsletter_cta || 'Subscribe now (takes 10 seconds)'}
+              📧 ${settings?.newsletter_cta || 'Subscribe now (takes 10 seconds)'}
             </a>
             
-            <p style="font-size: 13px; color: #6b7280; margin-top: 12px;">
-              💡 ${settings.newsletter_share_text || 'Want better odds? Share this with friends and family — they can enter too!'}
-            </p>
+            <div class="share-text">
+              💡 ${settings?.newsletter_share_text || 'Want better odds? Share this with friends and family — they can enter too!'}
+            </div>
             
             <div class="fine-print">
-              ${settings.newsletter_terms || '*T&C\'s apply. Winner announced monthly.'}
-              ${settings.newsletter_draw_date ? ` Draw takes place on ${new Date(settings.newsletter_draw_date).toLocaleDateString()}.` : ''}
+              ${settings?.newsletter_terms || '*T&C\'s apply. Winner announced in the September newsletter. Draw takes place on 30 October.'}
+              ${settings?.newsletter_draw_date ? ` Draw takes place on ${new Date(settings.newsletter_draw_date).toLocaleDateString()}.` : ''}
             </div>
           </div>
           ` : ''}
@@ -362,21 +391,19 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           <div class="divider"></div>
           
           <div style="text-align: center;">
-            <a href="https://fastcheckin.co.za" class="button">
+            <a href="https://fastcheckin.co.za" class="view-stay-btn">
               View Your Stay
             </a>
           </div>
           
-          <div style="background: #fef3c7; padding: 16px; border-radius: 12px; margin-top: 24px;">
-            <p style="margin: 0; font-size: 13px; color: #92400e;">
-              💡 <strong>Pro tip:</strong> Save this email for quick access to your stay details.
-            </p>
+          <div class="pro-tip">
+            <p>💡 <strong>Pro tip:</strong> Save this email for quick access to your stay details.</p>
           </div>
         </div>
         
         <div class="footer">
           <p style="margin-bottom: 8px;">
-            Need help? Contact us at <a href="mailto:support@fastcheckin.co.za" style="color: #f59e0b;">support@fastcheckin.co.za</a>
+            Need help? Contact us at <a href="mailto:support@fastcheckin.co.za">support@fastcheckin.co.za</a>
           </p>
           <p style="margin: 0;">
             © ${new Date().getFullYear()} FastCheckin. All rights reserved.
