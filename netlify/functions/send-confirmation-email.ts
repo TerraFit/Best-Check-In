@@ -94,6 +94,17 @@ export const handler: Handler = async (event) => {
   }
 };
 
+// Helper function to split full name into first and last name
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  if (!fullName) return { firstName: '', lastName: '' };
+  
+  const nameParts = fullName.trim().split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
+  
+  return { firstName, lastName };
+}
+
 function generateEmailTemplate(booking: BookingData, settings: any): string {
   const businessName = booking.business_name || 'your accommodation';
   const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
@@ -111,7 +122,8 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
   });
 
   const newsletterEnabled = settings?.newsletter_enabled || false;
-  const subscribeUrl = `https://fastcheckin.co.za/subscribe?business=${booking.business_id}&email=${encodeURIComponent(booking.guest_email)}&name=${encodeURIComponent(booking.guest_name)}`;
+  const { firstName, lastName } = splitFullName(booking.guest_name);
+  const subscribeUrl = `https://fastcheckin.co.za/subscribe?business=${booking.business_id}&email=${encodeURIComponent(booking.guest_email)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
 
   return `
     <!DOCTYPE html>
@@ -324,7 +336,7 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           </p>
           
           <div class="booking-details">
-            <h3>📋 Stay Details</h3>
+            <h3>📋 Your Stay Details</h3>
             
             <div class="detail-row">
               <span class="detail-label">Check-in:</span>
@@ -340,13 +352,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
               <span class="detail-label">Nights:</span>
               <span class="detail-value">${booking.nights} night${booking.nights !== 1 ? 's' : ''}</span>
             </div>
-            
-            ${booking.total_amount ? `
-            <div class="detail-row">
-              <span class="detail-label">Total Amount:</span>
-              <span class="detail-value">R ${booking.total_amount.toLocaleString()}</span>
-            </div>
-            ` : ''}
           </div>
           
           <div class="indemnity-note">
@@ -356,7 +361,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           ${newsletterEnabled ? `
           <div class="divider"></div>
           
-          <!-- 🎁 HIGH-CONVERTING NEWSLETTER BLOCK -->
           <div class="newsletter-block">
             <h2>🎁 ${settings?.newsletter_title || 'Win Your Next Stay With Us'}</h2>
             <div class="prize">
