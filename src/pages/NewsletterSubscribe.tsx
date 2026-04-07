@@ -50,6 +50,7 @@ export default function NewsletterSubscribe() {
     subscribe();
   }, [businessId, email, firstName, lastName]);
 
+  // Loading state
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
@@ -61,6 +62,7 @@ export default function NewsletterSubscribe() {
     );
   }
 
+  // Error state
   if (status === 'error') {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
@@ -79,6 +81,7 @@ export default function NewsletterSubscribe() {
     );
   }
 
+  // Success state
   return (
     <div className="min-h-screen bg-stone-900 flex items-center justify-center">
       <div className="bg-white rounded-2xl p-8 max-w-md text-center">
