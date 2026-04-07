@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
 import { Booking } from '../types';
-import { getRegionsForCountry } from '../services/regionService';
+import { getRegionsForCountry, getRegionTypeLabel, requiresManualEntry } from '../services/countryRegionService';
 
 interface BusinessBranding {
   id: string;
@@ -75,6 +75,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     return `${firstName} ${lastName}`.trim();
   };
 
+  // Get region information based on selected country
+  const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
+  const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Region';
+
   // Calculate total amount based on nights and room price
   const calculateTotalAmount = async (nights: number): Promise<number> => {
     try {
@@ -111,8 +115,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const availableRegions = getRegionsForCountry(formData.country);
-
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
       const date = new Date(formData.arrivalDate);
@@ -137,7 +139,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       if (response.ok) {
         const profile = await response.json();
         if (profile) {
-          // Split saved full name into first and last
           const nameParts = (profile.full_name || '').split(' ');
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
@@ -379,7 +380,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
         await saveBookingToDatabase(dbBooking);
         
-        // Send confirmation email (fire and forget)
         sendConfirmationEmail(dbBooking);
 
         const newBooking: Booking = {
@@ -656,18 +656,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </select>
               </div>
 
+              {/* Dynamic Region Field - Uses JSON data */}
               <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                 <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                  {availableRegions ? 'State / Province / Region *' : 'Province / Region / County *'}
+                  {regionTypeLabel} *
                 </label>
-                {availableRegions ? (
+                {availableRegions && availableRegions.length > 0 ? (
                   <select 
                     required 
                     className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg" 
                     value={formData.province} 
                     onChange={e => setFormData({...formData, province: e.target.value})}
                   >
-                    <option value="">Select Region</option>
+                    <option value="">Select {regionTypeLabel}</option>
                     {availableRegions.map(region => (
                       <option key={region} value={region}>{region}</option>
                     ))}
@@ -676,7 +677,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <input 
                     required 
                     type="text" 
-                    placeholder="Enter your region"
+                    placeholder={`Enter your ${regionTypeLabel.toLowerCase()}`}
                     className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
                     value={formData.province} 
                     onChange={e => setFormData({...formData, province: e.target.value})} 
