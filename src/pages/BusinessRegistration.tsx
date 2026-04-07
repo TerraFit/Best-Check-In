@@ -18,7 +18,6 @@ interface PricingPlan {
   features: string[];
   description: string;
   color: string;
-  bgColor: string;
   borderColor: string;
   buttonColor: string;
   textColor: string;
@@ -40,11 +39,10 @@ const pricingPlans: PricingPlan[] = [
       'Basic branding',
       'Email support'
     ],
-    color: 'border-green-200',
-    bgColor: 'bg-white',
-    borderColor: 'border-green-200',
+    color: 'border-green-500',
+    borderColor: 'border-green-500',
     buttonColor: 'bg-green-600 hover:bg-green-700',
-    textColor: 'text-green-600'
+    textColor: 'text-green-500'
   },
   {
     id: 'growth',
@@ -53,20 +51,18 @@ const pricingPlans: PricingPlan[] = [
     maxRooms: 10,
     priceMonthly: 649,
     priceYearly: 6490,
-    description: 'Best for growing guesthouses (6–10 rooms)',
+    description: 'Best for growing guesthouses',
     features: [
       'Everything in Starter',
       'Automated email confirmations',
       'Guest history tracking',
       'Regional data auto-fill',
-      'Priority email support',
-      '+ more features'
+      'Priority email support'
     ],
-    color: 'border-amber-200',
-    bgColor: 'bg-white',
-    borderColor: 'border-amber-200',
+    color: 'border-amber-500',
+    borderColor: 'border-amber-500',
     buttonColor: 'bg-amber-500 hover:bg-amber-600',
-    textColor: 'text-amber-600'
+    textColor: 'text-amber-500'
   },
   {
     id: 'pro',
@@ -81,14 +77,12 @@ const pricingPlans: PricingPlan[] = [
       'Custom branding (logo + colors)',
       'Analytics dashboard',
       'Multi-user access',
-      'Export to integrations (Mailchimp-ready)',
-      '+ more features'
+      'Export to integrations (Mailchimp-ready)'
     ],
-    color: 'border-blue-200',
-    bgColor: 'bg-white',
-    borderColor: 'border-blue-200',
+    color: 'border-blue-500',
+    borderColor: 'border-blue-500',
     buttonColor: 'bg-blue-600 hover:bg-blue-700',
-    textColor: 'text-blue-600'
+    textColor: 'text-blue-500'
   },
   {
     id: 'business',
@@ -103,14 +97,12 @@ const pricingPlans: PricingPlan[] = [
       'Advanced analytics',
       'Priority support (fast response)',
       'Early access to new features',
-      'Dedicated account manager',
-      '+ more features'
+      'Dedicated account manager'
     ],
-    color: 'border-purple-200',
-    bgColor: 'bg-white',
-    borderColor: 'border-purple-200',
+    color: 'border-purple-500',
+    borderColor: 'border-purple-500',
     buttonColor: 'bg-purple-600 hover:bg-purple-700',
-    textColor: 'text-purple-600'
+    textColor: 'text-purple-500'
   }
 ];
 
@@ -144,6 +136,13 @@ export default function BusinessRegistration() {
     avgPrice: 1500
   });
 
+  // Find which plan matches the room count
+  const findRecommendedPlan = (rooms: number): PricingPlan | undefined => {
+    return pricingPlans.find(p => rooms >= p.minRooms && rooms <= p.maxRooms);
+  };
+
+  const recommendedPlan = findRecommendedPlan(roomsCount);
+  const isGrowthRecommended = recommendedPlan?.id === 'growth';
   const selectedPlanData = pricingPlans.find(p => p.id === selectedPlan);
 
   // Auto-select plan based on room count
@@ -321,7 +320,9 @@ export default function BusinessRegistration() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {pricingPlans.map((plan) => {
               const isSelected = selectedPlan === plan.id;
-              const isRecommended = roomsCount >= plan.minRooms && roomsCount <= plan.maxRooms;
+              const isRecommended = recommendedPlan?.id === plan.id;
+              // Most Popular appears ONLY on Growth plan AND when Growth is NOT recommended
+              const showMostPopular = plan.id === 'growth' && !isGrowthRecommended;
               const annualSavings = getAnnualSavings(plan);
               
               return (
@@ -333,10 +334,20 @@ export default function BusinessRegistration() {
                     ${isSelected ? `${plan.color} ring-2 ring-amber-500 bg-stone-700` : 'border-stone-600 hover:border-stone-500'}
                   `}
                 >
+                  {/* Recommended Badge - appears on plan that matches room count */}
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                         Recommended
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Most Popular Badge - appears ONLY on Growth when NOT recommended */}
+                  {showMostPopular && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                        Most Popular
                       </span>
                     </div>
                   )}
@@ -357,15 +368,14 @@ export default function BusinessRegistration() {
                       )}
                     </div>
                     
+                    {/* Full features list - no truncation */}
                     <ul className="mt-4 text-left space-y-1">
                       {plan.features.map((feature, idx) => (
                         <li key={idx} className="text-xs text-stone-300 flex items-start gap-1">
                           <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          <span className={feature === '+ more features' ? 'text-stone-500 italic' : ''}>
-                            {feature}
-                          </span>
+                          <span>{feature}</span>
                         </li>
                       ))}
                     </ul>
