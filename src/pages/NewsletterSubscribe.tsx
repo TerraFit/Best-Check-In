@@ -50,5 +50,57 @@ export default function NewsletterSubscribe() {
     subscribe();
   }, [businessId, email, firstName, lastName]);
 
-  // ... rest of the component remains the same
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
+          <p className="text-white">Processing your subscription...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
+        <div className="bg-white rounded-2xl p-8 max-w-md text-center">
+          <div className="text-6xl mb-4">😢</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-6">We couldn't process your subscription. Please try again later.</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-900 flex items-center justify-center">
+      <div className="bg-white rounded-2xl p-8 max-w-md text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">You're in the draw!</h2>
+        <p className="text-gray-600 mb-4">
+          Thank you for subscribing to <strong>{businessName}</strong>'s newsletter!
+        </p>
+        <div className="bg-amber-50 p-4 rounded-lg mb-6">
+          <p className="text-amber-800 font-semibold">✨ You've been entered to win ✨</p>
+          <p className="text-sm text-amber-700">Good luck! We'll contact you if you win.</p>
+        </div>
+        <p className="text-sm text-gray-500 mb-6">
+          Want better odds? Share this page with friends and family!
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+        >
+          Return to Home
+        </button>
+      </div>
+    </div>
+  );
 }
