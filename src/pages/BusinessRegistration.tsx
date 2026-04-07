@@ -17,11 +17,11 @@ interface PricingPlan {
   priceYearly: number;
   features: string[];
   description: string;
-  isPopular?: boolean;
   color: string;
   bgColor: string;
   borderColor: string;
   buttonColor: string;
+  textColor: string;
 }
 
 const pricingPlans: PricingPlan[] = [
@@ -40,10 +40,11 @@ const pricingPlans: PricingPlan[] = [
       'Basic branding',
       'Email support'
     ],
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
+    color: 'border-green-200',
+    bgColor: 'bg-white',
     borderColor: 'border-green-200',
-    buttonColor: 'bg-green-600 hover:bg-green-700'
+    buttonColor: 'bg-green-600 hover:bg-green-700',
+    textColor: 'text-green-600'
   },
   {
     id: 'growth',
@@ -61,11 +62,11 @@ const pricingPlans: PricingPlan[] = [
       'Priority email support',
       '+ more features'
     ],
-    isPopular: true,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
+    color: 'border-amber-200',
+    bgColor: 'bg-white',
     borderColor: 'border-amber-200',
-    buttonColor: 'bg-amber-500 hover:bg-amber-600'
+    buttonColor: 'bg-amber-500 hover:bg-amber-600',
+    textColor: 'text-amber-600'
   },
   {
     id: 'pro',
@@ -83,10 +84,11 @@ const pricingPlans: PricingPlan[] = [
       'Export to integrations (Mailchimp-ready)',
       '+ more features'
     ],
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
+    color: 'border-blue-200',
+    bgColor: 'bg-white',
     borderColor: 'border-blue-200',
-    buttonColor: 'bg-blue-600 hover:bg-blue-700'
+    buttonColor: 'bg-blue-600 hover:bg-blue-700',
+    textColor: 'text-blue-600'
   },
   {
     id: 'business',
@@ -104,10 +106,11 @@ const pricingPlans: PricingPlan[] = [
       'Dedicated account manager',
       '+ more features'
     ],
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
+    color: 'border-purple-200',
+    bgColor: 'bg-white',
     borderColor: 'border-purple-200',
-    buttonColor: 'bg-purple-600 hover:bg-purple-700'
+    buttonColor: 'bg-purple-600 hover:bg-purple-700',
+    textColor: 'text-purple-600'
   }
 ];
 
@@ -120,7 +123,6 @@ const addDays = (date: Date, days: number): Date => {
 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('growth');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -163,7 +165,6 @@ export default function BusinessRegistration() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
     if (!isBusinessOwner) {
       alert('Please confirm that you run or manage an accommodation business');
       return;
@@ -206,7 +207,7 @@ export default function BusinessRegistration() {
             plan: selectedPlan,
             max_rooms: selectedPlanData?.maxRooms || 10,
             billing_cycle: billingCycle,
-            status: 'trial',  // Changed from 'pending' to 'trial'
+            status: 'trial',
             trial_start: trialStart.toISOString(),
             trial_end: trialEnd.toISOString(),
             next_billing_date: trialEnd.toISOString()
@@ -245,39 +246,41 @@ export default function BusinessRegistration() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 to-amber-50 py-12 px-4">
+    <div className="min-h-screen bg-stone-900 py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
+        {/* Header with Logo */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-2xl">F</span>
-            </div>
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/fastcheckin-logo.png" 
+              alt="FastCheckin" 
+              className="h-16 w-auto object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-stone-900">Start Your 14-Day Free Trial</h1>
-          <p className="text-stone-600 mt-2">No credit card required • Cancel anytime • Setup in under 2 minutes</p>
+          <h1 className="text-3xl font-bold text-white">Start Your 14-Day Free Trial</h1>
+          <p className="text-stone-400 mt-2">No credit card required • Cancel anytime • Setup in under 2 minutes</p>
         </div>
 
-        {/* Trust Banner - Specific */}
+        {/* Trust Banner */}
         <div className="text-center mb-8">
-          <p className="text-sm text-stone-500">Used by guesthouses and lodges across South Africa</p>
+          <p className="text-sm text-stone-400">Used by guesthouses and lodges across South Africa</p>
         </div>
 
-        {/* Pricing Section - VISIBLE FIRST */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-          <h2 className="text-2xl font-bold text-stone-900 text-center mb-2">Choose Your Plan</h2>
-          <p className="text-stone-500 text-center mb-6">14-day free trial • No credit card required</p>
+        {/* Pricing Section */}
+        <div className="bg-stone-800/50 rounded-2xl p-8 mb-8 border border-stone-700">
+          <h2 className="text-2xl font-bold text-white text-center mb-2">Choose Your Plan</h2>
+          <p className="text-stone-400 text-center mb-6">14-day free trial • No credit card required</p>
           
           {/* Billing Toggle */}
           <div className="flex justify-center mb-8">
-            <div className="bg-stone-100 rounded-full p-1 inline-flex">
+            <div className="bg-stone-700 rounded-full p-1 inline-flex">
               <button
                 type="button"
                 onClick={() => setBillingCycle('monthly')}
                 className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
                   billingCycle === 'monthly'
-                    ? 'bg-amber-500 text-white shadow-sm'
-                    : 'text-stone-600 hover:text-stone-900'
+                    ? 'bg-amber-500 text-stone-900 shadow-sm'
+                    : 'text-stone-300 hover:text-white'
                 }`}
               >
                 Monthly
@@ -287,18 +290,18 @@ export default function BusinessRegistration() {
                 onClick={() => setBillingCycle('yearly')}
                 className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
                   billingCycle === 'yearly'
-                    ? 'bg-amber-500 text-white shadow-sm'
-                    : 'text-stone-600 hover:text-stone-900'
+                    ? 'bg-amber-500 text-stone-900 shadow-sm'
+                    : 'text-stone-300 hover:text-white'
                 }`}
               >
-                Yearly <span className="text-xs ml-1 text-green-600">Save 17%</span>
+                Yearly <span className="text-xs ml-1 text-green-400">Save 17%</span>
               </button>
             </div>
           </div>
 
           {/* Room Count Suggestion */}
           <div className="max-w-md mx-auto mb-8">
-            <label className="block text-sm font-medium text-stone-700 mb-2 text-center">
+            <label className="block text-sm font-medium text-stone-300 mb-2 text-center">
               How many rooms does your property have?
             </label>
             <input
@@ -307,14 +310,14 @@ export default function BusinessRegistration() {
               max="50"
               value={roomsCount}
               onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-center"
+              className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white text-center"
             />
-            <p className="text-xs text-stone-400 text-center mt-2">
+            <p className="text-xs text-stone-500 text-center mt-2">
               We'll recommend the right plan for you
             </p>
           </div>
 
-          {/* Pricing Cards - Showing ALL features */}
+          {/* Pricing Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {pricingPlans.map((plan) => {
               const isSelected = selectedPlan === plan.id;
@@ -326,19 +329,11 @@ export default function BusinessRegistration() {
                   key={plan.id}
                   onClick={() => setSelectedPlan(plan.id)}
                   className={`
-                    relative rounded-xl border-2 p-4 cursor-pointer transition-all
-                    ${isSelected ? `${plan.borderColor} ${plan.bgColor} ring-2 ring-amber-500` : 'border-stone-200 hover:shadow-lg'}
+                    relative rounded-xl border-2 p-4 cursor-pointer transition-all bg-stone-800
+                    ${isSelected ? `${plan.color} ring-2 ring-amber-500 bg-stone-700` : 'border-stone-600 hover:border-stone-500'}
                   `}
                 >
-                  {plan.isPopular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        Most Popular
-                      </span>
-                    </div>
-                  )}
-                  
-                  {isRecommended && !plan.isPopular && (
+                  {isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
                         Recommended
@@ -347,27 +342,28 @@ export default function BusinessRegistration() {
                   )}
                   
                   <div className="text-center">
-                    <h3 className={`text-xl font-bold ${plan.color}`}>{plan.name}</h3>
-                    <p className="text-xs text-stone-400 mt-1">{plan.description}</p>
+                    <h3 className={`text-xl font-bold ${plan.textColor}`}>{plan.name}</h3>
+                    <p className="text-xs text-stone-400 mt-1">Up to {plan.maxRooms} rooms</p>
+                    <p className="text-xs text-stone-500 mt-1">{plan.description}</p>
                     <div className="mt-3">
-                      <span className="text-3xl font-bold text-stone-900">
+                      <span className="text-3xl font-bold text-white">
                         {billingCycle === 'monthly' ? `R${plan.priceMonthly}` : `R${plan.priceYearly}`}
                       </span>
-                      <span className="text-stone-500 text-sm">
+                      <span className="text-stone-400 text-sm">
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
                       </span>
                       {annualSavings && billingCycle === 'yearly' && (
-                        <p className="text-xs text-green-600 font-semibold mt-1">{annualSavings}</p>
+                        <p className="text-xs text-green-400 font-semibold mt-1">{annualSavings}</p>
                       )}
                     </div>
                     
                     <ul className="mt-4 text-left space-y-1">
                       {plan.features.map((feature, idx) => (
-                        <li key={idx} className="text-xs text-stone-600 flex items-start gap-1">
+                        <li key={idx} className="text-xs text-stone-300 flex items-start gap-1">
                           <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          <span className={feature === '+ more features' ? 'text-stone-400 italic' : ''}>
+                          <span className={feature === '+ more features' ? 'text-stone-500 italic' : ''}>
                             {feature}
                           </span>
                         </li>
@@ -375,26 +371,69 @@ export default function BusinessRegistration() {
                     </ul>
                     
                     {isSelected && (
-                      <div className="mt-3 text-xs font-semibold text-amber-600">✓ Selected</div>
+                      <div className="mt-3 text-xs font-semibold text-amber-500">✓ Selected</div>
                     )}
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Enterprise Plan Card */}
+          <div className="mt-6">
+            <div className="relative rounded-xl border-2 border-purple-600 p-4 text-center bg-stone-800 hover:border-purple-500 transition-all">
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-purple-400">Enterprise</h3>
+                <p className="text-xs text-stone-400 mt-1">20+ rooms</p>
+                <p className="text-xs text-stone-500 mt-1">For large properties and multi-property groups</p>
+                <div className="mt-3">
+                  <span className="text-3xl font-bold text-white">Custom</span>
+                  <span className="text-stone-400 text-sm">/pricing</span>
+                </div>
+                
+                <ul className="mt-4 text-left space-y-1 max-w-xs mx-auto">
+                  <li className="text-xs text-stone-300 flex items-start gap-1">
+                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Multi-property support</span>
+                  </li>
+                  <li className="text-xs text-stone-300 flex items-start gap-1">
+                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Dedicated onboarding</span>
+                  </li>
+                  <li className="text-xs text-stone-300 flex items-start gap-1">
+                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>API access (coming soon)</span>
+                  </li>
+                </ul>
+                
+                <button
+                  onClick={() => window.location.href = 'mailto:sales@fastcheckin.co.za'}
+                  className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                >
+                  Contact Sales
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Registration Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Create Your Account</h2>
-          <p className="text-stone-500 mb-6">
-            You are starting with the <span className="font-semibold text-amber-600">{selectedPlanData?.name}</span> plan ({billingCycle === 'monthly' ? `R${selectedPlanData?.priceMonthly}/month` : `R${selectedPlanData?.priceYearly}/year`})
+        <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+          <h2 className="text-2xl font-bold text-white mb-2">Create Your Account</h2>
+          <p className="text-stone-400 mb-6">
+            You are starting with the <span className="font-semibold text-amber-500">{selectedPlanData?.name}</span> plan ({billingCycle === 'monthly' ? `R${selectedPlanData?.priceMonthly}/month` : `R${selectedPlanData?.priceYearly}/year`})
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Business Name *
                 </label>
                 <input
@@ -402,14 +441,14 @@ export default function BusinessRegistration() {
                   name="tradingName"
                   value={formData.tradingName}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="e.g., J-Bay Zebra Lodge"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Email Address *
                 </label>
                 <input
@@ -417,14 +456,14 @@ export default function BusinessRegistration() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="info@yourlodge.co.za"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Phone Number *
                 </label>
                 <input
@@ -432,14 +471,14 @@ export default function BusinessRegistration() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="+27 XX XXX XXXX"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Street Address *
                 </label>
                 <input
@@ -447,14 +486,14 @@ export default function BusinessRegistration() {
                   name="street"
                   value={formData.street}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="123 Main Street"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   City / Town *
                 </label>
                 <input
@@ -462,21 +501,21 @@ export default function BusinessRegistration() {
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="Cape Town"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Province *
                 </label>
                 <select
                   name="province"
                   value={formData.province}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   required
                 >
                   <option value="">Select Province</option>
@@ -487,14 +526,14 @@ export default function BusinessRegistration() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Country *
                 </label>
                 <select
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                 >
                   {COUNTRIES.map(c => (
                     <option key={c} value={c}>{c}</option>
@@ -503,7 +542,7 @@ export default function BusinessRegistration() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Postal Code
                 </label>
                 <input
@@ -511,13 +550,13 @@ export default function BusinessRegistration() {
                   name="postalCode"
                   value={formData.postalCode}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="8001"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Number of Rooms *
                 </label>
                 <input
@@ -527,13 +566,13 @@ export default function BusinessRegistration() {
                   onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
                   min="1"
                   max="50"
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Average Room Price (ZAR) *
                 </label>
                 <input
@@ -543,13 +582,13 @@ export default function BusinessRegistration() {
                   onChange={handleInputChange}
                   min="0"
                   step="100"
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Password *
                 </label>
                 <input
@@ -557,14 +596,14 @@ export default function BusinessRegistration() {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="At least 6 characters"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
+                <label className="block text-sm font-medium text-stone-300 mb-1">
                   Confirm Password *
                 </label>
                 <input
@@ -572,37 +611,37 @@ export default function BusinessRegistration() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
                   placeholder="Confirm your password"
                   required
                 />
               </div>
             </div>
             
-            {/* Business Owner Confirmation - Quality Filter */}
-            <div className="flex items-start gap-3 p-4 bg-stone-50 rounded-lg">
+            {/* Business Owner Confirmation */}
+            <div className="flex items-start gap-3 p-4 bg-stone-700/50 rounded-lg border border-stone-600">
               <input
                 type="checkbox"
                 id="isBusinessOwner"
                 checked={isBusinessOwner}
                 onChange={(e) => setIsBusinessOwner(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-stone-300 focus:ring-amber-500"
+                className="mt-1 w-5 h-5 rounded border-stone-500 focus:ring-amber-500 bg-stone-700"
               />
-              <label htmlFor="isBusinessOwner" className="text-sm text-stone-700 cursor-pointer">
+              <label htmlFor="isBusinessOwner" className="text-sm text-stone-300 cursor-pointer">
                 ☑ I run or manage an accommodation business
               </label>
             </div>
             
-            {/* Urgency Message */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <h4 className="font-semibold text-amber-800 mb-2">✨ Your 14-Day Free Trial Includes:</h4>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-amber-700">
+            {/* Trial Message */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <h4 className="font-semibold text-amber-400 mb-2">✨ Your 14-Day Free Trial Includes:</h4>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-stone-300">
                 <li>• Full access to the {selectedPlanData?.name} plan features</li>
                 <li>• Up to {selectedPlanData?.maxRooms} rooms</li>
                 <li>• No credit card required</li>
                 <li>• Cancel anytime during trial</li>
               </ul>
-              <p className="text-xs text-amber-600 mt-3 text-center">
+              <p className="text-xs text-amber-400/70 mt-3 text-center">
                 Your 14-day trial starts immediately after signup. No payment required today.
               </p>
             </div>
@@ -622,7 +661,7 @@ export default function BusinessRegistration() {
               )}
             </button>
             
-            <p className="text-center text-xs text-stone-400">
+            <p className="text-center text-xs text-stone-500">
               By signing up, you agree to our Terms of Service and Privacy Policy.
               <br />
               No credit card required for the 14-day trial.
