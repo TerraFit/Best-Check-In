@@ -42,6 +42,8 @@ interface BusinessProfile {
     province: string;
     country: string;
   };
+  trial_end?: string;
+  subscription_status?: string;
 }
 
 interface Subscriber {
@@ -91,6 +93,10 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
+  // Trial state
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
+
   // Subscribers state
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [showSubscribers, setShowSubscribers] = useState(false);
@@ -125,6 +131,16 @@ export default function BusinessDashboard() {
           logo_url: data.logo_url || '',
           welcome_message: data.welcome_message || ''
         });
+        
+        // Calculate trial days left
+        if (data.trial_end) {
+          const trialEnd = new Date(data.trial_end);
+          const today = new Date();
+          const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          setTrialDaysLeft(daysLeft);
+          setSubscriptionStatus(data.subscription_status || 'trial');
+        }
+        
         console.log('✅ Business profile loaded:', data.trading_name);
       }
     } catch (err) {
@@ -559,6 +575,65 @@ export default function BusinessDashboard() {
           </div>
         </div>
       </header>
+
+      {/* Trial Banner - Shows warning when trial is ending */}
+      {subscriptionStatus === 'trial' && trialDaysLeft !== null && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          {trialDaysLeft <= 3 && trialDaysLeft > 0 ? (
+            <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-red-800">⚠️ Your free trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}!</p>
+                    <p className="text-sm text-red-700">Upgrade now to continue using FastCheckin without interruption.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => alert('Billing page coming soon')}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
+                  Upgrade Now →
+                </button>
+              </div>
+            </div>
+          ) : trialDaysLeft <= 7 && trialDaysLeft > 3 ? (
+            <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-amber-800">Your free trial ends in {trialDaysLeft} days</p>
+                    <p className="text-sm text-amber-700">Upgrade to continue enjoying all features.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => alert('Billing page coming soon')}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
+                >
+                  View Plans →
+                </button>
+              </div>
+            </div>
+          ) : trialDaysLeft > 0 && (
+            <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="font-semibold text-green-800">✨ Your 14-day free trial is active</p>
+                  <p className="text-sm text-green-700">{trialDaysLeft} days remaining. No payment required until your trial ends.</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="bg-white border-b border-gray-200">
