@@ -45,6 +45,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   
   const [formData, setFormData] = useState({
     email: '',
+    firstName: '',
+    lastName: '',
     fullName: '',
     phone: '',
     passportOrId: '',
@@ -67,6 +69,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   });
 
   const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Update fullName whenever firstName or lastName changes
+  const updateFullName = (firstName: string, lastName: string) => {
+    return `${firstName} ${lastName}`.trim();
+  };
 
   // Calculate total amount based on nights and room price
   const calculateTotalAmount = async (nights: number): Promise<number> => {
@@ -130,9 +137,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       if (response.ok) {
         const profile = await response.json();
         if (profile) {
+          // Split saved full name into first and last
+          const nameParts = (profile.full_name || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          
           setFormData(prev => ({
             ...prev,
-            fullName: profile.full_name || prev.fullName,
+            firstName: firstName,
+            lastName: lastName,
+            fullName: profile.full_name || '',
             phone: profile.phone || prev.phone,
             passportOrId: profile.passport_or_id || prev.passportOrId,
             country: profile.country || prev.country,
@@ -335,10 +349,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
       try {
         const totalAmount = await calculateTotalAmount(formData.nights);
+        const fullName = updateFullName(formData.firstName, formData.lastName);
 
         const dbBooking = {
           business_id: businessId,
-          guest_name: formData.fullName,
+          guest_name: fullName,
+          guest_first_name: formData.firstName,
+          guest_last_name: formData.lastName,
           guest_email: formData.email,
           guest_phone: formData.phone,
           guest_id_number: formData.passportOrId,
@@ -367,7 +384,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
         const newBooking: Booking = {
           id: Math.random().toString(36).substr(2, 9),
-          guestName: formData.fullName,
+          guestName: fullName,
           email: formData.email,
           phone: formData.phone,
           country: formData.country,
@@ -418,7 +435,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         body: JSON.stringify({
           email: formData.email,
           profileData: {
-            fullName: formData.fullName,
+            fullName: updateFullName(formData.firstName, formData.lastName),
+            firstName: formData.firstName,
+            lastName: formData.lastName,
             phone: formData.phone,
             passportOrId: formData.passportOrId,
             country: formData.country,
@@ -576,10 +595,44 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-              <div className="space-y-1 group">
-                <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Guest Full Name *</label>
-                <input required type="text" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
+              {/* First Name and Last Name - Side by side */}
+              <div className="grid grid-cols-2 gap-6 col-span-full">
+                <div className="space-y-1 group">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">First Name *</label>
+                  <input 
+                    required 
+                    type="text" 
+                    className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
+                    value={formData.firstName} 
+                    onChange={e => {
+                      const newFirstName = e.target.value;
+                      setFormData({
+                        ...formData, 
+                        firstName: newFirstName,
+                        fullName: `${newFirstName} ${formData.lastName}`.trim()
+                      });
+                    }} 
+                  />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Last Name *</label>
+                  <input 
+                    required 
+                    type="text" 
+                    className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
+                    value={formData.lastName} 
+                    onChange={e => {
+                      const newLastName = e.target.value;
+                      setFormData({
+                        ...formData, 
+                        lastName: newLastName,
+                        fullName: `${formData.firstName} ${newLastName}`.trim()
+                      });
+                    }} 
+                  />
+                </div>
               </div>
+
               <div className="space-y-1 group">
                 <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Passport / ID Number *</label>
                 <input required type="text" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-mono" value={formData.passportOrId} onChange={e => setFormData({...formData, passportOrId: e.target.value})} />
@@ -836,7 +889,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       </p>
 
                       <div className="bg-stone-50 p-8 rounded-3xl space-y-4 mt-8 border border-stone-200 shadow-sm">
-                        <p className="text-sm"><strong>PRIMARY GUEST:</strong> {formData.fullName || '________________'}</p>
+                        <p className="text-sm"><strong>PRIMARY GUEST:</strong> {updateFullName(formData.firstName, formData.lastName) || '________________'}</p>
                         <p className="text-sm"><strong>ID/Passport Number:</strong> {formData.passportOrId || '________________'}</p>
                         <p className="text-sm"><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
                       </div>
