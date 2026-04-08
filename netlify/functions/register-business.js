@@ -23,12 +23,11 @@ export const handler = async (event) => {
   try {
     const { business, password } = JSON.parse(event.body || '{}');
     
-    console.log('📝 Registration attempt:', { 
+    console.log('📝 Registration:', { 
       email: business?.email,
       businessName: business?.trading_name
     });
 
-    // Validate
     if (!business || !business.email || !password) {
       return {
         statusCode: 400,
@@ -45,13 +44,12 @@ export const handler = async (event) => {
       };
     }
 
-    // Create Supabase admin client (bypasses all rate limits)
     const supabaseAdmin = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Check if business already exists
+    // Check if business exists
     const { data: existing } = await supabaseAdmin
       .from('businesses')
       .select('id')
@@ -62,15 +60,15 @@ export const handler = async (event) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'A business with this email already exists' })
+        body: JSON.stringify({ error: 'Email already registered' })
       };
     }
 
-    // Create user using Admin API (NO EMAIL CONFIRMATION, NO RATE LIMITS)
+    // Create user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: business.email,
       password: password,
-      email_confirm: true,  // Auto-confirm - no email sent
+      email_confirm: true,
       user_metadata: {
         role: 'business',
         business_name: business.trading_name
@@ -88,43 +86,46 @@ export const handler = async (event) => {
 
     console.log('✅ User created:', newUser.user.id);
 
-    // Calculate trial dates
+    // Calculate dates
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const businessId = uuidv4();
 
-    // Create business record
-    const { error: businessError } = await supabaseAdmin
+    // Create business record with ONLY the columns that exist
+    const businessData = {
+      id: businessId,
+      user_id: newUser.user.id,
+      trading_name: business.trading_name,
+      registered_name: business.registered_name || business.trading_name,
+      email: business.email,
+      phone: business.phone,
+      physical_address: business.physical_address || {},
+      total_rooms: business.total_rooms || 0,
+      avg_price: business.avg_price || 0,
+      status: 'trial',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Only add optional fields if they exist in the table
+    if (business.plan) businessData.current_plan = business.plan;
+    if (business.max_rooms) businessData.max_rooms = business.max_rooms;
+    if (business.billing_cycle) businessData.billing_cycle = business.billing_cycle;
+    if (trialEnd) businessData.trial_end = trialEnd;
+
+    console.log('📝 Inserting business:', businessData);
+
+    const { data: businessRecord, error: businessError } = await supabaseAdmin
       .from('businesses')
-      .insert({
-        id: businessId,
-        user_id: newUser.user.id,
-        trading_name: business.trading_name,
-        registered_name: business.registered_name || business.trading_name,
-        email: business.email,
-        phone: business.phone,
-        physical_address: business.physical_address || {},
-        website: business.website || null,
-        total_rooms: business.total_rooms || 0,
-        avg_price: business.avg_price || 0,
-        current_plan: business.plan || 'starter',
-        max_rooms: business.max_rooms || 5,
-        billing_cycle: business.billing_cycle || 'monthly',
-        status: 'trial',
-        trial_start: new Date().toISOString(),
-        trial_end: trialEnd,
-        next_billing_date: trialEnd,
-        subscription_status: 'trial',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        newsletter_enabled: false
-      });
+      .insert(businessData)
+      .select()
+      .single();
 
     if (businessError) {
       console.error('Business insert error:', businessError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to create business record' })
+        body: JSON.stringify({ error: 'Failed to create business record: ' + businessError.message })
       };
     }
 
@@ -136,6 +137,7 @@ export const handler = async (event) => {
       body: JSON.stringify({ 
         success: true, 
         businessId: businessId,
+        business: businessRecord,
         message: 'Registration successful'
       })
     };
