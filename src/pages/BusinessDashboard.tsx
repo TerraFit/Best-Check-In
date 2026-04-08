@@ -858,7 +858,7 @@ export default function BusinessDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
-                  onClick={() => window.location.href = '/checkin'}
+                 onClick={() => window.location.href = `/checkin/${business?.id || getBusinessId()}`}
                   className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-orange-200 text-left"
                 >
                   <div className="bg-orange-500 p-3 rounded-full">
