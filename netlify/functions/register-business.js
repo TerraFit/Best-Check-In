@@ -95,12 +95,32 @@ export const handler = async (event) => {
     const businessId = uuidv4();
     const businessNumber = `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // Create postal_address from physical_address
-    const postalAddress = business.physical_address?.street || '';
-    const city = business.physical_address?.city || '';
-    const province = business.physical_address?.province || '';
-    const country = business.physical_address?.country || 'South Africa';
-    const postalCode = business.physical_address?.postalCode || '';
+    // Create physical_address and postal_address as JSON objects
+    const physicalAddress = {
+      street: business.physical_address?.street || '',
+      city: business.physical_address?.city || '',
+      province: business.physical_address?.province || '',
+      country: business.physical_address?.country || 'South Africa',
+      postalCode: business.physical_address?.postalCode || ''
+    };
+
+    const postalAddress = {
+      street: business.physical_address?.street || '',
+      city: business.physical_address?.city || '',
+      province: business.physical_address?.province || '',
+      country: business.physical_address?.country || 'South Africa',
+      postalCode: business.physical_address?.postalCode || ''
+    };
+
+    // Directors array (can be updated later)
+    const directors = [
+      {
+        name: business.trading_name,
+        role: 'Owner/Director',
+        email: business.email,
+        phone: business.phone
+      }
+    ];
 
     // Create business record with ALL required fields
     const businessData = {
@@ -112,20 +132,24 @@ export const handler = async (event) => {
       registered_name: business.registered_name || business.trading_name,
       email: business.email,
       phone: business.phone,
-      physical_address: business.physical_address || {},
-      postal_address: `${postalAddress}, ${city}, ${province}, ${country} ${postalCode}`.trim(), // ← ADD THIS
-      total_rooms: business.total_rooms || 0,
-      avg_price: business.avg_price || 0,
+      physical_address: physicalAddress,
+      postal_address: postalAddress,
+      directors: directors,
+      subscription_tier: business.plan || 'starter',
+      payment_method: 'pending',  // Will be updated when payment is added
       status: 'trial',
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      current_plan: business.plan || 'starter',
-      max_rooms: business.max_rooms || 5,
-      billing_cycle: business.billing_cycle || 'monthly',
-      trial_end: trialEnd
+      updated_at: new Date().toISOString()
     };
 
-    console.log('📝 Inserting business...');
+    // Add optional fields if provided
+    if (business.total_rooms) businessData.total_rooms = business.total_rooms;
+    if (business.avg_price) businessData.avg_price = business.avg_price;
+    if (business.max_rooms) businessData.max_rooms = business.max_rooms;
+    if (business.billing_cycle) businessData.billing_cycle = business.billing_cycle;
+    if (trialEnd) businessData.trial_end = trialEnd;
+
+    console.log('📝 Inserting business with all required fields...');
 
     const { data: businessRecord, error: businessError } = await supabaseAdmin
       .from('businesses')
