@@ -378,7 +378,7 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             </ul>
             
             <a href="${subscribeUrl}" class="subscribe-btn">
-              📧 ${settings?.newsletter_cta || 'Subscribe now (takes 10 seconds)'}
+              📧 ${settings?.newsletter_cta || 'Subscribe now (takes 1 click)'}
             </a>
             
             <div class="share-text">
