@@ -2,6 +2,27 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { COUNTRIES } from '../constants';
 
+// SADC Countries only
+const SADC_COUNTRIES = [
+  'South Africa',
+  'Angola',
+  'Botswana',
+  'Comoros',
+  'Democratic Republic of Congo',
+  'Eswatini',
+  'Lesotho',
+  'Madagascar',
+  'Malawi',
+  'Mauritius',
+  'Mozambique',
+  'Namibia',
+  'Seychelles',
+  'South Africa',
+  'Tanzania',
+  'Zambia',
+  'Zimbabwe'
+];
+
 // South African Provinces
 const PROVINCES = [
   'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal',
@@ -106,50 +127,64 @@ const pricingPlans: PricingPlan[] = [
   }
 ];
 
-// Helper function to add days to a date
-const addDays = (date: Date, days: number): Date => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
-
 export default function BusinessRegistration() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('growth');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [roomsCount, setRoomsCount] = useState<number>(5);
-  const [isBusinessOwner, setIsBusinessOwner] = useState(false);
   
   const [formData, setFormData] = useState({
+    // Business Information
+    registeredName: '',
     tradingName: '',
+    // Director Information
+    directorName: '',
+    directorSurname: '',
+    directorIdNumber: '',
+    directorIdPhoto: '',
+    // Contact Information
     email: '',
-    confirmEmail: '',  // ← ADDED: Email confirmation field
     phone: '',
-    password: '',
-    confirmPassword: '',
-    street: '',
-    city: '',
-    province: '',
-    country: 'South Africa',
-    postalCode: '',
+    // Physical Address
+    physicalStreet: '',
+    physicalCity: '',
+    physicalProvince: '',
+    physicalCountry: 'South Africa',
+    physicalPostalCode: '',
+    // Postal Address (same as physical checkbox)
+    sameAsPhysical: true,
+    postalStreet: '',
+    postalCity: '',
+    postalProvince: '',
+    postalCountry: 'South Africa',
+    postalPostalCode: '',
+    // Property Details
     totalRooms: 5,
     avgPrice: 1500
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [directorIdPreview, setDirectorIdPreview] = useState<string>('');
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [captchaText, setCaptchaText] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+
+  // Generate simple CAPTCHA
+  const generateCaptcha = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCaptchaText(result);
+  };
+
+  React.useEffect(() => {
+    generateCaptcha();
+  }, []);
 
   const selectedPlanData = pricingPlans.find(p => p.id === selectedPlan);
 
-  // Find which plan matches the room count
-  const findRecommendedPlan = (rooms: number): PricingPlan | undefined => {
-    return pricingPlans.find(p => rooms >= p.minRooms && rooms <= p.maxRooms);
-  };
-
-  const recommendedPlan = findRecommendedPlan(roomsCount);
-  const isGrowthRecommended = recommendedPlan?.id === 'growth';
-
-  // Auto-select plan based on room count
   const handleRoomsChange = (rooms: number) => {
     setRoomsCount(rooms);
     setFormData({ ...formData, totalRooms: rooms });
@@ -160,84 +195,75 @@ export default function BusinessRegistration() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error for this field when user types
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+  const handleDirectorIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File must be less than 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setFormData({ ...formData, directorIdPhoto: base64 });
+      setDirectorIdPreview(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSameAsPhysical = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = e.target.checked;
+    setFormData({ ...formData, sameAsPhysical: isChecked });
+    
+    if (isChecked) {
+      setFormData(prev => ({
+        ...prev,
+        postalStreet: prev.physicalStreet,
+        postalCity: prev.physicalCity,
+        postalProvince: prev.physicalProvince,
+        postalCountry: prev.physicalCountry,
+        postalPostalCode: prev.physicalPostalCode
+      }));
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.tradingName.trim()) {
-      newErrors.tradingName = 'Business name is required';
+  const handlePhysicalAddressChange = () => {
+    if (formData.sameAsPhysical) {
+      setFormData(prev => ({
+        ...prev,
+        postalStreet: prev.physicalStreet,
+        postalCity: prev.physicalCity,
+        postalProvince: prev.physicalProvince,
+        postalCountry: prev.physicalCountry,
+        postalPostalCode: prev.physicalPostalCode
+      }));
     }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email address is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    // Email confirmation validation
-    if (!formData.confirmEmail.trim()) {
-      newErrors.confirmEmail = 'Please confirm your email address';
-    } else if (formData.email !== formData.confirmEmail) {
-      newErrors.confirmEmail = 'Email addresses do not match';
-    }
-    
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    }
-    
-    if (!formData.street.trim()) {
-      newErrors.street = 'Street address is required';
-    }
-    
-    if (!formData.city.trim()) {
-      newErrors.city = 'City is required';
-    }
-    
-    if (!formData.province) {
-      newErrors.province = 'Province is required';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-    
-    if (!isBusinessOwner) {
-      newErrors.isBusinessOwner = 'Please confirm that you run or manage an accommodation business';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      // Scroll to first error
-      const firstErrorField = Object.keys(errors)[0];
-      const element = document.querySelector(`[name="${firstErrorField}"]`);
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Validate CAPTCHA
+    if (captchaInput.toUpperCase() !== captchaText) {
+      alert('CAPTCHA verification failed. Please try again.');
+      generateCaptcha();
+      setCaptchaInput('');
+      return;
+    }
+
+    if (!formData.directorIdPhoto) {
+      alert('Please upload a photo of the director\'s ID document');
       return;
     }
     
     setLoading(true);
-    
-    const trialStart = new Date();
-    const trialEnd = addDays(trialStart, 14);
     
     try {
       const response = await fetch('/.netlify/functions/register-business', {
@@ -245,41 +271,47 @@ export default function BusinessRegistration() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business: {
+            registered_name: formData.registeredName,
             trading_name: formData.tradingName,
-            registered_name: formData.tradingName,
             email: formData.email,
             phone: formData.phone,
+            director: {
+              name: formData.directorName,
+              surname: formData.directorSurname,
+              id_number: formData.directorIdNumber,
+              id_photo: formData.directorIdPhoto
+            },
             physical_address: {
-              street: formData.street,
-              city: formData.city,
-              province: formData.province,
-              country: formData.country,
-              postalCode: formData.postalCode
+              street: formData.physicalStreet,
+              city: formData.physicalCity,
+              province: formData.physicalProvince,
+              country: formData.physicalCountry,
+              postalCode: formData.physicalPostalCode
+            },
+            postal_address: {
+              street: formData.postalStreet,
+              city: formData.postalCity,
+              province: formData.postalProvince,
+              country: formData.postalCountry,
+              postalCode: formData.postalPostalCode
             },
             total_rooms: formData.totalRooms,
             avg_price: formData.avgPrice,
             plan: selectedPlan,
             max_rooms: selectedPlanData?.maxRooms || 10,
             billing_cycle: billingCycle,
-            status: 'trial',
-            trial_start: trialStart.toISOString(),
-            trial_end: trialEnd.toISOString(),
-            next_billing_date: trialEnd.toISOString()
-          },
-          password: formData.password
+            status: 'pending'
+          }
         })
       });
       
       const data = await response.json();
       
       if (response.ok) {
-        navigate('/registration-success', { 
+        navigate('/registration-pending', { 
           state: { 
-            businessName: formData.tradingName,
-            email: formData.email,
-            plan: selectedPlanData?.name,
-            maxRooms: selectedPlanData?.maxRooms,
-            trialEnd: trialEnd.toLocaleDateString()
+            businessName: formData.tradingName || formData.registeredName,
+            email: formData.email
           } 
         });
       } else {
@@ -301,258 +333,139 @@ export default function BusinessRegistration() {
 
   return (
     <div className="min-h-screen bg-stone-900 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header with Logo */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-6">
-            <img 
-              src="/fastcheckin-logo.png" 
-              alt="FastCheckin" 
-              className="h-16 w-auto object-contain"
-            />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Start Your 14-Day Free Trial</h1>
-          <p className="text-stone-400 mt-2">No credit card required • Cancel anytime • Setup in under 2 minutes</p>
+          <img 
+            src="/fastcheckin-logo.png" 
+            alt="FastCheckin" 
+            className="h-16 w-auto mx-auto mb-4 object-contain"
+          />
+          <h1 className="text-3xl font-bold text-white">Register Your Business</h1>
+          <p className="text-stone-400 mt-2">Complete the form below to start your application</p>
         </div>
 
-        {/* Trust Banner */}
-        <div className="text-center mb-8">
-          <p className="text-sm text-stone-400">Used by guesthouses and lodges across South Africa</p>
+        {/* Pricing Summary Banner */}
+        <div className="bg-stone-800/50 rounded-2xl p-6 mb-8 border border-stone-700 text-center">
+          <p className="text-stone-300">You are applying for the <span className="font-semibold text-amber-500">{selectedPlanData?.name}</span> plan</p>
+          <p className="text-sm text-stone-400">Up to {selectedPlanData?.maxRooms} rooms • {billingCycle === 'monthly' ? `R${selectedPlanData?.priceMonthly}/month` : `R${selectedPlanData?.priceYearly}/year`}</p>
         </div>
 
-        {/* Pricing Section */}
-        <div className="bg-stone-800/50 rounded-2xl p-8 mb-8 border border-stone-700">
-          <h2 className="text-2xl font-bold text-white text-center mb-2">Choose Your Plan</h2>
-          <p className="text-stone-400 text-center mb-6">14-day free trial • No credit card required</p>
-          
-          {/* Billing Toggle */}
-          <div className="flex justify-center mb-8">
-            <div className="bg-stone-700 rounded-full p-1 inline-flex">
-              <button
-                type="button"
-                onClick={() => setBillingCycle('monthly')}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingCycle === 'monthly'
-                    ? 'bg-amber-500 text-stone-900 shadow-sm'
-                    : 'text-stone-300 hover:text-white'
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle('yearly')}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingCycle === 'yearly'
-                    ? 'bg-amber-500 text-stone-900 shadow-sm'
-                    : 'text-stone-300 hover:text-white'
-                }`}
-              >
-                Yearly <span className="text-xs ml-1 text-green-400">Save 17%</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Room Count Suggestion */}
-          <div className="max-w-md mx-auto mb-8">
-            <label className="block text-sm font-medium text-stone-300 mb-2 text-center">
-              How many rooms does your property have?
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={roomsCount}
-              onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white text-center"
-            />
-            <p className="text-xs text-stone-500 text-center mt-2">
-              We'll recommend the right plan for you
-            </p>
-          </div>
-
-          {/* Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {pricingPlans.map((plan) => {
-              const isSelected = selectedPlan === plan.id;
-              const isRecommended = roomsCount >= plan.minRooms && roomsCount <= plan.maxRooms;
-              const showMostPopular = plan.id === 'growth' && !isGrowthRecommended;
-              const annualSavings = getAnnualSavings(plan);
-              
-              return (
-                <div
-                  key={plan.id}
-                  onClick={() => setSelectedPlan(plan.id)}
-                  className={`
-                    relative rounded-xl border-2 p-4 cursor-pointer transition-all bg-stone-800
-                    ${isSelected ? `${plan.color} ring-2 ring-amber-500 bg-stone-700` : 'border-stone-600 hover:border-stone-500'}
-                  `}
-                >
-                  {isRecommended && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-                        Recommended
-                      </span>
-                    </div>
-                  )}
-                  
-                  {showMostPopular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-                        Most Popular
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className="text-center">
-                    <h3 className={`text-xl font-bold ${plan.textColor}`}>{plan.name}</h3>
-                    <p className="text-xs text-stone-400 mt-1">Up to {plan.maxRooms} rooms</p>
-                    <p className="text-xs text-stone-500 mt-1">{plan.description}</p>
-                    <div className="mt-3">
-                      <span className="text-3xl font-bold text-white">
-                        {billingCycle === 'monthly' ? `R${plan.priceMonthly}` : `R${plan.priceYearly}`}
-                      </span>
-                      <span className="text-stone-400 text-sm">
-                        /{billingCycle === 'monthly' ? 'month' : 'year'}
-                      </span>
-                      {annualSavings && billingCycle === 'yearly' && (
-                        <p className="text-xs text-green-400 font-semibold mt-1">{annualSavings}</p>
-                      )}
-                    </div>
-                    
-                    <ul className="mt-4 text-left space-y-1">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="text-xs text-stone-300 flex items-start gap-1">
-                          <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    
-                    {isSelected && (
-                      <div className="mt-3 text-xs font-semibold text-amber-500">✓ Selected</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Enterprise Plan Card */}
-          <div className="mt-6">
-            <div className={`relative rounded-xl border-2 p-4 text-center bg-stone-800 transition-all ${
-              selectedPlan === 'enterprise' 
-                ? 'border-purple-500 ring-2 ring-amber-500 bg-stone-700' 
-                : 'border-purple-600 hover:border-purple-500'
-            }`}>
-              <div className="text-center">
-                <h3 className="text-xl font-bold text-purple-400">Enterprise</h3>
-                <p className="text-xs text-stone-400 mt-1">20+ rooms</p>
-                <p className="text-xs text-stone-500 mt-1">For large properties and multi-property groups</p>
-                <div className="mt-3">
-                  <span className="text-3xl font-bold text-white">Custom</span>
-                  <span className="text-stone-400 text-sm">/pricing</span>
-                </div>
-                
-                <ul className="mt-4 text-left space-y-1 max-w-xs mx-auto">
-                  <li className="text-xs text-stone-300 flex items-start gap-1">
-                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Multi-property support</span>
-                  </li>
-                  <li className="text-xs text-stone-300 flex items-start gap-1">
-                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Dedicated onboarding</span>
-                  </li>
-                  <li className="text-xs text-stone-300 flex items-start gap-1">
-                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>API access (coming soon)</span>
-                  </li>
-                </ul>
-                
-                <button
-                  onClick={() => window.location.href = 'mailto:sales@fastcheckin.co.za'}
-                  className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                >
-                  Contact Sales
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Registration Form - UPDATED with Email Confirmation */}
-        <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
-          <h2 className="text-2xl font-bold text-white mb-2">Create Your Account</h2>
-          <p className="text-stone-400 mb-6">
-            You are starting with the <span className="font-semibold text-amber-500">{selectedPlanData?.name}</span> plan ({billingCycle === 'monthly' ? `R${selectedPlanData?.priceMonthly}/month` : `R${selectedPlanData?.priceYearly}/year`})
-          </p>
-          
-          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {/* Registration Form */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Business Information Section */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Business Information</h2>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Business Name *
+                  Registered Name (as per CIPC) *
                 </label>
                 <input
                   type="text"
-                  name="tradingName"
-                  value={formData.tradingName}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.tradingName ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="e.g., J-Bay Zebra Lodge"
+                  value={formData.registeredName}
+                  onChange={(e) => setFormData({ ...formData, registeredName: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
-                {errors.tradingName && (
-                  <p className="text-red-400 text-xs mt-1">{errors.tradingName}</p>
-                )}
               </div>
               
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  Trading Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.tradingName}
+                  onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Director Information Section */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Director / Owner Information</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  First Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.directorName}
+                  onChange={(e) => setFormData({ ...formData, directorName: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  Last Name / Surname *
+                </label>
+                <input
+                  type="text"
+                  value={formData.directorSurname}
+                  onChange={(e) => setFormData({ ...formData, directorSurname: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  ID / Passport Number *
+                </label>
+                <input
+                  type="text"
+                  value={formData.directorIdNumber}
+                  onChange={(e) => setFormData({ ...formData, directorIdNumber: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  Upload ID / Passport Photo *
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDirectorIdUpload}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white file:mr-2 file:py-1 file:px-3 file:rounded-full file:bg-amber-500 file:text-white file:border-0"
+                  required
+                />
+                {directorIdPreview && (
+                  <div className="mt-2">
+                    <img src={directorIdPreview} alt="ID Preview" className="h-20 w-auto rounded border border-stone-600" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Information */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Contact Information</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
                   Email Address *
                 </label>
                 <input
                   type="email"
-                  name="email"
                   value={formData.email}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.email ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="info@yourlodge.co.za"
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
-                {errors.email && (
-                  <p className="text-red-400 text-xs mt-1">{errors.email}</p>
-                )}
-              </div>
-              
-              {/* NEW: Confirm Email Field */}
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Confirm Email Address *
-                </label>
-                <input
-                  type="email"
-                  name="confirmEmail"
-                  value={formData.confirmEmail}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.confirmEmail ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="Confirm your email address"
-                />
-                {errors.confirmEmail && (
-                  <p className="text-red-400 text-xs mt-1">{errors.confirmEmail}</p>
-                )}
               </div>
               
               <div>
@@ -561,121 +474,220 @@ export default function BusinessRegistration() {
                 </label>
                 <input
                   type="tel"
-                  name="phone"
                   value={formData.phone}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.phone ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="+27 XX XXX XXXX"
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
-                {errors.phone && (
-                  <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
-                )}
               </div>
-              
-              <div className="md:col-span-2">
+            </div>
+          </div>
+
+          {/* Physical Address */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Physical Address</h2>
+            
+            <div className="space-y-4">
+              <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
                   Street Address *
                 </label>
                 <input
                   type="text"
-                  name="street"
-                  value={formData.street}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.street ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="123 Main Street"
+                  value={formData.physicalStreet}
+                  onChange={(e) => {
+                    setFormData({ ...formData, physicalStreet: e.target.value });
+                    handlePhysicalAddressChange();
+                  }}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
-                {errors.street && (
-                  <p className="text-red-400 text-xs mt-1">{errors.street}</p>
-                )}
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  City / Town *
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-stone-300 mb-1">
+                    City / Town *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.physicalCity}
+                    onChange={(e) => {
+                      setFormData({ ...formData, physicalCity: e.target.value });
+                      handlePhysicalAddressChange();
+                    }}
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-stone-300 mb-1">
+                    Province *
+                  </label>
+                  <select
+                    value={formData.physicalProvince}
+                    onChange={(e) => {
+                      setFormData({ ...formData, physicalProvince: e.target.value });
+                      handlePhysicalAddressChange();
+                    }}
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    required
+                  >
+                    <option value="">Select Province</option>
+                    {PROVINCES.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-stone-300 mb-1">
+                    Country *
+                  </label>
+                  <select
+                    value={formData.physicalCountry}
+                    onChange={(e) => {
+                      setFormData({ ...formData, physicalCountry: e.target.value });
+                      handlePhysicalAddressChange();
+                    }}
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  >
+                    {SADC_COUNTRIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-stone-300 mb-1">
+                    Postal Code
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.physicalPostalCode}
+                    onChange={(e) => {
+                      setFormData({ ...formData, physicalPostalCode: e.target.value });
+                      handlePhysicalAddressChange();
+                    }}
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Postal Address */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Postal Address</h2>
+            
+            <div className="mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.city ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="Cape Town"
+                  type="checkbox"
+                  checked={formData.sameAsPhysical}
+                  onChange={handleSameAsPhysical}
+                  className="w-4 h-4 rounded border-stone-600 bg-stone-700"
                 />
-                {errors.city && (
-                  <p className="text-red-400 text-xs mt-1">{errors.city}</p>
-                )}
+                <span className="text-stone-300">Same as physical address</span>
+              </label>
+            </div>
+            
+            {!formData.sameAsPhysical && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-300 mb-1">
+                    Street Address *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.postalStreet}
+                    onChange={(e) => setFormData({ ...formData, postalStreet: e.target.value })}
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      City / Town *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.postalCity}
+                      onChange={(e) => setFormData({ ...formData, postalCity: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Province *
+                    </label>
+                    <select
+                      value={formData.postalProvince}
+                      onChange={(e) => setFormData({ ...formData, postalProvince: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    >
+                      <option value="">Select Province</option>
+                      {PROVINCES.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Country *
+                    </label>
+                    <select
+                      value={formData.postalCountry}
+                      onChange={(e) => setFormData({ ...formData, postalCountry: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    >
+                      {SADC_COUNTRIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Postal Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.postalPostalCode}
+                      onChange={(e) => setFormData({ ...formData, postalPostalCode: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                    />
+                  </div>
+                </div>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Province *
-                </label>
-                <select
-                  name="province"
-                  value={formData.province}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.province ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                >
-                  <option value="">Select Province</option>
-                  {PROVINCES.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                {errors.province && (
-                  <p className="text-red-400 text-xs mt-1">{errors.province}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Country *
-                </label>
-                <select
-                  name="country"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
-                >
-                  {COUNTRIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Postal Code
-                </label>
-                <input
-                  type="text"
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
-                  placeholder="8001"
-                />
-              </div>
-              
+            )}
+          </div>
+
+          {/* Property Details */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Property Details</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
                   Number of Rooms *
                 </label>
                 <input
                   type="number"
-                  name="totalRooms"
+                  min="1"
+                  max="50"
                   value={formData.totalRooms}
                   onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
-                  min="1"
-                  max="999"
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
               </div>
               
@@ -685,114 +697,63 @@ export default function BusinessRegistration() {
                 </label>
                 <input
                   type="number"
-                  name="avgPrice"
                   value={formData.avgPrice}
-                  onChange={handleInputChange}
+                  onChange={(e) => setFormData({ ...formData, avgPrice: parseInt(e.target.value) || 0 })}
                   min="0"
                   step="100"
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* CAPTCHA */}
+          <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+            <h2 className="text-xl font-bold text-white mb-6">Verification</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-stone-700 p-4 rounded-lg text-center">
+                <p className="text-2xl font-mono tracking-wider text-white">{captchaText}</p>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Password *
+                  Enter the code above *
                 </label>
                 <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.password ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="At least 6 characters"
+                  type="text"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 text-white"
+                  required
                 />
-                {errors.password && (
-                  <p className="text-red-400 text-xs mt-1">{errors.password}</p>
-                )}
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-stone-300 mb-1">
-                  Confirm Password *
-                </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-stone-600'
-                  }`}
-                  placeholder="Confirm your password"
-                />
-                {errors.confirmPassword && (
-                  <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={generateCaptcha}
+                className="text-sm text-amber-500 hover:text-amber-400"
+              >
+                Refresh CAPTCHA
+              </button>
             </div>
-            
-            {/* Business Owner Confirmation */}
-            <div className={`flex items-start gap-3 p-4 rounded-lg border ${
-              errors.isBusinessOwner ? 'bg-red-500/10 border-red-500' : 'bg-stone-700/50 border-stone-600'
-            }`}>
-              <input
-                type="checkbox"
-                id="isBusinessOwner"
-                checked={isBusinessOwner}
-                onChange={(e) => {
-                  setIsBusinessOwner(e.target.checked);
-                  if (errors.isBusinessOwner) {
-                    setErrors(prev => ({ ...prev, isBusinessOwner: '' }));
-                  }
-                }}
-                className="mt-1 w-5 h-5 rounded border-stone-500 focus:ring-amber-500 bg-stone-700"
-              />
-              <label htmlFor="isBusinessOwner" className="text-sm text-stone-300 cursor-pointer">
-                ☑ I run or manage an accommodation business
-              </label>
-            </div>
-            {errors.isBusinessOwner && (
-              <p className="text-red-400 text-xs mt-1">{errors.isBusinessOwner}</p>
-            )}
-            
-            {/* Trial Message */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-              <h4 className="font-semibold text-amber-400 mb-2">✨ Your 14-Day Free Trial Includes:</h4>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-stone-300">
-                <li>• Full access to the {selectedPlanData?.name} plan features</li>
-                <li>• Up to {selectedPlanData?.maxRooms} rooms</li>
-                <li>• No credit card required</li>
-                <li>• Cancel anytime during trial</li>
-              </ul>
-              <p className="text-xs text-amber-400/70 mt-3 text-center">
-                Your 14-day trial starts immediately after signup. No payment required today.
-              </p>
-            </div>
-            
+          </div>
+
+          {/* Submit Button */}
+          <div className="text-center">
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="px-8 py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  Processing...
-                </>
-              ) : (
-                'Start Free Trial'
-              )}
+              {loading ? 'Submitting...' : 'Submit Application'}
             </button>
-            
-            <p className="text-center text-xs text-stone-500">
-              By signing up, you agree to our Terms of Service and Privacy Policy.
-              <br />
-              No credit card required for the 14-day trial.
+            <p className="text-xs text-stone-500 mt-4">
+              Your application will be reviewed by our team. You will receive an email once approved.
             </p>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   );
