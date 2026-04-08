@@ -87,7 +87,7 @@ export const handler = async (event) => {
 
     console.log('✅ User created:', newUser.user.id);
 
-    // Hash the password for the businesses table
+    // Hash the password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -95,17 +95,25 @@ export const handler = async (event) => {
     const businessId = uuidv4();
     const businessNumber = `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Create postal_address from physical_address
+    const postalAddress = business.physical_address?.street || '';
+    const city = business.physical_address?.city || '';
+    const province = business.physical_address?.province || '';
+    const country = business.physical_address?.country || 'South Africa';
+    const postalCode = business.physical_address?.postalCode || '';
+
     // Create business record with ALL required fields
     const businessData = {
       id: businessId,
       user_id: newUser.user.id,
       business_number: businessNumber,
-      password_hash: passwordHash,  // ← CRITICAL: Add the hashed password
+      password_hash: passwordHash,
       trading_name: business.trading_name,
       registered_name: business.registered_name || business.trading_name,
       email: business.email,
       phone: business.phone,
       physical_address: business.physical_address || {},
+      postal_address: `${postalAddress}, ${city}, ${province}, ${country} ${postalCode}`.trim(), // ← ADD THIS
       total_rooms: business.total_rooms || 0,
       avg_price: business.avg_price || 0,
       status: 'trial',
