@@ -44,6 +44,13 @@ interface BusinessProfile {
   };
   trial_end?: string;
   subscription_status?: string;
+  newsletter_enabled?: boolean;
+  newsletter_title?: string;
+  newsletter_prize?: string;
+  newsletter_cta?: string;
+  newsletter_terms?: string;
+  newsletter_draw_date?: string;
+  newsletter_share_text?: string;
 }
 
 interface Subscriber {
@@ -97,6 +104,16 @@ export default function BusinessDashboard() {
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
 
+  // Newsletter settings state
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [newsletterTitle, setNewsletterTitle] = useState('Win Your Next Stay With Us');
+  const [newsletterPrize, setNewsletterPrize] = useState('TWO nights for TWO (B&B) + welcome bottle of champagne');
+  const [newsletterCta, setNewsletterCta] = useState('Subscribe now (takes 10 seconds)');
+  const [newsletterTerms, setNewsletterTerms] = useState('*T&C\'s apply. Winner announced monthly.');
+  const [newsletterDrawDate, setNewsletterDrawDate] = useState('');
+  const [newsletterShareText, setNewsletterShareText] = useState('Want better odds? Share this with friends and family!');
+  const [savingNewsletter, setSavingNewsletter] = useState(false);
+
   // Subscribers state
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [showSubscribers, setShowSubscribers] = useState(false);
@@ -131,6 +148,15 @@ export default function BusinessDashboard() {
           logo_url: data.logo_url || '',
           welcome_message: data.welcome_message || ''
         });
+        
+        // Load newsletter settings
+        setNewsletterEnabled(data.newsletter_enabled || false);
+        setNewsletterTitle(data.newsletter_title || 'Win Your Next Stay With Us');
+        setNewsletterPrize(data.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+        setNewsletterCta(data.newsletter_cta || 'Subscribe now (takes 10 seconds)');
+        setNewsletterTerms(data.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+        setNewsletterDrawDate(data.newsletter_draw_date || '');
+        setNewsletterShareText(data.newsletter_share_text || 'Want better odds? Share this with friends and family!');
         
         // Calculate trial days left
         if (data.trial_end) {
@@ -201,6 +227,43 @@ export default function BusinessDashboard() {
       alert('Failed to load subscribers');
     } finally {
       setLoadingSubscribers(false);
+    }
+  };
+
+  // Save newsletter settings
+  const saveNewsletterSettings = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setSavingNewsletter(true);
+    try {
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          newsletter_enabled: newsletterEnabled,
+          newsletter_title: newsletterTitle,
+          newsletter_prize: newsletterPrize,
+          newsletter_cta: newsletterCta,
+          newsletter_terms: newsletterTerms,
+          newsletter_draw_date: newsletterDrawDate || null,
+          newsletter_share_text: newsletterShareText
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Newsletter settings saved successfully!');
+        // Refresh business data
+        loadBusinessProfile();
+      } else {
+        alert('❌ Failed to save newsletter settings');
+      }
+    } catch (error) {
+      console.error('Error saving newsletter settings:', error);
+      alert('Error saving newsletter settings');
+    } finally {
+      setSavingNewsletter(false);
     }
   };
 
@@ -592,7 +655,7 @@ export default function BusinessDashboard() {
                   </div>
                 </div>
                 <button
-                  onClick={() => alert('Billing page coming soon')}
+                  onClick={() => navigate('/business/billing')}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
                 >
                   Upgrade Now →
@@ -612,7 +675,7 @@ export default function BusinessDashboard() {
                   </div>
                 </div>
                 <button
-                  onClick={() => alert('Billing page coming soon')}
+                  onClick={() => navigate('/business/billing')}
                   className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
                 >
                   View Plans →
@@ -1371,7 +1434,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
+        {/* SETTINGS TAB - With Newsletter Settings */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
@@ -1416,6 +1479,124 @@ export default function BusinessDashboard() {
                 >
                   Edit Profile
                 </button>
+
+                {/* Newsletter Settings Section */}
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">📧 Newsletter Promotion</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Enable to include a newsletter subscription offer in your check-in confirmation emails.
+                    This helps build your mailing list and encourages repeat bookings.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">Enable Newsletter Promotion</p>
+                        <p className="text-sm text-gray-500">Add a "Win Your Next Stay" block to confirmation emails</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newsletterEnabled}
+                          onChange={(e) => setNewsletterEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                      </label>
+                    </div>
+                    
+                    {newsletterEnabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Promotion Title</label>
+                          <input
+                            type="text"
+                            value={newsletterTitle}
+                            onChange={(e) => setNewsletterTitle(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Win Your Next Stay With Us"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Prize Description</label>
+                          <input
+                            type="text"
+                            value={newsletterPrize}
+                            onChange={(e) => setNewsletterPrize(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="TWO nights for TWO (B&B) + welcome bottle of champagne"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">CTA Button Text</label>
+                          <input
+                            type="text"
+                            value={newsletterCta}
+                            onChange={(e) => setNewsletterCta(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Subscribe now (takes 10 seconds)"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Draw Date (Optional)</label>
+                          <input
+                            type="date"
+                            value={newsletterDrawDate}
+                            onChange={(e) => setNewsletterDrawDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Share Text</label>
+                          <input
+                            type="text"
+                            value={newsletterShareText}
+                            onChange={(e) => setNewsletterShareText(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Want better odds? Share this with friends and family!"
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
+                          <textarea
+                            value={newsletterTerms}
+                            onChange={(e) => setNewsletterTerms(e.target.value)}
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="*T&C's apply. Winner announced monthly."
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <button
+                            onClick={saveNewsletterSettings}
+                            disabled={savingNewsletter}
+                            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                          >
+                            {savingNewsletter ? 'Saving...' : 'Save Newsletter Settings'}
+                          </button>
+                        </div>
+                        
+                        {/* Preview */}
+                        <div className="md:col-span-2 bg-white p-4 rounded-lg border border-gray-200">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                          <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-4 rounded-lg text-center">
+                            <p className="font-bold text-amber-800">🎁 {newsletterTitle}</p>
+                            <p className="text-sm text-amber-700 mt-1">✨ {newsletterPrize} ✨</p>
+                            <button className="mt-2 px-4 py-1 bg-amber-500 text-white rounded-full text-xs">
+                              {newsletterCta}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
