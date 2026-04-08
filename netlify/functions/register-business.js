@@ -1,16 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
-export const handler = async function(event, context) {
-  console.log("\n=== NEW REQUEST ===");
-  console.log("Method:", event.httpMethod);
-  
+export const handler = async (event) => {
   const headers = {
-    'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Content-Type': 'application/json'
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -18,120 +14,162 @@ export const handler = async function(event, context) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
-  // Initialize Supabase inside handler
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   try {
-    const data = JSON.parse(event.body);
-    console.log("✅ Received data keys:", Object.keys(data));
-    console.log("✅ Email present:", !!data.email);
-    console.log("✅ Password present:", !!data.password);
-    console.log("✅ Password length:", data.password?.length);
+    const { business, password } = JSON.parse(event.body || '{}');
+    
+    console.log('📝 Registration attempt:', { 
+      email: business?.email, 
+      hasPassword: !!password,
+      tradingName: business?.trading_name
+    });
 
     // Validate required fields
-    if (!data.email || !data.password) {
+    if (!business) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Email and password required' })
+        body: JSON.stringify({ error: 'Business data required' })
       };
     }
 
-    // Check if email already exists
-    const { data: existing, error: checkError } = await supabase
+    if (!business.email) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Email is required' })
+      };
+    }
+
+    if (!password) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Password is required' })
+      };
+    }
+
+    if (password.length < 6) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Password must be at least 6 characters' })
+      };
+    }
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+
+    // Check if business already exists
+    const { data: existingBusiness } = await supabase
       .from('businesses')
-      .select('email')
-      .eq('email', data.email)
-      .maybeSingle();
+      .select('id')
+      .eq('email', business.email)
+      .single();
 
-    if (checkError) {
-      console.error('❌ Check error:', checkError);
+    if (existingBusiness) {
       return {
-        statusCode: 500,
+        statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Database check failed' })
-      };
-    }
-
-    if (existing) {
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ error: 'Email already registered' })
+        body: JSON.stringify({ error: 'A business with this email already exists' })
       };
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-    
-    const businessId = uuidv4();
-    
-    // Prepare business record matching your frontend structure
-    const businessRecord = {
-      id: businessId,
-      registered_name: data.registeredName || '',
-      business_number: data.businessNumber || '',
-      trading_name: data.tradingName || '',
-      phone: data.phone || '',
-      email: data.email,
-      password_hash: hashedPassword,
-      physical_address: data.physicalAddress || {},
-      postal_address: data.postalAddress || data.physicalAddress || {},
-      directors: data.directors || [],
-      subscription_tier: data.subscriptionTier || 'monthly',
-      payment_method: data.paymentMethod || 'card',
-      status: 'pending',
-      created_at: new Date().toISOString()
-    };
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    console.log("💾 Inserting business...");
+    // Create user in Supabase Auth
+    const { data: authUser, error: authError } = await supabase.auth.signUp({
+      email: business.email,
+      password: password,
+      options: {
+        data: {
+          role: 'business',
+          business_name: business.trading_name
+        }
+      }
+    });
 
-    const { data: business, error: insertError } = await supabase
-      .from('businesses')
-      .insert([businessRecord])
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('❌ Insert error:', insertError);
+    if (authError) {
+      console.error('Auth error:', authError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Database insert failed',
-          details: insertError.message
-        })
+        body: JSON.stringify({ error: 'Failed to create user account: ' + authError.message })
       };
     }
 
-    console.log("✅ Business created:", business.id);
+    // Create business record
+    const businessId = uuidv4();
+    const trialStart = business.trial_start || new Date().toISOString();
+    const trialEnd = business.trial_end || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    
+    const { data: businessData, error: businessError } = await supabase
+      .from('businesses')
+      .insert({
+        id: businessId,
+        user_id: authUser.user?.id,
+        trading_name: business.trading_name,
+        registered_name: business.registered_name || business.trading_name,
+        email: business.email,
+        phone: business.phone,
+        physical_address: business.physical_address,
+        website: business.website || null,
+        total_rooms: business.total_rooms || 0,
+        avg_price: business.avg_price || 0,
+        current_plan: business.plan || 'starter',
+        max_rooms: business.max_rooms || 5,
+        billing_cycle: business.billing_cycle || 'monthly',
+        status: business.status || 'trial',
+        trial_start: trialStart,
+        trial_end: trialEnd,
+        next_billing_date: business.next_billing_date || trialEnd,
+        subscription_status: 'trial',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (businessError) {
+      console.error('Business insert error:', businessError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to create business record: ' + businessError.message })
+      };
+    }
+
+    console.log('✅ Business registered successfully:', businessId);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
-        businessId: business.id,
-        message: 'Registration successful!'
+        businessId: businessId,
+        message: 'Registration successful'
       })
     };
 
   } catch (error) {
-    console.error('🔥 Error:', error);
+    console.error('Registration error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message || 'Unknown error'
+      })
     };
   }
 };
