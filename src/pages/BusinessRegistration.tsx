@@ -124,6 +124,7 @@ export default function BusinessRegistration() {
   const [formData, setFormData] = useState({
     tradingName: '',
     email: '',
+    confirmEmail: '',  // ← ADDED: Email confirmation field
     phone: '',
     password: '',
     confirmPassword: '',
@@ -136,6 +137,10 @@ export default function BusinessRegistration() {
     avgPrice: 1500
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const selectedPlanData = pricingPlans.find(p => p.id === selectedPlan);
+
   // Find which plan matches the room count
   const findRecommendedPlan = (rooms: number): PricingPlan | undefined => {
     return pricingPlans.find(p => rooms >= p.minRooms && rooms <= p.maxRooms);
@@ -143,7 +148,6 @@ export default function BusinessRegistration() {
 
   const recommendedPlan = findRecommendedPlan(roomsCount);
   const isGrowthRecommended = recommendedPlan?.id === 'growth';
-  const selectedPlanData = pricingPlans.find(p => p.id === selectedPlan);
 
   // Auto-select plan based on room count
   const handleRoomsChange = (rooms: number) => {
@@ -159,23 +163,74 @@ export default function BusinessRegistration() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error for this field when user types
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.tradingName.trim()) {
+      newErrors.tradingName = 'Business name is required';
+    }
+    
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    // Email confirmation validation
+    if (!formData.confirmEmail.trim()) {
+      newErrors.confirmEmail = 'Please confirm your email address';
+    } else if (formData.email !== formData.confirmEmail) {
+      newErrors.confirmEmail = 'Email addresses do not match';
+    }
+    
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+    
+    if (!formData.street.trim()) {
+      newErrors.street = 'Street address is required';
+    }
+    
+    if (!formData.city.trim()) {
+      newErrors.city = 'City is required';
+    }
+    
+    if (!formData.province) {
+      newErrors.province = 'Province is required';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    
+    if (!isBusinessOwner) {
+      newErrors.isBusinessOwner = 'Please confirm that you run or manage an accommodation business';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isBusinessOwner) {
-      alert('Please confirm that you run or manage an accommodation business');
-      return;
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-    
-    if (formData.password.length < 6) {
-      alert('Password must be at least 6 characters');
+    if (!validateForm()) {
+      // Scroll to first error
+      const firstErrorField = Object.keys(errors)[0];
+      const element = document.querySelector(`[name="${firstErrorField}"]`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
@@ -320,8 +375,7 @@ export default function BusinessRegistration() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {pricingPlans.map((plan) => {
               const isSelected = selectedPlan === plan.id;
-              const isRecommended = recommendedPlan?.id === plan.id;
-              // Most Popular appears ONLY on Growth plan AND when Growth is NOT recommended
+              const isRecommended = roomsCount >= plan.minRooms && roomsCount <= plan.maxRooms;
               const showMostPopular = plan.id === 'growth' && !isGrowthRecommended;
               const annualSavings = getAnnualSavings(plan);
               
@@ -334,7 +388,6 @@ export default function BusinessRegistration() {
                     ${isSelected ? `${plan.color} ring-2 ring-amber-500 bg-stone-700` : 'border-stone-600 hover:border-stone-500'}
                   `}
                 >
-                  {/* Recommended Badge - appears on plan that matches room count */}
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
@@ -343,7 +396,6 @@ export default function BusinessRegistration() {
                     </div>
                   )}
                   
-                  {/* Most Popular Badge - appears ONLY on Growth when NOT recommended */}
                   {showMostPopular && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
@@ -368,7 +420,6 @@ export default function BusinessRegistration() {
                       )}
                     </div>
                     
-                    {/* Full features list - no truncation */}
                     <ul className="mt-4 text-left space-y-1">
                       {plan.features.map((feature, idx) => (
                         <li key={idx} className="text-xs text-stone-300 flex items-start gap-1">
@@ -391,7 +442,11 @@ export default function BusinessRegistration() {
 
           {/* Enterprise Plan Card */}
           <div className="mt-6">
-            <div className="relative rounded-xl border-2 border-purple-600 p-4 text-center bg-stone-800 hover:border-purple-500 transition-all">
+            <div className={`relative rounded-xl border-2 p-4 text-center bg-stone-800 transition-all ${
+              selectedPlan === 'enterprise' 
+                ? 'border-purple-500 ring-2 ring-amber-500 bg-stone-700' 
+                : 'border-purple-600 hover:border-purple-500'
+            }`}>
               <div className="text-center">
                 <h3 className="text-xl font-bold text-purple-400">Enterprise</h3>
                 <p className="text-xs text-stone-400 mt-1">20+ rooms</p>
@@ -433,14 +488,14 @@ export default function BusinessRegistration() {
           </div>
         </div>
 
-        {/* Registration Form */}
+        {/* Registration Form - UPDATED with Email Confirmation */}
         <div className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
           <h2 className="text-2xl font-bold text-white mb-2">Create Your Account</h2>
           <p className="text-stone-400 mb-6">
             You are starting with the <span className="font-semibold text-amber-500">{selectedPlanData?.name}</span> plan ({billingCycle === 'monthly' ? `R${selectedPlanData?.priceMonthly}/month` : `R${selectedPlanData?.priceYearly}/year`})
           </p>
           
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-stone-300 mb-1">
@@ -451,10 +506,14 @@ export default function BusinessRegistration() {
                   name="tradingName"
                   value={formData.tradingName}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.tradingName ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="e.g., J-Bay Zebra Lodge"
-                  required
                 />
+                {errors.tradingName && (
+                  <p className="text-red-400 text-xs mt-1">{errors.tradingName}</p>
+                )}
               </div>
               
               <div>
@@ -466,10 +525,34 @@ export default function BusinessRegistration() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.email ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="info@yourlodge.co.za"
-                  required
                 />
+                {errors.email && (
+                  <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+                )}
+              </div>
+              
+              {/* NEW: Confirm Email Field */}
+              <div>
+                <label className="block text-sm font-medium text-stone-300 mb-1">
+                  Confirm Email Address *
+                </label>
+                <input
+                  type="email"
+                  name="confirmEmail"
+                  value={formData.confirmEmail}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.confirmEmail ? 'border-red-500' : 'border-stone-600'
+                  }`}
+                  placeholder="Confirm your email address"
+                />
+                {errors.confirmEmail && (
+                  <p className="text-red-400 text-xs mt-1">{errors.confirmEmail}</p>
+                )}
               </div>
               
               <div>
@@ -481,13 +564,17 @@ export default function BusinessRegistration() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.phone ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="+27 XX XXX XXXX"
-                  required
                 />
+                {errors.phone && (
+                  <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
+                )}
               </div>
               
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-stone-300 mb-1">
                   Street Address *
                 </label>
@@ -496,10 +583,14 @@ export default function BusinessRegistration() {
                   name="street"
                   value={formData.street}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.street ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="123 Main Street"
-                  required
                 />
+                {errors.street && (
+                  <p className="text-red-400 text-xs mt-1">{errors.street}</p>
+                )}
               </div>
               
               <div>
@@ -511,10 +602,14 @@ export default function BusinessRegistration() {
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.city ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="Cape Town"
-                  required
                 />
+                {errors.city && (
+                  <p className="text-red-400 text-xs mt-1">{errors.city}</p>
+                )}
               </div>
               
               <div>
@@ -525,14 +620,18 @@ export default function BusinessRegistration() {
                   name="province"
                   value={formData.province}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
-                  required
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.province ? 'border-red-500' : 'border-stone-600'
+                  }`}
                 >
                   <option value="">Select Province</option>
                   {PROVINCES.map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
+                {errors.province && (
+                  <p className="text-red-400 text-xs mt-1">{errors.province}</p>
+                )}
               </div>
               
               <div>
@@ -575,9 +674,8 @@ export default function BusinessRegistration() {
                   value={formData.totalRooms}
                   onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
                   min="1"
-                  max="50"
+                  max="999"
                   className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
-                  required
                 />
               </div>
               
@@ -593,7 +691,6 @@ export default function BusinessRegistration() {
                   min="0"
                   step="100"
                   className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
-                  required
                 />
               </div>
               
@@ -606,10 +703,14 @@ export default function BusinessRegistration() {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.password ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="At least 6 characters"
-                  required
                 />
+                {errors.password && (
+                  <p className="text-red-400 text-xs mt-1">{errors.password}</p>
+                )}
               </div>
               
               <div>
@@ -621,26 +722,40 @@ export default function BusinessRegistration() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className={`w-full px-4 py-2 bg-stone-700 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white ${
+                    errors.confirmPassword ? 'border-red-500' : 'border-stone-600'
+                  }`}
                   placeholder="Confirm your password"
-                  required
                 />
+                {errors.confirmPassword && (
+                  <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>
+                )}
               </div>
             </div>
             
             {/* Business Owner Confirmation */}
-            <div className="flex items-start gap-3 p-4 bg-stone-700/50 rounded-lg border border-stone-600">
+            <div className={`flex items-start gap-3 p-4 rounded-lg border ${
+              errors.isBusinessOwner ? 'bg-red-500/10 border-red-500' : 'bg-stone-700/50 border-stone-600'
+            }`}>
               <input
                 type="checkbox"
                 id="isBusinessOwner"
                 checked={isBusinessOwner}
-                onChange={(e) => setIsBusinessOwner(e.target.checked)}
+                onChange={(e) => {
+                  setIsBusinessOwner(e.target.checked);
+                  if (errors.isBusinessOwner) {
+                    setErrors(prev => ({ ...prev, isBusinessOwner: '' }));
+                  }
+                }}
                 className="mt-1 w-5 h-5 rounded border-stone-500 focus:ring-amber-500 bg-stone-700"
               />
               <label htmlFor="isBusinessOwner" className="text-sm text-stone-300 cursor-pointer">
                 ☑ I run or manage an accommodation business
               </label>
             </div>
+            {errors.isBusinessOwner && (
+              <p className="text-red-400 text-xs mt-1">{errors.isBusinessOwner}</p>
+            )}
             
             {/* Trial Message */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
