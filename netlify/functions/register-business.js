@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
 export const handler = async (event) => {
   const headers = {
@@ -64,7 +65,7 @@ export const handler = async (event) => {
       };
     }
 
-    // Create user
+    // Create user in Supabase Auth
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: business.email,
       password: password,
@@ -86,18 +87,20 @@ export const handler = async (event) => {
 
     console.log('✅ User created:', newUser.user.id);
 
-    // Calculate dates
+    // Hash the password for the businesses table
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const businessId = uuidv4();
-    
-    // Generate a unique business number (you can adjust this format)
     const businessNumber = `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Create business record with ALL required fields
     const businessData = {
       id: businessId,
       user_id: newUser.user.id,
-      business_number: businessNumber,  // ← ADD THIS - REQUIRED FIELD
+      business_number: businessNumber,
+      password_hash: passwordHash,  // ← CRITICAL: Add the hashed password
       trading_name: business.trading_name,
       registered_name: business.registered_name || business.trading_name,
       email: business.email,
@@ -105,18 +108,16 @@ export const handler = async (event) => {
       physical_address: business.physical_address || {},
       total_rooms: business.total_rooms || 0,
       avg_price: business.avg_price || 0,
-      status: 'pending',  // Changed from 'trial' to 'pending' if that's what your table expects
+      status: 'trial',
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      current_plan: business.plan || 'starter',
+      max_rooms: business.max_rooms || 5,
+      billing_cycle: business.billing_cycle || 'monthly',
+      trial_end: trialEnd
     };
 
-    // Only add optional fields if they exist in the table
-    if (business.plan) businessData.current_plan = business.plan;
-    if (business.max_rooms) businessData.max_rooms = business.max_rooms;
-    if (business.billing_cycle) businessData.billing_cycle = business.billing_cycle;
-    if (trialEnd) businessData.trial_end = trialEnd;
-
-    console.log('📝 Inserting business:', businessData);
+    console.log('📝 Inserting business...');
 
     const { data: businessRecord, error: businessError } = await supabaseAdmin
       .from('businesses')
@@ -141,7 +142,6 @@ export const handler = async (event) => {
       body: JSON.stringify({ 
         success: true, 
         businessId: businessId,
-        business: businessRecord,
         message: 'Registration successful'
       })
     };
