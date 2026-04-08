@@ -89,11 +89,15 @@ export const handler = async (event) => {
     // Calculate dates
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const businessId = uuidv4();
+    
+    // Generate a unique business number (you can adjust this format)
+    const businessNumber = `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // Create business record with ONLY the columns that exist
+    // Create business record with ALL required fields
     const businessData = {
       id: businessId,
       user_id: newUser.user.id,
+      business_number: businessNumber,  // ← ADD THIS - REQUIRED FIELD
       trading_name: business.trading_name,
       registered_name: business.registered_name || business.trading_name,
       email: business.email,
@@ -101,7 +105,7 @@ export const handler = async (event) => {
       physical_address: business.physical_address || {},
       total_rooms: business.total_rooms || 0,
       avg_price: business.avg_price || 0,
-      status: 'trial',
+      status: 'pending',  // Changed from 'trial' to 'pending' if that's what your table expects
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
