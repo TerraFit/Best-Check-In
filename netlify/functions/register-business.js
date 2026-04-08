@@ -21,32 +21,37 @@ export const handler = async (event) => {
   }
 
   try {
-    const requestBody = JSON.parse(event.body || '{}');
-    const { business, password } = requestBody;
+    const { business, password } = JSON.parse(event.body || '{}');
     
-    console.log('📝 Registration:', { email: business?.email });
+    console.log('📝 Registration attempt:', { 
+      email: business?.email,
+      businessName: business?.trading_name
+    });
 
+    // Validate
     if (!business || !business.email || !password) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Email and password required' })
+        body: JSON.stringify({ error: 'Email and password are required' })
       };
     }
 
-    // Create admin client with SERVICE_ROLE_KEY (bypasses rate limits)
+    if (password.length < 6) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Password must be at least 6 characters' })
+      };
+    }
+
+    // Create Supabase admin client (bypasses all rate limits)
     const supabaseAdmin = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Check if business exists
+    // Check if business already exists
     const { data: existing } = await supabaseAdmin
       .from('businesses')
       .select('id')
@@ -57,15 +62,15 @@ export const handler = async (event) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Email already registered' })
+        body: JSON.stringify({ error: 'A business with this email already exists' })
       };
     }
 
-    // Create user with ADMIN API (NO RATE LIMITS)
+    // Create user using Admin API (NO EMAIL CONFIRMATION, NO RATE LIMITS)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: business.email,
       password: password,
-      email_confirm: true,
+      email_confirm: true,  // Auto-confirm - no email sent
       user_metadata: {
         role: 'business',
         business_name: business.trading_name
@@ -83,11 +88,12 @@ export const handler = async (event) => {
 
     console.log('✅ User created:', newUser.user.id);
 
-    // Create business record
+    // Calculate trial dates
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const businessId = uuidv4();
 
-    const { data: businessData, error: businessError } = await supabaseAdmin
+    // Create business record
+    const { error: businessError } = await supabaseAdmin
       .from('businesses')
       .insert({
         id: businessId,
@@ -97,6 +103,7 @@ export const handler = async (event) => {
         email: business.email,
         phone: business.phone,
         physical_address: business.physical_address || {},
+        website: business.website || null,
         total_rooms: business.total_rooms || 0,
         avg_price: business.avg_price || 0,
         current_plan: business.plan || 'starter',
@@ -108,19 +115,20 @@ export const handler = async (event) => {
         next_billing_date: trialEnd,
         subscription_status: 'trial',
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+        updated_at: new Date().toISOString(),
+        newsletter_enabled: false
+      });
 
     if (businessError) {
-      console.error('Business error:', businessError);
+      console.error('Business insert error:', businessError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to create business' })
+        body: JSON.stringify({ error: 'Failed to create business record' })
       };
     }
+
+    console.log('✅ Business registered:', businessId);
 
     return {
       statusCode: 200,
@@ -133,11 +141,11 @@ export const handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Registration error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
     };
   }
 };
