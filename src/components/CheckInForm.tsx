@@ -273,6 +273,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
+  // ==================== DATABASE FUNCTIONS ====================
+
   const saveBookingToDatabase = async (booking: any) => {
     try {
       console.log('💾 Saving booking to database:', booking);
@@ -287,18 +289,46 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Booking saved to database:', result);
-        return true;
+        return { success: true, bookingId: result.id };
       } else {
         console.error('❌ Failed to save booking:', result);
-        return false;
+        return { success: false, error: result };
       }
     } catch (error) {
       console.error('Error saving booking:', error);
-      return false;
+      return { success: false, error };
     }
   };
 
-  const sendConfirmationEmail = async (booking: any) => {
+  const saveIndemnityRecord = async (bookingId: string) => {
+    try {
+      console.log('📄 Saving indemnity record for booking:', bookingId);
+      
+      const response = await fetch('/.netlify/functions/create-indemnity-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: bookingId,
+          business_id: businessId,
+          guest_name: updateFullName(formData.firstName, formData.lastName),
+          guest_first_name: formData.firstName,
+          guest_last_name: formData.lastName,
+          passport_or_id: formData.passportOrId,
+          signature_data: formData.signature,
+          signed_at: new Date().toISOString()
+        })
+      });
+      
+      const result = await response.json();
+      console.log('📄 Indemnity record saved:', result);
+      return result.access_token;
+    } catch (error) {
+      console.error('Error saving indemnity record:', error);
+      return null;
+    }
+  };
+
+  const sendConfirmationEmail = async (booking: any, indemnityLink?: string) => {
     try {
       console.log('📧 Sending confirmation email to:', booking.guest_email);
       
@@ -307,7 +337,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...booking,
-          business_name: branding?.trading_name || businessName
+          business_name: branding?.trading_name || businessName,
+          indemnity_link: indemnityLink
         })
       });
       
@@ -320,6 +351,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       console.error('❌ Email error:', error);
     }
   };
+
+  // ==================== HANDLE SUBMIT ====================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -378,12 +411,29 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           created_at: new Date().toISOString()
         };
 
-        await saveBookingToDatabase(dbBooking);
+        // Step 1: Save booking to database and get the booking ID
+        const saveResult = await saveBookingToDatabase(dbBooking);
         
-        sendConfirmationEmail(dbBooking);
+        if (!saveResult.success) {
+          alert('Failed to save booking. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        // Step 2: Get the booking ID from the response
+        const bookingId = saveResult.bookingId;
+        
+        // Step 3: Save indemnity record with the booking ID
+        const accessToken = await saveIndemnityRecord(bookingId);
+        
+        // Step 4: Create indemnity link if token was generated
+        const indemnityLink = accessToken ? `https://fastcheckin.co.za/indemnity/${accessToken}` : undefined;
+        
+        // Step 5: Send confirmation email with indemnity link
+        await sendConfirmationEmail(dbBooking, indemnityLink);
 
         const newBooking: Booking = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: bookingId || Math.random().toString(36).substr(2, 9),
           guestName: fullName,
           email: formData.email,
           phone: formData.phone,
