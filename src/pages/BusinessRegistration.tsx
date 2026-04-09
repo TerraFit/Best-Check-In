@@ -664,7 +664,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Registration Number (optional)
+                      Registration Number
                     </label>
                     <input
                       type="text"
@@ -676,7 +676,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      VAT Number (optional)
+                      VAT Number
                     </label>
                     <input
                       type="text"
