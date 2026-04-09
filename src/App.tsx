@@ -7,6 +7,7 @@ import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
 import ApproveBusinesses from './pages/admin/ApproveBusinesses';
 import RegistrationSuccess from './pages/RegistrationSuccess';
+import RegistrationPending from './pages/RegistrationPending';
 import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
@@ -30,6 +31,7 @@ function AppContent() {
         <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<BusinessRegistration />} />
         <Route path="/registration-success" element={<RegistrationSuccess />} />
+        <Route path="/registration-pending" element={<RegistrationPending />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         
         <Route path="/business/login" element={<BusinessLogin />} />
