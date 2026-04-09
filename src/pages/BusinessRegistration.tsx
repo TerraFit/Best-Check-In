@@ -631,6 +631,44 @@ export default function BusinessRegistration() {
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
                       </span>
                     </div>
+                    
+                    {/* Feature List */}
+                    <div className="mt-4 text-left space-y-2">
+                      {plan.id === 'starter' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest Check-In System</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Digital Registration Forms</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Email Confirmations</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Dashboard</p>
+                        </>
+                      )}
+                      {plan.id === 'growth' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Starter</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-Room Management</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest History Tracking</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Priority Support</p>
+                        </>
+                      )}
+                      {plan.id === 'pro' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Growth</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Advanced Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Custom Branding</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Data Export</p>
+                        </>
+                      )}
+                      {plan.id === 'business' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Pro</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-User Access</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Staff Permissions</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> API / Integrations</p>
+                        </>
+                      )}
+                    </div>
+                    
                     {isDisabled && (
                       <p className="text-xs text-red-400 mt-2">
                         Requires upgrade
@@ -683,6 +721,15 @@ export default function BusinessRegistration() {
                     /pricing
                   </span>
                 </div>
+                
+                {/* Enterprise Feature List */}
+                <div className="mt-4 text-left space-y-2">
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Unlimited Rooms</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom Integrations</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Dedicated Support</p>
+                </div>
+                
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
