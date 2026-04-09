@@ -21,18 +21,100 @@ const SADC_COUNTRIES = [
   'Zimbabwe'
 ];
 
-// South African Provinces
-const PROVINCES = [
-  'Eastern Cape',
-  'Free State',
-  'Gauteng',
-  'KwaZulu-Natal',
-  'Limpopo',
-  'Mpumalanga',
-  'North West',
-  'Northern Cape',
-  'Western Cape'
-];
+// Regions/Provinces by Country (FULL DATA FOR ALL SADC COUNTRIES)
+const REGIONS_BY_COUNTRY: Record<string, string[]> = {
+  'South Africa': [
+    'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal',
+    'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'
+  ],
+  'Angola': [
+    'Bengo', 'Benguela', 'Bié', 'Cabinda', 'Cuando Cubango', 'Cuanza Norte',
+    'Cuanza Sul', 'Cunene', 'Huambo', 'Huíla', 'Luanda', 'Lunda Norte',
+    'Lunda Sul', 'Malanje', 'Moxico', 'Namibe', 'Uíge', 'Zaire'
+  ],
+  'Botswana': [
+    'Central', 'Chobe', 'Francistown', 'Gaborone', 'Ghanzi', 'Jwaneng',
+    'Kgalagadi', 'Kgatleng', 'Kweneng', 'Lobatse', 'Ngamiland', 'North-East',
+    'Orapa', 'Selibe Phikwe', 'South-East', 'Southern', 'Sowa Town'
+  ],
+  'Comoros': [
+    'Anjouan', 'Grande Comore', 'Mohéli'
+  ],
+  'Democratic Republic of Congo': [
+    'Bandundu', 'Bas-Congo', 'Équateur', 'Kasai-Occidental', 'Kasai-Oriental',
+    'Katanga', 'Kinshasa', 'Maniema', 'Nord-Kivu', 'Orientale', 'Sud-Kivu'
+  ],
+  'Eswatini': [
+    'Hhohho', 'Lubombo', 'Manzini', 'Shiselweni'
+  ],
+  'Lesotho': [
+    'Berea', 'Butha-Buthe', 'Leribe', 'Mafeteng', 'Maseru',
+    'Mohale\'s Hoek', 'Mokhotlong', 'Qacha\'s Nek', 'Quthing', 'Thaba-Tseka'
+  ],
+  'Madagascar': [
+    'Antananarivo', 'Antsiranana', 'Fianarantsoa', 'Mahajanga', 'Toamasina', 'Toliara'
+  ],
+  'Malawi': [
+    'Central Region', 'Northern Region', 'Southern Region'
+  ],
+  'Mauritius': [
+    'Black River', 'Flacq', 'Grand Port', 'Moka', 'Pamplemousses', 'Plaines Wilhems',
+    'Port Louis', 'Rivière du Rempart', 'Savanne', 'Rodrigues'
+  ],
+  'Mozambique': [
+    'Cabo Delgado', 'Gaza', 'Inhambane', 'Manica', 'Maputo City', 'Maputo Province',
+    'Nampula', 'Niassa', 'Sofala', 'Tete', 'Zambezia'
+  ],
+  'Namibia': [
+    'Erongo', 'Hardap', 'Karas', 'Kavango East', 'Kavango West', 'Khomas',
+    'Kunene', 'Ohangwena', 'Omaheke', 'Omusati', 'Oshana', 'Oshikoto', 'Otjozondjupa', 'Zambezi'
+  ],
+  'Seychelles': [
+    'Anse aux Pins', 'Anse Boileau', 'Anse Etoile', 'Anse Royale', 'Au Cap',
+    'Baie Lazare', 'Baie Sainte Anne', 'Beau Vallon', 'Bel Air', 'Bel Ombre',
+    'Cascade', 'English River', 'Glacis', 'Grand Anse Mahe', 'Grand Anse Praslin',
+    'La Digue', 'Les Mamelles', 'Mont Buxton', 'Mont Fleuri', 'Plaisance',
+    'Pointe Larue', 'Port Glaud', 'Roche Caiman', 'Saint Louis', 'Takamaka'
+  ],
+  'Tanzania': [
+    'Arusha', 'Dar es Salaam', 'Dodoma', 'Geita', 'Iringa', 'Kagera', 'Katavi',
+    'Kigoma', 'Kilimanjaro', 'Lindi', 'Manyara', 'Mara', 'Mbeya', 'Morogoro',
+    'Mtwara', 'Mwanza', 'Njombe', 'Pemba North', 'Pemba South', 'Pwani', 'Rukwa',
+    'Ruvuma', 'Shinyanga', 'Simiyu', 'Singida', 'Songwe', 'Tabora', 'Tanga',
+    'Zanzibar North', 'Zanzibar South', 'Zanzibar West'
+  ],
+  'Zambia': [
+    'Central', 'Copperbelt', 'Eastern', 'Luapula', 'Lusaka', 'Muchinga',
+    'Northern', 'North-Western', 'Southern', 'Western'
+  ],
+  'Zimbabwe': [
+    'Bulawayo', 'Harare', 'Manicaland', 'Mashonaland Central', 'Mashonaland East',
+    'Mashonaland West', 'Masvingo', 'Matabeleland North', 'Matabeleland South', 'Midlands'
+  ]
+};
+
+// Get region label based on country
+const getRegionLabel = (country: string): string => {
+  const labels: Record<string, string> = {
+    'South Africa': 'Province',
+    'Botswana': 'District',
+    'Namibia': 'Region',
+    'Zimbabwe': 'Province',
+    'Mozambique': 'Province',
+    'Zambia': 'Province',
+    'Angola': 'Province',
+    'Lesotho': 'District',
+    'Eswatini': 'Region',
+    'Malawi': 'Region',
+    'Mauritius': 'District',
+    'Tanzania': 'Region',
+    'Democratic Republic of Congo': 'Province',
+    'Seychelles': 'District',
+    'Madagascar': 'Region',
+    'Comoros': 'Island'
+  };
+  return labels[country] || 'Region';
+};
 
 // Pricing Plans Data
 const pricingPlans = [
@@ -136,6 +218,10 @@ export default function BusinessRegistration() {
     mobilePhone: '',
     website: ''
   });
+
+  // Get available provinces for selected country
+  const availableProvinces = REGIONS_BY_COUNTRY[businessData.physicalCountry] || [];
+  const regionLabel = getRegionLabel(businessData.physicalCountry);
 
   // Phase 2: Director Details
   const [directorData, setDirectorData] = useState({
@@ -241,8 +327,12 @@ export default function BusinessRegistration() {
       alert('City is required');
       return false;
     }
+    if (!businessData.physicalCountry) {
+      alert('Country is required');
+      return false;
+    }
     if (!businessData.physicalProvince) {
-      alert('Province is required');
+      alert(`${regionLabel} is required`);
       return false;
     }
     if (!businessData.email) {
@@ -664,7 +754,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Registration Number
+                      Registration Number (optional)
                     </label>
                     <input
                       type="text"
@@ -676,7 +766,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      VAT Number
+                      VAT Number (optional)
                     </label>
                     <input
                       type="text"
@@ -741,28 +831,7 @@ export default function BusinessRegistration() {
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Province *
-                    </label>
-                    <select
-                      value={businessData.physicalProvince}
-                      onChange={(e) => {
-                        setBusinessData({ ...businessData, physicalProvince: e.target.value });
-                        if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    >
-                      <option value="">Select Province</option>
-                      {PROVINCES.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
+                  {/* Country - Select FIRST */}
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
                       Country *
@@ -770,17 +839,67 @@ export default function BusinessRegistration() {
                     <select
                       value={businessData.physicalCountry}
                       onChange={(e) => {
-                        setBusinessData({ ...businessData, physicalCountry: e.target.value });
+                        const newCountry = e.target.value;
+                        setBusinessData({ 
+                          ...businessData, 
+                          physicalCountry: newCountry,
+                          physicalProvince: '' // Reset province when country changes
+                        });
                         if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ ...prev, postalCountry: e.target.value }));
+                          setBusinessData(prev => ({ 
+                            ...prev, 
+                            postalCountry: newCountry,
+                            postalProvince: ''
+                          }));
                         }
                       }}
                       className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
                     >
+                      <option value="">Select Country</option>
                       {SADC_COUNTRIES.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
+                  </div>
+                  
+                  {/* Province/Region - Dynamic based on Country */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      {regionLabel} *
+                    </label>
+                    {availableProvinces.length > 0 ? (
+                      <select
+                        value={businessData.physicalProvince}
+                        onChange={(e) => {
+                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
+                          if (businessData.sameAsPhysical) {
+                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        required
+                      >
+                        <option value="">Select {regionLabel}</option>
+                        {availableProvinces.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={businessData.physicalProvince}
+                        onChange={(e) => {
+                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
+                          if (businessData.sameAsPhysical) {
+                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
+                          }
+                        }}
+                        placeholder={`Enter ${regionLabel.toLowerCase()}`}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        required
+                      />
+                    )}
                   </div>
                   
                   <div>
@@ -856,32 +975,46 @@ export default function BusinessRegistration() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-300 mb-1">
-                        Province
+                        Country
                       </label>
                       <select
-                        value={businessData.postalProvince}
-                        onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
+                        value={businessData.postalCountry}
+                        onChange={(e) => {
+                          const newCountry = e.target.value;
+                          setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' });
+                        }}
                         className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                       >
-                        <option value="">Select Province</option>
-                        {PROVINCES.map(p => (
-                          <option key={p} value={p}>{p}</option>
+                        <option value="">Select Country</option>
+                        {SADC_COUNTRIES.map(c => (
+                          <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-300 mb-1">
-                        Country
+                        {getRegionLabel(businessData.postalCountry)}
                       </label>
-                      <select
-                        value={businessData.postalCountry}
-                        onChange={(e) => setBusinessData({ ...businessData, postalCountry: e.target.value })}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      >
-                        {SADC_COUNTRIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+                      {REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (
+                        <select
+                          value={businessData.postalProvince}
+                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
+                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        >
+                          <option value="">Select {getRegionLabel(businessData.postalCountry)}</option>
+                          {REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={businessData.postalProvince}
+                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
+                          placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`}
+                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-300 mb-1">
@@ -1252,6 +1385,32 @@ export default function BusinessRegistration() {
                     <p>Email: <span className="text-white">{businessData.email}</span></p>
                     <p>Phone: <span className="text-white">{businessData.mobilePhone}</span></p>
                   </div>
+                </div>
+
+                {/* Billing Cycle Toggle */}
+                <div className="flex justify-center gap-4 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('monthly')}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                      billingCycle === 'monthly'
+                        ? 'bg-amber-500 text-stone-900'
+                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                    }`}
+                  >
+                    Monthly Billing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('yearly')}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                      billingCycle === 'yearly'
+                        ? 'bg-amber-500 text-stone-900'
+                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                    }`}
+                  >
+                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save ~17%</span>
+                  </button>
                 </div>
 
                 {/* CAPTCHA */}
