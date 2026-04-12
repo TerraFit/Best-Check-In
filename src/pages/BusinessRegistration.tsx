@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -171,6 +171,12 @@ const pricingPlans = [
 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]); // Triggers on every route change
   
   // Phase Management
   const [phase, setPhase] = useState(1);
@@ -388,6 +394,10 @@ export default function BusinessRegistration() {
     e.preventDefault();
     if (validatePhase1()) {
       setPhase(2);
+      // 🎯 Scroll to top of form on phase change (smooth)
+      setTimeout(() => {
+        document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
   };
 
@@ -396,6 +406,10 @@ export default function BusinessRegistration() {
     e.preventDefault();
     if (validatePhase2()) {
       setPhase(3);
+      // 🎯 Scroll to top of form on phase change (smooth)
+      setTimeout(() => {
+        document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
   };
 
@@ -534,7 +548,7 @@ export default function BusinessRegistration() {
 
       <div className="max-w-6xl mx-auto py-12 px-4">
         {/* Header with Logo */}
-        <div className="text-center mb-8">
+        <div id="form-top" className="text-center mb-8">
           <img
             src="/fastcheckin-logo.png"
             alt="FastCheckin"
