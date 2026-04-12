@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const pricingPlans = [
     {
@@ -68,6 +70,23 @@ export default function HomePage() {
     }
   ];
 
+  const handleBusinessLogin = async () => {
+    setLoginLoading(true);
+    // Simulate loading for better UX
+    setTimeout(() => {
+      navigate('/business/login');
+      setLoginLoading(false);
+    }, 500);
+  };
+
+  // Scroll to pricing section
+  const scrollToPricing = () => {
+    const pricingSection = document.getElementById('pricing-section');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-stone-900">
       {/* Hero Section */}
@@ -127,10 +146,21 @@ export default function HomePage() {
                 Start Your 14-Day Free Trial
               </button>
               <button
-                onClick={() => navigate('/business/login')}
-                className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
+                onClick={handleBusinessLogin}
+                disabled={loginLoading}
+                className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Business Login
+                {loginLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  'Business Login'
+                )}
               </button>
             </div>
             
@@ -181,7 +211,7 @@ export default function HomePage() {
       </div>
 
       {/* Pricing Section - New Cards */}
-      <div className="bg-stone-800/50 py-20">
+      <div id="pricing-section" className="bg-stone-800/50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-white mb-4">
@@ -244,6 +274,19 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Scroll Indicator - Subtle arrow */}
+          <div className="text-center mt-12 animate-bounce">
+            <button 
+              onClick={scrollToPricing}
+              className="text-stone-500 text-sm flex items-center justify-center gap-2 hover:text-stone-400 transition-colors group"
+            >
+              <span>Register here</span>
+              <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
           </div>
 
           {/* Enterprise Tier */}
