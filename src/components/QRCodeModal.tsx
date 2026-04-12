@@ -93,7 +93,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       return;
     }
 
-    // Increased limit to 5MB for HD logos
     if (file.size > 5 * 1024 * 1024) {
       alert('Logo must be less than 5MB');
       return;
@@ -145,9 +144,16 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
+      // Powered by FastCheckin Section
       ctx.font = '400 11px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#d1d5db';
-      ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 50);
+      
+      // Draw small FastCheckin logo text
+      const poweredByText = 'Powered by FastCheckin';
+      const textWidth = ctx.measureText(poweredByText).width;
+      const startX = (canvas.width - textWidth) / 2;
+      
+      ctx.fillText(poweredByText, startX, canvas.height - 50);
       
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#e5e7eb';
@@ -232,9 +238,13 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
+      // Powered by FastCheckin Section
       ctx.font = '400 11px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#d1d5db';
-      ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 50);
+      const poweredByText = 'Powered by FastCheckin';
+      const textWidth = ctx.measureText(poweredByText).width;
+      const startX = (canvas.width - textWidth) / 2;
+      ctx.fillText(poweredByText, startX, canvas.height - 50);
       
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#e5e7eb';
@@ -316,9 +326,13 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
+      // Powered by FastCheckin Section
       ctx.font = '400 11px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#d1d5db';
-      ctx.fillText('Powered by FastCheckin', canvas.width / 2, canvas.height - 50);
+      const poweredByText = 'Powered by FastCheckin';
+      const textWidth = ctx.measureText(poweredByText).width;
+      const startX = (canvas.width - textWidth) / 2;
+      ctx.fillText(poweredByText, startX, canvas.height - 50);
       
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#e5e7eb';
@@ -574,6 +588,19 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           <p className="text-[10px] text-gray-400 text-center">
             HD Logo Support • Prints at full quality • A4 size (210 × 297mm)
           </p>
+          
+          {/* Powered by FastCheckin */}
+          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+            <div className="flex items-center justify-center gap-2 text-gray-400 text-xs">
+              <span>Powered by</span>
+              <img 
+                src="/fastcheckin-logo.png" 
+                alt="FastCheckin" 
+                className="h-3 w-auto object-contain"
+              />
+              <span>FastCheckin</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
