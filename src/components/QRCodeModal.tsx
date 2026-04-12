@@ -144,20 +144,47 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
-      // Powered by FastCheckin Section
-      ctx.font = '400 11px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#d1d5db';
+      // ============================================================
+      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
+      // Positioned directly below the instruction text
+      // Same colour and style as the line above
+      // ============================================================
+      ctx.font = '400 12px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#9ca3af';
       
-      // Draw small FastCheckin logo text
-      const poweredByText = 'Powered by FastCheckin';
-      const textWidth = ctx.measureText(poweredByText).width;
-      const startX = (canvas.width - textWidth) / 2;
+      // Draw "Powered by" text
+      const poweredByText = 'Powered by';
+      const poweredByWidth = ctx.measureText(poweredByText).width;
+      const logoSize = 16;
+      const totalWidth = poweredByWidth + logoSize + 8; // 8px gap
+      const startX = (canvas.width - totalWidth) / 2;
       
-      ctx.fillText(poweredByText, startX, canvas.height - 50);
+      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
       
+      // Draw FastCheckin logo next to text
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'Anonymous';
+      logoImg.onload = () => {
+        ctx.drawImage(logoImg, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
+      };
+      logoImg.src = '/fastcheckin-logo.png';
+      
+      // ============================================================
+      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
+      // Directly underneath the primary branding
+      // ============================================================
+      ctx.font = '500 14px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#f97316';
+      const brandNameText = 'FastCheckin';
+      const brandNameWidth = ctx.measureText(brandNameText).width;
+      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
+      
+      // Tagline underneath
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#e5e7eb';
-      ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 30);
+      ctx.fillStyle = '#cbd5e1';
+      const taglineText = 'Seamless Check-in, Smarter Stay';
+      const taglineWidth = ctx.measureText(taglineText).width;
+      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
     };
 
     const qrImg = new Image();
@@ -238,17 +265,41 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
-      // Powered by FastCheckin Section
-      ctx.font = '400 11px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#d1d5db';
-      const poweredByText = 'Powered by FastCheckin';
-      const textWidth = ctx.measureText(poweredByText).width;
-      const startX = (canvas.width - textWidth) / 2;
-      ctx.fillText(poweredByText, startX, canvas.height - 50);
+      // ============================================================
+      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
+      // ============================================================
+      ctx.font = '400 12px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      
+      const poweredByText = 'Powered by';
+      const poweredByWidth = ctx.measureText(poweredByText).width;
+      const logoSize = 16;
+      const totalWidth = poweredByWidth + logoSize + 8;
+      const startX = (canvas.width - totalWidth) / 2;
+      
+      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
+      
+      const logoImgForDraw = new Image();
+      logoImgForDraw.crossOrigin = 'Anonymous';
+      logoImgForDraw.onload = () => {
+        ctx.drawImage(logoImgForDraw, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
+      };
+      logoImgForDraw.src = '/fastcheckin-logo.png';
+      
+      // ============================================================
+      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
+      // ============================================================
+      ctx.font = '500 14px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#f97316';
+      const brandNameText = 'FastCheckin';
+      const brandNameWidth = ctx.measureText(brandNameText).width;
+      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
       
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#e5e7eb';
-      ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 30);
+      ctx.fillStyle = '#cbd5e1';
+      const taglineText = 'Seamless Check-in, Smarter Stay';
+      const taglineWidth = ctx.measureText(taglineText).width;
+      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
 
       const link = document.createElement('a');
       link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-poster.png`;
@@ -326,17 +377,41 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
-      // Powered by FastCheckin Section
-      ctx.font = '400 11px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#d1d5db';
-      const poweredByText = 'Powered by FastCheckin';
-      const textWidth = ctx.measureText(poweredByText).width;
-      const startX = (canvas.width - textWidth) / 2;
-      ctx.fillText(poweredByText, startX, canvas.height - 50);
+      // ============================================================
+      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
+      // ============================================================
+      ctx.font = '400 12px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      
+      const poweredByText = 'Powered by';
+      const poweredByWidth = ctx.measureText(poweredByText).width;
+      const logoSize = 16;
+      const totalWidth = poweredByWidth + logoSize + 8;
+      const startX = (canvas.width - totalWidth) / 2;
+      
+      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
+      
+      const logoImgForDraw = new Image();
+      logoImgForDraw.crossOrigin = 'Anonymous';
+      logoImgForDraw.onload = () => {
+        ctx.drawImage(logoImgForDraw, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
+      };
+      logoImgForDraw.src = '/fastcheckin-logo.png';
+      
+      // ============================================================
+      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
+      // ============================================================
+      ctx.font = '500 14px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#f97316';
+      const brandNameText = 'FastCheckin';
+      const brandNameWidth = ctx.measureText(brandNameText).width;
+      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
       
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#e5e7eb';
-      ctx.fillText('www.fastcheckin.co.za', canvas.width / 2, canvas.height - 30);
+      ctx.fillStyle = '#cbd5e1';
+      const taglineText = 'Seamless Check-in, Smarter Stay';
+      const taglineWidth = ctx.measureText(taglineText).width;
+      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
 
       const printWindow = window.open('', '_blank');
       if (printWindow) {
@@ -588,19 +663,6 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
           <p className="text-[10px] text-gray-400 text-center">
             HD Logo Support • Prints at full quality • A4 size (210 × 297mm)
           </p>
-          
-          {/* Powered by FastCheckin */}
-          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-            <div className="flex items-center justify-center gap-2 text-gray-400 text-xs">
-              <span>Powered by</span>
-              <img 
-                src="/fastcheckin-logo.png" 
-                alt="FastCheckin" 
-                className="h-3 w-auto object-contain"
-              />
-              <span>FastCheckin</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
