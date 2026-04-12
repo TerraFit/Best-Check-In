@@ -4,10 +4,22 @@ import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
 import { getAuth, clearAuth } from '../utils/auth';
 
+interface Director {
+  name: string;
+  idNumber: string;
+  idPhoto?: string;
+}
+
 interface Business {
   id: string;
   registered_name: string;
   trading_name: string;
+  legal_name?: string;
+  registration_number?: string;
+  business_number?: string;
+  vat_number?: string;
+  establishment_type?: string;
+  tgsa_grading?: string;
   phone: string;
   email: string;
   physical_address: {
@@ -15,22 +27,60 @@ interface Business {
     city: string;
     province: string;
     postalCode: string;
+    country?: string;
   };
+  physical_address_locked?: any;
+  postal_address?: any;
   subscription_tier: 'monthly' | 'annual';
   payment_status: 'paid' | 'overdue' | 'critical';
   last_payment_date?: string;
   payment_due_date?: string;
   days_overdue?: number;
   created_at: string;
-  directors: any[];
+  directors: Director[];
   status: string;
+  total_rooms?: number;
+  avg_price?: number;
+  slogan?: string;
+  hero_image_url?: string;
+  logo_url?: string;
+}
+
+interface ChangeRequest {
+  id: string;
+  business_id: string;
+  business_name: string;
+  field_name: string;
+  current_value: string;
+  requested_value: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
 }
 
 type FilterType = {
   province: string;
   city: string;
   search: string;
+  establishmentType: string;
+  tgsaGrading: string;
+  subscriptionTier: string;
+  paymentStatus: string;
 };
+
+const ESTABLISHMENT_TYPES = [
+  'Hotel',
+  'Bed & Breakfast (B&B)',
+  'Guest House',
+  'Large Campsite',
+  'Resort',
+  'Lodge',
+  'Self-Catering'
+];
+
+const TGSA_GRADINGS = ['NA', '1★', '2★', '3★', '4★', '5★'];
 
 export default function SuperAdminPortal() {
   const navigate = useNavigate();
@@ -39,6 +89,8 @@ export default function SuperAdminPortal() {
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [showChangeRequests, setShowChangeRequests] = useState(false);
   
   // Business Overview state
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
@@ -47,6 +99,30 @@ export default function SuperAdminPortal() {
   // QR Code Modal state
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedQRBusiness, setSelectedQRBusiness] = useState<{id: string, name: string} | null>(null);
+  
+  // Edit Business Modal state (for locked fields)
+  const [editingBusiness, setEditingBusiness] = useState<Business | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    legal_name: '',
+    registration_number: '',
+    trading_name: '',
+    physical_address: {
+      street: '',
+      city: '',
+      province: '',
+      postalCode: '',
+      country: ''
+    },
+    establishment_type: '',
+    tgsa_grading: ''
+  });
+  const [editReason, setEditReason] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  
+  // Change Request Modal state
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<ChangeRequest | null>(null);
+  const [changeRequestAction, setChangeRequestAction] = useState<'approve' | 'reject' | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   
   // Delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -60,7 +136,11 @@ export default function SuperAdminPortal() {
   const [filters, setFilters] = useState<FilterType>({
     province: '',
     city: '',
-    search: ''
+    search: '',
+    establishmentType: '',
+    tgsaGrading: '',
+    subscriptionTier: '',
+    paymentStatus: ''
   });
   
   // Unique values for filter dropdowns
@@ -78,6 +158,7 @@ export default function SuperAdminPortal() {
     }
     fetchBusinesses();
     fetchPendingCount();
+    fetchChangeRequests();
   }, [navigate]);
 
   useEffect(() => {
@@ -107,7 +188,7 @@ export default function SuperAdminPortal() {
       
       // Sort alphabetically by trading name
       const sorted = businessesWithStatus.sort((a, b) => 
-        a.trading_name.localeCompare(b.trading_name)
+        (a.trading_name || '').localeCompare(b.trading_name || '')
       );
       
       setBusinesses(sorted);
@@ -133,6 +214,18 @@ export default function SuperAdminPortal() {
       setPendingCount(data.length || 0);
     } catch (error) {
       console.error('Error fetching pending count:', error);
+    }
+  };
+
+  const fetchChangeRequests = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/get-change-requests');
+      if (response.ok) {
+        const data = await response.json();
+        setChangeRequests(data);
+      }
+    } catch (error) {
+      console.error('Error fetching change requests:', error);
     }
   };
 
@@ -164,11 +257,11 @@ export default function SuperAdminPortal() {
   const getStatusText = (business: Business) => {
     if (business.status !== 'approved') return business.status;
     
-    if (business.days_overdue >= 10) 
+    if (business.days_overdue && business.days_overdue >= 10) 
       return `⚠️ CRITICAL: ${business.days_overdue} days overdue`;
-    if (business.days_overdue >= 5) 
+    if (business.days_overdue && business.days_overdue >= 5) 
       return `⚠️ Overdue: ${business.days_overdue} days`;
-    if (business.days_overdue > 0) 
+    if (business.days_overdue && business.days_overdue > 0) 
       return `⚠️ Payment due: ${business.days_overdue} days`;
     return '✓ Active';
   };
@@ -187,10 +280,27 @@ export default function SuperAdminPortal() {
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(b => 
-        b.trading_name.toLowerCase().includes(searchLower) ||
-        b.registered_name.toLowerCase().includes(searchLower) ||
-        b.email.toLowerCase().includes(searchLower)
+        (b.trading_name || '').toLowerCase().includes(searchLower) ||
+        (b.registered_name || '').toLowerCase().includes(searchLower) ||
+        (b.email || '').toLowerCase().includes(searchLower) ||
+        (b.legal_name || '').toLowerCase().includes(searchLower)
       );
+    }
+
+    if (filters.establishmentType) {
+      filtered = filtered.filter(b => b.establishment_type === filters.establishmentType);
+    }
+
+    if (filters.tgsaGrading) {
+      filtered = filtered.filter(b => b.tgsa_grading === filters.tgsaGrading);
+    }
+
+    if (filters.subscriptionTier) {
+      filtered = filtered.filter(b => b.subscription_tier === filters.subscriptionTier);
+    }
+
+    if (filters.paymentStatus) {
+      filtered = filtered.filter(b => b.payment_status === filters.paymentStatus);
     }
 
     setFilteredBusinesses(filtered);
@@ -213,6 +323,132 @@ export default function SuperAdminPortal() {
       alert('Failed to send reminder');
     } finally {
       setSendingReminder(null);
+    }
+  };
+
+  // Open edit modal for locked fields
+  const openEditBusiness = (business: Business) => {
+    setEditingBusiness(business);
+    setEditFormData({
+      legal_name: business.legal_name || business.registered_name || '',
+      registration_number: business.registration_number || business.business_number || '',
+      trading_name: business.trading_name || '',
+      physical_address: {
+        street: business.physical_address?.street || '',
+        city: business.physical_address?.city || '',
+        province: business.physical_address?.province || '',
+        postalCode: business.physical_address?.postalCode || '',
+        country: business.physical_address?.country || 'South Africa'
+      },
+      establishment_type: business.establishment_type || '',
+      tgsa_grading: business.tgsa_grading || 'NA'
+    });
+    setEditReason('');
+    setShowEditModal(true);
+  };
+
+  // Save edited locked fields
+  const saveBusinessEdit = async () => {
+    if (!editingBusiness) return;
+    if (!editReason.trim()) {
+      alert('Please provide a reason for this change');
+      return;
+    }
+
+    try {
+      const response = await fetch('/.netlify/functions/update-business-locked-fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: editingBusiness.id,
+          updates: editFormData,
+          reason: editReason,
+          adminEmail: getAuth()?.user?.email
+        })
+      });
+
+      if (response.ok) {
+        alert('Business information updated successfully');
+        setShowEditModal(false);
+        fetchBusinesses();
+        
+        // Send notification to business owner
+        await fetch('/.netlify/functions/notify-business-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessId: editingBusiness.id,
+            businessName: editingBusiness.trading_name,
+            changes: editFormData,
+            reason: editReason
+          })
+        });
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update business');
+      }
+    } catch (error) {
+      console.error('Error updating business:', error);
+      alert('An error occurred');
+    }
+  };
+
+  // Approve change request
+  const approveChangeRequest = async () => {
+    if (!selectedChangeRequest) return;
+
+    try {
+      const response = await fetch('/.netlify/functions/approve-change-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: selectedChangeRequest.id,
+          action: 'approve'
+        })
+      });
+
+      if (response.ok) {
+        alert('Change request approved');
+        fetchChangeRequests();
+        fetchBusinesses();
+        setSelectedChangeRequest(null);
+        setChangeRequestAction(null);
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
+      alert('Failed to approve request');
+    }
+  };
+
+  // Reject change request
+  const rejectChangeRequest = async () => {
+    if (!selectedChangeRequest) return;
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    try {
+      const response = await fetch('/.netlify/functions/approve-change-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: selectedChangeRequest.id,
+          action: 'reject',
+          reason: rejectionReason
+        })
+      });
+
+      if (response.ok) {
+        alert('Change request rejected');
+        fetchChangeRequests();
+        setSelectedChangeRequest(null);
+        setChangeRequestAction(null);
+        setRejectionReason('');
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      alert('Failed to reject request');
     }
   };
 
@@ -275,6 +511,8 @@ export default function SuperAdminPortal() {
     setShowQRModal(true);
   };
 
+  const pendingChangeRequests = changeRequests.filter(cr => cr.status === 'pending');
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-8">
@@ -336,12 +574,28 @@ export default function SuperAdminPortal() {
               </nav>
             </div>
 
-            {/* Right side - Pending Approvals and Logout */}
+            {/* Right side - Pending Approvals, Change Requests, and Logout */}
             <div className="flex items-center gap-4">
+              {/* Change Requests Button */}
               <button
-                onClick={() => {
-                  navigate('/super-admin/approve');
-                }}
+                onClick={() => setShowChangeRequests(!showChangeRequests)}
+                className="relative px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 group"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Change Requests</span>
+                
+                {pendingChangeRequests.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white">
+                    {pendingChangeRequests.length > 99 ? '99+' : pendingChangeRequests.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Pending Approvals Button */}
+              <button
+                onClick={() => navigate('/super-admin/approve')}
                 className="relative px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 group"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,7 +603,6 @@ export default function SuperAdminPortal() {
                 </svg>
                 <span>Pending Approvals</span>
                 
-                {/* Count Badge */}
                 {pendingCount > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white group-hover:bg-red-600 transition-colors">
                     {pendingCount > 99 ? '99+' : pendingCount}
@@ -372,17 +625,82 @@ export default function SuperAdminPortal() {
         </div>
       </div>
 
+      {/* Change Requests Panel */}
+      {showChangeRequests && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 bg-purple-50 border-b border-purple-200">
+              <h2 className="text-lg font-semibold text-purple-800 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Pending Change Requests ({pendingChangeRequests.length})
+              </h2>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {pendingChangeRequests.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  No pending change requests
+                </div>
+              ) : (
+                pendingChangeRequests.map(request => (
+                  <div key={request.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{request.business_name}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          <span className="font-medium">Field:</span> {request.field_name.replace(/_/g, ' ').toUpperCase()}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Current:</span> {request.current_value || '(empty)'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Requested:</span> {request.requested_value}
+                        </p>
+                        <p className="text-sm text-gray-500 mt-2">
+                          <span className="font-medium">Reason:</span> {request.reason}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedChangeRequest(request);
+                            setChangeRequestAction('approve');
+                          }}
+                          className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedChangeRequest(request);
+                            setChangeRequestAction('reject');
+                          }}
+                          className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page Title */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Super Admin Dashboard</h1>
         <p className="text-gray-600 mt-1">Manage all businesses and subscriptions</p>
       </div>
 
-      {/* Filters */}
+      {/* Independent Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Filters</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
               <input
@@ -419,9 +737,68 @@ export default function SuperAdminPortal() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Establishment Type</label>
+              <select
+                value={filters.establishmentType}
+                onChange={(e) => setFilters({ ...filters, establishmentType: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All Types</option>
+                {ESTABLISHMENT_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">TGSA Grading</label>
+              <select
+                value={filters.tgsaGrading}
+                onChange={(e) => setFilters({ ...filters, tgsaGrading: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All Grades</option>
+                {TGSA_GRADINGS.map(grade => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subscription</label>
+              <select
+                value={filters.subscriptionTier}
+                onChange={(e) => setFilters({ ...filters, subscriptionTier: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All</option>
+                <option value="monthly">Monthly</option>
+                <option value="annual">Annual</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+              <select
+                value={filters.paymentStatus}
+                onChange={(e) => setFilters({ ...filters, paymentStatus: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
             <div className="flex items-end">
               <button
-                onClick={() => setFilters({ province: '', city: '', search: '' })}
+                onClick={() => setFilters({ 
+                  province: '', 
+                  city: '', 
+                  search: '', 
+                  establishmentType: '', 
+                  tgsaGrading: '', 
+                  subscriptionTier: '', 
+                  paymentStatus: '' 
+                })}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
                 Clear Filters
@@ -442,13 +819,23 @@ export default function SuperAdminPortal() {
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-xl font-semibold text-gray-900">
                         {business.trading_name}
                       </h3>
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(business.status, business.days_overdue)}`}>
                         {getStatusText(business)}
                       </span>
+                      {business.establishment_type && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                          {business.establishment_type}
+                        </span>
+                      )}
+                      {business.tgsa_grading && business.tgsa_grading !== 'NA' && (
+                        <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
+                          {business.tgsa_grading}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-600 mt-1">{business.registered_name}</p>
                     
@@ -493,7 +880,19 @@ export default function SuperAdminPortal() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Edit Business Button (for locked fields) */}
+                    <button
+                      onClick={() => openEditBusiness(business)}
+                      className="px-3 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 text-sm flex items-center gap-1"
+                      title="Edit Locked Fields"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      Edit
+                    </button>
+
                     <button
                       onClick={() => openQRModal(business.id, business.trading_name)}
                       className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1"
@@ -542,7 +941,7 @@ export default function SuperAdminPortal() {
                   </div>
                 </div>
 
-                {business.days_overdue >= 10 && (
+                {business.days_overdue && business.days_overdue >= 10 && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm text-red-800">
                       ⚠️ Payment {business.days_overdue} days overdue. Service will be suspended in {14 - business.days_overdue} days.
@@ -550,7 +949,7 @@ export default function SuperAdminPortal() {
                   </div>
                 )}
 
-                {business.days_overdue >= 5 && business.days_overdue < 10 && (
+                {business.days_overdue && business.days_overdue >= 5 && business.days_overdue < 10 && (
                   <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                     <p className="text-sm text-orange-800">
                       ⚠️ Payment {business.days_overdue} days overdue. Please send reminder.
@@ -569,6 +968,276 @@ export default function SuperAdminPortal() {
           )}
         </div>
       </div>
+
+      {/* Edit Business Modal (Locked Fields) */}
+      {showEditModal && editingBusiness && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Edit Locked Fields - {editingBusiness.trading_name}
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Note:</strong> These fields are locked and can only be edited by Super Admin.
+                    Changes will be applied immediately and the business owner will be notified.
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Legal Name / Registered Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.legal_name}
+                    onChange={(e) => setEditFormData({ ...editFormData, legal_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Registration Number *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.registration_number}
+                    onChange={(e) => setEditFormData({ ...editFormData, registration_number: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Trading Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.trading_name}
+                    onChange={(e) => setEditFormData({ ...editFormData, trading_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Establishment Type
+                  </label>
+                  <select
+                    value={editFormData.establishment_type}
+                    onChange={(e) => setEditFormData({ ...editFormData, establishment_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="">Select Type</option>
+                    {ESTABLISHMENT_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    TGSA Grading
+                  </label>
+                  <select
+                    value={editFormData.tgsa_grading}
+                    onChange={(e) => setEditFormData({ ...editFormData, tgsa_grading: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    {TGSA_GRADINGS.map(grade => (
+                      <option key={grade} value={grade}>{grade}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-3">Physical Address</h4>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Street Address"
+                      value={editFormData.physical_address.street}
+                      onChange={(e) => setEditFormData({
+                        ...editFormData,
+                        physical_address: { ...editFormData.physical_address, street: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={editFormData.physical_address.city}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          physical_address: { ...editFormData.physical_address, city: e.target.value }
+                        })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Province"
+                        value={editFormData.physical_address.province}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          physical_address: { ...editFormData.physical_address, province: e.target.value }
+                        })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Postal Code"
+                        value={editFormData.physical_address.postalCode}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          physical_address: { ...editFormData.physical_address, postalCode: e.target.value }
+                        })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Country"
+                        value={editFormData.physical_address.country}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          physical_address: { ...editFormData.physical_address, country: e.target.value }
+                        })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason for Change *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    placeholder="Please provide a reason for these changes..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveBusinessEdit}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve/Reject Change Request Modal */}
+      {changeRequestAction && selectedChangeRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                changeRequestAction === 'approve' ? 'bg-green-100' : 'bg-red-100'
+              }`}>
+                {changeRequestAction === 'approve' ? (
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
+              
+              <h3 className="text-lg font-medium text-gray-900 text-center mb-4">
+                {changeRequestAction === 'approve' ? 'Approve Change Request' : 'Reject Change Request'}
+              </h3>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <p className="text-sm text-gray-600">
+                  <strong>Business:</strong> {selectedChangeRequest.business_name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Field:</strong> {selectedChangeRequest.field_name.replace(/_/g, ' ').toUpperCase()}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Current:</strong> {selectedChangeRequest.current_value || '(empty)'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Requested:</strong> {selectedChangeRequest.requested_value}
+                </p>
+                <p className="text-sm text-gray-600 mt-2">
+                  <strong>Reason:</strong> {selectedChangeRequest.reason}
+                </p>
+              </div>
+              
+              {changeRequestAction === 'reject' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rejection Reason *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Please explain why this request is being rejected..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                    required
+                  />
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setChangeRequestAction(null);
+                    setSelectedChangeRequest(null);
+                    setRejectionReason('');
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={changeRequestAction === 'approve' ? approveChangeRequest : rejectChangeRequest}
+                  className={`flex-1 px-4 py-2 rounded-lg text-white ${
+                    changeRequestAction === 'approve' 
+                      ? 'bg-green-500 hover:bg-green-600' 
+                      : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  {changeRequestAction === 'approve' ? 'Approve' : 'Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm?.isOpen && (
