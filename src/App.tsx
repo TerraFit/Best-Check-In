@@ -19,8 +19,39 @@ import ScrollToTop from './components/ScrollToTop';
 import NewsletterSubscribe from './pages/NewsletterSubscribe';
 import Billing from './pages/Billing';
 
+// Simple wrapper for CheckInApp
 function CheckInWrapper() {
   return <CheckInApp />;
+}
+
+// Unauthorized Page Component
+function UnauthorizedPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-900">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-red-500 mb-4">Unauthorized Access</h1>
+        <p className="text-stone-400 mb-6">You don't have permission to view this page.</p>
+        <a href="/" className="text-amber-500 hover:text-amber-400 underline">
+          Return to Home
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// Not Found Page Component
+function NotFoundPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-900">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-white mb-4">404</h1>
+        <p className="text-stone-400 mb-6">Page not found</p>
+        <a href="/" className="text-amber-500 hover:text-amber-400 underline">
+          Return Home
+        </a>
+      </div>
+    </div>
+  );
 }
 
 function AppContent() {
@@ -108,30 +139,6 @@ function AppContent() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
-  );
-}
-
-function UnauthorizedPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-red-600 mb-4">Unauthorized Access</h1>
-        <p className="text-gray-600 mb-6">You don't have permission to view this page.</p>
-        <a href="/" className="text-orange-500 hover:underline">Return to Home</a>
-      </div>
-    </div>
-  );
-}
-
-function NotFoundPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-        <p className="text-gray-600 mb-6">Page not found</p>
-        <a href="/" className="text-orange-500 hover:underline">Return Home</a>
-      </div>
-    </div>
   );
 }
 
