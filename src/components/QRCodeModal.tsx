@@ -34,7 +34,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     generateQR();
   }, [businessId]);
 
-  // Calculate logo dimensions when logo changes
+  // Calculate business logo dimensions when logo changes
   useEffect(() => {
     if (localLogo) {
       const img = new Image();
@@ -178,29 +178,46 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
     // ============================================================
-    // BRANDING SECTION - "Powered by [LOGO]" on ONE line
+    // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
     // ============================================================
     
     const fastcheckinLogo = new Image();
     fastcheckinLogo.crossOrigin = 'Anonymous';
     fastcheckinLogo.onload = () => {
-      const logoSize = 20;
+      // Calculate logo dimensions preserving aspect ratio
+      const maxLogoHeight = 24;
+      const maxLogoWidth = 100;
+      let logoWidth = fastcheckinLogo.width;
+      let logoHeight = fastcheckinLogo.height;
+      
+      // Scale down if too large, preserving aspect ratio
+      if (logoHeight > maxLogoHeight) {
+        const ratio = maxLogoHeight / logoHeight;
+        logoWidth = logoWidth * ratio;
+        logoHeight = maxLogoHeight;
+      }
+      if (logoWidth > maxLogoWidth) {
+        const ratio = maxLogoWidth / logoWidth;
+        logoHeight = logoHeight * ratio;
+        logoWidth = maxLogoWidth;
+      }
+      
       const poweredByText = 'Powered by';
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
       
       const textWidth = ctx.measureText(poweredByText).width;
-      const gap = 6;
-      const totalWidth = textWidth + gap + logoSize;
+      const gap = 8;
+      const totalWidth = textWidth + gap + logoWidth;
       const startX = (canvas.width - totalWidth) / 2;
-      const logoY = QR_Y + QR_SIZE + 115;
+      const logoY = QR_Y + QR_SIZE + 110;
       
       // Draw "Powered by" text
       ctx.fillText(poweredByText, startX, logoY + 7);
       
-      // Draw logo next to text (same line)
-      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoSize, logoSize);
+      // Draw logo at its natural size (preserving aspect ratio)
+      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoWidth, logoHeight);
       
       // ============================================================
       // WEBSITE URL - Centered below
@@ -209,7 +226,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#6b7280';
       const websiteText = 'www.fastcheckin.co.za';
       const websiteWidth = ctx.measureText(websiteText).width;
-      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoSize + 28);
+      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 25);
     };
     fastcheckinLogo.src = '/fastcheckin-logo.png';
   };
@@ -276,28 +293,45 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // BRANDING SECTION - "Powered by [LOGO]" on ONE line
+      // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
       // ============================================================
       
       const fastcheckinLogo = await loadImage('/fastcheckin-logo.png');
       
-      const logoSize = 20;
+      // Calculate logo dimensions preserving aspect ratio
+      const maxLogoHeight = 24;
+      const maxLogoWidth = 100;
+      let logoWidth = fastcheckinLogo.width;
+      let logoHeight = fastcheckinLogo.height;
+      
+      // Scale down if too large, preserving aspect ratio
+      if (logoHeight > maxLogoHeight) {
+        const ratio = maxLogoHeight / logoHeight;
+        logoWidth = logoWidth * ratio;
+        logoHeight = maxLogoHeight;
+      }
+      if (logoWidth > maxLogoWidth) {
+        const ratio = maxLogoWidth / logoWidth;
+        logoHeight = logoHeight * ratio;
+        logoWidth = maxLogoWidth;
+      }
+      
       const poweredByText = 'Powered by';
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
       
       const textWidth = ctx.measureText(poweredByText).width;
-      const gap = 6;
-      const totalWidth = textWidth + gap + logoSize;
+      const gap = 8;
+      const totalWidth = textWidth + gap + logoWidth;
       const startX = (canvas.width - totalWidth) / 2;
-      const logoY = QR_Y + QR_SIZE + 115;
+      const logoY = QR_Y + QR_SIZE + 110;
       
       // Draw "Powered by" text
       ctx.fillText(poweredByText, startX, logoY + 7);
       
-      // Draw logo next to text (same line)
-      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoSize, logoSize);
+      // Draw logo at its natural size (preserving aspect ratio)
+      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoWidth, logoHeight);
       
       // ============================================================
       // WEBSITE URL - Centered below
@@ -306,7 +340,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#6b7280';
       const websiteText = 'www.fastcheckin.co.za';
       const websiteWidth = ctx.measureText(websiteText).width;
-      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoSize + 28);
+      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 25);
 
       // Download the image
       const link = document.createElement('a');
@@ -386,25 +420,42 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // BRANDING SECTION - "Powered by [LOGO]" on ONE line
+      // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
       // ============================================================
       
       const fastcheckinLogo = await loadImage('/fastcheckin-logo.png');
       
-      const logoSize = 20;
+      // Calculate logo dimensions preserving aspect ratio
+      const maxLogoHeight = 24;
+      const maxLogoWidth = 100;
+      let logoWidth = fastcheckinLogo.width;
+      let logoHeight = fastcheckinLogo.height;
+      
+      // Scale down if too large, preserving aspect ratio
+      if (logoHeight > maxLogoHeight) {
+        const ratio = maxLogoHeight / logoHeight;
+        logoWidth = logoWidth * ratio;
+        logoHeight = maxLogoHeight;
+      }
+      if (logoWidth > maxLogoWidth) {
+        const ratio = maxLogoWidth / logoWidth;
+        logoHeight = logoHeight * ratio;
+        logoWidth = maxLogoWidth;
+      }
+      
       const poweredByText = 'Powered by';
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
       
       const textWidth = ctx.measureText(poweredByText).width;
-      const gap = 6;
-      const totalWidth = textWidth + gap + logoSize;
+      const gap = 8;
+      const totalWidth = textWidth + gap + logoWidth;
       const startX = (canvas.width - totalWidth) / 2;
-      const logoY = QR_Y + QR_SIZE + 115;
+      const logoY = QR_Y + QR_SIZE + 110;
       
       ctx.fillText(poweredByText, startX, logoY + 7);
-      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoSize, logoSize);
+      ctx.drawImage(fastcheckinLogo, startX + textWidth + gap, logoY, logoWidth, logoHeight);
       
       // ============================================================
       // WEBSITE URL - Centered below
@@ -413,7 +464,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#6b7280';
       const websiteText = 'www.fastcheckin.co.za';
       const websiteWidth = ctx.measureText(websiteText).width;
-      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoSize + 28);
+      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 25);
 
       const printWindow = window.open('', '_blank');
       if (printWindow) {
