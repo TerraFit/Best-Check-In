@@ -1,3 +1,5 @@
+// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (1,850+ lines with all features)
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
@@ -9,6 +11,8 @@ import * as XLSX from 'xlsx';
 interface Booking {
   id: string;
   guest_name: string;
+  guest_first_name?: string;
+  guest_last_name?: string;
   guest_email?: string;
   guest_phone?: string;
   guest_id_number?: string;
@@ -34,6 +38,8 @@ interface BusinessProfile {
   email: string;
   phone: string;
   logo_url?: string;
+  slogan?: string;
+  hero_image_url?: string;
   welcome_message?: string;
   total_rooms?: number;
   avg_price?: number;
@@ -51,6 +57,12 @@ interface BusinessProfile {
   newsletter_terms?: string;
   newsletter_draw_date?: string;
   newsletter_share_text?: string;
+  // Locked fields (only super admin can edit)
+  legal_name?: string;
+  registration_number?: string;
+  physical_address_locked?: any;
+  establishment_type?: string;
+  tgsa_grading?: string;
 }
 
 interface Subscriber {
@@ -81,6 +93,9 @@ export default function BusinessDashboard() {
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
+  const [todayStayovers, setTodayStayovers] = useState<Booking[]>([]);
+  const [todayCheckouts, setTodayCheckouts] = useState<Booking[]>([]);
+  const [todayArrivals, setTodayArrivals] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
@@ -90,13 +105,19 @@ export default function BusinessDashboard() {
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [provinceFilter, setProvinceFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingHero, setUploadingHero] = useState(false);
   const [profileForm, setProfileForm] = useState({
     total_rooms: '',
     avg_price: '',
     logo_url: '',
+    hero_image_url: '',
+    slogan: '',
     welcome_message: ''
   });
 
@@ -118,6 +139,14 @@ export default function BusinessDashboard() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [showSubscribers, setShowSubscribers] = useState(false);
   const [loadingSubscribers, setLoadingSubscribers] = useState(false);
+
+  // Service pause state
+  const [servicePaused, setServicePaused] = useState(false);
+
+  // Unique filter values
+  const [uniqueProvinces, setUniqueProvinces] = useState<string[]>([]);
+  const [uniqueCities, setUniqueCities] = useState<string[]>([]);
+  const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -146,8 +175,11 @@ export default function BusinessDashboard() {
           total_rooms: data.total_rooms?.toString() || '',
           avg_price: data.avg_price?.toString() || '',
           logo_url: data.logo_url || '',
+          hero_image_url: data.hero_image_url || '',
+          slogan: data.slogan || '',
           welcome_message: data.welcome_message || ''
         });
+        setServicePaused(data.service_paused || false);
         
         // Load newsletter settings
         setNewsletterEnabled(data.newsletter_enabled || false);
@@ -203,6 +235,29 @@ export default function BusinessDashboard() {
       const validBookings = rawBookings.filter(b => b.business_id === businessId);
       console.log(`📦 Loaded ${validBookings.length} bookings`);
       setBookings(validBookings);
+      
+      // Extract unique values for filters
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))] as string[];
+      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))] as string[];
+      
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
+      
+      // Calculate today's categories
+      const today = new Date().toISOString().split('T')[0];
+      const arrivals = validBookings.filter(b => b.check_in_date === today);
+      const stayovers = validBookings.filter(b => 
+        b.check_in_date < today && 
+        (!b.check_out_date || b.check_out_date > today)
+      );
+      const checkouts = validBookings.filter(b => b.check_out_date === today);
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+      
     } catch (err) {
       console.error('Error loading bookings:', err);
     } finally {
@@ -254,7 +309,6 @@ export default function BusinessDashboard() {
       
       if (response.ok) {
         alert('✅ Newsletter settings saved successfully!');
-        // Refresh business data
         loadBusinessProfile();
       } else {
         alert('❌ Failed to save newsletter settings');
@@ -264,6 +318,32 @@ export default function BusinessDashboard() {
       alert('Error saving newsletter settings');
     } finally {
       setSavingNewsletter(false);
+    }
+  };
+
+  // Toggle service pause
+  const toggleServicePause = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    const newState = !servicePaused;
+    try {
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          service_paused: newState
+        })
+      });
+      
+      if (response.ok) {
+        setServicePaused(newState);
+        alert(newState ? '✅ Service paused. QR code will show "Temporarily Unavailable".' : '✅ Service resumed.');
+      }
+    } catch (error) {
+      console.error('Error toggling service pause:', error);
+      alert('Failed to update service status');
     }
   };
 
@@ -333,6 +413,31 @@ export default function BusinessDashboard() {
     reader.readAsDataURL(file);
   };
 
+  // Handle hero image upload
+  const handleHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB');
+      return;
+    }
+
+    setUploadingHero(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Image = reader.result as string;
+      setProfileForm({ ...profileForm, hero_image_url: base64Image });
+      setUploadingHero(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Save business profile
   const saveBusinessProfile = async () => {
     const businessId = getBusinessId();
@@ -347,6 +452,8 @@ export default function BusinessDashboard() {
           total_rooms: parseInt(profileForm.total_rooms) || 0,
           avg_price: parseInt(profileForm.avg_price) || 0,
           logo_url: profileForm.logo_url,
+          hero_image_url: profileForm.hero_image_url,
+          slogan: profileForm.slogan,
           welcome_message: profileForm.welcome_message
         })
       });
@@ -396,9 +503,20 @@ export default function BusinessDashboard() {
       filtered = filtered.filter(b => b.status === statusFilter);
     }
     
+    // Independent filters
+    if (provinceFilter) {
+      filtered = filtered.filter(b => b.guest_province === provinceFilter);
+    }
+    if (cityFilter) {
+      filtered = filtered.filter(b => b.guest_city === cityFilter);
+    }
+    if (countryFilter) {
+      filtered = filtered.filter(b => b.guest_country === countryFilter);
+    }
+    
     setFilteredBookings(filtered);
     setCurrentPage(1);
-  }, [bookings, dateRange, startDate, endDate, searchTerm, statusFilter]);
+  }, [bookings, dateRange, startDate, endDate, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
   // Initial load
   useEffect(() => {
@@ -411,7 +529,7 @@ export default function BusinessDashboard() {
     applyFilters();
   }, [applyFilters]);
 
-  // Calculate metrics
+  // Calculate metrics for reports
   const metrics = useMemo(() => {
     const totalBookings = filteredBookings.length;
     const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
@@ -419,7 +537,7 @@ export default function BusinessDashboard() {
       ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / totalBookings).toFixed(1)
       : '0';
     
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+    const today = new Date().toISOString().split('T')[0];
     const todayBookings = filteredBookings.filter(b => b.check_in_date === today).length;
     
     const occupancyRate = business?.total_rooms && business.total_rooms > 0
@@ -429,7 +547,7 @@ export default function BusinessDashboard() {
     return { totalBookings, totalRevenue, avgStay, todayBookings, occupancyRate };
   }, [filteredBookings, business]);
 
-  // Guest origin data for pie chart
+  // Guest origin data for pie chart (REPORTS ONLY)
   const guestOriginData = useMemo(() => {
     const countries: Record<string, number> = {};
     filteredBookings.forEach(b => {
@@ -440,7 +558,7 @@ export default function BusinessDashboard() {
     return Object.entries(countries).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
-  // Referral source data for pie chart
+  // Referral source data for pie chart (REPORTS ONLY)
   const referralData = useMemo(() => {
     const sources: Record<string, number> = {};
     filteredBookings.forEach(b => {
@@ -559,6 +677,14 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const getGuestCategoryColor = (checkInDate: string, checkOutDate?: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (checkInDate === today) return 'bg-green-50 border-l-4 border-green-500';
+    if (checkOutDate === today) return 'bg-orange-50 border-l-4 border-orange-500';
+    if (checkInDate < today && (!checkOutDate || checkOutDate > today)) return 'bg-blue-50 border-l-4 border-blue-500';
+    return '';
+  };
+
   const refreshData = () => {
     setRefreshing(true);
     loadBookings();
@@ -599,13 +725,41 @@ export default function BusinessDashboard() {
               )}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">{business?.trading_name || 'Business Dashboard'}</h1>
-                {business?.welcome_message && (
-                  <p className="text-xs text-gray-500">{business.welcome_message}</p>
+                {business?.slogan && (
+                  <p className="text-xs text-gray-500 italic">{business.slogan}</p>
                 )}
               </div>
             </div>
             
             <div className="flex items-center space-x-3">
+              {/* Service Pause/Resume Button */}
+              <button
+                onClick={toggleServicePause}
+                className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
+                  servicePaused 
+                    ? 'bg-green-500 text-white hover:bg-green-600' 
+                    : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                }`}
+                title={servicePaused ? 'Resume Service' : 'Pause Service'}
+              >
+                {servicePaused ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Resume
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Pause
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={() => setShowQRModal(true)}
                 className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm"
@@ -639,7 +793,7 @@ export default function BusinessDashboard() {
         </div>
       </header>
 
-      {/* Trial Banner - Shows warning when trial is ending */}
+      {/* Trial Banner */}
       {subscriptionStatus === 'trial' && trialDaysLeft !== null && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
           {trialDaysLeft <= 3 && trialDaysLeft > 0 ? (
@@ -723,7 +877,7 @@ export default function BusinessDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW TAB - Simplified with color-coded guest categories */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Business Information Card */}
@@ -740,6 +894,7 @@ export default function BusinessDashboard() {
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
                     <p className="text-sm font-medium text-gray-900 mt-1">{business?.trading_name}</p>
+                    {business?.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Registered Name</p>
@@ -757,6 +912,12 @@ export default function BusinessDashboard() {
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Location</p>
                     <p className="text-sm text-gray-700 mt-1">{business?.physical_address?.city}, {business?.physical_address?.province}</p>
                   </div>
+                  {business?.establishment_type && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Establishment Type</p>
+                      <p className="text-sm text-gray-700 mt-1">{business.establishment_type}</p>
+                    </div>
+                  )}
                   {business?.total_rooms && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Total Rooms</p>
@@ -773,83 +934,105 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Metrics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm font-medium text-gray-500">Total Bookings</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.totalBookings}</p>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">R {metrics.totalRevenue.toLocaleString()}</p>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm font-medium text-gray-500">Average Stay</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.avgStay} nights</p>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm font-medium text-gray-500">Check-ins Today</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.todayBookings}</p>
-                <p className="text-xs text-gray-500 mt-1">{metrics.occupancyRate}% occupancy</p>
-              </div>
-            </div>
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
-                {guestOriginData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={guestOriginData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {guestOriginData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+            {/* Today's Activity Cards - Color coded */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Arrivals - Green */}
+              <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-green-500">
+                <div className="px-6 py-4 bg-green-50">
+                  <h3 className="font-semibold text-green-800 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Today's Arrivals
+                  </h3>
+                </div>
+                <div className="p-4">
+                  {todayArrivals.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No arrivals today</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {todayArrivals.map(guest => (
+                        <div key={guest.id} className="flex justify-between items-center p-2 bg-green-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{guest.guest_name}</p>
+                            <p className="text-xs text-gray-500">{guest.guest_phone}</p>
+                          </div>
+                          <a href={`mailto:${guest.guest_email}`} className="text-green-600 hover:text-green-800">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
-                {referralData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={referralData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {referralData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+              {/* Stayovers - Blue */}
+              <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-blue-500">
+                <div className="px-6 py-4 bg-blue-50">
+                  <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    Current Stayovers
+                  </h3>
+                </div>
+                <div className="p-4">
+                  {todayStayovers.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No current stayovers</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {todayStayovers.map(guest => (
+                        <div key={guest.id} className="flex justify-between items-center p-2 bg-blue-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{guest.guest_name}</p>
+                            <p className="text-xs text-gray-500">{guest.guest_phone}</p>
+                          </div>
+                          <a href={`mailto:${guest.guest_email}`} className="text-blue-600 hover:text-blue-800">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Check-outs - Orange */}
+              <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-orange-500">
+                <div className="px-6 py-4 bg-orange-50">
+                  <h3 className="font-semibold text-orange-800 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Today's Check-outs
+                  </h3>
+                </div>
+                <div className="p-4">
+                  {todayCheckouts.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No check-outs today</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {todayCheckouts.map(guest => (
+                        <div key={guest.id} className="flex justify-between items-center p-2 bg-orange-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{guest.guest_name}</p>
+                            <p className="text-xs text-gray-500">{guest.guest_phone}</p>
+                          </div>
+                          <a href={`mailto:${guest.guest_email}`} className="text-orange-600 hover:text-orange-800">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -858,7 +1041,7 @@ export default function BusinessDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
-                 onClick={() => window.location.href = `/checkin/${business?.id || getBusinessId()}`}
+                  onClick={() => window.location.href = `/checkin/${business?.id || getBusinessId()}`}
                   className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-orange-200 text-left"
                 >
                   <div className="bg-orange-500 p-3 rounded-full">
@@ -887,65 +1070,13 @@ export default function BusinessDashboard() {
                 </button>
               </div>
             </div>
-
-            {/* Recent Check-ins Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">Recent Check-ins</h3>
-                <p className="text-sm text-gray-500">Showing {filteredBookings.length} of {bookings.length} bookings</p>
-              </div>
-              <div className="overflow-x-auto">
-                {filteredBookings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400">No check-ins match your filters</p>
-                    <button
-                      onClick={() => { setDateRange('30days'); setStartDate(''); setEndDate(''); setSearchTerm(''); setStatusFilter(''); }}
-                      className="mt-2 text-orange-500 hover:text-orange-600 text-sm"
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedBookings.slice(0, 10).map((booking, index) => (
-                        <tr key={booking.id || index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{booking.guest_name || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.check_in_date || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.check_out_date || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{booking.nights || 1}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">R {(booking.total_amount || 0).toLocaleString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.booking_source || booking.referral_source || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                              {booking.status || 'pending'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
           </div>
         )}
 
-        {/* CHECK-INS TAB */}
+        {/* CHECK-INS TAB - Full table with all data */}
         {activeTab === 'checkins' && (
           <div className="space-y-6">
-            {/* Filters */}
+            {/* Independent Filters */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -1009,7 +1140,10 @@ export default function BusinessDashboard() {
                     />
                   </div>
                 </div>
-                
+              </div>
+
+              {/* Independent Filter Row 2 */}
+              <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -1021,7 +1155,40 @@ export default function BusinessDashboard() {
                   <option value="confirmed">Confirmed</option>
                 </select>
                 
-                {(dateRange !== '30days' || startDate || endDate || searchTerm || statusFilter) && (
+                <select
+                  value={provinceFilter}
+                  onChange={(e) => setProvinceFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Provinces</option>
+                  {uniqueProvinces.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                
+                <select
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Cities</option>
+                  {uniqueCities.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                
+                <select
+                  value={countryFilter}
+                  onChange={(e) => setCountryFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Countries</option>
+                  {uniqueCountries.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                
+                {(dateRange !== '30days' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter) && (
                   <button
                     onClick={() => {
                       setDateRange('30days');
@@ -1029,10 +1196,13 @@ export default function BusinessDashboard() {
                       setEndDate('');
                       setSearchTerm('');
                       setStatusFilter('');
+                      setProvinceFilter('');
+                      setCityFilter('');
+                      setCountryFilter('');
                     }}
                     className="text-sm text-orange-600 hover:text-orange-700"
                   >
-                    Clear filters
+                    Clear all filters
                   </button>
                 )}
               </div>
@@ -1070,15 +1240,15 @@ export default function BusinessDashboard() {
                         <tr key={booking.id || index} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {booking.guest_name || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_email || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_country || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm font-mono text-gray-500">
                             {booking.guest_id_number ? (
                               <span className="cursor-help">
@@ -1088,24 +1258,24 @@ export default function BusinessDashboard() {
                             {booking.guest_id_photo && (
                               <span className="ml-1 text-green-500" title="ID photo available">📷</span>
                             )}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.check_in_date || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             {booking.nights || 1}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             R {(booking.total_amount || 0).toLocaleString()}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.booking_source || booking.referral_source || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
                               {booking.status || 'pending'}
                             </span>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             {booking.guest_id_photo ? (
                               <button
@@ -1124,11 +1294,11 @@ export default function BusinessDashboard() {
                                 Request ID
                               </button>
                             )}
-                          </td>
+                           </td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                   </table>
                 )}
               </div>
               
@@ -1160,7 +1330,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB - With Subscribers Section */}
+        {/* REPORTS TAB - With Guest Origin and Referral Charts */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
             {/* Date Range Filter for Reports */}
@@ -1257,10 +1427,10 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Charts Section */}
+            {/* Charts Section - Guest Origin & Referral Sources */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
                 {guestOriginData.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
@@ -1290,7 +1460,7 @@ export default function BusinessDashboard() {
               </div>
 
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Referral Sources</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
                 {referralData.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
@@ -1388,7 +1558,7 @@ export default function BusinessDashboard() {
                             </tr>
                           ))}
                         </tbody>
-                       </table>
+                      </table>
                     </div>
                   )}
                 </>
@@ -1434,7 +1604,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* SETTINGS TAB - With Newsletter Settings */}
+        {/* SETTINGS TAB - With Newsletter Settings and Branding */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
@@ -1447,11 +1617,18 @@ export default function BusinessDashboard() {
                     <div className="space-y-2 text-sm">
                       <div><span className="text-gray-500">Business ID:</span> {getBusinessId()}</div>
                       <div><span className="text-gray-500">Trading Name:</span> {business?.trading_name}</div>
+                      {business?.slogan && <div><span className="text-gray-500">Slogan:</span> <span className="italic">{business.slogan}</span></div>}
                       <div><span className="text-gray-500">Registered Name:</span> {business?.registered_name}</div>
                       <div><span className="text-gray-500">Email:</span> {business?.email}</div>
                       <div><span className="text-gray-500">Phone:</span> {business?.phone}</div>
                       {business?.physical_address?.city && (
                         <div><span className="text-gray-500">Location:</span> {business.physical_address.city}, {business.physical_address.province}</div>
+                      )}
+                      {business?.establishment_type && (
+                        <div><span className="text-gray-500">Establishment Type:</span> {business.establishment_type}</div>
+                      )}
+                      {business?.tgsa_grading && business.tgsa_grading !== 'NA' && (
+                        <div><span className="text-gray-500">TGSA Grading:</span> {business.tgsa_grading}</div>
                       )}
                     </div>
                   </div>
@@ -1470,6 +1647,13 @@ export default function BusinessDashboard() {
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm font-medium text-gray-700 mb-2">Current Logo</p>
                     <img src={business.logo_url} alt="Business Logo" className="h-20 w-auto border rounded-lg p-2 bg-white" />
+                  </div>
+                )}
+                
+                {business?.hero_image_url && (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Hero Image</p>
+                    <img src={business.hero_image_url} alt="Hero Image" className="h-32 w-auto border rounded-lg p-2 bg-white object-cover" />
                   </div>
                 )}
                 
@@ -1621,6 +1805,27 @@ export default function BusinessDashboard() {
                       placeholder="e.g., 1500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slogan (Optional)</label>
+                    <input
+                      type="text"
+                      value={profileForm.slogan}
+                      onChange={(e) => setProfileForm({ ...profileForm, slogan: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                      placeholder="Your business slogan"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Appears on check-in welcome page</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
+                    <input
+                      type="text"
+                      value={profileForm.welcome_message}
+                      onChange={(e) => setProfileForm({ ...profileForm, welcome_message: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                      placeholder="Welcome to our establishment"
+                    />
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Business Logo</label>
                     <div className="flex items-center gap-4">
@@ -1662,14 +1867,44 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
-                    <textarea
-                      value={profileForm.welcome_message}
-                      onChange={(e) => setProfileForm({ ...profileForm, welcome_message: e.target.value })}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="Welcome to our establishment! We're glad to have you."
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hero Image (Check-in Welcome Page)</label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.hero_image_url ? (
+                        <img src={profileForm.hero_image_url} alt="Hero Image Preview" className="h-20 w-32 object-cover border rounded-lg p-1 bg-white" />
+                      ) : (
+                        <div className="h-20 w-32 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          id="hero-upload"
+                          accept="image/*"
+                          onChange={handleHeroUpload}
+                          className="hidden"
+                          disabled={uploadingHero}
+                        />
+                        <button
+                          onClick={() => document.getElementById('hero-upload')?.click()}
+                          disabled={uploadingHero}
+                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                        >
+                          {uploadingHero ? 'Uploading...' : 'Choose Hero Image'}
+                        </button>
+                        <p className="text-xs text-gray-400 mt-1">Recommended: 1200x600px, JPG/PNG up to 5MB</p>
+                      </div>
+                      {profileForm.hero_image_url && (
+                        <button
+                          onClick={() => setProfileForm({ ...profileForm, hero_image_url: '' })}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
