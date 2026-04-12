@@ -21,6 +21,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
   const [downloading, setDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [posterImage, setPosterImage] = useState<string>('');
 
   // A4 dimensions at 96 DPI
   const A4_WIDTH = 794;
@@ -123,68 +124,62 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       const welcomeTextY = localLogo ? 220 : 160;
       const businessNameY = localLogo ? 290 : 230;
       
+      // Welcome text
       ctx.font = '400 18px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#6b7280';
       ctx.textAlign = 'center';
       ctx.fillText('Welcome to', canvas.width / 2, welcomeTextY);
 
+      // Business name
       ctx.font = '700 42px "Playfair Display", Georgia, serif';
       ctx.fillStyle = '#111827';
       ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
+      // SCAN TO CHECK IN
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
       ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y - 40);
 
+      // Instruction line 1
       ctx.font = '400 16px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#374151';
       ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 50);
 
+      // Instruction line 2
       ctx.font = '400 13px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
-      // Positioned directly below the instruction text
-      // Same colour and style as the line above
+      // BRANDING SECTION - CENTERED WITH LOGO
       // ============================================================
-      ctx.font = '400 12px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#9ca3af';
       
-      // Draw "Powered by" text
-      const poweredByText = 'Powered by';
-      const poweredByWidth = ctx.measureText(poweredByText).width;
-      const logoSize = 16;
-      const totalWidth = poweredByWidth + logoSize + 8; // 8px gap
-      const startX = (canvas.width - totalWidth) / 2;
-      
-      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
-      
-      // Draw FastCheckin logo next to text
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'Anonymous';
-      logoImg.onload = () => {
-        ctx.drawImage(logoImg, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
+      // Load and draw FastCheckin logo
+      const fastcheckinLogo = new Image();
+      fastcheckinLogo.crossOrigin = 'Anonymous';
+      fastcheckinLogo.onload = () => {
+        const logoWidth = 24;
+        const logoHeight = 24;
+        const logoX = (canvas.width - logoWidth) / 2;
+        const logoY = QR_Y + QR_SIZE + 115;
+        
+        ctx.drawImage(fastcheckinLogo, logoX, logoY, logoWidth, logoHeight);
+        
+        // Draw "Powered by" text above the logo (centered)
+        ctx.font = '400 11px "Inter", system-ui, sans-serif';
+        ctx.fillStyle = '#9ca3af';
+        const poweredByText = 'Powered by';
+        const poweredByWidth = ctx.measureText(poweredByText).width;
+        ctx.fillText(poweredByText, (canvas.width - poweredByWidth) / 2, logoY - 8);
+        
+        // Draw website URL below the logo (centered)
+        ctx.font = '400 10px "Inter", system-ui, sans-serif';
+        ctx.fillStyle = '#cbd5e1';
+        const websiteText = 'www.fastcheckin.co.za';
+        const websiteWidth = ctx.measureText(websiteText).width;
+        ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 20);
       };
-      logoImg.src = '/fastcheckin-logo.png';
-      
-      // ============================================================
-      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
-      // Directly underneath the primary branding
-      // ============================================================
-      ctx.font = '500 14px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#f97316';
-      const brandNameText = 'FastCheckin';
-      const brandNameWidth = ctx.measureText(brandNameText).width;
-      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
-      
-      // Tagline underneath
-      ctx.font = '400 10px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#cbd5e1';
-      const taglineText = 'Seamless Check-in, Smarter Stay';
-      const taglineWidth = ctx.measureText(taglineText).width;
-      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
+      fastcheckinLogo.src = '/fastcheckin-logo.png';
     };
 
     const qrImg = new Image();
@@ -266,40 +261,38 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
+      // BRANDING SECTION - CENTERED WITH LOGO
       // ============================================================
-      ctx.font = '400 12px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#9ca3af';
       
+      // Load and draw FastCheckin logo
+      const fastcheckinLogo = new Image();
+      fastcheckinLogo.crossOrigin = 'Anonymous';
+      
+      await new Promise((resolve) => {
+        fastcheckinLogo.onload = resolve;
+        fastcheckinLogo.src = '/fastcheckin-logo.png';
+      });
+      
+      const logoWidth = 24;
+      const logoHeight = 24;
+      const logoX = (canvas.width - logoWidth) / 2;
+      const logoY = QR_Y + QR_SIZE + 115;
+      
+      ctx.drawImage(fastcheckinLogo, logoX, logoY, logoWidth, logoHeight);
+      
+      // Draw "Powered by" text above the logo (centered)
+      ctx.font = '400 11px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#9ca3af';
       const poweredByText = 'Powered by';
       const poweredByWidth = ctx.measureText(poweredByText).width;
-      const logoSize = 16;
-      const totalWidth = poweredByWidth + logoSize + 8;
-      const startX = (canvas.width - totalWidth) / 2;
+      ctx.fillText(poweredByText, (canvas.width - poweredByWidth) / 2, logoY - 8);
       
-      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
-      
-      const logoImgForDraw = new Image();
-      logoImgForDraw.crossOrigin = 'Anonymous';
-      logoImgForDraw.onload = () => {
-        ctx.drawImage(logoImgForDraw, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
-      };
-      logoImgForDraw.src = '/fastcheckin-logo.png';
-      
-      // ============================================================
-      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
-      // ============================================================
-      ctx.font = '500 14px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#f97316';
-      const brandNameText = 'FastCheckin';
-      const brandNameWidth = ctx.measureText(brandNameText).width;
-      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
-      
+      // Draw website URL below the logo (centered)
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#cbd5e1';
-      const taglineText = 'Seamless Check-in, Smarter Stay';
-      const taglineWidth = ctx.measureText(taglineText).width;
-      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
+      const websiteText = 'www.fastcheckin.co.za';
+      const websiteWidth = ctx.measureText(websiteText).width;
+      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 20);
 
       const link = document.createElement('a');
       link.download = `${businessName.toLowerCase().replace(/\s+/g, '-')}-checkin-poster.png`;
@@ -378,40 +371,38 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // PRIMARY BRANDING: "Powered by FastCheckin (logo)"
+      // BRANDING SECTION - CENTERED WITH LOGO
       // ============================================================
-      ctx.font = '400 12px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#9ca3af';
       
+      // Load and draw FastCheckin logo
+      const fastcheckinLogo = new Image();
+      fastcheckinLogo.crossOrigin = 'Anonymous';
+      
+      await new Promise((resolve) => {
+        fastcheckinLogo.onload = resolve;
+        fastcheckinLogo.src = '/fastcheckin-logo.png';
+      });
+      
+      const logoWidth = 24;
+      const logoHeight = 24;
+      const logoX = (canvas.width - logoWidth) / 2;
+      const logoY = QR_Y + QR_SIZE + 115;
+      
+      ctx.drawImage(fastcheckinLogo, logoX, logoY, logoWidth, logoHeight);
+      
+      // Draw "Powered by" text above the logo (centered)
+      ctx.font = '400 11px "Inter", system-ui, sans-serif';
+      ctx.fillStyle = '#9ca3af';
       const poweredByText = 'Powered by';
       const poweredByWidth = ctx.measureText(poweredByText).width;
-      const logoSize = 16;
-      const totalWidth = poweredByWidth + logoSize + 8;
-      const startX = (canvas.width - totalWidth) / 2;
+      ctx.fillText(poweredByText, (canvas.width - poweredByWidth) / 2, logoY - 8);
       
-      ctx.fillText(poweredByText, startX, QR_Y + QR_SIZE + 115);
-      
-      const logoImgForDraw = new Image();
-      logoImgForDraw.crossOrigin = 'Anonymous';
-      logoImgForDraw.onload = () => {
-        ctx.drawImage(logoImgForDraw, startX + poweredByWidth + 4, QR_Y + QR_SIZE + 105, logoSize, logoSize);
-      };
-      logoImgForDraw.src = '/fastcheckin-logo.png';
-      
-      // ============================================================
-      // SECONDARY BRANDING: "FastCheckin" text (more prominent)
-      // ============================================================
-      ctx.font = '500 14px "Inter", system-ui, sans-serif';
-      ctx.fillStyle = '#f97316';
-      const brandNameText = 'FastCheckin';
-      const brandNameWidth = ctx.measureText(brandNameText).width;
-      ctx.fillText(brandNameText, (canvas.width - brandNameWidth) / 2, QR_Y + QR_SIZE + 145);
-      
+      // Draw website URL below the logo (centered)
       ctx.font = '400 10px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#cbd5e1';
-      const taglineText = 'Seamless Check-in, Smarter Stay';
-      const taglineWidth = ctx.measureText(taglineText).width;
-      ctx.fillText(taglineText, (canvas.width - taglineWidth) / 2, QR_Y + QR_SIZE + 165);
+      const websiteText = 'www.fastcheckin.co.za';
+      const websiteWidth = ctx.measureText(websiteText).width;
+      ctx.fillText(websiteText, (canvas.width - websiteWidth) / 2, logoY + logoHeight + 20);
 
       const printWindow = window.open('', '_blank');
       if (printWindow) {
