@@ -1,9 +1,10 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (with Email/Phone inline editing)
+// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (with Appeal Modal)
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
+import AppealModal from '../components/AppealModal';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
 
@@ -67,6 +68,19 @@ interface Subscriber {
   guest_name: string;
   created_at: string;
   source: string;
+}
+
+interface ChangeRequest {
+  id: string;
+  business_id: string;
+  field_name: string;
+  current_value: string;
+  requested_value: string;
+  reason: string;
+  status: string;
+  rejection_reason?: string;
+  reviewed_at?: string;
+  created_at: string;
 }
 
 // Constants
@@ -157,6 +171,11 @@ export default function BusinessDashboard() {
   const [requestReason, setRequestReason] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
 
+  // Appeal Modal state
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [rejectedRequest, setRejectedRequest] = useState<ChangeRequest | null>(null);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+
   const tabs = [
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
@@ -214,6 +233,62 @@ export default function BusinessDashboard() {
     }
   };
 
+  // Fetch change requests for this business
+  const fetchChangeRequests = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    try {
+      const response = await fetch(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
+      const data = await response.json();
+      setChangeRequests(data);
+      
+      // Check for newly rejected requests (within last 24 hours)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      const newlyRejected = data.filter((req: ChangeRequest) => 
+        req.status === 'rejected' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`rejection_notified_${req.id}`)
+      );
+      
+      for (const request of newlyRejected) {
+        const userChoice = confirm(
+          `❌ Change Request Rejected\n\n` +
+          `Field: ${request.field_name}\n` +
+          `Requested: ${request.requested_value}\n\n` +
+          `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
+          `Would you like to appeal this decision?`
+        );
+        
+        if (userChoice) {
+          setRejectedRequest(request);
+          setShowAppealModal(true);
+        }
+        localStorage.setItem(`rejection_notified_${request.id}`, 'true');
+      }
+      
+      // Check for newly approved requests
+      const newlyApproved = data.filter((req: ChangeRequest) => 
+        req.status === 'approved' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`approval_notified_${req.id}`)
+      );
+      
+      for (const request of newlyApproved) {
+        alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
+        localStorage.setItem(`approval_notified_${request.id}`, 'true');
+        // Refresh business profile to show updated data
+        loadBusinessProfile();
+      }
+    } catch (error) {
+      console.error('Error fetching change requests:', error);
+    }
+  };
+
   // Update email
   const updateEmail = async () => {
     const businessId = getBusinessId();
@@ -233,7 +308,7 @@ export default function BusinessDashboard() {
       if (response.ok) {
         alert('✅ Email updated successfully');
         setEditingEmail(false);
-        loadBusinessProfile(); // Refresh data
+        loadBusinessProfile();
       } else {
         alert('❌ Failed to update email');
       }
@@ -264,7 +339,7 @@ export default function BusinessDashboard() {
       if (response.ok) {
         alert('✅ Phone updated successfully');
         setEditingPhone(false);
-        loadBusinessProfile(); // Refresh data
+        loadBusinessProfile();
       } else {
         alert('❌ Failed to update phone');
       }
@@ -553,6 +628,8 @@ export default function BusinessDashboard() {
         setRequestCurrentValue('');
         setRequestNewValue('');
         setRequestReason('');
+        // Refresh change requests list
+        fetchChangeRequests();
       } else {
         alert(data.error || '❌ Failed to submit request. Please try again.');
       }
@@ -622,6 +699,7 @@ export default function BusinessDashboard() {
   useEffect(() => {
     loadBusinessProfile();
     loadBookings();
+    fetchChangeRequests();
   }, []);
 
   // Apply filters when dependencies change
@@ -780,6 +858,7 @@ export default function BusinessDashboard() {
   const refreshData = () => {
     setRefreshing(true);
     loadBookings();
+    fetchChangeRequests();
   };
 
   const requestIDPhoto = (booking: Booking) => {
@@ -2164,6 +2243,27 @@ export default function BusinessDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Appeal Modal */}
+      {showAppealModal && rejectedRequest && business && (
+        <AppealModal
+          isOpen={showAppealModal}
+          onClose={() => {
+            setShowAppealModal(false);
+            setRejectedRequest(null);
+          }}
+          request={rejectedRequest}
+          business={{
+            id: business.id,
+            trading_name: business.trading_name,
+            email: business.email
+          }}
+          onSubmit={() => {
+            // Refresh change requests after appeal submission
+            fetchChangeRequests();
+          }}
+        />
       )}
 
       {/* QR Code Modal */}
