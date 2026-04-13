@@ -44,7 +44,7 @@ interface Business {
   slogan?: string;
   hero_image_url?: string;
   logo_url?: string;
-  service_paused?: boolean;  // ADDED
+  service_paused?: boolean;
 }
 
 interface ChangeRequest {
@@ -59,6 +59,7 @@ interface ChangeRequest {
   created_at: string;
   reviewed_by?: string;
   reviewed_at?: string;
+  rejection_reason?: string;
 }
 
 type FilterType = {
@@ -85,14 +86,17 @@ const TGSA_GRADINGS = ['NA', '1★', '2★', '3★', '4★', '5★'];
 
 export default function SuperAdminPortal() {
   const navigate = useNavigate();
+  
+  // State declarations
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
-  const [togglingPause, setTogglingPause] = useState<string | null>(null); // ADDED
+  const [togglingPause, setTogglingPause] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [showChangeRequests, setShowChangeRequests] = useState(false);
+  const [processingAction, setProcessingAction] = useState(false);
   
   // Business Overview state
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
@@ -149,7 +153,10 @@ export default function SuperAdminPortal() {
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
 
-  // FIXED: Use unified auth system
+  // ============================================================
+  // AUTHENTICATION
+  // ============================================================
+  
   useEffect(() => {
     const auth = getAuth();
     console.log('🔍 SuperAdminPortal - auth:', auth);
@@ -167,36 +174,36 @@ export default function SuperAdminPortal() {
     applyFilters();
   }, [businesses, filters]);
 
-  // FIXED: Use unified clearAuth
   const handleLogout = () => {
     clearAuth();
     navigate('/super-admin-login');
   };
 
+  // ============================================================
+  // DATA FETCHING
+  // ============================================================
+  
   const fetchBusinesses = async () => {
     try {
       const response = await fetch('/.netlify/functions/get-approved-businesses');
       const data = await response.json();
       
-      // Calculate overdue days and payment status
       const businessesWithStatus = data.map((b: any) => {
         const daysOverdue = calculateOverdueDays(b);
         return {
           ...b,
           days_overdue: daysOverdue,
           payment_status: getPaymentStatus(daysOverdue),
-          service_paused: b.service_paused || false  // ADDED
+          service_paused: b.service_paused || false
         };
       });
       
-      // Sort alphabetically by trading name
       const sorted = businessesWithStatus.sort((a, b) => 
         (a.trading_name || '').localeCompare(b.trading_name || '')
       );
       
       setBusinesses(sorted);
       
-      // Extract unique provinces and cities for filters
       const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
       const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
       
@@ -222,7 +229,7 @@ export default function SuperAdminPortal() {
 
   const fetchChangeRequests = async () => {
     try {
-      const response = await fetch('/.netlify/functions/get-change-requests');
+      const response = await fetch('/.netlify/functions/get-change-requests?status=pending');
       if (response.ok) {
         const data = await response.json();
         setChangeRequests(data);
@@ -232,6 +239,10 @@ export default function SuperAdminPortal() {
     }
   };
 
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
+  
   const calculateOverdueDays = (business: Business): number => {
     if (!business.payment_due_date) return 0;
     const dueDate = new Date(business.payment_due_date);
@@ -311,6 +322,10 @@ export default function SuperAdminPortal() {
     setFilteredBusinesses(filtered);
   };
 
+  // ============================================================
+  // ACTION HANDLERS
+  // ============================================================
+  
   const handleSendReminder = async (businessId: string, daysOverdue: number) => {
     setSendingReminder(businessId);
     try {
@@ -331,7 +346,6 @@ export default function SuperAdminPortal() {
     }
   };
 
-  // ADDED: Toggle Service Pause/Resume
   const toggleServicePause = async (businessId: string, currentStatus: boolean) => {
     setTogglingPause(businessId);
     try {
@@ -345,7 +359,6 @@ export default function SuperAdminPortal() {
       });
 
       if (response.ok) {
-        // Update local state
         setBusinesses(prev => prev.map(b => 
           b.id === businessId 
             ? { ...b, service_paused: !currentStatus }
@@ -363,7 +376,6 @@ export default function SuperAdminPortal() {
     }
   };
 
-  // Open edit modal for locked fields
   const openEditBusiness = (business: Business) => {
     setEditingBusiness(business);
     setEditFormData({
@@ -384,7 +396,6 @@ export default function SuperAdminPortal() {
     setShowEditModal(true);
   };
 
-  // Save edited locked fields
   const saveBusinessEdit = async () => {
     if (!editingBusiness) return;
     if (!editReason.trim()) {
@@ -409,7 +420,6 @@ export default function SuperAdminPortal() {
         setShowEditModal(false);
         fetchBusinesses();
         
-        // Send notification to business owner
         await fetch('/.netlify/functions/notify-business-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -430,34 +440,45 @@ export default function SuperAdminPortal() {
     }
   };
 
-  // Approve change request
+  // FIXED: Approve change request with proper error handling
   const approveChangeRequest = async () => {
     if (!selectedChangeRequest) return;
-
+    
+    setProcessingAction(true);
     try {
+      console.log('📤 Approving request:', selectedChangeRequest.id);
+      
       const response = await fetch('/.netlify/functions/approve-change-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selectedChangeRequest.id,
-          action: 'approve'
+          action: 'approve',
+          adminEmail: getAuth()?.user?.email
         })
       });
 
+      const data = await response.json();
+      console.log('📡 Response:', data);
+
       if (response.ok) {
-        alert('Change request approved');
-        fetchChangeRequests();
-        fetchBusinesses();
+        alert('✅ Change request approved successfully. The business owner has been notified.');
+        await fetchChangeRequests();
+        await fetchBusinesses();
         setSelectedChangeRequest(null);
         setChangeRequestAction(null);
+      } else {
+        alert(data.error || 'Failed to approve request');
       }
     } catch (error) {
       console.error('Error approving request:', error);
-      alert('Failed to approve request');
+      alert('An error occurred: ' + (error as Error).message);
+    } finally {
+      setProcessingAction(false);
     }
   };
 
-  // Reject change request
+  // FIXED: Reject change request with proper error handling
   const rejectChangeRequest = async () => {
     if (!selectedChangeRequest) return;
     if (!rejectionReason.trim()) {
@@ -465,27 +486,38 @@ export default function SuperAdminPortal() {
       return;
     }
 
+    setProcessingAction(true);
     try {
+      console.log('📤 Rejecting request:', selectedChangeRequest.id, 'Reason:', rejectionReason);
+      
       const response = await fetch('/.netlify/functions/approve-change-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selectedChangeRequest.id,
           action: 'reject',
-          reason: rejectionReason
+          reason: rejectionReason,
+          adminEmail: getAuth()?.user?.email
         })
       });
 
+      const data = await response.json();
+      console.log('📡 Response:', data);
+
       if (response.ok) {
-        alert('Change request rejected');
-        fetchChangeRequests();
+        alert('❌ Change request rejected. The business owner has been notified with appeal options.');
+        await fetchChangeRequests();
         setSelectedChangeRequest(null);
         setChangeRequestAction(null);
         setRejectionReason('');
+      } else {
+        alert(data.error || 'Failed to reject request');
       }
     } catch (error) {
       console.error('Error rejecting request:', error);
-      alert('Failed to reject request');
+      alert('An error occurred: ' + (error as Error).message);
+    } finally {
+      setProcessingAction(false);
     }
   };
 
@@ -550,6 +582,10 @@ export default function SuperAdminPortal() {
 
   const pendingChangeRequests = changeRequests.filter(cr => cr.status === 'pending');
 
+  // ============================================================
+  // LOADING STATE
+  // ============================================================
+  
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-8">
@@ -562,6 +598,10 @@ export default function SuperAdminPortal() {
     );
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
+  
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header with Navigation */}
@@ -918,7 +958,7 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 flex-wrap">
-                    {/* PAUSE/RESUME BUTTON - ADDED */}
+                    {/* PAUSE/RESUME BUTTON */}
                     <button
                       onClick={() => toggleServicePause(business.id, business.service_paused || false)}
                       disabled={togglingPause === business.id}
@@ -964,6 +1004,7 @@ export default function SuperAdminPortal() {
                       Edit
                     </button>
 
+                    {/* QR Code Button */}
                     <button
                       onClick={() => openQRModal(business.id, business.trading_name)}
                       className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1"
@@ -975,6 +1016,7 @@ export default function SuperAdminPortal() {
                       QR Code
                     </button>
 
+                    {/* Overview Button */}
                     <button
                       onClick={() => openBusinessOverview(business.id)}
                       className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-1"
@@ -986,6 +1028,7 @@ export default function SuperAdminPortal() {
                       Overview
                     </button>
 
+                    {/* Send Reminder Button (if overdue) */}
                     {(business.days_overdue || 0) > 0 && (
                       <button
                         onClick={() => handleSendReminder(business.id, business.days_overdue || 0)}
@@ -996,6 +1039,7 @@ export default function SuperAdminPortal() {
                       </button>
                     )}
 
+                    {/* Archive Button */}
                     <button
                       onClick={() => handleArchiveBusiness(business.id)}
                       className="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
@@ -1003,6 +1047,7 @@ export default function SuperAdminPortal() {
                       Archive
                     </button>
 
+                    {/* Delete Button */}
                     <button
                       onClick={() => openDeleteConfirm(business.id, business.trading_name)}
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
@@ -1012,6 +1057,7 @@ export default function SuperAdminPortal() {
                   </div>
                 </div>
 
+                {/* Overdue Warning Messages */}
                 {business.days_overdue && business.days_overdue >= 10 && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm text-red-800">
@@ -1296,13 +1342,14 @@ export default function SuperAdminPortal() {
                 </button>
                 <button
                   onClick={changeRequestAction === 'approve' ? approveChangeRequest : rejectChangeRequest}
+                  disabled={processingAction}
                   className={`flex-1 px-4 py-2 rounded-lg text-white ${
                     changeRequestAction === 'approve' 
                       ? 'bg-green-500 hover:bg-green-600' 
                       : 'bg-red-500 hover:bg-red-600'
-                  }`}
+                  } disabled:opacity-50`}
                 >
-                  {changeRequestAction === 'approve' ? 'Approve' : 'Reject'}
+                  {processingAction ? 'Processing...' : (changeRequestAction === 'approve' ? 'Approve' : 'Reject')}
                 </button>
               </div>
             </div>
