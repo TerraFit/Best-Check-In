@@ -75,7 +75,7 @@ const ESTABLISHMENT_TYPES = [
   'Hotel',
   'Bed & Breakfast (B&B)',
   'Guest House',
-  'Large Campsite',
+  'Campsite',
   'Resort',
   'Lodge',
   'Self-Catering'
