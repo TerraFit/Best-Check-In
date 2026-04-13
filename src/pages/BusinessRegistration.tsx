@@ -438,7 +438,7 @@ export default function BusinessRegistration() {
     }
   };
 
-  // Final Submit (UPDATED to include establishmentType and tgsaGrading)
+  // Final Submit (UPDATED to include registered_name and establishment_type and tgsa_grading)
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -462,12 +462,22 @@ export default function BusinessRegistration() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business: {
+            // REQUIRED FIELDS
+            registered_name: businessData.legalName,  // ← CRITICAL: This is the NOT NULL column
             legal_name: businessData.legalName,
+            trading_name: businessData.tradingName,
+            email: businessData.email,
+            mobile_phone: businessData.mobilePhone,
+            
+            // Optional fields
             registration_number: businessData.registrationNumber,
             vat_number: businessData.vatNumber,
-            trading_name: businessData.tradingName,
             establishment_type: businessData.establishmentType,
             tgsa_grading: businessData.tgsaGrading,
+            fixed_phone: businessData.fixedPhone,
+            website: businessData.website,
+            
+            // Addresses
             physical_address: {
               street: businessData.physicalStreet,
               city: businessData.physicalCity,
@@ -482,10 +492,8 @@ export default function BusinessRegistration() {
               country: businessData.postalCountry,
               postalCode: businessData.postalPostalCode
             },
-            email: businessData.email,
-            fixed_phone: businessData.fixedPhone,
-            mobile_phone: businessData.mobilePhone,
-            website: businessData.website,
+            
+            // Director info
             director: {
               name: directorData.name,
               surname: directorData.surname,
@@ -496,6 +504,8 @@ export default function BusinessRegistration() {
               fixed_phone: directorData.fixedPhone,
               mobile_phone: directorData.mobilePhone
             },
+            
+            // Plan details
             total_rooms: roomsCount,
             plan: selectedPlanId === 'enterprise' ? 'enterprise' : selectedPlanId,
             max_rooms: selectedPlan?.maxRooms || 999,
@@ -1517,6 +1527,7 @@ export default function BusinessRegistration() {
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm text-stone-400">
                     <p>Business: <span className="text-white">{businessData.tradingName}</span></p>
+                    <p>Legal Name: <span className="text-white">{businessData.legalName}</span></p>
                     <p>Type: <span className="text-white">{businessData.establishmentType || 'Not specified'}</span></p>
                     <p>TGSA: <span className="text-white">{businessData.tgsaGrading}</span></p>
                     <p>Plan: <span className="text-white">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>
