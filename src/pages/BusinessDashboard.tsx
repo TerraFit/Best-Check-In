@@ -1,10 +1,11 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE ACCURATE VERSION
+// src/pages/BusinessDashboard.tsx - COMPLETE ACCURATE VERSION with Import Feature
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
 import AppealModal from '../components/AppealModal';
+import ImportGoogleForms from '../components/ImportGoogleForms';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
 
@@ -115,6 +116,7 @@ export default function BusinessDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
@@ -1350,6 +1352,21 @@ export default function BusinessDashboard() {
                     <p className="text-xs text-gray-500">Display check-in QR code</p>
                   </div>
                 </button>
+                {/* Import Google Forms Button */}
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-green-200 text-left"
+                >
+                  <div className="bg-green-500 p-3 rounded-full">
+                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Import Data</p>
+                    <p className="text-xs text-gray-500">Upload Excel/CSV files</p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
@@ -2285,6 +2302,18 @@ export default function BusinessDashboard() {
           businessLogo={business.logo_url}
           businessPhone={business.phone}
           onClose={() => setShowQRModal(false)}
+        />
+      )}
+
+      {/* Import Google Forms Modal */}
+      {showImportModal && (
+        <ImportGoogleForms
+          businessId={business?.id || getBusinessId()}
+          onImportComplete={() => {
+            loadBookings();
+            setShowImportModal(false);
+          }}
+          onClose={() => setShowImportModal(false)}
         />
       )}
     </div>
