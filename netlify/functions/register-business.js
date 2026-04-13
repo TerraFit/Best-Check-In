@@ -1,3 +1,5 @@
+// netlify/functions/register-business.js (FIXED - with registered_name)
+
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import { Resend } from 'resend';
@@ -61,7 +63,7 @@ export const handler = async (event) => {
     const businessId = uuidv4();
     const setupToken = uuidv4();
     const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 48); // 48 hour expiry
+    tokenExpiry.setHours(tokenExpiry.getHours() + 48);
 
     // Create physical_address and postal_address as JSON objects
     const physicalAddress = business.physical_address || {
@@ -85,16 +87,17 @@ export const handler = async (event) => {
     }] : [];
 
     const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 14); // 14-day trial
+    trialEnd.setDate(trialEnd.getDate() + 14);
 
-    // Create business record
+    // Create business record with ALL required columns
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      registered_name: business.legal_name || business.trading_name,  // ← ADDED - required field
       legal_name: business.legal_name,
+      trading_name: business.trading_name,
       registration_number: business.registration_number || null,
       vat_number: business.vat_number || null,
-      trading_name: business.trading_name,
       establishment_type: business.establishment_type || null,
       tgsa_grading: business.tgsa_grading || 'NA',
       email: business.email,
@@ -107,16 +110,18 @@ export const handler = async (event) => {
       total_rooms: business.total_rooms || 0,
       avg_price: null,
       subscription_tier: business.plan || 'starter',
+      current_plan: business.plan || 'starter',
       max_rooms: business.max_rooms || 10,
       billing_cycle: business.billing_cycle || 'monthly',
-      status: 'pending_setup',  // ← Changed from 'pending'
+      status: 'pending_setup',
       payment_status: 'pending',
       trial_end: trialEnd.toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    console.log('📝 Inserting business record...');
+    console.log('📝 Inserting business record with ID:', businessId);
+    console.log('📝 Business data keys:', Object.keys(businessData));
 
     const { error: businessError } = await supabase
       .from('businesses')
@@ -168,6 +173,8 @@ export const handler = async (event) => {
             <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <p><strong>Registration Summary:</strong></p>
               <p>Business: ${business.trading_name}</p>
+              <p>Legal Name: ${business.legal_name || business.trading_name}</p>
+              <p>Type: ${business.establishment_type || 'Not specified'}</p>
               <p>Plan: ${business.plan || 'Starter'}</p>
               <p>Rooms: ${business.total_rooms || 0}</p>
               <p>Trial Period: 14 days</p>
@@ -197,7 +204,6 @@ export const handler = async (event) => {
       console.log('✅ Setup email sent to:', business.email);
     } catch (emailError) {
       console.error('❌ Email error:', emailError);
-      // Don't fail registration if email fails
     }
 
     console.log('✅ Business registered successfully:', businessId);
