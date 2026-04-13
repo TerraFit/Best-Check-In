@@ -115,7 +115,7 @@ export const handler = async (event) => {
       billing_cycle: business.billing_cycle || 'monthly',
       payment_method: 'pending',  // ← ADDED - required field
       payment_status: 'pending',
-      status: 'pending_setup',
+      status: 'pending',
       password_hash: null,
       trial_end: trialEnd.toISOString(),
       created_at: new Date().toISOString(),
