@@ -89,39 +89,41 @@ export const handler = async (event) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
-    // Create business record with ALL required columns
+    // Create business record with ALL required columns (no nulls for NOT NULL columns)
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       registered_name: business.legal_name || business.trading_name,
       legal_name: business.legal_name,
       trading_name: business.trading_name,
-      registration_number: business.registration_number || null,
-      vat_number: business.vat_number || null,
-      establishment_type: business.establishment_type || null,
+      registration_number: business.registration_number || '',
+      vat_number: business.vat_number || '',
+      establishment_type: business.establishment_type || '',
       tgsa_grading: business.tgsa_grading || 'NA',
       email: business.email,
       phone: business.mobile_phone,
-      fixed_phone: business.fixed_phone || null,
-      website: business.website || null,
+      fixed_phone: business.fixed_phone || '',
+      website: business.website || '',
       physical_address: physicalAddress,
       postal_address: postalAddress,
       directors: directors,
       total_rooms: business.total_rooms || 0,
-      avg_price: null,
+      avg_price: 0,
       subscription_tier: business.plan || 'starter',
       current_plan: business.plan || 'starter',
       max_rooms: business.max_rooms || 10,
       billing_cycle: business.billing_cycle || 'monthly',
-      status: 'pending_setup',
+      payment_method: 'pending',  // ← ADDED - required field
       payment_status: 'pending',
-      password_hash: null,  // ← NULL - user will set via email link
+      status: 'pending_setup',
+      password_hash: null,
       trial_end: trialEnd.toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     console.log('📝 Inserting business record with ID:', businessId);
+    console.log('📝 Business data keys:', Object.keys(businessData));
 
     const { error: businessError } = await supabase
       .from('businesses')
