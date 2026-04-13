@@ -1,4 +1,4 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (with Appeal Modal)
+// src/pages/BusinessDashboard.tsx - COMPLETE ACCURATE VERSION
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -100,6 +100,8 @@ const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
+  
+  // Business data states
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
@@ -107,9 +109,17 @@ export default function BusinessDashboard() {
   const [todayCheckouts, setTodayCheckouts] = useState<Booking[]>([]);
   const [todayArrivals, setTodayArrivals] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
+  
+  // UI states
+  const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingHero, setUploadingHero] = useState(false);
+  
+  // Filter states
   const [dateRange, setDateRange] = useState<DateRange>('30days');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -118,10 +128,8 @@ export default function BusinessDashboard() {
   const [provinceFilter, setProvinceFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingHero, setUploadingHero] = useState(false);
+  
+  // Profile form state
   const [profileForm, setProfileForm] = useState({
     total_rooms: '',
     avg_price: '',
@@ -176,6 +184,7 @@ export default function BusinessDashboard() {
   const [rejectedRequest, setRejectedRequest] = useState<ChangeRequest | null>(null);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
 
+  // Tab configuration
   const tabs = [
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
@@ -183,13 +192,15 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
-  // Simple fetch - no auth
+  // ============================================================
+  // FETCH FUNCTIONS
+  // ============================================================
+
   const fetchData = async (url: string) => {
     const response = await fetch(url);
     return response;
   };
 
-  // Load business profile
   const loadBusinessProfile = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -208,7 +219,6 @@ export default function BusinessDashboard() {
           welcome_message: data.welcome_message || ''
         });
         
-        // Load newsletter settings
         setNewsletterEnabled(data.newsletter_enabled || false);
         setNewsletterTitle(data.newsletter_title || 'Win Your Next Stay With Us');
         setNewsletterPrize(data.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
@@ -217,7 +227,6 @@ export default function BusinessDashboard() {
         setNewsletterDrawDate(data.newsletter_draw_date || '');
         setNewsletterShareText(data.newsletter_share_text || 'Want better odds? Share this with friends and family!');
         
-        // Calculate trial days left
         if (data.trial_end) {
           const trialEnd = new Date(data.trial_end);
           const today = new Date();
@@ -233,7 +242,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Fetch change requests for this business
   const fetchChangeRequests = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -243,7 +251,6 @@ export default function BusinessDashboard() {
       const data = await response.json();
       setChangeRequests(data);
       
-      // Check for newly rejected requests (within last 24 hours)
       const oneDayAgo = new Date();
       oneDayAgo.setDate(oneDayAgo.getDate() - 1);
       
@@ -270,7 +277,6 @@ export default function BusinessDashboard() {
         localStorage.setItem(`rejection_notified_${request.id}`, 'true');
       }
       
-      // Check for newly approved requests
       const newlyApproved = data.filter((req: ChangeRequest) => 
         req.status === 'approved' && 
         req.reviewed_at && 
@@ -281,7 +287,6 @@ export default function BusinessDashboard() {
       for (const request of newlyApproved) {
         alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
         localStorage.setItem(`approval_notified_${request.id}`, 'true');
-        // Refresh business profile to show updated data
         loadBusinessProfile();
       }
     } catch (error) {
@@ -289,7 +294,85 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Update email
+  const loadBookings = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.warn('⚠️ No businessId found');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('📡 Fetching bookings for business:', businessId);
+      
+      const res = await fetchData(
+        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
+      );
+
+      const data = await res.json();
+      
+      let rawBookings: Booking[] = [];
+      if (data.bookings && Array.isArray(data.bookings)) {
+        rawBookings = data.bookings;
+      } else if (Array.isArray(data)) {
+        rawBookings = data;
+      }
+      
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      console.log(`📦 Loaded ${validBookings.length} bookings`);
+      setBookings(validBookings);
+      
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))] as string[];
+      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))] as string[];
+      
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
+      
+      const today = new Date().toISOString().split('T')[0];
+      const arrivals = validBookings.filter(b => b.check_in_date === today);
+      const stayovers = validBookings.filter(b => 
+        b.check_in_date < today && 
+        (!b.check_out_date || b.check_out_date > today)
+      );
+      const checkouts = validBookings.filter(b => b.check_out_date === today);
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+      
+    } catch (err) {
+      console.error('Error loading bookings:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const loadSubscribers = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setLoadingSubscribers(true);
+    try {
+      const response = await fetch(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
+      const data = await response.json();
+      setSubscribers(data.subscribers || []);
+      setShowSubscribers(true);
+    } catch (err) {
+      console.error('Error loading subscribers:', err);
+      alert('Failed to load subscribers');
+    } finally {
+      setLoadingSubscribers(false);
+    }
+  };
+
+  // ============================================================
+  // UPDATE FUNCTIONS
+  // ============================================================
+
   const updateEmail = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -320,7 +403,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Update phone
   const updatePhone = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -351,86 +433,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Load bookings
-  const loadBookings = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) {
-      console.warn('⚠️ No businessId found');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      console.log('📡 Fetching bookings for business:', businessId);
-      
-      const res = await fetchData(
-        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
-      );
-
-      const data = await res.json();
-      
-      let rawBookings: Booking[] = [];
-      if (data.bookings && Array.isArray(data.bookings)) {
-        rawBookings = data.bookings;
-      } else if (Array.isArray(data)) {
-        rawBookings = data;
-      }
-      
-      const validBookings = rawBookings.filter(b => b.business_id === businessId);
-      console.log(`📦 Loaded ${validBookings.length} bookings`);
-      setBookings(validBookings);
-      
-      // Extract unique values for filters
-      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
-      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))] as string[];
-      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))] as string[];
-      
-      setUniqueProvinces(provinces.sort());
-      setUniqueCities(cities.sort());
-      setUniqueCountries(countries.sort());
-      
-      // Calculate today's categories
-      const today = new Date().toISOString().split('T')[0];
-      const arrivals = validBookings.filter(b => b.check_in_date === today);
-      const stayovers = validBookings.filter(b => 
-        b.check_in_date < today && 
-        (!b.check_out_date || b.check_out_date > today)
-      );
-      const checkouts = validBookings.filter(b => b.check_out_date === today);
-      
-      setTodayArrivals(arrivals);
-      setTodayStayovers(stayovers);
-      setTodayCheckouts(checkouts);
-      
-    } catch (err) {
-      console.error('Error loading bookings:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // Load subscribers
-  const loadSubscribers = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setLoadingSubscribers(true);
-    try {
-      const response = await fetch(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
-      const data = await response.json();
-      setSubscribers(data.subscribers || []);
-      setShowSubscribers(true);
-    } catch (err) {
-      console.error('Error loading subscribers:', err);
-      alert('Failed to load subscribers');
-    } finally {
-      setLoadingSubscribers(false);
-    }
-  };
-
-  // Save newsletter settings
   const saveNewsletterSettings = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -466,98 +468,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Export subscribers to CSV (MailChimp compatible)
-  const exportSubscribersToCSV = () => {
-    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Date', 'Source'];
-    const rows = subscribers.map(s => [
-      s.email,
-      s.guest_name?.split(' ')[0] || '',
-      s.guest_name?.split(' ')[1] || '',
-      new Date(s.created_at).toLocaleDateString(),
-      s.source || 'email'
-    ]);
-    
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${business?.trading_name || 'subscribers'}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Export to MailChimp format
-  const exportToMailChimp = () => {
-    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Source'];
-    const rows = subscribers.map(s => [
-      s.email,
-      s.guest_name?.split(' ')[0] || '',
-      s.guest_name?.split(' ')[1] || '',
-      'FastCheckin Check-in'
-    ]);
-    
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${business?.trading_name || 'subscribers'}_mailchimp_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Handle logo file upload
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, GIF, etc.)');
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo must be less than 2MB');
-      return;
-    }
-
-    setUploadingLogo(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64Logo = reader.result as string;
-      setProfileForm({ ...profileForm, logo_url: base64Logo });
-      setUploadingLogo(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Handle hero image upload
-  const handleHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, etc.)');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be less than 5MB');
-      return;
-    }
-
-    setUploadingHero(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64Image = reader.result as string;
-      setProfileForm({ ...profileForm, hero_image_url: base64Image });
-      setUploadingHero(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Save business profile
   const saveBusinessProfile = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -591,7 +501,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Submit change request for locked fields
   const submitChangeRequest = async () => {
     const businessId = getBusinessId();
     if (!businessId) return;
@@ -628,7 +537,6 @@ export default function BusinessDashboard() {
         setRequestCurrentValue('');
         setRequestNewValue('');
         setRequestReason('');
-        // Refresh change requests list
         fetchChangeRequests();
       } else {
         alert(data.error || '❌ Failed to submit request. Please try again.');
@@ -641,6 +549,97 @@ export default function BusinessDashboard() {
     }
   };
 
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
+
+  const exportSubscribersToCSV = () => {
+    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Date', 'Source'];
+    const rows = subscribers.map(s => [
+      s.email,
+      s.guest_name?.split(' ')[0] || '',
+      s.guest_name?.split(' ')[1] || '',
+      new Date(s.created_at).toLocaleDateString(),
+      s.source || 'email'
+    ]);
+    
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${business?.trading_name || 'subscribers'}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToMailChimp = () => {
+    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Source'];
+    const rows = subscribers.map(s => [
+      s.email,
+      s.guest_name?.split(' ')[0] || '',
+      s.guest_name?.split(' ')[1] || '',
+      'FastCheckin Check-in'
+    ]);
+    
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${business?.trading_name || 'subscribers'}_mailchimp_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, GIF, etc.)');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo must be less than 2MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Logo = reader.result as string;
+      setProfileForm({ ...profileForm, logo_url: base64Logo });
+      setUploadingLogo(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB');
+      return;
+    }
+
+    setUploadingHero(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Image = reader.result as string;
+      setProfileForm({ ...profileForm, hero_image_url: base64Image });
+      setUploadingHero(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const openRequestModal = (field: string, currentValue: string) => {
     setRequestField(field);
     setRequestCurrentValue(currentValue);
@@ -649,7 +648,32 @@ export default function BusinessDashboard() {
     setShowRequestModal(true);
   };
 
-  // Apply filters to bookings
+  const refreshData = () => {
+    setRefreshing(true);
+    loadBookings();
+    fetchChangeRequests();
+  };
+
+  const requestIDPhoto = (booking: Booking) => {
+    if (confirm(`Request ID photo for ${booking.guest_name}? This will send a verification request.`)) {
+      alert(`ID photo request sent to ${booking.guest_email}`);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      checked_in: 'bg-green-100 text-green-800',
+      completed: 'bg-blue-100 text-blue-800',
+      confirmed: 'bg-yellow-100 text-yellow-800',
+      cancelled: 'bg-red-100 text-red-800'
+    };
+    return styles[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  // ============================================================
+  // FILTERS AND METRICS
+  // ============================================================
+
   const applyFilters = useCallback(() => {
     let filtered = [...bookings];
     
@@ -680,7 +704,6 @@ export default function BusinessDashboard() {
       filtered = filtered.filter(b => b.status === statusFilter);
     }
     
-    // Independent filters
     if (provinceFilter) {
       filtered = filtered.filter(b => b.guest_province === provinceFilter);
     }
@@ -695,19 +718,6 @@ export default function BusinessDashboard() {
     setCurrentPage(1);
   }, [bookings, dateRange, startDate, endDate, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
-  // Initial load
-  useEffect(() => {
-    loadBusinessProfile();
-    loadBookings();
-    fetchChangeRequests();
-  }, []);
-
-  // Apply filters when dependencies change
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
-
-  // Calculate metrics for reports
   const metrics = useMemo(() => {
     const totalBookings = filteredBookings.length;
     const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
@@ -725,7 +735,6 @@ export default function BusinessDashboard() {
     return { totalBookings, totalRevenue, avgStay, todayBookings, occupancyRate };
   }, [filteredBookings, business]);
 
-  // Guest origin data for pie chart (REPORTS ONLY)
   const guestOriginData = useMemo(() => {
     const countries: Record<string, number> = {};
     filteredBookings.forEach(b => {
@@ -736,7 +745,6 @@ export default function BusinessDashboard() {
     return Object.entries(countries).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
-  // Referral source data for pie chart (REPORTS ONLY)
   const referralData = useMemo(() => {
     const sources: Record<string, number> = {};
     filteredBookings.forEach(b => {
@@ -748,7 +756,6 @@ export default function BusinessDashboard() {
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
   }, [filteredBookings]);
 
-  // Pagination
   const paginatedBookings = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
@@ -756,7 +763,10 @@ export default function BusinessDashboard() {
   
   const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
-  // Export to CSV
+  // ============================================================
+  // EXPORT FUNCTIONS
+  // ============================================================
+
   const exportToCSV = useCallback(() => {
     const headers = ['Guest Name', 'Email', 'Phone', 'ID Number', 'Country', 'Province', 'City', 'Check-in Date', 'Check-out Date', 'Nights', 'Total Amount', 'Status', 'Referral Source'];
     const rows = filteredBookings.map(b => [
@@ -785,7 +795,6 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
 
-  // Export to XLSX (Excel)
   const exportToXLSX = useCallback(() => {
     const excelData = filteredBookings.map(b => ({
       'Guest Name': b.guest_name || '',
@@ -845,27 +854,23 @@ export default function BusinessDashboard() {
     XLSX.writeFile(wb, `${business?.trading_name || 'bookings'}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      checked_in: 'bg-green-100 text-green-800',
-      completed: 'bg-blue-100 text-blue-800',
-      confirmed: 'bg-yellow-100 text-yellow-800',
-      cancelled: 'bg-red-100 text-red-800'
-    };
-    return styles[status] || 'bg-gray-100 text-gray-800';
-  };
+  // ============================================================
+  // EFFECTS
+  // ============================================================
 
-  const refreshData = () => {
-    setRefreshing(true);
+  useEffect(() => {
+    loadBusinessProfile();
     loadBookings();
     fetchChangeRequests();
-  };
+  }, []);
 
-  const requestIDPhoto = (booking: Booking) => {
-    if (confirm(`Request ID photo for ${booking.guest_name}? This will send a verification request.`)) {
-      alert(`ID photo request sent to ${booking.guest_email}`);
-    }
-  };
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  // ============================================================
+  // LOADING STATE
+  // ============================================================
 
   if (loading) {
     return (
@@ -877,6 +882,10 @@ export default function BusinessDashboard() {
       </div>
     );
   }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1020,20 +1029,26 @@ export default function BusinessDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* OVERVIEW TAB - Simplified with color-coded guest categories */}
+        
+        {/* ============================================================ */}
+        {/* OVERVIEW TAB */}
+        {/* ============================================================ */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Business Information Card with Request Change buttons */}
+            {/* Business Information Card */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-orange-50 to-white border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Business Information</h2>
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Business ID */}
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Business ID</p>
                     <p className="text-sm font-mono text-gray-700 mt-1">{business?.id || getBusinessId()}</p>
                   </div>
+                  
+                  {/* Trading Name with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1049,6 +1064,8 @@ export default function BusinessDashboard() {
                     </div>
                     {business?.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
                   </div>
+                  
+                  {/* Registered Name with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1156,6 +1173,7 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   
+                  {/* Location with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1170,18 +1188,24 @@ export default function BusinessDashboard() {
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Establishment Type */}
                   {business?.establishment_type && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Establishment Type</p>
                       <p className="text-sm text-gray-700 mt-1">{business.establishment_type}</p>
                     </div>
                   )}
+                  
+                  {/* Total Rooms */}
                   {business?.total_rooms && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Total Rooms</p>
                       <p className="text-sm text-gray-700 mt-1">{business.total_rooms}</p>
                     </div>
                   )}
+                  
+                  {/* Average Room Price */}
                   {business?.avg_price && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Average Room Price</p>
@@ -1192,7 +1216,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Today's Activity Cards - Color coded */}
+            {/* Today's Activity Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Arrivals - Green */}
               <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-green-500">
@@ -1331,10 +1355,12 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* CHECK-INS TAB - Full table with all data */}
+        {/* ============================================================ */}
+        {/* CHECK-INS TAB */}
+        {/* ============================================================ */}
         {activeTab === 'checkins' && (
           <div className="space-y-6">
-            {/* Independent Filters */}
+            {/* Filters */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -1400,7 +1426,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Independent Filter Row 2 */}
               <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
                 <select
                   value={statusFilter}
@@ -1560,7 +1585,6 @@ export default function BusinessDashboard() {
                 )}
               </div>
               
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
                   <p className="text-sm text-gray-500">
@@ -1588,10 +1612,12 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB - With Guest Origin and Referral Charts */}
+        {/* ============================================================ */}
+        {/* REPORTS TAB */}
+        {/* ============================================================ */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
-            {/* Date Range Filter for Reports */}
+            {/* Date Range Filter */}
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
@@ -1685,7 +1711,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Charts Section - Guest Origin & Referral Sources */}
+            {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
@@ -1748,7 +1774,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Newsletter Subscribers Section */}
+            {/* Newsletter Subscribers */}
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">📧 Newsletter Subscribers</h3>
@@ -1827,28 +1853,19 @@ export default function BusinessDashboard() {
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Report</h3>
               <div className="flex flex-wrap gap-4">
-                <button
-                  onClick={exportToCSV}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                >
+                <button onClick={exportToCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Export to CSV
                 </button>
-                <button
-                  onClick={exportToXLSX}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-                >
+                <button onClick={exportToXLSX} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Export to Excel (XLSX)
                 </button>
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                >
+                <button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
@@ -1862,7 +1879,9 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* SETTINGS TAB - With Newsletter Settings and Branding */}
+        {/* ============================================================ */}
+        {/* SETTINGS TAB */}
+        {/* ============================================================ */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
@@ -1922,12 +1941,11 @@ export default function BusinessDashboard() {
                   Edit Profile
                 </button>
 
-                {/* Newsletter Settings Section */}
+                {/* Newsletter Settings */}
                 <div className="border-t border-gray-200 pt-6 mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">📧 Newsletter Promotion</h3>
                   <p className="text-sm text-gray-500 mb-4">
                     Enable to include a newsletter subscription offer in your check-in confirmation emails.
-                    This helps build your mailing list and encourages repeat bookings.
                   </p>
                   
                   <div className="space-y-4">
@@ -1956,7 +1974,6 @@ export default function BusinessDashboard() {
                             value={newsletterTitle}
                             onChange={(e) => setNewsletterTitle(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            placeholder="Win Your Next Stay With Us"
                           />
                         </div>
                         
@@ -1967,7 +1984,6 @@ export default function BusinessDashboard() {
                             value={newsletterPrize}
                             onChange={(e) => setNewsletterPrize(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            placeholder="TWO nights for TWO (B&B) + welcome bottle of champagne"
                           />
                         </div>
                         
@@ -1978,7 +1994,6 @@ export default function BusinessDashboard() {
                             value={newsletterCta}
                             onChange={(e) => setNewsletterCta(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            placeholder="Subscribe now (takes 10 seconds)"
                           />
                         </div>
                         
@@ -1999,7 +2014,6 @@ export default function BusinessDashboard() {
                             value={newsletterShareText}
                             onChange={(e) => setNewsletterShareText(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            placeholder="Want better odds? Share this with friends and family!"
                           />
                         </div>
                         
@@ -2010,7 +2024,6 @@ export default function BusinessDashboard() {
                             onChange={(e) => setNewsletterTerms(e.target.value)}
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            placeholder="*T&C's apply. Winner announced monthly."
                           />
                         </div>
                         
@@ -2024,7 +2037,6 @@ export default function BusinessDashboard() {
                           </button>
                         </div>
                         
-                        {/* Preview */}
                         <div className="md:col-span-2 bg-white p-4 rounded-lg border border-gray-200">
                           <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
                           <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-4 rounded-lg text-center">
@@ -2260,7 +2272,6 @@ export default function BusinessDashboard() {
             email: business.email
           }}
           onSubmit={() => {
-            // Refresh change requests after appeal submission
             fetchChangeRequests();
           }}
         />
