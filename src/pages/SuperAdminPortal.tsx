@@ -44,6 +44,7 @@ interface Business {
   slogan?: string;
   hero_image_url?: string;
   logo_url?: string;
+  service_paused?: boolean;  // ADDED
 }
 
 interface ChangeRequest {
@@ -88,6 +89,7 @@ export default function SuperAdminPortal() {
   const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [togglingPause, setTogglingPause] = useState<string | null>(null); // ADDED
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [showChangeRequests, setShowChangeRequests] = useState(false);
@@ -182,7 +184,8 @@ export default function SuperAdminPortal() {
         return {
           ...b,
           days_overdue: daysOverdue,
-          payment_status: getPaymentStatus(daysOverdue)
+          payment_status: getPaymentStatus(daysOverdue),
+          service_paused: b.service_paused || false  // ADDED
         };
       });
       
@@ -245,7 +248,8 @@ export default function SuperAdminPortal() {
     return 'paid';
   };
 
-  const getStatusColor = (status: string, daysOverdue: number = 0) => {
+  const getStatusColor = (status: string, daysOverdue: number = 0, servicePaused: boolean = false) => {
+    if (servicePaused) return 'bg-gray-400 text-white';
     if (status !== 'approved') return 'bg-gray-100 text-gray-800';
     
     if (daysOverdue >= 10) return 'bg-red-100 text-red-800 border-l-4 border-red-600';
@@ -255,6 +259,7 @@ export default function SuperAdminPortal() {
   };
 
   const getStatusText = (business: Business) => {
+    if (business.service_paused) return '⏸ Paused';
     if (business.status !== 'approved') return business.status;
     
     if (business.days_overdue && business.days_overdue >= 10) 
@@ -323,6 +328,38 @@ export default function SuperAdminPortal() {
       alert('Failed to send reminder');
     } finally {
       setSendingReminder(null);
+    }
+  };
+
+  // ADDED: Toggle Service Pause/Resume
+  const toggleServicePause = async (businessId: string, currentStatus: boolean) => {
+    setTogglingPause(businessId);
+    try {
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          service_paused: !currentStatus
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
+        setBusinesses(prev => prev.map(b => 
+          b.id === businessId 
+            ? { ...b, service_paused: !currentStatus }
+            : b
+        ));
+        alert(!currentStatus ? '✅ Service paused. QR code will show "Temporarily Unavailable".' : '✅ Service resumed.');
+      } else {
+        alert('Failed to update service status');
+      }
+    } catch (error) {
+      console.error('Error toggling service pause:', error);
+      alert('An error occurred');
+    } finally {
+      setTogglingPause(null);
     }
   };
 
@@ -823,7 +860,7 @@ export default function SuperAdminPortal() {
                       <h3 className="text-xl font-semibold text-gray-900">
                         {business.trading_name}
                       </h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(business.status, business.days_overdue)}`}>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(business.status, business.days_overdue, business.service_paused)}`}>
                         {getStatusText(business)}
                       </span>
                       {business.establishment_type && (
@@ -881,6 +918,40 @@ export default function SuperAdminPortal() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 flex-wrap">
+                    {/* PAUSE/RESUME BUTTON - ADDED */}
+                    <button
+                      onClick={() => toggleServicePause(business.id, business.service_paused || false)}
+                      disabled={togglingPause === business.id}
+                      className={`px-3 py-2 rounded-lg text-sm flex items-center gap-1 transition-colors ${
+                        business.service_paused 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
+                          : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                      } disabled:opacity-50`}
+                      title={business.service_paused ? 'Resume Service' : 'Pause Service'}
+                    >
+                      {togglingPause === business.id ? (
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : business.service_paused ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Resume
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Pause
+                        </>
+                      )}
+                    </button>
+
                     {/* Edit Business Button (for locked fields) */}
                     <button
                       onClick={() => openEditBusiness(business)}
