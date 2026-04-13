@@ -1,4 +1,4 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (1,850+ lines with all features)
+// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (Service Pause Button REMOVED)
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -57,10 +57,6 @@ interface BusinessProfile {
   newsletter_terms?: string;
   newsletter_draw_date?: string;
   newsletter_share_text?: string;
-  // Locked fields (only super admin can edit)
-  legal_name?: string;
-  registration_number?: string;
-  physical_address_locked?: any;
   establishment_type?: string;
   tgsa_grading?: string;
 }
@@ -140,13 +136,18 @@ export default function BusinessDashboard() {
   const [showSubscribers, setShowSubscribers] = useState(false);
   const [loadingSubscribers, setLoadingSubscribers] = useState(false);
 
-  // Service pause state
-  const [servicePaused, setServicePaused] = useState(false);
-
   // Unique filter values
   const [uniqueProvinces, setUniqueProvinces] = useState<string[]>([]);
   const [uniqueCities, setUniqueCities] = useState<string[]>([]);
   const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
+
+  // Request Change Modal state
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestField, setRequestField] = useState('');
+  const [requestCurrentValue, setRequestCurrentValue] = useState('');
+  const [requestNewValue, setRequestNewValue] = useState('');
+  const [requestReason, setRequestReason] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -179,7 +180,6 @@ export default function BusinessDashboard() {
           slogan: data.slogan || '',
           welcome_message: data.welcome_message || ''
         });
-        setServicePaused(data.service_paused || false);
         
         // Load newsletter settings
         setNewsletterEnabled(data.newsletter_enabled || false);
@@ -321,32 +321,6 @@ export default function BusinessDashboard() {
     }
   };
 
-  // Toggle service pause
-  const toggleServicePause = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    const newState = !servicePaused;
-    try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessId,
-          service_paused: newState
-        })
-      });
-      
-      if (response.ok) {
-        setServicePaused(newState);
-        alert(newState ? '✅ Service paused. QR code will show "Temporarily Unavailable".' : '✅ Service resumed.');
-      }
-    } catch (error) {
-      console.error('Error toggling service pause:', error);
-      alert('Failed to update service status');
-    }
-  };
-
   // Export subscribers to CSV (MailChimp compatible)
   const exportSubscribersToCSV = () => {
     const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Date', 'Source'];
@@ -470,6 +444,52 @@ export default function BusinessDashboard() {
       console.error('Error saving profile:', err);
       alert('Error saving profile');
     }
+  };
+
+  // Submit change request for locked fields
+  const submitChangeRequest = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setSendingRequest(true);
+    try {
+      const response = await fetch('/.netlify/functions/submit-change-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          businessName: business?.trading_name,
+          fieldName: requestField,
+          currentValue: requestCurrentValue,
+          requestedValue: requestNewValue,
+          reason: requestReason
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Change request submitted successfully. The admin will review it.');
+        setShowRequestModal(false);
+        setRequestField('');
+        setRequestCurrentValue('');
+        setRequestNewValue('');
+        setRequestReason('');
+      } else {
+        alert('❌ Failed to submit request. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      alert('An error occurred');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  const openRequestModal = (field: string, currentValue: string) => {
+    setRequestField(field);
+    setRequestCurrentValue(currentValue);
+    setRequestNewValue('');
+    setRequestReason('');
+    setShowRequestModal(true);
   };
 
   // Apply filters to bookings
@@ -677,14 +697,6 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getGuestCategoryColor = (checkInDate: string, checkOutDate?: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    if (checkInDate === today) return 'bg-green-50 border-l-4 border-green-500';
-    if (checkOutDate === today) return 'bg-orange-50 border-l-4 border-orange-500';
-    if (checkInDate < today && (!checkOutDate || checkOutDate > today)) return 'bg-blue-50 border-l-4 border-blue-500';
-    return '';
-  };
-
   const refreshData = () => {
     setRefreshing(true);
     loadBookings();
@@ -732,34 +744,6 @@ export default function BusinessDashboard() {
             </div>
             
             <div className="flex items-center space-x-3">
-              {/* Service Pause/Resume Button */}
-              <button
-                onClick={toggleServicePause}
-                className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                  servicePaused 
-                    ? 'bg-green-500 text-white hover:bg-green-600' 
-                    : 'bg-yellow-500 text-white hover:bg-yellow-600'
-                }`}
-                title={servicePaused ? 'Resume Service' : 'Pause Service'}
-              >
-                {servicePaused ? (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Resume
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Pause
-                  </>
-                )}
-              </button>
-
               <button
                 onClick={() => setShowQRModal(true)}
                 className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm"
@@ -880,7 +864,7 @@ export default function BusinessDashboard() {
         {/* OVERVIEW TAB - Simplified with color-coded guest categories */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Business Information Card */}
+            {/* Business Information Card with Request Change buttons */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-orange-50 to-white border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Business Information</h2>
@@ -892,25 +876,75 @@ export default function BusinessDashboard() {
                     <p className="text-sm font-mono text-gray-700 mt-1">{business?.id || getBusinessId()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{business?.trading_name}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
+                        <p className="text-sm font-medium text-gray-900 mt-1">{business?.trading_name}</p>
+                      </div>
+                      <button 
+                        onClick={() => openRequestModal('Trading Name', business?.trading_name || '')}
+                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
+                      >
+                        Request Change
+                      </button>
+                    </div>
                     {business?.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Registered Name</p>
-                    <p className="text-sm text-gray-700 mt-1">{business?.registered_name}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">Registered Name</p>
+                        <p className="text-sm text-gray-700 mt-1">{business?.registered_name}</p>
+                      </div>
+                      <button 
+                        onClick={() => openRequestModal('Registered Name', business?.registered_name || '')}
+                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
+                      >
+                        Request Change
+                      </button>
+                    </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Email</p>
-                    <p className="text-sm text-gray-700 mt-1">{business?.email}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">Email</p>
+                        <p className="text-sm text-gray-700 mt-1">{business?.email}</p>
+                      </div>
+                      <button 
+                        onClick={() => alert('Email can be updated in Settings tab')}
+                        className="text-xs text-green-500 hover:text-green-700 ml-2"
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
-                    <p className="text-sm text-gray-700 mt-1">{business?.phone}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
+                        <p className="text-sm text-gray-700 mt-1">{business?.phone}</p>
+                      </div>
+                      <button 
+                        onClick={() => alert('Phone can be updated in Settings tab')}
+                        className="text-xs text-green-500 hover:text-green-700 ml-2"
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Location</p>
-                    <p className="text-sm text-gray-700 mt-1">{business?.physical_address?.city}, {business?.physical_address?.province}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">Location</p>
+                        <p className="text-sm text-gray-700 mt-1">{business?.physical_address?.city}, {business?.physical_address?.province}</p>
+                      </div>
+                      <button 
+                        onClick={() => openRequestModal('Location', `${business?.physical_address?.city}, ${business?.physical_address?.province}`)}
+                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
+                      >
+                        Request Change
+                      </button>
+                    </div>
                   </div>
                   {business?.establishment_type && (
                     <div>
@@ -1240,15 +1274,15 @@ export default function BusinessDashboard() {
                         <tr key={booking.id || index} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {booking.guest_name || 'N/A'}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_email || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_country || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 text-sm font-mono text-gray-500">
                             {booking.guest_id_number ? (
                               <span className="cursor-help">
@@ -1258,24 +1292,24 @@ export default function BusinessDashboard() {
                             {booking.guest_id_photo && (
                               <span className="ml-1 text-green-500" title="ID photo available">📷</span>
                             )}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.check_in_date || 'N/A'}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             {booking.nights || 1}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             R {(booking.total_amount || 0).toLocaleString()}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.booking_source || booking.referral_source || 'N/A'}
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
                               {booking.status || 'pending'}
                             </span>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             {booking.guest_id_photo ? (
                               <button
@@ -1294,11 +1328,11 @@ export default function BusinessDashboard() {
                                 Request ID
                               </button>
                             )}
-                           </td>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
-                   </table>
+                  </table>
                 )}
               </div>
               
@@ -1927,6 +1961,65 @@ export default function BusinessDashboard() {
           </div>
         )}
       </main>
+
+      {/* Request Change Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Change: {requestField}</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Value</label>
+                <input
+                  type="text"
+                  value={requestCurrentValue}
+                  disabled
+                  className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Value *</label>
+                <input
+                  type="text"
+                  value={requestNewValue}
+                  onChange={(e) => setRequestNewValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter the new value"
+                />
+              </div>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Change *</label>
+                <textarea
+                  rows={3}
+                  value={requestReason}
+                  onChange={(e) => setRequestReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Please explain why this change is needed..."
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowRequestModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitChangeRequest}
+                  disabled={sendingRequest || !requestNewValue || !requestReason}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {sendingRequest ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Modal */}
       {showQRModal && business && (
