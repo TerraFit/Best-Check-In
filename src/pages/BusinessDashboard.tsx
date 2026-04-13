@@ -1,4 +1,4 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (Service Pause Button REMOVED)
+// src/pages/BusinessDashboard.tsx - COMPLETE VERSION (with Email/Phone inline editing)
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -117,6 +117,14 @@ export default function BusinessDashboard() {
     welcome_message: ''
   });
 
+  // Email/Phone inline editing states
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [updatingEmail, setUpdatingEmail] = useState(false);
+  const [updatingPhone, setUpdatingPhone] = useState(false);
+
   // Trial state
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
@@ -203,6 +211,68 @@ export default function BusinessDashboard() {
       }
     } catch (err) {
       console.error('Failed to load business profile:', err);
+    }
+  };
+
+  // Update email
+  const updateEmail = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setUpdatingEmail(true);
+    try {
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          email: newEmail
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Email updated successfully');
+        setEditingEmail(false);
+        loadBusinessProfile(); // Refresh data
+      } else {
+        alert('❌ Failed to update email');
+      }
+    } catch (error) {
+      console.error('Error updating email:', error);
+      alert('An error occurred');
+    } finally {
+      setUpdatingEmail(false);
+    }
+  };
+
+  // Update phone
+  const updatePhone = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setUpdatingPhone(true);
+    try {
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          phone: newPhone
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Phone updated successfully');
+        setEditingPhone(false);
+        loadBusinessProfile(); // Refresh data
+      } else {
+        alert('❌ Failed to update phone');
+      }
+    } catch (error) {
+      console.error('Error updating phone:', error);
+      alert('An error occurred');
+    } finally {
+      setUpdatingPhone(false);
     }
   };
 
@@ -453,6 +523,13 @@ export default function BusinessDashboard() {
     
     setSendingRequest(true);
     try {
+      console.log('📤 Submitting change request:', {
+        businessId,
+        fieldName: requestField,
+        requestedValue: requestNewValue,
+        reason: requestReason
+      });
+      
       const response = await fetch('/.netlify/functions/submit-change-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -466,6 +543,9 @@ export default function BusinessDashboard() {
         })
       });
       
+      const data = await response.json();
+      console.log('📡 Response:', data);
+      
       if (response.ok) {
         alert('✅ Change request submitted successfully. The admin will review it.');
         setShowRequestModal(false);
@@ -474,11 +554,11 @@ export default function BusinessDashboard() {
         setRequestNewValue('');
         setRequestReason('');
       } else {
-        alert('❌ Failed to submit request. Please try again.');
+        alert(data.error || '❌ Failed to submit request. Please try again.');
       }
     } catch (error) {
       console.error('Error submitting request:', error);
-      alert('An error occurred');
+      alert('An error occurred. Please try again.');
     } finally {
       setSendingRequest(false);
     }
@@ -904,34 +984,99 @@ export default function BusinessDashboard() {
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Email - Inline Editable */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wider">Email</p>
-                        <p className="text-sm text-gray-700 mt-1">{business?.email}</p>
+                        {editingEmail ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <input
+                              type="email"
+                              value={newEmail}
+                              onChange={(e) => setNewEmail(e.target.value)}
+                              className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                              placeholder={business?.email}
+                            />
+                            <button 
+                              onClick={updateEmail} 
+                              disabled={updatingEmail}
+                              className="text-green-600 text-xs hover:text-green-800 disabled:opacity-50"
+                            >
+                              {updatingEmail ? 'Saving...' : 'Save'}
+                            </button>
+                            <button 
+                              onClick={() => setEditingEmail(false)} 
+                              className="text-gray-500 text-xs hover:text-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-700 mt-1">{business?.email}</p>
+                        )}
                       </div>
-                      <button 
-                        onClick={() => alert('Email can be updated in Settings tab')}
-                        className="text-xs text-green-500 hover:text-green-700 ml-2"
-                      >
-                        Edit
-                      </button>
+                      {!editingEmail && (
+                        <button 
+                          onClick={() => {
+                            setNewEmail(business?.email || '');
+                            setEditingEmail(true);
+                          }}
+                          className="text-xs text-green-500 hover:text-green-700 ml-2"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
                   </div>
+                  
+                  {/* Phone - Inline Editable */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
-                        <p className="text-sm text-gray-700 mt-1">{business?.phone}</p>
+                        {editingPhone ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <input
+                              type="tel"
+                              value={newPhone}
+                              onChange={(e) => setNewPhone(e.target.value)}
+                              className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                              placeholder={business?.phone}
+                            />
+                            <button 
+                              onClick={updatePhone} 
+                              disabled={updatingPhone}
+                              className="text-green-600 text-xs hover:text-green-800 disabled:opacity-50"
+                            >
+                              {updatingPhone ? 'Saving...' : 'Save'}
+                            </button>
+                            <button 
+                              onClick={() => setEditingPhone(false)} 
+                              className="text-gray-500 text-xs hover:text-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-700 mt-1">{business?.phone}</p>
+                        )}
                       </div>
-                      <button 
-                        onClick={() => alert('Phone can be updated in Settings tab')}
-                        className="text-xs text-green-500 hover:text-green-700 ml-2"
-                      >
-                        Edit
-                      </button>
+                      {!editingPhone && (
+                        <button 
+                          onClick={() => {
+                            setNewPhone(business?.phone || '');
+                            setEditingPhone(true);
+                          }}
+                          className="text-xs text-green-500 hover:text-green-700 ml-2"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
                   </div>
+                  
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
