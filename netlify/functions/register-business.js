@@ -1,4 +1,4 @@
-// netlify/functions/register-business.js (FIXED - with registered_name)
+// netlify/functions/register-business.js
 
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
@@ -93,7 +93,7 @@ export const handler = async (event) => {
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      registered_name: business.legal_name || business.trading_name,  // ← ADDED - required field
+      registered_name: business.legal_name || business.trading_name,
       legal_name: business.legal_name,
       trading_name: business.trading_name,
       registration_number: business.registration_number || null,
@@ -115,13 +115,13 @@ export const handler = async (event) => {
       billing_cycle: business.billing_cycle || 'monthly',
       status: 'pending_setup',
       payment_status: 'pending',
+      password_hash: null,  // ← NULL - user will set via email link
       trial_end: trialEnd.toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     console.log('📝 Inserting business record with ID:', businessId);
-    console.log('📝 Business data keys:', Object.keys(businessData));
 
     const { error: businessError } = await supabase
       .from('businesses')
