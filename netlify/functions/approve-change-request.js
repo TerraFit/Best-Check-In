@@ -1,5 +1,3 @@
-// netlify/functions/approve-change-request.js
-
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
@@ -31,7 +29,9 @@ export const handler = async function(event) {
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   try {
-    const { requestId, action, reason, adminEmail, isAppeal } = JSON.parse(event.body);
+    const { requestId, action, reason, adminEmail } = JSON.parse(event.body);
+
+    console.log('📝 Processing change request:', { requestId, action, reason, adminEmail });
 
     if (!requestId || !action) {
       return {
@@ -49,204 +49,161 @@ export const handler = async function(event) {
       };
     }
 
-    let changeRequest;
-    let isAppealRequest = isAppeal || false;
+    // Get the change request with business details
+    const { data: changeRequest, error: fetchError } = await supabase
+      .from('change_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
 
-    // Get the change request or appeal
-    if (isAppealRequest) {
-      const { data: appeal, error: appealError } = await supabase
-        .from('appeals')
-        .select('*, businesses(email, trading_name, id)')
-        .eq('id', requestId)
-        .single();
-
-      if (appealError || !appeal) {
-        console.error('❌ Error fetching appeal:', appealError);
-        return {
-          statusCode: 404,
-          headers,
-          body: JSON.stringify({ error: 'Appeal not found' })
-        };
-      }
-      changeRequest = appeal;
-    } else {
-      const { data: request, error: requestError } = await supabase
-        .from('change_requests')
-        .select('*, businesses(email, trading_name)')
-        .eq('id', requestId)
-        .single();
-
-      if (requestError || !request) {
-        console.error('❌ Error fetching change request:', requestError);
-        return {
-          statusCode: 404,
-          headers,
-          body: JSON.stringify({ error: 'Change request not found' })
-        };
-      }
-      changeRequest = request;
+    if (fetchError || !changeRequest) {
+      console.error('❌ Error fetching change request:', fetchError);
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Change request not found' })
+      };
     }
 
     if (changeRequest.status !== 'pending') {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Request already processed' })
+        body: JSON.stringify({ error: 'Change request already processed' })
       };
     }
 
-    // Update status
-    const table = isAppealRequest ? 'appeals' : 'change_requests';
+    // Get business email separately
+    const { data: business, error: businessFetchError } = await supabase
+      .from('businesses')
+      .select('email, trading_name, physical_address')
+      .eq('id', changeRequest.business_id)
+      .single();
+
+    if (businessFetchError) {
+      console.error('❌ Error fetching business:', businessFetchError);
+    }
+
+    // Update the change request status
+    const updateData = {
+      status: action === 'approve' ? 'approved' : 'rejected',
+      reviewed_by: adminEmail || 'super-admin',
+      reviewed_at: new Date().toISOString()
+    };
+    
+    if (action === 'reject') {
+      updateData.rejection_reason = reason;
+    }
+
     const { error: updateError } = await supabase
-      .from(table)
-      .update({
-        status: action === 'approve' ? 'approved' : 'rejected',
-        reviewed_by: adminEmail || 'super-admin',
-        reviewed_at: new Date().toISOString(),
-        rejection_reason_final: action === 'reject' ? reason : null
-      })
+      .from('change_requests')
+      .update(updateData)
       .eq('id', requestId);
 
     if (updateError) {
-      console.error('❌ Error updating:', updateError);
+      console.error('❌ Error updating change request:', updateError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to update request' })
+        body: JSON.stringify({ error: 'Failed to update change request: ' + updateError.message })
       };
     }
 
-    // If approving a change request (not appeal), update business
+    console.log('✅ Change request status updated to:', action === 'approve' ? 'approved' : 'rejected');
+
+    // If approved, update the business record
     let updateMessage = '';
-    if (action === 'approve' && !isAppealRequest) {
+    if (action === 'approve') {
       const fieldName = changeRequest.field_name;
       const requestedValue = changeRequest.requested_value;
-      let updateData = {};
+      let updateBusinessData = {};
 
+      // Map the field name to database column
       switch (fieldName) {
         case 'Trading Name':
-          updateData = { trading_name: requestedValue };
+          updateBusinessData = { trading_name: requestedValue };
           updateMessage = `Your trading name has been updated from "${changeRequest.current_value}" to "${requestedValue}".`;
           break;
         case 'Registered Name':
-          updateData = { registered_name: requestedValue };
+          updateBusinessData = { registered_name: requestedValue };
           updateMessage = `Your registered name has been updated from "${changeRequest.current_value}" to "${requestedValue}".`;
           break;
         case 'Legal Name':
-          updateData = { legal_name: requestedValue };
+          updateBusinessData = { legal_name: requestedValue };
           updateMessage = `Your legal name has been updated from "${changeRequest.current_value}" to "${requestedValue}".`;
           break;
         case 'Location':
+          // Parse location string "City, Province"
           const parts = requestedValue.split(',').map(s => s.trim());
           const city = parts[0] || '';
           const province = parts[1] || '';
-          updateData = {
+          
+          // Get existing physical address or create new one
+          const existingAddress = business?.physical_address || {};
+          updateBusinessData = {
             physical_address: {
-              ...(changeRequest.businesses?.physical_address || {}),
+              street: existingAddress.street || '',
               city: city,
-              province: province
+              province: province,
+              postalCode: existingAddress.postalCode || '',
+              country: existingAddress.country || 'South Africa'
             }
           };
           updateMessage = `Your location has been updated to "${requestedValue}".`;
           break;
         default:
+          // Generic field update - convert field name to snake_case
           const dbField = fieldName.toLowerCase().replace(/\s+/g, '_');
-          updateData = { [dbField]: requestedValue };
+          updateBusinessData = { [dbField]: requestedValue };
           updateMessage = `Your ${fieldName} has been updated from "${changeRequest.current_value}" to "${requestedValue}".`;
       }
 
+      console.log('📝 Updating business with:', updateBusinessData);
+
+      // Update the business record
       const { error: businessError } = await supabase
         .from('businesses')
-        .update(updateData)
+        .update(updateBusinessData)
         .eq('id', changeRequest.business_id);
 
       if (businessError) {
         console.error('❌ Error updating business:', businessError);
+      } else {
+        console.log('✅ Business updated successfully');
       }
     }
 
-    // If approving an appeal, update the original change request and business
-    if (action === 'approve' && isAppealRequest) {
-      // Get original change request
-      const { data: originalRequest } = await supabase
-        .from('change_requests')
-        .select('*')
-        .eq('id', changeRequest.original_request_id)
-        .single();
-
-      if (originalRequest) {
-        // Update business with the requested value
-        const fieldName = originalRequest.field_name;
-        const requestedValue = originalRequest.requested_value;
-        let updateData = {};
-
-        switch (fieldName) {
-          case 'Trading Name':
-            updateData = { trading_name: requestedValue };
-            break;
-          case 'Registered Name':
-            updateData = { registered_name: requestedValue };
-            break;
-          case 'Legal Name':
-            updateData = { legal_name: requestedValue };
-            break;
-          case 'Location':
-            const parts = requestedValue.split(',').map(s => s.trim());
-            updateData = {
-              physical_address: {
-                ...(changeRequest.businesses?.physical_address || {}),
-                city: parts[0] || '',
-                province: parts[1] || ''
-              }
-            };
-            break;
-          default:
-            const dbField = fieldName.toLowerCase().replace(/\s+/g, '_');
-            updateData = { [dbField]: requestedValue };
-        }
-
-        await supabase
-          .from('businesses')
-          .update(updateData)
-          .eq('id', changeRequest.business_id);
-
-        // Update original request status
-        await supabase
-          .from('change_requests')
-          .update({ status: 'approved' })
-          .eq('id', changeRequest.original_request_id);
-
-        updateMessage = `Your appeal was approved! Your ${fieldName} has been updated to "${requestedValue}".`;
-      }
-    }
-
-    // Send email notification
-    const businessEmail = changeRequest.businesses?.email;
-    const businessName = changeRequest.businesses?.trading_name || changeRequest.business_name;
+    // Send email notification to business owner
+    const businessEmail = business?.email;
+    const businessName = business?.trading_name || changeRequest.business_name;
 
     if (businessEmail) {
       const emailSubject = action === 'approve' 
-        ? `✅ ${isAppealRequest ? 'Appeal' : 'Change Request'} Approved - ${businessName}`
-        : `❌ ${isAppealRequest ? 'Appeal' : 'Change Request'} Rejected - ${businessName}`;
+        ? `✅ Change Request Approved - ${businessName}`
+        : `❌ Change Request Rejected - ${businessName}`;
       
       const emailHtml = action === 'approve' ? `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="text-align: center; margin-bottom: 30px;">
             <img src="https://fastcheckin.co.za/fastcheckin-logo.png" alt="FastCheckin" style="height: 50px;">
-            <h1 style="color: #10b981; margin: 20px 0 0;">${isAppealRequest ? 'Appeal' : 'Change Request'} Approved ✓</h1>
+            <h1 style="color: #10b981; margin: 20px 0 0;">Change Request Approved ✓</h1>
           </div>
           
           <p>Dear ${businessName},</p>
           
-          <p>Your ${isAppealRequest ? 'appeal has been' : 'change request has been'} <strong style="color: #10b981;">APPROVED</strong> by the administrator.</p>
+          <p>Your change request has been <strong style="color: #10b981;">APPROVED</strong> by the administrator.</p>
           
           <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>Request Details:</strong></p>
             <p>Field: ${changeRequest.field_name}</p>
+            <p>Previous Value: ${changeRequest.current_value || '(empty)'}</p>
             <p>New Value: ${changeRequest.requested_value}</p>
+            <p>Reason for request: ${changeRequest.reason}</p>
           </div>
           
-          <p>${updateMessage || 'The changes have been applied to your business profile.'}</p>
+          <p>${updateMessage}</p>
+          
+          <p>If you have any questions, please contact us at <a href="mailto:support@fastcheckin.co.za">support@fastcheckin.co.za</a>.</p>
           
           <hr style="margin: 30px 0; border-color: #e5e7eb;">
           
@@ -259,17 +216,18 @@ export const handler = async function(event) {
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="text-align: center; margin-bottom: 30px;">
             <img src="https://fastcheckin.co.za/fastcheckin-logo.png" alt="FastCheckin" style="height: 50px;">
-            <h1 style="color: #ef4444; margin: 20px 0 0;">${isAppealRequest ? 'Appeal' : 'Change Request'} Rejected ❌</h1>
+            <h1 style="color: #ef4444; margin: 20px 0 0;">Change Request Rejected ❌</h1>
           </div>
           
           <p>Dear ${businessName},</p>
           
-          <p>Your ${isAppealRequest ? 'appeal has been' : 'change request has been'} <strong style="color: #ef4444;">REJECTED</strong> by the administrator.</p>
+          <p>Your change request has been <strong style="color: #ef4444;">REJECTED</strong> by the administrator.</p>
           
           <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>Request Details:</strong></p>
             <p>Field: ${changeRequest.field_name}</p>
             <p>Requested Value: ${changeRequest.requested_value}</p>
+            <p>Reason for request: ${changeRequest.reason}</p>
             <p style="color: #dc2626;"><strong>Rejection Reason:</strong> ${reason || 'No specific reason provided'}</p>
           </div>
           
@@ -287,22 +245,27 @@ export const handler = async function(event) {
         </div>
       `;
 
-      await resend.emails.send({
-        from: 'FastCheckin <notifications@fastcheckin.co.za>',
-        to: [businessEmail],
-        subject: emailSubject,
-        html: emailHtml
-      });
+      try {
+        await resend.emails.send({
+          from: 'FastCheckin <notifications@fastcheckin.co.za>',
+          to: [businessEmail],
+          subject: emailSubject,
+          html: emailHtml
+        });
+        console.log(`✅ Email sent to ${businessEmail}`);
+      } catch (emailError) {
+        console.error('❌ Email error:', emailError);
+      }
     }
 
-    console.log(`✅ ${isAppealRequest ? 'Appeal' : 'Change request'} ${action}d: ${requestId}`);
+    console.log(`✅ Change request ${action}d: ${requestId}`);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        message: `${isAppealRequest ? 'Appeal' : 'Change request'} ${action}d successfully`
+        message: `Change request ${action}d successfully`
       })
     };
 
