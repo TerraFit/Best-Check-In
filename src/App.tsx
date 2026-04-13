@@ -13,6 +13,7 @@ import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
 import ResetPassword from './pages/ResetPassword';
+import SetPassword from './pages/SetPassword';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 import ScrollToTop from './components/ScrollToTop';
@@ -64,6 +65,7 @@ function AppContent() {
         <Route path="/registration-success" element={<RegistrationSuccess />} />
         <Route path="/registration-pending" element={<RegistrationPending />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/set-password/:token" element={<SetPassword />} />
         
         <Route path="/business/login" element={<BusinessLogin />} />
         <Route path="/super-admin-login" element={<SuperAdminLogin />} />
