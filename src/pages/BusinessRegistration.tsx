@@ -235,7 +235,7 @@ export default function BusinessRegistration() {
     physicalProvince: '',
     physicalCountry: 'South Africa',
     physicalPostalCode: '',
-    sameAsPhysical: true,
+    sameAsPhysical: false,
     postalStreet: '',
     postalCity: '',
     postalProvince: '',
