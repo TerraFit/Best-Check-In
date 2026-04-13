@@ -21,6 +21,27 @@ const SADC_COUNTRIES = [
   'Zimbabwe'
 ];
 
+// Establishment Types
+const ESTABLISHMENT_TYPES = [
+  'Hotel',
+  'Bed & Breakfast (B&B)',
+  'Guest House',
+  'Large Campsite',
+  'Resort',
+  'Lodge',
+  'Self-Catering'
+];
+
+// TGSA Grading Options
+const TGSA_GRADING = [
+  'NA',
+  '1★',
+  '2★',
+  '3★',
+  '4★',
+  '5★'
+];
+
 // Regions/Provinces by Country (FULL DATA FOR ALL SADC COUNTRIES)
 const REGIONS_BY_COUNTRY: Record<string, string[]> = {
   'South Africa': [
@@ -176,7 +197,7 @@ export default function BusinessRegistration() {
   // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [location.pathname]); // Triggers on every route change
+  }, [location.pathname]);
   
   // Phase Management
   const [phase, setPhase] = useState(1);
@@ -201,12 +222,14 @@ export default function BusinessRegistration() {
   };
   const recommendedPlanId = getRecommendedPlanId();
   
-  // Phase 1: Business Information
+  // Phase 1: Business Information (ADDED establishmentType and tgsaGrading)
   const [businessData, setBusinessData] = useState({
     legalName: '',
     registrationNumber: '',
     vatNumber: '',
     tradingName: '',
+    establishmentType: '',
+    tgsaGrading: 'NA',
     physicalStreet: '',
     physicalCity: '',
     physicalProvince: '',
@@ -315,7 +338,7 @@ export default function BusinessRegistration() {
     reader.readAsDataURL(file);
   };
 
-  // Validate Phase 1
+  // Validate Phase 1 (UPDATED to include establishmentType)
   const validatePhase1 = (): boolean => {
     if (!businessData.legalName) {
       alert('Legal name is required');
@@ -323,6 +346,10 @@ export default function BusinessRegistration() {
     }
     if (!businessData.tradingName) {
       alert('Trading name is required');
+      return false;
+    }
+    if (!businessData.establishmentType) {
+      alert('Please select your establishment type');
       return false;
     }
     if (!businessData.physicalStreet) {
@@ -394,7 +421,6 @@ export default function BusinessRegistration() {
     e.preventDefault();
     if (validatePhase1()) {
       setPhase(2);
-      // 🎯 Scroll to top of form on phase change (smooth)
       setTimeout(() => {
         document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -406,14 +432,13 @@ export default function BusinessRegistration() {
     e.preventDefault();
     if (validatePhase2()) {
       setPhase(3);
-      // 🎯 Scroll to top of form on phase change (smooth)
       setTimeout(() => {
         document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }
   };
 
-  // Final Submit
+  // Final Submit (UPDATED to include establishmentType and tgsaGrading)
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -441,6 +466,8 @@ export default function BusinessRegistration() {
             registration_number: businessData.registrationNumber,
             vat_number: businessData.vatNumber,
             trading_name: businessData.tradingName,
+            establishment_type: businessData.establishmentType,
+            tgsa_grading: businessData.tgsaGrading,
             physical_address: {
               street: businessData.physicalStreet,
               city: businessData.physicalCity,
@@ -496,6 +523,11 @@ export default function BusinessRegistration() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Scroll to registration form
+  const scrollToRegistration = () => {
+    document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -756,6 +788,19 @@ export default function BusinessRegistration() {
               </div>
             </div>
           </div>
+          
+          {/* SUBTLE SCROLL ARROW - VISIBLE AND FUNCTIONAL */}
+          <div className="text-center mt-12 animate-bounce">
+            <button 
+              onClick={scrollToRegistration}
+              className="text-stone-500 text-sm flex items-center justify-center gap-2 hover:text-stone-400 transition-colors group"
+            >
+              <span>Register here</span>
+              <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* ============================================================ */}
@@ -849,6 +894,40 @@ export default function BusinessRegistration() {
                       required
                     />
                   </div>
+
+                  {/* NEW: Establishment Type Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Type of Establishment *
+                    </label>
+                    <select
+                      value={businessData.establishmentType}
+                      onChange={(e) => setBusinessData({ ...businessData, establishmentType: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    >
+                      <option value="">Select Establishment Type</option>
+                      {ESTABLISHMENT_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* NEW: TGSA Grading Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      TGSA Grading (Optional)
+                    </label>
+                    <select
+                      value={businessData.tgsaGrading}
+                      onChange={(e) => setBusinessData({ ...businessData, tgsaGrading: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    >
+                      {TGSA_GRADING.map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Physical Address */}
@@ -892,7 +971,6 @@ export default function BusinessRegistration() {
                     />
                   </div>
                   
-                  {/* Country - Select FIRST */}
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
                       Country *
@@ -904,7 +982,7 @@ export default function BusinessRegistration() {
                         setBusinessData({ 
                           ...businessData, 
                           physicalCountry: newCountry,
-                          physicalProvince: '' // Reset province when country changes
+                          physicalProvince: ''
                         });
                         if (businessData.sameAsPhysical) {
                           setBusinessData(prev => ({ 
@@ -924,7 +1002,6 @@ export default function BusinessRegistration() {
                     </select>
                   </div>
                   
-                  {/* Province/Region - Dynamic based on Country */}
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
                       {regionLabel} *
@@ -1440,6 +1517,8 @@ export default function BusinessRegistration() {
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm text-stone-400">
                     <p>Business: <span className="text-white">{businessData.tradingName}</span></p>
+                    <p>Type: <span className="text-white">{businessData.establishmentType || 'Not specified'}</span></p>
+                    <p>TGSA: <span className="text-white">{businessData.tgsaGrading}</span></p>
                     <p>Plan: <span className="text-white">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>
                     <p>Rooms: <span className="text-white">{roomsCount}</span></p>
                     <p>Director: <span className="text-white">{directorData.name} {directorData.surname}</span></p>
