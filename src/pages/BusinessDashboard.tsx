@@ -1,4 +1,4 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE ACCURATE VERSION with Import Feature
+// src/pages/BusinessDashboard.tsx - COMPLETE FIXED VERSION
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -205,42 +205,58 @@ export default function BusinessDashboard() {
 
   const loadBusinessProfile = async () => {
     const businessId = getBusinessId();
-    if (!businessId) return;
+    if (!businessId) {
+      console.error('❌ No business ID found');
+      setLoading(false);
+      return;
+    }
 
     try {
+      console.log('📡 Loading business profile for ID:', businessId);
       const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setBusiness(data);
-        setProfileForm({
-          total_rooms: data.total_rooms?.toString() || '',
-          avg_price: data.avg_price?.toString() || '',
-          logo_url: data.logo_url || '',
-          hero_image_url: data.hero_image_url || '',
-          slogan: data.slogan || '',
-          welcome_message: data.welcome_message || ''
-        });
-        
-        setNewsletterEnabled(data.newsletter_enabled || false);
-        setNewsletterTitle(data.newsletter_title || 'Win Your Next Stay With Us');
-        setNewsletterPrize(data.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
-        setNewsletterCta(data.newsletter_cta || 'Subscribe now (takes 10 seconds)');
-        setNewsletterTerms(data.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
-        setNewsletterDrawDate(data.newsletter_draw_date || '');
-        setNewsletterShareText(data.newsletter_share_text || 'Want better odds? Share this with friends and family!');
-        
-        if (data.trial_end) {
-          const trialEnd = new Date(data.trial_end);
-          const today = new Date();
-          const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          setTrialDaysLeft(daysLeft);
-          setSubscriptionStatus(data.subscription_status || 'trial');
-        }
-        
-        console.log('✅ Business profile loaded:', data.trading_name);
+      
+      if (!res.ok) {
+        console.error('❌ Failed to load business profile:', res.status);
+        setLoading(false);
+        return;
       }
+      
+      const data = await res.json();
+      console.log('✅ Business profile data received:', data);
+      
+      // The API returns the business object directly
+      setBusiness(data);
+      
+      setProfileForm({
+        total_rooms: data.total_rooms?.toString() || '',
+        avg_price: data.avg_price?.toString() || '',
+        logo_url: data.logo_url || '',
+        hero_image_url: data.hero_image_url || '',
+        slogan: data.slogan || '',
+        welcome_message: data.welcome_message || ''
+      });
+      
+      setNewsletterEnabled(data.newsletter_enabled || false);
+      setNewsletterTitle(data.newsletter_title || 'Win Your Next Stay With Us');
+      setNewsletterPrize(data.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+      setNewsletterCta(data.newsletter_cta || 'Subscribe now (takes 10 seconds)');
+      setNewsletterTerms(data.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+      setNewsletterDrawDate(data.newsletter_draw_date || '');
+      setNewsletterShareText(data.newsletter_share_text || 'Want better odds? Share this with friends and family!');
+      
+      if (data.trial_end) {
+        const trialEnd = new Date(data.trial_end);
+        const today = new Date();
+        const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        setTrialDaysLeft(daysLeft);
+        setSubscriptionStatus(data.subscription_status || 'trial');
+      }
+      
+      console.log('✅ Business profile loaded:', data.trading_name);
     } catch (err) {
-      console.error('Failed to load business profile:', err);
+      console.error('❌ Failed to load business profile:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -304,7 +320,6 @@ export default function BusinessDashboard() {
       return;
     }
 
-    setLoading(true);
     try {
       console.log('📡 Fetching bookings for business:', businessId);
       
@@ -348,7 +363,6 @@ export default function BusinessDashboard() {
     } catch (err) {
       console.error('Error loading bookings:', err);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -1035,7 +1049,7 @@ export default function BusinessDashboard() {
         {/* ============================================================ */}
         {/* OVERVIEW TAB */}
         {/* ============================================================ */}
-        {activeTab === 'overview' && (
+        {activeTab === 'overview' && business && (
           <div className="space-y-6">
             {/* Business Information Card */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -1047,7 +1061,7 @@ export default function BusinessDashboard() {
                   {/* Business ID */}
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Business ID</p>
-                    <p className="text-sm font-mono text-gray-700 mt-1">{business?.id || getBusinessId()}</p>
+                    <p className="text-sm font-mono text-gray-700 mt-1">{business.id || getBusinessId()}</p>
                   </div>
                   
                   {/* Trading Name with Request Change */}
@@ -1055,16 +1069,16 @@ export default function BusinessDashboard() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
-                        <p className="text-sm font-medium text-gray-900 mt-1">{business?.trading_name}</p>
+                        <p className="text-sm font-medium text-gray-900 mt-1">{business.trading_name || 'Not set'}</p>
                       </div>
                       <button 
-                        onClick={() => openRequestModal('Trading Name', business?.trading_name || '')}
+                        onClick={() => openRequestModal('Trading Name', business.trading_name || '')}
                         className="text-xs text-blue-500 hover:text-blue-700 ml-2"
                       >
                         Request Change
                       </button>
                     </div>
-                    {business?.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
+                    {business.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
                   </div>
                   
                   {/* Registered Name with Request Change */}
@@ -1072,10 +1086,10 @@ export default function BusinessDashboard() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wider">Registered Name</p>
-                        <p className="text-sm text-gray-700 mt-1">{business?.registered_name}</p>
+                        <p className="text-sm text-gray-700 mt-1">{business.registered_name || 'Not set'}</p>
                       </div>
                       <button 
-                        onClick={() => openRequestModal('Registered Name', business?.registered_name || '')}
+                        onClick={() => openRequestModal('Registered Name', business.registered_name || '')}
                         className="text-xs text-blue-500 hover:text-blue-700 ml-2"
                       >
                         Request Change
@@ -1095,7 +1109,7 @@ export default function BusinessDashboard() {
                               value={newEmail}
                               onChange={(e) => setNewEmail(e.target.value)}
                               className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
-                              placeholder={business?.email}
+                              placeholder={business.email}
                             />
                             <button 
                               onClick={updateEmail} 
@@ -1112,13 +1126,13 @@ export default function BusinessDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-700 mt-1">{business?.email}</p>
+                          <p className="text-sm text-gray-700 mt-1">{business.email || 'Not set'}</p>
                         )}
                       </div>
                       {!editingEmail && (
                         <button 
                           onClick={() => {
-                            setNewEmail(business?.email || '');
+                            setNewEmail(business.email || '');
                             setEditingEmail(true);
                           }}
                           className="text-xs text-green-500 hover:text-green-700 ml-2"
@@ -1141,7 +1155,7 @@ export default function BusinessDashboard() {
                               value={newPhone}
                               onChange={(e) => setNewPhone(e.target.value)}
                               className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
-                              placeholder={business?.phone}
+                              placeholder={business.phone}
                             />
                             <button 
                               onClick={updatePhone} 
@@ -1158,13 +1172,13 @@ export default function BusinessDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-700 mt-1">{business?.phone}</p>
+                          <p className="text-sm text-gray-700 mt-1">{business.phone || 'Not set'}</p>
                         )}
                       </div>
                       {!editingPhone && (
                         <button 
                           onClick={() => {
-                            setNewPhone(business?.phone || '');
+                            setNewPhone(business.phone || '');
                             setEditingPhone(true);
                           }}
                           className="text-xs text-green-500 hover:text-green-700 ml-2"
@@ -1180,10 +1194,12 @@ export default function BusinessDashboard() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wider">Location</p>
-                        <p className="text-sm text-gray-700 mt-1">{business?.physical_address?.city}, {business?.physical_address?.province}</p>
+                        <p className="text-sm text-gray-700 mt-1">
+                          {business.physical_address?.city || ''}, {business.physical_address?.province || ''}
+                        </p>
                       </div>
                       <button 
-                        onClick={() => openRequestModal('Location', `${business?.physical_address?.city}, ${business?.physical_address?.province}`)}
+                        onClick={() => openRequestModal('Location', `${business.physical_address?.city || ''}, ${business.physical_address?.province || ''}`)}
                         className="text-xs text-blue-500 hover:text-blue-700 ml-2"
                       >
                         Request Change
@@ -1192,7 +1208,7 @@ export default function BusinessDashboard() {
                   </div>
                   
                   {/* Establishment Type */}
-                  {business?.establishment_type && (
+                  {business.establishment_type && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Establishment Type</p>
                       <p className="text-sm text-gray-700 mt-1">{business.establishment_type}</p>
@@ -1200,7 +1216,7 @@ export default function BusinessDashboard() {
                   )}
                   
                   {/* Total Rooms */}
-                  {business?.total_rooms && (
+                  {business.total_rooms && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Total Rooms</p>
                       <p className="text-sm text-gray-700 mt-1">{business.total_rooms}</p>
@@ -1208,7 +1224,7 @@ export default function BusinessDashboard() {
                   )}
                   
                   {/* Average Room Price */}
-                  {business?.avg_price && (
+                  {business.avg_price && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Average Room Price</p>
                       <p className="text-sm text-gray-700 mt-1">R {business.avg_price.toLocaleString()}</p>
@@ -1325,7 +1341,7 @@ export default function BusinessDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
-                  onClick={() => window.location.href = `/checkin/${business?.id || getBusinessId()}`}
+                  onClick={() => window.location.href = `/checkin/${business.id || getBusinessId()}`}
                   className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-orange-200 text-left"
                 >
                   <div className="bg-orange-500 p-3 rounded-full">
@@ -1369,6 +1385,19 @@ export default function BusinessDashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* If business is null, show loading or error */}
+        {activeTab === 'overview' && !business && (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <p className="text-gray-500">Unable to load business information. Please refresh the page.</p>
+            <button
+              onClick={refreshData}
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -1595,7 +1624,7 @@ export default function BusinessDashboard() {
                               </button>
                             )}
                           </td>
-                        </tr>
+                        </table>
                       ))}
                     </tbody>
                   </table>
@@ -2306,9 +2335,9 @@ export default function BusinessDashboard() {
       )}
 
       {/* Import Google Forms Modal */}
-      {showImportModal && (
+      {showImportModal && business && (
         <ImportGoogleForms
-          businessId={business?.id || getBusinessId()}
+          businessId={business.id || getBusinessId()}
           onImportComplete={() => {
             loadBookings();
             setShowImportModal(false);
