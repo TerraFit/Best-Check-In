@@ -45,8 +45,7 @@ export const handler = async function(event) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // ✅ Exclude logo_url and hero_image_url (they're in separate endpoints now)
-    // ✅ Also exclude any other large fields like directors, seasons, etc.
+    // ✅ Include logo_url and hero_image_url but keep other fields minimal
     const { data, error } = await supabase
       .from('businesses')
       .select(`
@@ -55,6 +54,8 @@ export const handler = async function(event) {
         registered_name,
         email,
         phone,
+        logo_url,
+        hero_image_url,
         slogan,
         welcome_message,
         total_rooms,
