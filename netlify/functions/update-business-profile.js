@@ -33,7 +33,6 @@ export const handler = async function(event) {
       slogan,
       welcome_message,
       setup_complete,
-      // Newsletter fields
       newsletter_enabled,
       newsletter_title,
       newsletter_prize,
@@ -53,7 +52,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Build update object WITHOUT images (they'll be handled separately)
+    // Build update object (text fields only - NO images)
     const updateData = {};
     if (total_rooms !== undefined) updateData.total_rooms = total_rooms;
     if (avg_price !== undefined) updateData.avg_price = avg_price;
@@ -63,7 +62,6 @@ export const handler = async function(event) {
     if (email !== undefined) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
     
-    // Newsletter fields
     if (newsletter_enabled !== undefined) updateData.newsletter_enabled = newsletter_enabled;
     if (newsletter_title !== undefined) updateData.newsletter_title = newsletter_title;
     if (newsletter_prize !== undefined) updateData.newsletter_prize = newsletter_prize;
@@ -74,13 +72,11 @@ export const handler = async function(event) {
     
     updateData.updated_at = new Date().toISOString();
 
-    // Update the business (text fields only)
-    const { data, error } = await supabase
+    // ✅ CRITICAL FIX: Remove .select().single() - don't return the data
+    const { error } = await supabase
       .from('businesses')
       .update(updateData)
-      .eq('id', businessId)
-      .select()
-      .single();
+      .eq('id', businessId);
 
     if (error) {
       console.error('Error updating business:', error);
@@ -91,13 +87,13 @@ export const handler = async function(event) {
       };
     }
 
+    // ✅ Return simple success (no large data payload)
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
-        message: 'Profile updated successfully',
-        business: data
+        message: 'Profile updated successfully'
       })
     };
 
