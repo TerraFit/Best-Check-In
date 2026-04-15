@@ -39,7 +39,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  
+  const [forceRender, setForceRender] = useState(false);
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
