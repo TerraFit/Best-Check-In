@@ -30,9 +30,7 @@ export const handler = async function(event) {
       businessId, 
       total_rooms, 
       avg_price, 
-      logo_url, 
-      primary_color, 
-      secondary_color, 
+      slogan,
       welcome_message,
       setup_complete,
       // Newsletter fields
@@ -42,7 +40,9 @@ export const handler = async function(event) {
       newsletter_cta,
       newsletter_terms,
       newsletter_draw_date,
-      newsletter_share_text
+      newsletter_share_text,
+      email,
+      phone
     } = JSON.parse(event.body);
 
     if (!businessId) {
@@ -53,15 +53,15 @@ export const handler = async function(event) {
       };
     }
 
-    // Update business profile
+    // Build update object WITHOUT images (they'll be handled separately)
     const updateData = {};
     if (total_rooms !== undefined) updateData.total_rooms = total_rooms;
     if (avg_price !== undefined) updateData.avg_price = avg_price;
-    if (logo_url !== undefined) updateData.logo_url = logo_url;
-    if (primary_color !== undefined) updateData.primary_color = primary_color;
-    if (secondary_color !== undefined) updateData.secondary_color = secondary_color;
+    if (slogan !== undefined) updateData.slogan = slogan;
     if (welcome_message !== undefined) updateData.welcome_message = welcome_message;
     if (setup_complete !== undefined) updateData.setup_complete = setup_complete;
+    if (email !== undefined) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
     
     // Newsletter fields
     if (newsletter_enabled !== undefined) updateData.newsletter_enabled = newsletter_enabled;
@@ -74,6 +74,7 @@ export const handler = async function(event) {
     
     updateData.updated_at = new Date().toISOString();
 
+    // Update the business (text fields only)
     const { data, error } = await supabase
       .from('businesses')
       .update(updateData)
