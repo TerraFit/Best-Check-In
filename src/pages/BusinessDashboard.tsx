@@ -224,7 +224,6 @@ export default function BusinessDashboard() {
       const data = await res.json();
       console.log('✅ Business profile data received:', data);
       
-      // The API returns the business object directly
       setBusiness(data);
       
       setProfileForm({
@@ -1058,13 +1057,11 @@ export default function BusinessDashboard() {
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Business ID */}
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider">Business ID</p>
                     <p className="text-sm font-mono text-gray-700 mt-1">{business.id || getBusinessId()}</p>
                   </div>
                   
-                  {/* Trading Name with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1081,7 +1078,6 @@ export default function BusinessDashboard() {
                     {business.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
                   </div>
                   
-                  {/* Registered Name with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1097,7 +1093,6 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   
-                  {/* Email - Inline Editable */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1143,7 +1138,6 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   
-                  {/* Phone - Inline Editable */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1189,7 +1183,6 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   
-                  {/* Location with Request Change */}
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
@@ -1207,7 +1200,6 @@ export default function BusinessDashboard() {
                     </div>
                   </div>
                   
-                  {/* Establishment Type */}
                   {business.establishment_type && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Establishment Type</p>
@@ -1215,7 +1207,6 @@ export default function BusinessDashboard() {
                     </div>
                   )}
                   
-                  {/* Total Rooms */}
                   {business.total_rooms && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Total Rooms</p>
@@ -1223,7 +1214,6 @@ export default function BusinessDashboard() {
                     </div>
                   )}
                   
-                  {/* Average Room Price */}
                   {business.avg_price && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Average Room Price</p>
@@ -1236,7 +1226,6 @@ export default function BusinessDashboard() {
 
             {/* Today's Activity Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Arrivals - Green */}
               <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-green-500">
                 <div className="px-6 py-4 bg-green-50">
                   <h3 className="font-semibold text-green-800 flex items-center gap-2">
@@ -1269,7 +1258,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Stayovers - Blue */}
               <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-blue-500">
                 <div className="px-6 py-4 bg-blue-50">
                   <h3 className="font-semibold text-blue-800 flex items-center gap-2">
@@ -1302,7 +1290,6 @@ export default function BusinessDashboard() {
                 </div>
               </div>
 
-              {/* Check-outs - Orange */}
               <div className="bg-white rounded-lg shadow overflow-hidden border-l-4 border-orange-500">
                 <div className="px-6 py-4 bg-orange-50">
                   <h3 className="font-semibold text-orange-800 flex items-center gap-2">
@@ -1368,7 +1355,6 @@ export default function BusinessDashboard() {
                     <p className="text-xs text-gray-500">Display check-in QR code</p>
                   </div>
                 </button>
-                {/* Import Google Forms Button */}
                 <button
                   onClick={() => setShowImportModal(true)}
                   className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-green-200 text-left"
@@ -1537,7 +1523,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-                        {/* Check-ins Table */}
+            {/* Check-ins Table */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
@@ -1624,14 +1610,14 @@ export default function BusinessDashboard() {
                               </button>
                             )}
                           </td>
-                        </table>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
               </div>
               
-                          {totalPages > 1 && (
+              {totalPages > 1 && (
                 <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
                   <p className="text-sm text-gray-500">
                     Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
