@@ -53,7 +53,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
   const [error, setError] = useState<string | null>(null);
 
   const downloadTemplate = () => {
-    // Create template data with example row
     const templateData = [{
       'Guest Full Name': 'John Smith',
       'Email Address': 'john@example.com',
@@ -75,7 +74,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
     
-    // Add instructions sheet
     const instructions = [
       ['FASTCHECKIN IMPORT TEMPLATE INSTRUCTIONS'],
       [''],
@@ -124,11 +122,9 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       
       setRawData(jsonData);
       
-      // Detect columns and auto-map
       const columns = Object.keys(jsonData[0]);
       setDetectedColumns(columns);
       
-      // Auto-map columns based on common names
       const autoMapping: Record<string, string> = {};
       columns.forEach(col => {
         const lowerCol = col.toLowerCase();
@@ -186,12 +182,10 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       const warnings: string[] = [];
       const mappedData: Record<string, any> = {};
 
-      // Map data based on user's column mapping
       for (const [column, field] of Object.entries(mapping)) {
         if (field && row[column]) {
           let value = row[column];
           
-          // Parse dates
           if (field === 'check_in_date' || field === 'check_out_date') {
             value = parseDate(value);
             if (field === 'check_in_date' && !value) {
@@ -199,7 +193,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
             }
           }
           
-          // Parse numbers
           if (field === 'adults' || field === 'children' || field === 'nights') {
             value = parseInt(value) || 0;
           }
@@ -212,7 +205,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         }
       }
 
-      // Validate required fields
       if (!mappedData.guest_name) {
         errors.push('Guest name is required');
       }
@@ -220,13 +212,11 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         errors.push('Check-in date is required');
       }
 
-      // Auto-calculate nights if check-out date provided
       if (mappedData.check_in_date && mappedData.check_out_date && !mappedData.nights) {
         const nights = calculateNights(mappedData.check_in_date, mappedData.check_out_date);
         if (nights > 0) mappedData.nights = nights;
       }
 
-      // Add warnings for missing recommended fields
       if (!mappedData.guest_email && !mappedData.guest_phone) {
         warnings.push('No email or phone provided - guest cannot be contacted');
       }
@@ -262,25 +252,16 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
   const parseDate = (dateStr: string): string => {
     if (!dateStr) return '';
     
-    // Try YYYY-MM-DD
     let match = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (match) {
       return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
     }
     
-    // Try DD/MM/YYYY
     match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (match) {
       return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
     }
     
-    // Try MM/DD/YYYY
-    match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
-    }
-    
-    // Try parsing with Date
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       return date.toISOString().split('T')[0];
@@ -380,7 +361,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       'application/vnd.ms-excel': ['.xls']
     },
     maxFiles: 1,
-    maxSize: 50 * 1024 * 1024 // 50MB
+    maxSize: 50 * 1024 * 1024
   });
 
   if (step === 'upload') {
@@ -393,7 +374,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
-            {/* Template Download */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <div className="flex items-start gap-3">
                 <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -402,34 +382,22 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
                 <div className="flex-1">
                   <h3 className="font-medium text-blue-800">Need a template?</h3>
                   <p className="text-sm text-blue-700 mb-3">Download our Excel template with the correct column format</p>
-                  <button
-                    onClick={downloadTemplate}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                  >
+                  <button onClick={downloadTemplate} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
                     Download Template
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Dropzone */}
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
-                isDragActive ? 'border-orange-500 bg-orange-50' : 'border-gray-300 hover:border-orange-400'
-              }`}
-            >
+            <div {...getRootProps()} className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${isDragActive ? 'border-orange-500 bg-orange-50' : 'border-gray-300 hover:border-orange-400'}`}>
               <input {...getInputProps()} />
               <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <p className="text-gray-600">
-                {isDragActive ? 'Drop your file here' : 'Drag & drop your file here'}
-              </p>
+              <p className="text-gray-600">{isDragActive ? 'Drop your file here' : 'Drag & drop your file here'}</p>
               <p className="text-sm text-gray-400 mt-2">Supports .CSV, .XLSX, .XLS files (max 50MB)</p>
             </div>
 
-            {/* Instructions */}
             <div className="mt-6 bg-gray-50 rounded-lg p-4">
               <h3 className="font-medium text-gray-900 mb-2">📋 Instructions</h3>
               <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
@@ -442,11 +410,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               </ul>
             </div>
 
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                {error}
-              </div>
-            )}
+            {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>}
           </div>
         </div>
       </div>
@@ -472,22 +436,14 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               {detectedColumns.map(column => (
                 <div key={column} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                   <div className="w-64">
-                    <p className="text-sm font-medium text-gray-700 truncate" title={column}>
-                      {column}
-                    </p>
+                    <p className="text-sm font-medium text-gray-700 truncate" title={column}>{column}</p>
                     <p className="text-xs text-gray-400 truncate">{String(rawData[0]?.[column] || '').substring(0, 30)}</p>
                   </div>
                   <span className="text-gray-400">→</span>
-                  <select
-                    value={columnMapping[column] || ''}
-                    onChange={(e) => updateMapping(column, e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                  >
+                  <select value={columnMapping[column] || ''} onChange={(e) => updateMapping(column, e.target.value)} className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500">
                     <option value="">-- Ignore this column --</option>
                     {FASTCHECKIN_FIELDS.map(field => (
-                      <option key={field.key} value={field.key}>
-                        {field.label} {field.required ? '*' : ''}
-                      </option>
+                      <option key={field.key} value={field.key}>{field.label} {field.required ? '*' : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -501,19 +457,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
                 Warnings: <span className="font-semibold text-yellow-600">{preview.warningCount}</span>
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setStep('upload')}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => setStep('preview')}
-                  disabled={preview.validCount === 0}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                >
-                  Continue to Preview
-                </button>
+                <button onClick={() => setStep('upload')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+                <button onClick={() => setStep('preview')} disabled={preview.validCount === 0} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">Continue to Preview</button>
               </div>
             </div>
           </div>
@@ -532,7 +477,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <button onClick={() => setStep('mapping')} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
-            {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-4 mb-6">
               <div className="bg-gray-50 rounded-lg p-3 text-center">
                 <p className="text-2xl font-bold text-gray-900">{preview.rows.length}</p>
@@ -552,7 +496,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               </div>
             </div>
 
-            {/* Data Preview Table */}
             <div className="mb-6 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 sticky top-0">
@@ -582,18 +525,13 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
                           <span className="text-green-600 text-xs">✓ Valid</span>
                         )}
                       </td>
-                    </table>
+                    </tr>
                   ))}
                 </tbody>
               </table>
-              {preview.rows.length > 10 && (
-                <p className="text-center text-sm text-gray-500 mt-3">
-                  + {preview.rows.length - 10} more records
-                </p>
-              )}
+              {preview.rows.length > 10 && <p className="text-center text-sm text-gray-500 mt-3">+ {preview.rows.length - 10} more records</p>}
             </div>
 
-            {/* Errors Summary */}
             {preview.rows.filter(r => !r.isValid).length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                 <h4 className="font-medium text-red-800 mb-2">Invalid Records ({preview.invalidCount})</h4>
@@ -606,19 +544,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
             )}
 
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setStep('mapping')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-              >
-                Back to Mapping
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={preview.validCount === 0}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-              >
-                Import {preview.validCount} Records
-              </button>
+              <button onClick={() => setStep('mapping')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back to Mapping</button>
+              <button onClick={handleImport} disabled={preview.validCount === 0} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">Import {preview.validCount} Records</button>
             </div>
           </div>
         </div>
@@ -660,9 +587,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
             <details className="mt-4 text-left">
               <summary className="text-sm text-red-600 cursor-pointer">View errors ({importResult.errors.length})</summary>
               <div className="mt-2 max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs text-red-700">
-                {importResult.errors.map((err, i) => (
-                  <div key={i}>{err}</div>
-                ))}
+                {importResult.errors.map((err, i) => <div key={i}>{err}</div>)}
               </div>
             </details>
           )}
