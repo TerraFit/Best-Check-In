@@ -12,31 +12,15 @@ export const handler = async function(event) {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Simple test response first
-  if (event.queryStringParameters?.test === '1') {
+  if (event.httpMethod !== 'GET') {
     return {
-      statusCode: 200,
+      statusCode: 405,
       headers,
-      body: JSON.stringify({ message: 'Function is working!' })
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    // Check environment variables
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-      console.error('Missing env vars');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Configuration error: Missing Supabase credentials' })
-      };
-    }
-
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-
     const businessId = event.queryStringParameters?.id;
     
     if (!businessId) {
@@ -47,18 +31,42 @@ export const handler = async function(event) {
       };
     }
 
+    // Check environment variables
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+      console.error('Missing Supabase environment variables');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+
+    // ✅ CRITICAL FIX: Use maybeSingle() instead of single()
     const { data, error } = await supabase
       .from('businesses')
       .select('*')
       .eq('id', businessId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Supabase error:', error);
       return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Database error', details: error.message })
+      };
+    }
+
+    if (!data) {
+      return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Business not found', details: error.message })
+        body: JSON.stringify({ error: 'Business not found' })
       };
     }
 
@@ -69,11 +77,11 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('Catch error:', error);
+    console.error('Function error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message, stack: error.stack })
+      body: JSON.stringify({ error: 'Internal server error', message: error.message })
     };
   }
 };
