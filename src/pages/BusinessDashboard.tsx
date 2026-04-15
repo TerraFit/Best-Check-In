@@ -1583,48 +1583,51 @@ export default function BusinessDashboard() {
                               <span className="cursor-help">
                                 {booking.guest_id_number.substring(0, 8)}...
                               </span>
-                            ) : 'N/A'}
-                            {booking.guest_id_photo && (
-                              <span className="ml-1 text-green-500" title="ID photo available">📷</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.check_in_date || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {booking.nights || 1}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            R {(booking.total_amount || 0).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.booking_source || booking.referral_source || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                              {booking.status || 'pending'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            {booking.guest_id_photo ? (
-                              <button
-                                onClick={() => alert('ID photo available in guest profile')}
-                                className="text-blue-500 hover:text-blue-700 text-xs"
-                                title="View ID photo"
-                              >
-                                View ID
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => requestIDPhoto(booking)}
-                                className="text-orange-500 hover:text-orange-700 text-xs"
-                                title="Request ID photo"
-                              >
-                                Request ID
-                              </button>
-                            )}
-                          </td>
-                        </table>
+                                                   ) : 'N/A'}
+                        {booking.guest_id_photo && (
+                          <span className="ml-1 text-green-500" title="ID photo available">📷</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.check_in_date || 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        {booking.nights || 1}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        R {(booking.total_amount || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.booking_source || booking.referral_source || 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                          {booking.status || 'pending'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        {booking.guest_id_photo ? (
+                          <button
+                            onClick={() => alert('ID photo available in guest profile')}
+                            className="text-blue-500 hover:text-blue-700 text-xs"
+                            title="View ID photo"
+                          >
+                            View ID
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => requestIDPhoto(booking)}
+                            className="text-orange-500 hover:text-orange-700 text-xs"
+                            title="Request ID photo"
+                          >
+                            Request ID
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
                       ))}
                     </tbody>
                   </table>
