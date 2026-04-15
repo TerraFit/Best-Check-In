@@ -31,7 +31,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Check environment variables
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
       console.error('Missing Supabase environment variables');
       return {
@@ -46,10 +45,35 @@ export const handler = async function(event) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // ✅ CRITICAL FIX: Use maybeSingle() instead of single()
+    // ✅ Exclude logo_url and hero_image_url (they're in separate endpoints now)
+    // ✅ Also exclude any other large fields like directors, seasons, etc.
     const { data, error } = await supabase
       .from('businesses')
-      .select('*')
+      .select(`
+        id,
+        trading_name,
+        registered_name,
+        email,
+        phone,
+        slogan,
+        welcome_message,
+        total_rooms,
+        avg_price,
+        physical_address,
+        trial_end,
+        subscription_status,
+        newsletter_enabled,
+        newsletter_title,
+        newsletter_prize,
+        newsletter_cta,
+        newsletter_terms,
+        newsletter_draw_date,
+        newsletter_share_text,
+        establishment_type,
+        tgsa_grading,
+        status,
+        created_at
+      `)
       .eq('id', businessId)
       .maybeSingle();
 
