@@ -31,6 +31,37 @@ interface CheckInFormProps {
   businessId?: string;
 }
 
+// ✅ Separate component for hero image that forces re-render
+const HeroImage: React.FC<{ imageUrl: string | undefined; businessName: string; slogan: string }> = ({ 
+  imageUrl, 
+  businessName, 
+  slogan 
+}) => {
+  const [imgError, setImgError] = useState(false);
+  
+  if (!imageUrl || imgError) return null;
+  
+  return (
+    <div className="relative h-64 md:h-96 w-full overflow-hidden hero-image-container">
+      <img 
+        src={imageUrl} 
+        alt={businessName}
+        className="w-full h-full object-cover"
+        onError={() => {
+          console.error('❌ Hero image failed to load');
+          setImgError(true);
+        }}
+        onLoad={() => console.log('✅ Hero image loaded successfully')}
+      />
+      <div className="absolute inset-0 bg-black/30"></div>
+      <div className="absolute bottom-0 left-0 right-0 p-8 text-center text-white">
+        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-2">{businessName}</h1>
+        {slogan && <p className="text-xl italic opacity-90">{slogan}</p>}
+      </div>
+    </div>
+  );
+};
+
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -39,7 +70,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [forceRender, setForceRender] = useState(false);
+  
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -74,16 +105,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const [profileLoaded, setProfileLoaded] = useState(false);
 
-  // Update fullName whenever firstName or lastName changes
   const updateFullName = (firstName: string, lastName: string) => {
     return `${firstName} ${lastName}`.trim();
   };
 
-  // Get region information based on selected country
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Region';
 
-  // Calculate total amount based on nights and room price
   const calculateTotalAmount = async (nights: number): Promise<number> => {
     try {
       if (businessId) {
@@ -99,20 +127,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // Fetch business branding on mount
   useEffect(() => {
     if (businessId) {
       fetchBusinessBranding();
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [businessId]);
-
-  // ✅ CRITICAL FIX: Force re-render when branding loads to show hero image
-  useEffect(() => {
-    if (branding?.hero_image_url) {
-      console.log('✅ Hero image URL available, length:', branding.hero_image_url.length);
-    }
-  }, [branding]);
 
   const fetchBusinessBranding = async () => {
     try {
@@ -131,13 +151,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setLoadingBranding(false);
     }
   };
-// Force re-render when branding loads to show hero image
-useEffect(() => {
-  if (branding?.hero_image_url) {
-    console.log('✅ Hero image loaded, forcing render');
-    setForceRender(prev => !prev);
-  }
-}, [branding]);
+
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
       const date = new Date(formData.arrivalDate);
@@ -296,8 +310,6 @@ useEffect(() => {
     } 
   }, [step]);
 
-  // ==================== DATABASE FUNCTIONS ====================
-
   const saveBookingToDatabase = async (booking: any) => {
     try {
       console.log('💾 Saving booking to database:', booking);
@@ -374,8 +386,6 @@ useEffect(() => {
       console.error('❌ Email error:', error);
     }
   };
-
-  // ==================== HANDLE SUBMIT ====================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -519,7 +529,6 @@ useEffect(() => {
     }
   };
 
-  // Check if service is paused
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -568,26 +577,8 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Hero Image Section - if uploaded */}
-      {heroImage && step === 1 && (
-        <div className="relative h-64 md:h-96 w-full overflow-hidden hero-image-container">
-          <img 
-            src={heroImage} 
-            alt={businessName}
-            className="w-full h-full object-cover"
-            onLoad={() => console.log('✅ Hero image loaded successfully')}
-            onError={(e) => {
-              console.error('❌ Hero image failed to load');
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-          <div className="absolute inset-0 bg-black/30"></div>
-          <div className="absolute bottom-0 left-0 right-0 p-8 text-center text-white">
-            <h1 className="text-4xl md:text-5xl font-serif font-bold mb-2">{businessName}</h1>
-            {businessSlogan && <p className="text-xl italic opacity-90">{businessSlogan}</p>}
-          </div>
-        </div>
-      )}
+      {/* ✅ Hero Image Section - using separate component that will re-render when image loads */}
+      {step === 1 && <HeroImage imageUrl={heroImage} businessName={businessName} slogan={businessSlogan} />}
 
       <div className="max-w-5xl mx-auto py-10 px-4">
         {/* Business Header - only if no hero image */}
@@ -911,7 +902,7 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature */}
+          {/* Step 3 - Indemnity & Signature - keep as is */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
