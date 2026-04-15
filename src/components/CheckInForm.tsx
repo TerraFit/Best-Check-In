@@ -99,20 +99,31 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Fetch business branding on mount
   useEffect(() => {
     if (businessId) {
       fetchBusinessBranding();
     }
-    // Scroll to top on mount
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [businessId]);
 
+  // ✅ CRITICAL FIX: Force re-render when branding loads to show hero image
+  useEffect(() => {
+    if (branding?.hero_image_url) {
+      console.log('✅ Hero image URL available, length:', branding.hero_image_url.length);
+    }
+  }, [branding]);
+
   const fetchBusinessBranding = async () => {
     try {
+      console.log('📡 Fetching business branding for ID:', businessId);
       const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Business branding received, hero_image_url exists:', !!data.hero_image_url);
         setBranding(data);
+      } else {
+        console.error('❌ Failed to fetch branding:', response.status);
       }
     } catch (error) {
       console.error('Error fetching business branding:', error);
@@ -365,7 +376,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     
     if (loading) return;
     
-    // Show loading indicator for Business Login button click
     if (step === 1) {
       setLoginLoading(true);
       setTimeout(() => setLoginLoading(false), 500);
@@ -420,7 +430,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           created_at: new Date().toISOString()
         };
 
-        // Step 1: Save booking to database and get the booking ID
         const saveResult = await saveBookingToDatabase(dbBooking);
         
         if (!saveResult.success) {
@@ -429,16 +438,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           return;
         }
 
-        // Step 2: Get the booking ID from the response
         const bookingId = saveResult.bookingId;
-        
-        // Step 3: Save indemnity record with the booking ID
         const accessToken = await saveIndemnityRecord(bookingId);
-        
-        // Step 4: Create indemnity link if token was generated
         const indemnityLink = accessToken ? `https://fastcheckin.co.za/indemnity/${accessToken}` : undefined;
         
-        // Step 5: Send confirmation email with indemnity link
         await sendConfirmationEmail(dbBooking, indemnityLink);
 
         const newBooking: Booking = {
@@ -561,11 +564,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     <div className="min-h-screen bg-stone-50">
       {/* Hero Image Section - if uploaded */}
       {heroImage && step === 1 && (
-        <div className="relative h-64 md:h-96 w-full overflow-hidden">
+        <div className="relative h-64 md:h-96 w-full overflow-hidden hero-image-container">
           <img 
             src={heroImage} 
             alt={businessName}
             className="w-full h-full object-cover"
+            onLoad={() => console.log('✅ Hero image loaded successfully')}
+            onError={(e) => {
+              console.error('❌ Hero image failed to load');
+              e.currentTarget.style.display = 'none';
+            }}
           />
           <div className="absolute inset-0 bg-black/30"></div>
           <div className="absolute bottom-0 left-0 right-0 p-8 text-center text-white">
@@ -643,6 +651,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
+          {/* Step 1 - Email Entry */}
           {step === 1 && (
             <div className="p-10 md:p-16 text-center animate-fade-in flex flex-col flex-grow items-center justify-center">
               <h2 className="text-sm font-bold tracking-[0.3em] text-amber-700 uppercase mb-4">Statutory Registration</h2>
@@ -723,6 +732,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
+          {/* Step 2 - Personal Details */}
           {step === 2 && (
             <div className="p-10 md:p-16 animate-fade-in flex-grow overflow-y-auto">
               <div className="border-b border-stone-100 pb-8 mb-10">
@@ -792,7 +802,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </select>
                 </div>
 
-                {/* Dynamic Region Field - Uses JSON data */}
+                {/* Dynamic Region Field */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     {regionTypeLabel} *
@@ -895,6 +905,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
+          {/* Step 3 - Indemnity & Signature */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
