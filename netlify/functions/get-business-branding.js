@@ -12,20 +12,31 @@ export const handler = async function(event) {
     return { statusCode: 204, headers, body: '' };
   }
 
-  if (event.httpMethod !== 'GET') {
+  // Simple test response first
+  if (event.queryStringParameters?.test === '1') {
     return {
-      statusCode: 405,
+      statusCode: 200,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ message: 'Function is working!' })
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   try {
+    // Check environment variables
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+      console.error('Missing env vars');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Configuration error: Missing Supabase credentials' })
+      };
+    }
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+
     const businessId = event.queryStringParameters?.id;
     
     if (!businessId) {
@@ -43,11 +54,11 @@ export const handler = async function(event) {
       .single();
 
     if (error) {
-      console.error('Error fetching business:', error);
+      console.error('Supabase error:', error);
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Business not found' })
+        body: JSON.stringify({ error: 'Business not found', details: error.message })
       };
     }
 
@@ -58,11 +69,11 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Catch error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message, stack: error.stack })
     };
   }
 };
