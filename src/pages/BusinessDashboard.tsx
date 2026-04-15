@@ -1537,7 +1537,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Check-ins Table */}
+                        {/* Check-ins Table */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
@@ -1583,56 +1583,78 @@ export default function BusinessDashboard() {
                               <span className="cursor-help">
                                 {booking.guest_id_number.substring(0, 8)}...
                               </span>
-                                                   ) : 'N/A'}
-                        {booking.guest_id_photo && (
-                          <span className="ml-1 text-green-500" title="ID photo available">📷</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {booking.check_in_date || 'N/A'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                        {booking.nights || 1}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                        R {(booking.total_amount || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {booking.booking_source || booking.referral_source || 'N/A'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                          {booking.status || 'pending'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        {booking.guest_id_photo ? (
-                          <button
-                            onClick={() => alert('ID photo available in guest profile')}
-                            className="text-blue-500 hover:text-blue-700 text-xs"
-                            title="View ID photo"
-                          >
-                            View ID
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => requestIDPhoto(booking)}
-                            className="text-orange-500 hover:text-orange-700 text-xs"
-                            title="Request ID photo"
-                          >
-                            Request ID
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            ) : 'N/A'}
+                            {booking.guest_id_photo && (
+                              <span className="ml-1 text-green-500" title="ID photo available">📷</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.check_in_date || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            {booking.nights || 1}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            R {(booking.total_amount || 0).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.booking_source || booking.referral_source || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                              {booking.status || 'pending'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            {booking.guest_id_photo ? (
+                              <button
+                                onClick={() => alert('ID photo available in guest profile')}
+                                className="text-blue-500 hover:text-blue-700 text-xs"
+                                title="View ID photo"
+                              >
+                                View ID
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => requestIDPhoto(booking)}
+                                className="text-orange-500 hover:text-orange-700 text-xs"
+                                title="Request ID photo"
+                              >
+                                Request ID
+                              </button>
+                            )}
+                          </td>
+                        </table>
                       ))}
                     </tbody>
                   </table>
                 )}
               </div>
+              
+              {totalPages > 1 && (
+                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                  <p className="text-sm text-gray-500">
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
+                  </p>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
               
               {totalPages > 1 && (
                 <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
