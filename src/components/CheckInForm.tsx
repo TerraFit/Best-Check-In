@@ -131,7 +131,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setLoadingBranding(false);
     }
   };
-
+// Force re-render when branding loads to show hero image
+useEffect(() => {
+  if (branding?.hero_image_url) {
+    console.log('✅ Hero image loaded, forcing render');
+    setForceRender(prev => !prev);
+  }
+}, [branding]);
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
       const date = new Date(formData.arrivalDate);
