@@ -483,38 +483,79 @@ export default function BusinessDashboard() {
     }
   };
 
-  const saveBusinessProfile = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
+ const saveBusinessProfile = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
 
-    try {
-      const res = await fetch('/.netlify/functions/update-business-profile', {
+  setLoading(true);
+  let hasError = false;
+
+  try {
+    // 1. Update text fields only (NO images)
+    const textRes = await fetch('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessId,
+        total_rooms: parseInt(profileForm.total_rooms) || 0,
+        avg_price: parseInt(profileForm.avg_price) || 0,
+        slogan: profileForm.slogan,
+        welcome_message: profileForm.welcome_message
+      })
+    });
+
+    if (!textRes.ok) {
+      throw new Error('Failed to update text fields');
+    }
+
+    // 2. Update logo if changed
+    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
+      const logoRes = await fetch('/.netlify/functions/upload-business-logo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
-          total_rooms: parseInt(profileForm.total_rooms) || 0,
-          avg_price: parseInt(profileForm.avg_price) || 0,
-          logo_url: profileForm.logo_url,
-          hero_image_url: profileForm.hero_image_url,
-          slogan: profileForm.slogan,
-          welcome_message: profileForm.welcome_message
+          logo_url: profileForm.logo_url
         })
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setBusiness(data.business);
-        setEditingProfile(false);
-        alert('Profile updated successfully!');
-      } else {
-        alert('Failed to update profile');
+      if (!logoRes.ok) {
+        console.error('Logo upload failed');
+        hasError = true;
       }
-    } catch (err) {
-      console.error('Error saving profile:', err);
-      alert('Error saving profile');
     }
-  };
+
+    // 3. Update hero image if changed
+    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
+      const heroRes = await fetch('/.netlify/functions/upload-business-hero', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          hero_image_url: profileForm.hero_image_url
+        })
+      });
+      if (!heroRes.ok) {
+        console.error('Hero image upload failed');
+        hasError = true;
+      }
+    }
+
+    if (hasError) {
+      alert('Profile updated with some errors. Please check your images.');
+    } else {
+      alert('Profile updated successfully!');
+    }
+    
+    setEditingProfile(false);
+    await loadBusinessProfile();
+    
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    alert('Error saving profile');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const submitChangeRequest = async () => {
     const businessId = getBusinessId();
