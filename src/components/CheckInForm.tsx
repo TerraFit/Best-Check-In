@@ -31,37 +31,6 @@ interface CheckInFormProps {
   businessId?: string;
 }
 
-// ✅ Separate component for hero image that forces re-render
-const HeroImage: React.FC<{ imageUrl: string | undefined; businessName: string; slogan: string }> = ({ 
-  imageUrl, 
-  businessName, 
-  slogan 
-}) => {
-  const [imgError, setImgError] = useState(false);
-  
-  if (!imageUrl || imgError) return null;
-  
-  return (
-    <div className="relative h-64 md:h-96 w-full overflow-hidden hero-image-container">
-      <img 
-        src={imageUrl} 
-        alt={businessName}
-        className="w-full h-full object-cover"
-        onError={() => {
-          console.error('❌ Hero image failed to load');
-          setImgError(true);
-        }}
-        onLoad={() => console.log('✅ Hero image loaded successfully')}
-      />
-      <div className="absolute inset-0 bg-black/30"></div>
-      <div className="absolute bottom-0 left-0 right-0 p-8 text-center text-white">
-        <h1 className="text-4xl md:text-5xl font-serif font-bold mb-2">{businessName}</h1>
-        {slogan && <p className="text-xl italic opacity-90">{slogan}</p>}
-      </div>
-    </div>
-  );
-};
-
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -151,6 +120,71 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setLoadingBranding(false);
     }
   };
+
+  // PERMANENT FIX - Direct DOM injection for hero image
+  useEffect(() => {
+    if (!businessId || step !== 1) return;
+    
+    const injectHeroImage = async () => {
+      try {
+        const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+        const data = await response.json();
+        
+        if (data.hero_image_url && !document.querySelector('.business-hero-permanent')) {
+          // Remove any existing
+          document.querySelectorAll('.business-hero-permanent, .temp-hero, .hero-image-container').forEach(el => el.remove());
+          
+          // Hide default FastCheckin section
+          const defaultHero = document.querySelector('.relative.bg-stone-900.text-white.min-h-\\[80vh\\]');
+          if (defaultHero) defaultHero.style.display = 'none';
+          
+          // Create hero section
+          const heroDiv = document.createElement('div');
+          heroDiv.className = 'business-hero-permanent';
+          heroDiv.style.cssText = 'position:relative;width:100%;min-height:80vh;background:#1c1917;overflow:hidden;margin:0;padding:0;';
+          
+          heroDiv.innerHTML = `
+            <div style="position:absolute;inset:0;overflow:hidden;">
+              <img src="${data.hero_image_url}" style="width:100%;height:100%;object-fit:cover;" />
+              <div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);"></div>
+            </div>
+            <div style="position:relative;z-index:20;max-width:1280px;margin:0 auto;padding:4rem 1.5rem;min-height:80vh;display:flex;align-items:center;">
+              <div style="max-width:48rem;">
+                <h1 style="font-size:3.75rem;font-weight:bold;margin-bottom:1.5rem;font-family:'Playfair Display',Georgia,serif;color:white;">${data.trading_name}</h1>
+                <p style="font-size:1.5rem;color:#e5e5e5;margin-bottom:2rem;font-style:italic;">"${data.slogan || 'Enjoy Nature At Its Best'}"</p>
+                <div style="background:rgba(255,255,255,0.1);backdrop-filter:blur(8px);border-radius:1rem;padding:2rem;max-width:32rem;">
+                  <h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:0.5rem;color:#fbbf24;">Arriving Guests</h2>
+                  <p style="color:#e5e5e5;margin-bottom:1.5rem;">Registration is mandatory for all guests</p>
+                  <button id="permanent-checkin-btn" style="background:#f59e0b;color:#1c1917;font-weight:bold;padding:0.75rem 2rem;border-radius:9999px;border:none;cursor:pointer;">Start Check-In</button>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          // Insert at the top of root
+          const root = document.getElementById('root');
+          if (root) {
+            root.insertBefore(heroDiv, root.firstChild);
+            
+            // Attach click handler
+            setTimeout(() => {
+              const btn = document.getElementById('permanent-checkin-btn');
+              if (btn) {
+                btn.onclick = () => {
+                  const step2Btn = document.querySelector('button[class*="Begin Statutory"]');
+                  if (step2Btn) step2Btn.click();
+                };
+              }
+            }, 100);
+          }
+        }
+      } catch (err) {
+        console.error('Hero injection error:', err);
+      }
+    };
+    
+    injectHeroImage();
+  }, [businessId, step]);
 
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
@@ -577,9 +611,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* ✅ Hero Image Section - using separate component that will re-render when image loads */}
-      {step === 1 && <HeroImage imageUrl={heroImage} businessName={businessName} slogan={businessSlogan} />}
-
       <div className="max-w-5xl mx-auto py-10 px-4">
         {/* Business Header - only if no hero image */}
         {!heroImage && businessId && branding && (
@@ -902,7 +933,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature - keep as is */}
+          {/* Step 3 - Indemnity & Signature */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
