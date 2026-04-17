@@ -3,35 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J-Bay Zebra Lodge - Check-In</title>
+    <!-- Dynamic title - will be updated by React based on business -->
+    <title>FastCheckin - Digital Hotel Check-in</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f5f5f0;
+            color: #1c1917;
         }
+        
         h1, h2, h3, .font-serif {
             font-family: 'Playfair Display', serif;
         }
+        
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        
         @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
         }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
         .animate-fade-in {
-          animation: fadeIn 0.4s ease-out forwards;
+            animation: fadeIn 0.4s ease-out forwards;
         }
+        
         .animate-scale-in {
-          animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Custom scrollbar for indemnity */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #e5e5e5;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c5a059;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a0824a;
+        }
+        
+        /* High quality image rendering */
+        .logo-high-res {
+            image-rendering: auto;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+        
+        /* Print styles for QR poster */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        
+        /* Loading skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
     </style>
-<link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-stone-50 text-stone-900">
     <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
