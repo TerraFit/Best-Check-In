@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ViewState, Booking, MonthlyData } from './types';
 import { SAMPLE_BOOKINGS, MOCK_HISTORICAL_DATA } from './constants';
 import Navbar from './components/Navbar';
@@ -13,10 +14,25 @@ interface CheckInAppProps {
   initialView?: ViewState;
 }
 
+// Business branding interface
+interface BusinessBranding {
+  id: string;
+  trading_name: string;
+  hero_image_url?: string;
+  logo_url?: string;
+  slogan?: string;
+  website_url?: string;
+  phone?: string;
+}
+
 const CheckInApp: React.FC<CheckInAppProps> = ({ 
   externalNavigate, 
   initialView = 'HOME' 
 }) => {
+  const { businessId } = useParams<{ businessId: string }>();
+  const navigate = useNavigate();
+  
+  // State
   const [currentView, setCurrentView] = useState<ViewState>(initialView);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const oldAuth = localStorage.getItem('jbay_auth_session') === 'true';
@@ -35,7 +51,30 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
   const [showSuccessCard, setShowSuccessCard] = useState(false);
   const [wantsWhatsApp, setWantsWhatsApp] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  
+  // Business branding state (for multi-tenant)
+  const [businessBranding, setBusinessBranding] = useState<BusinessBranding | null>(null);
+  const [brandingLoading, setBrandingLoading] = useState(false);
 
+  // Load business branding when businessId is present
+  useEffect(() => {
+    if (businessId && (currentView === 'HOME' || currentView === 'CHECKIN')) {
+      setBrandingLoading(true);
+      fetch(`/.netlify/functions/get-business-branding?id=${businessId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setBusinessBranding(data);
+            // Update browser title
+            document.title = `${data.trading_name} - Check-in | FastCheckin`;
+          }
+        })
+        .catch(err => console.error('Failed to load branding:', err))
+        .finally(() => setBrandingLoading(false));
+    }
+  }, [businessId, currentView]);
+
+  // Persist data
   useEffect(() => {
     localStorage.setItem('jbay_bookings', JSON.stringify(bookings));
   }, [bookings]);
@@ -128,16 +167,37 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
     }
   };
 
+  // Get business name for display (dynamic or fallback)
+  const getBusinessName = () => {
+    if (businessBranding?.trading_name) return businessBranding.trading_name;
+    if (businessId) return 'Lodge'; // Generic fallback for QR scans
+    return 'J-Bay Zebra Lodge'; // Only for non-QR home page
+  };
+
+  const getWebsiteUrl = () => {
+    return businessBranding?.website_url || 'https://www.fastcheckin.co.za';
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'HOME':
-        return <Hero onCheckIn={() => handleNavigate('CHECKIN')} />;
+        // Pass business branding to Hero if available (for QR check-in home)
+        return (
+          <Hero 
+            onCheckIn={() => handleNavigate('CHECKIN')} 
+            businessBranding={businessBranding}
+            loading={brandingLoading}
+          />
+        );
       case 'LOGIN':
         return <Login onLogin={handleLogin} onCancel={() => setCurrentView('HOME')} />;
       case 'CHECKIN':
         return (
           <div className="min-h-screen bg-stone-50">
-            <CheckInForm onComplete={handleCheckInComplete} />
+            <CheckInForm 
+              onComplete={handleCheckInComplete} 
+              businessId={businessId}
+            />
           </div>
         );
       case 'ADMIN_DASHBOARD':
@@ -163,7 +223,13 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
           </div>
         );
       default:
-        return <Hero onCheckIn={() => handleNavigate('CHECKIN')} />;
+        return (
+          <Hero 
+            onCheckIn={() => handleNavigate('CHECKIN')} 
+            businessBranding={businessBranding}
+            loading={brandingLoading}
+          />
+        );
     }
   };
 
@@ -264,7 +330,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
         {renderContent()}
       </main>
 
-      {/* FIXED SUCCESS MODAL - Two buttons: Hotel Website & FastCheckin App */}
+      {/* ✅ DYNAMIC SUCCESS MODAL - Uses business name from API */}
       {showSuccessCard && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center animate-scale-in">
@@ -278,21 +344,22 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
               Registration Complete!
             </h3>
             
+            {/* ✅ DYNAMIC welcome message */}
             <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 mb-8 text-left">
-              <h4 className="text-amber-900 font-bold text-xs uppercase tracking-widest mb-2">Welcome Connectivity</h4>
-              <p className="text-amber-800 text-sm mb-1">Guest WiFi Password: <span className="font-mono font-bold select-all">zebralodge</span></p>
-              <p className="text-stone-500 text-[10px]">Enjoy your stay at J-Bay Zebra Lodge.</p>
+              <h4 className="text-amber-900 font-bold text-xs uppercase tracking-widest mb-2">Welcome to {getBusinessName()}</h4>
+              <p className="text-amber-800 text-sm mb-1">Thank you for checking in</p>
+              <p className="text-stone-500 text-[10px]">Enjoy your stay at {getBusinessName()}.</p>
             </div>
 
-            {/* TWO BUTTONS: Hotel Website + FastCheckin App */}
+            {/* ✅ DYNAMIC website button */}
             <div className="space-y-4 mb-8">
               <a 
-                href="https://www.jbayzebralodge.co.za"
+                href={getWebsiteUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full bg-stone-900 text-white font-bold py-5 rounded-2xl transition-all shadow-lg text-lg transform hover:-translate-y-1 text-center"
               >
-                Visit J-Bay Zebra Lodge Website
+                Visit {getBusinessName()} Website
               </a>
               
               <a 
@@ -305,7 +372,7 @@ const CheckInApp: React.FC<CheckInAppProps> = ({
               </a>
             </div>
 
-            {/* WhatsApp Option (unchanged) */}
+            {/* WhatsApp Option */}
             <div className="bg-stone-50 p-6 rounded-2xl border border-stone-100 text-left mb-8">
               <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
                 <div className="flex items-center gap-3">
