@@ -11,6 +11,7 @@ interface BookingData {
   business_logo?: string;
   total_amount?: number;
   business_id?: string;
+  indemnity_token?: string;  // ✅ ADD THIS
 }
 
 export const handler: Handler = async (event) => {
@@ -121,6 +122,11 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
     day: 'numeric'
   });
 
+  // ✅ Create indemnity view URL
+  const indemnityUrl = booking.indemnity_token 
+    ? `https://fastcheckin.co.za/indemnity/${booking.indemnity_token}`
+    : null;
+
   const newsletterEnabled = settings?.newsletter_enabled || false;
   const { firstName, lastName } = splitFullName(booking.guest_name);
   const subscribeUrl = `https://fastcheckin.co.za/subscribe?business=${booking.business_id}&email=${encodeURIComponent(booking.guest_email)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
@@ -197,10 +203,43 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           color: #1e1e1e;
           font-weight: 500;
         }
-        .indemnity-note {
+        .indemnity-box {
+          background: #f0fdf4;
+          border: 1px solid #86efac;
+          border-radius: 16px;
+          padding: 20px;
+          margin: 24px 0;
+          text-align: center;
+        }
+        .indemnity-box p {
+          margin: 0 0 12px 0;
+          color: #166534;
           font-size: 14px;
-          color: #6b7280;
-          margin: 16px 0;
+        }
+        .indemnity-btn {
+          display: inline-block;
+          background: #22c55e;
+          color: white;
+          padding: 12px 28px;
+          text-decoration: none;
+          border-radius: 9999px;
+          font-weight: 600;
+          font-size: 14px;
+          transition: all 0.3s ease;
+        }
+        .indemnity-btn:hover {
+          background: #16a34a;
+          transform: scale(1.02);
+        }
+        .signed-badge {
+          display: inline-block;
+          background: #dcfce7;
+          color: #166534;
+          padding: 4px 12px;
+          border-radius: 9999px;
+          font-size: 11px;
+          font-weight: 600;
+          margin-top: 12px;
         }
         .divider {
           height: 1px;
@@ -271,17 +310,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           font-size: 11px;
           color: #9ca3af;
           margin-top: 16px;
-        }
-        .view-stay-btn {
-          display: inline-block;
-          background: #f59e0b;
-          color: white;
-          padding: 14px 32px;
-          text-decoration: none;
-          border-radius: 9999px;
-          font-weight: 600;
-          margin: 24px 0;
-          text-align: center;
         }
         .pro-tip {
           background: #fef3c7;
@@ -354,8 +382,21 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             </div>
           </div>
           
-          <div class="indemnity-note">
-            The indemnity form is attached to this email for your records.
+          <!-- ✅ NEW: Indemnity Box with Button -->
+          <div class="indemnity-box">
+            <p>📄 Your indemnity form has been signed electronically.</p>
+            ${indemnityUrl ? `
+              <a href="${indemnityUrl}" class="indemnity-btn">
+                View Signed Indemnity Form
+              </a>
+              <div class="signed-badge">
+                ✓ Electronically Signed
+              </div>
+            ` : `
+              <div class="signed-badge">
+                ✓ Electronically Signed
+              </div>
+            `}
           </div>
           
           ${newsletterEnabled ? `
@@ -392,16 +433,8 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           </div>
           ` : ''}
           
-          <div class="divider"></div>
-          
-          <div style="text-align: center;">
-            <a href="https://fastcheckin.co.za" class="view-stay-btn">
-              View Your Stay
-            </a>
-          </div>
-          
           <div class="pro-tip">
-            <p>💡 <strong>Pro tip:</strong> Save this email for quick access to your stay details.</p>
+            <p>💡 <strong>Pro tip:</strong> Save this email for quick access to your indemnity form.</p>
           </div>
         </div>
         
