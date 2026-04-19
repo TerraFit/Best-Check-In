@@ -47,6 +47,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   
+  // Camera state variables
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -120,6 +124,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setLoadingBranding(false);
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   // PERMANENT FIX - Direct DOM injection for hero image
   useEffect(() => {
@@ -244,8 +257,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Camera functions - IMPROVED VERSION
   const startCamera = async () => {
+    setCameraError(null);
     try {
+      // Stop any existing stream
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
@@ -253,29 +273,51 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           height: { ideal: 720 }
         } 
       });
+      
+      setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setIsCameraActive(true);
         await videoRef.current.play();
+        setIsCameraActive(true);
       }
     } catch (err) {
       console.error("Camera error:", err);
-      alert("Camera access is required for ID capture. Please ensure camera permissions are granted.");
+      setCameraError("Camera access denied. Please check permissions or use file upload.");
     }
   };
 
   const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      setIsCameraActive(false);
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // Draw video frame to canvas
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
+        
+        // Stop camera stream
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+          setCameraStream(null);
+        }
+        setIsCameraActive(false);
+      }
     }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraActive(false);
   };
 
   const retakePhoto = () => {
@@ -292,48 +334,73 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Improved signature pad initialization
   const initSignaturePad = (canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
     let drawing = false;
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000000';
+    let lastX = 0;
+    let lastY = 0;
     
-    const getPos = (e: any) => {
+    // Set canvas size for high resolution
+    const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000000';
     };
     
-    const start = (e: any) => { 
-      e.preventDefault(); 
-      drawing = true; 
-      const p = getPos(e); 
-      ctx.beginPath(); 
-      ctx.moveTo(p.x, p.y); 
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    const getCoordinates = (e: MouseEvent | TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+      };
     };
     
-    const move = (e: any) => { 
-      if (!drawing) return; 
-      e.preventDefault(); 
-      const p = getPos(e); 
-      ctx.lineTo(p.x, p.y); 
-      ctx.stroke(); 
+    const startDrawing = (e: MouseEvent | TouchEvent) => {
+      e.preventDefault();
+      drawing = true;
+      const { x, y } = getCoordinates(e);
+      lastX = x;
+      lastY = y;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
     };
     
-    const end = () => { 
-      drawing = false; 
-      setFormData(prev => ({ ...prev, signature: canvas.toDataURL() })); 
+    const draw = (e: MouseEvent | TouchEvent) => {
+      if (!drawing) return;
+      e.preventDefault();
+      const { x, y } = getCoordinates(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
     };
     
-    canvas.addEventListener('mousedown', start);
-    canvas.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', end);
-    canvas.addEventListener('touchstart', start, { passive: false });
-    canvas.addEventListener('touchmove', move, { passive: false });
-    canvas.addEventListener('touchend', end);
+    const stopDrawing = () => {
+      drawing = false;
+      setFormData(prev => ({ ...prev, signature: canvas.toDataURL() }));
+    };
+    
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', stopDrawing);
+    
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+    };
   };
 
   useEffect(() => { 
@@ -1104,77 +1171,98 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <div className="space-y-6">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
                     <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
-                      {formData.idPhoto ? (
-                        <>
-                          <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
-                          <div className="absolute top-4 right-4 flex gap-2">
-                            <button 
-                              onClick={retakePhoto} 
-                              className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-blue-700 transition-colors"
-                              title="Retake photo"
+                      {!formData.idPhoto ? (
+                        isCameraActive ? (
+                          <div className="relative w-full h-full">
+                            <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              playsInline 
+                              className="w-full h-full object-cover rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={capturePhoto}
+                              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
                             >
-                              ↻
+                              📸 Capture Photo
                             </button>
-                            <button 
-                              onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} 
-                              className="bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-black/80 transition-colors"
-                              title="Remove photo"
+                            <button
+                              type="button"
+                              onClick={stopCamera}
+                              className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-full"
                             >
                               ✕
                             </button>
                           </div>
-                        </>
-                      ) : isCameraActive ? (
-                        <div className="relative w-full h-full">
-                          <video 
-                            ref={videoRef} 
-                            autoPlay 
-                            playsInline 
-                            className="w-full h-full object-cover"
-                          />
+                        ) : (
+                          <div className="text-center">
+                            <button 
+                              type="button" 
+                              onClick={startCamera} 
+                              className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
+                            >
+                              <span className="text-5xl opacity-50">📷</span>
+                              <span>Tap to open camera</span>
+                              <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
+                            </button>
+                            {cameraError && (
+                              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                                {cameraError}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <div className="relative">
+                          <img src={formData.idPhoto} alt="ID Photo" className="w-full rounded-lg border" />
                           <button
                             type="button"
-                            onClick={capturePhoto}
-                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white text-stone-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-stone-100 transition-all flex items-center gap-2"
+                            onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))}
+                            className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
                           >
-                            <span className="text-lg">📸</span> Capture Photo
+                            ✕
                           </button>
                         </div>
-                      ) : (
-                        <button 
-                          type="button" 
-                          onClick={startCamera} 
-                          className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
-                        >
-                          <span className="text-5xl opacity-50">📷</span>
-                          <span>Tap to open camera</span>
-                          <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
-                        </button>
                       )}
                     </div>
-                    {isCameraActive && (
-                      <button 
-                        type="button" 
-                        onClick={capturePhoto} 
-                        className="w-full text-white py-4 rounded-2xl text-sm uppercase font-bold tracking-widest shadow-lg hover:opacity-90 transition-all"
-                        style={{ backgroundColor: secondaryColor }}
-                      >
-                        Take Photo
-                      </button>
-                    )}
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
-                      <button type="button" onClick={() => clearCanvas(canvasRef)} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Primary Guest Signature *</label>
+                      <button type="button" onClick={() => {
+                        const canvas = canvasRef.current;
+                        if (canvas) {
+                          const ctx = canvas.getContext('2d');
+                          ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                          setFormData(prev => ({ ...prev, signature: '' }));
+                        }
+                      }} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">
+                        Clear
+                      </button>
                     </div>
                     <canvas 
                       ref={canvasRef} 
-                      width={500} 
-                      height={200} 
-                      className="w-full h-40 bg-stone-50 border border-stone-200 rounded-3xl cursor-crosshair touch-none shadow-inner"
+                      className="w-full h-40 bg-white border-2 border-stone-200 rounded-xl cursor-crosshair touch-none"
+                      style={{ touchAction: 'none' }}
                     />
+                    <p className="text-xs text-stone-400">Sign with your finger or mouse</p>
                   </div>
                 </div>
               </div>
