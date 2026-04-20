@@ -195,10 +195,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ==================== CAMERA FUNCTIONS WITH DEBUG ====================
+   // ==================== CAMERA FUNCTIONS WITH DEBUG ====================
   const startCamera = async () => {
     console.log("📷 [DEBUG] startCamera called");
     setCameraError(null);
+    
+    // FIRST: Show the camera container immediately
+    setIsCameraActive(true);
+    
+    // SECOND: Wait for the video element to render in the DOM
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       if (cameraStream) {
@@ -220,24 +226,41 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       console.log("📷 [DEBUG] Video tracks:", stream.getVideoTracks().length);
       setCameraStream(stream);
       
-      if (videoRef.current) {
-        console.log("📷 [DEBUG] videoRef.current exists, setting srcObject");
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          console.log("📷 [DEBUG] Video metadata loaded, dimensions:", 
-            videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
-          videoRef.current?.play()
-            .then(() => {
-              console.log("📷 [DEBUG] Video playing successfully!");
-              setIsCameraActive(true);
-            })
-            .catch(err => console.error("📷 [DEBUG] Video play error:", err));
-        };
-      } else {
-        console.error("📷 [DEBUG] videoRef.current is NULL!");
-      }
+      // THIRD: Try multiple times to find the video element
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      const trySetVideo = () => {
+        attempts++;
+        console.log(`📷 [DEBUG] Attempt ${attempts} to find videoRef...`);
+        
+        if (videoRef.current) {
+          console.log("📷 [DEBUG] videoRef.current FOUND at attempt ${attempts}!");
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            console.log("📷 [DEBUG] Video metadata loaded, dimensions:", 
+              videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
+            videoRef.current?.play()
+              .then(() => {
+                console.log("📷 [DEBUG] Video playing successfully!");
+              })
+              .catch(err => console.error("📷 [DEBUG] Video play error:", err));
+          };
+        } else if (attempts < maxAttempts) {
+          // Try again in 100ms
+          setTimeout(trySetVideo, 100);
+        } else {
+          console.error("📷 [DEBUG] Could not find videoRef after ${maxAttempts} attempts!");
+          setCameraError("Camera failed to start. Please refresh and try again.");
+          setIsCameraActive(false);
+        }
+      };
+      
+      trySetVideo();
+      
     } catch (err) {
       console.error("📷 [DEBUG] Camera error:", err);
+      setIsCameraActive(false);
       let errorMessage = "Camera access denied. ";
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
@@ -324,7 +347,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       videoRef.current.style.height = '100%';
     }
   }, [isCameraActive]);
-
   // ==================== SIGNATURE PAD FUNCTIONS ====================
   const clearCanvas = () => {
     const canvas = canvasRef.current;
