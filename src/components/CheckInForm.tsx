@@ -193,9 +193,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   // ==================== CAMERA FUNCTIONS ====================
   const startCamera = async () => {
     setCameraError(null);
+    console.log("📷 Starting camera...");
+    
     try {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
       }
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -207,25 +210,43 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       });
       
       setCameraStream(stream);
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setIsCameraActive(true);
-        await videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play()
+            .then(() => {
+              setIsCameraActive(true);
+            })
+            .catch(err => console.error("Video play error:", err));
+        };
       }
     } catch (err) {
       console.error("Camera error:", err);
-      setCameraError("Camera access denied. Please check permissions or use file upload.");
+      let errorMessage = "Camera access denied. ";
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage += "Please grant camera permission.";
+        } else if (err.name === 'NotFoundError') {
+          errorMessage += "No camera found on this device.";
+        } else {
+          errorMessage += err.message;
+        }
+      }
+      setCameraError(errorMessage);
     }
   };
 
   const capturePhoto = () => {
     if (videoRef.current && videoRef.current.videoWidth > 0) {
+      const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
@@ -245,12 +266,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setIsCameraActive(false);
   };
 
   const retakePhoto = () => {
     setFormData(prev => ({ ...prev, idPhoto: '' }));
-    startCamera();
   };
 
   // ==================== SIGNATURE PAD FUNCTIONS ====================
@@ -342,8 +365,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   // ==================== API FUNCTIONS ====================
   const saveBookingToDatabase = async (booking: any) => {
     try {
-      console.log('💾 Saving booking to database:', booking);
-      
       const response = await fetch('/.netlify/functions/create-booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -353,10 +374,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const result = await response.json();
       
       if (response.ok) {
-        console.log('✅ Booking saved to database:', result);
         return { success: true, bookingId: result.booking?.id || result.id };
       } else {
-        console.error('❌ Failed to save booking:', result);
         return { success: false, error: result };
       }
     } catch (error) {
@@ -367,8 +386,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const saveIndemnityRecord = async (bookingId: string) => {
     try {
-      console.log('📄 Saving indemnity record for booking:', bookingId);
-      
       const response = await fetch('/.netlify/functions/create-indemnity-record', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -385,7 +402,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       });
       
       const result = await response.json();
-      console.log('📄 Indemnity record saved:', result);
       return result.access_token;
     } catch (error) {
       console.error('Error saving indemnity record:', error);
@@ -395,8 +411,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string) => {
     try {
-      console.log('📧 Sending confirmation email to:', booking.guest_email);
-      
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -409,8 +423,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Confirmation email sent');
-      } else {
-        console.error('❌ Email failed:', await response.text());
       }
     } catch (error) {
       console.error('❌ Email error:', error);
