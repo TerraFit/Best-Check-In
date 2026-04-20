@@ -76,6 +76,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const [profileLoaded, setProfileLoaded] = useState(false);
 
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
   const updateFullName = (firstName: string, lastName: string) => {
     return `${firstName} ${lastName}`.trim();
   };
@@ -102,7 +107,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     if (businessId) {
       fetchBusinessBranding();
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [businessId]);
 
   // Cleanup camera on unmount
@@ -155,8 +159,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
       if (response.ok) {
         const profile = await response.json();
-        if (profile) {
-          const nameParts = (profile.full_name || '').split(' ');
+        if (profile && profile.profile) {
+          const nameParts = (profile.profile.full_name || '').split(' ');
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
           
@@ -164,12 +168,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             ...prev,
             firstName: firstName,
             lastName: lastName,
-            fullName: profile.full_name || '',
-            phone: profile.phone || prev.phone,
-            passportOrId: profile.passport_or_id || prev.passportOrId,
-            country: profile.country || prev.country,
-            city: profile.city || prev.city,
-            province: profile.province || prev.province,
+            fullName: profile.profile.full_name || '',
+            phone: profile.profile.phone || prev.phone,
+            passportOrId: profile.profile.passport_or_id || prev.passportOrId,
+            country: profile.profile.country || prev.country,
+            city: profile.profile.city || prev.city,
+            province: profile.profile.province || prev.province,
           }));
           
           setProfileLoaded(true);
@@ -192,15 +196,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   // ==================== CAMERA FUNCTIONS ====================
   const startCamera = async () => {
+    console.log("📷 startCamera called");
     setCameraError(null);
-    console.log("📷 Starting camera...");
     
     try {
+      // Stop any existing stream
       if (cameraStream) {
+        console.log("Stopping existing stream");
         cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
       }
       
+      console.log("Requesting camera permissions...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
@@ -209,24 +216,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         } 
       });
       
+      console.log("Camera stream obtained:", stream.id);
       setCameraStream(stream);
       
       if (videoRef.current) {
+        console.log("Setting video source...");
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
+          console.log("Video metadata loaded, playing...");
           videoRef.current?.play()
             .then(() => {
+              console.log("Video playing successfully");
               setIsCameraActive(true);
             })
             .catch(err => console.error("Video play error:", err));
         };
+      } else {
+        console.error("videoRef.current is null!");
       }
     } catch (err) {
       console.error("Camera error:", err);
       let errorMessage = "Camera access denied. ";
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
-          errorMessage += "Please grant camera permission.";
+          errorMessage += "Please grant camera permission in your browser settings.";
         } else if (err.name === 'NotFoundError') {
           errorMessage += "No camera found on this device.";
         } else {
@@ -238,30 +251,44 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
+    console.log("capturePhoto called");
+    console.log("videoRef.current:", videoRef.current);
+    console.log("videoRef.current?.videoWidth:", videoRef.current?.videoWidth);
+    
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
+      console.log("Canvas size:", canvas.width, "x", canvas.height);
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        console.log("Photo captured, data URL length:", dataUrl.length);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
+        // Stop camera stream
         if (cameraStream) {
           cameraStream.getTracks().forEach(track => track.stop());
           setCameraStream(null);
         }
         setIsCameraActive(false);
+        console.log("Camera stopped, photo saved");
+      } else {
+        console.error("Could not get canvas context");
+        alert("Failed to capture photo. Please try again.");
       }
     } else {
-      alert("Camera not ready. Please try again.");
+      console.error("Video not ready for capture");
+      alert("Camera not ready. Please wait a moment and try again.");
     }
   };
 
   const stopCamera = () => {
+    console.log("stopCamera called");
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -273,7 +300,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const retakePhoto = () => {
+    console.log("retakePhoto called");
     setFormData(prev => ({ ...prev, idPhoto: '' }));
+    // Don't auto-start camera, let user tap again
   };
 
   // ==================== SIGNATURE PAD FUNCTIONS ====================
