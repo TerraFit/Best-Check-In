@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
 import { Booking } from '../types';
-import { getRegionsForCountry, getRegionTypeLabel, requiresManualEntry } from '../services/countryRegionService';
+import { getRegionsForCountry, getRegionTypeLabel } from '../services/countryRegionService';
 
 interface BusinessBranding {
   id: string;
@@ -45,11 +45,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const videoRef = useRef<HTMLVideoElement>(null);
   const indemnityRef = useRef<HTMLDivElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
-  
-  // Camera state variables
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -107,13 +105,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [businessId]);
 
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
   const fetchBusinessBranding = async () => {
     try {
       console.log('📡 Fetching business branding for ID:', businessId);
       const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Business branding received, hero_image_url exists:', !!data.hero_image_url);
+        console.log('✅ Business branding received');
         setBranding(data);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
@@ -124,80 +131,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setLoadingBranding(false);
     }
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [cameraStream]);
-
-  // PERMANENT FIX - Direct DOM injection for hero image
-  useEffect(() => {
-    if (!businessId || step !== 1) return;
-    
-    const injectHeroImage = async () => {
-      try {
-        const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
-        const data = await response.json();
-        
-        if (data.hero_image_url && !document.querySelector('.business-hero-permanent')) {
-          // Remove any existing
-          document.querySelectorAll('.business-hero-permanent, .temp-hero, .hero-image-container').forEach(el => el.remove());
-          
-          // Hide default FastCheckin section
-          const defaultHero = document.querySelector('.relative.bg-stone-900.text-white.min-h-\\[80vh\\]');
-          if (defaultHero) defaultHero.style.display = 'none';
-          
-          // Create hero section
-          const heroDiv = document.createElement('div');
-          heroDiv.className = 'business-hero-permanent';
-          heroDiv.style.cssText = 'position:relative;width:100%;min-height:80vh;background:#1c1917;overflow:hidden;margin:0;padding:0;';
-          
-          heroDiv.innerHTML = `
-            <div style="position:absolute;inset:0;overflow:hidden;">
-              <img src="${data.hero_image_url}" style="width:100%;height:100%;object-fit:cover;" />
-              <div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);"></div>
-            </div>
-            <div style="position:relative;z-index:20;max-width:1280px;margin:0 auto;padding:4rem 1.5rem;min-height:80vh;display:flex;align-items:center;">
-              <div style="max-width:48rem;">
-                <h1 style="font-size:3.75rem;font-weight:bold;margin-bottom:1.5rem;font-family:'Playfair Display',Georgia,serif;color:white;">${data.trading_name}</h1>
-                <p style="font-size:1.5rem;color:#e5e5e5;margin-bottom:2rem;font-style:italic;">"${data.slogan || 'Enjoy Nature At Its Best'}"</p>
-                <div style="background:rgba(255,255,255,0.1);backdrop-filter:blur(8px);border-radius:1rem;padding:2rem;max-width:32rem;">
-                  <h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:0.5rem;color:#fbbf24;">Arriving Guests</h2>
-                  <p style="color:#e5e5e5;margin-bottom:1.5rem;">Registration is mandatory for all guests</p>
-                  <button id="permanent-checkin-btn" style="background:#f59e0b;color:#1c1917;font-weight:bold;padding:0.75rem 2rem;border-radius:9999px;border:none;cursor:pointer;">Start Check-In</button>
-                </div>
-              </div>
-            </div>
-          `;
-          
-          // Insert at the top of root
-          const root = document.getElementById('root');
-          if (root) {
-            root.insertBefore(heroDiv, root.firstChild);
-            
-            // Attach click handler
-            setTimeout(() => {
-              const btn = document.getElementById('permanent-checkin-btn');
-              if (btn) {
-                btn.onclick = () => {
-                  const step2Btn = document.querySelector('button[class*="Begin Statutory"]');
-                  if (step2Btn) step2Btn.click();
-                };
-              }
-            }, 100);
-          }
-        }
-      } catch (err) {
-        console.error('Hero injection error:', err);
-      }
-    };
-    
-    injectHeroImage();
-  }, [businessId, step]);
 
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
@@ -257,11 +190,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // Camera functions - IMPROVED VERSION
+  // ==================== CAMERA FUNCTIONS ====================
   const startCamera = async () => {
     setCameraError(null);
     try {
-      // Stop any existing stream
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
       }
@@ -277,8 +209,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
         setIsCameraActive(true);
+        await videoRef.current.play();
       }
     } catch (err) {
       console.error("Camera error:", err);
@@ -287,28 +219,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      
-      // Set canvas dimensions to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      // Draw video frame to canvas
+    if (videoRef.current && videoRef.current.videoWidth > 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
-        // Stop camera stream
         if (cameraStream) {
           cameraStream.getTracks().forEach(track => track.stop());
           setCameraStream(null);
         }
         setIsCameraActive(false);
       }
+    } else {
+      alert("Camera not ready. Please try again.");
     }
   };
 
@@ -325,8 +253,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     startCamera();
   };
 
-  const clearCanvas = (ref: React.RefObject<HTMLCanvasElement>) => {
-    const canvas = ref.current;
+  // ==================== SIGNATURE PAD FUNCTIONS ====================
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
@@ -334,23 +263,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // Improved signature pad initialization
   const initSignaturePad = (canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
     let drawing = false;
-    let lastX = 0;
-    let lastY = 0;
     
-    // Set canvas size for high resolution
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000000';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     };
     
     resizeCanvas();
@@ -370,8 +298,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       e.preventDefault();
       drawing = true;
       const { x, y } = getCoordinates(e);
-      lastX = x;
-      lastY = y;
       ctx.beginPath();
       ctx.moveTo(x, y);
     };
@@ -387,8 +313,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     };
     
     const stopDrawing = () => {
-      drawing = false;
-      setFormData(prev => ({ ...prev, signature: canvas.toDataURL() }));
+      if (drawing) {
+        drawing = false;
+        setFormData(prev => ({ ...prev, signature: canvas.toDataURL() }));
+      }
     };
     
     canvas.addEventListener('mousedown', startDrawing);
@@ -411,6 +339,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
+  // ==================== API FUNCTIONS ====================
   const saveBookingToDatabase = async (booking: any) => {
     try {
       console.log('💾 Saving booking to database:', booking);
@@ -425,7 +354,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Booking saved to database:', result);
-        return { success: true, bookingId: result.id };
+        return { success: true, bookingId: result.booking?.id || result.id };
       } else {
         console.error('❌ Failed to save booking:', result);
         return { success: false, error: result };
@@ -464,7 +393,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const sendConfirmationEmail = async (booking: any, indemnityLink?: string) => {
+  const sendConfirmationEmail = async (booking: any, indemnityToken?: string) => {
     try {
       console.log('📧 Sending confirmation email to:', booking.guest_email);
       
@@ -474,7 +403,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         body: JSON.stringify({
           ...booking,
           business_name: branding?.trading_name || businessName,
-          indemnity_link: indemnityLink
+          indemnity_token: indemnityToken
         })
       });
       
@@ -488,6 +417,31 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  const saveGuestProfile = async () => {
+    try {
+      await fetch('/.netlify/functions/save-guest-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          profileData: {
+            fullName: updateFullName(formData.firstName, formData.lastName),
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            passportOrId: formData.passportOrId,
+            country: formData.country,
+            city: formData.city,
+            province: formData.province
+          }
+        })
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+    }
+  };
+
+  // ==================== MAIN SUBMIT HANDLER ====================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -557,9 +511,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
         const bookingId = saveResult.bookingId;
         const accessToken = await saveIndemnityRecord(bookingId);
-        const indemnityLink = accessToken ? `https://fastcheckin.co.za/indemnity/${accessToken}` : undefined;
         
-        await sendConfirmationEmail(dbBooking, indemnityLink);
+        await sendConfirmationEmail(dbBooking, accessToken);
 
         const newBooking: Booking = {
           id: bookingId || Math.random().toString(36).substr(2, 9),
@@ -606,30 +559,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const saveGuestProfile = async () => {
-    try {
-      await fetch('/.netlify/functions/save-guest-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          profileData: {
-            fullName: updateFullName(formData.firstName, formData.lastName),
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone,
-            passportOrId: formData.passportOrId,
-            country: formData.country,
-            city: formData.city,
-            province: formData.province
-          }
-        })
-      });
-    } catch (error) {
-      console.error('Error saving profile:', error);
-    }
-  };
-
+  // ==================== LOADING AND ERROR STATES ====================
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -668,7 +598,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const primaryColor = branding?.primary_color || '#f59e0b';
   const secondaryColor = branding?.secondary_color || '#1e1e1e';
-  const businessName = branding?.trading_name || 'J-Bay Zebra Lodge';
+  const businessName = branding?.trading_name || 'our establishment';
   const welcomeMessage = branding?.welcome_message || 'Welcome to our establishment';
   const businessSlogan = branding?.slogan || '';
   const heroImage = branding?.hero_image_url;
@@ -1171,91 +1101,99 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <div className="space-y-6">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
                     <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
-                      {!formData.idPhoto ? (
-                        isCameraActive ? (
-                          <div className="relative w-full h-full">
-                            <video 
-                              ref={videoRef} 
-                              autoPlay 
-                              playsInline 
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              onClick={capturePhoto}
-                              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                      {formData.idPhoto ? (
+                        <>
+                          <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
+                          <div className="absolute top-4 right-4 flex gap-2">
+                            <button 
+                              onClick={retakePhoto} 
+                              className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-blue-700 transition-colors"
+                              title="Retake photo"
                             >
-                              📸 Capture Photo
+                              ↻
                             </button>
-                            <button
-                              type="button"
-                              onClick={stopCamera}
-                              className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-full"
+                            <button 
+                              onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} 
+                              className="bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-black/80 transition-colors"
+                              title="Remove photo"
                             >
                               ✕
                             </button>
                           </div>
-                        ) : (
-                          <div className="text-center">
-                            <button 
-                              type="button" 
-                              onClick={startCamera} 
-                              className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
-                            >
-                              <span className="text-5xl opacity-50">📷</span>
-                              <span>Tap to open camera</span>
-                              <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
-                            </button>
-                            {cameraError && (
-                              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
-                                {cameraError}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => {
-                                        setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }
-                                  }}
-                                  className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      ) : (
-                        <div className="relative">
-                          <img src={formData.idPhoto} alt="ID Photo" className="w-full rounded-lg border" />
+                        </>
+                      ) : isCameraActive ? (
+                        <div className="relative w-full h-full">
+                          <video 
+                            ref={videoRef} 
+                            autoPlay 
+                            playsInline 
+                            className="w-full h-full object-cover"
+                          />
                           <button
                             type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))}
-                            className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
+                            onClick={capturePhoto}
+                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                          >
+                            📸 Capture Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={stopCamera}
+                            className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-full"
                           >
                             ✕
                           </button>
                         </div>
+                      ) : (
+                        <div className="text-center">
+                          <button 
+                            type="button" 
+                            onClick={startCamera} 
+                            className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
+                          >
+                            <span className="text-5xl opacity-50">📷</span>
+                            <span>Tap to open camera</span>
+                            <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
+                          </button>
+                          {cameraError && (
+                            <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                              {cameraError}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
+                    {isCameraActive && (
+                      <button 
+                        type="button" 
+                        onClick={capturePhoto} 
+                        className="w-full text-white py-4 rounded-2xl text-sm uppercase font-bold tracking-widest shadow-lg hover:opacity-90 transition-all"
+                        style={{ backgroundColor: secondaryColor }}
+                      >
+                        Take Photo
+                      </button>
+                    )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-6">
                     <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Primary Guest Signature *</label>
-                      <button type="button" onClick={() => {
-                        const canvas = canvasRef.current;
-                        if (canvas) {
-                          const ctx = canvas.getContext('2d');
-                          ctx?.clearRect(0, 0, canvas.width, canvas.height);
-                          setFormData(prev => ({ ...prev, signature: '' }));
-                        }
-                      }} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">
-                        Clear
-                      </button>
+                      <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
+                      <button type="button" onClick={clearCanvas} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
                     </div>
                     <canvas 
                       ref={canvasRef} 
