@@ -112,7 +112,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   // Cleanup camera on unmount
   useEffect(() => {
     return () => {
-      console.log("🧹 Cleanup: Stopping camera stream");
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
       }
@@ -195,25 +194,23 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-   // ==================== CAMERA FUNCTIONS WITH DEBUG ====================
+  // ==================== CAMERA FUNCTIONS ====================
   const startCamera = async () => {
-    console.log("📷 [DEBUG] startCamera called");
+    console.log("📷 startCamera called");
     setCameraError(null);
     
-    // FIRST: Show the camera container immediately
+    // FIRST: Show the camera container
     setIsCameraActive(true);
     
-    // SECOND: Wait for the video element to render in the DOM
+    // SECOND: Wait for the video element to render
     await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       if (cameraStream) {
-        console.log("📷 [DEBUG] Stopping existing stream");
         cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
       }
       
-      console.log("📷 [DEBUG] Requesting camera permissions...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
@@ -222,44 +219,29 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         } 
       });
       
-      console.log("📷 [DEBUG] Camera stream obtained! Stream ID:", stream.id);
-      console.log("📷 [DEBUG] Video tracks:", stream.getVideoTracks().length);
       setCameraStream(stream);
       
-      // THIRD: Try multiple times to find the video element
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      const trySetVideo = () => {
-        attempts++;
-        console.log(`📷 [DEBUG] Attempt ${attempts} to find videoRef...`);
-        
-        if (videoRef.current) {
-          console.log("📷 [DEBUG] videoRef.current FOUND at attempt ${attempts}!");
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            console.log("📷 [DEBUG] Video metadata loaded, dimensions:", 
-              videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
-            videoRef.current?.play()
-              .then(() => {
-                console.log("📷 [DEBUG] Video playing successfully!");
-              })
-              .catch(err => console.error("📷 [DEBUG] Video play error:", err));
-          };
-        } else if (attempts < maxAttempts) {
-          // Try again in 100ms
-          setTimeout(trySetVideo, 100);
-        } else {
-          console.error("📷 [DEBUG] Could not find videoRef after ${maxAttempts} attempts!");
-          setCameraError("Camera failed to start. Please refresh and try again.");
-          setIsCameraActive(false);
-        }
-      };
-      
-      trySetVideo();
-      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play()
+            .then(() => {
+              console.log("✅ Video playing successfully!");
+            })
+            .catch(err => console.error("Video play error:", err));
+        };
+      } else {
+        console.error("videoRef.current is null!");
+        // Try again after a short delay
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play();
+          }
+        }, 100);
+      }
     } catch (err) {
-      console.error("📷 [DEBUG] Camera error:", err);
+      console.error("Camera error:", err);
       setIsCameraActive(false);
       let errorMessage = "Camera access denied. ";
       if (err instanceof Error) {
@@ -276,9 +258,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
-    console.log("📷 [DEBUG] capturePhoto called");
-    console.log("📷 [DEBUG] videoRef.current:", videoRef.current);
-    console.log("📷 [DEBUG] videoRef.current?.videoWidth:", videoRef.current?.videoWidth);
+    console.log("capturePhoto called");
     
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const video = videoRef.current;
@@ -286,13 +266,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
-      console.log("📷 [DEBUG] Canvas size:", canvas.width, "x", canvas.height);
-      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        console.log("📷 [DEBUG] Photo captured, data URL length:", dataUrl.length);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
         if (cameraStream) {
@@ -300,19 +277,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           setCameraStream(null);
         }
         setIsCameraActive(false);
-        console.log("📷 [DEBUG] Camera stopped, photo saved");
-      } else {
-        console.error("📷 [DEBUG] Could not get canvas context");
-        alert("Failed to capture photo. Please try again.");
+        console.log("Photo captured and saved");
       }
     } else {
-      console.error("📷 [DEBUG] Video not ready for capture");
-      alert("Camera not ready. Please wait a moment and try again.");
+      alert("Camera not ready. Please try again.");
     }
   };
 
   const stopCamera = () => {
-    console.log("📷 [DEBUG] stopCamera called");
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -324,29 +296,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const retakePhoto = () => {
-    console.log("📷 [DEBUG] retakePhoto called");
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
 
-  // Debug: Monitor video element visibility
-  useEffect(() => {
-    if (isCameraActive && videoRef.current) {
-      console.log("📷 [DEBUG] Video element mounted and active");
-      console.log("📷 [DEBUG] Video element dimensions:", {
-        offsetWidth: videoRef.current.offsetWidth,
-        offsetHeight: videoRef.current.offsetHeight,
-        videoWidth: videoRef.current.videoWidth,
-        videoHeight: videoRef.current.videoHeight
-      });
-      console.log("📷 [DEBUG] Video element style:", videoRef.current.style);
-      console.log("📷 [DEBUG] Video parent element:", videoRef.current.parentElement);
-      
-      // Force video to be visible
-      videoRef.current.style.display = 'block';
-      videoRef.current.style.width = '100%';
-      videoRef.current.style.height = '100%';
-    }
-  }, [isCameraActive]);
   // ==================== SIGNATURE PAD FUNCTIONS ====================
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -1181,6 +1133,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
+                  {/* LEFT COLUMN - CAMERA */}
                   <div className="space-y-6">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
                     <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
@@ -1204,68 +1157,82 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                             </button>
                           </div>
                         </>
-                      ) : isCameraActive ? (
-                        <div className="relative w-full h-full min-h-[300px] bg-black">
-                          <video 
-                            ref={videoRef} 
-                            autoPlay 
-                            playsInline 
-                            muted
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-20">
-                            <button
-                              type="button"
-                              onClick={capturePhoto}
-                              className="bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
-                            >
-                              📸 Capture Photo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={stopCamera}
-                              className="bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
-                            >
-                              ✕ Close
-                            </button>
-                          </div>
-                        </div>
                       ) : (
-                        <div className="text-center">
-                          <button 
-                            type="button" 
-                            onClick={startCamera} 
-                            className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors"
-                          >
-                            <span className="text-5xl opacity-50">📷</span>
-                            <span>Tap to open camera</span>
-                            <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
-                          </button>
-                          {cameraError && (
-                            <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
-                              {cameraError}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                                className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
-                              />
+                        <>
+                          {/* Video element - ALWAYS in DOM, hidden when not active */}
+                          <div className="relative w-full h-full min-h-[300px] bg-black" style={{ display: isCameraActive ? 'block' : 'none' }}>
+                            <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              playsInline 
+                              muted
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-20">
+                              <button
+                                type="button"
+                                onClick={capturePhoto}
+                                className="bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                              >
+                                📸 Capture Photo
+                              </button>
+                              <button
+                                type="button"
+                                onClick={stopCamera}
+                                className="bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                              >
+                                ✕ Close
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Camera button - only when camera is inactive */}
+                          {!isCameraActive && (
+                            <div className="text-center w-full">
+                              <button 
+                                type="button" 
+                                onClick={startCamera} 
+                                className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors w-full"
+                              >
+                                <span className="text-5xl opacity-50">📷</span>
+                                <span>Tap to open camera</span>
+                                <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
+                              </button>
+                              
+                              {/* File upload fallback */}
+                              <div className="px-4 pb-4">
+                                <label className="text-xs text-stone-500">Or upload from gallery:</label>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
+                                />
+                              </div>
+                              
+                              {/* Camera Error Message */}
+                              {cameraError && (
+                                <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm mx-4">
+                                  {cameraError}
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>
 
+                  {/* RIGHT COLUMN - SIGNATURE */}
                   <div className="space-y-6">
                     <div className="flex justify-between items-center">
                       <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
