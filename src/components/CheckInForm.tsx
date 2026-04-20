@@ -158,9 +158,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     try {
       const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
       if (response.ok) {
-        const profile = await response.json();
-        if (profile && profile.profile) {
-          const nameParts = (profile.profile.full_name || '').split(' ');
+        const data = await response.json();
+        if (data.profile) {
+          const nameParts = (data.profile.full_name || '').split(' ');
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
           
@@ -168,12 +168,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             ...prev,
             firstName: firstName,
             lastName: lastName,
-            fullName: profile.profile.full_name || '',
-            phone: profile.profile.phone || prev.phone,
-            passportOrId: profile.profile.passport_or_id || prev.passportOrId,
-            country: profile.profile.country || prev.country,
-            city: profile.profile.city || prev.city,
-            province: profile.profile.province || prev.province,
+            fullName: data.profile.full_name || '',
+            phone: data.profile.phone || prev.phone,
+            passportOrId: data.profile.passport_or_id || prev.passportOrId,
+            country: data.profile.country || prev.country,
+            city: data.profile.city || prev.city,
+            province: data.profile.province || prev.province,
           }));
           
           setProfileLoaded(true);
@@ -196,18 +196,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   // ==================== CAMERA FUNCTIONS ====================
   const startCamera = async () => {
-    console.log("📷 startCamera called");
     setCameraError(null);
     
     try {
-      // Stop any existing stream
       if (cameraStream) {
-        console.log("Stopping existing stream");
         cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
       }
       
-      console.log("Requesting camera permissions...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
@@ -216,23 +212,17 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         } 
       });
       
-      console.log("Camera stream obtained:", stream.id);
       setCameraStream(stream);
       
       if (videoRef.current) {
-        console.log("Setting video source...");
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          console.log("Video metadata loaded, playing...");
           videoRef.current?.play()
             .then(() => {
-              console.log("Video playing successfully");
               setIsCameraActive(true);
             })
             .catch(err => console.error("Video play error:", err));
         };
-      } else {
-        console.error("videoRef.current is null!");
       }
     } catch (err) {
       console.error("Camera error:", err);
@@ -251,44 +241,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
-    console.log("capturePhoto called");
-    console.log("videoRef.current:", videoRef.current);
-    console.log("videoRef.current?.videoWidth:", videoRef.current?.videoWidth);
-    
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
-      console.log("Canvas size:", canvas.width, "x", canvas.height);
-      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        console.log("Photo captured, data URL length:", dataUrl.length);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
-        // Stop camera stream
         if (cameraStream) {
           cameraStream.getTracks().forEach(track => track.stop());
           setCameraStream(null);
         }
         setIsCameraActive(false);
-        console.log("Camera stopped, photo saved");
-      } else {
-        console.error("Could not get canvas context");
-        alert("Failed to capture photo. Please try again.");
       }
     } else {
-      console.error("Video not ready for capture");
-      alert("Camera not ready. Please wait a moment and try again.");
+      alert("Camera not ready. Please try again.");
     }
   };
 
   const stopCamera = () => {
-    console.log("stopCamera called");
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -300,9 +276,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const retakePhoto = () => {
-    console.log("retakePhoto called");
     setFormData(prev => ({ ...prev, idPhoto: '' }));
-    // Don't auto-start camera, let user tap again
   };
 
   // ==================== SIGNATURE PAD FUNCTIONS ====================
@@ -1163,27 +1137,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           </div>
                         </>
                       ) : isCameraActive ? (
-                        <div className="relative w-full h-full">
+                        <div className="relative w-full h-full min-h-[300px] bg-black">
                           <video 
                             ref={videoRef} 
                             autoPlay 
                             playsInline 
-                            className="w-full h-full object-cover"
+                            muted
+                            className="absolute inset-0 w-full h-full object-cover"
                           />
-                          <button
-                            type="button"
-                            onClick={capturePhoto}
-                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
-                          >
-                            📸 Capture Photo
-                          </button>
-                          <button
-                            type="button"
-                            onClick={stopCamera}
-                            className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-full"
-                          >
-                            ✕
-                          </button>
+                          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-20">
+                            <button
+                              type="button"
+                              onClick={capturePhoto}
+                              className="bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                            >
+                              📸 Capture Photo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={stopCamera}
+                              className="bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                            >
+                              ✕ Close
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center">
@@ -1219,16 +1196,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         </div>
                       )}
                     </div>
-                    {isCameraActive && (
-                      <button 
-                        type="button" 
-                        onClick={capturePhoto} 
-                        className="w-full text-white py-4 rounded-2xl text-sm uppercase font-bold tracking-widest shadow-lg hover:opacity-90 transition-all"
-                        style={{ backgroundColor: secondaryColor }}
-                      >
-                        Take Photo
-                      </button>
-                    )}
                   </div>
 
                   <div className="space-y-6">
