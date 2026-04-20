@@ -112,6 +112,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   // Cleanup camera on unmount
   useEffect(() => {
     return () => {
+      console.log("🧹 Cleanup: Stopping camera stream");
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
       }
@@ -194,16 +195,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ==================== CAMERA FUNCTIONS ====================
+  // ==================== CAMERA FUNCTIONS WITH DEBUG ====================
   const startCamera = async () => {
+    console.log("📷 [DEBUG] startCamera called");
     setCameraError(null);
     
     try {
       if (cameraStream) {
+        console.log("📷 [DEBUG] Stopping existing stream");
         cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
       }
       
+      console.log("📷 [DEBUG] Requesting camera permissions...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
@@ -212,20 +216,28 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         } 
       });
       
+      console.log("📷 [DEBUG] Camera stream obtained! Stream ID:", stream.id);
+      console.log("📷 [DEBUG] Video tracks:", stream.getVideoTracks().length);
       setCameraStream(stream);
       
       if (videoRef.current) {
+        console.log("📷 [DEBUG] videoRef.current exists, setting srcObject");
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
+          console.log("📷 [DEBUG] Video metadata loaded, dimensions:", 
+            videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
           videoRef.current?.play()
             .then(() => {
+              console.log("📷 [DEBUG] Video playing successfully!");
               setIsCameraActive(true);
             })
-            .catch(err => console.error("Video play error:", err));
+            .catch(err => console.error("📷 [DEBUG] Video play error:", err));
         };
+      } else {
+        console.error("📷 [DEBUG] videoRef.current is NULL!");
       }
     } catch (err) {
-      console.error("Camera error:", err);
+      console.error("📷 [DEBUG] Camera error:", err);
       let errorMessage = "Camera access denied. ";
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
@@ -241,16 +253,23 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
+    console.log("📷 [DEBUG] capturePhoto called");
+    console.log("📷 [DEBUG] videoRef.current:", videoRef.current);
+    console.log("📷 [DEBUG] videoRef.current?.videoWidth:", videoRef.current?.videoWidth);
+    
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
+      console.log("📷 [DEBUG] Canvas size:", canvas.width, "x", canvas.height);
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        console.log("📷 [DEBUG] Photo captured, data URL length:", dataUrl.length);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
         
         if (cameraStream) {
@@ -258,13 +277,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           setCameraStream(null);
         }
         setIsCameraActive(false);
+        console.log("📷 [DEBUG] Camera stopped, photo saved");
+      } else {
+        console.error("📷 [DEBUG] Could not get canvas context");
+        alert("Failed to capture photo. Please try again.");
       }
     } else {
-      alert("Camera not ready. Please try again.");
+      console.error("📷 [DEBUG] Video not ready for capture");
+      alert("Camera not ready. Please wait a moment and try again.");
     }
   };
 
   const stopCamera = () => {
+    console.log("📷 [DEBUG] stopCamera called");
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -276,8 +301,29 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const retakePhoto = () => {
+    console.log("📷 [DEBUG] retakePhoto called");
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
+
+  // Debug: Monitor video element visibility
+  useEffect(() => {
+    if (isCameraActive && videoRef.current) {
+      console.log("📷 [DEBUG] Video element mounted and active");
+      console.log("📷 [DEBUG] Video element dimensions:", {
+        offsetWidth: videoRef.current.offsetWidth,
+        offsetHeight: videoRef.current.offsetHeight,
+        videoWidth: videoRef.current.videoWidth,
+        videoHeight: videoRef.current.videoHeight
+      });
+      console.log("📷 [DEBUG] Video element style:", videoRef.current.style);
+      console.log("📷 [DEBUG] Video parent element:", videoRef.current.parentElement);
+      
+      // Force video to be visible
+      videoRef.current.style.display = 'block';
+      videoRef.current.style.width = '100%';
+      videoRef.current.style.height = '100%';
+    }
+  }, [isCameraActive]);
 
   // ==================== SIGNATURE PAD FUNCTIONS ====================
   const clearCanvas = () => {
