@@ -232,7 +232,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         };
       } else {
         console.error("videoRef.current is null!");
-        // Try again after a short delay
         setTimeout(() => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
@@ -246,7 +245,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       let errorMessage = "Camera access denied. ";
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
-          errorMessage += "Please grant camera permission in your browser settings.";
+          errorMessage += "Please grant camera permission.";
         } else if (err.name === 'NotFoundError') {
           errorMessage += "No camera found on this device.";
         } else {
@@ -1133,114 +1132,143 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
-                  {/* LEFT COLUMN - CAMERA */}
-                  <div className="space-y-6">
+                  {/* LEFT COLUMN - CAMERA WITH BUTTONS BELOW */}
+                  <div className="space-y-4">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
-                    <div className="aspect-[3/2] bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex items-center justify-center overflow-hidden relative shadow-inner">
+                    
+                    {/* Camera Frame - No buttons inside */}
+                    <div className="aspect-[3/2] bg-stone-100 rounded-xl overflow-hidden border-2 border-dashed border-stone-300">
                       {formData.idPhoto ? (
-                        <>
+                        <div className="relative w-full h-full">
                           <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
-                          <div className="absolute top-4 right-4 flex gap-2">
+                          <div className="absolute top-2 right-2 flex gap-1">
                             <button 
                               onClick={retakePhoto} 
-                              className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-blue-700 transition-colors"
+                              className="bg-blue-600 text-white p-1.5 rounded-full text-xs hover:bg-blue-700 transition-colors"
                               title="Retake photo"
                             >
                               ↻
                             </button>
-                            <button 
-                              onClick={() => setFormData(prev => ({ ...prev, idPhoto: '' }))} 
-                              className="bg-black/60 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm hover:bg-black/80 transition-colors"
-                              title="Remove photo"
-                            >
-                              ✕
-                            </button>
                           </div>
-                        </>
+                        </div>
+                      ) : isCameraActive ? (
+                        <div className="w-full h-full bg-black">
+                          <video 
+                            ref={videoRef} 
+                            autoPlay 
+                            playsInline 
+                            muted
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-stone-100">
+                          <svg className="w-12 h-12 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Camera Controls - BELOW the frame */}
+                    <div className="space-y-2">
+                      {!formData.idPhoto && (
                         <>
-                          {/* Video element - ALWAYS in DOM, hidden when not active */}
-                          <div className="relative w-full h-full min-h-[300px] bg-black" style={{ display: isCameraActive ? 'block' : 'none' }}>
-                            <video 
-                              ref={videoRef} 
-                              autoPlay 
-                              playsInline 
-                              muted
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-20">
+                          {!isCameraActive ? (
+                            <button 
+                              type="button" 
+                              onClick={startCamera} 
+                              className="w-full bg-amber-500 text-white py-2.5 rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              Open Camera
+                            </button>
+                          ) : (
+                            <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={capturePhoto}
-                                className="bg-amber-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-sm"
                               >
-                                📸 Capture Photo
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Capture
                               </button>
                               <button
                                 type="button"
                                 onClick={stopCamera}
-                                className="bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
+                                className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm"
                               >
-                                ✕ Close
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Cancel
                               </button>
                             </div>
+                          )}
+                          
+                          {/* File upload fallback */}
+                          <div className="text-center">
+                            <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600 transition-colors">
+                              📁 Or upload from gallery
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
                           </div>
-
-                          {/* Camera button - only when camera is inactive */}
-                          {!isCameraActive && (
-                            <div className="text-center w-full">
-                              <button 
-                                type="button" 
-                                onClick={startCamera} 
-                                className="text-stone-500 font-bold text-sm flex flex-col items-center gap-3 p-8 hover:text-stone-700 transition-colors w-full"
-                              >
-                                <span className="text-5xl opacity-50">📷</span>
-                                <span>Tap to open camera</span>
-                                <span className="text-xs text-stone-400">Take a clear photo of your ID document</span>
-                              </button>
-                              
-                              {/* File upload fallback */}
-                              <div className="px-4 pb-4">
-                                <label className="text-xs text-stone-500">Or upload from gallery:</label>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => {
-                                        setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }
-                                  }}
-                                  className="mt-2 block w-full text-sm text-stone-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:bg-amber-50 file:text-amber-700 file:border-0"
-                                />
-                              </div>
-                              
-                              {/* Camera Error Message */}
-                              {cameraError && (
-                                <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm mx-4">
-                                  {cameraError}
-                                </div>
-                              )}
+                          
+                          {/* Camera Error Message */}
+                          {cameraError && (
+                            <div className="mt-2 p-2 bg-red-50 text-red-600 rounded-lg text-xs">
+                              {cameraError}
                             </div>
                           )}
                         </>
+                      )}
+                      
+                      {formData.idPhoto && (
+                        <button
+                          type="button"
+                          onClick={retakePhoto}
+                          className="w-full bg-stone-200 text-stone-700 py-2.5 rounded-lg font-medium hover:bg-stone-300 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Take New Photo
+                        </button>
                       )}
                     </div>
                   </div>
 
                   {/* RIGHT COLUMN - SIGNATURE */}
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
                       <button type="button" onClick={clearCanvas} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
                     </div>
                     <canvas 
                       ref={canvasRef} 
-                      className="w-full h-40 bg-white border-2 border-stone-200 rounded-xl cursor-crosshair touch-none"
+                      className="w-full h-32 bg-white border-2 border-stone-200 rounded-xl cursor-crosshair touch-none"
                       style={{ touchAction: 'none' }}
                     />
                     <p className="text-xs text-stone-400">Sign with your finger or mouse</p>
@@ -1248,25 +1276,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </div>
               </div>
 
-              <div className="mt-20 flex justify-between pt-10 border-t border-stone-100 items-center">
-                <button type="button" onClick={() => setStep(2)} className="text-stone-400 font-bold hover:text-stone-900 uppercase text-[10px] tracking-widest transition-colors">Return to Details</button>
+              <div className="mt-8 flex justify-between pt-6 border-t border-stone-100 items-center">
+                <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">← Return to Details</button>
                 <button 
                   type="submit" 
                   disabled={loading || !hasScrolledToBottom || !formData.acceptLegal || !formData.signature}
-                  className="text-white px-20 py-6 rounded-full font-bold hover:opacity-90 transition-all shadow-2xl text-[10px] uppercase tracking-[0.2em] disabled:opacity-20 disabled:cursor-not-allowed transform hover:-translate-y-1 active:scale-95 flex items-center gap-3"
-                  style={{ backgroundColor: secondaryColor }}
+                  className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Processing...
-                    </>
-                  ) : (
-                    'Seal & Complete Registration'
-                  )}
+                  {loading ? 'Processing...' : 'Complete Registration'}
                 </button>
               </div>
             </div>
