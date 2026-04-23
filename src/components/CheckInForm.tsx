@@ -76,9 +76,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const [profileLoaded, setProfileLoaded] = useState(false);
 
-  // Scroll to top when step changes
+  // ✅ FIXED: Scroll to top when step changes - WITH FORCE OPTION
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Force scroll to top with multiple methods to ensure it works
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    // Also try smooth after a microtask
+    setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }, 10);
   }, [step]);
 
   const updateFullName = (firstName: string, lastName: string) => {
