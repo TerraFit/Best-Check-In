@@ -70,6 +70,9 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Additional security headers
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(self)"
 
 [[headers]]
   for = "/static/*"
@@ -93,9 +96,13 @@
 [context.production.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
+  # ⚠️ IMPORTANT: Add your JWT Secret here
+  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
 
 [context.deploy-preview.environment]
   NODE_VERSION = "20"
+  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
 
 [context.branch-deploy.environment]
   NODE_VERSION = "20"
+  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
