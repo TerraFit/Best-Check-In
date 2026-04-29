@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 export const handler = async function(event) {
   const headers = {
@@ -28,14 +29,14 @@ export const handler = async function(event) {
   );
 
   try {
-    const { email, password } = JSON.parse(event.body);
+    const { email, password, rememberMe = false } = JSON.parse(event.body);
     console.log('🔐 Business login attempt for:', email);
 
     // Get business by email
     const { data: business, error } = await supabase
       .from('businesses')
-      .select('*')
-      .eq('email', email)
+      .select('id, trading_name, email, status, setup_complete, password_hash')
+      .eq('email', email.toLowerCase().trim())
       .single();
 
     if (error || !business) {
@@ -43,15 +44,23 @@ export const handler = async function(event) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'Invalid credentials' })
+        body: JSON.stringify({ error: 'Invalid email or password' })
       };
     }
 
     console.log('✅ Business found:', business.trading_name);
-    console.log('📊 Business status:', business.status);
-    console.log('🔑 Password hash exists:', !!business.password_hash);
 
-    // Check password
+    // Check if password_hash exists
+    if (!business.password_hash) {
+      console.log('❌ No password set for business:', email);
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Account not set up. Please check your email for setup link.' })
+      };
+    }
+
+    // Verify password
     let validPassword = false;
     try {
       validPassword = await bcrypt.compare(password, business.password_hash);
@@ -64,11 +73,29 @@ export const handler = async function(event) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'Invalid credentials' })
+        body: JSON.stringify({ error: 'Invalid email or password' })
       };
     }
 
     console.log('✅ Password valid for:', business.trading_name);
+
+    // ✅ GENERATE JWT TOKEN
+    const expiresIn = rememberMe ? '7d' : '1d';
+    
+    const payload = {
+      sub: business.id,
+      role: 'authenticated',
+      user_metadata: {
+        business_id: business.id,
+        business_name: business.trading_name,
+        email: business.email,
+        role: 'business'
+      }
+    };
+    
+    const token = jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn });
+    
+    console.log('✅ JWT token generated for business:', business.id);
 
     // Don't send password hash back
     delete business.password_hash;
@@ -78,6 +105,8 @@ export const handler = async function(event) {
       headers,
       body: JSON.stringify({
         success: true,
+        token: token,
+        token_expiry: expiresIn,
         business: {
           id: business.id,
           trading_name: business.trading_name,
@@ -90,10 +119,20 @@ export const handler = async function(event) {
     };
   } catch (error) {
     console.error('❌ Business login error:', error);
+    
+    // Handle JWT signing errors
+    if (error.name === 'JsonWebTokenError') {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Token generation failed' })
+      };
+    }
+    
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
     };
   }
 };
