@@ -10,14 +10,16 @@ export interface AuthUser {
 
 export interface AuthSession {
   type: AuthType;
+  token: string;           // ← ADDED: JWT token
+  token_expiry?: string;   // ← ADDED: Token expiry
   user: AuthUser;
-  token?: string;
 }
 
 const AUTH_KEY = 'fastcheckin_auth';
 const BUSINESS_AUTH_KEY = 'fastcheckin_business_auth';
 const SUPER_ADMIN_AUTH_KEY = 'fastcheckin_admin_auth';
 
+// ✅ Get full auth session (includes token)
 export const getAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(AUTH_KEY);
   if (!stored) return null;
@@ -29,8 +31,21 @@ export const getAuth = (): AuthSession | null => {
   }
 };
 
+// ✅ Get just the token for API calls
+export const getAuthToken = (): string | null => {
+  const auth = getAuth();
+  return auth?.token || null;
+};
+
+// ✅ Get authorization header for fetch requests
+export const getAuthHeader = (): { Authorization?: string } => {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// ✅ Set auth session (stores token)
 export const setAuth = (session: AuthSession): void => {
-  console.log('💾 Setting auth:', session);
+  console.log('💾 Setting auth with token:', session.token?.substring(0, 30) + '...');
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   
   if (session.type === 'business') {
@@ -45,6 +60,7 @@ export const setAuth = (session: AuthSession): void => {
   window.dispatchEvent(new Event('storage'));
 };
 
+// ✅ Clear all auth
 export const clearAuth = (): void => {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(BUSINESS_AUTH_KEY);
@@ -57,6 +73,7 @@ export const clearAuth = (): void => {
   window.dispatchEvent(new Event('storage'));
 };
 
+// ✅ Clear business auth only
 export const clearBusinessAuth = (): void => {
   localStorage.removeItem(BUSINESS_AUTH_KEY);
   localStorage.removeItem('business');
@@ -67,6 +84,7 @@ export const clearBusinessAuth = (): void => {
   window.dispatchEvent(new Event('storage'));
 };
 
+// ✅ Clear super admin auth only
 export const clearSuperAdminAuth = (): void => {
   localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
   localStorage.removeItem('fastcheckin_admin');
@@ -77,6 +95,7 @@ export const clearSuperAdminAuth = (): void => {
   window.dispatchEvent(new Event('storage'));
 };
 
+// ✅ Get business auth (includes token)
 export const getBusinessAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(BUSINESS_AUTH_KEY);
   if (!stored) return null;
@@ -88,6 +107,7 @@ export const getBusinessAuth = (): AuthSession | null => {
   }
 };
 
+// ✅ Get super admin auth
 export const getSuperAdminAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(SUPER_ADMIN_AUTH_KEY);
   if (!stored) return null;
@@ -99,16 +119,19 @@ export const getSuperAdminAuth = (): AuthSession | null => {
   }
 };
 
+// ✅ Check if business is authenticated (has valid token)
 export const isBusinessAuthenticated = (): boolean => {
   const auth = getBusinessAuth();
-  return auth?.type === 'business';
+  return auth?.type === 'business' && !!auth?.token;
 };
 
+// ✅ Check if super admin is authenticated
 export const isSuperAdminAuthenticated = (): boolean => {
   const auth = getSuperAdminAuth();
-  return auth?.type === 'super_admin';
+  return auth?.type === 'super_admin' && !!auth?.token;
 };
 
+// ✅ Get business ID from auth
 export const getBusinessId = (): string | null => {
   const businessAuth = getBusinessAuth();
   if (businessAuth?.type === 'business' && businessAuth.user.businessId) {
