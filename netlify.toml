@@ -1,5 +1,6 @@
 [build]
-  command = "vite build"
+  # Install jsonwebtoken before building
+  command = "npm install jsonwebtoken && vite build"
   publish = "dist"
 
 [build.environment]
@@ -90,19 +91,18 @@
     Cache-Control = "public, max-age=86400"
 
 # ============================================================
-# ENVIRONMENT VARIABLES (Production overrides)
+# ENVIRONMENT VARIABLES
+# Note: Add actual secrets in Netlify UI, not here!
 # ============================================================
 
 [context.production.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
-  # ⚠️ IMPORTANT: Add your JWT Secret here
-  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
+  # ⚠️ DO NOT PUT SECRETS HERE - Use Netlify UI Environment Variables
+  # SUPABASE_JWT_SECRET is set in Netlify UI, not in this file
 
 [context.deploy-preview.environment]
   NODE_VERSION = "20"
-  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
 
 [context.branch-deploy.environment]
   NODE_VERSION = "20"
-  SUPABASE_JWT_SECRET = "your_supabase_jwt_secret_here"
