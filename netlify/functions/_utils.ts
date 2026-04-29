@@ -1,4 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import jwt from 'jsonwebtoken';
+
+// ============================================================
+// TYPES
+// ============================================================
 
 export interface ApiResponse {
     success: boolean;
@@ -7,6 +12,18 @@ export interface ApiResponse {
     message?: string;
 }
 
+export interface AuthUser {
+    id: string;
+    business_id: string;
+    email: string;
+    name: string;
+    role: 'business' | 'super_admin';
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
 export const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -14,7 +31,10 @@ export const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 };
 
-// Service role client - used by all functions (bypasses RLS intentionally)
+// ============================================================
+// SUPABASE CLIENT (Service Role - Bypasses RLS)
+// ============================================================
+
 export const getSupabase = (): SupabaseClient => {
     return createClient(
         process.env.SUPABASE_URL!,
@@ -22,29 +42,98 @@ export const getSupabase = (): SupabaseClient => {
     );
 };
 
-// JWT Verification (to be implemented in Phase 2.2)
-export const verifyAuth = (authHeader: string | undefined): any => {
+// ============================================================
+// JWT VERIFICATION (COMPLETE - Not a placeholder)
+// ============================================================
+
+export const verifyAuth = (authHeader: string | undefined): AuthUser => {
     if (!authHeader) {
-        throw new Error('Unauthorized: No token provided');
+        throw new Error('UNAUTHORIZED: No authorization token provided');
     }
     
-    const token = authHeader.split(' ')[1];
+    // Extract token from "Bearer <token>"
+    const token = authHeader.startsWith('Bearer ') 
+        ? authHeader.substring(7) 
+        : authHeader.split(' ')[1];
+    
     if (!token) {
-        throw new Error('Unauthorized: Invalid token format');
+        throw new Error('UNAUTHORIZED: Invalid token format');
     }
 
-    // TODO: Add JWT verification in Phase 2.2
-    // For now, return a placeholder
-    return { sub: 'temp', user_metadata: { business_id: null } };
+    // Verify JWT_SECRET exists
+    if (!process.env.SUPABASE_JWT_SECRET) {
+        console.error('❌ SUPABASE_JWT_SECRET not configured');
+        throw new Error('SERVER_ERROR: Authentication not configured');
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET) as any;
+        
+        // Validate token has required fields
+        if (!decoded.user_metadata?.business_id) {
+            throw new Error('FORBIDDEN: Token missing business ID');
+        }
+        
+        if (!decoded.sub) {
+            throw new Error('FORBIDDEN: Token missing user ID');
+        }
+        
+        return {
+            id: decoded.sub,
+            business_id: decoded.user_metadata.business_id,
+            email: decoded.user_metadata.email || '',
+            name: decoded.user_metadata.business_name || '',
+            role: decoded.user_metadata.role || 'business'
+        };
+    } catch (error: any) {
+        if (error.name === 'TokenExpiredError') {
+            throw new Error('UNAUTHORIZED: Token has expired');
+        }
+        if (error.name === 'JsonWebTokenError') {
+            throw new Error('UNAUTHORIZED: Invalid token signature');
+        }
+        throw new Error(`UNAUTHORIZED: ${error.message}`);
+    }
 };
 
-// Helper for consistent API responses
-export const successResponse = (data: any): ApiResponse => ({
+// ============================================================
+// STANDARDIZED API RESPONSES
+// ============================================================
+
+export const createResponse = (statusCode: number, body: any, customHeaders: any = {}): any => {
+    return {
+        statusCode,
+        headers: { ...headers, ...customHeaders },
+        body: JSON.stringify(body)
+    };
+};
+
+export const successResponse = (data: any, message?: string): ApiResponse => ({
     success: true,
-    data
+    data,
+    message
 });
 
-export const errorResponse = (error: string): ApiResponse => ({
+export const errorResponse = (error: string, message?: string): ApiResponse => ({
     success: false,
-    error
+    error,
+    message
 });
+
+// ============================================================
+// BUSINESS OWNERSHIP VALIDATION
+// ============================================================
+
+export const validateBusinessOwnership = async (
+    supabase: SupabaseClient,
+    businessId: string,
+    authUser: AuthUser
+): Promise<boolean> => {
+    // Super admins can access any business
+    if (authUser.role === 'super_admin') {
+        return true;
+    }
+    
+    // Business users can only access their own business
+    return authUser.business_id === businessId;
+};
