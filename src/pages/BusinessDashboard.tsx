@@ -1,8 +1,8 @@
-// src/pages/BusinessDashboard.tsx - COMPLETE FIXED VERSION
+// src/pages/BusinessDashboard.tsx - COMPLETE PRODUCTION READY WITH JWT AUTH
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getBusinessId } from '../utils/auth';
+import { getBusinessId, getAuthToken, clearAuth } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
 import AppealModal from '../components/AppealModal';
 import ImportGoogleForms from '../components/ImportGoogleForms';
@@ -195,13 +195,38 @@ export default function BusinessDashboard() {
   ];
 
   // ============================================================
-  // FETCH FUNCTIONS
+  // AUTH HELPERS - JWT Token Support
   // ============================================================
+  
+  const getAuthHeaders = () => {
+    const token = getAuthToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  };
 
-  const fetchData = async (url: string) => {
-    const response = await fetch(url);
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...options.headers
+      }
+    });
     return response;
   };
+
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to log out?')) {
+      clearAuth();
+      navigate('/business/login');
+    }
+  };
+
+  // ============================================================
+  // FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
+  // ============================================================
 
   const loadBusinessProfile = async () => {
     const businessId = getBusinessId();
@@ -213,7 +238,7 @@ export default function BusinessDashboard() {
 
     try {
       console.log('📡 Loading business profile for ID:', businessId);
-      const res = await fetchData(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`);
       
       if (!res.ok) {
         console.error('❌ Failed to load business profile:', res.status);
@@ -264,7 +289,7 @@ export default function BusinessDashboard() {
     if (!businessId) return;
     
     try {
-      const response = await fetch(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
+      const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
       const data = await response.json();
       setChangeRequests(data);
       
@@ -322,7 +347,7 @@ export default function BusinessDashboard() {
     try {
       console.log('📡 Fetching bookings for business:', businessId);
       
-      const res = await fetchData(
+      const res = await fetchWithAuth(
         `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
       );
 
@@ -372,7 +397,7 @@ export default function BusinessDashboard() {
     
     setLoadingSubscribers(true);
     try {
-      const response = await fetch(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
+      const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
       const data = await response.json();
       setSubscribers(data.subscribers || []);
       setShowSubscribers(true);
@@ -385,7 +410,7 @@ export default function BusinessDashboard() {
   };
 
   // ============================================================
-  // UPDATE FUNCTIONS
+  // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
   // ============================================================
 
   const updateEmail = async () => {
@@ -394,9 +419,8 @@ export default function BusinessDashboard() {
     
     setUpdatingEmail(true);
     try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
           email: newEmail
@@ -424,9 +448,8 @@ export default function BusinessDashboard() {
     
     setUpdatingPhone(true);
     try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
           phone: newPhone
@@ -454,9 +477,8 @@ export default function BusinessDashboard() {
     
     setSavingNewsletter(true);
     try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
           newsletter_enabled: newsletterEnabled,
@@ -483,79 +505,76 @@ export default function BusinessDashboard() {
     }
   };
 
- const saveBusinessProfile = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
+  const saveBusinessProfile = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
 
-  setLoading(true);
-  let hasError = false;
+    setLoading(true);
+    let hasError = false;
 
-  try {
-    // 1. Update text fields only (NO images)
-    const textRes = await fetch('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        businessId,
-        total_rooms: parseInt(profileForm.total_rooms) || 0,
-        avg_price: parseInt(profileForm.avg_price) || 0,
-        slogan: profileForm.slogan,
-        welcome_message: profileForm.welcome_message
-      })
-    });
-
-    if (!textRes.ok) {
-      throw new Error('Failed to update text fields');
-    }
-
-    // 2. Update logo if changed
-    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
-      const logoRes = await fetch('/.netlify/functions/upload-business-logo', {
+    try {
+      // 1. Update text fields only (NO images)
+      const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
-          logo_url: profileForm.logo_url
+          total_rooms: parseInt(profileForm.total_rooms) || 0,
+          avg_price: parseInt(profileForm.avg_price) || 0,
+          slogan: profileForm.slogan,
+          welcome_message: profileForm.welcome_message
         })
       });
-      if (!logoRes.ok) {
-        console.error('Logo upload failed');
-        hasError = true;
-      }
-    }
 
-    // 3. Update hero image if changed
-    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
-      const heroRes = await fetch('/.netlify/functions/upload-business-hero', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessId,
-          hero_image_url: profileForm.hero_image_url
-        })
-      });
-      if (!heroRes.ok) {
-        console.error('Hero image upload failed');
-        hasError = true;
+      if (!textRes.ok) {
+        throw new Error('Failed to update text fields');
       }
-    }
 
-    if (hasError) {
-      alert('Profile updated with some errors. Please check your images.');
-    } else {
-      alert('Profile updated successfully!');
+      // 2. Update logo if changed
+      if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
+        const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
+          method: 'POST',
+          body: JSON.stringify({
+            businessId,
+            logo_url: profileForm.logo_url
+          })
+        });
+        if (!logoRes.ok) {
+          console.error('Logo upload failed');
+          hasError = true;
+        }
+      }
+
+      // 3. Update hero image if changed
+      if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
+        const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
+          method: 'POST',
+          body: JSON.stringify({
+            businessId,
+            hero_image_url: profileForm.hero_image_url
+          })
+        });
+        if (!heroRes.ok) {
+          console.error('Hero image upload failed');
+          hasError = true;
+        }
+      }
+
+      if (hasError) {
+        alert('Profile updated with some errors. Please check your images.');
+      } else {
+        alert('Profile updated successfully!');
+      }
+      
+      setEditingProfile(false);
+      await loadBusinessProfile();
+      
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('Error saving profile');
+    } finally {
+      setLoading(false);
     }
-    
-    setEditingProfile(false);
-    await loadBusinessProfile();
-    
-  } catch (err) {
-    console.error('Error saving profile:', err);
-    alert('Error saving profile');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const submitChangeRequest = async () => {
     const businessId = getBusinessId();
@@ -570,9 +589,8 @@ export default function BusinessDashboard() {
         reason: requestReason
       });
       
-      const response = await fetch('/.netlify/functions/submit-change-request', {
+      const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
           businessName: business?.trading_name,
@@ -995,6 +1013,16 @@ export default function BusinessDashboard() {
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
+              </button>
+              {/* LOGOUT BUTTON */}
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
               </button>
             </div>
           </div>
