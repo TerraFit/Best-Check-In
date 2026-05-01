@@ -11,7 +11,8 @@ interface BookingData {
   business_logo?: string;
   total_amount?: number;
   business_id?: string;
-  indemnity_token?: string;  // ✅ ADD THIS
+  indemnity_token?: string;
+  marketing_consent?: boolean;
 }
 
 export const handler: Handler = async (event) => {
@@ -24,8 +25,8 @@ export const handler: Handler = async (event) => {
 
     const booking: BookingData = JSON.parse(event.body);
     console.log('📧 Sending email to:', booking.guest_email);
+    console.log('📧 Marketing consent:', booking.marketing_consent);
 
-    // Get business newsletter settings
     const supabase = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!
@@ -77,7 +78,39 @@ export const handler: Handler = async (event) => {
     }
 
     console.log('✅ Email sent successfully:', result.id);
-    
+
+    // ============================================================
+    // ✅ ADD TO NEWSLETTER SUBSCRIBERS IF MARKETING CONSENT GIVEN
+    // ============================================================
+    if (booking.marketing_consent === true && booking.guest_email && booking.business_id) {
+      try {
+        console.log('📧 Marketing consent true - adding to newsletter subscribers:', booking.guest_email);
+        
+        const { error: upsertError } = await supabase
+          .from('newsletter_subscribers')
+          .upsert({
+            business_id: booking.business_id,
+            email: booking.guest_email.toLowerCase().trim(),
+            guest_name: booking.guest_name,
+            source: 'check-in_consent',
+            created_at: new Date().toISOString()
+          }, {
+            onConflict: 'business_id,email'
+          });
+        
+        if (upsertError) {
+          console.error('❌ Failed to add to newsletter subscribers:', upsertError);
+        } else {
+          console.log('✅ Successfully added to newsletter subscribers:', booking.guest_email);
+        }
+      } catch (err) {
+        console.error('❌ Error adding to newsletter:', err);
+      }
+    } else {
+      console.log('📧 Marketing consent false or missing - not adding to newsletter');
+    }
+    // ============================================================
+
     return {
       statusCode: 200,
       body: JSON.stringify({ success: true, id: result.id })
@@ -122,7 +155,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
     day: 'numeric'
   });
 
-  // ✅ Create indemnity view URL
   const indemnityUrl = booking.indemnity_token 
     ? `https://fastcheckin.co.za/indemnity/${booking.indemnity_token}`
     : null;
@@ -382,7 +414,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             </div>
           </div>
           
-          <!-- ✅ NEW: Indemnity Box with Button -->
           <div class="indemnity-box">
             <p>📄 Your indemnity form has been signed electronically.</p>
             ${indemnityUrl ? `
