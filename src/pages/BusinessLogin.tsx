@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { setAuth, clearSuperAdminAuth } from '../utils/auth';
 
 export default function BusinessLogin() {
   const navigate = useNavigate();
@@ -21,28 +20,30 @@ export default function BusinessLogin() {
     setLoading(true);
     setError('');
 
-    clearSuperAdminAuth();
-
     try {
-      console.log('🔐 Business login attempt for:', formData.email);
+      console.log('🔐 Login attempt for:', formData.email);
       
       const response = await fetch('/.netlify/functions/business-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ 
+          email: formData.email, 
+          password: formData.password,
+          rememberMe: true 
+        })
       });
 
       const data = await response.json();
-      console.log('📡 Login response:', data);
+      console.log('📡 Response:', data);
 
       if (response.ok && data.success && data.token) {
-        console.log('✅ Login successful, storing token');
+        console.log('✅ Token received:', data.token.substring(0, 50) + '...');
         
-        // ✅ STORE THE TOKEN CORRECTLY
-        setAuth({
+        // ✅ STORE TOKEN DIRECTLY - SIMPLE AND GUARANTEED
+        const authData = {
           type: 'business',
           token: data.token,
-          token_expiry: data.token_expiry,
+          token_expiry: data.token_expiry || '7d',
           user: {
             id: data.business.id,
             email: data.business.email,
@@ -50,9 +51,11 @@ export default function BusinessLogin() {
             businessId: data.business.id,
             role: 'business'
           }
-        });
+        };
         
-        // Also store legacy format for compatibility
+        // Store in multiple places to ensure it's found
+        localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
+        localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         localStorage.setItem('business', JSON.stringify({
           id: data.business.id,
           trading_name: data.business.trading_name,
@@ -61,8 +64,10 @@ export default function BusinessLogin() {
           token: data.token
         }));
         
-        console.log('✅ Token stored, redirecting to dashboard');
+        console.log('✅ Token stored in localStorage');
+        console.log('🔑 Verification:', localStorage.getItem('fastcheckin_auth'));
         
+        // Redirect to dashboard
         if (data.business.status === 'pending') {
           window.location.href = '/business/pending';
         } else {
