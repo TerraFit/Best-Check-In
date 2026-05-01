@@ -21,7 +21,6 @@ export default function BusinessLogin() {
     setLoading(true);
     setError('');
 
-    // Clear any existing super admin auth before business login
     clearSuperAdminAuth();
 
     try {
@@ -34,15 +33,16 @@ export default function BusinessLogin() {
       });
 
       const data = await response.json();
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response data:', data);
+      console.log('📡 Login response:', data);
 
-      if (response.ok && data.success) {
-        console.log('✅ Login successful for:', data.business.trading_name);
+      if (response.ok && data.success && data.token) {
+        console.log('✅ Login successful, storing token');
         
-        // Store business auth
-        const authData = {
-          type: 'business' as const,
+        // ✅ STORE THE TOKEN CORRECTLY
+        setAuth({
+          type: 'business',
+          token: data.token,
+          token_expiry: data.token_expiry,
           user: {
             id: data.business.id,
             email: data.business.email,
@@ -50,23 +50,19 @@ export default function BusinessLogin() {
             businessId: data.business.id,
             role: 'business'
           }
-        };
+        });
         
-        setAuth(authData);
-        
-        // Store legacy format for compatibility
+        // Also store legacy format for compatibility
         localStorage.setItem('business', JSON.stringify({
           id: data.business.id,
           trading_name: data.business.trading_name,
           email: data.business.email,
-          status: data.business.status
+          status: data.business.status,
+          token: data.token
         }));
         
-        console.log('✅ Auth stored, verifying...');
-        console.log('Business auth:', localStorage.getItem('fastcheckin_business_auth'));
+        console.log('✅ Token stored, redirecting to dashboard');
         
-        // ✅ IMPORTANT: Use window.location.href for hard redirect to ensure clean state
-        // This avoids React Router interfering with the redirect
         if (data.business.status === 'pending') {
           window.location.href = '/business/pending';
         } else {
@@ -177,8 +173,7 @@ export default function BusinessLogin() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 focus:outline-none"
-                    tabIndex={-1}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
                   >
                     {showPassword ? (
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,7 +217,7 @@ export default function BusinessLogin() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50"
                 >
                   {loading ? 'Signing in...' : 'Sign In'}
                 </button>
@@ -277,14 +272,14 @@ export default function BusinessLogin() {
                         setShowForgotPassword(false);
                         setError('');
                       }}
-                      className="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400"
+                      className="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50"
+                      className="flex-1 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
                     >
                       {loading ? 'Sending...' : 'Send Reset Link'}
                     </button>
