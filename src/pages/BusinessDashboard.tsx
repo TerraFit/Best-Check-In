@@ -195,36 +195,6 @@ export default function BusinessDashboard() {
   ];
 
   // ============================================================
-  // AUTH HELPERS - JWT Token Support
-  // ============================================================
-  
-  const getAuthHeaders = () => {
-    const token = getAuthToken();
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    };
-  };
-
-  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...getAuthHeaders(),
-        ...options.headers
-      }
-    });
-    return response;
-  };
-
-  const handleLogout = () => {
-    if (confirm('Are you sure you want to log out?')) {
-      clearAuth();
-      navigate('/business/login');
-    }
-  };
-
-  // ============================================================
   // FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
   // ============================================================
 
