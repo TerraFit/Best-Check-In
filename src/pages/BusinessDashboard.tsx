@@ -372,11 +372,28 @@ export default function BusinessDashboard() {
 
     try {
       console.log('📡 Fetching bookings for business:', businessId);
+      console.log('📅 Current dateRange setting:', dateRange);
       
-      const res = await fetchWithAuth(
-        `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`
-      );
-
+      // Build URL with date filters based on selected range
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=5000`;
+      
+      // Add date filtering based on selected range (from your UI filter)
+      if (dateRange !== 'all') {
+        // For "7days", "30days", "90days", "12months" - only show future/upcoming
+        console.log('📅 Applying futureOnly filter (non-All Time range)');
+        url += `&futureOnly=true`;
+      } else {
+        // For "All Time" - NO DATE FILTERS, return EVERYTHING
+        console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
+      }
+      
+      // If custom dates are set in the UI, use those instead
+      if (startDate && endDate) {
+        console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
+        url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=5000`;
+      }
+      
+      const res = await fetchWithAuth(url);
       const data = await res.json();
       
       let rawBookings: Booking[] = [];
@@ -387,7 +404,7 @@ export default function BusinessDashboard() {
       }
       
       const validBookings = rawBookings.filter(b => b.business_id === businessId);
-      console.log(`📦 Loaded ${validBookings.length} bookings`);
+      console.log(`📦 Loaded ${validBookings.length} bookings (Total in DB: should be 2356 for All Time)`);
       setBookings(validBookings);
       
       const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
