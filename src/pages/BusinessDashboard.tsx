@@ -416,12 +416,44 @@ export default function BusinessDashboard() {
       setUniqueCountries(countries.sort());
       
       const today = new Date().toISOString().split('T')[0];
-      const arrivals = validBookings.filter(b => b.check_in_date === today);
-      const stayovers = validBookings.filter(b => 
-        b.check_in_date < today && 
-        (!b.check_out_date || b.check_out_date > today)
-      );
-      const checkouts = validBookings.filter(b => b.check_out_date === today);
+const todayDate = new Date(today);
+todayDate.setHours(0, 0, 0, 0);
+
+// Calculate 30 days ago for recency check
+const thirtyDaysAgo = new Date(todayDate);
+thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+// CORRECTED: Today's arrivals
+const arrivals = validBookings.filter(b => b.check_in_date === today);
+
+// CORRECTED: Current stayovers - ONLY active stays
+const stayovers = validBookings.filter(b => {
+  // Must have valid check_in_date
+  if (!b.check_in_date) return false;
+  
+  const checkInDate = new Date(b.check_in_date);
+  checkInDate.setHours(0, 0, 0, 0);
+  
+  // Must have checked in BEFORE today
+  if (checkInDate >= todayDate) return false;
+  
+  // If check_out_date exists and is in the future -> active stayover
+  if (b.check_out_date) {
+    const checkOutDate = new Date(b.check_out_date);
+    checkOutDate.setHours(0, 0, 0, 0);
+    return checkOutDate > todayDate;
+  }
+  
+  // If NO check_out_date, ONLY count if check-in was within last 30 days
+  // This prevents ancient bookings (2018-2025) from appearing
+  return b.check_in_date >= thirtyDaysAgoStr;
+});
+
+// CORRECTED: Today's checkouts
+const checkouts = validBookings.filter(b => b.check_out_date === today);
+
+console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
       
       setTodayArrivals(arrivals);
       setTodayStayovers(stayovers);
