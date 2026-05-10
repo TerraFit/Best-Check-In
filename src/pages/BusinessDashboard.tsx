@@ -1,6 +1,6 @@
 // src/pages/BusinessDashboard.tsx - COMPLETE PRODUCTION READY WITH JWT AUTH
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId, getAuthToken, clearAuth } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
