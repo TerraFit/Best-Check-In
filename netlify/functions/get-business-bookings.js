@@ -13,12 +13,10 @@ const getSupabase = () => {
 };
 
 const verifyAuth = (authHeader) => {
-    // Check if authorization header exists
     if (!authHeader) {
         throw new Error('UNAUTHORIZED: No authorization token provided');
     }
     
-    // Extract token from "Bearer <token>"
     const token = authHeader.startsWith('Bearer ') 
         ? authHeader.substring(7) 
         : authHeader.split(' ')[1];
@@ -28,14 +26,10 @@ const verifyAuth = (authHeader) => {
     }
 
     try {
-        // Verify JWT with Supabase JWT secret
         const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-        
-        // Validate business_id exists in token metadata
         if (!decoded.user_metadata?.business_id) {
             throw new Error('FORBIDDEN: Token missing business ID');
         }
-        
         return decoded;
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
@@ -67,34 +61,28 @@ const createResponse = (statusCode, body, headers = {}) => {
 // ============================================================
 
 export const handler = async (event) => {
-    // Handle CORS preflight
     if (event.httpMethod === 'OPTIONS') {
         return createResponse(204, {});
     }
 
-    // Only allow GET requests
     if (event.httpMethod !== 'GET') {
         return createResponse(405, { error: 'Method Not Allowed' });
     }
 
     try {
-        // ✅ STEP 1: Verify JWT and extract business_id
         const auth = verifyAuth(event.headers.authorization);
         const businessIdFromToken = auth.user_metadata.business_id;
         
-        // ✅ STEP 2: Get parameters from query string
         const { 
             businessId: businessIdFromQuery, 
             startDate, 
             endDate, 
-            limit = 5000,
-            futureOnly = 'false'  // NEW PARAMETER - controls date filtering
+            dateRange,
+            limit = 10000 
         } = event.queryStringParameters || {};
 
-        // ✅ STEP 3: Determine which business_id to use
         let targetBusinessId = businessIdFromQuery || businessIdFromToken;
         
-        // ✅ STEP 4: If both exist, they MUST match
         if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
             console.error(`❌ Security violation: Token business_id (${businessIdFromToken}) does not match requested (${businessIdFromQuery})`);
             return createResponse(403, { 
@@ -103,75 +91,119 @@ export const handler = async (event) => {
             });
         }
         
-        // ✅ STEP 5: Validate we have a business_id
         if (!targetBusinessId) {
             return createResponse(400, { error: 'Missing businessId parameter' });
         }
 
         console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
-        console.log(`📊 Fetching bookings with limit: ${limit}`);
-        console.log(`📅 Date filters: startDate=${startDate}, endDate=${endDate}, futureOnly=${futureOnly}`);
+        console.log(`📊 Date range: ${dateRange}, Custom: ${startDate} - ${endDate}`);
 
         const supabase = getSupabase();
-
-        // ✅ STEP 6: Build query - START WITH ALL BOOKINGS (NO DATE FILTERS)
-        let query = supabase
-            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')  // ← FIXED: Use correct table name
-            .select('*')
-            .eq('business_id', targetBusinessId)
-            .order('check_in_date', { ascending: false })  // ← Changed to check_in_date
-            .limit(parseInt(limit));
-
-        // ✅ STEP 7: APPLY DATE FILTERS ONLY IF EXPLICITLY REQUESTED
         
-        // Option A: Custom date range (highest priority)
+        // Start with base query
+        let query = supabase
+            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
+            .select('*', { count: 'exact' })
+            .eq('business_id', targetBusinessId)
+            .order('check_in_date', { ascending: false });
+
+        // ============================================================
+        // APPLY DATE FILTERS BASED ON SELECTED RANGE
+        // ============================================================
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Case 1: Custom date range (highest priority)
         if (startDate && endDate) {
-            console.log(`📅 Applying custom date range: ${startDate} to ${endDate}`);
+            console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
             query = query
                 .gte('check_in_date', startDate)
                 .lte('check_in_date', endDate);
         }
-        // Option B: Future only (for dashboard default view)
-        else if (futureOnly === 'true') {
-            const today = new Date().toISOString().split('T')[0];
-            console.log(`📅 Filtering future bookings only (>= ${today})`);
-            query = query.gte('check_in_date', today);
+        // Case 2: Preset ranges with actual date arithmetic
+        else if (dateRange === '7days') {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const dateStr = sevenDaysAgo.toISOString().split('T')[0];
+            console.log(`📅 Last 7 days: >= ${dateStr}`);
+            query = query.gte('check_in_date', dateStr);
         }
-        // Option C: No date filters = ALL BOOKINGS (what "All Time" should do)
-        else {
-            console.log(`📅 No date filters applied - returning ALL bookings (including historical)`);
+        else if (dateRange === '30days') {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+            console.log(`📅 Last 30 days: >= ${dateStr}`);
+            query = query.gte('check_in_date', dateStr);
+        }
+        else if (dateRange === '90days') {
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const dateStr = ninetyDaysAgo.toISOString().split('T')[0];
+            console.log(`📅 Last 90 days: >= ${dateStr}`);
+            query = query.gte('check_in_date', dateStr);
+        }
+        else if (dateRange === '12months') {
+            const twelveMonthsAgo = new Date();
+            twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+            const dateStr = twelveMonthsAgo.toISOString().split('T')[0];
+            console.log(`📅 Last 12 months: >= ${dateStr}`);
+            query = query.gte('check_in_date', dateStr);
+        }
+        else if (dateRange === 'all' || !dateRange) {
+            console.log(`📅 All time - NO date filters`);
+            // No date filter - return everything
         }
 
-        const { data: bookings, error } = await query;
-
-        if (error) {
-            console.error('❌ Supabase error:', error);
-            return createResponse(500, { 
-                success: false, 
-                error: 'Failed to fetch bookings',
-                details: error.message
-            });
-        }
-
-        console.log(`✅ Success: ${bookings?.length || 0} bookings returned`);
-
-        // ✅ STEP 8: Calculate analytics
-        const totalRevenue = bookings?.reduce((sum, b) => sum + (b.total_amount || 0), 0) || 0;
+        // ============================================================
+        // FETCH ALL RECORDS WITH PAGINATION (Fixes the 1000 limit issue)
+        // ============================================================
         
-        const statusBreakdown = bookings?.reduce((acc, b) => {
+        let allBookings = [];
+        let from = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+            const { data: batch, error: batchError, count } = await query
+                .range(from, from + pageSize - 1);
+            
+            if (batchError) {
+                console.error('Error fetching batch:', batchError);
+                break;
+            }
+            
+            if (batch && batch.length > 0) {
+                allBookings = [...allBookings, ...batch];
+                from += pageSize;
+                hasMore = batch.length === pageSize;
+            } else {
+                hasMore = false;
+            }
+        }
+        
+        console.log(`✅ Total bookings fetched: ${allBookings.length}`);
+
+        // ============================================================
+        // CALCULATE ANALYTICS
+        // ============================================================
+        
+        const totalRevenue = allBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+        
+        const statusBreakdown = allBookings.reduce((acc, b) => {
             const status = b.status || 'unknown';
             acc[status] = (acc[status] || 0) + 1;
             return acc;
-        }, {}) || {};
+        }, {});
         
-        const bookingsByMonth = bookings?.reduce((acc, b) => {
+        const bookingsByMonth = allBookings.reduce((acc, b) => {
             if (b.check_in_date) {
                 const date = new Date(b.check_in_date);
                 const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
                 acc[monthYear] = (acc[monthYear] || 0) + 1;
             }
             return acc;
-        }, {}) || {};
+        }, {});
         
         const guestOrigins = {
             provinces: {},
@@ -179,28 +211,21 @@ export const handler = async (event) => {
             countries: {}
         };
         
-        bookings?.forEach(b => {
-            if (b.guest_province) {
-                guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
-            }
-            if (b.guest_city) {
-                guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
-            }
-            if (b.guest_country) {
-                guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
-            }
+        allBookings.forEach(b => {
+            if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
+            if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
+            if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
         });
 
-        const averageNights = bookings?.length > 0
-            ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
+        const averageNights = allBookings.length > 0
+            ? (allBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / allBookings.length).toFixed(1)
             : 0;
 
-        // ✅ STEP 9: Return secure response
         return createResponse(200, {
             success: true,
-            bookings: bookings || [],
+            bookings: allBookings,
             summary: {
-                total_bookings: bookings?.length || 0,
+                total_bookings: allBookings.length,
                 total_revenue: totalRevenue,
                 average_nights: parseFloat(averageNights),
                 bookings_by_status: statusBreakdown,
@@ -208,27 +233,20 @@ export const handler = async (event) => {
                 guest_origins: guestOrigins
             },
             period: {
-                start_date: startDate || (futureOnly === 'true' ? 'today' : 'all_time'),
-                end_date: endDate || 'all'
+                date_range: dateRange || 'custom',
+                start_date: startDate || null,
+                end_date: endDate || null
             }
         });
 
     } catch (err) {
         console.error('❌ get-business-bookings error:', err);
         
-        // Handle specific auth errors with appropriate status codes
         if (err.message.startsWith('UNAUTHORIZED:')) {
-            return createResponse(401, { 
-                success: false, 
-                error: err.message.replace('UNAUTHORIZED: ', '')
-            });
+            return createResponse(401, { success: false, error: err.message.replace('UNAUTHORIZED: ', '') });
         }
-        
         if (err.message.startsWith('FORBIDDEN:')) {
-            return createResponse(403, { 
-                success: false, 
-                error: err.message.replace('FORBIDDEN: ', '')
-            });
+            return createResponse(403, { success: false, error: err.message.replace('FORBIDDEN: ', '') });
         }
         
         return createResponse(500, {
