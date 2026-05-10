@@ -971,7 +971,7 @@ export default function BusinessDashboard() {
     XLSX.writeFile(wb, `${business?.trading_name || 'bookings'}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
 
-  // ============================================================
+   // ============================================================
   // EFFECTS
   // ============================================================
 
@@ -984,6 +984,12 @@ export default function BusinessDashboard() {
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
+
+  // ✅ ADD THIS NEW useEffect - Reload bookings when date range changes
+  useEffect(() => {
+    console.log('📅 Date range changed to:', dateRange, 'startDate:', startDate, 'endDate:', endDate);
+    loadBookings();
+  }, [dateRange, startDate, endDate]);
 
   // ============================================================
   // LOADING STATE
