@@ -82,8 +82,14 @@ export const handler = async (event) => {
         const auth = verifyAuth(event.headers.authorization);
         const businessIdFromToken = auth.user_metadata.business_id;
         
-        // ✅ STEP 2: Get requested business_id from query params
-        const { businessId: businessIdFromQuery, startDate, endDate, limit = 5000 } = event.queryStringParameters || {};
+        // ✅ STEP 2: Get parameters from query string
+        const { 
+            businessId: businessIdFromQuery, 
+            startDate, 
+            endDate, 
+            limit = 5000,
+            futureOnly = 'false'  // NEW PARAMETER - controls date filtering
+        } = event.queryStringParameters || {};
 
         // ✅ STEP 3: Determine which business_id to use
         let targetBusinessId = businessIdFromQuery || businessIdFromToken;
@@ -104,23 +110,36 @@ export const handler = async (event) => {
 
         console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
         console.log(`📊 Fetching bookings with limit: ${limit}`);
+        console.log(`📅 Date filters: startDate=${startDate}, endDate=${endDate}, futureOnly=${futureOnly}`);
 
         const supabase = getSupabase();
 
-        // ✅ STEP 6: Build query with business_id filter
+        // ✅ STEP 6: Build query - START WITH ALL BOOKINGS (NO DATE FILTERS)
         let query = supabase
-            .from('bookings')
+            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')  // ← FIXED: Use correct table name
             .select('*')
             .eq('business_id', targetBusinessId)
-            .order('created_at', { ascending: false })
+            .order('check_in_date', { ascending: false })  // ← Changed to check_in_date
             .limit(parseInt(limit));
 
-        // Apply date filters if provided
-        if (startDate) {
-            query = query.gte('check_in_date', startDate);
+        // ✅ STEP 7: APPLY DATE FILTERS ONLY IF EXPLICITLY REQUESTED
+        
+        // Option A: Custom date range (highest priority)
+        if (startDate && endDate) {
+            console.log(`📅 Applying custom date range: ${startDate} to ${endDate}`);
+            query = query
+                .gte('check_in_date', startDate)
+                .lte('check_in_date', endDate);
         }
-        if (endDate) {
-            query = query.lte('check_in_date', endDate);
+        // Option B: Future only (for dashboard default view)
+        else if (futureOnly === 'true') {
+            const today = new Date().toISOString().split('T')[0];
+            console.log(`📅 Filtering future bookings only (>= ${today})`);
+            query = query.gte('check_in_date', today);
+        }
+        // Option C: No date filters = ALL BOOKINGS (what "All Time" should do)
+        else {
+            console.log(`📅 No date filters applied - returning ALL bookings (including historical)`);
         }
 
         const { data: bookings, error } = await query;
@@ -134,23 +153,25 @@ export const handler = async (event) => {
             });
         }
 
-        // ✅ STEP 7: Calculate analytics
-        const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+        console.log(`✅ Success: ${bookings?.length || 0} bookings returned`);
+
+        // ✅ STEP 8: Calculate analytics
+        const totalRevenue = bookings?.reduce((sum, b) => sum + (b.total_amount || 0), 0) || 0;
         
-        const statusBreakdown = bookings.reduce((acc, b) => {
+        const statusBreakdown = bookings?.reduce((acc, b) => {
             const status = b.status || 'unknown';
             acc[status] = (acc[status] || 0) + 1;
             return acc;
-        }, {});
+        }, {}) || {};
         
-        const bookingsByMonth = bookings.reduce((acc, b) => {
+        const bookingsByMonth = bookings?.reduce((acc, b) => {
             if (b.check_in_date) {
                 const date = new Date(b.check_in_date);
                 const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
                 acc[monthYear] = (acc[monthYear] || 0) + 1;
             }
             return acc;
-        }, {});
+        }, {}) || {};
         
         const guestOrigins = {
             provinces: {},
@@ -158,7 +179,7 @@ export const handler = async (event) => {
             countries: {}
         };
         
-        bookings.forEach(b => {
+        bookings?.forEach(b => {
             if (b.guest_province) {
                 guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
             }
@@ -170,18 +191,16 @@ export const handler = async (event) => {
             }
         });
 
-        const averageNights = bookings.length > 0
+        const averageNights = bookings?.length > 0
             ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
             : 0;
 
-        console.log(`✅ Success: ${bookings.length} bookings returned for business ${targetBusinessId}`);
-
-        // ✅ STEP 8: Return secure response
+        // ✅ STEP 9: Return secure response
         return createResponse(200, {
             success: true,
             bookings: bookings || [],
             summary: {
-                total_bookings: bookings.length,
+                total_bookings: bookings?.length || 0,
                 total_revenue: totalRevenue,
                 average_nights: parseFloat(averageNights),
                 bookings_by_status: statusBreakdown,
@@ -189,7 +208,7 @@ export const handler = async (event) => {
                 guest_origins: guestOrigins
             },
             period: {
-                start_date: startDate || 'all',
+                start_date: startDate || (futureOnly === 'true' ? 'today' : 'all_time'),
                 end_date: endDate || 'all'
             }
         });
