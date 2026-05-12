@@ -19,9 +19,10 @@ interface ImportPreview {
   detectedColumns: string[];
 }
 
-// ✅ Only these fields are available for mapping
+// ✅ Database fields that FastCheckin understands
 const FASTCHECKIN_FIELDS = [
-  { key: 'guest_name', label: 'Guest Full Name', required: true, description: 'Full name of the guest' },
+  { key: 'guest_first_name', label: 'First Name', required: true, description: 'Guest first name (first word only)' },
+  { key: 'guest_last_name', label: 'Last Name', required: true, description: 'Guest last name (last word only)' },
   { key: 'guest_email', label: 'Email Address', required: false, description: 'Guest email for confirmation' },
   { key: 'guest_phone', label: 'Phone Number', required: false, description: 'Contact number' },
   { key: 'check_in_date', label: 'Check-in Date', required: true, description: 'Arrival date (YYYY-MM-DD or DD/MM/YYYY)' },
@@ -55,7 +56,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
 
   const downloadTemplate = () => {
     const templateData = [{
-      'Guest Full Name': 'John Smith',
+      'Full Name': 'John Smith',
       'Email Address': 'john@example.com',
       'Phone Number': '+27 82 123 4567',
       'Check-in Date': '2024-12-25',
@@ -79,8 +80,13 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       ['FASTCHECKIN IMPORT TEMPLATE INSTRUCTIONS'],
       [''],
       ['REQUIRED FIELDS:'],
-      ['- Guest Full Name - The full name of the guest'],
+      ['- Full Name - The full name of the guest (will be split into First Name and Last Name)'],
       ['- Check-in Date - Date of arrival (YYYY-MM-DD or DD/MM/YYYY format)'],
+      [''],
+      ['HOW NAMES ARE PROCESSED:'],
+      ['- "John Smith" → First Name: "John", Last Name: "Smith"'],
+      ['- "John Michael Smith" → First Name: "John", Last Name: "Smith" (middle names ignored)'],
+      ['- "Cher" → First Name: "Cher", Last Name: "" (single name)'],
       [''],
       ['RECOMMENDED FIELDS:'],
       ['- Email Address - For sending confirmation emails'],
@@ -92,8 +98,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       ['- Province/State, City/Town, How did they hear about us?, Payment Method, Adults, Children, Total Amount, ID/Passport Number'],
       [''],
       ['NOTES:'],
-      ['- The system expects a single "Guest Full Name" column'],
-      ['- If your file has separate First Name and Last Name columns, they will be combined automatically'],
       ['- Dates can be in format: YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY'],
       ['- The system will auto-calculate nights if check-out date is provided'],
       ['- Missing optional fields will be left empty']
@@ -103,6 +107,30 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     XLSX.utils.book_append_sheet(workbook, instructionsSheet, 'Instructions');
     
     XLSX.writeFile(workbook, 'fastcheckin_import_template.xlsx');
+  };
+
+  // ✅ Split full name into first name (first word) and last name (last word)
+  const splitFullName = (fullName: string): { firstName: string; lastName: string } => {
+    if (!fullName) return { firstName: '', lastName: '' };
+    
+    const trimmed = fullName.trim();
+    const words = trimmed.split(' ').filter(w => w.length > 0);
+    
+    if (words.length === 0) {
+      return { firstName: '', lastName: '' };
+    }
+    
+    if (words.length === 1) {
+      // Only one word - treat as first name
+      return { firstName: words[0], lastName: '' };
+    }
+    
+    // First name = first word
+    const firstName = words[0];
+    // Last name = last word (ignore everything in between)
+    const lastName = words[words.length - 1];
+    
+    return { firstName, lastName };
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -122,33 +150,52 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         throw new Error('No data found in file');
       }
       
-      // ✅ PRE-PROCESS: Combine First Name + Last Name into Full Name
+      // ✅ PRE-PROCESS: Split Full Name into First Name + Last Name
       const processedData = jsonData.map((row: any) => {
         const newRow = { ...row };
         
-        // Detect First Name and Last Name columns (case insensitive)
-        const firstKey = Object.keys(row).find(k => 
-          k.toLowerCase().includes('first name') || 
-          k.toLowerCase() === 'firstname' || 
-          k.toLowerCase() === 'first'
-        );
-        const lastKey = Object.keys(row).find(k => 
-          k.toLowerCase().includes('last name') || 
-          k.toLowerCase() === 'lastname' || 
-          k.toLowerCase() === 'last' ||
-          k.toLowerCase().includes('surname')
-        );
+        // Find the Full Name column (look for common variations)
+        let fullNameValue = '';
+        const fullNameKeys = ['full name', 'guest full name', 'guest_name', 'guest name', 'name', 'fullname'];
         
-        // If we found first and last name columns, combine them
-        if (firstKey && lastKey && row[firstKey]) {
-          const firstName = String(row[firstKey] || '').trim();
-          const lastName = String(row[lastKey] || '').trim();
-          const fullName = `${firstName} ${lastName}`.trim();
-          
-          if (fullName) {
-            // Add the combined full name as a new column
-            newRow['Guest Full Name'] = fullName;
+        for (const key of fullNameKeys) {
+          const matchedKey = Object.keys(row).find(k => k.toLowerCase() === key);
+          if (matchedKey && row[matchedKey]) {
+            fullNameValue = String(row[matchedKey]).trim();
+            break;
           }
+        }
+        
+        // If no exact match, look for any column that likely contains the full name
+        if (!fullNameValue) {
+          for (const [key, value] of Object.entries(row)) {
+            const lowerKey = key.toLowerCase();
+            if ((lowerKey.includes('name') || lowerKey.includes('guest')) && 
+                !lowerKey.includes('email') && 
+                !lowerKey.includes('phone') &&
+                !lowerKey.includes('first') &&
+                !lowerKey.includes('last')) {
+              if (value && String(value).trim().length > 0) {
+                fullNameValue = String(value).trim();
+                break;
+              }
+            }
+          }
+        }
+        
+        // Split the full name into first name (first word) and last name (last word)
+        if (fullNameValue) {
+          const { firstName, lastName } = splitFullName(fullNameValue);
+          
+          // Add the split columns as NEW columns
+          if (firstName) {
+            newRow['First Name'] = firstName;
+          }
+          if (lastName) {
+            newRow['Last Name'] = lastName;
+          }
+          
+          console.log(`Split: "${fullNameValue}" → First: "${firstName}", Last: "${lastName}"`);
         }
         
         return newRow;
@@ -156,15 +203,21 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       
       setRawData(processedData);
       
+      // Get columns from the processed data
       const columns = Object.keys(processedData[0]);
+      console.log('📊 Detected columns:', columns);
       setDetectedColumns(columns);
       
+      // Auto-map columns
       const autoMapping: Record<string, string> = {};
       columns.forEach(col => {
         const lowerCol = col.toLowerCase();
         
-        if (lowerCol.includes('full name') || lowerCol.includes('guest name') || lowerCol === 'name') {
-          autoMapping[col] = 'guest_name';
+        // Map the new First Name and Last Name columns
+        if (col === 'First Name' || lowerCol === 'first name') {
+          autoMapping[col] = 'guest_first_name';
+        } else if (col === 'Last Name' || lowerCol === 'last name') {
+          autoMapping[col] = 'guest_last_name';
         } else if (lowerCol.includes('email')) {
           autoMapping[col] = 'guest_email';
         } else if (lowerCol.includes('phone')) {
@@ -195,6 +248,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
           autoMapping[col] = 'nights';
         }
       });
+      
+      console.log('🔗 Auto mapping:', autoMapping);
       
       setColumnMapping(autoMapping);
       generatePreview(processedData, autoMapping);
@@ -239,25 +294,29 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         }
       }
 
-      if (!mappedData.guest_name) {
-        errors.push('Guest name is required');
+      // Validate required fields (First Name is required)
+      if (!mappedData.guest_first_name) {
+        errors.push('First name is required');
       }
+
       if (!mappedData.check_in_date) {
         errors.push('Check-in date is required');
       }
 
       // Filter out title-only names
       const invalidNames = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'mr.', 'mrs.', 'ms.', 'dr.', 'mister', 'master'];
-      const lowerName = mappedData.guest_name?.toLowerCase().trim();
-      if (lowerName && invalidNames.includes(lowerName)) {
+      const lowerFirstName = mappedData.guest_first_name?.toLowerCase().trim();
+      if (lowerFirstName && invalidNames.includes(lowerFirstName) && !mappedData.guest_last_name) {
         errors.push('Invalid guest name (title only)');
       }
 
+      // Auto-calculate nights
       if (mappedData.check_in_date && mappedData.check_out_date && !mappedData.nights) {
         const nights = calculateNights(mappedData.check_in_date, mappedData.check_out_date);
         if (nights > 0) mappedData.nights = nights;
       }
 
+      // Warnings for missing contact info
       if (!mappedData.guest_email && !mappedData.guest_phone) {
         warnings.push('No email or phone provided - guest cannot be contacted');
       }
@@ -293,16 +352,19 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
   const parseDate = (dateStr: string): string => {
     if (!dateStr) return '';
     
+    // Handle YYYY-MM-DD format
     let match = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (match) {
       return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
     }
     
+    // Handle DD/MM/YYYY format
     match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (match) {
       return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
     }
     
+    // Try JavaScript Date parsing as fallback
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       return date.toISOString().split('T')[0];
@@ -342,11 +404,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         setImportProgress(Math.round(((i + 1) / total) * 100));
         
         try {
-          // ✅ Split full name into first and last name for the app
-          const fullName = row.data.guest_name || '';
-          const spaceIndex = fullName.indexOf(' ');
-          const firstName = spaceIndex === -1 ? fullName : fullName.substring(0, spaceIndex);
-          const lastName = spaceIndex === -1 ? '' : fullName.substring(spaceIndex + 1);
+          // Generate full name from first and last for display
+          const fullName = `${row.data.guest_first_name || ''} ${row.data.guest_last_name || ''}`.trim();
           
           const response = await fetch('/.netlify/functions/create-booking', {
             method: 'POST',
@@ -354,8 +413,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
             body: JSON.stringify({
               business_id: businessId,
               guest_name: fullName,
-              guest_first_name: firstName,
-              guest_last_name: lastName,
+              guest_first_name: row.data.guest_first_name || '',
+              guest_last_name: row.data.guest_last_name || '',
               guest_email: row.data.guest_email || '',
               guest_phone: row.data.guest_phone || '',
               guest_country: row.data.guest_country || '',
@@ -413,9 +472,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     maxSize: 50 * 1024 * 1024
   });
 
-  // Rest of the JSX remains the same...
-  // (keeping all the JSX from the original file for upload, mapping, preview, importing, complete steps)
-
   if (step === 'upload') {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -454,9 +510,10 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <h3 className="font-medium text-gray-900 mb-2">📋 Instructions</h3>
               <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
                 <li>Your file can have any column names - you'll map them in the next step</li>
-                <li><strong>Required:</strong> Guest Full Name and Check-in Date</li>
+                <li><strong>Required:</strong> Full Name and Check-in Date</li>
+                <li><strong>How names are processed:</strong> "John Smith" → First: "John", Last: "Smith"</li>
+                <li><strong>Middle names are ignored:</strong> "John Michael Smith" → First: "John", Last: "Smith"</li>
                 <li><strong>Recommended:</strong> Email or Phone for guest communication</li>
-                <li><strong>If your file has separate First Name and Last Name columns, they will be combined automatically</strong></li>
                 <li>Dates can be in YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY format</li>
                 <li>Missing optional fields will be left empty</li>
                 <li>Additional columns not mapped will be ignored</li>
@@ -565,7 +622,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
                   {preview.rows.slice(0, 10).map((row) => (
                     <tr key={row.rowNumber} className={!row.isValid ? 'bg-red-50' : ''}>
                       <td className="px-3 py-2 text-gray-500">{row.rowNumber}</td>
-                      <td className="px-3 py-2 font-medium">{row.data.guest_name || '-'}</td>
+                      <td className="px-3 py-2 font-medium">{`${row.data.guest_first_name || ''} ${row.data.guest_last_name || ''}`.trim() || '-'}</td>
                       <td className="px-3 py-2">{row.data.guest_email || '-'}</td>
                       <td className="px-3 py-2">{row.data.check_in_date || '-'}</td>
                       <td className="px-3 py-2">{row.data.guest_country || '-'}</td>
