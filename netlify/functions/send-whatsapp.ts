@@ -1,4 +1,5 @@
 import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
 export const handler: Handler = async (event) => {
   console.log('💬 WhatsApp function triggered');
@@ -8,7 +9,7 @@ export const handler: Handler = async (event) => {
       throw new Error('No data provided');
     }
 
-    const { phone, guest_name, business_name, check_in_date } = JSON.parse(event.body);
+    const { bookingId, indemnityToken, guest_name, phone, business_name, check_in_date, nights } = JSON.parse(event.body);
 
     // Validate phone number format
     const formattedPhone = formatPhoneNumber(phone);
@@ -20,28 +21,41 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Using Twilio WhatsApp API
+    const indemnityUrl = indemnityToken 
+      ? `https://fastcheckin.co.za/indemnity/${indemnityToken}`
+      : '';
+
+    // Create message
+    const messageBody = `🏨 *${business_name}* - Check-in Confirmed!\n\n` +
+      `Hi ${guest_name},\n\n` +
+      `Your stay has been confirmed. Here's your signed indemnity form:\n` +
+      `${indemnityUrl}\n\n` +
+      `📅 Check-in: ${new Date(check_in_date).toLocaleDateString('en-ZA')}\n` +
+      `🌙 Nights: ${nights}\n\n` +
+      `Need assistance? Reply to this message.\n\n` +
+      `✨ *FastCheckin*`;
+
+    // Using Twilio WhatsApp API (requires Twilio account)
     const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
     const TWILIO_AUTH = process.env.TWILIO_AUTH_TOKEN;
     const TWILIO_WHATSAPP = process.env.TWILIO_WHATSAPP_NUMBER || '+14155238886';
 
     if (!TWILIO_SID || !TWILIO_AUTH) {
-      console.error('❌ Twilio credentials not configured');
+      // Fallback to WhatsApp link
+      const whatsappUrl = `https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(messageBody)}`;
       return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'WhatsApp service not configured' })
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: true, 
+          isLink: true,
+          whatsappUrl,
+          message: 'WhatsApp link generated'
+        })
       };
     }
 
     const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_AUTH}`).toString('base64');
     
-    const messageBody = `🏨 *Check-in Confirmed!*\n\n` +
-      `Hi ${guest_name},\n\n` +
-      `Your stay at *${business_name}* is confirmed.\n` +
-      `📅 Check-in: ${new Date(check_in_date).toLocaleDateString('en-ZA')}\n\n` +
-      `Questions? Reply to this message.\n\n` +
-      `✨ *FastCheckin*`;
-
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
       {
