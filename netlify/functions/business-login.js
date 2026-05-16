@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -10,7 +11,6 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
@@ -25,14 +25,17 @@ export const handler = async function(event) {
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
   );
 
   try {
     const { email, password, rememberMe = false } = JSON.parse(event.body);
     console.log('🔐 Business login attempt for:', email);
 
-    // Get business by email
     const { data: business, error } = await supabase
       .from('businesses')
       .select('id, trading_name, email, status, setup_complete, password_hash')
@@ -50,7 +53,6 @@ export const handler = async function(event) {
 
     console.log('✅ Business found:', business.trading_name);
 
-    // Check if password_hash exists
     if (!business.password_hash) {
       console.log('❌ No password set for business:', email);
       return {
@@ -60,7 +62,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Verify password
     let validPassword = false;
     try {
       validPassword = await bcrypt.compare(password, business.password_hash);
@@ -79,7 +80,6 @@ export const handler = async function(event) {
 
     console.log('✅ Password valid for:', business.trading_name);
 
-    // ✅ GENERATE JWT TOKEN
     const expiresIn = rememberMe ? '7d' : '1d';
     
     const payload = {
@@ -97,7 +97,6 @@ export const handler = async function(event) {
     
     console.log('✅ JWT token generated for business:', business.id);
 
-    // Don't send password hash back
     delete business.password_hash;
 
     return {
@@ -120,7 +119,6 @@ export const handler = async function(event) {
   } catch (error) {
     console.error('❌ Business login error:', error);
     
-    // Handle JWT signing errors
     if (error.name === 'JsonWebTokenError') {
       return {
         statusCode: 500,
