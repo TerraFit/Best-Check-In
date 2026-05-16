@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -20,53 +21,50 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('❌ Missing Supabase environment variables');
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Configuration error', data: [] })
+    };
+  }
 
   try {
-    const { status, businessId } = event.queryStringParameters || {};
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
+    );
 
-    console.log('📡 Fetching change requests:', { status, businessId });
+    const { status, businessId } = event.queryStringParameters || {};
 
     let query = supabase
       .from('change_requests')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (status) {
-      query = query.eq('status', status);
-    }
-    if (businessId) {
-      query = query.eq('business_id', businessId);
-    }
+    if (status) query = query.eq('status', status);
+    if (businessId) query = query.eq('business_id', businessId);
 
     const { data, error } = await query;
 
-    if (error) {
-      console.error('❌ Error fetching change requests:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to fetch change requests: ' + error.message })
-      };
-    }
-
-    console.log(`✅ Found ${data?.length || 0} change requests`);
+    if (error) throw error;
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify(data || [])
     };
-
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
+    console.error('Error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message, data: [] })
     };
   }
 };
