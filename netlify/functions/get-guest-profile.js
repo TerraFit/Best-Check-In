@@ -1,182 +1,150 @@
-// netlify/functions/get-guest-profile.js
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers,
-      body: ''
-    };
+    return { statusCode: 204, headers, body: '' };
   }
 
-  if (event.httpMethod !== 'GET') {
+  if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: 'Method Not Allowed' 
-      })
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
   );
 
   try {
-    const { email } = event.queryStringParameters || {};
+    const { email, profileData } = JSON.parse(event.body);
+
+    console.log('📝 Saving guest profile for email:', email);
 
     if (!email) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Email is required' 
-        })
+        body: JSON.stringify({ error: 'Email required' })
       };
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Invalid email format' 
-        })
-      };
-    }
+    const profileToSave = {
+      email: email.toLowerCase().trim(),
+      full_name: profileData.fullName || '',
+      first_name: profileData.firstName || '',
+      last_name: profileData.lastName || '',
+      phone: profileData.phone || '',
+      passport_or_id: profileData.passportOrId || '',
+      country: profileData.country || '',
+      city: profileData.city || '',
+      province: profileData.province || '',
+      updated_at: new Date().toISOString()
+    };
 
-    console.log(`🔍 Fetching guest profile for email: ${email}`);
-
-    // First try to get from guest_profiles
-    let { data: profile, error } = await supabase
+    const { data, error } = await supabase
       .from('guest_profiles')
-      .select(`
-        id,
-        email,
-        full_name,
-        first_name,
-        last_name,
-        phone,
-        passport_or_id,
-        country,
-        city,
-        province,
-        total_visits,
-        last_visit_date,
-        created_at,
-        updated_at
-      `)
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
+      .upsert(profileToSave, {
+        onConflict: 'email',
+        ignoreDuplicates: false
+      })
+      .select();
 
     if (error) {
-      console.error('❌ Supabase error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          success: false,
-          error: 'Database error occurred',
-          details: error.message 
-        })
-      };
-    }
-
-    // If no profile found, also try to get from previous bookings as fallback
-    if (!profile) {
-      console.log(`ℹ️ No profile found, checking bookings for email: ${email}`);
+      console.error('❌ Database error:', error);
       
-      const { data: bookings, error: bookingError } = await supabase
-        .from('bookings')
-        .select('guest_name, guest_first_name, guest_last_name, guest_phone, guest_id_number, guest_country, guest_city, guest_province')
-        .eq('guest_email', email.toLowerCase().trim())
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (!bookingError && bookings && bookings.length > 0) {
-        const lastBooking = bookings[0];
-        console.log('✅ Found previous booking, creating profile from it');
+      if (error.message.includes('column') && (error.message.includes('first_name') || error.message.includes('last_name'))) {
+        console.log('⚠️ Trying simplified profile save without first_name/last_name');
         
-        // Parse name from guest_name if first/last not available
-        let firstName = lastBooking.guest_first_name || '';
-        let lastName = lastBooking.guest_last_name || '';
+        const simplifiedProfile = {
+          email: email.toLowerCase().trim(),
+          full_name: profileData.fullName || '',
+          phone: profileData.phone || '',
+          passport_or_id: profileData.passportOrId || '',
+          country: profileData.country || '',
+          city: profileData.city || '',
+          province: profileData.province || '',
+          updated_at: new Date().toISOString()
+        };
         
-        if (!firstName && !lastName && lastBooking.guest_name) {
-          const nameParts = lastBooking.guest_name.split(' ');
-          firstName = nameParts[0] || '';
-          lastName = nameParts.slice(1).join(' ') || '';
+        const { data: simplifiedData, error: simplifiedError } = await supabase
+          .from('guest_profiles')
+          .upsert(simplifiedProfile, {
+            onConflict: 'email',
+            ignoreDuplicates: false
+          })
+          .select();
+          
+        if (simplifiedError) {
+          console.error('❌ Simplified save also failed:', simplifiedError);
+          throw simplifiedError;
         }
         
-        profile = {
-          full_name: lastBooking.guest_name,
-          first_name: firstName,
-          last_name: lastName,
-          phone: lastBooking.guest_phone,
-          passport_or_id: lastBooking.guest_id_number,
-          country: lastBooking.guest_country,
-          city: lastBooking.guest_city,
-          province: lastBooking.guest_province
+        console.log('✅ Guest profile saved (simplified):', simplifiedData);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ 
+            success: true, 
+            message: 'Profile saved successfully',
+            profile: simplifiedData
+          })
         };
       }
+      
+      throw error;
     }
 
-    if (profile) {
-      console.log(`✅ Guest profile found for ${email}`);
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          profile: {
-            full_name: profile.full_name || '',
-            first_name: profile.first_name || '',
-            last_name: profile.last_name || '',
-            phone: profile.phone || '',
-            passport_or_id: profile.passport_or_id || '',
-            country: profile.country || '',
-            city: profile.city || '',
-            province: profile.province || '',
-            total_visits: profile.total_visits || 0,
-            last_visit_date: profile.last_visit_date || null
-          }
+    console.log('✅ Guest profile saved:', data);
+    
+    const { data: existingProfile } = await supabase
+      .from('guest_profiles')
+      .select('total_visits')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+    
+    if (existingProfile) {
+      await supabase
+        .from('guest_profiles')
+        .update({ 
+          total_visits: (existingProfile.total_visits || 0) + 1,
+          last_visit_date: new Date().toISOString().split('T')[0]
         })
-      };
+        .eq('email', email.toLowerCase().trim());
     }
 
-    console.log(`ℹ️ No guest profile found for ${email}`);
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        profile: null,
-        message: 'No profile found for this email'
+      body: JSON.stringify({ 
+        success: true, 
+        message: 'Profile saved successfully',
+        profile: data
       })
     };
 
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
+    console.error('❌ Error saving guest profile:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         success: false,
-        error: 'Internal server error',
-        message: error.message 
+        error: error.message 
       })
     };
   }
