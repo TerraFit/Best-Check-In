@@ -1,3 +1,4 @@
+// netlify/functions/get-guest-profile.js
 import { createClient } from '@supabase/supabase-js';
 
 export const handler = async function(event) {
@@ -8,7 +9,6 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -17,7 +17,6 @@ export const handler = async function(event) {
     };
   }
 
-  // Only allow GET requests
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -29,17 +28,14 @@ export const handler = async function(event) {
     };
   }
 
-  // Initialize Supabase client
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
   );
 
   try {
-    // Get email from query parameters
     const { email } = event.queryStringParameters || {};
 
-    // Validate email
     if (!email) {
       return {
         statusCode: 400,
@@ -51,7 +47,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return {
@@ -66,13 +61,15 @@ export const handler = async function(event) {
 
     console.log(`🔍 Fetching guest profile for email: ${email}`);
 
-    // Query the guest_profiles table
-    const { data: profile, error } = await supabase
+    // First try to get from guest_profiles
+    let { data: profile, error } = await supabase
       .from('guest_profiles')
       .select(`
         id,
         email,
         full_name,
+        first_name,
+        last_name,
         phone,
         passport_or_id,
         country,
@@ -84,7 +81,7 @@ export const handler = async function(event) {
         updated_at
       `)
       .eq('email', email.toLowerCase().trim())
-      .maybeSingle(); // Returns null if no match, instead of error
+      .maybeSingle();
 
     if (error) {
       console.error('❌ Supabase error:', error);
@@ -99,7 +96,44 @@ export const handler = async function(event) {
       };
     }
 
-    // If profile found, return it
+    // If no profile found, also try to get from previous bookings as fallback
+    if (!profile) {
+      console.log(`ℹ️ No profile found, checking bookings for email: ${email}`);
+      
+      const { data: bookings, error: bookingError } = await supabase
+        .from('bookings')
+        .select('guest_name, guest_first_name, guest_last_name, guest_phone, guest_id_number, guest_country, guest_city, guest_province')
+        .eq('guest_email', email.toLowerCase().trim())
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (!bookingError && bookings && bookings.length > 0) {
+        const lastBooking = bookings[0];
+        console.log('✅ Found previous booking, creating profile from it');
+        
+        // Parse name from guest_name if first/last not available
+        let firstName = lastBooking.guest_first_name || '';
+        let lastName = lastBooking.guest_last_name || '';
+        
+        if (!firstName && !lastName && lastBooking.guest_name) {
+          const nameParts = lastBooking.guest_name.split(' ');
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
+        }
+        
+        profile = {
+          full_name: lastBooking.guest_name,
+          first_name: firstName,
+          last_name: lastName,
+          phone: lastBooking.guest_phone,
+          passport_or_id: lastBooking.guest_id_number,
+          country: lastBooking.guest_country,
+          city: lastBooking.guest_city,
+          province: lastBooking.guest_province
+        };
+      }
+    }
+
     if (profile) {
       console.log(`✅ Guest profile found for ${email}`);
       return {
@@ -108,20 +142,21 @@ export const handler = async function(event) {
         body: JSON.stringify({
           success: true,
           profile: {
-            full_name: profile.full_name,
-            phone: profile.phone,
-            passport_or_id: profile.passport_or_id,
-            country: profile.country,
-            city: profile.city,
-            province: profile.province,
-            total_visits: profile.total_visits,
-            last_visit_date: profile.last_visit_date
+            full_name: profile.full_name || '',
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            phone: profile.phone || '',
+            passport_or_id: profile.passport_or_id || '',
+            country: profile.country || '',
+            city: profile.city || '',
+            province: profile.province || '',
+            total_visits: profile.total_visits || 0,
+            last_visit_date: profile.last_visit_date || null
           }
         })
       };
     }
 
-    // No profile found
     console.log(`ℹ️ No guest profile found for ${email}`);
     return {
       statusCode: 200,
