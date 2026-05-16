@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler: Handler = async (event) => {
   const headers = {
@@ -16,7 +17,11 @@ export const handler: Handler = async (event) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
+      process.env.SUPABASE_SERVICE_KEY!,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
     );
 
     const { data, error } = await supabase
