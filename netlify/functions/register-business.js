@@ -1,8 +1,7 @@
-// netlify/functions/register-business.js
-
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import { Resend } from 'resend';
+import ws from 'ws';
 
 export const handler = async (event) => {
   const headers = {
@@ -41,10 +40,13 @@ export const handler = async (event) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
     );
 
-    // Check if business already exists
     const { data: existing } = await supabase
       .from('businesses')
       .select('id')
@@ -59,13 +61,11 @@ export const handler = async (event) => {
       };
     }
 
-    // Generate business ID and setup token
     const businessId = uuidv4();
     const setupToken = uuidv4();
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 48);
 
-    // Create physical_address and postal_address as JSON objects
     const physicalAddress = business.physical_address || {
       street: '',
       city: '',
@@ -76,7 +76,6 @@ export const handler = async (event) => {
 
     const postalAddress = business.postal_address || physicalAddress;
 
-    // Directors array
     const directors = business.director ? [{
       name: `${business.director.name || ''} ${business.director.surname || ''}`.trim(),
       id_number: business.director.id_number || '',
@@ -89,7 +88,6 @@ export const handler = async (event) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
-    // Create business record with ALL required columns (no nulls for NOT NULL columns)
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -113,7 +111,7 @@ export const handler = async (event) => {
       current_plan: business.plan || 'starter',
       max_rooms: business.max_rooms || 10,
       billing_cycle: business.billing_cycle || 'monthly',
-      payment_method: 'pending',  // ← ADDED - required field
+      payment_method: 'pending',
       payment_status: 'pending',
       status: 'pending',
       password_hash: null,
@@ -123,7 +121,6 @@ export const handler = async (event) => {
     };
 
     console.log('📝 Inserting business record with ID:', businessId);
-    console.log('📝 Business data keys:', Object.keys(businessData));
 
     const { error: businessError } = await supabase
       .from('businesses')
@@ -138,7 +135,6 @@ export const handler = async (event) => {
       };
     }
 
-    // Save setup token
     const { error: tokenError } = await supabase
       .from('setup_tokens')
       .insert({
@@ -152,7 +148,6 @@ export const handler = async (event) => {
       console.error('❌ Token insert error:', tokenError);
     }
 
-    // Send setup email
     const setupLink = `https://fastcheckin.co.za/set-password/${setupToken}`;
     const resend = new Resend(process.env.RESEND_API_KEY);
 
