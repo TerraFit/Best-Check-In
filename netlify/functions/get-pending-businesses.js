@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -12,9 +13,18 @@ export const handler = async function(event) {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Log environment variables (without exposing full values)
+  if (event.httpMethod !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
+  }
+
+  // Log environment variables
   console.log('🔍 SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
   console.log('🔍 SUPABASE_SERVICE_KEY exists:', !!process.env.SUPABASE_SERVICE_KEY);
+  console.log('🔍 ws module available:', typeof ws === 'function');
   
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     console.error('❌ Missing Supabase environment variables');
@@ -30,12 +40,21 @@ export const handler = async function(event) {
   }
 
   try {
+    // CRITICAL: Create Supabase client WITH WebSocket support
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: {
+          ws: ws  // THIS IS THE KEY FIX
+        },
+        auth: {
+          persistSession: false
+        }
+      }
     );
     
-    console.log('✅ Supabase client created');
+    console.log('✅ Supabase client created with WebSocket support');
     
     // Fetch ALL pending businesses with complete data
     const { data: businesses, error } = await supabase
@@ -79,12 +98,12 @@ export const handler = async function(event) {
     // Log what we're sending back
     console.log(`✅ Found ${businesses?.length || 0} pending businesses`);
     if (businesses && businesses.length > 0) {
-      console.log('📸 Sample director data:', businesses[0].directors.map(d => ({
-        name: d.name,
-        idNumber: d.idNumber,
-        hasIdPhoto: !!d.idPhoto,
-        idPhotoLength: d.idPhoto?.length || 0
-      })));
+      console.log('📸 First business:', {
+        id: businesses[0].id,
+        trading_name: businesses[0].trading_name,
+        has_directors: !!businesses[0].directors,
+        directors_count: businesses[0].directors?.length || 0
+      });
     }
 
     return {
@@ -95,11 +114,13 @@ export const handler = async function(event) {
 
   } catch (error) {
     console.error('🔥 Unhandled error:', error);
+    console.error('🔥 Error stack:', error.stack);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: error.message,
+        stack: error.stack,
         data: []
       })
     };
