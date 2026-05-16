@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+import { v4 as uuidv4 } from 'uuid';
+import QRCode from 'qrcode';
 import ws from 'ws';
 
 export const handler = async function(event) {
@@ -6,14 +9,14 @@ export const handler = async function(event) {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  if (event.httpMethod !== 'GET') {
+  if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
       headers,
@@ -21,53 +24,44 @@ export const handler = async function(event) {
     };
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('Missing Supabase environment variables');
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Configuration error', data: [] })
-    };
-  }
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
+  );
 
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
+    const { businessId } = JSON.parse(event.body);
 
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, status, created_at, physical_address, subscription_tier')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase error:', error);
+    if (!businessId) {
       return {
-        statusCode: 500,
+        statusCode: 400,
         headers,
-        body: JSON.stringify({ error: error.message, data: [] })
+        body: JSON.stringify({ error: 'Business ID required' })
       };
     }
 
-    console.log(`Found ${data?.length || 0} approved businesses`);
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(data || [])
-    };
-  } catch (error) {
-    console.error('Function error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message, data: [] })
-    };
-  }
-};
+    const { data: business, error: fetchError } = await supabase
+      .from('businesses')
+      .select('*')
+      .eq('id', businessId)
+      .single();
+
+    if (fetchError) {
+      console.error('❌ Error fetching business:', fetchError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Error fetching business details' })
+      };
+    }
+
+    const verificationToken = uuidv4();
+    const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
+
+    const { error: tokenError } = await supabase
+      .from('email_verifications')
+      .insert([
