@@ -38,6 +38,7 @@ export const handler = async (event) => {
       };
     }
 
+    // CRITICAL: Add WebSocket support here
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
@@ -47,6 +48,7 @@ export const handler = async (event) => {
       }
     );
 
+    // Check if business already exists
     const { data: existing } = await supabase
       .from('businesses')
       .select('id')
@@ -61,11 +63,13 @@ export const handler = async (event) => {
       };
     }
 
+    // Generate business ID and setup token
     const businessId = uuidv4();
     const setupToken = uuidv4();
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 48);
 
+    // Create physical_address and postal_address as JSON objects
     const physicalAddress = business.physical_address || {
       street: '',
       city: '',
@@ -76,6 +80,7 @@ export const handler = async (event) => {
 
     const postalAddress = business.postal_address || physicalAddress;
 
+    // Directors array
     const directors = business.director ? [{
       name: `${business.director.name || ''} ${business.director.surname || ''}`.trim(),
       id_number: business.director.id_number || '',
@@ -88,6 +93,7 @@ export const handler = async (event) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
+    // Create business record
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -135,6 +141,7 @@ export const handler = async (event) => {
       };
     }
 
+    // Save setup token
     const { error: tokenError } = await supabase
       .from('setup_tokens')
       .insert({
@@ -148,6 +155,7 @@ export const handler = async (event) => {
       console.error('❌ Token insert error:', tokenError);
     }
 
+    // Send setup email
     const setupLink = `https://fastcheckin.co.za/set-password/${setupToken}`;
     const resend = new Resend(process.env.RESEND_API_KEY);
 
