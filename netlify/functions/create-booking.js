@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_KEY,
+  {
+    realtime: { ws: ws },
+    auth: { persistSession: false }
+  }
 );
 
 export const handler = async (event) => {
@@ -24,16 +29,6 @@ export const handler = async (event) => {
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
-
-  // ✅ TEMPORARILY DISABLE AUTH CHECK FOR DEBUGGING
-  // const authHeader = event.headers.authorization;
-  // if (!authHeader) {
-  //   return {
-  //     statusCode: 401,
-  //     headers,
-  //     body: JSON.stringify({ error: 'Unauthorized - Missing auth token' })
-  //   };
-  // }
 
   try {
     const body = JSON.parse(event.body);
