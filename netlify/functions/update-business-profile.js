@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -22,7 +23,11 @@ export const handler = async function(event) {
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
   );
 
   try {
@@ -52,7 +57,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Build update object (text fields only - NO images)
     const updateData = {};
     if (total_rooms !== undefined) updateData.total_rooms = total_rooms;
     if (avg_price !== undefined) updateData.avg_price = avg_price;
@@ -72,7 +76,6 @@ export const handler = async function(event) {
     
     updateData.updated_at = new Date().toISOString();
 
-    // ✅ CRITICAL FIX: Remove .select().single() - don't return the data
     const { error } = await supabase
       .from('businesses')
       .update(updateData)
@@ -87,7 +90,6 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Return simple success (no large data payload)
     return {
       statusCode: 200,
       headers,
