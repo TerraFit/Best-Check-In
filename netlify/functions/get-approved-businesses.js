@@ -1,57 +1,73 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  // Log everything for debugging
-  console.log('🚀 Function started');
-  console.log('📡 HTTP Method:', event.httpMethod);
-  console.log('🔑 SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-  console.log('🔑 SUPABASE_SERVICE_KEY exists:', !!process.env.SUPABASE_SERVICE_KEY);
-  
-  // Check environment variables first
-  if (!process.env.SUPABASE_URL) {
-    console.error('❌ SUPABASE_URL is missing');
+  // Handle preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
+
+  // Only allow GET
+  if (event.httpMethod !== 'GET') {
     return {
-      statusCode: 500,
+      statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'SUPABASE_URL environment variable is not set' })
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
-  
-  if (!process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ SUPABASE_SERVICE_KEY is missing');
+
+  // Check environment variables
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('❌ Missing Supabase environment variables');
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'SUPABASE_SERVICE_KEY environment variable is not set' })
+      body: JSON.stringify({ error: 'Configuration error', data: [] })
     };
   }
 
   try {
-    console.log('📡 Creating Supabase client...');
+    console.log('📡 Creating Supabase client with WebSocket support...');
+    console.log('📡 ws module available:', typeof ws === 'function');
+    
+    // CRITICAL: Create client with WebSocket transport option
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: {
+          ws: ws  // THIS IS THE KEY FIX - provide the ws module
+        },
+        auth: {
+          persistSession: false
+        }
+      }
     );
-    console.log('✅ Supabase client created');
 
-    console.log('📡 Executing query...');
+    console.log('📡 Fetching approved businesses...');
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, status')
+      .select('id, trading_name, registered_name, email, phone, status, created_at')
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Supabase query error:', error);
-      throw error;
+      console.error('❌ Supabase error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: error.message, data: [] })
+      };
     }
 
-    console.log(`✅ Query successful, found ${data?.length || 0} businesses`);
+    console.log(`✅ Found ${data?.length || 0} approved businesses`);
     
     return {
       statusCode: 200,
@@ -59,16 +75,11 @@ export const handler = async function(event) {
       body: JSON.stringify(data || [])
     };
   } catch (error) {
-    console.error('🔥 Catch block error:', error);
-    console.error('🔥 Error stack:', error.stack);
+    console.error('🔥 Error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: error.message,
-        stack: error.stack,
-        type: error.name 
-      })
+      body: JSON.stringify({ error: error.message, data: [] })
     };
   }
 };
