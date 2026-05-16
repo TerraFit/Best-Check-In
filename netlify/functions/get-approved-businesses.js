@@ -22,7 +22,7 @@ export const handler = async function(event) {
   }
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing Supabase environment variables');
+    console.error('Missing Supabase environment variables');
     return {
       statusCode: 500,
       headers,
@@ -42,19 +42,28 @@ export const handler = async function(event) {
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, status, created_at')
+      .select('id, trading_name, registered_name, email, phone, status, created_at, physical_address, subscription_tier')
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: error.message, data: [] })
+      };
+    }
 
+    console.log(`Found ${data?.length || 0} approved businesses`);
+    
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify(data || [])
     };
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Function error:', error);
     return {
       statusCode: 500,
       headers,
