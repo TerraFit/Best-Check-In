@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
+import ws from 'ws';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -8,7 +9,11 @@ import jwt from 'jsonwebtoken';
 const getSupabase = () => {
     return createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_KEY
+        process.env.SUPABASE_SERVICE_KEY,
+        {
+            realtime: { ws: ws },
+            auth: { persistSession: false }
+        }
     );
 };
 
@@ -100,72 +105,57 @@ export const handler = async (event) => {
 
         const supabase = getSupabase();
         
-        // Start with base query
+        // IMPORTANT: Fix the table name - this seems to be a hardcoded table name
+        // You should change 'ONLINE CHECKING J-BAY ZEBRA LODGE' to 'bookings'
         let query = supabase
-            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
+            .from('bookings')
             .select('*', { count: 'exact' })
             .eq('business_id', targetBusinessId)
             .order('check_in_date', { ascending: false });
 
-        // ============================================================
-        // APPLY DATE FILTERS BASED ON SELECTED RANGE
-        // ============================================================
-        
+        // Apply date filters
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // Case 1: Custom date range (highest priority)
         if (startDate && endDate) {
             console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
             query = query
                 .gte('check_in_date', startDate)
                 .lte('check_in_date', endDate);
         }
-        // Case 2: Preset ranges with actual date arithmetic
         else if (dateRange === '7days') {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             const dateStr = sevenDaysAgo.toISOString().split('T')[0];
-            console.log(`📅 Last 7 days: >= ${dateStr}`);
             query = query.gte('check_in_date', dateStr);
         }
         else if (dateRange === '30days') {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
-            console.log(`📅 Last 30 days: >= ${dateStr}`);
             query = query.gte('check_in_date', dateStr);
         }
         else if (dateRange === '90days') {
             const ninetyDaysAgo = new Date();
             ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
             const dateStr = ninetyDaysAgo.toISOString().split('T')[0];
-            console.log(`📅 Last 90 days: >= ${dateStr}`);
             query = query.gte('check_in_date', dateStr);
         }
         else if (dateRange === '12months') {
             const twelveMonthsAgo = new Date();
             twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
             const dateStr = twelveMonthsAgo.toISOString().split('T')[0];
-            console.log(`📅 Last 12 months: >= ${dateStr}`);
             query = query.gte('check_in_date', dateStr);
         }
-        else if (dateRange === 'all' || !dateRange) {
-            console.log(`📅 All time - NO date filters`);
-            // No date filter - return everything
-        }
 
-        // ============================================================
-        // FETCH ALL RECORDS WITH PAGINATION (Fixes the 1000 limit issue)
-        // ============================================================
-        
+        // Fetch all records with pagination
         let allBookings = [];
         let from = 0;
         const pageSize = 1000;
         let hasMore = true;
         
         while (hasMore) {
-            const { data: batch, error: batchError, count } = await query
+            const { data: batch, error: batchError } = await query
                 .range(from, from + pageSize - 1);
             
             if (batchError) {
@@ -184,10 +174,7 @@ export const handler = async (event) => {
         
         console.log(`✅ Total bookings fetched: ${allBookings.length}`);
 
-        // ============================================================
-        // CALCULATE ANALYTICS
-        // ============================================================
-        
+        // Calculate analytics
         const totalRevenue = allBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
         
         const statusBreakdown = allBookings.reduce((acc, b) => {
