@@ -1,6 +1,5 @@
 [build]
-  # Install jsonwebtoken before building
-  command = "npm install jsonwebtoken && vite build"
+  command = "npm install && npm run build"
   publish = "dist"
 
 [build.environment]
@@ -9,6 +8,11 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# Ensure functions can access root node_modules
+[functions."*"]
+  node_bundler = "esbuild"
+  external_node_modules = ["ws", "@supabase/supabase-js", "jsonwebtoken", "bcryptjs", "resend", "qrcode", "uuid", "stripe"]
 
 # ============================================================
 # SCHEDULED FUNCTIONS (Cron Jobs)
@@ -71,7 +75,6 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # Additional security headers
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(self)"
 
@@ -92,14 +95,11 @@
 
 # ============================================================
 # ENVIRONMENT VARIABLES
-# Note: Add actual secrets in Netlify UI, not here!
 # ============================================================
 
 [context.production.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
-  # ⚠️ DO NOT PUT SECRETS HERE - Use Netlify UI Environment Variables
-  # SUPABASE_JWT_SECRET is set in Netlify UI, not in this file
 
 [context.deploy-preview.environment]
   NODE_VERSION = "20"
