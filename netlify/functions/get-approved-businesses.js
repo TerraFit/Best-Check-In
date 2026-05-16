@@ -1,7 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
-import { v4 as uuidv4 } from 'uuid';
-import QRCode from 'qrcode';
 import ws from 'ws';
 
 export const handler = async function(event) {
@@ -9,14 +6,16 @@ export const handler = async function(event) {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
+  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  if (event.httpMethod !== 'POST') {
+  // Only allow GET
+  if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
       headers,
@@ -24,173 +23,122 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
+  // Validate environment variables
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('❌ Missing Supabase environment variables');
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Configuration error', 
+        details: 'Missing Supabase credentials',
+        data: [] 
+      })
+    };
+  }
 
   try {
-    const { businessId } = JSON.parse(event.body);
+    console.log('📡 Creating Supabase client with WebSocket support...');
+    
+    // Create Supabase client WITH WebSocket support
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
+    );
 
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID required' })
-      };
-    }
-
-    const { data: business, error: fetchError } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('id', businessId)
-      .single();
-
-    if (fetchError) {
-      console.error('❌ Error fetching business:', fetchError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Error fetching business details' })
-      };
-    }
-
-    const verificationToken = uuidv4();
-    const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
-
-    const { error: tokenError } = await supabase
-      .from('email_verifications')
-      .insert([{
-        token: verificationToken,
-        business_id: businessId,
-        email: business.email,
-        expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-      }]);
-
-    if (tokenError) {
-      console.error('❌ Error saving verification token:', tokenError);
-    }
-
+    console.log('📡 Fetching approved businesses...');
+    
     const { data, error } = await supabase
       .from('businesses')
-      .update({ 
-        status: 'approved',
-        approved_at: new Date().toISOString()
-      })
-      .eq('id', businessId)
-      .eq('status', 'pending')
-      .select()
-      .single();
+      .select(`
+        id,
+        trading_name,
+        registered_name,
+        legal_name,
+        email,
+        phone,
+        status,
+        created_at,
+        approved_at,
+        physical_address,
+        subscription_tier,
+        payment_status,
+        logo_url,
+        hero_image_url,
+        slogan,
+        establishment_type,
+        tgsa_grading,
+        directors,
+        total_rooms,
+        avg_price,
+        service_paused,
+        payment_due_date,
+        last_payment_date
+      `)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('❌ Supabase error:', error);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Database error', details: error.message })
+        body: JSON.stringify({ 
+          error: 'Database error', 
+          details: error.message,
+          data: [] 
+        })
       };
     }
 
-    if (!data) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found or already approved' })
-      };
-    }
-
-    const checkInUrl = `https://fastcheckin.co.za/checkin/${businessId}`;
-    const qrCodeDataUrl = await QRCode.toDataURL(checkInUrl, {
-      width: 300,
-      margin: 2,
-      color: {
-        dark: '#f59e0b',
-        light: '#ffffff'
+    console.log(`✅ Found ${data?.length || 0} approved businesses`);
+    
+    // Process each business to add calculated fields
+    const processedBusinesses = (data || []).map(business => {
+      // Calculate days overdue if payment_due_date exists
+      let days_overdue = 0;
+      if (business.payment_due_date) {
+        const dueDate = new Date(business.payment_due_date);
+        const today = new Date();
+        const diffTime = today.getTime() - dueDate.getTime();
+        days_overdue = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
       }
-    });
-
-    const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-
-    console.log('📧 Attempting to send email to:', business.email);
-    
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    
-    try {
-      const emailResult = await resend.emails.send({
-        from: 'FastCheckin <welcome@fastcheckin.co.za>',
-        to: [business.email],
-        subject: `🎉 Welcome to FastCheckin, ${business.trading_name}!`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #f59e0b; margin: 0;">FastCheckin</h1>
-              <p style="color: #666; margin: 5px 0 0;">Seamless Check-in, Smarter Stay</p>
-            </div>
-            
-            <h2 style="color: #333; margin-bottom: 20px;">Welcome, ${business.trading_name}!</h2>
-            
-            <p style="color: #555; line-height: 1.6;">Your business has been approved! Here's your personalized QR code for guest check-ins:</p>
-            
-            <div style="background: #f3f4f6; padding: 30px; border-radius: 8px; margin: 30px 0; text-align: center;">
-              <img src="${qrCodeDataUrl}" alt="QR Code" style="display: block; margin: 0 auto 20px; max-width: 200px; border: 4px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-              <p style="color: #333; font-weight: bold; margin: 10px 0;">Scan to check in to ${business.trading_name}</p>
-              <p style="color: #777; font-size: 14px; word-break: break-all;">${checkInUrl}</p>
-            </div>
-            
-            <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 30px 0;">
-              <h3 style="color: #0284c7; margin: 0 0 10px 0;">✨ Next Steps:</h3>
-              <ol style="color: #555; line-height: 1.8; margin: 0; padding-left: 20px;">
-                <li><strong>Download your QR code</strong> (attached to this email)</li>
-                <li><strong>Print and display</strong> at your reception desk</li>
-                <li><strong>Verify your email</strong> to access your dashboard</li>
-                <li><strong>Customize your check-in page</strong> with your logo and colors</li>
-              </ol>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${verificationLink}" style="display: inline-block; background: #f59e0b; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                ✓ Verify Email & Access Dashboard
-              </a>
-            </div>
-          </div>
-        `,
-        attachments: [{
-          filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`,
-          content: qrBuffer.toString('base64'),
-          encoding: 'base64',
-          contentType: 'image/png'
-        }]
-      });
-
-      console.log('✅ Email sent successfully!');
       
-    } catch (emailError) {
-      console.error('❌ EMAIL SEND FAILED!');
-      console.error('❌ Error:', emailError.message);
-    }
-
+      // Determine payment status based on days overdue
+      let payment_status = business.payment_status || 'paid';
+      if (days_overdue >= 10) payment_status = 'critical';
+      else if (days_overdue >= 5) payment_status = 'overdue';
+      else if (days_overdue > 0) payment_status = 'pending';
+      
+      return {
+        ...business,
+        days_overdue,
+        payment_status
+      };
+    });
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Business approved successfully',
-        business: data,
-        checkInUrl,
-        qrCode: qrCodeDataUrl
-      })
+      body: JSON.stringify(processedBusinesses)
     };
-
+    
   } catch (error) {
     console.error('🔥 Unhandled error:', error);
+    console.error('🔥 Error stack:', error.stack);
+    
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        message: error.message,
+        data: [] 
+      })
     };
   }
 };
