@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
-import { Booking } from '../types';
-import { getRegionsForCountry, getRegionTypeLabel } from '../services/countryRegionService';
+import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
+import { Booking } from './types';
+import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
 
 interface BusinessBranding {
   id: string;
@@ -116,6 +116,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   });
 
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
   // Validation functions for Step 2
   const validateStep2 = () => {
@@ -212,7 +213,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
     }, 10);
-    // Reset submit attempted when step changes
     setSubmitAttempted(false);
   }, [step]);
 
@@ -278,6 +278,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [formData.arrivalDate, formData.nights]);
 
+  // Load guest profile when email is entered
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -289,33 +290,88 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   }, [formData.email]);
 
   const loadGuestProfile = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      console.log('ℹ️ Invalid email, skipping profile load');
+      return;
+    }
+    
     try {
+      console.log('🔍 Loading guest profile for email:', email);
       const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.profile) {
-          const nameParts = (data.profile.full_name || '').split(' ');
-          const firstName = nameParts[0] || '';
-          const lastName = nameParts.slice(1).join(' ') || '';
-          
-          setFormData(prev => ({
-            ...prev,
-            firstName: firstName,
-            lastName: lastName,
-            fullName: data.profile.full_name || '',
-            phone: data.profile.phone || prev.phone,
-            passportOrId: data.profile.passport_or_id || prev.passportOrId,
-            country: data.profile.country || prev.country,
-            city: data.profile.city || prev.city,
-            province: data.profile.province || prev.province,
-          }));
-          
-          setProfileLoaded(true);
-          setTimeout(() => setProfileLoaded(false), 3000);
+      const data = await response.json();
+      
+      if (response.ok && data.profile) {
+        console.log('✅ Profile found:', data.profile);
+        
+        let firstName = data.profile.first_name || '';
+        let lastName = data.profile.last_name || '';
+        
+        if (!firstName && data.profile.full_name) {
+          const nameParts = data.profile.full_name.split(' ');
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
         }
+        
+        setFormData(prev => ({
+          ...prev,
+          firstName: firstName,
+          lastName: lastName,
+          fullName: data.profile.full_name || '',
+          phone: data.profile.phone || prev.phone,
+          passportOrId: data.profile.passport_or_id || prev.passportOrId,
+          country: data.profile.country || prev.country,
+          city: data.profile.city || prev.city,
+          province: data.profile.province || prev.province,
+        }));
+        
+        setProfileLoaded(true);
+        setTimeout(() => setProfileLoaded(false), 3000);
+      } else {
+        console.log('ℹ️ No profile found for this email');
       }
     } catch (error) {
-      console.error('Error loading guest profile:', error);
+      console.error('❌ Error loading guest profile:', error);
+    }
+  };
+
+  const saveGuestProfile = async () => {
+    if (!formData.saveDetails) {
+      console.log('ℹ️ User opted not to save details');
+      return;
+    }
+    
+    try {
+      console.log('💾 Saving guest profile for email:', formData.email);
+      
+      const response = await fetch('/.netlify/functions/save-guest-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          profileData: {
+            fullName: updateFullName(formData.firstName, formData.lastName),
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            passportOrId: formData.passportOrId,
+            country: formData.country,
+            city: formData.city,
+            province: formData.province
+          }
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('✅ Guest profile saved successfully');
+        setProfileSaveSuccess(true);
+        setTimeout(() => setProfileSaveSuccess(false), 3000);
+      } else {
+        console.error('❌ Failed to save profile:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Error saving profile:', error);
     }
   };
 
@@ -396,6 +452,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           setCameraStream(null);
         }
         setIsCameraActive(false);
+        console.log("Photo captured and saved");
       }
     } else {
       alert("Camera not ready. Please try again.");
@@ -572,30 +629,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const saveGuestProfile = async () => {
-    try {
-      await fetch('/.netlify/functions/save-guest-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          profileData: {
-            fullName: updateFullName(formData.firstName, formData.lastName),
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone,
-            passportOrId: formData.passportOrId,
-            country: formData.country,
-            city: formData.city,
-            province: formData.province
-          }
-        })
-      });
-    } catch (error) {
-      console.error('Error saving profile:', error);
-    }
-  };
-
   // Main submit handler with validation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -610,11 +643,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
     
     if (step === 2) {
-      // Validate Step 2 fields
       const errors = validateStep2();
       if (errors.length > 0) {
         setSubmitAttempted(true);
-        // Mark all fields as touched to show errors
         setTouched({
           firstName: true,
           lastName: true,
@@ -633,7 +664,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           acceptLegal: false,
         });
         
-        // Scroll to the first error
         const firstErrorField = document.querySelector('.border-red-500');
         if (firstErrorField) {
           firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -647,7 +677,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
     
     if (step === 3) {
-      // Validate Step 3 fields
       const errors = validateStep3();
       if (errors.length > 0) {
         setSubmitAttempted(true);
@@ -922,6 +951,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <span className="text-xs text-stone-500 block">Your information will be securely stored for faster check-ins</span>
                   </label>
                 </div>
+                
+                {profileSaveSuccess && (
+                  <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 animate-fade-in">
+                    ✓ Your details have been saved for next time
+                  </div>
+                )}
 
                 <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
                   <input 
@@ -989,7 +1024,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                {/* First Name */}
+                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
@@ -1013,7 +1048,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="firstName" message="First name is required" />
                   </div>
                   
-                  {/* Last Name */}
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       Last Name <span className="text-red-500">*</span>
@@ -1139,37 +1173,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
-                {/* Stay Details Section */}
+                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                      Adults <span className="text-red-500">*</span>
-                    </label>
-                    <input 
-                      required 
-                      type="number" 
-                      min="1" 
-                      className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" 
-                      value={formData.adults} 
-                      onChange={e => setFormData({...formData, adults: parseInt(e.target.value)})} 
-                    />
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
+                    <input required type="number" min="1" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.adults} onChange={e => setFormData({...formData, adults: parseInt(e.target.value)})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                      Children (Under 16)
-                    </label>
-                    <input 
-                      type="number" 
-                      min="0" 
-                      className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" 
-                      value={formData.kids} 
-                      onChange={e => setFormData({...formData, kids: parseInt(e.target.value)})} 
-                    />
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Children (Under 16 sharing with adults)</label>
+                    <input required type="number" min="0" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.kids} onChange={e => setFormData({...formData, kids: parseInt(e.target.value)})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                      Arrival Date <span className="text-red-500">*</span>
-                    </label>
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Arrival Date <span className="text-red-500">*</span></label>
                     <input 
                       required 
                       type="date" 
@@ -1181,9 +1196,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="arrivalDate" message="Arrival date is required" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                      Nights <span className="text-red-500">*</span>
-                    </label>
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Duration (Nights) <span className="text-red-500">*</span></label>
                     <input 
                       required 
                       type="number" 
@@ -1272,7 +1285,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature with Validation */}
+          {/* Step 3 - Indemnity & Signature */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
@@ -1297,14 +1310,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               )}
               
               <div className="space-y-10 flex-grow">
-                {/* Indemnity Text */}
                 <div className="relative border border-stone-200 rounded-[2rem] overflow-hidden shadow-inner bg-white">
                   <div 
                     ref={indemnityRef}
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    {/* Indemnity content - same as before */}
                     <div className="space-y-8 max-w-3xl mx-auto">
                       <div className="text-center space-y-3 mb-12">
                         <p className="font-bold text-2xl text-stone-900 font-serif">{businessName}</p>
@@ -1315,17 +1326,122 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         ⚠️ WARNING: THIS IS A LEGALLY BINDING AND IMPORTANT DOCUMENT THAT LIMITS AND EXCLUDES LEGAL RIGHTS. BY SIGNING IT, YOU ASSUME RISKS AND WAIVE CERTAIN RIGHTS, INCLUDING THE RIGHT TO SUE OR CLAIM COMPENSATION UNDER CERTAIN CIRCUMSTANCES.
                       </div>
 
-                      {/* Rest of indemnity text remains the same */}
                       <div>
                         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART A: WARNING AND NOTICE</h4>
                         <p className="mb-4">
                           DO NOT SIGN THIS DOCUMENT UNLESS YOU HAVE READ IT, UNDERSTOOD IT, AND VOLUNTARILY ACCEPT ITS TERMS. 
                           IF YOU ARE UNCERTAIN ABOUT ITS MEANING OR EFFECT, YOU SHOULD SEEK INDEPENDENT LEGAL ADVICE BEFORE SIGNING.
                         </p>
+                        <p className="mb-4">
+                          THIS AGREEMENT APPLIES DURING YOUR ENTIRE STAY AT {businessName.toUpperCase()} AND TO ALL ACTIVITIES 
+                          UNDERTAKEN ON THE PROPERTY.
+                        </p>
                       </div>
-                      
-                      {/* ... continue with remaining indemnity sections ... */}
-                      
+
+                      <div>
+                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART B: DETAILED ACKNOWLEDGEMENT OF INHERENT RISKS</h4>
+                        <p className="mb-4">
+                          I, the undersigned Guest, for myself, my heirs, executors, administrators, and assigns, hereby acknowledge and agree as follows:
+                        </p>
+                        <p className="mb-4">
+                          <strong>Nature of the Environment:</strong> I understand and accept that {businessName} is situated within a natural 
+                          sanctuary environment that is home to wild, dangerous, and unpredictable animals, reptiles, birds, and insects. 
+                          Encounters with such wildlife, whether during organized activities or incidental to my stay, carry an inherent 
+                          and unavoidable risk of serious bodily injury, permanent disability, trauma, death, and/or loss of or damage to 
+                          personal property.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Nature of Activities:</strong> I understand that participating in activities such as, but not limited to, 
+                          guided or unguided walks, hiking trails, mountain bike rides, game drives, or simply being present on the lodge grounds, 
+                          involves inherent risks. These risks include, but are not limited to: terrain hazards; variable weather conditions; 
+                          encounters with wildlife; the potential for collisions, falls, or equipment failure; and the possibility of becoming 
+                          lost or stranded. Medical assistance may be significantly delayed in the event of an emergency.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Assumption of Inherent Risk:</strong> I hereby freely and voluntarily assume ALL KNOWN AND UNKNOWN INHERENT RISKS 
+                          associated with my stay and participation in activities at {businessName}, whether described herein or not.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART C: WAIVER OF CLAIMS AND INDEMNITY</h4>
+                        <p className="mb-4">
+                          In consideration for being permitted to enter and stay at {businessName} and to participate in its activities, I hereby agree:
+                        </p>
+                        <p className="mb-4">
+                          <strong>Waiver of Claims:</strong> To the fullest extent permitted by the law of South Africa, I, on behalf of myself 
+                          and my successors, hereby WAIVE, RELEASE, AND DISCHARGE {businessName}, its directors, officers, employees, agents, 
+                          contractors, guides, landowners, and affiliated companies (collectively, the "Released Parties") from ANY AND ALL 
+                          CLAIMS, DEMANDS, CAUSES OF ACTION, AND LIABILITY for personal injury, illness, death, or loss of or damage to property 
+                          which I may suffer, arising out of or connected in any way with my stay or participation in activities, WHERE SUCH 
+                          CLAIMS ARISE FROM THE ORDINARY NEGLIGENCE OF THE RELEASED PARTIES.
+                        </p>
+                        <p className="mb-4 font-bold text-stone-900">
+                          I EXPRESSLY ACKNOWLEDGE THAT THIS WAIVER DOES NOT APPLY TO CLAIMS ARISING FROM THE GROSS NEGLIGENCE OR WILLFUL 
+                          MISCONDUCT OF THE RELEASED PARTIES.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Indemnity:</strong> I further agree to DEFEND, INDEMNIFY, AND HOLD HARMLESS the Released Parties from and 
+                          against any and all claims, demands, lawsuits, judgments, costs, and expenses (including legal fees) brought by or on 
+                          behalf of: Myself; Any member of my family (including minor children); Any companion, invitee, or dependent accompanying 
+                          me; or Any third party, arising from my acts, omissions, or breach of this Agreement, or my participation in any activity 
+                          during my stay.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART D: GUEST WARRANTIES AND GENERAL TERMS</h4>
+                        <p className="mb-4">
+                          <strong>Authority and Capacity:</strong> I warrant that I am at least 18 years of age, of sound mind, and have the legal 
+                          authority to enter into this Agreement. If I am signing on behalf of any minor children, I warrant that I am their parent 
+                          or legal guardian and have the full authority to bind them to these terms.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Rules and Safety:</strong> I agree to abide by all rules, regulations, and safety instructions provided by the 
+                          Lodge, its staff, or guides, whether given verbally or in writing. I accept that failure to do so may result in the 
+                          termination of my stay without refund and will vitiate any protection offered by this Agreement.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Health and Fitness:</strong> I warrant that I am in good health, physically fit, and have no known medical, 
+                          psychological, or physical condition that would prevent my safe participation in the activities I intend to undertake. 
+                          I am responsible for carrying any necessary personal medication.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Emergency Medical Consent:</strong> In the event of a medical emergency, I authorise the Released Parties to 
+                          secure, at my sole expense, such medical treatment and transport as they, in their sole discretion, deem necessary.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Limitation of Liability for Property:</strong> The Lodge provides a safe in each room for valuables. The Lodge's 
+                          liability for loss of or damage to guest property is strictly limited to a maximum amount of ZAR 5,000 (Five Thousand Rand), 
+                          unless such loss is directly attributable to the proven gross negligence of the Lodge and the property was deposited with 
+                          the front desk for safekeeping. The Lodge is not liable for loss of money, jewellery, or other high-value items kept in 
+                          guest rooms.
+                        </p>
+                        <p className="mb-4">
+                          <strong>Severability & Governing Law:</strong> This Agreement shall be governed by and construed in accordance with the 
+                          laws of the Republic of South Africa.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART E: DECLARATION AND SIGNATURE</h4>
+                        <p className="font-bold text-stone-900 text-sm mb-6">
+                          I HEREBY CERTIFY THAT I HAVE READ THIS ENTIRE DOCUMENT, I UNDERSTAND ITS CONTENTS COMPLETELY, AND I SIGN IT OF MY 
+                          OWN FREE WILL. I UNDERSTAND THAT I AM GIVING UP SUBSTANTIAL LEGAL RIGHTS.
+                        </p>
+                        
+                        <p className="mb-6 font-bold text-stone-800 bg-stone-50 p-6 border border-stone-200 rounded-2xl leading-relaxed italic">
+                          "We confirm that the contents of this document was explained to us, the guest, and that they were given sufficient 
+                          opportunity to read and ask questions before signing."
+                        </p>
+
+                        <div className="bg-stone-50 p-8 rounded-3xl space-y-4 mt-8 border border-stone-200 shadow-sm">
+                          <p className="text-sm"><strong>PRIMARY GUEST:</strong> {updateFullName(formData.firstName, formData.lastName) || '________________'}</p>
+                          <p className="text-sm"><strong>ID/Passport Number:</strong> {formData.passportOrId || '________________'}</p>
+                          <p className="text-sm"><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
+                        </div>
+                      </div>
+
                       <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
                         <div className="flex items-start gap-5">
                           <input 
@@ -1344,6 +1460,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           </label>
                         </div>
                         <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
+                      </div>
+
+                      <div className="text-center text-stone-400 text-xs pt-4">
+                        — End of Document —
                       </div>
                     </div>
                   </div>
