@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler: Handler = async (event) => {
   const headers = {
@@ -20,7 +21,11 @@ export const handler: Handler = async (event) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
+      process.env.SUPABASE_SERVICE_KEY!,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
     );
 
     const { data, error } = await supabase
@@ -44,6 +49,9 @@ export const handler: Handler = async (event) => {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Indemnity record not found' }) };
     }
 
+    // Fix: Access businesses as an object, not array
+    const businessData = data.businesses as unknown as { trading_name: string; logo_url: string };
+
     return {
       statusCode: 200,
       headers,
@@ -54,8 +62,8 @@ export const handler: Handler = async (event) => {
         passport_or_id: data.passport_or_id,
         signature_data: data.signature_data,
         signed_at: data.signed_at,
-        business_name: data.businesses?.trading_name,
-        business_logo: data.businesses?.logo_url
+        business_name: businessData?.trading_name,
+        business_logo: businessData?.logo_url
       })
     };
 
