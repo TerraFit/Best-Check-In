@@ -1,5 +1,5 @@
-// netlify/functions/save-guest-profile.js
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -23,14 +23,17 @@ export const handler = async function(event) {
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
   );
 
   try {
     const { email, profileData } = JSON.parse(event.body);
 
     console.log('📝 Saving guest profile for email:', email);
-    console.log('📝 Profile data:', profileData);
 
     if (!email) {
       return {
@@ -40,7 +43,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Prepare the profile object - only include fields that exist in the table
     const profileToSave = {
       email: email.toLowerCase().trim(),
       full_name: profileData.fullName || '',
@@ -54,7 +56,6 @@ export const handler = async function(event) {
       updated_at: new Date().toISOString()
     };
 
-    // Try to upsert (insert or update)
     const { data, error } = await supabase
       .from('guest_profiles')
       .upsert(profileToSave, {
@@ -66,7 +67,6 @@ export const handler = async function(event) {
     if (error) {
       console.error('❌ Database error:', error);
       
-      // If the table doesn't have first_name/last_name columns, try without them
       if (error.message.includes('column') && (error.message.includes('first_name') || error.message.includes('last_name'))) {
         console.log('⚠️ Trying simplified profile save without first_name/last_name');
         
@@ -111,7 +111,6 @@ export const handler = async function(event) {
 
     console.log('✅ Guest profile saved:', data);
     
-    // Also update total_visits count for this guest
     const { data: existingProfile } = await supabase
       .from('guest_profiles')
       .select('total_visits')
