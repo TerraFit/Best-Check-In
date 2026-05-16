@@ -27,8 +27,27 @@ interface BusinessBranding {
 }
 
 interface CheckInFormProps {
-  onComplete: (booking: Booking) => void;
+  onComplete: (booking: Booking, indemnityToken?: string) => void;
   businessId?: string;
+}
+
+// Track which fields have been touched for validation
+interface TouchedFields {
+  firstName: boolean;
+  lastName: boolean;
+  passportOrId: boolean;
+  phone: boolean;
+  country: boolean;
+  province: boolean;
+  city: boolean;
+  arrivalDate: boolean;
+  nights: boolean;
+  referral: boolean;
+  nextDestination: boolean;
+  settlement: boolean;
+  idPhoto: boolean;
+  signature: boolean;
+  acceptLegal: boolean;
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
@@ -48,6 +67,28 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  
+  // Track which fields have been touched for validation
+  const [touched, setTouched] = useState<TouchedFields>({
+    firstName: false,
+    lastName: false,
+    passportOrId: false,
+    phone: false,
+    country: false,
+    province: false,
+    city: false,
+    arrivalDate: false,
+    nights: false,
+    referral: false,
+    nextDestination: false,
+    settlement: false,
+    idPhoto: false,
+    signature: false,
+    acceptLegal: false,
+  });
+  
+  // Track form submission attempts to show all errors at once
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -75,15 +116,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   });
 
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
-  // ✅ FIXED: Scroll to top when step changes - WITH FORCE OPTION
+  // Scroll to top when step changes
   useEffect(() => {
-    // Force scroll to top with multiple methods to ensure it works
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    // Also try smooth after a microtask
     setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
     }, 10);
+    setSubmitAttempted(false);
   }, [step]);
 
   const updateFullName = (firstName: string, lastName: string) => {
@@ -92,6 +133,95 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Region';
+
+  // Validation functions for Step 2
+  const validateStep2 = () => {
+    const errors: string[] = [];
+    
+    if (!formData.firstName.trim()) errors.push('First Name');
+    if (!formData.lastName.trim()) errors.push('Last Name');
+    if (!formData.passportOrId.trim()) errors.push('ID/Passport Number');
+    if (!formData.phone.trim()) errors.push('Mobile Phone');
+    if (!formData.country) errors.push('Country of Origin');
+    if (!formData.province) errors.push(regionTypeLabel);
+    if (!formData.city.trim()) errors.push('City/Town');
+    if (!formData.arrivalDate) errors.push('Arrival Date');
+    if (!formData.nights || formData.nights < 1) errors.push('Nights');
+    if (!formData.referral) errors.push('Referral Source');
+    if (!formData.nextDestination.trim()) errors.push('Next Destination');
+    if (!formData.settlement) errors.push('Settlement Method');
+    
+    return errors;
+  };
+
+  // Validation for Step 3
+  const validateStep3 = () => {
+    const errors: string[] = [];
+    
+    if (!formData.idPhoto) errors.push('ID Photo');
+    if (!formData.signature) errors.push('Digital Signature');
+    if (!formData.acceptLegal) errors.push('Indemnity Acceptance');
+    
+    return errors;
+  };
+
+  // Mark a field as touched when user interacts with it
+  const markTouched = (field: keyof TouchedFields) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  // Get error class for a field
+  const getErrorClass = (field: keyof TouchedFields, validationPassed: boolean) => {
+    const isTouched = touched[field];
+    const hasError = !validationPassed;
+    
+    if (submitAttempted && hasError) {
+      return 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500';
+    }
+    if (isTouched && hasError) {
+      return 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500';
+    }
+    return 'border-stone-200 focus:ring-amber-500 focus:border-amber-500';
+  };
+
+  // Error message component
+  const ErrorMessage = ({ field, message }: { field: keyof TouchedFields; message: string }) => {
+    const showError = submitAttempted || touched[field];
+    
+    if (!showError) return null;
+    
+    const isValid = () => {
+      switch(field) {
+        case 'firstName': return formData.firstName.trim();
+        case 'lastName': return formData.lastName.trim();
+        case 'passportOrId': return formData.passportOrId.trim();
+        case 'phone': return formData.phone.trim();
+        case 'country': return formData.country;
+        case 'province': return formData.province;
+        case 'city': return formData.city.trim();
+        case 'arrivalDate': return formData.arrivalDate;
+        case 'nights': return formData.nights >= 1;
+        case 'referral': return formData.referral;
+        case 'nextDestination': return formData.nextDestination.trim();
+        case 'settlement': return formData.settlement;
+        case 'idPhoto': return formData.idPhoto;
+        case 'signature': return formData.signature;
+        case 'acceptLegal': return formData.acceptLegal;
+        default: return true;
+      }
+    };
+    
+    if (isValid()) return null;
+    
+    return (
+      <p className="text-red-500 text-xs mt-1 flex items-center gap-1 animate-fade-in">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {message}
+      </p>
+    );
+  };
 
   const calculateTotalAmount = async (nights: number): Promise<number> => {
     try {
@@ -114,7 +244,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [businessId]);
 
-  // Cleanup camera on unmount
   useEffect(() => {
     return () => {
       if (cameraStream) {
@@ -149,6 +278,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [formData.arrivalDate, formData.nights]);
 
+  // Load guest profile when email is entered
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -160,33 +290,89 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   }, [formData.email]);
 
   const loadGuestProfile = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      console.log('ℹ️ Invalid email, skipping profile load');
+      return;
+    }
+    
     try {
+      console.log('🔍 Loading guest profile for email:', email);
       const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.profile) {
-          const nameParts = (data.profile.full_name || '').split(' ');
-          const firstName = nameParts[0] || '';
-          const lastName = nameParts.slice(1).join(' ') || '';
-          
-          setFormData(prev => ({
-            ...prev,
-            firstName: firstName,
-            lastName: lastName,
-            fullName: data.profile.full_name || '',
-            phone: data.profile.phone || prev.phone,
-            passportOrId: data.profile.passport_or_id || prev.passportOrId,
-            country: data.profile.country || prev.country,
-            city: data.profile.city || prev.city,
-            province: data.profile.province || prev.province,
-          }));
-          
-          setProfileLoaded(true);
-          setTimeout(() => setProfileLoaded(false), 3000);
+      const data = await response.json();
+      
+      if (response.ok && data.profile) {
+        console.log('✅ Profile found:', data.profile);
+        
+        // Extract first and last name
+        let firstName = data.profile.first_name || '';
+        let lastName = data.profile.last_name || '';
+        
+        if (!firstName && data.profile.full_name) {
+          const nameParts = data.profile.full_name.split(' ');
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
         }
+        
+        setFormData(prev => ({
+          ...prev,
+          firstName: firstName,
+          lastName: lastName,
+          fullName: data.profile.full_name || '',
+          phone: data.profile.phone || prev.phone,
+          passportOrId: data.profile.passport_or_id || prev.passportOrId,
+          country: data.profile.country || prev.country,
+          city: data.profile.city || prev.city,
+          province: data.profile.province || prev.province,
+        }));
+        
+        setProfileLoaded(true);
+        setTimeout(() => setProfileLoaded(false), 3000);
+      } else {
+        console.log('ℹ️ No profile found for this email');
       }
     } catch (error) {
-      console.error('Error loading guest profile:', error);
+      console.error('❌ Error loading guest profile:', error);
+    }
+  };
+
+  const saveGuestProfile = async () => {
+    if (!formData.saveDetails) {
+      console.log('ℹ️ User opted not to save details');
+      return;
+    }
+    
+    try {
+      console.log('💾 Saving guest profile for email:', formData.email);
+      
+      const response = await fetch('/.netlify/functions/save-guest-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          profileData: {
+            fullName: updateFullName(formData.firstName, formData.lastName),
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            passportOrId: formData.passportOrId,
+            country: formData.country,
+            city: formData.city,
+            province: formData.province
+          }
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('✅ Guest profile saved successfully');
+        setProfileSaveSuccess(true);
+        setTimeout(() => setProfileSaveSuccess(false), 3000);
+      } else {
+        console.error('❌ Failed to save profile:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Error saving profile:', error);
     }
   };
 
@@ -199,15 +385,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ==================== CAMERA FUNCTIONS ====================
+  // Camera functions
   const startCamera = async () => {
     console.log("📷 startCamera called");
     setCameraError(null);
-    
-    // FIRST: Show the camera container
     setIsCameraActive(true);
     
-    // SECOND: Wait for the video element to render
     await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
@@ -230,19 +413,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play()
-            .then(() => {
-              console.log("✅ Video playing successfully!");
-            })
+            .then(() => console.log("✅ Video playing successfully!"))
             .catch(err => console.error("Video play error:", err));
         };
-      } else {
-        console.error("videoRef.current is null!");
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play();
-          }
-        }, 100);
       }
     } catch (err) {
       console.error("Camera error:", err);
@@ -262,8 +435,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   const capturePhoto = () => {
-    console.log("capturePhoto called");
-    
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
@@ -275,6 +446,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         setFormData(prev => ({ ...prev, idPhoto: dataUrl }));
+        markTouched('idPhoto');
         
         if (cameraStream) {
           cameraStream.getTracks().forEach(track => track.stop());
@@ -303,7 +475,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
 
-  // ==================== SIGNATURE PAD FUNCTIONS ====================
+  // Signature pad functions
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -365,7 +537,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     const stopDrawing = () => {
       if (drawing) {
         drawing = false;
-        setFormData(prev => ({ ...prev, signature: canvas.toDataURL() }));
+        const signatureData = canvas.toDataURL();
+        setFormData(prev => ({ ...prev, signature: signatureData }));
+        markTouched('signature');
       }
     };
     
@@ -389,7 +563,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ==================== API FUNCTIONS ====================
+  // API functions
   const saveBookingToDatabase = async (booking: any) => {
     try {
       const response = await fetch('/.netlify/functions/create-booking', {
@@ -456,31 +630,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  const saveGuestProfile = async () => {
-    try {
-      await fetch('/.netlify/functions/save-guest-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          profileData: {
-            fullName: updateFullName(formData.firstName, formData.lastName),
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone,
-            passportOrId: formData.passportOrId,
-            country: formData.country,
-            city: formData.city,
-            province: formData.province
-          }
-        })
-      });
-    } catch (error) {
-      console.error('Error saving profile:', error);
-    }
-  };
-
-  // ==================== MAIN SUBMIT HANDLER ====================
+  // Main submit handler with validation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -494,17 +644,60 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
     
     if (step === 2) {
+      const errors = validateStep2();
+      if (errors.length > 0) {
+        setSubmitAttempted(true);
+        setTouched({
+          firstName: true,
+          lastName: true,
+          passportOrId: true,
+          phone: true,
+          country: true,
+          province: true,
+          city: true,
+          arrivalDate: true,
+          nights: true,
+          referral: true,
+          nextDestination: true,
+          settlement: true,
+          idPhoto: false,
+          signature: false,
+          acceptLegal: false,
+        });
+        
+        const firstErrorField = document.querySelector('.border-red-500');
+        if (firstErrorField) {
+          firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        alert(`Please complete the following required fields:\n\n• ${errors.join('\n• ')}`);
+        return;
+      }
       setStep(3);
       return;
     }
     
     if (step === 3) {
-      if (!formData.signature) {
-        alert("Please provide your digital signature.");
-        return;
-      }
-      if (!formData.acceptLegal) {
-        alert("Please scroll to the bottom of the indemnity and tick the box to accept the terms.");
+      const errors = validateStep3();
+      if (errors.length > 0) {
+        setSubmitAttempted(true);
+        setTouched(prev => ({
+          ...prev,
+          idPhoto: true,
+          signature: true,
+          acceptLegal: true,
+        }));
+        
+        if (!hasScrolledToBottom) {
+          alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
+          indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
+        } else if (!formData.signature) {
+          alert("Please provide your digital signature.");
+        } else if (!formData.idPhoto) {
+          alert("Please take a photo of your ID/passport.");
+        } else {
+          alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
+        }
         return;
       }
 
@@ -584,11 +777,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           source: 'live_checkin',
         };
 
+        // Save guest profile if they opted in
         if (formData.saveDetails) {
           await saveGuestProfile();
         }
 
-        onComplete(newBooking);
+        onComplete(newBooking, accessToken);
       } catch (error) {
         console.error('Check-in error:', error);
         alert('Something went wrong. Please try again.');
@@ -598,7 +792,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ==================== LOADING AND ERROR STATES ====================
+  // Loading and error states
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -648,7 +842,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="max-w-5xl mx-auto py-10 px-4">
-        {/* Business Header - only if no hero image */}
+        {/* Business Header */}
         {!heroImage && businessId && branding && (
           <div className="text-center mb-8">
             {branding.logo_url ? (
@@ -715,6 +909,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
+          
           {/* Step 1 - Email Entry */}
           {step === 1 && (
             <div className="p-10 md:p-16 text-center animate-fade-in flex flex-col flex-grow items-center justify-center">
@@ -758,6 +953,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <span className="text-xs text-stone-500 block">Your information will be securely stored for faster check-ins</span>
                   </label>
                 </div>
+                
+                {profileSaveSuccess && (
+                  <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 animate-fade-in">
+                    ✓ Your details have been saved for next time
+                  </div>
+                )}
 
                 <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 flex items-start gap-4">
                   <input 
@@ -796,24 +997,47 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 2 - Personal Details */}
+          {/* Step 2 - Personal Details with Validation */}
           {step === 2 && (
             <div className="p-10 md:p-16 animate-fade-in flex-grow overflow-y-auto">
+              {/* Error Summary Bar */}
+              {submitAttempted && validateStep2().length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-red-800 text-sm">Please complete all required fields:</p>
+                      <ul className="text-red-700 text-xs mt-1 list-disc list-inside">
+                        {validateStep2().map(err => (
+                          <li key={err}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="border-b border-stone-100 pb-8 mb-10">
                 <h2 className="text-3xl font-serif font-bold text-stone-900">Personal Registry</h2>
                 <p className="text-stone-400 text-[10px] mt-2 uppercase tracking-[0.2em] font-bold">Immigration Act Requirement (Section 40)</p>
+                <p className="text-red-500 text-xs mt-2">* All fields marked with asterisk are required</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                {/* First Name and Last Name - Side by side */}
+                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">First Name *</label>
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       required 
                       type="text" 
-                      className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
+                      className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('firstName', !!formData.firstName.trim())}`}
                       value={formData.firstName} 
+                      onFocus={() => markTouched('firstName')}
                       onChange={e => {
                         const newFirstName = e.target.value;
                         setFormData({
@@ -823,14 +1047,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         });
                       }} 
                     />
+                    <ErrorMessage field="firstName" message="First name is required" />
                   </div>
+                  
                   <div className="space-y-1 group">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Last Name *</label>
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       required 
                       type="text" 
-                      className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
+                      className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('lastName', !!formData.lastName.trim())}`}
                       value={formData.lastName} 
+                      onFocus={() => markTouched('lastName')}
                       onChange={e => {
                         const newLastName = e.target.value;
                         setFormData({
@@ -840,23 +1069,52 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         });
                       }} 
                     />
+                    <ErrorMessage field="lastName" message="Last name is required" />
                   </div>
                 </div>
 
+                {/* Passport/ID */}
                 <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Passport / ID Number *</label>
-                  <input required type="text" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-mono" value={formData.passportOrId} onChange={e => setFormData({...formData, passportOrId: e.target.value})} />
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    Passport / ID Number <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-mono transition-colors ${getErrorClass('passportOrId', !!formData.passportOrId.trim())}`} 
+                    value={formData.passportOrId} 
+                    onFocus={() => markTouched('passportOrId')}
+                    onChange={e => setFormData({...formData, passportOrId: e.target.value})} 
+                  />
+                  <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
                 </div>
+                
+                {/* Phone */}
                 <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Mobile Phone *</label>
-                  <input required type="tel" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    Mobile Phone <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    required 
+                    type="tel" 
+                    className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg transition-colors ${getErrorClass('phone', !!formData.phone.trim())}`} 
+                    value={formData.phone} 
+                    onFocus={() => markTouched('phone')}
+                    onChange={e => setFormData({...formData, phone: e.target.value})} 
+                  />
+                  <ErrorMessage field="phone" message="Mobile phone number is required" />
                 </div>
+                
+                {/* Country */}
                 <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Country of Origin *</label>
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    Country of Origin <span className="text-red-500">*</span>
+                  </label>
                   <select 
                     required 
-                    className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg" 
+                    className={`w-full border-b py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('country', !!formData.country)}`}
                     value={formData.country} 
+                    onFocus={() => markTouched('country')}
                     onChange={e => {
                       setFormData({...formData, country: e.target.value, province: ''});
                     }}
@@ -864,19 +1122,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
+                  <ErrorMessage field="country" message="Country of origin is required" />
                 </div>
 
-                {/* Dynamic Region Field */}
+                {/* Province/Region */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                    {regionTypeLabel} *
+                    {regionTypeLabel} <span className="text-red-500">*</span>
                   </label>
                   {availableRegions && availableRegions.length > 0 ? (
                     <select 
                       required 
-                      className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg" 
+                      className={`w-full border-b py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('province', !!formData.province)}`}
                       value={formData.province} 
+                      onFocus={() => markTouched('province')}
                       onChange={e => setFormData({...formData, province: e.target.value})}
+                      disabled={!formData.country}
                     >
                       <option value="">Select {regionTypeLabel}</option>
                       {availableRegions.map(region => (
@@ -888,18 +1149,33 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       required 
                       type="text" 
                       placeholder={`Enter your ${regionTypeLabel.toLowerCase()}`}
-                      className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" 
+                      className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('province', !!formData.province)}`}
                       value={formData.province} 
+                      onFocus={() => markTouched('province')}
                       onChange={e => setFormData({...formData, province: e.target.value})} 
+                      disabled={!formData.country}
                     />
                   )}
+                  <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
                 </div>
 
+                {/* City */}
                 <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">City / Town *</label>
-                  <input required type="text" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg font-serif" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    City / Town <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('city', !!formData.city.trim())}`} 
+                    value={formData.city} 
+                    onFocus={() => markTouched('city')}
+                    onChange={e => setFormData({...formData, city: e.target.value})} 
+                  />
+                  <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
+                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
@@ -910,24 +1186,43 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <input required type="number" min="0" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.kids} onChange={e => setFormData({...formData, kids: parseInt(e.target.value)})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Arrival Date</label>
-                    <input required type="date" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.arrivalDate} onChange={e => setFormData({...formData, arrivalDate: e.target.value})} />
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Arrival Date <span className="text-red-500">*</span></label>
+                    <input 
+                      required 
+                      type="date" 
+                      className={`w-full bg-transparent border-b py-2 font-bold transition-colors ${getErrorClass('arrivalDate', !!formData.arrivalDate)}`}
+                      value={formData.arrivalDate} 
+                      onFocus={() => markTouched('arrivalDate')}
+                      onChange={e => setFormData({...formData, arrivalDate: e.target.value})} 
+                    />
+                    <ErrorMessage field="arrivalDate" message="Arrival date is required" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Duration (Nights)</label>
-                    <input required type="number" min="1" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.nights} onChange={e => setFormData({...formData, nights: parseInt(e.target.value)})} />
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Duration (Nights) <span className="text-red-500">*</span></label>
+                    <input 
+                      required 
+                      type="number" 
+                      min="1" 
+                      className={`w-full bg-transparent border-b py-2 font-bold transition-colors ${getErrorClass('nights', formData.nights >= 1)}`}
+                      value={formData.nights} 
+                      onFocus={() => markTouched('nights')}
+                      onChange={e => setFormData({...formData, nights: parseInt(e.target.value)})} 
+                    />
+                    <ErrorMessage field="nights" message="Number of nights is required" />
                   </div>
                 </div>
 
-                <div className="space-y-1 group">
+                {/* Referral Source */}
+                <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                    How did you hear about us? *
+                    How did you hear about us? <span className="text-red-500">*</span>
                   </label>
                   <select 
                     required
                     value={formData.referral}
+                    onFocus={() => markTouched('referral')}
                     onChange={e => setFormData({...formData, referral: e.target.value})}
-                    className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg"
+                    className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('referral', !!formData.referral)}`}
                   >
                     <option value="">Select referral source</option>
                     <option value="Word of mouth">Word of mouth</option>
@@ -940,18 +1235,42 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <option value="Research engine">Research engine</option>
                     <option value="TikTok">TikTok</option>
                   </select>
+                  <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
 
-                <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Next Destination *</label>
-                  <input required type="text" placeholder="Where is your journey continuing?" className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic" value={formData.nextDestination} onChange={e => setFormData({...formData, nextDestination: e.target.value})} />
+                {/* Next Destination */}
+                <div className="space-y-1 group col-span-full">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    Next Destination <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="Where is your journey continuing?"
+                    className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
+                    value={formData.nextDestination} 
+                    onFocus={() => markTouched('nextDestination')}
+                    onChange={e => setFormData({...formData, nextDestination: e.target.value})} 
+                  />
+                  <ErrorMessage field="nextDestination" message="Next destination is required" />
                 </div>
-                <div className="space-y-1 group">
-                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">Method of Settlement *</label>
-                  <select required className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg" value={formData.settlement} onChange={e => setFormData({...formData, settlement: e.target.value})}>
+                
+                {/* Settlement Method */}
+                <div className="space-y-1 group col-span-full">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    Method of Settlement <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    required 
+                    className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('settlement', !!formData.settlement)}`}
+                    value={formData.settlement} 
+                    onFocus={() => markTouched('settlement')}
+                    onChange={e => setFormData({...formData, settlement: e.target.value})}
+                  >
                     <option value="">Select Settlement</option>
                     {SETTLEMENT_METHODS.filter(m => formData.country === 'South Africa' || m !== 'Instant EFT (RSA resident only)').map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
+                  <ErrorMessage field="settlement" message="Please select payment method" />
                 </div>
               </div>
 
@@ -959,8 +1278,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 <button type="button" onClick={() => setStep(1)} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">Back</button>
                 <button 
                   type="submit" 
-                  disabled={loading}
-                  className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
                   style={{ backgroundColor: secondaryColor }}
                 >
                   Continue to Indemnity
@@ -973,6 +1291,25 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
+              
+              {/* Error Summary Bar */}
+              {submitAttempted && validateStep3().length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-red-800 text-sm">Please complete before submitting:</p>
+                      <ul className="text-red-700 text-xs mt-1 list-disc list-inside">
+                        {!formData.idPhoto && <li>Take a photo of your ID/passport</li>}
+                        {!formData.signature && <li>Provide your digital signature</li>}
+                        {!formData.acceptLegal && <li>Scroll to the bottom and accept the indemnity terms</li>}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="space-y-10 flex-grow">
                 <div className="relative border border-stone-200 rounded-[2rem] overflow-hidden shadow-inner bg-white">
@@ -1112,15 +1449,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           <input 
                             type="checkbox" 
                             id="legalCheck" 
-                            className="w-8 h-8 rounded border-stone-300 text-amber-700 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1" 
+                            className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
                             disabled={!hasScrolledToBottom}
                             checked={formData.acceptLegal} 
-                            onChange={e => setFormData({...formData, acceptLegal: e.target.checked})} 
+                            onChange={e => {
+                              setFormData({...formData, acceptLegal: e.target.checked});
+                              markTouched('acceptLegal');
+                            }} 
                           />
                           <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
                             I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
                           </label>
                         </div>
+                        <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
                       </div>
 
                       <div className="text-center text-stone-400 text-xs pt-4">
@@ -1137,12 +1478,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
-                  {/* LEFT COLUMN - CAMERA WITH BUTTONS BELOW */}
+                  {/* LEFT COLUMN - CAMERA */}
                   <div className="space-y-4">
-                    <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">1. Guest ID Verification</h4>
+                    <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
+                      1. Guest ID Verification <span className="text-red-500">*</span>
+                    </h4>
                     
-                    {/* Camera Frame - No buttons inside */}
-                    <div className="aspect-[3/2] bg-stone-100 rounded-xl overflow-hidden border-2 border-dashed border-stone-300">
+                    <div className={`aspect-[3/2] bg-stone-100 rounded-xl overflow-hidden border-2 transition-colors ${submitAttempted && !formData.idPhoto ? 'border-red-500' : 'border-dashed border-stone-300'}`}>
                       {formData.idPhoto ? (
                         <div className="relative w-full h-full">
                           <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
@@ -1175,8 +1517,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         </div>
                       )}
                     </div>
+                    
+                    {submitAttempted && !formData.idPhoto && (
+                      <p className="text-red-500 text-xs flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        ID photo is required
+                      </p>
+                    )}
 
-                    {/* Camera Controls - BELOW the frame */}
                     <div className="space-y-2">
                       {!formData.idPhoto && (
                         <>
@@ -1218,7 +1568,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                             </div>
                           )}
                           
-                          {/* File upload fallback */}
                           <div className="text-center">
                             <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600 transition-colors">
                               📁 Or upload from gallery
@@ -1232,6 +1581,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                                     const reader = new FileReader();
                                     reader.onloadend = () => {
                                       setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                      markTouched('idPhoto');
                                     };
                                     reader.readAsDataURL(file);
                                   }
@@ -1240,7 +1590,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                             </label>
                           </div>
                           
-                          {/* Camera Error Message */}
                           {cameraError && (
                             <div className="mt-2 p-2 bg-red-50 text-red-600 rounded-lg text-xs">
                               {cameraError}
@@ -1268,14 +1617,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   {/* RIGHT COLUMN - SIGNATURE */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">2. Primary Guest Signature *</h4>
+                      <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
+                        2. Primary Guest Signature <span className="text-red-500">*</span>
+                      </h4>
                       <button type="button" onClick={clearCanvas} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
                     </div>
                     <canvas 
                       ref={canvasRef} 
-                      className="w-full h-32 bg-white border-2 border-stone-200 rounded-xl cursor-crosshair touch-none"
+                      className={`w-full h-32 bg-white border-2 rounded-xl cursor-crosshair touch-none transition-colors ${submitAttempted && !formData.signature ? 'border-red-500' : 'border-stone-200'}`}
                       style={{ touchAction: 'none' }}
                     />
+                    {submitAttempted && !formData.signature && (
+                      <p className="text-red-500 text-xs flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Digital signature is required
+                      </p>
+                    )}
                     <p className="text-xs text-stone-400">Sign with your finger or mouse</p>
                   </div>
                 </div>
@@ -1285,7 +1644,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">← Return to Details</button>
                 <button 
                   type="submit" 
-                  disabled={loading || !hasScrolledToBottom || !formData.acceptLegal || !formData.signature}
+                  disabled={loading || !hasScrolledToBottom}
                   className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Processing...' : 'Complete Registration'}
