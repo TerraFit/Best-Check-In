@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "install-functions": "cd netlify/functions && npm install"
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^19.2.4",
@@ -26,7 +25,8 @@
     "@heroicons/react": "^2.0.0",
     "xlsx": "^0.18.5",
     "stripe": "^17.5.0",
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",
