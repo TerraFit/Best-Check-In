@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -42,10 +43,13 @@ export const handler = async function(event) {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
     );
 
-    // ✅ Include logo_url and hero_image_url but keep other fields minimal
     const { data, error } = await supabase
       .from('businesses')
       .select(`
