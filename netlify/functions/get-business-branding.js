@@ -1,3 +1,19 @@
+// DEPLOYMENT-FIX-001: May 18 2024 19:45
+import { createClient } from '@supabase/supabase-js';
+
+export const handler = async function(event) {
+  // Add this as the FIRST line inside the function
+  console.log('🔥 NEW VERSION DEPLOYED - WebSocket FIXED');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+  };
+  
+  // ... rest of your existing code
+  
 import { createClient } from '@supabase/supabase-js';
 
 export const handler = async function(event) {
