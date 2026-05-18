@@ -1,10 +1,7 @@
-// DEPLOYMENT-FIX-001: May 18 2024 19:45
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 
-export const handler = async function(event) {
-  // Add this as the FIRST line inside the function
-  console.log('🔥 NEW VERSION DEPLOYED - WebSocket FIXED');
-  
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -35,7 +32,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Try both possible environment variable names
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!process.env.SUPABASE_URL || !supabaseKey) {
@@ -47,42 +43,19 @@ export const handler = async function(event) {
       };
     }
 
-    // CRITICAL FIX: Remove ALL options - no auth, no realtime, no ws
-    // Just pass URL and key - nothing else!
+    // Provide WebSocket implementation
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      supabaseKey
+      supabaseKey,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
     );
 
     const { data, error } = await supabase
       .from('businesses')
-      .select(`
-        id,
-        trading_name,
-        registered_name,
-        email,
-        phone,
-        logo_url,
-        hero_image_url,
-        slogan,
-        welcome_message,
-        total_rooms,
-        avg_price,
-        physical_address,
-        trial_end,
-        subscription_status,
-        newsletter_enabled,
-        newsletter_title,
-        newsletter_prize,
-        newsletter_cta,
-        newsletter_terms,
-        newsletter_draw_date,
-        newsletter_share_text,
-        establishment_type,
-        tgsa_grading,
-        status,
-        created_at
-      `)
+      .select('id, trading_name, registered_name, email, phone, logo_url, hero_image_url, slogan, welcome_message, total_rooms, avg_price, physical_address, trial_end, subscription_status, newsletter_enabled, establishment_type, tgsa_grading, status, created_at')
       .eq('id', businessId)
       .maybeSingle();
 
