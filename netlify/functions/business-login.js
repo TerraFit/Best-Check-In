@@ -1,7 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -23,27 +21,22 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
-
   try {
     const { email, password, rememberMe = false } = JSON.parse(event.body);
-    console.log('🔐 Business login attempt for:', email);
+    
+    // Fetch business using REST
+    const url = `${process.env.SUPABASE_URL}/rest/v1/businesses?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': process.env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`
+      }
+    });
+    
+    const businesses = await response.json();
+    const business = businesses?.[0];
 
-    const { data: business, error } = await supabase
-      .from('businesses')
-      .select('id, trading_name, email, status, setup_complete, password_hash')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-
-    if (error || !business) {
-      console.log('❌ Business not found:', email);
+    if (!business) {
       return {
         statusCode: 401,
         headers,
@@ -51,10 +44,7 @@ export const handler = async function(event) {
       };
     }
 
-    console.log('✅ Business found:', business.trading_name);
-
     if (!business.password_hash) {
-      console.log('❌ No password set for business:', email);
       return {
         statusCode: 401,
         headers,
@@ -62,15 +52,8 @@ export const handler = async function(event) {
       };
     }
 
-    let validPassword = false;
-    try {
-      validPassword = await bcrypt.compare(password, business.password_hash);
-    } catch (compareError) {
-      console.error('❌ Password comparison error:', compareError);
-    }
-    
+    const validPassword = await bcrypt.compare(password, business.password_hash);
     if (!validPassword) {
-      console.log('❌ Invalid password for:', email);
       return {
         statusCode: 401,
         headers,
@@ -78,24 +61,21 @@ export const handler = async function(event) {
       };
     }
 
-    console.log('✅ Password valid for:', business.trading_name);
-
     const expiresIn = rememberMe ? '7d' : '1d';
-    
-    const payload = {
-      sub: business.id,
-      role: 'authenticated',
-      user_metadata: {
-        business_id: business.id,
-        business_name: business.trading_name,
-        email: business.email,
-        role: 'business'
-      }
-    };
-    
-    const token = jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn });
-    
-    console.log('✅ JWT token generated for business:', business.id);
+    const token = jwt.sign(
+      {
+        sub: business.id,
+        role: 'authenticated',
+        user_metadata: {
+          business_id: business.id,
+          business_name: business.trading_name,
+          email: business.email,
+          role: 'business'
+        }
+      },
+      process.env.SUPABASE_JWT_SECRET,
+      { expiresIn }
+    );
 
     delete business.password_hash;
 
@@ -117,16 +97,7 @@ export const handler = async function(event) {
       })
     };
   } catch (error) {
-    console.error('❌ Business login error:', error);
-    
-    if (error.name === 'JsonWebTokenError') {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Token generation failed' })
-      };
-    }
-    
+    console.error('Login error:', error);
     return {
       statusCode: 500,
       headers,
