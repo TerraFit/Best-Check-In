@@ -1,5 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
+import { supabaseFetch } from './lib/supabase-rest.js';
 
 export const handler = async function(event) {
   const headers = {
@@ -21,38 +20,14 @@ export const handler = async function(event) {
     };
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing Supabase environment variables');
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Configuration error', data: [] })
-    };
-  }
-
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
-
     const { status, businessId } = event.queryStringParameters || {};
-
-    let query = supabase
-      .from('change_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (status) query = query.eq('status', status);
-    if (businessId) query = query.eq('business_id', businessId);
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    
+    let query = 'change_requests?select=*&order=created_at.desc';
+    if (status) query += `&status=eq.${status}`;
+    if (businessId) query += `&business_id=eq.${businessId}`;
+    
+    const data = await supabaseFetch(query);
 
     return {
       statusCode: 200,
@@ -60,7 +35,6 @@ export const handler = async function(event) {
       body: JSON.stringify(data || [])
     };
   } catch (error) {
-    console.error('Error:', error);
     return {
       statusCode: 500,
       headers,
