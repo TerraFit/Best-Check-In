@@ -6,13 +6,13 @@ import jwt from 'jsonwebtoken';
 // ============================================================
 
 const getSupabase = () => {
-    // FIXED: Remove WebSocket/Realtime options
+    // FIXED: Remove WebSocket/Realtime options - this was causing the 500 error
     return createClient(
         process.env.SUPABASE_URL,
         process.env.SUPABASE_SERVICE_ROLE_KEY,
         {
             auth: { persistSession: false }
-            // Remove realtime and ws options completely
+            // NO realtime, NO ws options - these cause Node.js 20 errors
         }
     );
 };
@@ -75,6 +75,14 @@ export const handler = async (event) => {
     }
 
     try {
+        // Add debug logging
+        console.log('🔍 Environment check:', {
+            hasSupabaseUrl: !!process.env.SUPABASE_URL,
+            hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
+            urlPrefix: process.env.SUPABASE_URL?.substring(0, 30)
+        });
+
         const auth = verifyAuth(event.headers.authorization);
         const businessIdFromToken = auth.user_metadata.business_id;
         
@@ -105,7 +113,25 @@ export const handler = async (event) => {
 
         const supabase = getSupabase();
         
-        // Use the table name as-is (it exists in your DB)
+        // First, test if the table exists and has data
+        console.log('🔍 Testing table access...');
+        const { data: testData, error: testError } = await supabase
+            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
+            .select('*')
+            .limit(1);
+            
+        if (testError) {
+            console.error('❌ Table access error:', testError);
+            return createResponse(500, { 
+                error: 'Database table error',
+                details: testError.message,
+                table: 'ONLINE CHECKING J-BAY ZEBRA LODGE'
+            });
+        }
+        
+        console.log('✅ Table accessible, sample:', testData?.[0] ? Object.keys(testData[0]) : 'no data');
+        
+        // Now build the main query
         let query = supabase
             .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
             .select('*', { count: 'exact' })
@@ -228,17 +254,18 @@ export const handler = async (event) => {
     } catch (err) {
         console.error('❌ get-business-bookings error:', err);
         
-        if (err.message.startsWith('UNAUTHORIZED:')) {
+        if (err.message?.startsWith('UNAUTHORIZED:')) {
             return createResponse(401, { success: false, error: err.message.replace('UNAUTHORIZED: ', '') });
         }
-        if (err.message.startsWith('FORBIDDEN:')) {
+        if (err.message?.startsWith('FORBIDDEN:')) {
             return createResponse(403, { success: false, error: err.message.replace('FORBIDDEN: ', '') });
         }
         
         return createResponse(500, {
             success: false,
             error: 'Internal Server Error',
-            message: err.message
+            message: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         });
     }
 };
