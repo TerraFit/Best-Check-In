@@ -183,61 +183,54 @@ export default function SuperAdminPortal() {
   // DATA FETCHING
   // ============================================================
   
-  const fetchBusinesses = async () => {
-    try {
-      const response = await fetch('/.netlify/functions/get-approved-businesses');
-      const data = await response.json();
-      
-      const businessesWithStatus = data.map((b: any) => {
-        const daysOverdue = calculateOverdueDays(b);
-        return {
-          ...b,
-          days_overdue: daysOverdue,
-          payment_status: getPaymentStatus(daysOverdue),
-          service_paused: b.service_paused || false
-        };
-      });
-      
-      const sorted = businessesWithStatus.sort((a, b) => 
-        (a.trading_name || '').localeCompare(b.trading_name || '')
-      );
-      
-      setBusinesses(sorted);
-      
-      const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
-      const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
-      
-      setProvinces(uniqueProvinces);
-      setCities(uniqueCities);
-      
-    } catch (error) {
-      console.error('Error fetching businesses:', error);
-    } finally {
-      setLoading(false);
+ const fetchBusinesses = async () => {
+  try {
+    const response = await fetch('/.netlify/functions/get-approved-businesses');
+    const result = await response.json();
+    
+    console.log('🔍 API Response:', result);
+    
+    // Handle both response shapes
+    let data = [];
+    if (result.success && Array.isArray(result.data)) {
+      data = result.data;
+    } else if (Array.isArray(result)) {
+      data = result;
+    } else {
+      console.error('Unexpected response format:', result);
+      data = [];
     }
-  };
-
-  const fetchPendingCount = async () => {
-    try {
-      const response = await fetch('/.netlify/functions/get-pending-businesses');
-      const data = await response.json();
-      setPendingCount(data.length || 0);
-    } catch (error) {
-      console.error('Error fetching pending count:', error);
-    }
-  };
-
-  const fetchChangeRequests = async () => {
-    try {
-      const response = await fetch('/.netlify/functions/get-change-requests?status=pending');
-      if (response.ok) {
-        const data = await response.json();
-        setChangeRequests(data);
-      }
-    } catch (error) {
-      console.error('Error fetching change requests:', error);
-    }
-  };
+    
+    console.log(`📊 Found ${data.length} businesses`);
+    
+    const businessesWithStatus = data.map((b: any) => {
+      const daysOverdue = calculateOverdueDays(b);
+      return {
+        ...b,
+        days_overdue: daysOverdue,
+        payment_status: getPaymentStatus(daysOverdue),
+        service_paused: b.service_paused || false
+      };
+    });
+    
+    const sorted = businessesWithStatus.sort((a, b) => 
+      (a.trading_name || '').localeCompare(b.trading_name || '')
+    );
+    
+    setBusinesses(sorted);
+    
+    const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
+    const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
+    
+    setProvinces(uniqueProvinces);
+    setCities(uniqueCities);
+    
+  } catch (error) {
+    console.error('Error fetching businesses:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ============================================================
   // HELPER FUNCTIONS
