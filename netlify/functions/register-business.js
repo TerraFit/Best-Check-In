@@ -18,18 +18,13 @@ export const handler = async (event) => {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ error: 'Method not allowed. Use POST.' })
     };
   }
 
   try {
     const { business } = JSON.parse(event.body || '{}');
     
-    console.log('📝 Registration received:', { 
-      email: business?.email,
-      businessName: business?.trading_name
-    });
-
     if (!business || !business.email) {
       return {
         statusCode: 400,
@@ -38,7 +33,6 @@ export const handler = async (event) => {
       };
     }
 
-    // CRITICAL: Add WebSocket support here
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
@@ -69,18 +63,16 @@ export const handler = async (event) => {
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 48);
 
-    // Create physical_address and postal_address as JSON objects
+    // Create physical address
     const physicalAddress = business.physical_address || {
-      street: '',
-      city: '',
-      province: '',
-      country: 'South Africa',
-      postalCode: ''
+      street: business.physicalStreet || '',
+      city: business.physicalCity || '',
+      province: business.physicalProvince || '',
+      country: business.physicalCountry || 'South Africa',
+      postalCode: business.physicalPostalCode || ''
     };
 
-    const postalAddress = business.postal_address || physicalAddress;
-
-    // Directors array
+    // Create directors array
     const directors = business.director ? [{
       name: `${business.director.name || ''} ${business.director.surname || ''}`.trim(),
       id_number: business.director.id_number || '',
@@ -109,7 +101,7 @@ export const handler = async (event) => {
       fixed_phone: business.fixed_phone || '',
       website: business.website || '',
       physical_address: physicalAddress,
-      postal_address: postalAddress,
+      postal_address: business.postal_address || physicalAddress,
       directors: directors,
       total_rooms: business.total_rooms || 0,
       avg_price: 0,
@@ -126,14 +118,12 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log('📝 Inserting business record with ID:', businessId);
-
     const { error: businessError } = await supabase
       .from('businesses')
       .insert(businessData);
 
     if (businessError) {
-      console.error('❌ Business insert error:', businessError);
+      console.error('Business insert error:', businessError);
       return {
         statusCode: 500,
         headers,
@@ -142,6 +132,8 @@ export const handler = async (event) => {
     }
 
     // Save setup token
+    const setupLink = `https://fastcheckin.co.za/set-password/${setupToken}`;
+    
     const { error: tokenError } = await supabase
       .from('setup_tokens')
       .insert({
@@ -152,13 +144,12 @@ export const handler = async (event) => {
       });
 
     if (tokenError) {
-      console.error('❌ Token insert error:', tokenError);
+      console.error('Token insert error:', tokenError);
     }
 
     // Send setup email
-    const setupLink = `https://fastcheckin.co.za/set-password/${setupToken}`;
     const resend = new Resend(process.env.RESEND_API_KEY);
-
+    
     try {
       await resend.emails.send({
         from: 'FastCheckin <noreply@fastcheckin.co.za>',
@@ -206,12 +197,10 @@ export const handler = async (event) => {
           </div>
         `
       });
-      console.log('✅ Setup email sent to:', business.email);
+      console.log('Setup email sent to:', business.email);
     } catch (emailError) {
-      console.error('❌ Email error:', emailError);
+      console.error('Email error:', emailError);
     }
-
-    console.log('✅ Business registered successfully:', businessId);
 
     return {
       statusCode: 200,
@@ -222,9 +211,8 @@ export const handler = async (event) => {
         message: 'Registration submitted successfully. Please check your email to complete setup.'
       })
     };
-
   } catch (error) {
-    console.error('❌ Registration error:', error);
+    console.error('Registration error:', error);
     return {
       statusCode: 500,
       headers,
