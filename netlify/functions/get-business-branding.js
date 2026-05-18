@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -32,7 +31,7 @@ export const handler = async function(event) {
       };
     }
 
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing Supabase environment variables');
       return {
         statusCode: 500,
@@ -41,12 +40,13 @@ export const handler = async function(event) {
       };
     }
 
+    // FIXED: Remove WebSocket/Realtime options for Node.js 20
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
       {
-        realtime: { ws: ws },
         auth: { persistSession: false }
+        // Remove realtime and ws options completely
       }
     );
 
