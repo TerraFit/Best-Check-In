@@ -6,14 +6,12 @@ import jwt from 'jsonwebtoken';
 // ============================================================
 
 const getSupabase = () => {
-    // FIXED: Remove WebSocket/Realtime options - this was causing the 500 error
+    // CRITICAL FIX: Remove ALL options - just URL and key
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     return createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_KEY,
-        {
-            auth: { persistSession: false }
-            // NO realtime, NO ws options - these cause Node.js 20 errors
-        }
+        supabaseKey
+        // NO options object at all! Not even { auth: { persistSession: false } }
     );
 };
 
@@ -75,14 +73,6 @@ export const handler = async (event) => {
     }
 
     try {
-        // Add debug logging
-        console.log('🔍 Environment check:', {
-            hasSupabaseUrl: !!process.env.SUPABASE_URL,
-            hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
-            hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
-            urlPrefix: process.env.SUPABASE_URL?.substring(0, 30)
-        });
-
         const auth = verifyAuth(event.headers.authorization);
         const businessIdFromToken = auth.user_metadata.business_id;
         
@@ -90,122 +80,70 @@ export const handler = async (event) => {
             businessId: businessIdFromQuery, 
             startDate, 
             endDate, 
-            dateRange,
-            limit = 10000 
+            dateRange 
         } = event.queryStringParameters || {};
 
         let targetBusinessId = businessIdFromQuery || businessIdFromToken;
         
         if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
-            console.error(`❌ Security violation: Token business_id (${businessIdFromToken}) does not match requested (${businessIdFromQuery})`);
-            return createResponse(403, { 
-                error: 'Forbidden',
-                message: 'You do not have permission to access this business data'
-            });
+            console.error(`❌ Security violation`);
+            return createResponse(403, { error: 'Forbidden' });
         }
         
         if (!targetBusinessId) {
-            return createResponse(400, { error: 'Missing businessId parameter' });
+            return createResponse(400, { error: 'Missing businessId' });
         }
-
-        console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
-        console.log(`📊 Date range: ${dateRange}, Custom: ${startDate} - ${endDate}`);
 
         const supabase = getSupabase();
         
-        // First, test if the table exists and has data
-        console.log('🔍 Testing table access...');
-        const { data: testData, error: testError } = await supabase
-            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
-            .select('*')
-            .limit(1);
-            
-        if (testError) {
-            console.error('❌ Table access error:', testError);
-            return createResponse(500, { 
-                error: 'Database table error',
-                details: testError.message,
-                table: 'ONLINE CHECKING J-BAY ZEBRA LODGE'
-            });
-        }
-        
-        console.log('✅ Table accessible, sample:', testData?.[0] ? Object.keys(testData[0]) : 'no data');
-        
-        // Now build the main query
+        // Build query
         let query = supabase
             .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
-            .select('*', { count: 'exact' })
+            .select('*')
             .eq('business_id', targetBusinessId)
             .order('check_in_date', { ascending: false });
 
         // Apply date filters
         if (startDate && endDate) {
-            console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
-            query = query
-                .gte('check_in_date', startDate)
-                .lte('check_in_date', endDate);
-        }
-        else if (dateRange === '7days') {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const dateStr = sevenDaysAgo.toISOString().split('T')[0];
-            query = query.gte('check_in_date', dateStr);
-        }
-        else if (dateRange === '30days') {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
-            query = query.gte('check_in_date', dateStr);
-        }
-        else if (dateRange === '90days') {
-            const ninetyDaysAgo = new Date();
-            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-            const dateStr = ninetyDaysAgo.toISOString().split('T')[0];
-            query = query.gte('check_in_date', dateStr);
-        }
-        else if (dateRange === '12months') {
-            const twelveMonthsAgo = new Date();
-            twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-            const dateStr = twelveMonthsAgo.toISOString().split('T')[0];
-            query = query.gte('check_in_date', dateStr);
+            query = query.gte('check_in_date', startDate).lte('check_in_date', endDate);
+        } else if (dateRange === '7days') {
+            const date = new Date();
+            date.setDate(date.getDate() - 7);
+            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+        } else if (dateRange === '30days') {
+            const date = new Date();
+            date.setDate(date.getDate() - 30);
+            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+        } else if (dateRange === '90days') {
+            const date = new Date();
+            date.setDate(date.getDate() - 90);
+            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+        } else if (dateRange === '12months') {
+            const date = new Date();
+            date.setMonth(date.getMonth() - 12);
+            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
         }
 
-        // Fetch all records with pagination
-        let allBookings = [];
-        let from = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        
-        while (hasMore) {
-            const { data: batch, error: batchError } = await query
-                .range(from, from + pageSize - 1);
-            
-            if (batchError) {
-                console.error('Error fetching batch:', batchError);
-                break;
-            }
-            
-            if (batch && batch.length > 0) {
-                allBookings = [...allBookings, ...batch];
-                from += pageSize;
-                hasMore = batch.length === pageSize;
-            } else {
-                hasMore = false;
-            }
-        }
-        
-        console.log(`✅ Total bookings fetched: ${allBookings.length}`);
+        // Fetch all bookings
+        const { data: allBookings, error } = await query;
 
-        // Calculate analytics with safe fallbacks
-        const totalRevenue = allBookings.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
+        if (error) {
+            console.error('Query error:', error);
+            return createResponse(500, { error: error.message });
+        }
+
+        console.log(`✅ Total bookings fetched: ${allBookings?.length || 0}`);
+
+        // Calculate analytics
+        const totalRevenue = (allBookings || []).reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
         
-        const statusBreakdown = allBookings.reduce((acc, b) => {
+        const statusBreakdown = (allBookings || []).reduce((acc, b) => {
             const status = b.status || 'unknown';
             acc[status] = (acc[status] || 0) + 1;
             return acc;
         }, {});
         
-        const bookingsByMonth = allBookings.reduce((acc, b) => {
+        const bookingsByMonth = (allBookings || []).reduce((acc, b) => {
             const dateField = b.check_in_date || b.check_in || b.created_at;
             if (dateField) {
                 const date = new Date(dateField);
@@ -217,27 +155,23 @@ export const handler = async (event) => {
             return acc;
         }, {});
         
-        const guestOrigins = {
-            provinces: {},
-            cities: {},
-            countries: {}
-        };
+        const guestOrigins = { provinces: {}, cities: {}, countries: {} };
         
-        allBookings.forEach(b => {
+        (allBookings || []).forEach(b => {
             if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
             if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
             if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
         });
 
-        const averageNights = allBookings.length > 0
+        const averageNights = allBookings?.length > 0
             ? (allBookings.reduce((sum, b) => sum + (Number(b.nights) || Number(b.num_nights) || 1), 0) / allBookings.length).toFixed(1)
             : 0;
 
         return createResponse(200, {
             success: true,
-            bookings: allBookings,
+            bookings: allBookings || [],
             summary: {
-                total_bookings: allBookings.length,
+                total_bookings: allBookings?.length || 0,
                 total_revenue: totalRevenue,
                 average_nights: parseFloat(averageNights),
                 bookings_by_status: statusBreakdown,
@@ -252,20 +186,16 @@ export const handler = async (event) => {
         });
 
     } catch (err) {
-        console.error('❌ get-business-bookings error:', err);
+        console.error('❌ Error:', err);
         
-        if (err.message?.startsWith('UNAUTHORIZED:')) {
-            return createResponse(401, { success: false, error: err.message.replace('UNAUTHORIZED: ', '') });
-        }
-        if (err.message?.startsWith('FORBIDDEN:')) {
-            return createResponse(403, { success: false, error: err.message.replace('FORBIDDEN: ', '') });
+        if (err.message?.startsWith('UNAUTHORIZED:') || err.message?.includes('token')) {
+            return createResponse(401, { success: false, error: 'Invalid or expired token' });
         }
         
         return createResponse(500, {
             success: false,
             error: 'Internal Server Error',
-            message: err.message,
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            message: err.message
         });
     }
 };
