@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
-import ws from 'ws';
 
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
 const getSupabase = () => {
+    // FIXED: Remove WebSocket/Realtime options
     return createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_KEY,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
         {
-            realtime: { ws: ws },
             auth: { persistSession: false }
+            // Remove realtime and ws options completely
         }
     );
 };
@@ -105,18 +105,14 @@ export const handler = async (event) => {
 
         const supabase = getSupabase();
         
-        // IMPORTANT: Fix the table name - this seems to be a hardcoded table name
-        // You should change 'ONLINE CHECKING J-BAY ZEBRA LODGE' to 'bookings'
+        // Use the table name as-is (it exists in your DB)
         let query = supabase
-            .from('bookings')
+            .from('ONLINE CHECKING J-BAY ZEBRA LODGE')
             .select('*', { count: 'exact' })
             .eq('business_id', targetBusinessId)
             .order('check_in_date', { ascending: false });
 
         // Apply date filters
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
         if (startDate && endDate) {
             console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
             query = query
@@ -174,8 +170,8 @@ export const handler = async (event) => {
         
         console.log(`✅ Total bookings fetched: ${allBookings.length}`);
 
-        // Calculate analytics
-        const totalRevenue = allBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+        // Calculate analytics with safe fallbacks
+        const totalRevenue = allBookings.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
         
         const statusBreakdown = allBookings.reduce((acc, b) => {
             const status = b.status || 'unknown';
@@ -184,10 +180,13 @@ export const handler = async (event) => {
         }, {});
         
         const bookingsByMonth = allBookings.reduce((acc, b) => {
-            if (b.check_in_date) {
-                const date = new Date(b.check_in_date);
-                const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                acc[monthYear] = (acc[monthYear] || 0) + 1;
+            const dateField = b.check_in_date || b.check_in || b.created_at;
+            if (dateField) {
+                const date = new Date(dateField);
+                if (!isNaN(date.getTime())) {
+                    const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    acc[monthYear] = (acc[monthYear] || 0) + 1;
+                }
             }
             return acc;
         }, {});
@@ -205,7 +204,7 @@ export const handler = async (event) => {
         });
 
         const averageNights = allBookings.length > 0
-            ? (allBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / allBookings.length).toFixed(1)
+            ? (allBookings.reduce((sum, b) => sum + (Number(b.nights) || Number(b.num_nights) || 1), 0) / allBookings.length).toFixed(1)
             : 0;
 
         return createResponse(200, {
