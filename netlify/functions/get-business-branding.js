@@ -1,7 +1,7 @@
-const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws');
+import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -43,7 +43,6 @@ exports.handler = async function(event) {
       };
     }
 
-    // Provide WebSocket implementation
     const supabase = createClient(
       process.env.SUPABASE_URL,
       supabaseKey,
@@ -55,7 +54,33 @@ exports.handler = async function(event) {
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, trading_name, registered_name, email, phone, logo_url, hero_image_url, slogan, welcome_message, total_rooms, avg_price, physical_address, trial_end, subscription_status, newsletter_enabled, establishment_type, tgsa_grading, status, created_at')
+      .select(`
+        id,
+        trading_name,
+        registered_name,
+        email,
+        phone,
+        logo_url,
+        hero_image_url,
+        slogan,
+        welcome_message,
+        total_rooms,
+        avg_price,
+        physical_address,
+        trial_end,
+        subscription_status,
+        newsletter_enabled,
+        newsletter_title,
+        newsletter_prize,
+        newsletter_cta,
+        newsletter_terms,
+        newsletter_draw_date,
+        newsletter_share_text,
+        establishment_type,
+        tgsa_grading,
+        status,
+        created_at
+      `)
       .eq('id', businessId)
       .maybeSingle();
 
