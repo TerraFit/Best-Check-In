@@ -1,16 +1,22 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';  // ← ADD THIS IMPORT
 
+// Use the correct environment variable name
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!,  // ← FIXED: Try both
+  {
+    realtime: { ws: ws },  // ← ADD THIS: Required for Node.js 20
+    auth: { persistSession: false }
+  }
 );
 
 export const handler: Handler = async (event) => {
   // Set CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Content-Type': 'application/json'
   };
@@ -33,16 +39,25 @@ export const handler: Handler = async (event) => {
 
     console.log('📊 Fetching stats for business:', businessId);
 
-    // Get all bookings for this business
+    // IMPORTANT: Use the correct table name - change 'bookings' to your actual table name
+    // Based on your earlier database schema, the table is: 'ONLINE CHECKING J-BAY ZEBRA LODGE'
     const { data: bookings, error } = await supabase
-      .from('bookings')
+      .from('ONLINE CHECKING J-BAY ZEBRA LODGE')  // ← FIXED: Use your actual table name
       .select('*')
       .eq('business_id', businessId)
       .order('check_in_date', { ascending: false });
 
     if (error) {
       console.error('Database error:', error);
-      throw error;
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Database error', 
+          details: error.message,
+          hint: error.hint 
+        })
+      };
     }
 
     // Calculate referral sources from booking_source field
