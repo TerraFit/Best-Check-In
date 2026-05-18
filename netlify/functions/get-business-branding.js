@@ -23,6 +23,9 @@ export const handler = async function(event) {
   try {
     const businessId = event.queryStringParameters?.id;
     
+    // Return debug info if debug=true
+    const debug = event.queryStringParameters?.debug === 'true';
+    
     if (!businessId) {
       return {
         statusCode: 400,
@@ -31,59 +34,57 @@ export const handler = async function(event) {
       };
     }
 
+    // Check environment variables
+    const envStatus = {
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      supabaseUrlPrefix: process.env.SUPABASE_URL?.substring(0, 20),
+      nodeVersion: process.version
+    };
+
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing Supabase environment variables');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
+        body: JSON.stringify({ 
+          error: 'Server configuration error',
+          env: envStatus
+        })
       };
     }
 
-    // FIXED: Remove WebSocket/Realtime options for Node.js 20
+    // Create client WITHOUT any extra options
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false }
-        // Remove realtime and ws options completely
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
+    // Test the connection first
+    const { data: testData, error: testError } = await supabase
+      .from('businesses')
+      .select('id')
+      .limit(1);
+
+    if (testError) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Database connection failed',
+          details: testError.message,
+          env: envStatus
+        })
+      };
+    }
+
+    // Now fetch the actual business
     const { data, error } = await supabase
       .from('businesses')
-      .select(`
-        id,
-        trading_name,
-        registered_name,
-        email,
-        phone,
-        logo_url,
-        hero_image_url,
-        slogan,
-        welcome_message,
-        total_rooms,
-        avg_price,
-        physical_address,
-        trial_end,
-        subscription_status,
-        newsletter_enabled,
-        newsletter_title,
-        newsletter_prize,
-        newsletter_cta,
-        newsletter_terms,
-        newsletter_draw_date,
-        newsletter_share_text,
-        establishment_type,
-        tgsa_grading,
-        status,
-        created_at
-      `)
+      .select('*')
       .eq('id', businessId)
       .maybeSingle();
 
     if (error) {
-      console.error('Supabase error:', error);
       return {
         statusCode: 500,
         headers,
@@ -95,7 +96,24 @@ export const handler = async function(event) {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Business not found' })
+        body: JSON.stringify({ error: 'Business not found', businessId })
+      };
+    }
+
+    // If debug mode, return more info
+    if (debug) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          debug: {
+            env: envStatus,
+            businessFound: true,
+            fields: Object.keys(data)
+          },
+          data
+        })
       };
     }
 
@@ -110,7 +128,11 @@ export const handler = async function(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error', message: error.message })
+      body: JSON.stringify({ 
+        error: 'Internal server error', 
+        message: error.message,
+        stack: error.stack
+      })
     };
   }
 };
