@@ -16,7 +16,7 @@ export const handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ success: false, error: 'Method Not Allowed', data: [] })
     };
   }
 
@@ -32,13 +32,13 @@ export const handler = async function(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data || [])
+      body: JSON.stringify({ success: true, data: data || [], count: data?.length || 0 })
     };
   } catch (error) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message, data: [] })
+      body: JSON.stringify({ success: false, error: error.message, data: [] })
     };
   }
 };
