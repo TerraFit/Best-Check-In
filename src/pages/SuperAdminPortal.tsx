@@ -180,57 +180,95 @@ export default function SuperAdminPortal() {
   };
 
   // ============================================================
-  // DATA FETCHING
+  // DATA FETCHING FUNCTIONS
   // ============================================================
   
- const fetchBusinesses = async () => {
-  try {
-    const response = await fetch('/.netlify/functions/get-approved-businesses');
-    const result = await response.json();
-    
-    console.log('🔍 API Response:', result);
-    
-    // Handle both response shapes
-    let data = [];
-    if (result.success && Array.isArray(result.data)) {
-      data = result.data;
-    } else if (Array.isArray(result)) {
-      data = result;
-    } else {
-      console.error('Unexpected response format:', result);
-      data = [];
+  const fetchBusinesses = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/get-approved-businesses');
+      const result = await response.json();
+      
+      console.log('🔍 API Response:', result);
+      
+      // Handle both response shapes
+      let data = [];
+      if (result.success && Array.isArray(result.data)) {
+        data = result.data;
+      } else if (Array.isArray(result)) {
+        data = result;
+      } else {
+        console.error('Unexpected response format:', result);
+        data = [];
+      }
+      
+      console.log(`📊 Found ${data.length} businesses`);
+      
+      const businessesWithStatus = data.map((b: any) => {
+        const daysOverdue = calculateOverdueDays(b);
+        return {
+          ...b,
+          days_overdue: daysOverdue,
+          payment_status: getPaymentStatus(daysOverdue),
+          service_paused: b.service_paused || false
+        };
+      });
+      
+      const sorted = businessesWithStatus.sort((a, b) => 
+        (a.trading_name || '').localeCompare(b.trading_name || '')
+      );
+      
+      setBusinesses(sorted);
+      
+      const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
+      const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
+      
+      setProvinces(uniqueProvinces);
+      setCities(uniqueCities);
+      
+    } catch (error) {
+      console.error('Error fetching businesses:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    console.log(`📊 Found ${data.length} businesses`);
-    
-    const businessesWithStatus = data.map((b: any) => {
-      const daysOverdue = calculateOverdueDays(b);
-      return {
-        ...b,
-        days_overdue: daysOverdue,
-        payment_status: getPaymentStatus(daysOverdue),
-        service_paused: b.service_paused || false
-      };
-    });
-    
-    const sorted = businessesWithStatus.sort((a, b) => 
-      (a.trading_name || '').localeCompare(b.trading_name || '')
-    );
-    
-    setBusinesses(sorted);
-    
-    const uniqueProvinces = [...new Set(sorted.map(b => b.physical_address?.province).filter(Boolean))];
-    const uniqueCities = [...new Set(sorted.map(b => b.physical_address?.city).filter(Boolean))];
-    
-    setProvinces(uniqueProvinces);
-    setCities(uniqueCities);
-    
-  } catch (error) {
-    console.error('Error fetching businesses:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  const fetchPendingCount = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/get-pending-businesses');
+      const result = await response.json();
+      
+      let data = [];
+      if (result.success && Array.isArray(result.data)) {
+        data = result.data;
+      } else if (Array.isArray(result)) {
+        data = result;
+      }
+      
+      setPendingCount(data.length || 0);
+    } catch (error) {
+      console.error('Error fetching pending count:', error);
+    }
+  };
+
+  const fetchChangeRequests = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/get-change-requests?status=pending');
+      if (response.ok) {
+        const result = await response.json();
+        
+        let data = [];
+        if (result.success && Array.isArray(result.data)) {
+          data = result.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+        
+        setChangeRequests(data);
+      }
+    } catch (error) {
+      console.error('Error fetching change requests:', error);
+    }
+  };
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -433,7 +471,6 @@ export default function SuperAdminPortal() {
     }
   };
 
-  // FIXED: Approve change request with proper error handling
   const approveChangeRequest = async () => {
     if (!selectedChangeRequest) return;
     
@@ -471,7 +508,6 @@ export default function SuperAdminPortal() {
     }
   };
 
-  // FIXED: Reject change request with proper error handling
   const rejectChangeRequest = async () => {
     if (!selectedChangeRequest) return;
     if (!rejectionReason.trim()) {
