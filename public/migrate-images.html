@@ -1,158 +1,261 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Migrate Images to Storage</title>
+    <title>Migrate Images to Supabase Storage</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: monospace; padding: 20px; max-width: 800px; margin: 0 auto; }
-        .success { color: green; }
-        .error { color: red; }
-        .progress { margin: 10px 0; }
-        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
-        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: #059669; }
+        .error { color: #dc2626; }
+        .info { color: #3b82f6; }
+        .progress { 
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        pre { 
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        button { 
+            padding: 10px 20px;
+            font-size: 14px;
+            margin: 10px 10px 10px 0;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0 15px 0;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        label {
+            font-weight: 500;
+            display: block;
+            margin-top: 10px;
+        }
+        #output {
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .business-card {
+            border: 1px solid #e5e7eb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #fef3c7;
+        }
     </style>
 </head>
 <body>
-    <h1>Image Migration Tool</h1>
-    
-    <div>
-        <label>Supabase URL: </label>
-        <input type="text" id="supabaseUrl" style="width: 100%; margin-bottom: 10px;" 
-               placeholder="https://your-project.supabase.co">
-        <br>
-        <label>Supabase Anon Key: </label>
-        <input type="password" id="supabaseKey" style="width: 100%; margin-bottom: 10px;">
-        <br>
-        <label>Service Role Key (optional, for admin operations): </label>
-        <input type="password" id="serviceRoleKey" style="width: 100%; margin-bottom: 10px;">
+    <div class="container">
+        <h1>🖼️ Migrate Base64 Images to Storage</h1>
+        <p>Your <code>business-images</code> bucket is ready! Use this tool to migrate images.</p>
+        
+        <div>
+            <label>🔑 Supabase URL:</label>
+            <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            
+            <label>🔐 Supabase Anon Key (for reading):</label>
+            <input type="password" id="supabaseKey">
+            
+            <label>🛡️ Service Role Key (for uploading to storage):</label>
+            <input type="password" id="serviceRoleKey">
+            <small>⚠️ Keep this secret! Found in Project Settings → API</small>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <button class="btn-primary" onclick="migrateImages()">🚀 Migrate Images to Storage</button>
+            <button class="btn-danger" onclick="clearBase64Only()">🗑️ Clear Base64 Only (Quick Fix)</button>
+            <button class="btn-secondary" onclick="checkImages()">🔍 Check Current Images</button>
+        </div>
+        
+        <div id="output"></div>
     </div>
-    
-    <button onclick="migrateImages()">Start Migration</button>
-    <button onclick="clearBase64Only()">Clear Base64 Only (Quick Fix)</button>
-    
-    <div id="output"></div>
 
     <script>
         let supabase = null;
+        let adminClient = null;
         
-        async function initSupabase() {
+        async function initClients() {
             const url = document.getElementById('supabaseUrl').value;
-            const key = document.getElementById('supabaseKey').value;
+            const anonKey = document.getElementById('supabaseKey').value;
+            const serviceKey = document.getElementById('serviceRoleKey').value;
             
-            if (!url || !key) {
+            if (!url || !anonKey) {
                 log('❌ Please enter Supabase URL and Anon Key', 'error');
                 return false;
             }
             
-            supabase = window.supabase.createClient(url, key);
+            supabase = window.supabase.createClient(url, anonKey);
+            
+            if (serviceKey) {
+                adminClient = window.supabase.createClient(url, serviceKey);
+            }
+            
             return true;
         }
         
-        async function clearBase64Only() {
-            if (!await initSupabase()) return;
+        async function checkImages() {
+            if (!await initClients()) return;
             
-            log('⚠️ WARNING: This will clear all base64 images from the database!', 'error');
-            if (!confirm('Are you sure? This action cannot be undone.')) return;
+            log('🔍 Checking for base64 images...', 'info');
             
             try {
                 const { data, error } = await supabase
-                    .from('businesses')
-                    .select('id, trading_name')
-                    .or('hero_image_url.like.data:image%,logo_url.like.data:image%');
-                
-                if (error) throw error;
-                
-                log(`Found ${data.length} businesses with base64 images`);
-                
-                for (const biz of data) {
-                    const { error: updateError } = await supabase
-                        .from('businesses')
-                        .update({ 
-                            hero_image_url: null, 
-                            logo_url: null 
-                        })
-                        .eq('id', biz.id);
-                    
-                    if (updateError) {
-                        log(`❌ Failed to clear ${biz.trading_name}: ${updateError.message}`, 'error');
-                    } else {
-                        log(`✅ Cleared images for ${biz.trading_name}`, 'success');
-                    }
-                }
-                
-                log('🎉 Migration complete! Refresh your admin dashboard.', 'success');
-            } catch (error) {
-                log(`❌ Error: ${error.message}`, 'error');
-            }
-        }
-        
-        async function migrateImages() {
-            if (!await initSupabase()) return;
-            
-            const serviceRoleKey = document.getElementById('serviceRoleKey').value;
-            if (!serviceRoleKey) {
-                log('⚠️ Service role key is required for storage uploads', 'error');
-                return;
-            }
-            
-            // Create admin client for storage operations
-            const adminClient = window.supabase.createClient(
-                document.getElementById('supabaseUrl').value,
-                serviceRoleKey
-            );
-            
-            log('🔍 Fetching businesses with base64 images...');
-            
-            try {
-                const { data: businesses, error } = await supabase
                     .from('businesses')
                     .select('id, trading_name, hero_image_url, logo_url')
                     .or('hero_image_url.like.data:image%,logo_url.like.data:image%');
                 
                 if (error) throw error;
                 
-                log(`📊 Found ${businesses.length} businesses to migrate`);
+                if (data.length === 0) {
+                    log('✅ No base64 images found! Your dashboard should work fine.', 'success');
+                } else {
+                    log(`⚠️ Found ${data.length} businesses with base64 images:`, 'error');
+                    data.forEach(biz => {
+                        const hasHero = biz.hero_image_url?.startsWith('data:') ? '📸 Hero' : '';
+                        const hasLogo = biz.logo_url?.startsWith('data:') ? '🖼️ Logo' : '';
+                        log(`   • ${biz.trading_name}: ${hasHero} ${hasLogo}`, 'info');
+                    });
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function clearBase64Only() {
+            if (!await initClients()) return;
+            
+            const confirmed = confirm('⚠️ WARNING: This will DELETE all base64 images from the database.\n\nThe images will be lost unless you have backups.\n\nContinue?');
+            if (!confirmed) return;
+            
+            log('🗑️ Clearing base64 images...', 'info');
+            
+            try {
+                // Get businesses with base64
+                const { data: businesses, error: fetchError } = await supabase
+                    .from('businesses')
+                    .select('id, trading_name')
+                    .or('hero_image_url.like.data:image%,logo_url.like.data:image%');
+                
+                if (fetchError) throw fetchError;
+                
+                log(`Found ${businesses.length} businesses to clean`);
+                
+                // Clear the images
+                const { error: updateError } = await supabase
+                    .from('businesses')
+                    .update({ hero_image_url: null, logo_url: null })
+                    .or('hero_image_url.like.data:image%,logo_url.like.data:image%');
+                
+                if (updateError) throw updateError;
+                
+                log(`✅ Cleared base64 images from ${businesses.length} businesses!`, 'success');
+                log('🎉 Refresh your admin dashboard - it should work now!', 'success');
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function migrateImages() {
+            if (!await initClients()) return;
+            
+            if (!adminClient) {
+                log('❌ Service Role Key is required for uploading to storage!', 'error');
+                return;
+            }
+            
+            log('🚀 Starting migration...', 'info');
+            
+            try {
+                // Get businesses with base64 images
+                const { data: businesses, error: fetchError } = await supabase
+                    .from('businesses')
+                    .select('id, trading_name, hero_image_url, logo_url')
+                    .or('hero_image_url.like.data:image%,logo_url.like.data:image%');
+                
+                if (fetchError) throw fetchError;
+                
+                if (businesses.length === 0) {
+                    log('✅ No base64 images found to migrate!', 'success');
+                    return;
+                }
+                
+                log(`📦 Found ${businesses.length} businesses to process`);
+                
+                let successCount = 0;
+                let failCount = 0;
                 
                 for (const business of businesses) {
-                    log(`\n📦 Processing: ${business.trading_name}`);
-                    
+                    log(`\n📋 Processing: ${business.trading_name}`, 'info');
                     const updates = {};
                     
                     // Migrate hero image
                     if (business.hero_image_url && business.hero_image_url.startsWith('data:image')) {
-                        log(`  📸 Migrating hero image...`);
-                        const heroUrl = await uploadBase64ToStorage(
-                            adminClient,
-                            business.id,
-                            'hero',
-                            business.hero_image_url
-                        );
-                        if (heroUrl) {
-                            updates.hero_image_url = heroUrl;
-                            log(`  ✅ Hero image uploaded: ${heroUrl.substring(0, 50)}...`, 'success');
+                        log(`   📸 Uploading hero image...`);
+                        const url = await uploadToStorage(business.id, 'hero', business.hero_image_url);
+                        if (url) {
+                            updates.hero_image_url = url;
+                            log(`   ✅ Hero image uploaded`, 'success');
                         } else {
-                            log(`  ⚠️ Failed to upload hero image`, 'error');
+                            log(`   ❌ Failed to upload hero image`, 'error');
+                            failCount++;
                         }
                     }
                     
                     // Migrate logo
                     if (business.logo_url && business.logo_url.startsWith('data:image')) {
-                        log(`  🖼️ Migrating logo...`);
-                        const logoUrl = await uploadBase64ToStorage(
-                            adminClient,
-                            business.id,
-                            'logo',
-                            business.logo_url
-                        );
-                        if (logoUrl) {
-                            updates.logo_url = logoUrl;
-                            log(`  ✅ Logo uploaded: ${logoUrl.substring(0, 50)}...`, 'success');
+                        log(`   🖼️ Uploading logo...`);
+                        const url = await uploadToStorage(business.id, 'logo', business.logo_url);
+                        if (url) {
+                            updates.logo_url = url;
+                            log(`   ✅ Logo uploaded`, 'success');
                         } else {
-                            log(`  ⚠️ Failed to upload logo`, 'error');
+                            log(`   ❌ Failed to upload logo`, 'error');
+                            failCount++;
                         }
                     }
                     
-                    // Update database with new URLs
+                    // Update database
                     if (Object.keys(updates).length > 0) {
                         const { error: updateError } = await supabase
                             .from('businesses')
@@ -160,30 +263,39 @@
                             .eq('id', business.id);
                         
                         if (updateError) {
-                            log(`  ❌ Database update failed: ${updateError.message}`, 'error');
+                            log(`   ❌ Database update failed: ${updateError.message}`, 'error');
+                            failCount++;
                         } else {
-                            log(`  ✅ Database updated for ${business.trading_name}`, 'success');
+                            log(`   ✅ Database updated`, 'success');
+                            successCount++;
                         }
                     }
                 }
                 
-                log('\n🎉 Migration complete! Your admin dashboard should now work!', 'success');
+                log(`\n🎉 Migration complete!`, 'success');
+                log(`✅ Successfully migrated: ${successCount} businesses`, 'success');
+                if (failCount > 0) log(`⚠️ Failed: ${failCount} businesses`, 'error');
+                log(`\n🔄 Refresh your admin dashboard to see the changes!`, 'info');
                 
             } catch (error) {
                 log(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
             }
         }
         
-        async function uploadBase64ToStorage(adminClient, businessId, type, base64String) {
+        async function uploadToStorage(businessId, type, base64String) {
             try {
                 // Parse base64
                 const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-                if (!matches) return null;
+                if (!matches) {
+                    console.error('Invalid base64 format');
+                    return null;
+                }
                 
                 const mimeType = matches[1];
                 const base64Data = matches[2];
                 
-                // Convert base64 to blob
+                // Convert to blob
                 const byteCharacters = atob(base64Data);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -192,19 +304,22 @@
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: mimeType });
                 
-                // Determine extension
+                // Get extension
                 const ext = mimeType.split('/')[1];
                 const fileName = `${businessId}/${type}.${ext}`;
                 
-                // Upload to storage
-                const { data, error } = await adminClient.storage
+                // Upload to bucket
+                const { error: uploadError } = await adminClient.storage
                     .from('business-images')
                     .upload(fileName, blob, {
                         contentType: mimeType,
                         upsert: true
                     });
                 
-                if (error) throw error;
+                if (uploadError) {
+                    console.error('Upload error:', uploadError);
+                    return null;
+                }
                 
                 // Get public URL
                 const { data: { publicUrl } } = adminClient.storage
@@ -212,6 +327,7 @@
                     .getPublicUrl(fileName);
                 
                 return publicUrl;
+                
             } catch (error) {
                 console.error(`Upload failed for ${businessId}/${type}:`, error);
                 return null;
@@ -221,7 +337,7 @@
         function log(message, type = 'info') {
             const output = document.getElementById('output');
             const div = document.createElement('div');
-            div.className = type === 'error' ? 'error' : (type === 'success' ? 'success' : '');
+            div.className = `progress ${type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info')}`;
             div.textContent = message;
             output.appendChild(div);
             output.scrollTop = output.scrollHeight;
