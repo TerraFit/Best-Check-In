@@ -1,17 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
+import ws from 'ws';
 
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
 const getSupabase = () => {
-    // CRITICAL FIX: Remove ALL options - just URL and key
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     return createClient(
         process.env.SUPABASE_URL,
-        supabaseKey
-        // NO options object at all! Not even { auth: { persistSession: false } }
+        supabaseKey,
+        {
+            realtime: { ws: ws },
+            auth: { persistSession: false }
+        }
     );
 };
 
@@ -109,19 +112,23 @@ export const handler = async (event) => {
         } else if (dateRange === '7days') {
             const date = new Date();
             date.setDate(date.getDate() - 7);
-            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+            const dateStr = date.toISOString().split('T')[0];
+            query = query.gte('check_in_date', dateStr);
         } else if (dateRange === '30days') {
             const date = new Date();
             date.setDate(date.getDate() - 30);
-            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+            const dateStr = date.toISOString().split('T')[0];
+            query = query.gte('check_in_date', dateStr);
         } else if (dateRange === '90days') {
             const date = new Date();
             date.setDate(date.getDate() - 90);
-            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+            const dateStr = date.toISOString().split('T')[0];
+            query = query.gte('check_in_date', dateStr);
         } else if (dateRange === '12months') {
             const date = new Date();
             date.setMonth(date.getMonth() - 12);
-            query = query.gte('check_in_date', date.toISOString().split('T')[0]);
+            const dateStr = date.toISOString().split('T')[0];
+            query = query.gte('check_in_date', dateStr);
         }
 
         // Fetch all bookings
