@@ -1,144 +1,113 @@
 import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Only allow GET
-  if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+  if (event.httpMethod !== 'POST') {
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method not allowed' }) 
     };
   }
 
-  // Validate environment variables
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing Supabase environment variables');
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Configuration error', 
-        details: 'Missing Supabase credentials',
-        data: [] 
-      })
-    };
-  }
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
+  );
 
   try {
-    console.log('📡 Creating Supabase client with WebSocket support...');
-    
-    // Create Supabase client WITH WebSocket support
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
+    const { email, password, rememberMe = false } = JSON.parse(event.body);
+    console.log('Business login attempt for:', email);
 
-    console.log('📡 Fetching approved businesses...');
-    
-    const { data, error } = await supabase
+    const { data: business, error } = await supabase
       .from('businesses')
-      .select(`
-        id,
-        trading_name,
-        registered_name,
-        legal_name,
-        email,
-        phone,
-        status,
-        created_at,
-        approved_at,
-        physical_address,
-        subscription_tier,
-        payment_status,
-        logo_url,
-        hero_image_url,
-        slogan,
-        establishment_type,
-        tgsa_grading,
-        directors,
-        total_rooms,
-        avg_price,
-        service_paused,
-        payment_due_date,
-        last_payment_date
-      `)
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
+      .select('id, trading_name, email, status, setup_complete, password_hash')
+      .eq('email', email.toLowerCase().trim())
+      .single();
 
-    if (error) {
-      console.error('❌ Supabase error:', error);
+    if (error || !business) {
       return {
-        statusCode: 500,
+        statusCode: 401,
         headers,
-        body: JSON.stringify({ 
-          error: 'Database error', 
-          details: error.message,
-          data: [] 
-        })
+        body: JSON.stringify({ error: 'Invalid email or password' })
       };
     }
 
-    console.log(`✅ Found ${data?.length || 0} approved businesses`);
-    
-    // Process each business to add calculated fields
-    const processedBusinesses = (data || []).map(business => {
-      // Calculate days overdue if payment_due_date exists
-      let days_overdue = 0;
-      if (business.payment_due_date) {
-        const dueDate = new Date(business.payment_due_date);
-        const today = new Date();
-        const diffTime = today.getTime() - dueDate.getTime();
-        days_overdue = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-      }
-      
-      // Determine payment status based on days overdue
-      let payment_status = business.payment_status || 'paid';
-      if (days_overdue >= 10) payment_status = 'critical';
-      else if (days_overdue >= 5) payment_status = 'overdue';
-      else if (days_overdue > 0) payment_status = 'pending';
-      
+    if (!business.password_hash) {
       return {
-        ...business,
-        days_overdue,
-        payment_status
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Account not set up. Please check your email for setup link.' })
       };
-    });
-    
+    }
+
+    const validPassword = await bcrypt.compare(password, business.password_hash);
+    if (!validPassword) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid email or password' })
+      };
+    }
+
+    const expiresIn = rememberMe ? '7d' : '1d';
+    const token = jwt.sign(
+      {
+        sub: business.id,
+        role: 'authenticated',
+        user_metadata: {
+          business_id: business.id,
+          business_name: business.trading_name,
+          email: business.email,
+          role: 'business'
+        }
+      },
+      process.env.SUPABASE_JWT_SECRET,
+      { expiresIn }
+    );
+
+    delete business.password_hash;
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(processedBusinesses)
+      body: JSON.stringify({
+        success: true,
+        token: token,
+        token_expiry: expiresIn,
+        business: {
+          id: business.id,
+          trading_name: business.trading_name,
+          email: business.email,
+          status: business.status,
+          setup_complete: business.setup_complete
+        },
+        message: 'Login successful'
+      })
     };
-    
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
-    console.error('🔥 Error stack:', error.stack);
-    
+    console.error('Business login error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Internal server error',
-        message: error.message,
-        data: [] 
-      })
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
     };
   }
 };
