@@ -37,12 +37,12 @@ export const handler = async function(event) {
     // Check environment variables
     const envStatus = {
       hasSupabaseUrl: !!process.env.SUPABASE_URL,
-      hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_KEY,
       supabaseUrlPrefix: process.env.SUPABASE_URL?.substring(0, 20),
       nodeVersion: process.version
     };
 
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
       return {
         statusCode: 500,
         headers,
@@ -56,7 +56,7 @@ export const handler = async function(event) {
     // Create client WITHOUT any extra options
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_KEY
     );
 
     // Test the connection first
