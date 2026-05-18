@@ -9,7 +9,7 @@ const getSupabase = () => {
     // FIXED: Remove WebSocket/Realtime options - this was causing the 500 error
     return createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        process.env.SUPABASE_SERVICE_KEY,
         {
             auth: { persistSession: false }
             // NO realtime, NO ws options - these cause Node.js 20 errors
@@ -78,7 +78,7 @@ export const handler = async (event) => {
         // Add debug logging
         console.log('🔍 Environment check:', {
             hasSupabaseUrl: !!process.env.SUPABASE_URL,
-            hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
             hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
             urlPrefix: process.env.SUPABASE_URL?.substring(0, 30)
         });
