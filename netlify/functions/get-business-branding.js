@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
-
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
@@ -17,7 +14,7 @@ export const handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ success: false, error: 'Method Not Allowed' })
     };
   }
 
@@ -28,83 +25,55 @@ export const handler = async function(event) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Business ID required' })
+        body: JSON.stringify({ success: false, error: 'Business ID required' })
       };
     }
 
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!process.env.SUPABASE_URL || !supabaseKey) {
-      console.error('Missing Supabase environment variables');
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
+        body: JSON.stringify({ success: false, error: 'Server configuration error' })
       };
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      supabaseKey,
+    // REST API call to businesses table
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,newsletter_enabled,establishment_type,tgsa_grading,status,created_at`,
       {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
       }
     );
 
-    const { data, error } = await supabase
-      .from('businesses')
-      .select(`
-        id,
-        trading_name,
-        registered_name,
-        email,
-        phone,
-        logo_url,
-        hero_image_url,
-        slogan,
-        welcome_message,
-        total_rooms,
-        avg_price,
-        physical_address,
-        trial_end,
-        subscription_status,
-        newsletter_enabled,
-        newsletter_title,
-        newsletter_prize,
-        newsletter_cta,
-        newsletter_terms,
-        newsletter_draw_date,
-        newsletter_share_text,
-        establishment_type,
-        tgsa_grading,
-        status,
-        created_at
-      `)
-      .eq('id', businessId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Database error', details: error.message })
-      };
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
-    if (!data) {
+    const data = await response.json();
+    const business = data[0];
+
+    if (!business) {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Business not found' })
+        body: JSON.stringify({ success: false, error: 'Business not found' })
       };
     }
 
+    // Consistent response shape: { success: true, data: business }
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        success: true,
+        data: business
+      })
     };
 
   } catch (error) {
@@ -112,7 +81,11 @@ export const handler = async function(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error', message: error.message })
+      body: JSON.stringify({ 
+        success: false, 
+        error: 'Internal server error', 
+        message: error.message 
+      })
     };
   }
 };
