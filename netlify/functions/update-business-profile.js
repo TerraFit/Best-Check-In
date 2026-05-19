@@ -44,14 +44,33 @@ export const handler = async function(event) {
     // Add updated timestamp
     fields.updated_at = new Date().toISOString();
 
-    // Remove undefined values
+    // Map newsletter fields correctly
+    const newsletterFields = [
+      'newsletter_enabled',
+      'newsletter_title',
+      'newsletter_prize',
+      'newsletter_cta',
+      'newsletter_terms',
+      'newsletter_draw_date',
+      'newsletter_share_text'
+    ];
+
+    // Only include newsletter fields that were sent
+    newsletterFields.forEach(field => {
+      if (fields[field] === undefined) {
+        delete fields[field];
+      }
+    });
+
+    // Remove undefined values from all fields
     Object.keys(fields).forEach(key => {
       if (fields[key] === undefined) {
         delete fields[key];
       }
     });
 
-    console.log('📝 Updating business:', businessId, fields);
+    console.log('📝 Updating business:', businessId);
+    console.log('📝 Fields to update:', Object.keys(fields));
 
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
       method: 'PATCH',
