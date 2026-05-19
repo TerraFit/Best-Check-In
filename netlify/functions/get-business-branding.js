@@ -40,9 +40,9 @@ export const handler = async function(event) {
       };
     }
 
-    // REST API call with ALL fields (no lines lost!)
+    // Fetch business data via REST
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,legal_name,email,phone,fixed_phone,website,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,postal_address,physical_address_locked,trial_start,trial_end,subscription_status,subscription_tier,payment_status,payment_method,last_payment_date,payment_due_date,establishment_type,tgsa_grading,tgsa_accredited,tgsa_rating,status,created_at,approved_at,updated_at,service_paused,setup_complete,newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,primary_color,secondary_color,registration_number,business_number,vat_number,stripe_customer_id,stripe_subscription_id,max_rooms,seasons,custom_trial_days`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,legal_name,email,phone,fixed_phone,website,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,postal_address,trial_end,subscription_status,subscription_tier,payment_status,establishment_type,tgsa_grading,status,created_at,updated_at,service_paused,setup_complete,newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,primary_color,secondary_color,registration_number,business_number,vat_number`,
       {
         headers: {
           'apikey': supabaseKey,
