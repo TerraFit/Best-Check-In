@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
-
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
@@ -17,94 +14,83 @@ export const handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ success: false, error: 'Method Not Allowed' })
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
-
   try {
-    const { 
-      businessId, 
-      total_rooms, 
-      avg_price, 
-      slogan,
-      welcome_message,
-      setup_complete,
-      newsletter_enabled,
-      newsletter_title,
-      newsletter_prize,
-      newsletter_cta,
-      newsletter_terms,
-      newsletter_draw_date,
-      newsletter_share_text,
-      email,
-      phone
-    } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { businessId, ...fields } = body;
 
     if (!businessId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Business ID required' })
+        body: JSON.stringify({ success: false, error: 'Business ID required' })
       };
     }
 
-    const updateData = {};
-    if (total_rooms !== undefined) updateData.total_rooms = total_rooms;
-    if (avg_price !== undefined) updateData.avg_price = avg_price;
-    if (slogan !== undefined) updateData.slogan = slogan;
-    if (welcome_message !== undefined) updateData.welcome_message = welcome_message;
-    if (setup_complete !== undefined) updateData.setup_complete = setup_complete;
-    if (email !== undefined) updateData.email = email;
-    if (phone !== undefined) updateData.phone = phone;
-    
-    if (newsletter_enabled !== undefined) updateData.newsletter_enabled = newsletter_enabled;
-    if (newsletter_title !== undefined) updateData.newsletter_title = newsletter_title;
-    if (newsletter_prize !== undefined) updateData.newsletter_prize = newsletter_prize;
-    if (newsletter_cta !== undefined) updateData.newsletter_cta = newsletter_cta;
-    if (newsletter_terms !== undefined) updateData.newsletter_terms = newsletter_terms;
-    if (newsletter_draw_date !== undefined) updateData.newsletter_draw_date = newsletter_draw_date;
-    if (newsletter_share_text !== undefined) updateData.newsletter_share_text = newsletter_share_text;
-    
-    updateData.updated_at = new Date().toISOString();
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    const { error } = await supabase
-      .from('businesses')
-      .update(updateData)
-      .eq('id', businessId);
-
-    if (error) {
-      console.error('Error updating business:', error);
+    if (!supabaseUrl || !supabaseKey) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to update business profile' })
+        body: JSON.stringify({ success: false, error: 'Server configuration error' })
       };
     }
+
+    // Add updated timestamp
+    fields.updated_at = new Date().toISOString();
+
+    // Clean undefined values
+    Object.keys(fields).forEach(key => {
+      if (fields[key] === undefined) {
+        delete fields[key];
+      }
+    });
+
+    // Update via REST
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(fields)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Update error:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    const updatedBusiness = result[0];
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
+      body: JSON.stringify({
+        success: true,
+        data: updatedBusiness,
         message: 'Profile updated successfully'
       })
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error updating business profile:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        success: false, 
+        error: error.message || 'Failed to update business profile'
+      })
     };
   }
 };
