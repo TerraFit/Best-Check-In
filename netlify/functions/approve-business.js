@@ -1,8 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
-import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -12,12 +10,10 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Only allow POST
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -26,9 +22,11 @@ export const handler = async function(event) {
     };
   }
 
-  // Validate environment variables
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing Supabase environment variables');
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase environment variables');
     return {
       statusCode: 500,
       headers,
@@ -36,29 +34,13 @@ export const handler = async function(event) {
     };
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    console.error('❌ Missing Resend API key');
-    // Continue without email - not critical
-  }
-
-  // Initialize Supabase with WebSocket support
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
-
   try {
-    // Parse and validate request body
     let businessId;
     try {
       const body = JSON.parse(event.body);
       businessId = body.businessId;
     } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError);
+      console.error('Failed to parse request body:', parseError);
       return {
         statusCode: 400,
         headers,
@@ -76,24 +58,19 @@ export const handler = async function(event) {
 
     console.log(`📝 Processing approval for business ID: ${businessId}`);
 
-    // Fetch business details
-    const { data: business, error: fetchError } = await supabase
-      .from('businesses')
-      .select('id, trading_name, email, status')
-      .eq('id', businessId)
-      .single();
+    // Fetch business details via REST
+    const fetchResponse = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
 
-    if (fetchError) {
-      console.error('❌ Error fetching business:', fetchError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Failed to fetch business details',
-          details: fetchError.message
-        })
-      };
-    }
+    const businesses = await fetchResponse.json();
+    const business = businesses?.[0];
 
     if (!business) {
       return {
@@ -103,7 +80,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Check if business is already approved
     if (business.status === 'approved') {
       return {
         statusCode: 400,
@@ -126,53 +102,53 @@ export const handler = async function(event) {
     const verificationToken = uuidv4();
     const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
 
-    // Save verification token
-    const { error: tokenError } = await supabase
-      .from('email_verifications')
-      .insert({
+    // Save verification token via REST
+    await fetch(`${supabaseUrl}/rest/v1/email_verifications`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify([{
         token: verificationToken,
         business_id: businessId,
         email: business.email,
         expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-      });
+      }])
+    });
 
-    if (tokenError) {
-      console.error('⚠️ Error saving verification token (non-critical):', tokenError);
-      // Continue execution - this shouldn't block approval
-    }
-
-    // Update business status to approved
-    const { data: updatedBusiness, error: updateError } = await supabase
-      .from('businesses')
-      .update({ 
+    // Update business status to approved via REST
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
         status: 'approved',
         approved_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', businessId)
-      .eq('status', 'pending')
-      .select()
-      .single();
+    });
 
-    if (updateError) {
-      console.error('❌ Error updating business status:', updateError);
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error('Error updating business status:', errorText);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
           error: 'Failed to approve business',
-          details: updateError.message
+          details: errorText
         })
       };
     }
 
-    if (!updatedBusiness) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found or status changed during approval' })
-      };
-    }
+    const updatedData = await updateResponse.json();
+    const updatedBusiness = updatedData[0];
 
     console.log(`✅ Business status updated to approved for: ${business.trading_name}`);
 
@@ -196,7 +172,6 @@ export const handler = async function(event) {
       console.log('✅ QR code generated successfully');
     } catch (qrError) {
       console.error('⚠️ Error generating QR code (non-critical):', qrError);
-      // Continue without QR code - email can still be sent
     }
 
     // Send welcome email with QR code
@@ -221,14 +196,12 @@ export const handler = async function(event) {
         console.log('✅ Welcome email sent successfully:', emailResult.id);
         emailSent = true;
       } catch (emailError) {
-        console.error('❌ Failed to send welcome email:', emailError);
-        // Don't fail the approval - email can be resent later
+        console.error('Failed to send welcome email:', emailError);
       }
     } else {
-      console.warn('⚠️ RESEND_API_KEY not configured - email not sent');
+      console.warn('RESEND_API_KEY not configured - email not sent');
     }
 
-    // Return success response
     return {
       statusCode: 200,
       headers,
@@ -249,14 +222,13 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('🔥 Unhandled error in approve-business function:', error);
+    console.error('Unhandled error in approve-business function:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: error.message
       })
     };
   }
