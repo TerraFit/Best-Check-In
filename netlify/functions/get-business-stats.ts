@@ -35,7 +35,6 @@ export const handler: Handler = async (event) => {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase credentials');
       return {
         statusCode: 500,
         headers,
@@ -43,10 +42,8 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // ⚠️ IMPORTANT: Change this to YOUR actual bookings table name
     const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
     
-    // Fetch all bookings for this business via REST
     const response = await fetch(
       `${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}?business_id=eq.${businessId}&select=*`,
       {
@@ -58,12 +55,11 @@ export const handler: Handler = async (event) => {
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     const bookings = await response.json();
 
-    // Calculate referral sources
     const referralCounts: Record<string, number> = {};
     bookings?.forEach((booking: any) => {
       const source = booking.booking_source || booking.referral_source;
@@ -72,23 +68,17 @@ export const handler: Handler = async (event) => {
       }
     });
 
-    const referralData = Object.entries(referralCounts).map(([name, count]) => ({
-      name,
-      count
-    }));
+    const referralData = Object.entries(referralCounts).map(([name, count]) => ({ name, count }));
 
-    // Calculate basic stats
     const totalBookings = bookings?.length || 0;
     const totalRevenue = bookings?.reduce((sum: number, b: any) => sum + (parseFloat(b.total_amount) || 0), 0) || 0;
     const averageStay = totalBookings > 0 
       ? bookings?.reduce((sum: number, b: any) => sum + (b.nights || 0), 0) / totalBookings 
       : 0;
 
-    // Get today's check-ins
     const today = new Date().toISOString().split('T')[0];
     const todayCheckIns = bookings?.filter((b: any) => b.check_in_date === today).length || 0;
 
-    // Get guest origins by country
     const countryCounts: Record<string, number> = {};
     bookings?.forEach((booking: any) => {
       const country = booking.guest_country;
@@ -97,12 +87,8 @@ export const handler: Handler = async (event) => {
       }
     });
 
-    const guestOrigins = Object.entries(countryCounts).map(([country, count]) => ({
-      country,
-      count
-    }));
+    const guestOrigins = Object.entries(countryCounts).map(([country, count]) => ({ country, count }));
 
-    // Build stats object
     const stats = {
       totalBookings,
       totalRevenue,
@@ -114,12 +100,6 @@ export const handler: Handler = async (event) => {
       guestOrigins,
       bookings: bookings || []
     };
-
-    console.log('✅ Stats generated:', {
-      totalBookings,
-      totalRevenue,
-      referralSources: Object.keys(referralCounts).length
-    });
 
     return {
       statusCode: 200,
