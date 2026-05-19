@@ -44,14 +44,15 @@ export const handler = async function(event) {
     // Add updated timestamp
     fields.updated_at = new Date().toISOString();
 
-    // Clean undefined values
+    // Remove undefined values
     Object.keys(fields).forEach(key => {
       if (fields[key] === undefined) {
         delete fields[key];
       }
     });
 
-    // Update via REST
+    console.log('📝 Updating business:', businessId, fields);
+
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
       method: 'PATCH',
       headers: {
