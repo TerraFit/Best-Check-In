@@ -40,9 +40,9 @@ export const handler = async function(event) {
       };
     }
 
-    // Fetch business data via REST
+    // Simplified query - fewer fields to avoid issues
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,legal_name,email,phone,fixed_phone,website,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,postal_address,trial_end,subscription_status,subscription_tier,payment_status,establishment_type,tgsa_grading,status,created_at,updated_at,service_paused,setup_complete,newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,primary_color,secondary_color,registration_number,business_number,vat_number`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,establishment_type,tgsa_grading,status,created_at,service_paused,setup_complete,newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,primary_color,secondary_color`,
       {
         headers: {
           'apikey': supabaseKey,
