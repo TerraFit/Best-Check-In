@@ -1,19 +1,6 @@
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';  // ← ADD THIS IMPORT
-
-// Use the correct environment variable name
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!,  // ← FIXED: Try both
-  {
-    realtime: { ws: ws },  // ← ADD THIS: Required for Node.js 20
-    auth: { persistSession: false }
-  }
-);
 
 export const handler: Handler = async (event) => {
-  // Set CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -21,9 +8,16 @@ export const handler: Handler = async (event) => {
     'Content-Type': 'application/json'
   };
 
-  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
+  }
+
+  if (event.httpMethod !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
   }
 
   try {
@@ -37,32 +31,41 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    console.log('📊 Fetching stats for business:', businessId);
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    // IMPORTANT: Use the correct table name - change 'bookings' to your actual table name
-    // Based on your earlier database schema, the table is: 'ONLINE CHECKING J-BAY ZEBRA LODGE'
-    const { data: bookings, error } = await supabase
-      .from('ONLINE CHECKING J-BAY ZEBRA LODGE')  // ← FIXED: Use your actual table name
-      .select('*')
-      .eq('business_id', businessId)
-      .order('check_in_date', { ascending: false });
-
-    if (error) {
-      console.error('Database error:', error);
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase credentials');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Database error', 
-          details: error.message,
-          hint: error.hint 
-        })
+        body: JSON.stringify({ error: 'Server configuration error' })
       };
     }
 
-    // Calculate referral sources from booking_source field
+    // ⚠️ IMPORTANT: Change this to YOUR actual bookings table name
+    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
+    
+    // Fetch all bookings for this business via REST
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}?business_id=eq.${businessId}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const bookings = await response.json();
+
+    // Calculate referral sources
     const referralCounts: Record<string, number> = {};
-    bookings?.forEach(booking => {
+    bookings?.forEach((booking: any) => {
       const source = booking.booking_source || booking.referral_source;
       if (source && source !== 'NULL' && source !== 'null') {
         referralCounts[source] = (referralCounts[source] || 0) + 1;
@@ -74,20 +77,20 @@ export const handler: Handler = async (event) => {
       count
     }));
 
-    // Calculate other stats
+    // Calculate basic stats
     const totalBookings = bookings?.length || 0;
-    const totalRevenue = bookings?.reduce((sum, b) => sum + (parseFloat(b.total_amount) || 0), 0) || 0;
+    const totalRevenue = bookings?.reduce((sum: number, b: any) => sum + (parseFloat(b.total_amount) || 0), 0) || 0;
     const averageStay = totalBookings > 0 
-      ? bookings?.reduce((sum, b) => sum + (b.nights || 0), 0) / totalBookings 
+      ? bookings?.reduce((sum: number, b: any) => sum + (b.nights || 0), 0) / totalBookings 
       : 0;
 
     // Get today's check-ins
     const today = new Date().toISOString().split('T')[0];
-    const todayCheckIns = bookings?.filter(b => b.check_in_date === today).length || 0;
+    const todayCheckIns = bookings?.filter((b: any) => b.check_in_date === today).length || 0;
 
-    // Get guest origins
+    // Get guest origins by country
     const countryCounts: Record<string, number> = {};
-    bookings?.forEach(booking => {
+    bookings?.forEach((booking: any) => {
       const country = booking.guest_country;
       if (country) {
         countryCounts[country] = (countryCounts[country] || 0) + 1;
@@ -99,6 +102,7 @@ export const handler: Handler = async (event) => {
       count
     }));
 
+    // Build stats object
     const stats = {
       totalBookings,
       totalRevenue,
@@ -113,6 +117,7 @@ export const handler: Handler = async (event) => {
 
     console.log('✅ Stats generated:', {
       totalBookings,
+      totalRevenue,
       referralSources: Object.keys(referralCounts).length
     });
 
