@@ -1,12 +1,10 @@
-// In src/pages/Admin/ApproveBusinesses.tsx
-
+// src/pages/admin/ApproveBusinesses.tsx
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
 
 interface Director {
   name: string;
   idNumber: string;
-  idPhoto?: string; // base64 string
+  idPhoto?: string;
 }
 
 interface Business {
@@ -32,6 +30,8 @@ interface Business {
 export default function ApproveBusinesses() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [showIdModal, setShowIdModal] = useState(false);
   const [selectedIdPhoto, setSelectedIdPhoto] = useState('');
@@ -41,18 +41,38 @@ export default function ApproveBusinesses() {
   }, []);
 
   const fetchPendingBusinesses = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/.netlify/functions/get-pending-businesses');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
-      setBusinesses(data);
-    } catch (error) {
-      console.error('Error fetching businesses:', error);
+      
+      // Handle both response formats
+      let businessesList = [];
+      if (data.success && Array.isArray(data.data)) {
+        businessesList = data.data;
+      } else if (Array.isArray(data)) {
+        businessesList = data;
+      } else {
+        businessesList = [];
+      }
+      
+      setBusinesses(businessesList);
+    } catch (err) {
+      console.error('Error fetching businesses:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load pending businesses');
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (businessId: string) => {
+    setApprovingId(businessId);
     try {
       const response = await fetch('/.netlify/functions/approve-business', {
         method: 'POST',
@@ -60,26 +80,69 @@ export default function ApproveBusinesses() {
         body: JSON.stringify({ businessId })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         // Remove from list
         setBusinesses(businesses.filter(b => b.id !== businessId));
+        alert(`✅ ${data.business?.trading_name || 'Business'} approved successfully!`);
+      } else {
+        alert(data.error || 'Failed to approve business');
       }
     } catch (error) {
       console.error('Error approving business:', error);
+      alert('An error occurred while approving');
+    } finally {
+      setApprovingId(null);
     }
   };
 
-  const viewIdPhoto = (photoBase64: string) => {
+  const viewIdPhoto = (photoBase64: string, businessName: string) => {
     setSelectedIdPhoto(photoBase64);
+    setSelectedBusiness(null);
     setShowIdModal(true);
+  };
+
+  const downloadIdPhoto = () => {
+    const link = document.createElement('a');
+    link.href = selectedIdPhoto;
+    link.download = 'id-document.png';
+    link.click();
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600">Loading pending businesses...</p>
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+            <p className="text-gray-500">Loading pending businesses...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Pending Businesses</h2>
+            <p className="text-gray-500 mb-6">{error}</p>
+            <button
+              onClick={fetchPendingBusinesses}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => window.history.back()}
+              className="ml-3 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            >
+              Back to Dashboard
+            </button>
           </div>
         </div>
       </div>
@@ -103,6 +166,7 @@ export default function ApproveBusinesses() {
 
         {businesses.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
+            <div className="text-green-500 text-6xl mb-4">✅</div>
             <p className="text-gray-500 text-lg">No pending businesses to approve</p>
             <p className="text-gray-400 mt-2">Check back later for new registrations</p>
           </div>
@@ -163,24 +227,28 @@ export default function ApproveBusinesses() {
                     <div>
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Directors / Owners</h3>
                       <div className="space-y-4">
-                        {business.directors.map((director, index) => (
-                          <div key={index} className="border rounded-lg p-4">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-medium text-gray-900">{director.name}</p>
-                                <p className="text-sm text-gray-600">ID: {director.idNumber}</p>
+                        {business.directors && business.directors.length > 0 ? (
+                          business.directors.map((director, index) => (
+                            <div key={index} className="border rounded-lg p-4">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="font-medium text-gray-900">{director.name}</p>
+                                  <p className="text-sm text-gray-600">ID: {director.idNumber}</p>
+                                </div>
+                                {director.idPhoto && (
+                                  <button
+                                    onClick={() => viewIdPhoto(director.idPhoto!, business.trading_name)}
+                                    className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors"
+                                  >
+                                    View ID Photo
+                                  </button>
+                                )}
                               </div>
-                              {director.idPhoto && (
-                                <button
-                                  onClick={() => viewIdPhoto(director.idPhoto!)}
-                                  className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100"
-                                >
-                                  View ID Photo
-                                </button>
-                              )}
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500">No director information provided</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -189,9 +257,17 @@ export default function ApproveBusinesses() {
                   <div className="mt-6 flex justify-end">
                     <button
                       onClick={() => handleApprove(business.id)}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                      disabled={approvingId === business.id}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Approve Business
+                      {approvingId === business.id ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Approving...
+                        </>
+                      ) : (
+                        'Approve Business'
+                      )}
                     </button>
                   </div>
                 </div>
@@ -221,15 +297,15 @@ export default function ApproveBusinesses() {
                     className="max-w-full max-h-[70vh] object-contain"
                   />
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-end gap-3">
                   <button
-                    onClick={() => {
-                      // Download the image
-                      const link = document.createElement('a');
-                      link.href = selectedIdPhoto;
-                      link.download = 'id-document.png';
-                      link.click();
-                    }}
+                    onClick={() => setShowIdModal(false)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={downloadIdPhoto}
                     className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                   >
                     Download Image
