@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && cd netlify/functions && npm install && cd ../.. && npm run build"
+  command = "npm install && npm run build"
   publish = "dist"
 
 [build.environment]
@@ -9,10 +9,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Ensure functions can access root node_modules
+# Functions configuration - ws removed since we're migrating to REST
 [functions."*"]
   node_bundler = "esbuild"
-  external_node_modules = ["ws", "@supabase/supabase-js", "jsonwebtoken", "bcryptjs", "resend", "qrcode", "uuid", "stripe"]
+  external_node_modules = ["@supabase/supabase-js", "jsonwebtoken", "bcryptjs", "resend", "qrcode", "uuid", "stripe"]
 
 # ============================================================
 # SCHEDULED FUNCTIONS (Cron Jobs)
@@ -52,13 +52,13 @@
   to = "/index.html"
   status = 200
 
-# API redirects (optional - if you want cleaner URLs)
+# API redirects - Cleaner URLs for functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# Health check endpoint (no function needed)
+# Health check endpoint
 [[redirects]]
   from = "/health"
   to = "/.netlify/functions/health-check"
