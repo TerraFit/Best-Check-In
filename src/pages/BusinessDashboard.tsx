@@ -1704,18 +1704,7 @@ export default function BusinessDashboard() {
                     <p className="text-gray-400">No check-ins found</p>
                   </div>
                 ) : (
-               {/* Check-ins Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-                <p className="text-sm text-gray-500">Total: {filteredBookings.length} bookings</p>
-              </div>
-              <div className="overflow-x-auto">
-                {filteredBookings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400">No check-ins found</p>
-                  </div>
-                ) : (
+               
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
