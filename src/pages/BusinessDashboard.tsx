@@ -1704,6 +1704,18 @@ export default function BusinessDashboard() {
                     <p className="text-gray-400">No check-ins found</p>
                   </div>
                 ) : (
+               {/* Check-ins Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+                <p className="text-sm text-gray-500">Total: {filteredBookings.length} bookings</p>
+              </div>
+              <div className="overflow-x-auto">
+                {filteredBookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400">No check-ins found</p>
+                  </div>
+                ) : (
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -1722,64 +1734,38 @@ export default function BusinessDashboard() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {paginatedBookings.map((booking, index) => (
                         <tr key={booking.id || index} className="hover:bg-gray-50">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {booking.guest_name || 'N/A'}
-                           </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{booking.guest_name || 'N/A'}</td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_email || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_country || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 text-sm font-mono text-gray-500">
                             {booking.guest_id_number ? (
-                              <span className="cursor-help">
-                                {booking.guest_id_number.substring(0, 8)}...
-                              </span>
+                              <span className="cursor-help">{booking.guest_id_number.substring(0, 8)}...</span>
                             ) : 'N/A'}
-                            {booking.guest_id_photo && (
-                              <span className="ml-1 text-green-500" title="ID photo available">📷</span>
-                            )}
-                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.check_in_date || 'N/A'}
-                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {booking.nights || 1}
-                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            R {(booking.total_amount || 0).toLocaleString()}
-                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.booking_source || booking.referral_source || 'N/A'}
-                           </td>
+                            {booking.guest_id_photo && <span className="ml-1 text-green-500" title="ID photo available">📷</span>}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{booking.check_in_date || 'N/A'}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{booking.nights || 1}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">R {(booking.total_amount || 0).toLocaleString()}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{booking.booking_source || booking.referral_source || 'N/A'}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
                               {booking.status || 'pending'}
                             </span>
-                           </td>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             {booking.guest_id_photo ? (
-                              <button
-                                onClick={() => alert('ID photo available in guest profile')}
-                                className="text-blue-500 hover:text-blue-700 text-xs"
-                                title="View ID photo"
-                              >
-                                View ID
-                              </button>
+                              <button onClick={() => alert('ID photo available in guest profile')} className="text-blue-500 hover:text-blue-700 text-xs">View ID</button>
                             ) : (
-                              <button
-                                onClick={() => requestIDPhoto(booking)}
-                                className="text-orange-500 hover:text-orange-700 text-xs"
-                                title="Request ID photo"
-                              >
-                                Request ID
-                              </button>
+                              <button onClick={() => requestIDPhoto(booking)} className="text-orange-500 hover:text-orange-700 text-xs">Request ID</button>
                             )}
-                           </td>
-                        </table>
+                          </td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -1810,8 +1796,6 @@ export default function BusinessDashboard() {
                 </div>
               )}
             </div>
-          </div>
-        )}
 
         {/* ============================================================ */}
         {/* REPORTS TAB */}
