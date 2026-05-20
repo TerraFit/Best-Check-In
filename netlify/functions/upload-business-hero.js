@@ -1,10 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
@@ -16,14 +14,9 @@ export const handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ success: false, error: 'Method Not Allowed' })
     };
   }
-
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
 
   try {
     const { businessId, hero_image_url } = JSON.parse(event.body);
@@ -32,42 +25,60 @@ export const handler = async function(event) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Business ID required' })
+        body: JSON.stringify({ success: false, error: 'Business ID required' })
       };
     }
 
-    const { data, error } = await supabase
-      .from('businesses')
-      .update({ hero_image_url, updated_at: new Date().toISOString() })
-      .eq('id', businessId)
-      .select()
-      .single();
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (error) {
-      console.error('Error updating hero image:', error);
+    if (!supabaseUrl || !supabaseKey) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to update hero image' })
+        body: JSON.stringify({ success: false, error: 'Server configuration error' })
       };
     }
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        hero_image_url: hero_image_url || null,
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Hero upload error:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    const updatedBusiness = result[0];
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
+      body: JSON.stringify({
+        success: true,
         message: 'Hero image updated successfully',
-        hero_image_url: data.hero_image_url
+        hero_image_url: updatedBusiness?.hero_image_url
       })
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error uploading hero image:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ success: false, error: error.message })
     };
   }
 };
