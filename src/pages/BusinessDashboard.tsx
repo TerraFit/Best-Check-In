@@ -195,7 +195,7 @@ export default function BusinessDashboard() {
   ];
 
   // ============================================================
-  // AUTH HELPERS - DEFINE fetchWithAuth HERE ← PUT IT HERE
+  // AUTH HELPERS
   // ============================================================
   
   const getAuthHeaders = () => {
@@ -250,472 +250,247 @@ export default function BusinessDashboard() {
     }
   };
 
- // ============================================================
-// FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
-// ============================================================
+  // ============================================================
+  // FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
+  // ============================================================
 
-const loadBusinessProfile = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) {
-    console.error('❌ No business ID found');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    console.log('📡 Loading business profile for ID:', businessId);
-    const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`);
-    
-    if (!res.ok) {
-      console.error('❌ Failed to load business profile:', res.status);
+  const loadBusinessProfile = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.error('❌ No business ID found');
       setLoading(false);
       return;
     }
-    
-    const result = await res.json();
-    console.log('✅ Business profile data received:', result);
-    
-    // Extract the actual business data (handle both response formats)
-    const businessData = result.success ? result.data : result;
-    
-    setBusiness(businessData);
-    
-    setProfileForm({
-      total_rooms: businessData.total_rooms?.toString() || '',
-      avg_price: businessData.avg_price?.toString() || '',
-      logo_url: businessData.logo_url || '',
-      hero_image_url: businessData.hero_image_url || '',
-      slogan: businessData.slogan || '',
-      welcome_message: businessData.welcome_message || ''
-    });
-    
-    setNewsletterEnabled(businessData.newsletter_enabled || false);
-    setNewsletterTitle(businessData.newsletter_title || 'Win Your Next Stay With Us');
-    setNewsletterPrize(businessData.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
-    setNewsletterCta(businessData.newsletter_cta || 'Subscribe now (takes 10 seconds)');
-    setNewsletterTerms(businessData.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
-    setNewsletterDrawDate(businessData.newsletter_draw_date || '');
-    setNewsletterShareText(businessData.newsletter_share_text || 'Want better odds? Share this with friends and family!');
-    
-    if (businessData.trial_end) {
-      const trialEnd = new Date(businessData.trial_end);
-      const today = new Date();
-      const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      setTrialDaysLeft(daysLeft);
-      setSubscriptionStatus(businessData.subscription_status || 'trial');
-    }
-    
-    console.log('✅ Business profile loaded:', businessData.trading_name);
-  } catch (err) {
-    console.error('❌ Failed to load business profile:', err);
-  } finally {
-    setLoading(false);
-  }
-};
 
-const fetchChangeRequests = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  try {
-    const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
-    const result = await response.json();
+    try {
+      console.log('📡 Loading business profile for ID:', businessId);
+      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      
+      if (!res.ok) {
+        console.error('❌ Failed to load business profile:', res.status);
+        setLoading(false);
+        return;
+      }
+      
+      const result = await res.json();
+      console.log('✅ Business profile data received:', result);
+      
+      // Extract the actual business data (handle both response formats)
+      const businessData = result.success ? result.data : result;
+      
+      setBusiness(businessData);
+      
+      setProfileForm({
+        total_rooms: businessData.total_rooms?.toString() || '',
+        avg_price: businessData.avg_price?.toString() || '',
+        logo_url: businessData.logo_url || '',
+        hero_image_url: businessData.hero_image_url || '',
+        slogan: businessData.slogan || '',
+        welcome_message: businessData.welcome_message || ''
+      });
+      
+      setNewsletterEnabled(businessData.newsletter_enabled || false);
+      setNewsletterTitle(businessData.newsletter_title || 'Win Your Next Stay With Us');
+      setNewsletterPrize(businessData.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+      setNewsletterCta(businessData.newsletter_cta || 'Subscribe now (takes 10 seconds)');
+      setNewsletterTerms(businessData.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+      setNewsletterDrawDate(businessData.newsletter_draw_date || '');
+      setNewsletterShareText(businessData.newsletter_share_text || 'Want better odds? Share this with friends and family!');
+      
+      if (businessData.trial_end) {
+        const trialEnd = new Date(businessData.trial_end);
+        const today = new Date();
+        const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        setTrialDaysLeft(daysLeft);
+        setSubscriptionStatus(businessData.subscription_status || 'trial');
+      }
+      
+      console.log('✅ Business profile loaded:', businessData.trading_name);
+    } catch (err) {
+      console.error('❌ Failed to load business profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchChangeRequests = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
     
-    // Extract data from response (handle both formats)
-    const changeRequestsData = result.success ? result.data : result;
-    const requests = Array.isArray(changeRequestsData) ? changeRequestsData : [];
-    
-    setChangeRequests(requests);
-    
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    
-    const newlyRejected = requests.filter((req) => 
-      req.status === 'rejected' && 
-      req.reviewed_at && 
-      new Date(req.reviewed_at) > oneDayAgo &&
-      !localStorage.getItem(`rejection_notified_${req.id}`)
-    );
-    
-    for (const request of newlyRejected) {
-      const userChoice = confirm(
-        `❌ Change Request Rejected\n\n` +
-        `Field: ${request.field_name}\n` +
-        `Requested: ${request.requested_value}\n\n` +
-        `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
-        `Would you like to appeal this decision?`
+    try {
+      const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
+      const result = await response.json();
+      
+      // Extract data from response (handle both formats)
+      const changeRequestsData = result.success ? result.data : result;
+      const requests = Array.isArray(changeRequestsData) ? changeRequestsData : [];
+      
+      setChangeRequests(requests);
+      
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      const newlyRejected = requests.filter((req) => 
+        req.status === 'rejected' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`rejection_notified_${req.id}`)
       );
       
-      if (userChoice) {
-        setRejectedRequest(request);
-        setShowAppealModal(true);
+      for (const request of newlyRejected) {
+        const userChoice = confirm(
+          `❌ Change Request Rejected\n\n` +
+          `Field: ${request.field_name}\n` +
+          `Requested: ${request.requested_value}\n\n` +
+          `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
+          `Would you like to appeal this decision?`
+        );
+        
+        if (userChoice) {
+          setRejectedRequest(request);
+          setShowAppealModal(true);
+        }
+        localStorage.setItem(`rejection_notified_${request.id}`, 'true');
       }
-      localStorage.setItem(`rejection_notified_${request.id}`, 'true');
-    }
-    
-    const newlyApproved = requests.filter((req) => 
-      req.status === 'approved' && 
-      req.reviewed_at && 
-      new Date(req.reviewed_at) > oneDayAgo &&
-      !localStorage.getItem(`approval_notified_${req.id}`)
-    );
-    
-    for (const request of newlyApproved) {
-      alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
-      localStorage.setItem(`approval_notified_${request.id}`, 'true');
-      loadBusinessProfile();
-    }
-  } catch (error) {
-    console.error('Error fetching change requests:', error);
-  }
-};
-
-const loadBookings = async () => {
-  // Prevent multiple simultaneous calls
-  if (refreshing) {
-    console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
-    return;
-  }
-
-  const businessId = getBusinessId();
-  if (!businessId) {
-    console.warn('⚠️ No businessId found');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setRefreshing(true);
-    console.log('📡 Fetching bookings for business:', businessId);
-    console.log('📅 Current dateRange setting:', dateRange);
-    console.log('📅 Current startDate:', startDate);
-    console.log('📅 Current endDate:', endDate);
-    
-    // Build URL based on filters
-    let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
-    
-    // Apply date filters based on selection
-    if (startDate && endDate) {
-      console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
-      url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
-    } else if (dateRange !== 'all') {
-      console.log(`📅 Preset range ${dateRange} - fetching future/upcoming bookings`);
-      url += `&futureOnly=true`;
-    } else {
-      console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
-    }
-    
-    console.log('🔗 Fetching URL:', url);
-    
-    const res = await fetchWithAuth(url);
-    const result = await res.json();
-    
-    let rawBookings = [];
-    if (result.bookings && Array.isArray(result.bookings)) {
-      rawBookings = result.bookings;
-    } else if (Array.isArray(result)) {
-      rawBookings = result;
-    } else if (result.success && Array.isArray(result.data)) {
-      rawBookings = result.data;
-    }
-    
-    const validBookings = rawBookings.filter(b => b.business_id === businessId);
-    console.log(`📦 Loaded ${validBookings.length} bookings from API`);
-    
-    setBookings(validBookings);
-    
-    // Extract unique filter values
-    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
-    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
-    
-    setUniqueProvinces(provinces.sort());
-    setUniqueCities(cities.sort());
-    setUniqueCountries(countries.sort());
-    
-    // Calculate today's activity
-    const today = new Date().toISOString().split('T')[0];
-    const todayDate = new Date(today);
-    todayDate.setHours(0, 0, 0, 0);
-    
-    const thirtyDaysAgo = new Date(todayDate);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-    
-    const arrivals = validBookings.filter(b => b.check_in_date === today);
-    
-    const stayovers = validBookings.filter(b => {
-      if (!b.check_in_date) return false;
-      const checkInDate = new Date(b.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      if (checkInDate >= todayDate) return false;
-      if (b.check_out_date) {
-        const checkOutDate = new Date(b.check_out_date);
-        checkOutDate.setHours(0, 0, 0, 0);
-        return checkOutDate > todayDate;
+      
+      const newlyApproved = requests.filter((req) => 
+        req.status === 'approved' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`approval_notified_${req.id}`)
+      );
+      
+      for (const request of newlyApproved) {
+        alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
+        localStorage.setItem(`approval_notified_${request.id}`, 'true');
+        loadBusinessProfile();
       }
-      return b.check_in_date >= thirtyDaysAgoStr;
-    });
-    
-    const checkouts = validBookings.filter(b => b.check_out_date === today);
-    
-    console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-    
-    setTodayArrivals(arrivals);
-    setTodayStayovers(stayovers);
-    setTodayCheckouts(checkouts);
-    
-  } catch (err) {
-    console.error('❌ Error loading bookings:', err);
-  } finally {
-    setRefreshing(false);
-  }
-};
-
-const loadSubscribers = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setLoadingSubscribers(true);
-  try {
-    const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
-    const result = await response.json();
-    const subscribersData = result.success ? result.data : result;
-    setSubscribers(subscribersData.subscribers || subscribersData || []);
-    setShowSubscribers(true);
-  } catch (err) {
-    console.error('Error loading subscribers:', err);
-    alert('Failed to load subscribers');
-  } finally {
-    setLoadingSubscribers(false);
-  }
-};
-
-// ============================================================
-// UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
-// ============================================================
-
-const updateEmail = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setUpdatingEmail(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        email: newEmail
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && (result.success || result.data)) {
-      alert('✅ Email updated successfully');
-      setEditingEmail(false);
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
+    } catch (error) {
+      console.error('Error fetching change requests:', error);
     }
-  } catch (error) {
-    console.error('Error updating email:', error);
-    alert('An error occurred');
-  } finally {
-    setUpdatingEmail(false);
-  }
-};
+  };
 
-const updatePhone = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setUpdatingPhone(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        phone: newPhone
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && (result.success || result.data)) {
-      alert('✅ Phone updated successfully');
-      setEditingPhone(false);
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error updating phone:', error);
-    alert('An error occurred');
-  } finally {
-    setUpdatingPhone(false);
-  }
-};
-
-const saveNewsletterSettings = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setSavingNewsletter(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        newsletter_enabled: newsletterEnabled,
-        newsletter_title: newsletterTitle,
-        newsletter_prize: newsletterPrize,
-        newsletter_cta: newsletterCta,
-        newsletter_terms: newsletterTerms,
-        newsletter_draw_date: newsletterDrawDate || null,
-        newsletter_share_text: newsletterShareText
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && (result.success || result.data)) {
-      alert('✅ Newsletter settings saved successfully!');
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error saving newsletter settings:', error);
-    alert('Error saving newsletter settings');
-  } finally {
-    setSavingNewsletter(false);
-  }
-};
-
-const saveBusinessProfile = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-
-  setLoading(true);
-  let hasError = false;
-
-  try {
-    // 1. Update text fields only (NO images)
-    const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        total_rooms: parseInt(profileForm.total_rooms) || 0,
-        avg_price: parseInt(profileForm.avg_price) || 0,
-        slogan: profileForm.slogan,
-        welcome_message: profileForm.welcome_message
-      })
-    });
-
-    const textResult = await textRes.json();
-
-    if (!textRes.ok || !(textResult.success || textResult.data)) {
-      throw new Error(textResult.error || 'Failed to update text fields');
+  const loadBookings = async () => {
+    // Prevent multiple simultaneous calls
+    if (refreshing) {
+      console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
+      return;
     }
 
-    // 2. Update logo if changed
-    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
-      const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          logo_url: profileForm.logo_url
-        })
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.warn('⚠️ No businessId found');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setRefreshing(true);
+      console.log('📡 Fetching bookings for business:', businessId);
+      
+      // Build URL based on filters
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
+      
+      // Apply date filters based on selection
+      if (startDate && endDate) {
+        console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
+        url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
+      } else if (dateRange !== 'all') {
+        console.log(`📅 Preset range ${dateRange} - fetching future/upcoming bookings`);
+        url += `&futureOnly=true`;
+      } else {
+        console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
+      }
+      
+      console.log('🔗 Fetching URL:', url);
+      
+      const res = await fetchWithAuth(url);
+      const result = await res.json();
+      
+      let rawBookings = [];
+      if (result.bookings && Array.isArray(result.bookings)) {
+        rawBookings = result.bookings;
+      } else if (Array.isArray(result)) {
+        rawBookings = result;
+      } else if (result.success && Array.isArray(result.data)) {
+        rawBookings = result.data;
+      }
+      
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      console.log(`📦 Loaded ${validBookings.length} bookings from API`);
+      
+      setBookings(validBookings);
+      
+      // Extract unique filter values
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
+      
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
+      
+      // Calculate today's activity
+      const today = new Date().toISOString().split('T')[0];
+      const todayDate = new Date(today);
+      todayDate.setHours(0, 0, 0, 0);
+      
+      const thirtyDaysAgo = new Date(todayDate);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      const arrivals = validBookings.filter(b => b.check_in_date === today);
+      
+      const stayovers = validBookings.filter(b => {
+        if (!b.check_in_date) return false;
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        if (checkInDate >= todayDate) return false;
+        if (b.check_out_date) {
+          const checkOutDate = new Date(b.check_out_date);
+          checkOutDate.setHours(0, 0, 0, 0);
+          return checkOutDate > todayDate;
+        }
+        return b.check_in_date >= thirtyDaysAgoStr;
       });
-      if (!logoRes.ok) {
-        console.error('Logo upload failed');
-        hasError = true;
-      }
+      
+      const checkouts = validBookings.filter(b => b.check_out_date === today);
+      
+      console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+      
+    } catch (err) {
+      console.error('❌ Error loading bookings:', err);
+    } finally {
+      setRefreshing(false);
     }
+  };
 
-    // 3. Update hero image if changed
-    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
-      const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          hero_image_url: profileForm.hero_image_url
-        })
-      });
-      if (!heroRes.ok) {
-        console.error('Hero image upload failed');
-        hasError = true;
-      }
+  const loadSubscribers = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setLoadingSubscribers(true);
+    try {
+      const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
+      const result = await response.json();
+      const subscribersData = result.success ? result.data : result;
+      setSubscribers(subscribersData.subscribers || subscribersData || []);
+      setShowSubscribers(true);
+    } catch (err) {
+      console.error('Error loading subscribers:', err);
+      alert('Failed to load subscribers');
+    } finally {
+      setLoadingSubscribers(false);
     }
+  };
 
-    if (hasError) {
-      alert('Profile updated with some errors. Please check your images.');
-    } else {
-      alert('Profile updated successfully!');
-    }
-    
-    setEditingProfile(false);
-    await loadBusinessProfile();
-    
-  } catch (err) {
-    console.error('Error saving profile:', err);
-    alert(err.message || 'Error saving profile');
-  } finally {
-    setLoading(false);
-  }
-};
-
-const submitChangeRequest = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setSendingRequest(true);
-  try {
-    console.log('📤 Submitting change request:', {
-      businessId,
-      fieldName: requestField,
-      requestedValue: requestNewValue,
-      reason: requestReason
-    });
-    
-    const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        businessName: business?.trading_name,
-        fieldName: requestField,
-        currentValue: requestCurrentValue,
-        requestedValue: requestNewValue,
-        reason: requestReason
-      })
-    });
-    
-    const result = await response.json();
-    console.log('📡 Response:', result);
-    
-    if (response.ok && (result.success || result.data)) {
-      alert('✅ Change request submitted successfully. The admin will review it.');
-      setShowRequestModal(false);
-      setRequestField('');
-      setRequestCurrentValue('');
-      setRequestNewValue('');
-      setRequestReason('');
-      fetchChangeRequests();
-    } else {
-      alert(result.error || '❌ Failed to submit request. Please try again.');
-    }
-  } catch (error) {
-    console.error('Error submitting request:', error);
-    alert('An error occurred. Please try again.');
-  } finally {
-    setSendingRequest(false);
-  }
-};
-
-// ============================================================
-// UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
-// ============================================================
+  // ============================================================
+  // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
+  // ============================================================
 
   const updateEmail = async () => {
     const businessId = getBusinessId();
@@ -731,12 +506,14 @@ const submitChangeRequest = async () => {
         })
       });
       
-      if (response.ok) {
+      const result = await response.json();
+      
+      if (response.ok && (result.success || result.data)) {
         alert('✅ Email updated successfully');
         setEditingEmail(false);
         loadBusinessProfile();
       } else {
-        alert('❌ Failed to update email');
+        alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error updating email:', error);
@@ -760,12 +537,14 @@ const submitChangeRequest = async () => {
         })
       });
       
-      if (response.ok) {
+      const result = await response.json();
+      
+      if (response.ok && (result.success || result.data)) {
         alert('✅ Phone updated successfully');
         setEditingPhone(false);
         loadBusinessProfile();
       } else {
-        alert('❌ Failed to update phone');
+        alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error updating phone:', error);
@@ -795,11 +574,13 @@ const submitChangeRequest = async () => {
         })
       });
       
-      if (response.ok) {
+      const result = await response.json();
+      
+      if (response.ok && (result.success || result.data)) {
         alert('✅ Newsletter settings saved successfully!');
         loadBusinessProfile();
       } else {
-        alert('❌ Failed to save newsletter settings');
+        alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error saving newsletter settings:', error);
@@ -829,8 +610,10 @@ const submitChangeRequest = async () => {
         })
       });
 
-      if (!textRes.ok) {
-        throw new Error('Failed to update text fields');
+      const textResult = await textRes.json();
+
+      if (!textRes.ok || !(textResult.success || textResult.data)) {
+        throw new Error(textResult.error || 'Failed to update text fields');
       }
 
       // 2. Update logo if changed
@@ -874,7 +657,7 @@ const submitChangeRequest = async () => {
       
     } catch (err) {
       console.error('Error saving profile:', err);
-      alert('Error saving profile');
+      alert(err.message || 'Error saving profile');
     } finally {
       setLoading(false);
     }
@@ -905,10 +688,10 @@ const submitChangeRequest = async () => {
         })
       });
       
-      const data = await response.json();
-      console.log('📡 Response:', data);
+      const result = await response.json();
+      console.log('📡 Response:', result);
       
-      if (response.ok) {
+      if (response.ok && (result.success || result.data)) {
         alert('✅ Change request submitted successfully. The admin will review it.');
         setShowRequestModal(false);
         setRequestField('');
@@ -917,7 +700,7 @@ const submitChangeRequest = async () => {
         setRequestReason('');
         fetchChangeRequests();
       } else {
-        alert(data.error || '❌ Failed to submit request. Please try again.');
+        alert(result.error || '❌ Failed to submit request. Please try again.');
       }
     } catch (error) {
       console.error('Error submitting request:', error);
@@ -1233,35 +1016,35 @@ const submitChangeRequest = async () => {
   }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
 
   // ============================================================
-// EFFECTS
-// ============================================================
+  // EFFECTS
+  // ============================================================
 
-// Initial load - only once
-useEffect(() => {
-  loadBusinessProfile();
-  loadBookings();
-  fetchChangeRequests();
-}, []);
+  // Initial load - only once
+  useEffect(() => {
+    loadBusinessProfile();
+    loadBookings();
+    fetchChangeRequests();
+  }, []);
 
-// Apply frontend filters when bookings or filter criteria change
-useEffect(() => {
-  applyFilters();
-}, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
+  // Apply frontend filters when bookings or filter criteria change
+  useEffect(() => {
+    applyFilters();
+  }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
-// Reload bookings when date range changes (but not on initial mount)
-const isFirstRun = useRef(true);
-useEffect(() => {
-  if (isFirstRun.current) {
-    isFirstRun.current = false;
-    return;
-  }
-  console.log('📅 Date range changed - reloading bookings');
-  loadBookings();
-}, [dateRange, startDate, endDate]);
+  // Reload bookings when date range changes (but not on initial mount)
+  const isFirstRun = useRef(true);
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    console.log('📅 Date range changed - reloading bookings');
+    loadBookings();
+  }, [dateRange, startDate, endDate]);
 
-// ============================================================
-// LOADING STATE
-// ============================================================
+  // ============================================================
+  // LOADING STATE
+  // ============================================================
 
   if (loading) {
     return (
@@ -1941,15 +1724,15 @@ useEffect(() => {
                         <tr key={booking.id || index} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {booking.guest_name || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_email || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             <div>{booking.guest_country || 'N/A'}</div>
                             <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 text-sm font-mono text-gray-500">
                             {booking.guest_id_number ? (
                               <span className="cursor-help">
@@ -1959,24 +1742,24 @@ useEffect(() => {
                             {booking.guest_id_photo && (
                               <span className="ml-1 text-green-500" title="ID photo available">📷</span>
                             )}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.check_in_date || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             {booking.nights || 1}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                             R {(booking.total_amount || 0).toLocaleString()}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {booking.booking_source || booking.referral_source || 'N/A'}
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
                               {booking.status || 'pending'}
                             </span>
-                          </td>
+                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             {booking.guest_id_photo ? (
                               <button
@@ -1995,8 +1778,8 @@ useEffect(() => {
                                 Request ID
                               </button>
                             )}
-                          </td>
-                        </tr>
+                           </td>
+                        </table>
                       ))}
                     </tbody>
                   </table>
@@ -2260,7 +2043,7 @@ useEffect(() => {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                       </table>
                     </div>
                   )}
                 </>
