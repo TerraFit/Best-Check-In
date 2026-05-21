@@ -275,7 +275,8 @@ const loadBusinessProfile = async () => {
     const data = await res.json();
     console.log('✅ Business profile data received:', data);
     
-    setBusiness(data);
+    const businessData = data.success ? data.data : data;
+    setBusiness(businessData);
     
     setProfileForm({
       total_rooms: data.total_rooms?.toString() || '',
