@@ -1,8 +1,4 @@
-import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
-
-export const handler: Handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json'
@@ -15,18 +11,18 @@ export const handler: Handler = async (event) => {
   try {
     const { booking_id, business_id, guest_name, guest_first_name, guest_last_name, passport_or_id, signature_data } = JSON.parse(event.body || '{}');
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    const { data, error } = await supabase
-      .from('indemnity_records')
-      .insert({
+    const response = await fetch(`${supabaseUrl}/rest/v1/indemnity_records`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify([{
         booking_id,
         business_id,
         guest_name,
@@ -37,19 +33,20 @@ export const handler: Handler = async (event) => {
         signed_at: new Date().toISOString(),
         ip_address: event.headers['x-forwarded-for'] || event.headers['client-ip'],
         user_agent: event.headers['user-agent']
-      })
-      .select('access_token')
-      .single();
+      }])
+    });
 
-    if (error) {
-      console.error('Database error:', error);
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to save indemnity record' }) };
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
+
+    const result = await response.json();
+    const indemnityRecord = result[0];
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, access_token: data.access_token })
+      body: JSON.stringify({ success: true, access_token: indemnityRecord.access_token })
     };
 
   } catch (error) {
