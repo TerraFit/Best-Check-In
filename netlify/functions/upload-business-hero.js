@@ -32,21 +32,12 @@ export const handler = async function(event) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ success: false, error: 'Server configuration error' })
-      };
-    }
-
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         hero_image_url: hero_image_url || null,
@@ -55,21 +46,15 @@ export const handler = async function(event) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Hero upload error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`HTTP ${response.status}`);
     }
-
-    const result = await response.json();
-    const updatedBusiness = result[0];
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        message: 'Hero image updated successfully',
-        hero_image_url: updatedBusiness?.hero_image_url
+        message: 'Hero image updated successfully'
       })
     };
 
