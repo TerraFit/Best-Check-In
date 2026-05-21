@@ -363,7 +363,6 @@ const fetchChangeRequests = async () => {
   }
 };
 
-// ✅ COMPLETELY REWRITTEN AND CORRECTED loadBookings FUNCTION
 const loadBookings = async () => {
   // Prevent multiple simultaneous calls
   if (refreshing) {
@@ -381,37 +380,37 @@ const loadBookings = async () => {
   try {
     setRefreshing(true);
     console.log('📡 Fetching bookings for business:', businessId);
-    console.log('📅 Current dateRange setting:', dateRange);
-    console.log('📅 Current startDate:', startDate);
-    console.log('📅 Current endDate:', endDate);
     
     // Build URL based on filters
     let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
     
     // Apply date filters based on selection
     if (startDate && endDate) {
-      // Custom date range takes priority
       console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
       url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
     } else if (dateRange !== 'all') {
-      // For preset ranges, use futureOnly to show upcoming/current
       console.log(`📅 Preset range ${dateRange} - fetching future/upcoming bookings`);
       url += `&futureOnly=true`;
     } else {
-      // All Time - no date filters
       console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
     }
     
     console.log('🔗 Fetching URL:', url);
     
     const res = await fetchWithAuth(url);
-    const data = await res.json();
+    const result = await res.json();
     
-    let rawBookings: Booking[] = [];
-    if (data.bookings && Array.isArray(data.bookings)) {
-      rawBookings = data.bookings;
-    } else if (Array.isArray(data)) {
-      rawBookings = data;
+    // ✅ FIX: Handle the response structure correctly
+    let rawBookings = [];
+    if (result.bookings && Array.isArray(result.bookings)) {
+      // Response format: { success: true, bookings: [...] }
+      rawBookings = result.bookings;
+    } else if (result.success && Array.isArray(result.data)) {
+      // Alternative format: { success: true, data: [...] }
+      rawBookings = result.data;
+    } else if (Array.isArray(result)) {
+      // Direct array format
+      rawBookings = result;
     }
     
     const validBookings = rawBookings.filter(b => b.business_id === businessId);
@@ -421,15 +420,15 @@ const loadBookings = async () => {
     setBookings(validBookings);
     
     // Extract unique filter values
-    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
-    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))] as string[];
-    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))] as string[];
+    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
     
     setUniqueProvinces(provinces.sort());
     setUniqueCities(cities.sort());
     setUniqueCountries(countries.sort());
     
-    // Calculate today's activity with CORRECT logic
+    // Calculate today's activity
     const today = new Date().toISOString().split('T')[0];
     const todayDate = new Date(today);
     todayDate.setHours(0, 0, 0, 0);
@@ -444,24 +443,15 @@ const loadBookings = async () => {
     
     // Current stayovers - ONLY active stays (NOT historical)
     const stayovers = validBookings.filter(b => {
-      // Must have valid check_in_date
       if (!b.check_in_date) return false;
-      
       const checkInDate = new Date(b.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
-      
-      // Must have checked in BEFORE today
       if (checkInDate >= todayDate) return false;
-      
-      // If check_out_date exists and is in the future -> active stayover
       if (b.check_out_date) {
         const checkOutDate = new Date(b.check_out_date);
         checkOutDate.setHours(0, 0, 0, 0);
         return checkOutDate > todayDate;
       }
-      
-      // If NO check_out_date, ONLY count if check-in was within last 30 days
-      // This prevents ancient bookings (2018-2025) from appearing
       return b.check_in_date >= thirtyDaysAgoStr;
     });
     
@@ -469,11 +459,6 @@ const loadBookings = async () => {
     const checkouts = validBookings.filter(b => b.check_out_date === today);
     
     console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-    
-    // Log stayover details for debugging
-    if (stayovers.length > 0) {
-      console.log('🏠 Current stayovers:', stayovers.map(s => `${s.guest_name} (check-in: ${s.check_in_date}, check-out: ${s.check_out_date || 'NULL'})`));
-    }
     
     setTodayArrivals(arrivals);
     setTodayStayovers(stayovers);
