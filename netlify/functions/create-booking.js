@@ -1,15 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  {
-    realtime: { ws: ws },
-    auth: { persistSession: false }
-  }
-);
-
 export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -42,9 +30,22 @@ export const handler = async (event) => {
       };
     }
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
     const bookingData = {
       business_id: body.business_id,
       guest_name: body.guest_name,
+      guest_first_name: body.guest_first_name || '',
+      guest_last_name: body.guest_last_name || '',
       guest_email: body.guest_email || '',
       guest_phone: body.guest_phone || '',
       guest_id_number: body.guest_id_number || '',
@@ -65,33 +66,41 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving booking:', bookingData);
+    // IMPORTANT: Use your actual bookings table name
+    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert([bookingData])
-      .select();
+    const response = await fetch(`${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify([bookingData])
+    });
 
-    if (error) {
-      console.error('❌ Supabase error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: error.message })
-      };
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Supabase error:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    console.log('✅ Booking saved successfully:', data[0]?.id);
+    const result = await response.json();
+    const newBooking = result[0];
+
+    console.log('✅ Booking saved successfully:', newBooking?.id);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        booking: data[0],
+        booking: newBooking,
         message: 'Booking created successfully'
       })
     };
+
   } catch (err) {
     console.error('❌ create-booking error:', err);
     return {
