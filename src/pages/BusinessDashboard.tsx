@@ -492,7 +492,18 @@ const loadSubscribers = async () => {
     setLoadingSubscribers(false);
   }
 };
-
+  
+// Add this after loadBookings function
+const isFirstRun = useRef(true);
+useEffect(() => {
+  if (isFirstRun.current) {
+    isFirstRun.current = false;
+    return;
+  }
+  console.log('📅 Date range, tab, or filters changed - reloading bookings');
+  loadBookings();
+}, [dateRange, startDate, endDate, activeTab]); // ← activeTab is included
+  
 // ============================================================
 // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
 // ============================================================
@@ -1040,14 +1051,15 @@ useEffect(() => {
 
 // Reload bookings when date range changes (but not on initial mount)
 const isFirstRun = useRef(true);
+// Reload bookings when date range, activeTab, or filters change
 useEffect(() => {
   if (isFirstRun.current) {
     isFirstRun.current = false;
     return;
   }
-  console.log('📅 Date range changed - reloading bookings');
+  console.log('📅 Date range, tab, or filters changed - reloading bookings');
   loadBookings();
-}, [dateRange, startDate, endDate]);
+}, [dateRange, startDate, endDate, activeTab]);  // ← ADD activeTab here
 
 // ============================================================
 // LOADING STATE
