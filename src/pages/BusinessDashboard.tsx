@@ -508,215 +508,225 @@ const loadSubscribers = async () => {
 // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
 // ============================================================
 
-  const updateEmail = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setUpdatingEmail(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          email: newEmail
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Email updated successfully');
-        setEditingEmail(false);
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to update email');
-      }
-    } catch (error) {
-      console.error('Error updating email:', error);
-      alert('An error occurred');
-    } finally {
-      setUpdatingEmail(false);
-    }
-  };
-
-  const updatePhone = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setUpdatingPhone(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          phone: newPhone
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Phone updated successfully');
-        setEditingPhone(false);
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to update phone');
-      }
-    } catch (error) {
-      console.error('Error updating phone:', error);
-      alert('An error occurred');
-    } finally {
-      setUpdatingPhone(false);
-    }
-  };
-
-  const saveNewsletterSettings = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setSavingNewsletter(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          newsletter_enabled: newsletterEnabled,
-          newsletter_title: newsletterTitle,
-          newsletter_prize: newsletterPrize,
-          newsletter_cta: newsletterCta,
-          newsletter_terms: newsletterTerms,
-          newsletter_draw_date: newsletterDrawDate || null,
-          newsletter_share_text: newsletterShareText
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Newsletter settings saved successfully!');
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to save newsletter settings');
-      }
-    } catch (error) {
-      console.error('Error saving newsletter settings:', error);
-      alert('Error saving newsletter settings');
-    } finally {
-      setSavingNewsletter(false);
-    }
-  };
-
-  const saveBusinessProfile = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-
-    setLoading(true);
-    let hasError = false;
-
-    try {
-      // 1. Update text fields only (NO images)
-      const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          total_rooms: parseInt(profileForm.total_rooms) || 0,
-          avg_price: parseInt(profileForm.avg_price) || 0,
-          slogan: profileForm.slogan,
-          welcome_message: profileForm.welcome_message
-        })
-      });
-
-      if (!textRes.ok) {
-        throw new Error('Failed to update text fields');
-      }
-
-      // 2. Update logo if changed
-      if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
-        const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
-          method: 'POST',
-          body: JSON.stringify({
-            businessId,
-            logo_url: profileForm.logo_url
-          })
-        });
-        if (!logoRes.ok) {
-          console.error('Logo upload failed');
-          hasError = true;
-        }
-      }
-
-      // 3. Update hero image if changed
-      if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
-        const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
-          method: 'POST',
-          body: JSON.stringify({
-            businessId,
-            hero_image_url: profileForm.hero_image_url
-          })
-        });
-        if (!heroRes.ok) {
-          console.error('Hero image upload failed');
-          hasError = true;
-        }
-      }
-
-      if (hasError) {
-        alert('Profile updated with some errors. Please check your images.');
-      } else {
-        alert('Profile updated successfully!');
-      }
-      
-      setEditingProfile(false);
-      await loadBusinessProfile();
-      
-    } catch (err) {
-      console.error('Error saving profile:', err);
-      alert('Error saving profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitChangeRequest = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setSendingRequest(true);
-    try {
-      console.log('📤 Submitting change request:', {
+const updateEmail = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setUpdatingEmail(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
         businessId,
+        email: newEmail
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Email updated successfully');
+      setEditingEmail(false);
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error updating email:', error);
+    alert('An error occurred');
+  } finally {
+    setUpdatingEmail(false);
+  }
+};
+
+const updatePhone = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setUpdatingPhone(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        phone: newPhone
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Phone updated successfully');
+      setEditingPhone(false);
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error updating phone:', error);
+    alert('An error occurred');
+  } finally {
+    setUpdatingPhone(false);
+  }
+};
+
+const saveNewsletterSettings = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setSavingNewsletter(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        newsletter_enabled: newsletterEnabled,
+        newsletter_title: newsletterTitle,
+        newsletter_prize: newsletterPrize,
+        newsletter_cta: newsletterCta,
+        newsletter_terms: newsletterTerms,
+        newsletter_draw_date: newsletterDrawDate || null,
+        newsletter_share_text: newsletterShareText
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Newsletter settings saved successfully!');
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error saving newsletter settings:', error);
+    alert('Error saving newsletter settings');
+  } finally {
+    setSavingNewsletter(false);
+  }
+};
+
+const saveBusinessProfile = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+
+  setLoading(true);
+  let hasError = false;
+
+  try {
+    // 1. Update text fields only (NO images)
+    const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        total_rooms: parseInt(profileForm.total_rooms) || 0,
+        avg_price: parseInt(profileForm.avg_price) || 0,
+        slogan: profileForm.slogan,
+        welcome_message: profileForm.welcome_message
+      })
+    });
+
+    const textResult = await textRes.json();
+
+    if (!textRes.ok || !textResult.success) {
+      throw new Error(textResult.error || 'Failed to update text fields');
+    }
+
+    // 2. Update logo if changed
+    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
+      const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          logo_url: profileForm.logo_url
+        })
+      });
+      const logoResult = await logoRes.json();
+      if (!logoRes.ok || !logoResult.success) {
+        console.error('Logo upload failed:', logoResult.error);
+        hasError = true;
+      }
+    }
+
+    // 3. Update hero image if changed
+    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
+      const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          hero_image_url: profileForm.hero_image_url
+        })
+      });
+      const heroResult = await heroRes.json();
+      if (!heroRes.ok || !heroResult.success) {
+        console.error('Hero image upload failed:', heroResult.error);
+        hasError = true;
+      }
+    }
+
+    if (hasError) {
+      alert('Profile updated with some errors. Please check your images.');
+    } else {
+      alert('Profile updated successfully!');
+    }
+    
+    setEditingProfile(false);
+    await loadBusinessProfile();
+    
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    alert(err.message || 'Error saving profile');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const submitChangeRequest = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setSendingRequest(true);
+  try {
+    console.log('📤 Submitting change request:', {
+      businessId,
+      fieldName: requestField,
+      requestedValue: requestNewValue,
+      reason: requestReason
+    });
+    
+    const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        businessName: business?.trading_name,
         fieldName: requestField,
+        currentValue: requestCurrentValue,
         requestedValue: requestNewValue,
         reason: requestReason
-      });
-      
-      const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          businessName: business?.trading_name,
-          fieldName: requestField,
-          currentValue: requestCurrentValue,
-          requestedValue: requestNewValue,
-          reason: requestReason
-        })
-      });
-      
-      const data = await response.json();
-      console.log('📡 Response:', data);
-      
-      if (response.ok) {
-        alert('✅ Change request submitted successfully. The admin will review it.');
-        setShowRequestModal(false);
-        setRequestField('');
-        setRequestCurrentValue('');
-        setRequestNewValue('');
-        setRequestReason('');
-        fetchChangeRequests();
-      } else {
-        alert(data.error || '❌ Failed to submit request. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error submitting request:', error);
-      alert('An error occurred. Please try again.');
-    } finally {
-      setSendingRequest(false);
+      })
+    });
+    
+    const data = await response.json();
+    console.log('📡 Response:', data);
+    
+    if (response.ok && (data.success || data.data)) {
+      alert('✅ Change request submitted successfully. The admin will review it.');
+      setShowRequestModal(false);
+      setRequestField('');
+      setRequestCurrentValue('');
+      setRequestNewValue('');
+      setRequestReason('');
+      fetchChangeRequests();
+    } else {
+      alert(data.error || '❌ Failed to submit request. Please try again.');
     }
-  };
+  } catch (error) {
+    console.error('Error submitting request:', error);
+    alert('An error occurred. Please try again.');
+  } finally {
+    setSendingRequest(false);
+  }
+};
 
   // ============================================================
   // HELPER FUNCTIONS
