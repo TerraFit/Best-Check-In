@@ -122,7 +122,7 @@ export default function BusinessDashboard() {
   const [uploadingHero, setUploadingHero] = useState(false);
   
   // Filter states
-  const [dateRange, setDateRange] = useState<DateRange>('30days');
+ const [dateRange, setDateRange] = useState<DateRange>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
