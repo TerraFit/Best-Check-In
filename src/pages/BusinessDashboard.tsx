@@ -1050,7 +1050,7 @@ useEffect(() => {
 }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
 // Reload bookings when date range changes (but not on initial mount)
-const isFirstRun = useRef(true);
+
 // Reload bookings when date range, activeTab, or filters change
 useEffect(() => {
   if (isFirstRun.current) {
@@ -1059,7 +1059,6 @@ useEffect(() => {
   }
   console.log('📅 Date range, tab, or filters changed - reloading bookings');
   loadBookings();
-}, [dateRange, startDate, endDate, activeTab]);  // ← ADD activeTab here
 
 // ============================================================
 // LOADING STATE
