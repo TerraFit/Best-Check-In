@@ -44,23 +44,23 @@ export const handler = async function(event) {
     // Add updated timestamp
     fields.updated_at = new Date().toISOString();
 
-    // Remove undefined values
+    // Remove undefined or empty values
     Object.keys(fields).forEach(key => {
-      if (fields[key] === undefined) {
+      if (fields[key] === undefined || fields[key] === '') {
         delete fields[key];
       }
     });
 
     console.log('📝 Updating business:', businessId);
-    console.log('📝 Fields:', Object.keys(fields));
+    console.log('📝 Fields to update:', Object.keys(fields));
 
+    // CRITICAL: Remove 'Prefer': 'return=representation' to avoid returning large data
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(fields)
     });
@@ -71,15 +71,12 @@ export const handler = async function(event) {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    const result = await response.json();
-    const updatedBusiness = result[0];
-
+    // Return minimal success response (no data)
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        data: updatedBusiness,
         message: 'Profile updated successfully'
       })
     };
