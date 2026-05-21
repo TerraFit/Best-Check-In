@@ -364,7 +364,6 @@ const fetchChangeRequests = async () => {
 };
 
 const loadBookings = async () => {
-  // Prevent multiple simultaneous calls
   if (refreshing) {
     console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
     return;
@@ -380,19 +379,33 @@ const loadBookings = async () => {
   try {
     setRefreshing(true);
     console.log('📡 Fetching bookings for business:', businessId);
+    console.log('📅 Current activeTab:', activeTab);
     
-    // Build URL based on filters
     let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
     
-    // Apply date filters based on selection
-    if (startDate && endDate) {
-      console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
-      url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
-    } else if (dateRange !== 'all') {
-      console.log(`📅 Preset range ${dateRange} - fetching future/upcoming bookings`);
+    // For Check-ins tab - show past + present ONLY (exclude future)
+    if (activeTab === 'checkins') {
+      const today = new Date().toISOString().split('T')[0];
+      console.log('📋 Check-ins tab - fetching past and present bookings (check_in_date <= today)');
+      url += `&endDate=${today}`;  // Only bookings with check_in_date <= today
+    } 
+    // For Overview tab - show only active (future bookings + current stayovers)
+    else if (activeTab === 'overview') {
+      console.log('📅 Overview tab - fetching future/upcoming bookings');
       url += `&futureOnly=true`;
-    } else {
-      console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
+    }
+    // For Reports tab - respect date filters
+    else if (activeTab === 'reports') {
+      if (startDate && endDate) {
+        url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
+      } else if (dateRange !== 'all') {
+        const days = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
+        if (days[dateRange]) {
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
+          url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
+        }
+      }
     }
     
     console.log('🔗 Fetching URL:', url);
@@ -400,23 +413,18 @@ const loadBookings = async () => {
     const res = await fetchWithAuth(url);
     const result = await res.json();
     
-    // ✅ FIX: Handle the response structure correctly
     let rawBookings = [];
     if (result.bookings && Array.isArray(result.bookings)) {
-      // Response format: { success: true, bookings: [...] }
       rawBookings = result.bookings;
     } else if (result.success && Array.isArray(result.data)) {
-      // Alternative format: { success: true, data: [...] }
       rawBookings = result.data;
     } else if (Array.isArray(result)) {
-      // Direct array format
       rawBookings = result;
     }
     
     const validBookings = rawBookings.filter(b => b.business_id === businessId);
     console.log(`📦 Loaded ${validBookings.length} bookings from API`);
     
-    // Update state with fresh data
     setBookings(validBookings);
     
     // Extract unique filter values
@@ -428,20 +436,17 @@ const loadBookings = async () => {
     setUniqueCities(cities.sort());
     setUniqueCountries(countries.sort());
     
-    // Calculate today's activity
+    // Calculate today's activity for Overview tab
     const today = new Date().toISOString().split('T')[0];
     const todayDate = new Date(today);
     todayDate.setHours(0, 0, 0, 0);
     
-    // Calculate 30 days ago for recency check
     const thirtyDaysAgo = new Date(todayDate);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
     
-    // Today's arrivals
     const arrivals = validBookings.filter(b => b.check_in_date === today);
     
-    // Current stayovers - ONLY active stays (NOT historical)
     const stayovers = validBookings.filter(b => {
       if (!b.check_in_date) return false;
       const checkInDate = new Date(b.check_in_date);
@@ -455,7 +460,6 @@ const loadBookings = async () => {
       return b.check_in_date >= thirtyDaysAgoStr;
     });
     
-    // Today's checkouts
     const checkouts = validBookings.filter(b => b.check_out_date === today);
     
     console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
