@@ -122,7 +122,7 @@ export default function BusinessDashboard() {
   const [uploadingHero, setUploadingHero] = useState(false);
   
   // Filter states
-  const [dateRange, setDateRange] = useState<DateRange>('30days');
+ const [dateRange, setDateRange] = useState<DateRange>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -275,7 +275,8 @@ const loadBusinessProfile = async () => {
     const data = await res.json();
     console.log('✅ Business profile data received:', data);
     
-    setBusiness(data);
+    const businessData = data.success ? data.data : data;
+    setBusiness(businessData);
     
     setProfileForm({
       total_rooms: data.total_rooms?.toString() || '',
@@ -362,9 +363,7 @@ const fetchChangeRequests = async () => {
   }
 };
 
-// ✅ COMPLETELY REWRITTEN AND CORRECTED loadBookings FUNCTION
 const loadBookings = async () => {
-  // Prevent multiple simultaneous calls
   if (refreshing) {
     console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
     return;
@@ -380,99 +379,90 @@ const loadBookings = async () => {
   try {
     setRefreshing(true);
     console.log('📡 Fetching bookings for business:', businessId);
-    console.log('📅 Current dateRange setting:', dateRange);
-    console.log('📅 Current startDate:', startDate);
-    console.log('📅 Current endDate:', endDate);
+    console.log('📅 Current activeTab:', activeTab);
     
-    // Build URL based on filters
     let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
     
-    // Apply date filters based on selection
-    if (startDate && endDate) {
-      // Custom date range takes priority
-      console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
-      url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
-    } else if (dateRange !== 'all') {
-      // For preset ranges, use futureOnly to show upcoming/current
-      console.log(`📅 Preset range ${dateRange} - fetching future/upcoming bookings`);
+    // For Check-ins tab - show past + present ONLY (exclude future)
+    if (activeTab === 'checkins') {
+      const today = new Date().toISOString().split('T')[0];
+      console.log('📋 Check-ins tab - fetching past and present bookings (check_in_date <= today)');
+      url += `&endDate=${today}`;  // Only bookings with check_in_date <= today
+    } 
+    // For Overview tab - show only active (future bookings + current stayovers)
+    else if (activeTab === 'overview') {
+      console.log('📅 Overview tab - fetching future/upcoming bookings');
       url += `&futureOnly=true`;
-    } else {
-      // All Time - no date filters
-      console.log('📅 All Time selected - fetching ALL bookings (no date filters)');
+    }
+    // For Reports tab - respect date filters
+    else if (activeTab === 'reports') {
+      if (startDate && endDate) {
+        url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
+      } else if (dateRange !== 'all') {
+        const days = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
+        if (days[dateRange]) {
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
+          url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
+        }
+      }
     }
     
     console.log('🔗 Fetching URL:', url);
     
     const res = await fetchWithAuth(url);
-    const data = await res.json();
+    const result = await res.json();
     
-    let rawBookings: Booking[] = [];
-    if (data.bookings && Array.isArray(data.bookings)) {
-      rawBookings = data.bookings;
-    } else if (Array.isArray(data)) {
-      rawBookings = data;
+    let rawBookings = [];
+    if (result.bookings && Array.isArray(result.bookings)) {
+      rawBookings = result.bookings;
+    } else if (result.success && Array.isArray(result.data)) {
+      rawBookings = result.data;
+    } else if (Array.isArray(result)) {
+      rawBookings = result;
     }
     
     const validBookings = rawBookings.filter(b => b.business_id === businessId);
     console.log(`📦 Loaded ${validBookings.length} bookings from API`);
     
-    // Update state with fresh data
     setBookings(validBookings);
     
     // Extract unique filter values
-    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))] as string[];
-    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))] as string[];
-    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))] as string[];
+    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
     
     setUniqueProvinces(provinces.sort());
     setUniqueCities(cities.sort());
     setUniqueCountries(countries.sort());
     
-    // Calculate today's activity with CORRECT logic
+    // Calculate today's activity for Overview tab
     const today = new Date().toISOString().split('T')[0];
     const todayDate = new Date(today);
     todayDate.setHours(0, 0, 0, 0);
     
-    // Calculate 30 days ago for recency check
     const thirtyDaysAgo = new Date(todayDate);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
     
-    // Today's arrivals
     const arrivals = validBookings.filter(b => b.check_in_date === today);
     
-    // Current stayovers - ONLY active stays (NOT historical)
     const stayovers = validBookings.filter(b => {
-      // Must have valid check_in_date
       if (!b.check_in_date) return false;
-      
       const checkInDate = new Date(b.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
-      
-      // Must have checked in BEFORE today
       if (checkInDate >= todayDate) return false;
-      
-      // If check_out_date exists and is in the future -> active stayover
       if (b.check_out_date) {
         const checkOutDate = new Date(b.check_out_date);
         checkOutDate.setHours(0, 0, 0, 0);
         return checkOutDate > todayDate;
       }
-      
-      // If NO check_out_date, ONLY count if check-in was within last 30 days
-      // This prevents ancient bookings (2018-2025) from appearing
       return b.check_in_date >= thirtyDaysAgoStr;
     });
     
-    // Today's checkouts
     const checkouts = validBookings.filter(b => b.check_out_date === today);
     
     console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-    
-    // Log stayover details for debugging
-    if (stayovers.length > 0) {
-      console.log('🏠 Current stayovers:', stayovers.map(s => `${s.guest_name} (check-in: ${s.check_in_date}, check-out: ${s.check_out_date || 'NULL'})`));
-    }
     
     setTodayArrivals(arrivals);
     setTodayStayovers(stayovers);
@@ -502,220 +492,241 @@ const loadSubscribers = async () => {
     setLoadingSubscribers(false);
   }
 };
-
+  
+// Add this after loadBookings function
+const isFirstRun = useRef(true);
+useEffect(() => {
+  if (isFirstRun.current) {
+    isFirstRun.current = false;
+    return;
+  }
+  console.log('📅 Date range, tab, or filters changed - reloading bookings');
+  loadBookings();
+}, [dateRange, startDate, endDate, activeTab]); // ← activeTab is included
+  
 // ============================================================
 // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
 // ============================================================
 
-  const updateEmail = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setUpdatingEmail(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          email: newEmail
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Email updated successfully');
-        setEditingEmail(false);
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to update email');
-      }
-    } catch (error) {
-      console.error('Error updating email:', error);
-      alert('An error occurred');
-    } finally {
-      setUpdatingEmail(false);
-    }
-  };
-
-  const updatePhone = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setUpdatingPhone(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          phone: newPhone
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Phone updated successfully');
-        setEditingPhone(false);
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to update phone');
-      }
-    } catch (error) {
-      console.error('Error updating phone:', error);
-      alert('An error occurred');
-    } finally {
-      setUpdatingPhone(false);
-    }
-  };
-
-  const saveNewsletterSettings = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setSavingNewsletter(true);
-    try {
-      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          newsletter_enabled: newsletterEnabled,
-          newsletter_title: newsletterTitle,
-          newsletter_prize: newsletterPrize,
-          newsletter_cta: newsletterCta,
-          newsletter_terms: newsletterTerms,
-          newsletter_draw_date: newsletterDrawDate || null,
-          newsletter_share_text: newsletterShareText
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Newsletter settings saved successfully!');
-        loadBusinessProfile();
-      } else {
-        alert('❌ Failed to save newsletter settings');
-      }
-    } catch (error) {
-      console.error('Error saving newsletter settings:', error);
-      alert('Error saving newsletter settings');
-    } finally {
-      setSavingNewsletter(false);
-    }
-  };
-
-  const saveBusinessProfile = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-
-    setLoading(true);
-    let hasError = false;
-
-    try {
-      // 1. Update text fields only (NO images)
-      const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          total_rooms: parseInt(profileForm.total_rooms) || 0,
-          avg_price: parseInt(profileForm.avg_price) || 0,
-          slogan: profileForm.slogan,
-          welcome_message: profileForm.welcome_message
-        })
-      });
-
-      if (!textRes.ok) {
-        throw new Error('Failed to update text fields');
-      }
-
-      // 2. Update logo if changed
-      if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
-        const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
-          method: 'POST',
-          body: JSON.stringify({
-            businessId,
-            logo_url: profileForm.logo_url
-          })
-        });
-        if (!logoRes.ok) {
-          console.error('Logo upload failed');
-          hasError = true;
-        }
-      }
-
-      // 3. Update hero image if changed
-      if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
-        const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
-          method: 'POST',
-          body: JSON.stringify({
-            businessId,
-            hero_image_url: profileForm.hero_image_url
-          })
-        });
-        if (!heroRes.ok) {
-          console.error('Hero image upload failed');
-          hasError = true;
-        }
-      }
-
-      if (hasError) {
-        alert('Profile updated with some errors. Please check your images.');
-      } else {
-        alert('Profile updated successfully!');
-      }
-      
-      setEditingProfile(false);
-      await loadBusinessProfile();
-      
-    } catch (err) {
-      console.error('Error saving profile:', err);
-      alert('Error saving profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitChangeRequest = async () => {
-    const businessId = getBusinessId();
-    if (!businessId) return;
-    
-    setSendingRequest(true);
-    try {
-      console.log('📤 Submitting change request:', {
+const updateEmail = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setUpdatingEmail(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
         businessId,
+        email: newEmail
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Email updated successfully');
+      setEditingEmail(false);
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error updating email:', error);
+    alert('An error occurred');
+  } finally {
+    setUpdatingEmail(false);
+  }
+};
+
+const updatePhone = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setUpdatingPhone(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        phone: newPhone
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Phone updated successfully');
+      setEditingPhone(false);
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error updating phone:', error);
+    alert('An error occurred');
+  } finally {
+    setUpdatingPhone(false);
+  }
+};
+
+const saveNewsletterSettings = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setSavingNewsletter(true);
+  try {
+    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        newsletter_enabled: newsletterEnabled,
+        newsletter_title: newsletterTitle,
+        newsletter_prize: newsletterPrize,
+        newsletter_cta: newsletterCta,
+        newsletter_terms: newsletterTerms,
+        newsletter_draw_date: newsletterDrawDate || null,
+        newsletter_share_text: newsletterShareText
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert('✅ Newsletter settings saved successfully!');
+      loadBusinessProfile();
+    } else {
+      alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error saving newsletter settings:', error);
+    alert('Error saving newsletter settings');
+  } finally {
+    setSavingNewsletter(false);
+  }
+};
+
+const saveBusinessProfile = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+
+  setLoading(true);
+  let hasError = false;
+
+  try {
+    // 1. Update text fields only (NO images)
+    const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        total_rooms: parseInt(profileForm.total_rooms) || 0,
+        avg_price: parseInt(profileForm.avg_price) || 0,
+        slogan: profileForm.slogan,
+        welcome_message: profileForm.welcome_message
+      })
+    });
+
+    const textResult = await textRes.json();
+
+    if (!textRes.ok || !textResult.success) {
+      throw new Error(textResult.error || 'Failed to update text fields');
+    }
+
+    // 2. Update logo if changed
+    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
+      const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          logo_url: profileForm.logo_url
+        })
+      });
+      const logoResult = await logoRes.json();
+      if (!logoRes.ok || !logoResult.success) {
+        console.error('Logo upload failed:', logoResult.error);
+        hasError = true;
+      }
+    }
+
+    // 3. Update hero image if changed
+    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
+      const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          hero_image_url: profileForm.hero_image_url
+        })
+      });
+      const heroResult = await heroRes.json();
+      if (!heroRes.ok || !heroResult.success) {
+        console.error('Hero image upload failed:', heroResult.error);
+        hasError = true;
+      }
+    }
+
+    if (hasError) {
+      alert('Profile updated with some errors. Please check your images.');
+    } else {
+      alert('Profile updated successfully!');
+    }
+    
+    setEditingProfile(false);
+    await loadBusinessProfile();
+    
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    alert(err.message || 'Error saving profile');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const submitChangeRequest = async () => {
+  const businessId = getBusinessId();
+  if (!businessId) return;
+  
+  setSendingRequest(true);
+  try {
+    console.log('📤 Submitting change request:', {
+      businessId,
+      fieldName: requestField,
+      requestedValue: requestNewValue,
+      reason: requestReason
+    });
+    
+    const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
+      method: 'POST',
+      body: JSON.stringify({
+        businessId,
+        businessName: business?.trading_name,
         fieldName: requestField,
+        currentValue: requestCurrentValue,
         requestedValue: requestNewValue,
         reason: requestReason
-      });
-      
-      const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          businessName: business?.trading_name,
-          fieldName: requestField,
-          currentValue: requestCurrentValue,
-          requestedValue: requestNewValue,
-          reason: requestReason
-        })
-      });
-      
-      const data = await response.json();
-      console.log('📡 Response:', data);
-      
-      if (response.ok) {
-        alert('✅ Change request submitted successfully. The admin will review it.');
-        setShowRequestModal(false);
-        setRequestField('');
-        setRequestCurrentValue('');
-        setRequestNewValue('');
-        setRequestReason('');
-        fetchChangeRequests();
-      } else {
-        alert(data.error || '❌ Failed to submit request. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error submitting request:', error);
-      alert('An error occurred. Please try again.');
-    } finally {
-      setSendingRequest(false);
+      })
+    });
+    
+    const data = await response.json();
+    console.log('📡 Response:', data);
+    
+    if (response.ok && (data.success || data.data)) {
+      alert('✅ Change request submitted successfully. The admin will review it.');
+      setShowRequestModal(false);
+      setRequestField('');
+      setRequestCurrentValue('');
+      setRequestNewValue('');
+      setRequestReason('');
+      fetchChangeRequests();
+    } else {
+      alert(data.error || '❌ Failed to submit request. Please try again.');
     }
-  };
+  } catch (error) {
+    console.error('Error submitting request:', error);
+    alert('An error occurred. Please try again.');
+  } finally {
+    setSendingRequest(false);
+  }
+};
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -1039,15 +1050,15 @@ useEffect(() => {
 }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
 // Reload bookings when date range changes (but not on initial mount)
-const isFirstRun = useRef(true);
+
+// Reload bookings when date range, activeTab, or filters change
 useEffect(() => {
   if (isFirstRun.current) {
     isFirstRun.current = false;
     return;
   }
-  console.log('📅 Date range changed - reloading bookings');
+  console.log('📅 Date range, tab, or filters changed - reloading bookings');
   loadBookings();
-}, [dateRange, startDate, endDate]);
 
 // ============================================================
 // LOADING STATE
