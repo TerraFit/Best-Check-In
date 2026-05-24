@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -20,11 +18,6 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   try {
     const { businessId, businessName, fieldName, currentValue, requestedValue, reason } = JSON.parse(event.body);
 
@@ -36,10 +29,19 @@ export const handler = async function(event) {
       };
     }
 
-    // Insert change request
-    const { data, error } = await supabase
-      .from('change_requests')
-      .insert([{
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    // Use REST API instead of Supabase client
+    const response = await fetch(`${supabaseUrl}/rest/v1/change_requests`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify([{
         business_id: businessId,
         business_name: businessName,
         field_name: fieldName,
@@ -49,10 +51,11 @@ export const handler = async function(event) {
         status: 'pending',
         created_at: new Date().toISOString()
       }])
-      .select();
+    });
 
-    if (error) {
-      console.error('❌ Error creating change request:', error);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Supabase error:', errorText);
       return {
         statusCode: 500,
         headers,
@@ -60,7 +63,10 @@ export const handler = async function(event) {
       };
     }
 
-    console.log('✅ Change request submitted:', data[0].id);
+    const result = await response.json();
+    const newRequest = result[0];
+
+    console.log('✅ Change request submitted:', newRequest?.id);
 
     return {
       statusCode: 200,
@@ -68,7 +74,7 @@ export const handler = async function(event) {
       body: JSON.stringify({ 
         success: true, 
         message: 'Change request submitted successfully',
-        requestId: data[0].id
+        requestId: newRequest?.id
       })
     };
 
