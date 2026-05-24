@@ -2588,7 +2588,6 @@ useEffect(() => {
           onClose={() => setShowImportModal(false)}
         />
       )}
-     </main>
     </div>
   );
 }
