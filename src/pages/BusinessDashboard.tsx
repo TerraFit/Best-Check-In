@@ -2167,9 +2167,9 @@ useEffect(() => {
                   </>
                 )}
               </div>
+              </div>
             </div>
-          </div>  {/* ← THIS is the closing div for Reports tab's space-y-6 container */}
-        )}
+          )}
 
         {/* ============================================================ */}
         {/* SETTINGS TAB */}
