@@ -41,11 +41,40 @@ export const handler = async (event) => {
       };
     }
 
+    // ✅ CLEAN NAMES - Remove titles (Mr., Mrs., Dr., etc.)
+    const cleanName = (name) => {
+      if (!name) return '';
+      const titlePattern = /^(Mr\.?|Mrs\.?|Ms\.?|Miss\.?|Dr\.?|Prof\.?|Rev\.?)\s+/i;
+      return name.replace(titlePattern, '').trim();
+    };
+
+    let firstName = body.guest_first_name || '';
+    let lastName = body.guest_last_name || '';
+    let guestName = body.guest_name || '';
+
+    // Clean individual name parts
+    firstName = cleanName(firstName);
+    lastName = cleanName(lastName);
+    
+    // If we have guest_name with title, clean it
+    if (guestName && !firstName && !lastName) {
+      guestName = cleanName(guestName);
+      const nameParts = guestName.trim().split(' ');
+      firstName = nameParts[0] || '';
+      lastName = nameParts.slice(1).join(' ') || '';
+    }
+
+    // Build clean full name
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    // ✅ YOUR EXISTING TABLE NAME
+    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
+
     const bookingData = {
       business_id: body.business_id,
-      guest_name: body.guest_name,
-      guest_first_name: body.guest_first_name || '',
-      guest_last_name: body.guest_last_name || '',
+      guest_name: fullName || guestName,
+      guest_first_name: firstName,
+      guest_last_name: lastName,
       guest_email: body.guest_email || '',
       guest_phone: body.guest_phone || '',
       guest_id_number: body.guest_id_number || '',
@@ -61,13 +90,14 @@ export const handler = async (event) => {
       guest_province: body.guest_province || '',
       guest_city: body.guest_city || '',
       guest_country: body.guest_country || 'South Africa',
+      booking_source: body.booking_source || body.referral_source || '',
+      referral_source: body.referral_source || body.booking_source || '',
       marketing_consent: body.marketing_consent || false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    // IMPORTANT: Use your actual bookings table name
-    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
+    console.log('💾 Saving booking:', bookingData);
 
     const response = await fetch(`${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}`, {
       method: 'POST',
