@@ -185,6 +185,14 @@ export default function BusinessDashboard() {
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [rejectedRequest, setRejectedRequest] = useState<ChangeRequest | null>(null);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  // Add this debug useEffect
+useEffect(() => {
+  console.log('🔍🔍🔍 BUSINESS STATE ACTUALLY CHANGED:', business);
+  console.log('🔍🔍🔍 BUSINESS NAME IN STATE:', business?.trading_name);
+  if (business?.logo_url) {
+    console.log('🔍🔍🔍 LOGO URL (first 100 chars):', business.logo_url.substring(0, 100));
+  }
+}, [business]);
 
   // Tab configuration
   const tabs = [
@@ -289,6 +297,12 @@ const loadBusinessProfile = async () => {
     console.log('✅ Trading name:', businessData?.trading_name);
     
     setBusiness(businessData);
+    
+    // 🔍 ADD THESE DEBUG LINES:
+console.log('🔍 After setBusiness - businessData:', businessData);
+console.log('🔍 After setBusiness - business state should update soon');
+console.log('🔍 trading_name from businessData:', businessData?.trading_name);
+console.log('🔍 logo_url from businessData:', businessData?.logo_url?.substring(0, 100));
     
     // ✅ FIX: Use businessData instead of data for profile form
     setProfileForm({
