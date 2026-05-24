@@ -2457,7 +2457,7 @@ useEffect(() => {
         />
       )}
 
-      {/* Import Google Forms Modal */}
+           {/* Import Google Forms Modal */}
       {showImportModal && business && (
         <ImportGoogleForms
           businessId={business.id || getBusinessId()}
@@ -2468,7 +2468,7 @@ useEffect(() => {
           onClose={() => setShowImportModal(false)}
         />
       )}
+    </main>
     </div>
   );
 }
- 
