@@ -1986,173 +1986,188 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
-                {guestOriginData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">
-                    No data available for selected period
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={guestOriginData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {guestOriginData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+    {/* Charts */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {/* Guest Origins by Country - IMPROVED */}
+  <div className="bg-white rounded-lg shadow p-6">
+    <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
+    {guestOriginData.length === 0 ? (
+      <div className="h-64 flex items-center justify-center text-gray-400">
+        No data available for selected period
+      </div>
+    ) : (
+      <>
+        {/* Desktop view - with labels */}
+        <div className="hidden md:block">
+          <ResponsiveContainer width="100%" height={350}>
+            <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <Pie
+                data={guestOriginData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={3}
+                dataKey="value"
+                label={({ name, percent }) => {
+                  let shortName = name;
+                  if (name === 'Other European countries') shortName = 'Other EU';
+                  if (name === 'South Africa') shortName = 'SA';
+                  if (name === 'United States of America') shortName = 'USA';
+                  if (name === 'United Kingdom') shortName = 'UK';
+                  return `${shortName} (${(percent * 100).toFixed(0)}%)`;
+                }}
+                labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+              >
+                {guestOriginData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value, name, props) => {
+                  const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
+                  const percent = ((value as number) / total * 100).toFixed(1);
+                  return [`${value} guests (${percent}%)`, name];
+                }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
-                {referralData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-gray-400">
-                    No data available for selected period
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={referralData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {referralData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* Newsletter Subscribers */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">📧 Newsletter Subscribers</h3>
-                <button
-                  onClick={loadSubscribers}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Load Subscribers
-                </button>
-              </div>
-              
-              {showSubscribers && (
-                <>
-                  <div className="flex gap-3 mb-4">
-                    <button
-                      onClick={exportSubscribersToCSV}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-                    >
-                      Export to CSV
-                    </button>
-                    <button
-                      onClick={exportToMailChimp}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                    >
-                      Export to MailChimp
-                    </button>
-                  </div>
-                  
-                  {loadingSubscribers ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-                      <p className="text-gray-500 mt-2">Loading subscribers...</p>
-                    </div>
-                  ) : subscribers.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      No subscribers yet. Newsletter promotions will build this list.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest Name</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Signup Date</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {subscribers.map((sub, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm text-gray-900">{sub.email}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">{sub.guest_name || '-'}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
-                                {new Date(sub.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
-                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                                  {sub.source || 'email'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Export Options */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Report</h3>
-              <div className="flex flex-wrap gap-4">
-                <button onClick={exportToCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Export to CSV
-                </button>
-                <button onClick={exportToXLSX} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Export to Excel (XLSX)
-                </button>
-                <button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  Print Report
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-4">
-                Excel export includes: Detailed bookings sheet + Summary sheet with metrics and breakdowns
-              </p>
-            </div>
+        {/* Mobile view - simplified with tooltip only */}
+        <div className="block md:hidden">
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie
+                data={guestOriginData}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={90}
+                paddingAngle={2}
+                dataKey="value"
+                label={false}
+              >
+                {guestOriginData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value, name, props) => {
+                  const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
+                  const percent = ((value as number) / total * 100).toFixed(1);
+                  return [`${value} guests (${percent}%)`, name];
+                }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Simple legend for mobile */}
+          <div className="flex flex-wrap justify-center gap-3 mt-4">
+            {guestOriginData.slice(0, 5).map((entry, index) => {
+              let shortName = entry.name;
+              if (shortName === 'Other European countries') shortName = 'Other EU';
+              if (shortName === 'South Africa') shortName = 'SA';
+              if (shortName === 'United States of America') shortName = 'USA';
+              return (
+                <div key={index} className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                  <span className="text-xs text-gray-600">{shortName}</span>
+                </div>
+              );
+            })}
+            {guestOriginData.length > 5 && (
+              <span className="text-xs text-gray-400">+{guestOriginData.length - 5} more</span>
+            )}
           </div>
-        )}
+        </div>
+      </>
+    )}
+  </div>
+
+  {/* How Guests Found You - IMPROVED */}
+  <div className="bg-white rounded-lg shadow p-6">
+    <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
+    {referralData.length === 0 ? (
+      <div className="h-64 flex items-center justify-center text-gray-400">
+        No data available for selected period
+      </div>
+    ) : (
+      <>
+        {/* Desktop view */}
+        <div className="hidden md:block">
+          <ResponsiveContainer width="100%" height={350}>
+            <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <Pie
+                data={referralData}
+                cx="50%"
+                cy="50%"
+                innerRadius={80}
+                outerRadius={110}
+                paddingAngle={3}
+                dataKey="value"
+                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+              >
+                {referralData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value, name, props) => {
+                  const total = referralData.reduce((sum, d) => sum + d.value, 0);
+                  const percent = ((value as number) / total * 100).toFixed(1);
+                  return [`${value} bookings (${percent}%)`, name];
+                }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Mobile view - simplified donut */}
+        <div className="block md:hidden">
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie
+                data={referralData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={2}
+                dataKey="value"
+                label={false}
+              >
+                {referralData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value, name, props) => {
+                  const total = referralData.reduce((sum, d) => sum + d.value, 0);
+                  const percent = ((value as number) / total * 100).toFixed(1);
+                  return [`${value} bookings (${percent}%)`, name];
+                }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Simple legend for mobile */}
+          <div className="flex flex-wrap justify-center gap-3 mt-4">
+            {referralData.map((entry, index) => (
+              <div key={index} className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                <span className="text-xs text-gray-600">{entry.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
+    )}
+  </div>
+</div>
 
         {/* ============================================================ */}
         {/* SETTINGS TAB */}
