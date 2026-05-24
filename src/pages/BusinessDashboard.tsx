@@ -275,35 +275,49 @@ const loadBusinessProfile = async () => {
     const data = await res.json();
     console.log('✅ Business profile data received:', data);
     
-    const businessData = data.success ? data.data : data;
+    // ✅ FIX: Handle both response structures correctly
+    let businessData;
+    if (data.success && data.data) {
+      businessData = data.data;
+    } else if (data.id) {
+      businessData = data;
+    } else {
+      businessData = data;
+    }
+    
+    console.log('✅ Extracted businessData:', businessData);
+    console.log('✅ Trading name:', businessData?.trading_name);
+    
     setBusiness(businessData);
     
+    // ✅ FIX: Use businessData instead of data for profile form
     setProfileForm({
-      total_rooms: data.total_rooms?.toString() || '',
-      avg_price: data.avg_price?.toString() || '',
-      logo_url: data.logo_url || '',
-      hero_image_url: data.hero_image_url || '',
-      slogan: data.slogan || '',
-      welcome_message: data.welcome_message || ''
+      total_rooms: businessData?.total_rooms?.toString() || '',
+      avg_price: businessData?.avg_price?.toString() || '',
+      logo_url: businessData?.logo_url || '',
+      hero_image_url: businessData?.hero_image_url || '',
+      slogan: businessData?.slogan || '',
+      welcome_message: businessData?.welcome_message || ''
     });
     
-    setNewsletterEnabled(data.newsletter_enabled || false);
-    setNewsletterTitle(data.newsletter_title || 'Win Your Next Stay With Us');
-    setNewsletterPrize(data.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
-    setNewsletterCta(data.newsletter_cta || 'Subscribe now (takes 10 seconds)');
-    setNewsletterTerms(data.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
-    setNewsletterDrawDate(data.newsletter_draw_date || '');
-    setNewsletterShareText(data.newsletter_share_text || 'Want better odds? Share this with friends and family!');
+    // ✅ FIX: Use businessData for newsletter settings
+    setNewsletterEnabled(businessData?.newsletter_enabled || false);
+    setNewsletterTitle(businessData?.newsletter_title || 'Win Your Next Stay With Us');
+    setNewsletterPrize(businessData?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+    setNewsletterCta(businessData?.newsletter_cta || 'Subscribe now (takes 10 seconds)');
+    setNewsletterTerms(businessData?.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+    setNewsletterDrawDate(businessData?.newsletter_draw_date || '');
+    setNewsletterShareText(businessData?.newsletter_share_text || 'Want better odds? Share this with friends and family!');
     
-    if (data.trial_end) {
-      const trialEnd = new Date(data.trial_end);
+    if (businessData?.trial_end) {
+      const trialEnd = new Date(businessData.trial_end);
       const today = new Date();
       const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       setTrialDaysLeft(daysLeft);
-      setSubscriptionStatus(data.subscription_status || 'trial');
+      setSubscriptionStatus(businessData.subscription_status || 'trial');
     }
     
-    console.log('✅ Business profile loaded:', data.trading_name);
+    console.log('✅ Business profile loaded:', businessData?.trading_name);
   } catch (err) {
     console.error('❌ Failed to load business profile:', err);
   } finally {
@@ -317,51 +331,69 @@ const fetchChangeRequests = async () => {
   
   try {
     const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
-    const data = await response.json();
+    const result = await response.json();
+    
+    console.log('🔍 Change requests response:', result);
+    
+    // ✅ FIX: Handle different response structures safely
+    let data = [];
+    if (result.success && Array.isArray(result.data)) {
+      data = result.data;
+    } else if (Array.isArray(result)) {
+      data = result;
+    } else {
+      data = [];
+    }
+    
     setChangeRequests(data);
     
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
     
-    const newlyRejected = data.filter((req: ChangeRequest) => 
-      req.status === 'rejected' && 
-      req.reviewed_at && 
-      new Date(req.reviewed_at) > oneDayAgo &&
-      !localStorage.getItem(`rejection_notified_${req.id}`)
-    );
-    
-    for (const request of newlyRejected) {
-      const userChoice = confirm(
-        `❌ Change Request Rejected\n\n` +
-        `Field: ${request.field_name}\n` +
-        `Requested: ${request.requested_value}\n\n` +
-        `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
-        `Would you like to appeal this decision?`
+    // ✅ FIX: Only run filter if data is an array
+    if (Array.isArray(data)) {
+      const newlyRejected = data.filter((req: ChangeRequest) => 
+        req.status === 'rejected' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`rejection_notified_${req.id}`)
       );
       
-      if (userChoice) {
-        setRejectedRequest(request);
-        setShowAppealModal(true);
+      for (const request of newlyRejected) {
+        const userChoice = confirm(
+          `❌ Change Request Rejected\n\n` +
+          `Field: ${request.field_name}\n` +
+          `Requested: ${request.requested_value}\n\n` +
+          `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
+          `Would you like to appeal this decision?`
+        );
+        
+        if (userChoice) {
+          setRejectedRequest(request);
+          setShowAppealModal(true);
+        }
+        localStorage.setItem(`rejection_notified_${request.id}`, 'true');
       }
-      localStorage.setItem(`rejection_notified_${request.id}`, 'true');
-    }
-    
-    const newlyApproved = data.filter((req: ChangeRequest) => 
-      req.status === 'approved' && 
-      req.reviewed_at && 
-      new Date(req.reviewed_at) > oneDayAgo &&
-      !localStorage.getItem(`approval_notified_${req.id}`)
-    );
-    
-    for (const request of newlyApproved) {
-      alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
-      localStorage.setItem(`approval_notified_${request.id}`, 'true');
-      loadBusinessProfile();
+      
+      const newlyApproved = data.filter((req: ChangeRequest) => 
+        req.status === 'approved' && 
+        req.reviewed_at && 
+        new Date(req.reviewed_at) > oneDayAgo &&
+        !localStorage.getItem(`approval_notified_${req.id}`)
+      );
+      
+      for (const request of newlyApproved) {
+        alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
+        localStorage.setItem(`approval_notified_${request.id}`, 'true');
+        loadBusinessProfile();
+      }
     }
   } catch (error) {
     console.error('Error fetching change requests:', error);
   }
 };
+
+// Keep loadBookings EXACTLY as is - it looks correct
 
 const loadBookings = async () => {
   if (refreshing) {
@@ -482,8 +514,19 @@ const loadSubscribers = async () => {
   setLoadingSubscribers(true);
   try {
     const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
-    const data = await response.json();
-    setSubscribers(data.subscribers || []);
+    const result = await response.json();
+    
+    // ✅ FIX: Handle response structure
+    let subscribers = [];
+    if (result.success && Array.isArray(result.subscribers)) {
+      subscribers = result.subscribers;
+    } else if (Array.isArray(result)) {
+      subscribers = result;
+    } else if (result.subscribers && Array.isArray(result.subscribers)) {
+      subscribers = result.subscribers;
+    }
+    
+    setSubscribers(subscribers);
     setShowSubscribers(true);
   } catch (err) {
     console.error('Error loading subscribers:', err);
@@ -502,7 +545,7 @@ useEffect(() => {
   }
   console.log('📅 Date range, tab, or filters changed - reloading bookings');
   loadBookings();
-}, [dateRange, startDate, endDate, activeTab]); // ← activeTab is included
+}, [dateRange, startDate, endDate, activeTab]);
   
 // ============================================================
 // UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
