@@ -1887,252 +1887,293 @@ useEffect(() => {
           </div>
         )}
 
-    {/* ============================================================ */}
-{/* REPORTS TAB */}
-{/* ============================================================ */}
-{activeTab === 'reports' && (
-  <div className="space-y-6">
+          {/* ============================================================ */}
+        {/* REPORTS TAB */}
+        {/* ============================================================ */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            {/* Date Range Filter */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Report Period:</span>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => {
+                      setDateRange(e.target.value as DateRange);
+                      setStartDate('');
+                      setEndDate('');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="7days">Last 7 days</option>
+                    <option value="30days">Last 30 days</option>
+                    <option value="90days">Last 90 days</option>
+                    <option value="12months">Last 12 months</option>
+                    <option value="all">All time</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Custom:</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setDateRange('all');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setDateRange('all');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="To"
+                  />
+                </div>
+                
+                {(dateRange !== '30days' || startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      setDateRange('30days');
+                      setStartDate('');
+                      setEndDate('');
+                    }}
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
 
-    {/* Date Range Filter */}
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="flex flex-wrap gap-4 items-center">
+            {/* Report Summary */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Summary</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">Total Bookings</p>
+                  <p className="text-2xl font-bold text-gray-900">{filteredBookings.length}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">Total Revenue</p>
+                  <p className="text-2xl font-bold text-gray-900">R {filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">Average Stay</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {filteredBookings.length > 0 
+                      ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / filteredBookings.length).toFixed(1)
+                      : '0'} nights
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">Total Nights Booked</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-          <span className="text-sm font-medium text-gray-700">Report Period:</span>
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Guest Origins by Country - IMPROVED */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
+                {guestOriginData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    No data available for selected period
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop view - with labels */}
+                    <div className="hidden md:block">
+                      <ResponsiveContainer width="100%" height={350}>
+                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                          <Pie
+                            data={guestOriginData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={3}
+                            dataKey="value"
+                            label={({ name, percent }) => {
+                              let shortName = name;
+                              if (name === 'Other European countries') shortName = 'Other EU';
+                              if (name === 'South Africa') shortName = 'SA';
+                              if (name === 'United States of America') shortName = 'USA';
+                              if (name === 'United Kingdom') shortName = 'UK';
+                              return `${shortName} (${(percent * 100).toFixed(0)}%)`;
+                            }}
+                            labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                          >
+                            {guestOriginData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value, name, props) => {
+                              const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
+                              const percent = ((value as number) / total * 100).toFixed(1);
+                              return [`${value} guests (${percent}%)`, name];
+                            }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
 
-          <select
-            value={dateRange}
-            onChange={(e) => {
-              setDateRange(e.target.value as DateRange);
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-            <option value="90days">Last 90 days</option>
-            <option value="12months">Last 12 months</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
+                    {/* Mobile view - simplified with tooltip only */}
+                    <div className="block md:hidden">
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={guestOriginData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={90}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={false}
+                          >
+                            {guestOriginData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value, name, props) => {
+                              const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
+                              const percent = ((value as number) / total * 100).toFixed(1);
+                              return [`${value} guests (${percent}%)`, name];
+                            }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Simple legend for mobile */}
+                      <div className="flex flex-wrap justify-center gap-3 mt-4">
+                        {guestOriginData.slice(0, 5).map((entry, index) => {
+                          let shortName = entry.name;
+                          if (shortName === 'Other European countries') shortName = 'Other EU';
+                          if (shortName === 'South Africa') shortName = 'SA';
+                          if (shortName === 'United States of America') shortName = 'USA';
+                          return (
+                            <div key={index} className="flex items-center gap-1.5">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                              <span className="text-xs text-gray-600">{shortName}</span>
+                            </div>
+                          );
+                        })}
+                        {guestOriginData.length > 5 && (
+                          <span className="text-xs text-gray-400">+{guestOriginData.length - 5} more</span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Custom:</span>
+              {/* How Guests Found You - IMPROVED */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
+                {referralData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    No data available for selected period
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop view */}
+                    <div className="hidden md:block">
+                      <ResponsiveContainer width="100%" height={350}>
+                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                          <Pie
+                            data={referralData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={80}
+                            outerRadius={110}
+                            paddingAngle={3}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                          >
+                            {referralData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value, name, props) => {
+                              const total = referralData.reduce((sum, d) => sum + d.value, 0);
+                              const percent = ((value as number) / total * 100).toFixed(1);
+                              return [`${value} bookings (${percent}%)`, name];
+                            }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
 
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setDateRange('all');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-
-          <span className="text-gray-500">to</span>
-
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setDateRange('all');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-        </div>
-
-        {(dateRange !== '30days' || startDate || endDate) && (
-          <button
-            onClick={() => {
-              setDateRange('30days');
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="text-sm text-orange-600 hover:text-orange-700"
-          >
-            Reset
-          </button>
+                    {/* Mobile view - simplified donut */}
+                    <div className="block md:hidden">
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={referralData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={false}
+                          >
+                            {referralData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value, name, props) => {
+                              const total = referralData.reduce((sum, d) => sum + d.value, 0);
+                              const percent = ((value as number) / total * 100).toFixed(1);
+                              return [`${value} bookings (${percent}%)`, name];
+                            }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Simple legend for mobile */}
+                      <div className="flex flex-wrap justify-center gap-3 mt-4">
+                        {referralData.map((entry, index) => (
+                          <div key={index} className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                            <span className="text-xs text-gray-600">{entry.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>  {/* ← THIS is the closing div for Reports tab's space-y-6 container */}
         )}
-      </div>
-    </div>
 
-    {/* Report Summary */}
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Summary</h3>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        <div className="bg-gray-50 rounded-lg p-4">
-          <p className="text-sm text-gray-500">Total Bookings</p>
-          <p className="text-2xl font-bold">{filteredBookings.length}</p>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-4">
-          <p className="text-sm text-gray-500">Total Revenue</p>
-          <p className="text-2xl font-bold">
-            R {filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}
-          </p>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-4">
-          <p className="text-sm text-gray-500">Average Stay</p>
-          <p className="text-2xl font-bold">
-            {filteredBookings.length > 0
-              ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / filteredBookings.length).toFixed(1)
-              : 0
-            } nights
-          </p>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-4">
-          <p className="text-sm text-gray-500">Total Nights Booked</p>
-          <p className="text-2xl font-bold">
-            {filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0)}
-          </p>
-        </div>
-
-      </div>
-    </div>
-
-    {/* Charts */}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      {/* Guest Origins */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Guest Origins by Country</h3>
-
-        {guestOriginData.length === 0 ? (
-          <div className="h-64 flex items-center justify-center text-gray-400">
-            No data available
-          </div>
-        ) : (
-          <>
-            <div className="hidden md:block">
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={guestOriginData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
-                  >
-                    {guestOriginData.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="block md:hidden">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={guestOriginData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    dataKey="value"
-                    label={false}
-                  >
-                    {guestOriginData.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Referral Data */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">How Guests Found You</h3>
-
-        {referralData.length === 0 ? (
-          <div className="h-64 flex items-center justify-center text-gray-400">
-            No data available
-          </div>
-        ) : (
-          <>
-            <div className="hidden md:block">
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={referralData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={80}
-                    outerRadius={110}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
-                  >
-                    {referralData.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="block md:hidden">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={referralData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    dataKey="value"
-                    label={false}
-                  >
-                    {referralData.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
-      </div>
-
-    </div>
-  </div>
-)}
-
-{/* ============================================================ */}
-{/* SETTINGS TAB */}
-{/* ============================================================ */}
+        {/* ============================================================ */}
+        {/* SETTINGS TAB */}
+        {/* ============================================================ */}
         {activeTab === 'settings' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
