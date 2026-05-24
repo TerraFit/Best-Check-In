@@ -1887,7 +1887,7 @@ useEffect(() => {
           </div>
         )}
 
-          {/* ============================================================ */}
+        {/* ============================================================ */}
         {/* REPORTS TAB */}
         {/* ============================================================ */}
         {activeTab === 'reports' && (
@@ -1988,7 +1988,6 @@ useEffect(() => {
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Guest Origins by Country - IMPROVED */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
                 {guestOriginData.length === 0 ? (
@@ -1996,97 +1995,28 @@ useEffect(() => {
                     No data available for selected period
                   </div>
                 ) : (
-                  <>
-                    {/* Desktop view - with labels */}
-                    <div className="hidden md:block">
-                      <ResponsiveContainer width="100%" height={350}>
-                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                          <Pie
-                            data={guestOriginData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={3}
-                            dataKey="value"
-                            label={({ name, percent }) => {
-                              let shortName = name;
-                              if (name === 'Other European countries') shortName = 'Other EU';
-                              if (name === 'South Africa') shortName = 'SA';
-                              if (name === 'United States of America') shortName = 'USA';
-                              if (name === 'United Kingdom') shortName = 'UK';
-                              return `${shortName} (${(percent * 100).toFixed(0)}%)`;
-                            }}
-                            labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                          >
-                            {guestOriginData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value, name, props) => {
-                              const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
-                              const percent = ((value as number) / total * 100).toFixed(1);
-                              return [`${value} guests (${percent}%)`, name];
-                            }}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* Mobile view - simplified with tooltip only */}
-                    <div className="block md:hidden">
-                      <ResponsiveContainer width="100%" height={280}>
-                        <PieChart>
-                          <Pie
-                            data={guestOriginData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={90}
-                            paddingAngle={2}
-                            dataKey="value"
-                            label={false}
-                          >
-                            {guestOriginData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value, name, props) => {
-                              const total = guestOriginData.reduce((sum, d) => sum + d.value, 0);
-                              const percent = ((value as number) / total * 100).toFixed(1);
-                              return [`${value} guests (${percent}%)`, name];
-                            }}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      {/* Simple legend for mobile */}
-                      <div className="flex flex-wrap justify-center gap-3 mt-4">
-                        {guestOriginData.slice(0, 5).map((entry, index) => {
-                          let shortName = entry.name;
-                          if (shortName === 'Other European countries') shortName = 'Other EU';
-                          if (shortName === 'South Africa') shortName = 'SA';
-                          if (shortName === 'United States of America') shortName = 'USA';
-                          return (
-                            <div key={index} className="flex items-center gap-1.5">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                              <span className="text-xs text-gray-600">{shortName}</span>
-                            </div>
-                          );
-                        })}
-                        {guestOriginData.length > 5 && (
-                          <span className="text-xs text-gray-400">+{guestOriginData.length - 5} more</span>
-                        )}
-                      </div>
-                    </div>
-                  </>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={guestOriginData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      >
+                        {guestOriginData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 )}
               </div>
 
-              {/* How Guests Found You - IMPROVED */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
                 {referralData.length === 0 ? (
@@ -2094,82 +2024,30 @@ useEffect(() => {
                     No data available for selected period
                   </div>
                 ) : (
-                  <>
-                    {/* Desktop view */}
-                    <div className="hidden md:block">
-                      <ResponsiveContainer width="100%" height={350}>
-                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                          <Pie
-                            data={referralData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={110}
-                            paddingAngle={3}
-                            dataKey="value"
-                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                            labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                          >
-                            {referralData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={2} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value, name, props) => {
-                              const total = referralData.reduce((sum, d) => sum + d.value, 0);
-                              const percent = ((value as number) / total * 100).toFixed(1);
-                              return [`${value} bookings (${percent}%)`, name];
-                            }}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* Mobile view - simplified donut */}
-                    <div className="block md:hidden">
-                      <ResponsiveContainer width="100%" height={280}>
-                        <PieChart>
-                          <Pie
-                            data={referralData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={90}
-                            paddingAngle={2}
-                            dataKey="value"
-                            label={false}
-                          >
-                            {referralData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" strokeWidth={1.5} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value, name, props) => {
-                              const total = referralData.reduce((sum, d) => sum + d.value, 0);
-                              const percent = ((value as number) / total * 100).toFixed(1);
-                              return [`${value} bookings (${percent}%)`, name];
-                            }}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      {/* Simple legend for mobile */}
-                      <div className="flex flex-wrap justify-center gap-3 mt-4">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={referralData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      >
                         {referralData.map((entry, index) => (
-                          <div key={index} className="flex items-center gap-1.5">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                            <span className="text-xs text-gray-600">{entry.name}</span>
-                          </div>
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
-                      </div>
-                    </div>
-                  </>
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 )}
               </div>
-              </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* ============================================================ */}
         {/* SETTINGS TAB */}
