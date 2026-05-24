@@ -41,7 +41,10 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ CLEAN NAMES - Remove titles (Mr., Mrs., Dr., etc.)
+    // ✅ FIX: Use a proper bookings table instead of hardcoded business name
+    const BOOKINGS_TABLE = 'bookings';
+
+    // Clean names - Remove titles (Mr., Mrs., Dr., etc.)
     const cleanName = (name) => {
       if (!name) return '';
       const titlePattern = /^(Mr\.?|Mrs\.?|Ms\.?|Miss\.?|Dr\.?|Prof\.?|Rev\.?)\s+/i;
@@ -52,11 +55,9 @@ export const handler = async (event) => {
     let lastName = body.guest_last_name || '';
     let guestName = body.guest_name || '';
 
-    // Clean individual name parts
     firstName = cleanName(firstName);
     lastName = cleanName(lastName);
     
-    // If we have guest_name with title, clean it
     if (guestName && !firstName && !lastName) {
       guestName = cleanName(guestName);
       const nameParts = guestName.trim().split(' ');
@@ -64,11 +65,7 @@ export const handler = async (event) => {
       lastName = nameParts.slice(1).join(' ') || '';
     }
 
-    // Build clean full name
     const fullName = `${firstName} ${lastName}`.trim();
-
-    // ✅ YOUR EXISTING TABLE NAME
-    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
 
     const bookingData = {
       business_id: body.business_id,
@@ -97,9 +94,10 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving booking:', bookingData);
+    console.log('💾 Saving booking to:', BOOKINGS_TABLE);
+    console.log('📦 Booking data:', JSON.stringify(bookingData, null, 2));
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}`, {
       method: 'POST',
       headers: {
         'apikey': supabaseKey,
@@ -113,7 +111,17 @@ export const handler = async (event) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Supabase error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      
+      // ✅ Return detailed error for debugging
+      return {
+        statusCode: response.status,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: `Database error: ${errorText}`,
+          details: `Failed to save to ${BOOKINGS_TABLE} table`
+        })
+      };
     }
 
     const result = await response.json();
@@ -138,7 +146,8 @@ export const handler = async (event) => {
       headers,
       body: JSON.stringify({
         success: false,
-        error: err.message || 'Internal Server Error'
+        error: err.message || 'Internal Server Error',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
       })
     };
   }
