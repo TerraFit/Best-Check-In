@@ -134,131 +134,66 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
+  const file = acceptedFiles[0];
+  if (!file) return;
 
-    setFile(file);
-    setError(null);
+  setFile(file);
+  setError(null);
+  
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
     
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      let jsonData = XLSX.utils.sheet_to_json(worksheet);
-      
-      if (jsonData.length === 0) {
-        throw new Error('No data found in file');
-      }
-      
-      // ✅ PRE-PROCESS: Split Full Name into First Name + Last Name
-      const processedData = jsonData.map((row: any) => {
-        const newRow = { ...row };
-        
-        // Find the Full Name column (look for common variations)
-        let fullNameValue = '';
-        const fullNameKeys = ['full name', 'guest full name', 'guest_name', 'guest name', 'name', 'fullname'];
-        
-        for (const key of fullNameKeys) {
-          const matchedKey = Object.keys(row).find(k => k.toLowerCase() === key);
-          if (matchedKey && row[matchedKey]) {
-            fullNameValue = String(row[matchedKey]).trim();
-            break;
-          }
-        }
-        
-        // If no exact match, look for any column that likely contains the full name
-        if (!fullNameValue) {
-          for (const [key, value] of Object.entries(row)) {
-            const lowerKey = key.toLowerCase();
-            if ((lowerKey.includes('name') || lowerKey.includes('guest')) && 
-                !lowerKey.includes('email') && 
-                !lowerKey.includes('phone') &&
-                !lowerKey.includes('first') &&
-                !lowerKey.includes('last')) {
-              if (value && String(value).trim().length > 0) {
-                fullNameValue = String(value).trim();
-                break;
-              }
-            }
-          }
-        }
-        
-        // Split the full name into first name (first word) and last name (last word)
-        if (fullNameValue) {
-          const { firstName, lastName } = splitFullName(fullNameValue);
-          
-          // Add the split columns as NEW columns
-          if (firstName) {
-            newRow['First Name'] = firstName;
-          }
-          if (lastName) {
-            newRow['Last Name'] = lastName;
-          }
-          
-          console.log(`Split: "${fullNameValue}" → First: "${firstName}", Last: "${lastName}"`);
-        }
-        
-        return newRow;
-      });
-      
-      setRawData(processedData);
-      
-      // Get columns from the processed data
-      const columns = Object.keys(processedData[0]);
-      console.log('📊 Detected columns:', columns);
-      setDetectedColumns(columns);
-      
-      // Auto-map columns
-      const autoMapping: Record<string, string> = {};
-      columns.forEach(col => {
-        const lowerCol = col.toLowerCase();
-        
-        // Map the new First Name and Last Name columns
-        if (col === 'First Name' || lowerCol === 'first name') {
-          autoMapping[col] = 'guest_first_name';
-        } else if (col === 'Last Name' || lowerCol === 'last name') {
-          autoMapping[col] = 'guest_last_name';
-        } else if (lowerCol.includes('email')) {
-          autoMapping[col] = 'guest_email';
-        } else if (lowerCol.includes('phone')) {
-          autoMapping[col] = 'guest_phone';
-        } else if (lowerCol.includes('check in') || lowerCol.includes('arrival')) {
-          autoMapping[col] = 'check_in_date';
-        } else if (lowerCol.includes('check out') || lowerCol.includes('departure')) {
-          autoMapping[col] = 'check_out_date';
-        } else if (lowerCol === 'country' || lowerCol.includes('country of residence')) {
-          autoMapping[col] = 'guest_country';
-        } else if (lowerCol.includes('province') || lowerCol.includes('state')) {
-          autoMapping[col] = 'guest_province';
-        } else if (lowerCol.includes('city') || lowerCol.includes('town')) {
-          autoMapping[col] = 'guest_city';
-        } else if (lowerCol.includes('hear') || lowerCol.includes('referral') || lowerCol.includes('found')) {
-          autoMapping[col] = 'referral_source';
-        } else if (lowerCol.includes('payment') || lowerCol.includes('settlement')) {
-          autoMapping[col] = 'settlement_method';
-        } else if (lowerCol.includes('adult')) {
-          autoMapping[col] = 'adults';
-        } else if (lowerCol.includes('child')) {
-          autoMapping[col] = 'children';
-        } else if (lowerCol.includes('total') || lowerCol.includes('amount')) {
-          autoMapping[col] = 'total_amount';
-        } else if (lowerCol.includes('id') || lowerCol.includes('passport')) {
-          autoMapping[col] = 'id_number';
-        } else if (lowerCol.includes('night')) {
-          autoMapping[col] = 'nights';
-        }
-      });
-      
-      console.log('🔗 Auto mapping:', autoMapping);
-      
-      setColumnMapping(autoMapping);
-      generatePreview(processedData, autoMapping);
-      setStep('mapping');
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to parse file');
+    if (jsonData.length === 0) {
+      throw new Error('No data found in file');
     }
-  }, []);
+    
+    // ✅ NO PRE-PROCESSING - use the data exactly as it is
+    // Your CSV already has guest_first_name and guest_last_name
+    setRawData(jsonData);
+    
+    // Get columns from the original data
+    const columns = Object.keys(jsonData[0]);
+    console.log('📊 Detected columns:', columns);
+    setDetectedColumns(columns);
+    
+    // Auto-map columns - match exactly to your CSV column names
+    const autoMapping: Record<string, string> = {};
+    columns.forEach(col => {
+      const lowerCol = col.toLowerCase();
+      
+      // Match your exact column names
+      if (lowerCol === 'guest_first_name') {
+        autoMapping[col] = 'guest_first_name';
+      } else if (lowerCol === 'guest_last_name') {
+        autoMapping[col] = 'guest_last_name';
+      } else if (lowerCol === 'guest_email') {
+        autoMapping[col] = 'guest_email';
+      } else if (lowerCol === 'guest_country') {
+        autoMapping[col] = 'guest_country';
+      } else if (lowerCol === 'check_in_date') {
+        autoMapping[col] = 'check_in_date';
+      } else if (lowerCol === 'check_out_date') {
+        autoMapping[col] = 'check_out_date';
+      } else if (lowerCol.includes('email')) {
+        autoMapping[col] = 'guest_email';
+      } else if (lowerCol.includes('country')) {
+        autoMapping[col] = 'guest_country';
+      }
+    });
+    
+    console.log('🔗 Auto mapping:', autoMapping);
+    
+    setColumnMapping(autoMapping);
+    generatePreview(jsonData, autoMapping);
+    setStep('mapping');
+    
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Failed to parse file');
+  }
+}, []);
 
   const generatePreview = (data: any[], mapping: Record<string, string>) => {
     const rows: ImportPreviewRow[] = [];
