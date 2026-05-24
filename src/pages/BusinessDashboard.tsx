@@ -2486,7 +2486,6 @@ useEffect(() => {
             )}
           </div>
         )}
-      </main>
 
       {/* Request Change Modal */}
       {showRequestModal && (
@@ -2589,6 +2588,8 @@ useEffect(() => {
           onClose={() => setShowImportModal(false)}
         />
       )}
+     </main>
     </div>
   );
 }
+ 
