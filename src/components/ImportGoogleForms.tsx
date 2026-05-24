@@ -133,67 +133,122 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     return { firstName, lastName };
   };
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-  const file = acceptedFiles[0];
-  if (!file) return;
-
-  setFile(file);
-  setError(null);
-  
-  try {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+  // ✅ FIXED: parseDate that handles strings, numbers, and Excel serial dates
+  const parseDate = (dateStr: any): string => {
+    if (!dateStr) return '';
     
-    if (jsonData.length === 0) {
-      throw new Error('No data found in file');
+    let strValue = '';
+    
+    // Handle Excel serial date numbers
+    if (typeof dateStr === 'number') {
+      // Excel dates start from Jan 1, 1900 (serial 1)
+      const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+      const date = new Date(excelEpoch.getTime() + dateStr * 86400000);
+      strValue = date.toISOString().split('T')[0];
+    } else {
+      strValue = String(dateStr).trim();
     }
     
-    // ✅ NO PRE-PROCESSING - use the data exactly as it is
-    // Your CSV already has guest_first_name and guest_last_name
-    setRawData(jsonData);
+    // Handle YYYY-MM-DD format
+    let match = strValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (match) {
+      return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+    }
     
-    // Get columns from the original data
-    const columns = Object.keys(jsonData[0]);
-    console.log('📊 Detected columns:', columns);
-    setDetectedColumns(columns);
+    // Handle DD/MM/YYYY format
+    match = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+    }
     
-    // Auto-map columns - match exactly to your CSV column names
-    const autoMapping: Record<string, string> = {};
-    columns.forEach(col => {
-      const lowerCol = col.toLowerCase();
+    // Handle MM/DD/YYYY format
+    match = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+    }
+    
+    // Try JavaScript Date parsing as fallback
+    const date = new Date(strValue);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+    
+    return '';
+  };
+
+  // ✅ FIXED: calculateNights with error handling
+  const calculateNights = (checkIn: string, checkOut: string): number => {
+    if (!checkIn) return 1;
+    try {
+      const start = new Date(checkIn);
+      const end = checkOut ? new Date(checkOut) : new Date(checkIn);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    } catch (e) {
+      return 1;
+    }
+  };
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setFile(file);
+    setError(null);
+    
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
       
-      // Match your exact column names
-      if (lowerCol === 'guest_first_name') {
-        autoMapping[col] = 'guest_first_name';
-      } else if (lowerCol === 'guest_last_name') {
-        autoMapping[col] = 'guest_last_name';
-      } else if (lowerCol === 'guest_email') {
-        autoMapping[col] = 'guest_email';
-      } else if (lowerCol === 'guest_country') {
-        autoMapping[col] = 'guest_country';
-      } else if (lowerCol === 'check_in_date') {
-        autoMapping[col] = 'check_in_date';
-      } else if (lowerCol === 'check_out_date') {
-        autoMapping[col] = 'check_out_date';
-      } else if (lowerCol.includes('email')) {
-        autoMapping[col] = 'guest_email';
-      } else if (lowerCol.includes('country')) {
-        autoMapping[col] = 'guest_country';
+      if (jsonData.length === 0) {
+        throw new Error('No data found in file');
       }
-    });
-    
-    console.log('🔗 Auto mapping:', autoMapping);
-    
-    setColumnMapping(autoMapping);
-    generatePreview(jsonData, autoMapping);
-    setStep('mapping');
-    
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'Failed to parse file');
-  }
-}, []);
+      
+      // ✅ NO PRE-PROCESSING - use the data exactly as it is
+      setRawData(jsonData);
+      
+      // Get columns from the original data
+      const columns = Object.keys(jsonData[0]);
+      console.log('📊 Detected columns:', columns);
+      setDetectedColumns(columns);
+      
+      // Auto-map columns - match exactly to your CSV column names
+      const autoMapping: Record<string, string> = {};
+      columns.forEach(col => {
+        const lowerCol = col.toLowerCase();
+        
+        if (lowerCol === 'guest_first_name') {
+          autoMapping[col] = 'guest_first_name';
+        } else if (lowerCol === 'guest_last_name') {
+          autoMapping[col] = 'guest_last_name';
+        } else if (lowerCol === 'guest_email') {
+          autoMapping[col] = 'guest_email';
+        } else if (lowerCol === 'guest_country') {
+          autoMapping[col] = 'guest_country';
+        } else if (lowerCol === 'check_in_date') {
+          autoMapping[col] = 'check_in_date';
+        } else if (lowerCol === 'check_out_date') {
+          autoMapping[col] = 'check_out_date';
+        } else if (lowerCol.includes('email')) {
+          autoMapping[col] = 'guest_email';
+        } else if (lowerCol.includes('country')) {
+          autoMapping[col] = 'guest_country';
+        }
+      });
+      
+      console.log('🔗 Auto mapping:', autoMapping);
+      
+      setColumnMapping(autoMapping);
+      generatePreview(jsonData, autoMapping);
+      setStep('mapping');
+      
+    } catch (err) {
+      console.error('❌ Error in onDrop:', err);
+      setError(err instanceof Error ? err.message : 'Failed to parse file');
+    }
+  }, []);
 
   const generatePreview = (data: any[], mapping: Record<string, string>) => {
     const rows: ImportPreviewRow[] = [];
@@ -211,9 +266,15 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
           let value = row[column];
           
           if (field === 'check_in_date' || field === 'check_out_date') {
-            value = parseDate(value);
-            if (field === 'check_in_date' && !value) {
-              errors.push('Check-in date is invalid or missing');
+            if (value === undefined || value === null || value === '') {
+              if (field === 'check_in_date') {
+                errors.push('Check-in date is missing');
+              }
+            } else {
+              value = parseDate(value);
+              if (field === 'check_in_date' && !value) {
+                errors.push('Check-in date is invalid');
+              }
             }
           }
           
@@ -229,7 +290,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         }
       }
 
-      // Validate required fields (First Name is required)
+      // Validate required fields
       if (!mappedData.guest_first_name) {
         errors.push('First name is required');
       }
@@ -249,6 +310,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       if (mappedData.check_in_date && mappedData.check_out_date && !mappedData.nights) {
         const nights = calculateNights(mappedData.check_in_date, mappedData.check_out_date);
         if (nights > 0) mappedData.nights = nights;
+      } else if (mappedData.check_in_date && !mappedData.nights) {
+        mappedData.nights = 1;
       }
 
       // Warnings for missing contact info
@@ -284,39 +347,11 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     });
   };
 
-  const parseDate = (dateStr: string): string => {
-    if (!dateStr) return '';
-    
-    // Handle YYYY-MM-DD format
-    let match = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (match) {
-      return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
-    }
-    
-    // Handle DD/MM/YYYY format
-    match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
-    }
-    
-    // Try JavaScript Date parsing as fallback
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
-    }
-    
-    return '';
-  };
-
-  const calculateNights = (checkIn: string, checkOut: string): number => {
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
   const updateMapping = (column: string, field: string) => {
     const newMapping = { ...columnMapping, [column]: field };
+    if (field === '') {
+      delete newMapping[column];
+    }
     setColumnMapping(newMapping);
     generatePreview(rawData, newMapping);
   };
@@ -339,7 +374,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         setImportProgress(Math.round(((i + 1) / total) * 100));
         
         try {
-          // Generate full name from first and last for display
           const fullName = `${row.data.guest_first_name || ''} ${row.data.guest_last_name || ''}`.trim();
           
           const response = await fetch('/.netlify/functions/create-booking', {
@@ -407,6 +441,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     maxSize: 50 * 1024 * 1024
   });
 
+  // Render functions for each step (upload, mapping, preview, importing, complete)
   if (step === 'upload') {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
