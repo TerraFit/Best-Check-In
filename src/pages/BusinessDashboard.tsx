@@ -429,18 +429,17 @@ const loadBookings = async () => {
     
     let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
     
-    // For Check-ins tab - show past + present ONLY (exclude future)
+    // ✅ FIXED: For Check-ins tab - get ALL bookings (no date filters)
     if (activeTab === 'checkins') {
-      const today = new Date().toISOString().split('T')[0];
-      console.log('📋 Check-ins tab - fetching past and present bookings (check_in_date <= today)');
-      url += `&endDate=${today}`;  // Only bookings with check_in_date <= today
+      console.log('📋 Check-ins tab - fetching ALL bookings (complete history)');
+      // No date filters - get everything
     } 
-   // For Overview tab - fetch ALL bookings, then filter in frontend
-else if (activeTab === 'overview') {
-  console.log('📅 Overview tab - fetching all bookings for stayovers and future arrivals');
-  // Don't add any date filters - get everything
-  // URL already has the base with businessId and limit
-}
+    // For Overview tab - fetch ALL bookings, then filter in frontend
+    else if (activeTab === 'overview') {
+      console.log('📅 Overview tab - fetching all bookings for stayovers and future arrivals');
+      // Don't add any date filters - get everything
+      // URL already has the base with businessId and limit
+    }
     // For Reports tab - respect date filters
     else if (activeTab === 'reports') {
       if (startDate && endDate) {
