@@ -41,8 +41,71 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ FIX: Use a proper bookings table instead of hardcoded business name
+    // ✅ Use unified bookings table for all businesses
     const BOOKINGS_TABLE = 'bookings';
+
+    // ✅ Check if business has exceeded its active booking limit
+    const countResponse = await fetch(
+      `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${body.business_id}&select=id`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    if (!countResponse.ok) {
+      throw new Error(`Failed to check booking count: ${countResponse.status}`);
+    }
+
+    const existingBookings = await countResponse.json();
+    const currentCount = existingBookings.length;
+
+    // Get business limits
+    const businessResponse = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${body.business_id}&select=max_active_bookings,trading_name,subscription_tier`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    if (!businessResponse.ok) {
+      throw new Error(`Failed to fetch business data: ${businessResponse.status}`);
+    }
+
+    const businesses = await businessResponse.json();
+    const business = businesses[0];
+
+    if (!business) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Business not found' })
+      };
+    }
+
+    // Set default limit if not set
+    const maxActiveBookings = business.max_active_bookings || 500;
+
+    if (currentCount >= maxActiveBookings) {
+      console.warn(`⚠️ Booking limit reached for ${business.trading_name}: ${currentCount}/${maxActiveBookings}`);
+      return {
+        statusCode: 429, // Too Many Requests
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: `Your business has reached its active booking limit of ${maxActiveBookings}. Older records will be archived automatically. Please contact support if you need to increase your limit.`,
+          limit_reached: true,
+          current_count: currentCount,
+          max_limit: maxActiveBookings,
+          tier: business.subscription_tier
+        })
+      };
+    }
 
     // Clean names - Remove titles (Mr., Mrs., Dr., etc.)
     const cleanName = (name) => {
@@ -94,7 +157,8 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving booking to:', BOOKINGS_TABLE);
+    console.log(`💾 Saving booking for ${business.trading_name} to:`, BOOKINGS_TABLE);
+    console.log(`📊 Current booking count: ${currentCount}/${maxActiveBookings}`);
     console.log('📦 Booking data:', JSON.stringify(bookingData, null, 2));
 
     const response = await fetch(`${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}`, {
@@ -112,7 +176,6 @@ export const handler = async (event) => {
       const errorText = await response.text();
       console.error('Supabase error:', errorText);
       
-      // ✅ Return detailed error for debugging
       return {
         statusCode: response.status,
         headers,
@@ -127,7 +190,18 @@ export const handler = async (event) => {
     const result = await response.json();
     const newBooking = result[0];
 
-    console.log('✅ Booking saved successfully:', newBooking?.id);
+    console.log(`✅ Booking saved successfully for ${business.trading_name}:`, newBooking?.id);
+    console.log(`📊 New booking count: ${currentCount + 1}/${maxActiveBookings}`);
+
+    // Send warning if approaching limit (80% or more)
+    const percentUsed = ((currentCount + 1) / maxActiveBookings) * 100;
+    let warningMessage = null;
+    
+    if (percentUsed >= 80 && percentUsed < 90) {
+      warningMessage = `You're at ${Math.round(percentUsed)}% of your ${maxActiveBookings} booking limit. Consider upgrading your plan for more capacity.`;
+    } else if (percentUsed >= 90) {
+      warningMessage = `⚠️ You're at ${Math.round(percentUsed)}% of your ${maxActiveBookings} booking limit! Upgrade now to avoid reaching the limit.`;
+    }
 
     return {
       statusCode: 200,
@@ -135,7 +209,13 @@ export const handler = async (event) => {
       body: JSON.stringify({
         success: true,
         booking: newBooking,
-        message: 'Booking created successfully'
+        message: 'Booking created successfully',
+        warning: warningMessage,
+        limits: {
+          current: currentCount + 1,
+          max: maxActiveBookings,
+          percent_used: Math.round(percentUsed)
+        }
       })
     };
 
