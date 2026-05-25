@@ -41,18 +41,15 @@ export const handler = async (event) => {
       endDate, 
       dateRange,
       futureOnly,
-      limit = 10000 
+      limit = 20,      // ← Default 20 records per page
+      page = 1         // ← Default page 1
     } = event.queryStringParameters || {};
 
     const targetBusinessId = businessIdFromQuery || businessIdFromToken;
     
     if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
-      console.error(`❌ Security violation: Token business_id (${businessIdFromToken}) does not match requested (${businessIdFromQuery})`);
-      return createResponse(403, { 
-        success: false,
-        error: 'Forbidden',
-        message: 'You do not have permission to access this business data'
-      });
+      console.error(`❌ Security violation`);
+      return createResponse(403, { success: false, error: 'Forbidden' });
     }
     
     if (!targetBusinessId) {
@@ -60,7 +57,7 @@ export const handler = async (event) => {
     }
 
     console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
-    console.log(`📊 Date range: ${dateRange}, Custom: ${startDate} - ${endDate}, futureOnly: ${futureOnly}`);
+    console.log(`📊 Limit: ${limit}, Page: ${page}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -69,13 +66,17 @@ export const handler = async (event) => {
       return createResponse(500, { success: false, error: 'Server configuration error' });
     }
 
-    // ✅ FIXED: Use unified bookings table
     const BOOKINGS_TABLE = 'bookings';
     
-    // Build URL with filters
-    let url = `${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}?business_id=eq.${targetBusinessId}&select=*&order=check_in_date.desc&limit=${limit}`;
+    // Calculate offset for pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Exclude large base64 fields for listing
+    const selectFields = 'id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_id_number,check_in_date,check_out_date,nights,adults,children,total_amount,status,guest_province,guest_city,guest_country,booking_source,referral_source,marketing_consent,created_at,updated_at';
+    
+    let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
 
-    // Apply futureOnly filter (upcoming bookings only)
+    // Apply futureOnly filter
     if (futureOnly === 'true') {
       const today = new Date().toISOString().split('T')[0];
       url += `&check_in_date=gte.${today}`;
@@ -83,7 +84,6 @@ export const handler = async (event) => {
 
     // Apply date filters
     if (startDate && endDate) {
-      console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
       url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
     } else if (dateRange === '7days') {
       const sevenDaysAgo = new Date();
@@ -113,83 +113,70 @@ export const handler = async (event) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Supabase error:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    const allBookings = await response.json();
-    console.log(`✅ Total bookings fetched: ${allBookings.length}`);
+    const bookings = await response.json();
+    console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // ============================================================
-    // FULL ANALYTICS WITH FIXED STAYOVER CALCULATION
-    // ============================================================
-    
-    const totalRevenue = allBookings.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
-    
-    const statusBreakdown = allBookings.reduce((acc, b) => {
-      const status = b.status || 'unknown';
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
-    
-    const bookingsByMonth = allBookings.reduce((acc, b) => {
-      const dateField = b.check_in_date || b.check_in || b.created_at;
-      if (dateField) {
-        const date = new Date(dateField);
-        if (!isNaN(date.getTime())) {
-          const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-          acc[monthYear] = (acc[monthYear] || 0) + 1;
-        }
+    // Get total count for pagination (without limit)
+    let countUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=id`;
+    if (startDate && endDate) {
+      countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
+    } else if (dateRange !== 'all' && dateRange) {
+      // Apply same date filters for count
+      const days = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
+      if (days[dateRange]) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
+        countUrl += `&check_in_date=gte.${cutoffDate.toISOString().split('T')[0]}`;
       }
-      return acc;
-    }, {});
+    }
     
-    const guestOrigins = {
-      provinces: {},
-      cities: {},
-      countries: {}
-    };
-    
-    allBookings.forEach(b => {
-      if (b.guest_province) guestOrigins.provinces[b.guest_province] = (guestOrigins.provinces[b.guest_province] || 0) + 1;
-      if (b.guest_city) guestOrigins.cities[b.guest_city] = (guestOrigins.cities[b.guest_city] || 0) + 1;
-      if (b.guest_country) guestOrigins.countries[b.guest_country] = (guestOrigins.countries[b.guest_country] || 0) + 1;
+    const countResponse = await fetch(countUrl, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+      }
     });
+    const totalCountData = await countResponse.json();
+    const totalBookings = totalCountData.length;
 
-    const averageNights = allBookings.length > 0
-      ? (allBookings.reduce((sum, b) => sum + (Number(b.nights) || Number(b.num_nights) || 1), 0) / allBookings.length).toFixed(1)
-      : 0;
+    // Calculate today's activity from ALL bookings (not just current page)
+    // For accurate stayovers, we need to check all recent bookings
+    let recentBookings = bookings;
+    if (parseInt(page) === 1) {
+      // On first page, fetch a few more to ensure we have all recent bookings
+      const recentUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=200`;
+      const recentResponse = await fetch(recentUrl, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      });
+      if (recentResponse.ok) {
+        recentBookings = await recentResponse.json();
+      }
+    }
 
-    // ✅ FIXED: Today's activity calculations with proper date handling
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
     
-    // Today's check-ins (arrivals)
-    const todayCheckIns = allBookings.filter(b => b.check_in_date === todayStr).length;
+    const todayCheckIns = recentBookings.filter(b => b.check_in_date === todayStr).length;
+    const todayCheckOuts = recentBookings.filter(b => b.check_out_date === todayStr).length;
     
-    // Today's check-outs (departures)
-    const todayCheckOuts = allBookings.filter(b => b.check_out_date === todayStr).length;
-    
-    // ✅ FIXED: Current stayovers (guests who checked in before today and haven't checked out yet)
-    const todayStayovers = allBookings.filter(b => {
+    const todayStayovers = recentBookings.filter(b => {
       if (!b.check_in_date) return false;
-      
       const checkInDate = new Date(b.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
-      
-      // If check-in is today, it's an arrival, not a stayover
       if (checkInDate.getTime() === today.getTime()) return false;
-      
-      // If check-in is in the future, not a stayover yet
       if (checkInDate > today) return false;
-      
-      // If no check-out date, they're still here
       if (!b.check_out_date) return true;
-      
       const checkOutDate = new Date(b.check_out_date);
       checkOutDate.setHours(0, 0, 0, 0);
-      
-      // Stayover if check-out is AFTER today OR equal to today (they haven't left yet)
       return checkOutDate >= today;
     }).length;
 
@@ -197,37 +184,20 @@ export const handler = async (event) => {
 
     return createResponse(200, {
       success: true,
-      bookings: allBookings,
-      summary: {
-        total_bookings: allBookings.length,
-        total_revenue: totalRevenue,
-        average_nights: parseFloat(averageNights),
-        bookings_by_status: statusBreakdown,
-        bookings_by_month: bookingsByMonth,
-        guest_origins: guestOrigins,
-        today_activity: {
-          arrivals: todayCheckIns,
-          stayovers: todayStayovers,
-          checkouts: todayCheckOuts
-        }
-      },
-      period: {
-        date_range: dateRange || 'custom',
-        start_date: startDate || null,
-        end_date: endDate || null
+      bookings: bookings,
+      total_count: totalBookings,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total_pages: Math.ceil(totalBookings / parseInt(limit)),
+      today_activity: {
+        arrivals: todayCheckIns,
+        stayovers: todayStayovers,
+        checkouts: todayCheckOuts
       }
     });
 
   } catch (err) {
     console.error('❌ get-business-bookings error:', err);
-    
-    if (err.message?.startsWith('UNAUTHORIZED:')) {
-      return createResponse(401, { success: false, error: err.message.replace('UNAUTHORIZED: ', '') });
-    }
-    if (err.message?.startsWith('FORBIDDEN:')) {
-      return createResponse(403, { success: false, error: err.message.replace('FORBIDDEN: ', '') });
-    }
-    
     return createResponse(500, {
       success: false,
       error: 'Internal Server Error',
