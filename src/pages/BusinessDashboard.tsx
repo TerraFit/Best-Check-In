@@ -258,7 +258,7 @@ useEffect(() => {
     }
   };
 
-  // ============================================================
+// ============================================================
 // FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
 // ============================================================
 
@@ -283,7 +283,6 @@ const loadBusinessProfile = async () => {
     const data = await res.json();
     console.log('✅ Business profile data received:', data);
     
-    // ✅ FIX: Handle both response structures correctly
     let businessData;
     if (data.success && data.data) {
       businessData = data.data;
@@ -298,13 +297,11 @@ const loadBusinessProfile = async () => {
     
     setBusiness(businessData);
     
-    // 🔍 ADD THESE DEBUG LINES:
-console.log('🔍 After setBusiness - businessData:', businessData);
-console.log('🔍 After setBusiness - business state should update soon');
-console.log('🔍 trading_name from businessData:', businessData?.trading_name);
-console.log('🔍 logo_url from businessData:', businessData?.logo_url?.substring(0, 100));
+    console.log('🔍 After setBusiness - businessData:', businessData);
+    console.log('🔍 After setBusiness - business state should update soon');
+    console.log('🔍 trading_name from businessData:', businessData?.trading_name);
+    console.log('🔍 logo_url from businessData:', businessData?.logo_url?.substring(0, 100));
     
-    // ✅ FIX: Use businessData instead of data for profile form
     setProfileForm({
       total_rooms: businessData?.total_rooms?.toString() || '',
       avg_price: businessData?.avg_price?.toString() || '',
@@ -314,7 +311,6 @@ console.log('🔍 logo_url from businessData:', businessData?.logo_url?.substrin
       welcome_message: businessData?.welcome_message || ''
     });
     
-    // ✅ FIX: Use businessData for newsletter settings
     setNewsletterEnabled(businessData?.newsletter_enabled || false);
     setNewsletterTitle(businessData?.newsletter_title || 'Win Your Next Stay With Us');
     setNewsletterPrize(businessData?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
@@ -349,7 +345,6 @@ const fetchChangeRequests = async () => {
     
     console.log('🔍 Change requests response:', result);
     
-    // ✅ FIX: Handle different response structures safely
     let data = [];
     if (result.success && Array.isArray(result.data)) {
       data = result.data;
@@ -364,7 +359,6 @@ const fetchChangeRequests = async () => {
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
     
-    // ✅ FIX: Only run filter if data is an array
     if (Array.isArray(data)) {
       const newlyRejected = data.filter((req: ChangeRequest) => 
         req.status === 'rejected' && 
@@ -407,8 +401,7 @@ const fetchChangeRequests = async () => {
   }
 };
 
-// Keep loadBookings EXACTLY as is - it looks correct
-
+// ✅ COMPLETELY REWRITTEN loadBookings function
 const loadBookings = async () => {
   if (refreshing) {
     console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
@@ -429,16 +422,13 @@ const loadBookings = async () => {
     
     let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
     
-    // ✅ FIXED: For Check-ins tab - get ALL bookings (no date filters)
+    // For Check-ins tab - get ALL bookings (no date filters)
     if (activeTab === 'checkins') {
       console.log('📋 Check-ins tab - fetching ALL bookings (complete history)');
-      // No date filters - get everything
     } 
-    // For Overview tab - fetch ALL bookings, then filter in frontend
+    // For Overview tab - fetch ALL bookings
     else if (activeTab === 'overview') {
-      console.log('📅 Overview tab - fetching all bookings for stayovers and future arrivals');
-      // Don't add any date filters - get everything
-      // URL already has the base with businessId and limit
+      console.log('📅 Overview tab - fetching all bookings');
     }
     // For Reports tab - respect date filters
     else if (activeTab === 'reports') {
@@ -482,37 +472,92 @@ const loadBookings = async () => {
     setUniqueCities(cities.sort());
     setUniqueCountries(countries.sort());
     
-    // Calculate today's activity for Overview tab
-    const today = new Date().toISOString().split('T')[0];
-    const todayDate = new Date(today);
-    todayDate.setHours(0, 0, 0, 0);
-    
-    const thirtyDaysAgo = new Date(todayDate);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-    
-    const arrivals = validBookings.filter(b => b.check_in_date === today);
-    
-    const stayovers = validBookings.filter(b => {
-      if (!b.check_in_date) return false;
-      const checkInDate = new Date(b.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      if (checkInDate >= todayDate) return false;
-      if (b.check_out_date) {
+    // ✅ USE BACKEND CALCULATED VALUES - DO NOT RECALCULATE
+    if (result.summary?.today_activity) {
+      const backendArrivals = result.summary.today_activity.arrivals || 0;
+      const backendStayovers = result.summary.today_activity.stayovers || 0;
+      const backendCheckouts = result.summary.today_activity.checkouts || 0;
+      
+      console.log(`📊 Backend Today's Activity: ${backendArrivals} arrivals, ${backendStayovers} stayovers, ${backendCheckouts} checkouts`);
+      
+      // For display, we need the actual booking objects for the current stayovers
+      // The backend returns counts, but we need the actual bookings to display in cards
+      // So we still need to filter the bookings for the UI, but using the backend's logic
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      // Today's arrivals (check-in = today)
+      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+      
+      // ✅ FIXED: Current stayovers using same logic as backend
+      const stayovers = validBookings.filter(b => {
+        if (!b.check_in_date) return false;
+        
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        
+        // If check-in is today, it's an arrival, not a stayover
+        if (checkInDate.getTime() === todayDate.getTime()) return false;
+        
+        // If check-in is in the future, not a stayover yet
+        if (checkInDate > todayDate) return false;
+        
+        // If no check-out date, they're still here
+        if (!b.check_out_date) return true;
+        
         const checkOutDate = new Date(b.check_out_date);
         checkOutDate.setHours(0, 0, 0, 0);
-        return checkOutDate > todayDate;
+        
+        // Stayover if check-out is AFTER today OR equal to today
+        return checkOutDate >= todayDate;
+      });
+      
+      // Today's check-outs
+      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+      
+      console.log(`📊 Frontend Filtered - Arrivals: ${arrivals.length}, Stayovers: ${stayovers.length}, Checkouts: ${checkouts.length}`);
+      
+      if (stayovers.length > 0) {
+        console.log('📊 Current stayovers:', stayovers.map(s => ({
+          name: s.guest_name,
+          check_in: s.check_in_date,
+          check_out: s.check_out_date || 'not set'
+        })));
       }
-      return b.check_in_date >= thirtyDaysAgoStr;
-    });
-    
-    const checkouts = validBookings.filter(b => b.check_out_date === today);
-    
-    console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-    
-    setTodayArrivals(arrivals);
-    setTodayStayovers(stayovers);
-    setTodayCheckouts(checkouts);
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+    } else {
+      // Fallback: Calculate manually if backend didn't provide today_activity
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+      
+      const stayovers = validBookings.filter(b => {
+        if (!b.check_in_date) return false;
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        if (checkInDate.getTime() === todayDate.getTime()) return false;
+        if (checkInDate > todayDate) return false;
+        if (!b.check_out_date) return true;
+        const checkOutDate = new Date(b.check_out_date);
+        checkOutDate.setHours(0, 0, 0, 0);
+        return checkOutDate >= todayDate;
+      });
+      
+      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+      
+      console.log(`📊 Today's Activity (fallback): ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+    }
     
   } catch (err) {
     console.error('❌ Error loading bookings:', err);
@@ -530,7 +575,6 @@ const loadSubscribers = async () => {
     const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
     const result = await response.json();
     
-    // ✅ FIX: Handle response structure
     let subscribers = [];
     if (result.success && Array.isArray(result.subscribers)) {
       subscribers = result.subscribers;
