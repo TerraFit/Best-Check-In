@@ -85,16 +85,8 @@ interface ChangeRequest {
 }
 
 // Constants
-const ITEMS_PER_PAGE = 10;
-const DATE_RANGES = {
-  '7days': 7,
-  '30days': 30,
-  '90days': 90,
-  '12months': 365,
-  'all': null
-} as const;
-
-type DateRange = keyof typeof DATE_RANGES;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 25;
 
 // Chart colors
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#ec489a'];
@@ -112,9 +104,14 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalBookingsCount, setTotalBookingsCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  
   // UI states
   const [activeTab, setActiveTab] = useState('overview');
-  const [currentPage, setCurrentPage] = useState(1);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -122,7 +119,7 @@ export default function BusinessDashboard() {
   const [uploadingHero, setUploadingHero] = useState(false);
   
   // Filter states
- const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [dateRange, setDateRange] = useState<'7days' | '30days' | '90days' | '12months' | 'all'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -185,14 +182,6 @@ export default function BusinessDashboard() {
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [rejectedRequest, setRejectedRequest] = useState<ChangeRequest | null>(null);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
-  // Add this debug useEffect
-useEffect(() => {
-  console.log('🔍🔍🔍 BUSINESS STATE ACTUALLY CHANGED:', business);
-  console.log('🔍🔍🔍 BUSINESS NAME IN STATE:', business?.trading_name);
-  if (business?.logo_url) {
-    console.log('🔍🔍🔍 LOGO URL (first 100 chars):', business.logo_url.substring(0, 100));
-  }
-}, [business]);
 
   // Tab configuration
   const tabs = [
@@ -203,7 +192,7 @@ useEffect(() => {
   ];
 
   // ============================================================
-  // AUTH HELPERS - DEFINE fetchWithAuth HERE ← PUT IT HERE
+  // AUTH HELPERS
   // ============================================================
   
   const getAuthHeaders = () => {
@@ -258,696 +247,321 @@ useEffect(() => {
     }
   };
 
-// ============================================================
-// FETCH FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
-// ============================================================
-
-const loadBusinessProfile = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) {
-    console.error('❌ No business ID found');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    console.log('📡 Loading business profile for ID:', businessId);
-    const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`);
-    
-    if (!res.ok) {
-      console.error('❌ Failed to load business profile:', res.status);
-      setLoading(false);
-      return;
-    }
-    
-    const data = await res.json();
-    console.log('✅ Business profile data received:', data);
-    
-    let businessData;
-    if (data.success && data.data) {
-      businessData = data.data;
-    } else if (data.id) {
-      businessData = data;
-    } else {
-      businessData = data;
-    }
-    
-    console.log('✅ Extracted businessData:', businessData);
-    console.log('✅ Trading name:', businessData?.trading_name);
-    
-    setBusiness(businessData);
-    
-    console.log('🔍 After setBusiness - businessData:', businessData);
-    console.log('🔍 After setBusiness - business state should update soon');
-    console.log('🔍 trading_name from businessData:', businessData?.trading_name);
-    console.log('🔍 logo_url from businessData:', businessData?.logo_url?.substring(0, 100));
-    
-    setProfileForm({
-      total_rooms: businessData?.total_rooms?.toString() || '',
-      avg_price: businessData?.avg_price?.toString() || '',
-      logo_url: businessData?.logo_url || '',
-      hero_image_url: businessData?.hero_image_url || '',
-      slogan: businessData?.slogan || '',
-      welcome_message: businessData?.welcome_message || ''
-    });
-    
-    setNewsletterEnabled(businessData?.newsletter_enabled || false);
-    setNewsletterTitle(businessData?.newsletter_title || 'Win Your Next Stay With Us');
-    setNewsletterPrize(businessData?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
-    setNewsletterCta(businessData?.newsletter_cta || 'Subscribe now (takes 10 seconds)');
-    setNewsletterTerms(businessData?.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
-    setNewsletterDrawDate(businessData?.newsletter_draw_date || '');
-    setNewsletterShareText(businessData?.newsletter_share_text || 'Want better odds? Share this with friends and family!');
-    
-    if (businessData?.trial_end) {
-      const trialEnd = new Date(businessData.trial_end);
-      const today = new Date();
-      const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      setTrialDaysLeft(daysLeft);
-      setSubscriptionStatus(businessData.subscription_status || 'trial');
-    }
-    
-    console.log('✅ Business profile loaded:', businessData?.trading_name);
-  } catch (err) {
-    console.error('❌ Failed to load business profile:', err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-const fetchChangeRequests = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  try {
-    const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
-    const result = await response.json();
-    
-    console.log('🔍 Change requests response:', result);
-    
-    let data = [];
-    if (result.success && Array.isArray(result.data)) {
-      data = result.data;
-    } else if (Array.isArray(result)) {
-      data = result;
-    } else {
-      data = [];
-    }
-    
-    setChangeRequests(data);
-    
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    
-    if (Array.isArray(data)) {
-      const newlyRejected = data.filter((req: ChangeRequest) => 
-        req.status === 'rejected' && 
-        req.reviewed_at && 
-        new Date(req.reviewed_at) > oneDayAgo &&
-        !localStorage.getItem(`rejection_notified_${req.id}`)
-      );
-      
-      for (const request of newlyRejected) {
-        const userChoice = confirm(
-          `❌ Change Request Rejected\n\n` +
-          `Field: ${request.field_name}\n` +
-          `Requested: ${request.requested_value}\n\n` +
-          `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
-          `Would you like to appeal this decision?`
-        );
-        
-        if (userChoice) {
-          setRejectedRequest(request);
-          setShowAppealModal(true);
-        }
-        localStorage.setItem(`rejection_notified_${request.id}`, 'true');
-      }
-      
-      const newlyApproved = data.filter((req: ChangeRequest) => 
-        req.status === 'approved' && 
-        req.reviewed_at && 
-        new Date(req.reviewed_at) > oneDayAgo &&
-        !localStorage.getItem(`approval_notified_${req.id}`)
-      );
-      
-      for (const request of newlyApproved) {
-        alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved. The changes have been applied to your business profile.`);
-        localStorage.setItem(`approval_notified_${request.id}`, 'true');
-        loadBusinessProfile();
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching change requests:', error);
-  }
-};
-
-// ✅ COMPLETELY REWRITTEN loadBookings function
-const loadBookings = async () => {
-  if (refreshing) {
-    console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
-    return;
-  }
-
-  const businessId = getBusinessId();
-  if (!businessId) {
-    console.warn('⚠️ No businessId found');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setRefreshing(true);
-    console.log('📡 Fetching bookings for business:', businessId);
-    console.log('📅 Current activeTab:', activeTab);
-    
-    let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=10000`;
-    
-    // For Check-ins tab - get ALL bookings (no date filters)
-    if (activeTab === 'checkins') {
-      console.log('📋 Check-ins tab - fetching ALL bookings (complete history)');
-    } 
-    // For Overview tab - fetch ALL bookings
-    else if (activeTab === 'overview') {
-      console.log('📅 Overview tab - fetching all bookings');
-    }
-    // For Reports tab - respect date filters
-    else if (activeTab === 'reports') {
-      if (startDate && endDate) {
-        url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=10000`;
-      } else if (dateRange !== 'all') {
-        const days = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
-        if (days[dateRange]) {
-          const cutoffDate = new Date();
-          cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
-          url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
-        }
-      }
-    }
-    
-    console.log('🔗 Fetching URL:', url);
-    
-    const res = await fetchWithAuth(url);
-    const result = await res.json();
-    
-    let rawBookings = [];
-    if (result.bookings && Array.isArray(result.bookings)) {
-      rawBookings = result.bookings;
-    } else if (result.success && Array.isArray(result.data)) {
-      rawBookings = result.data;
-    } else if (Array.isArray(result)) {
-      rawBookings = result;
-    }
-    
-    const validBookings = rawBookings.filter(b => b.business_id === businessId);
-    console.log(`📦 Loaded ${validBookings.length} bookings from API`);
-    
-    setBookings(validBookings);
-    
-    // Extract unique filter values
-    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
-    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-    const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
-    
-    setUniqueProvinces(provinces.sort());
-    setUniqueCities(cities.sort());
-    setUniqueCountries(countries.sort());
-    
-    // ✅ USE BACKEND CALCULATED VALUES - DO NOT RECALCULATE
-    if (result.summary?.today_activity) {
-      const backendArrivals = result.summary.today_activity.arrivals || 0;
-      const backendStayovers = result.summary.today_activity.stayovers || 0;
-      const backendCheckouts = result.summary.today_activity.checkouts || 0;
-      
-      console.log(`📊 Backend Today's Activity: ${backendArrivals} arrivals, ${backendStayovers} stayovers, ${backendCheckouts} checkouts`);
-      
-      // For display, we need the actual booking objects for the current stayovers
-      // The backend returns counts, but we need the actual bookings to display in cards
-      // So we still need to filter the bookings for the UI, but using the backend's logic
-      
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0);
-      
-      // Today's arrivals (check-in = today)
-      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-      
-      // ✅ FIXED: Current stayovers using same logic as backend
-      const stayovers = validBookings.filter(b => {
-        if (!b.check_in_date) return false;
-        
-        const checkInDate = new Date(b.check_in_date);
-        checkInDate.setHours(0, 0, 0, 0);
-        
-        // If check-in is today, it's an arrival, not a stayover
-        if (checkInDate.getTime() === todayDate.getTime()) return false;
-        
-        // If check-in is in the future, not a stayover yet
-        if (checkInDate > todayDate) return false;
-        
-        // If no check-out date, they're still here
-        if (!b.check_out_date) return true;
-        
-        const checkOutDate = new Date(b.check_out_date);
-        checkOutDate.setHours(0, 0, 0, 0);
-        
-        // Stayover if check-out is AFTER today OR equal to today
-        return checkOutDate >= todayDate;
-      });
-      
-      // Today's check-outs
-      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-      
-      console.log(`📊 Frontend Filtered - Arrivals: ${arrivals.length}, Stayovers: ${stayovers.length}, Checkouts: ${checkouts.length}`);
-      
-      if (stayovers.length > 0) {
-        console.log('📊 Current stayovers:', stayovers.map(s => ({
-          name: s.guest_name,
-          check_in: s.check_in_date,
-          check_out: s.check_out_date || 'not set'
-        })));
-      }
-      
-      setTodayArrivals(arrivals);
-      setTodayStayovers(stayovers);
-      setTodayCheckouts(checkouts);
-    } else {
-      // Fallback: Calculate manually if backend didn't provide today_activity
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0);
-      
-      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-      
-      const stayovers = validBookings.filter(b => {
-        if (!b.check_in_date) return false;
-        const checkInDate = new Date(b.check_in_date);
-        checkInDate.setHours(0, 0, 0, 0);
-        if (checkInDate.getTime() === todayDate.getTime()) return false;
-        if (checkInDate > todayDate) return false;
-        if (!b.check_out_date) return true;
-        const checkOutDate = new Date(b.check_out_date);
-        checkOutDate.setHours(0, 0, 0, 0);
-        return checkOutDate >= todayDate;
-      });
-      
-      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-      
-      console.log(`📊 Today's Activity (fallback): ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-      
-      setTodayArrivals(arrivals);
-      setTodayStayovers(stayovers);
-      setTodayCheckouts(checkouts);
-    }
-    
-  } catch (err) {
-    console.error('❌ Error loading bookings:', err);
-  } finally {
-    setRefreshing(false);
-  }
-};
-
-const loadSubscribers = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setLoadingSubscribers(true);
-  try {
-    const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
-    const result = await response.json();
-    
-    let subscribers = [];
-    if (result.success && Array.isArray(result.subscribers)) {
-      subscribers = result.subscribers;
-    } else if (Array.isArray(result)) {
-      subscribers = result;
-    } else if (result.subscribers && Array.isArray(result.subscribers)) {
-      subscribers = result.subscribers;
-    }
-    
-    setSubscribers(subscribers);
-    setShowSubscribers(true);
-  } catch (err) {
-    console.error('Error loading subscribers:', err);
-    alert('Failed to load subscribers');
-  } finally {
-    setLoadingSubscribers(false);
-  }
-};
-  
-// Add this after loadBookings function
-const isFirstRun = useRef(true);
-useEffect(() => {
-  if (isFirstRun.current) {
-    isFirstRun.current = false;
-    return;
-  }
-  console.log('📅 Date range, tab, or filters changed - reloading bookings');
-  loadBookings();
-}, [dateRange, startDate, endDate, activeTab]);
-  
-// ============================================================
-// UPDATE FUNCTIONS (ALL UPDATED TO USE fetchWithAuth)
-// ============================================================
-
-const updateEmail = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setUpdatingEmail(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        email: newEmail
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      alert('✅ Email updated successfully');
-      setEditingEmail(false);
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error updating email:', error);
-    alert('An error occurred');
-  } finally {
-    setUpdatingEmail(false);
-  }
-};
-
-const updatePhone = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setUpdatingPhone(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        phone: newPhone
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      alert('✅ Phone updated successfully');
-      setEditingPhone(false);
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error updating phone:', error);
-    alert('An error occurred');
-  } finally {
-    setUpdatingPhone(false);
-  }
-};
-
-const saveNewsletterSettings = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setSavingNewsletter(true);
-  try {
-    const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        newsletter_enabled: newsletterEnabled,
-        newsletter_title: newsletterTitle,
-        newsletter_prize: newsletterPrize,
-        newsletter_cta: newsletterCta,
-        newsletter_terms: newsletterTerms,
-        newsletter_draw_date: newsletterDrawDate || null,
-        newsletter_share_text: newsletterShareText
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      alert('✅ Newsletter settings saved successfully!');
-      loadBusinessProfile();
-    } else {
-      alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error saving newsletter settings:', error);
-    alert('Error saving newsletter settings');
-  } finally {
-    setSavingNewsletter(false);
-  }
-};
-
-const saveBusinessProfile = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-
-  setLoading(true);
-  let hasError = false;
-
-  try {
-    // 1. Update text fields only (NO images)
-    const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        total_rooms: parseInt(profileForm.total_rooms) || 0,
-        avg_price: parseInt(profileForm.avg_price) || 0,
-        slogan: profileForm.slogan,
-        welcome_message: profileForm.welcome_message
-      })
-    });
-
-    const textResult = await textRes.json();
-
-    if (!textRes.ok || !textResult.success) {
-      throw new Error(textResult.error || 'Failed to update text fields');
-    }
-
-    // 2. Update logo if changed
-    if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
-      const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          logo_url: profileForm.logo_url
-        })
-      });
-      const logoResult = await logoRes.json();
-      if (!logoRes.ok || !logoResult.success) {
-        console.error('Logo upload failed:', logoResult.error);
-        hasError = true;
-      }
-    }
-
-    // 3. Update hero image if changed
-    if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
-      const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
-        method: 'POST',
-        body: JSON.stringify({
-          businessId,
-          hero_image_url: profileForm.hero_image_url
-        })
-      });
-      const heroResult = await heroRes.json();
-      if (!heroRes.ok || !heroResult.success) {
-        console.error('Hero image upload failed:', heroResult.error);
-        hasError = true;
-      }
-    }
-
-    if (hasError) {
-      alert('Profile updated with some errors. Please check your images.');
-    } else {
-      alert('Profile updated successfully!');
-    }
-    
-    setEditingProfile(false);
-    await loadBusinessProfile();
-    
-  } catch (err) {
-    console.error('Error saving profile:', err);
-    alert(err.message || 'Error saving profile');
-  } finally {
-    setLoading(false);
-  }
-};
-
-const submitChangeRequest = async () => {
-  const businessId = getBusinessId();
-  if (!businessId) return;
-  
-  setSendingRequest(true);
-  try {
-    console.log('📤 Submitting change request:', {
-      businessId,
-      fieldName: requestField,
-      requestedValue: requestNewValue,
-      reason: requestReason
-    });
-    
-    const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
-      method: 'POST',
-      body: JSON.stringify({
-        businessId,
-        businessName: business?.trading_name,
-        fieldName: requestField,
-        currentValue: requestCurrentValue,
-        requestedValue: requestNewValue,
-        reason: requestReason
-      })
-    });
-    
-    const data = await response.json();
-    console.log('📡 Response:', data);
-    
-    if (response.ok && (data.success || data.data)) {
-      alert('✅ Change request submitted successfully. The admin will review it.');
-      setShowRequestModal(false);
-      setRequestField('');
-      setRequestCurrentValue('');
-      setRequestNewValue('');
-      setRequestReason('');
-      fetchChangeRequests();
-    } else {
-      alert(data.error || '❌ Failed to submit request. Please try again.');
-    }
-  } catch (error) {
-    console.error('Error submitting request:', error);
-    alert('An error occurred. Please try again.');
-  } finally {
-    setSendingRequest(false);
-  }
-};
-
   // ============================================================
   // HELPER FUNCTIONS
   // ============================================================
 
-  const exportSubscribersToCSV = () => {
-    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Date', 'Source'];
-    const rows = subscribers.map(s => [
-      s.email,
-      s.guest_name?.split(' ')[0] || '',
-      s.guest_name?.split(' ')[1] || '',
-      new Date(s.created_at).toLocaleDateString(),
-      s.source || 'email'
-    ]);
-    
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${business?.trading_name || 'subscribers'}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const isFilterActive = () => {
+    return dateRange !== 'all' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter;
   };
 
-  const exportToMailChimp = () => {
-    const headers = ['Email Address', 'First Name', 'Last Name', 'Signup Source'];
-    const rows = subscribers.map(s => [
-      s.email,
-      s.guest_name?.split(' ')[0] || '',
-      s.guest_name?.split(' ')[1] || '',
-      'FastCheckin Check-in'
-    ]);
-    
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${business?.trading_name || 'subscribers'}_mailchimp_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, GIF, etc.)');
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo must be less than 2MB');
-      return;
-    }
-
-    setUploadingLogo(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64Logo = reader.result as string;
-      setProfileForm({ ...profileForm, logo_url: base64Logo });
-      setUploadingLogo(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, etc.)');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be less than 5MB');
-      return;
-    }
-
-    setUploadingHero(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64Image = reader.result as string;
-      setProfileForm({ ...profileForm, hero_image_url: base64Image });
-      setUploadingHero(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const openRequestModal = (field: string, currentValue: string) => {
-    setRequestField(field);
-    setRequestCurrentValue(currentValue);
-    setRequestNewValue('');
-    setRequestReason('');
-    setShowRequestModal(true);
-  };
-
-  const refreshData = () => {
-    setRefreshing(true);
+  const clearAllFilters = () => {
+    setDateRange('all');
+    setStartDate('');
+    setEndDate('');
+    setSearchTerm('');
+    setStatusFilter('');
+    setProvinceFilter('');
+    setCityFilter('');
+    setCountryFilter('');
+    setCurrentPage(1);
     loadBookings();
-    fetchChangeRequests();
   };
 
-  const requestIDPhoto = (booking: Booking) => {
-    if (confirm(`Request ID photo for ${booking.guest_name}? This will send a verification request.`)) {
-      alert(`ID photo request sent to ${booking.guest_email}`);
+  // ============================================================
+  // FETCH FUNCTIONS
+  // ============================================================
+
+  const loadBusinessProfile = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.error('❌ No business ID found');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('📡 Loading business profile for ID:', businessId);
+      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      
+      if (!res.ok) {
+        console.error('❌ Failed to load business profile:', res.status);
+        setLoading(false);
+        return;
+      }
+      
+      const data = await res.json();
+      
+      let businessData;
+      if (data.success && data.data) {
+        businessData = data.data;
+      } else if (data.id) {
+        businessData = data;
+      } else {
+        businessData = data;
+      }
+      
+      setBusiness(businessData);
+      
+      setProfileForm({
+        total_rooms: businessData?.total_rooms?.toString() || '',
+        avg_price: businessData?.avg_price?.toString() || '',
+        logo_url: businessData?.logo_url || '',
+        hero_image_url: businessData?.hero_image_url || '',
+        slogan: businessData?.slogan || '',
+        welcome_message: businessData?.welcome_message || ''
+      });
+      
+      setNewsletterEnabled(businessData?.newsletter_enabled || false);
+      setNewsletterTitle(businessData?.newsletter_title || 'Win Your Next Stay With Us');
+      setNewsletterPrize(businessData?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+      setNewsletterCta(businessData?.newsletter_cta || 'Subscribe now (takes 10 seconds)');
+      setNewsletterTerms(businessData?.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+      setNewsletterDrawDate(businessData?.newsletter_draw_date || '');
+      setNewsletterShareText(businessData?.newsletter_share_text || 'Want better odds? Share this with friends and family!');
+      
+      if (businessData?.trial_end) {
+        const trialEnd = new Date(businessData.trial_end);
+        const today = new Date();
+        const daysLeft = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        setTrialDaysLeft(daysLeft);
+        setSubscriptionStatus(businessData.subscription_status || 'trial');
+      }
+      
+      console.log('✅ Business profile loaded:', businessData?.trading_name);
+    } catch (err) {
+      console.error('❌ Failed to load business profile:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      checked_in: 'bg-green-100 text-green-800',
-      completed: 'bg-blue-100 text-blue-800',
-      confirmed: 'bg-yellow-100 text-yellow-800',
-      cancelled: 'bg-red-100 text-red-800'
-    };
-    return styles[status] || 'bg-gray-100 text-gray-800';
+  const fetchChangeRequests = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    try {
+      const response = await fetchWithAuth(`/.netlify/functions/get-change-requests?businessId=${businessId}`);
+      const result = await response.json();
+      
+      let data = [];
+      if (result.success && Array.isArray(result.data)) {
+        data = result.data;
+      } else if (Array.isArray(result)) {
+        data = result;
+      }
+      
+      setChangeRequests(data);
+      
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      if (Array.isArray(data)) {
+        const newlyRejected = data.filter((req: ChangeRequest) => 
+          req.status === 'rejected' && 
+          req.reviewed_at && 
+          new Date(req.reviewed_at) > oneDayAgo &&
+          !localStorage.getItem(`rejection_notified_${req.id}`)
+        );
+        
+        for (const request of newlyRejected) {
+          const userChoice = confirm(
+            `❌ Change Request Rejected\n\n` +
+            `Field: ${request.field_name}\n` +
+            `Requested: ${request.requested_value}\n\n` +
+            `Reason: ${request.rejection_reason || 'No specific reason provided'}\n\n` +
+            `Would you like to appeal this decision?`
+          );
+          
+          if (userChoice) {
+            setRejectedRequest(request);
+            setShowAppealModal(true);
+          }
+          localStorage.setItem(`rejection_notified_${request.id}`, 'true');
+        }
+        
+        const newlyApproved = data.filter((req: ChangeRequest) => 
+          req.status === 'approved' && 
+          req.reviewed_at && 
+          new Date(req.reviewed_at) > oneDayAgo &&
+          !localStorage.getItem(`approval_notified_${req.id}`)
+        );
+        
+        for (const request of newlyApproved) {
+          alert(`✅ Change Request Approved!\n\nYour request to change "${request.field_name}" to "${request.requested_value}" has been approved.`);
+          localStorage.setItem(`approval_notified_${request.id}`, 'true');
+          loadBusinessProfile();
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching change requests:', error);
+    }
+  };
+
+  const loadBookings = async () => {
+    if (refreshing) {
+      console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
+      return;
+    }
+
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.warn('⚠️ No businessId found');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setRefreshing(true);
+      console.log('📡 Fetching bookings for business:', businessId);
+      console.log('📅 Current activeTab:', activeTab);
+      console.log(`📄 Page: ${currentPage}, Page Size: ${pageSize}`);
+      
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=${pageSize}&page=${currentPage}`;
+      
+      // Apply filters for Reports tab
+      if (activeTab === 'reports') {
+        if (startDate && endDate) {
+          url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=${pageSize}&page=${currentPage}`;
+        } else if (dateRange !== 'all') {
+          const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
+          if (days[dateRange]) {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
+            url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
+          }
+        }
+      }
+      
+      console.log('🔗 Fetching URL:', url);
+      
+      const res = await fetchWithAuth(url);
+      const result = await res.json();
+      
+      let rawBookings = [];
+      if (result.bookings && Array.isArray(result.bookings)) {
+        rawBookings = result.bookings;
+      } else if (result.success && Array.isArray(result.data)) {
+        rawBookings = result.data;
+      } else if (Array.isArray(result)) {
+        rawBookings = result;
+      }
+      
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      console.log(`📦 Loaded ${validBookings.length} bookings from API`);
+      
+      setBookings(validBookings);
+      setFilteredBookings(validBookings);
+      setTotalBookingsCount(result.total_count || validBookings.length);
+      setTotalPages(result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize));
+      
+      // Extract unique filter values from current page
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
+      
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
+      
+      // ✅ USE BACKEND'S TODAY ACTIVITY - NO FRONTEND RECALCULATION
+      if (result.summary?.today_activity) {
+        const backendArrivals = result.summary.today_activity.arrivals || 0;
+        const backendStayovers = result.summary.today_activity.stayovers || 0;
+        const backendCheckouts = result.summary.today_activity.checkouts || 0;
+        
+        console.log(`📊 Backend Today's Activity: ${backendArrivals} arrivals, ${backendStayovers} stayovers, ${backendCheckouts} checkouts`);
+        
+        // Find the actual booking objects for display
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        
+        const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+        const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+        
+        // Use backend logic for stayovers
+        const stayovers = validBookings.filter(b => {
+          if (!b.check_in_date) return false;
+          const checkInDate = new Date(b.check_in_date);
+          checkInDate.setHours(0, 0, 0, 0);
+          if (checkInDate.getTime() === todayDate.getTime()) return false;
+          if (checkInDate > todayDate) return false;
+          if (!b.check_out_date) return true;
+          const checkOutDate = new Date(b.check_out_date);
+          checkOutDate.setHours(0, 0, 0, 0);
+          return checkOutDate >= todayDate;
+        });
+        
+        setTodayArrivals(arrivals);
+        setTodayStayovers(stayovers);
+        setTodayCheckouts(checkouts);
+        
+        console.log(`📊 Frontend Display - Arrivals: ${arrivals.length}, Stayovers: ${stayovers.length}, Checkouts: ${checkouts.length}`);
+        
+        if (stayovers.length > 0) {
+          console.log('📊 Current stayovers:', stayovers.map(s => ({
+            name: s.guest_name,
+            check_in: s.check_in_date,
+            check_out: s.check_out_date || 'not set'
+          })));
+        }
+      } else {
+        // Fallback calculation only if backend doesn't provide today_activity
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        
+        const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+        const stayovers = validBookings.filter(b => {
+          if (!b.check_in_date) return false;
+          const checkInDate = new Date(b.check_in_date);
+          checkInDate.setHours(0, 0, 0, 0);
+          if (checkInDate.getTime() === todayDate.getTime()) return false;
+          if (checkInDate > todayDate) return false;
+          if (!b.check_out_date) return true;
+          const checkOutDate = new Date(b.check_out_date);
+          checkOutDate.setHours(0, 0, 0, 0);
+          return checkOutDate >= todayDate;
+        });
+        const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+        
+        setTodayArrivals(arrivals);
+        setTodayStayovers(stayovers);
+        setTodayCheckouts(checkouts);
+      }
+      
+    } catch (err) {
+      console.error('❌ Error loading bookings:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const loadSubscribers = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setLoadingSubscribers(true);
+    try {
+      const response = await fetchWithAuth(`/.netlify/functions/get-newsletter-subscribers?businessId=${businessId}`);
+      const result = await response.json();
+      
+      let subscribers = [];
+      if (result.success && Array.isArray(result.subscribers)) {
+        subscribers = result.subscribers;
+      } else if (Array.isArray(result)) {
+        subscribers = result;
+      }
+      
+      setSubscribers(subscribers);
+      setShowSubscribers(true);
+    } catch (err) {
+      console.error('Error loading subscribers:', err);
+      alert('Failed to load subscribers');
+    } finally {
+      setLoadingSubscribers(false);
+    }
   };
 
   // ============================================================
@@ -956,20 +570,6 @@ const submitChangeRequest = async () => {
 
   const applyFilters = useCallback(() => {
     let filtered = [...bookings];
-    
-    const days = DATE_RANGES[dateRange];
-    if (days) {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - days);
-      filtered = filtered.filter(b => new Date(b.check_in_date) >= cutoffDate);
-    }
-    
-    if (startDate) {
-      filtered = filtered.filter(b => b.check_in_date >= startDate);
-    }
-    if (endDate) {
-      filtered = filtered.filter(b => b.check_in_date <= endDate);
-    }
     
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -996,52 +596,244 @@ const submitChangeRequest = async () => {
     
     setFilteredBookings(filtered);
     setCurrentPage(1);
-  }, [bookings, dateRange, startDate, endDate, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
+  }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
-  const metrics = useMemo(() => {
-    const totalBookings = filteredBookings.length;
-    const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
-    const avgStay = totalBookings > 0 
-      ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / totalBookings).toFixed(1)
-      : '0';
-    
-    const today = new Date().toISOString().split('T')[0];
-    const todayBookings = filteredBookings.filter(b => b.check_in_date === today).length;
-    
-    const occupancyRate = business?.total_rooms && business.total_rooms > 0
-      ? Math.min(100, Math.round((todayBookings / business.total_rooms) * 100))
-      : 0;
-    
-    return { totalBookings, totalRevenue, avgStay, todayBookings, occupancyRate };
-  }, [filteredBookings, business]);
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      checked_in: 'bg-green-100 text-green-800',
+      completed: 'bg-blue-100 text-blue-800',
+      confirmed: 'bg-yellow-100 text-yellow-800',
+      cancelled: 'bg-red-100 text-red-800'
+    };
+    return styles[status] || 'bg-gray-100 text-gray-800';
+  };
 
-  const guestOriginData = useMemo(() => {
-    const countries: Record<string, number> = {};
-    filteredBookings.forEach(b => {
-      if (b.guest_country) {
-        countries[b.guest_country] = (countries[b.guest_country] || 0) + 1;
+  // ============================================================
+  // UPDATE FUNCTIONS
+  // ============================================================
+
+  const updateEmail = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setUpdatingEmail(true);
+    try {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          email: newEmail
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert('✅ Email updated successfully');
+        setEditingEmail(false);
+        loadBusinessProfile();
+      } else {
+        alert('❌ Failed to update email: ' + (result.error || 'Unknown error'));
       }
-    });
-    return Object.entries(countries).map(([name, value]) => ({ name, value }));
-  }, [filteredBookings]);
+    } catch (error) {
+      console.error('Error updating email:', error);
+      alert('An error occurred');
+    } finally {
+      setUpdatingEmail(false);
+    }
+  };
 
-  const referralData = useMemo(() => {
-    const sources: Record<string, number> = {};
-    filteredBookings.forEach(b => {
-      const source = b.booking_source || b.referral_source;
-      if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
-        sources[source] = (sources[source] || 0) + 1;
+  const updatePhone = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setUpdatingPhone(true);
+    try {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          phone: newPhone
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert('✅ Phone updated successfully');
+        setEditingPhone(false);
+        loadBusinessProfile();
+      } else {
+        alert('❌ Failed to update phone: ' + (result.error || 'Unknown error'));
       }
-    });
-    return Object.entries(sources).map(([name, value]) => ({ name, value }));
-  }, [filteredBookings]);
+    } catch (error) {
+      console.error('Error updating phone:', error);
+      alert('An error occurred');
+    } finally {
+      setUpdatingPhone(false);
+    }
+  };
 
-  const paginatedBookings = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBookings, currentPage]);
-  
-  const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
+  const saveNewsletterSettings = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setSavingNewsletter(true);
+    try {
+      const response = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          newsletter_enabled: newsletterEnabled,
+          newsletter_title: newsletterTitle,
+          newsletter_prize: newsletterPrize,
+          newsletter_cta: newsletterCta,
+          newsletter_terms: newsletterTerms,
+          newsletter_draw_date: newsletterDrawDate || null,
+          newsletter_share_text: newsletterShareText
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert('✅ Newsletter settings saved successfully!');
+        loadBusinessProfile();
+      } else {
+        alert('❌ Failed to save newsletter settings: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error saving newsletter settings:', error);
+      alert('Error saving newsletter settings');
+    } finally {
+      setSavingNewsletter(false);
+    }
+  };
+
+  const saveBusinessProfile = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+
+    setLoading(true);
+    let hasError = false;
+
+    try {
+      const textRes = await fetchWithAuth('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          total_rooms: parseInt(profileForm.total_rooms) || 0,
+          avg_price: parseInt(profileForm.avg_price) || 0,
+          slogan: profileForm.slogan,
+          welcome_message: profileForm.welcome_message
+        })
+      });
+
+      const textResult = await textRes.json();
+
+      if (!textRes.ok || !textResult.success) {
+        throw new Error(textResult.error || 'Failed to update text fields');
+      }
+
+      if (profileForm.logo_url && profileForm.logo_url !== business?.logo_url) {
+        const logoRes = await fetchWithAuth('/.netlify/functions/upload-business-logo', {
+          method: 'POST',
+          body: JSON.stringify({
+            businessId,
+            logo_url: profileForm.logo_url
+          })
+        });
+        const logoResult = await logoRes.json();
+        if (!logoRes.ok || !logoResult.success) {
+          console.error('Logo upload failed:', logoResult.error);
+          hasError = true;
+        }
+      }
+
+      if (profileForm.hero_image_url && profileForm.hero_image_url !== business?.hero_image_url) {
+        const heroRes = await fetchWithAuth('/.netlify/functions/upload-business-hero', {
+          method: 'POST',
+          body: JSON.stringify({
+            businessId,
+            hero_image_url: profileForm.hero_image_url
+          })
+        });
+        const heroResult = await heroRes.json();
+        if (!heroRes.ok || !heroResult.success) {
+          console.error('Hero image upload failed:', heroResult.error);
+          hasError = true;
+        }
+      }
+
+      if (hasError) {
+        alert('Profile updated with some errors. Please check your images.');
+      } else {
+        alert('Profile updated successfully!');
+      }
+      
+      setEditingProfile(false);
+      await loadBusinessProfile();
+      
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert(err.message || 'Error saving profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitChangeRequest = async () => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    
+    setSendingRequest(true);
+    try {
+      const response = await fetchWithAuth('/.netlify/functions/submit-change-request', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessId,
+          businessName: business?.trading_name,
+          fieldName: requestField,
+          currentValue: requestCurrentValue,
+          requestedValue: requestNewValue,
+          reason: requestReason
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && (data.success || data.data)) {
+        alert('✅ Change request submitted successfully. The admin will review it.');
+        setShowRequestModal(false);
+        setRequestField('');
+        setRequestCurrentValue('');
+        setRequestNewValue('');
+        setRequestReason('');
+        fetchChangeRequests();
+      } else {
+        alert(data.error || '❌ Failed to submit request. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  const openRequestModal = (field: string, currentValue: string) => {
+    setRequestField(field);
+    setRequestCurrentValue(currentValue);
+    setRequestNewValue('');
+    setRequestReason('');
+    setShowRequestModal(true);
+  };
+
+  const refreshData = () => {
+    setRefreshing(true);
+    loadBookings();
+    fetchChangeRequests();
+  };
 
   // ============================================================
   // EXPORT FUNCTIONS
@@ -1075,94 +867,29 @@ const submitChangeRequest = async () => {
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
 
-  const exportToXLSX = useCallback(() => {
-    const excelData = filteredBookings.map(b => ({
-      'Guest Name': b.guest_name || '',
-      'Email': b.guest_email || '',
-      'Phone': b.guest_phone || '',
-      'ID Number': b.guest_id_number || '',
-      'Country': b.guest_country || '',
-      'Province': b.guest_province || '',
-      'City': b.guest_city || '',
-      'Check-in Date': b.check_in_date || '',
-      'Check-out Date': b.check_out_date || '',
-      'Nights': b.nights || 1,
-      'Total Amount (ZAR)': b.total_amount || 0,
-      'Status': b.status || 'pending',
-      'Referral Source': b.booking_source || b.referral_source || ''
-    }));
+  // ============================================================
+  // EFFECTS
+  // ============================================================
 
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    
-    const colWidths = [
-      { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 },
-      { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
-      { wch: 15 }, { wch: 8 },  { wch: 18 }, { wch: 12 },
-      { wch: 20 }
-    ];
-    ws['!cols'] = colWidths;
+  useEffect(() => {
+    loadBusinessProfile();
+    loadBookings();
+    fetchChangeRequests();
+  }, []);
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Bookings Report');
+  useEffect(() => {
+    applyFilters();
+  }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
 
-    const summaryData = [
-      { Metric: 'Business Name', Value: business?.trading_name || 'N/A' },
-      { Metric: 'Report Generated', Value: new Date().toLocaleString() },
-      { Metric: 'Date Range', Value: startDate && endDate ? `${startDate} to ${endDate}` : dateRange },
-      { Metric: 'Total Bookings', Value: filteredBookings.length },
-      { Metric: 'Total Revenue', Value: `R ${metrics.totalRevenue.toLocaleString()}` },
-      { Metric: 'Average Stay', Value: `${metrics.avgStay} nights` },
-      { Metric: '', Value: '' },
-      { Metric: 'Referral Source Breakdown', Value: '' },
-    ];
-    
-    referralData.forEach(r => {
-      summaryData.push({ Metric: `  ${r.name}`, Value: `${r.value} bookings` });
-    });
-    
-    summaryData.push({ Metric: '', Value: '' });
-    summaryData.push({ Metric: 'Guest Origin Breakdown', Value: '' });
-    
-    guestOriginData.forEach(o => {
-      summaryData.push({ Metric: `  ${o.name}`, Value: `${o.value} bookings` });
-    });
-
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-    wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
-
-    XLSX.writeFile(wb, `${business?.trading_name || 'bookings'}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [filteredBookings, business, metrics, referralData, guestOriginData, dateRange, startDate, endDate]);
+  useEffect(() => {
+    if (activeTab === 'checkins' || activeTab === 'overview') {
+      loadBookings();
+    }
+  }, [activeTab, currentPage, pageSize, dateRange, startDate, endDate]);
 
   // ============================================================
-// EFFECTS
-// ============================================================
-
-// Initial load - only once
-useEffect(() => {
-  loadBusinessProfile();
-  loadBookings();
-  fetchChangeRequests();
-}, []);
-
-// Apply frontend filters when bookings or filter criteria change
-useEffect(() => {
-  applyFilters();
-}, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
-
-// Reload bookings when date range, activeTab, or filters change
-useEffect(() => {
-  if (isFirstRun.current) {
-    isFirstRun.current = false;
-    return;
-  }
-  console.log('📅 Date range, tab, or filters changed - reloading bookings');
-  loadBookings();
-}, [dateRange, startDate, endDate, activeTab]);
-
-// ============================================================
-// LOADING STATE
-// ============================================================
+  // LOADING STATE
+  // ============================================================
 
   if (loading) {
     return (
@@ -1232,7 +959,6 @@ useEffect(() => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
               </button>
-              {/* LOGOUT BUTTON */}
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
@@ -1248,61 +974,31 @@ useEffect(() => {
       </header>
 
       {/* Trial Banner */}
-      {subscriptionStatus === 'trial' && trialDaysLeft !== null && (
+      {subscriptionStatus === 'trial' && trialDaysLeft !== null && trialDaysLeft <= 7 && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-          {trialDaysLeft <= 3 && trialDaysLeft > 0 ? (
-            <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <p className="font-semibold text-red-800">⚠️ Your free trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}!</p>
-                    <p className="text-sm text-red-700">Upgrade now to continue using FastCheckin without interruption.</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate('/business/billing')}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                >
-                  Upgrade Now →
-                </button>
-              </div>
-            </div>
-          ) : trialDaysLeft <= 7 && trialDaysLeft > 3 ? (
-            <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <p className="font-semibold text-amber-800">Your free trial ends in {trialDaysLeft} days</p>
-                    <p className="text-sm text-amber-700">Upgrade to continue enjoying all features.</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate('/business/billing')}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
-                >
-                  View Plans →
-                </button>
-              </div>
-            </div>
-          ) : trialDaysLeft > 0 && (
-            <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+          <div className={`rounded-lg p-4 ${trialDaysLeft <= 3 ? 'bg-red-50 border-l-4 border-red-500' : 'bg-amber-50 border-l-4 border-amber-500'}`}>
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
-                <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg className={`w-6 h-6 ${trialDaysLeft <= 3 ? 'text-red-500' : 'text-amber-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <div>
-                  <p className="font-semibold text-green-800">✨ Your 14-day free trial is active</p>
-                  <p className="text-sm text-green-700">{trialDaysLeft} days remaining. No payment required until your trial ends.</p>
+                  <p className={`font-semibold ${trialDaysLeft <= 3 ? 'text-red-800' : 'text-amber-800'}`}>
+                    {trialDaysLeft <= 3 ? '⚠️ Your free trial ends soon!' : `Your free trial ends in ${trialDaysLeft} days`}
+                  </p>
+                  <p className={`text-sm ${trialDaysLeft <= 3 ? 'text-red-700' : 'text-amber-700'}`}>
+                    Upgrade now to continue using FastCheckin without interruption.
+                  </p>
                 </div>
               </div>
+              <button
+                onClick={() => navigate('/business/billing')}
+                className={`px-4 py-2 text-white rounded-lg text-sm font-medium ${trialDaysLeft <= 3 ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+              >
+                Upgrade Now →
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -1313,7 +1009,10 @@ useEffect(() => {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setCurrentPage(1);
+                }}
                 className={`
                   py-4 px-1 border-b-2 text-sm font-medium transition-colors whitespace-nowrap
                   ${activeTab === tab.id
@@ -1337,7 +1036,7 @@ useEffect(() => {
         {/* ============================================================ */}
         {activeTab === 'overview' && business && (
           <div className="space-y-6">
-            {/* Business Information Card */}
+            {/* Business Information Card - Simplified */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-orange-50 to-white border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Business Information</h2>
@@ -1345,162 +1044,23 @@ useEffect(() => {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Business ID</p>
-                    <p className="text-sm font-mono text-gray-700 mt-1">{business.id || getBusinessId()}</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
+                    <p className="text-sm font-medium text-gray-900 mt-1">{business.trading_name || 'Not set'}</p>
                   </div>
-                  
                   <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">Trading Name</p>
-                        <p className="text-sm font-medium text-gray-900 mt-1">{business.trading_name || 'Not set'}</p>
-                      </div>
-                      <button 
-                        onClick={() => openRequestModal('Trading Name', business.trading_name || '')}
-                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
-                      >
-                        Request Change
-                      </button>
-                    </div>
-                    {business.slogan && <p className="text-xs text-gray-500 italic">{business.slogan}</p>}
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Email</p>
+                    <p className="text-sm text-gray-700 mt-1">{business.email || 'Not set'}</p>
                   </div>
-                  
                   <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">Registered Name</p>
-                        <p className="text-sm text-gray-700 mt-1">{business.registered_name || 'Not set'}</p>
-                      </div>
-                      <button 
-                        onClick={() => openRequestModal('Registered Name', business.registered_name || '')}
-                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
-                      >
-                        Request Change
-                      </button>
-                    </div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
+                    <p className="text-sm text-gray-700 mt-1">{business.phone || 'Not set'}</p>
                   </div>
-                  
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">Email</p>
-                        {editingEmail ? (
-                          <div className="mt-1 flex items-center gap-2">
-                            <input
-                              type="email"
-                              value={newEmail}
-                              onChange={(e) => setNewEmail(e.target.value)}
-                              className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
-                              placeholder={business.email}
-                            />
-                            <button 
-                              onClick={updateEmail} 
-                              disabled={updatingEmail}
-                              className="text-green-600 text-xs hover:text-green-800 disabled:opacity-50"
-                            >
-                              {updatingEmail ? 'Saving...' : 'Save'}
-                            </button>
-                            <button 
-                              onClick={() => setEditingEmail(false)} 
-                              className="text-gray-500 text-xs hover:text-gray-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-700 mt-1">{business.email || 'Not set'}</p>
-                        )}
-                      </div>
-                      {!editingEmail && (
-                        <button 
-                          onClick={() => {
-                            setNewEmail(business.email || '');
-                            setEditingEmail(true);
-                          }}
-                          className="text-xs text-green-500 hover:text-green-700 ml-2"
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
-                        {editingPhone ? (
-                          <div className="mt-1 flex items-center gap-2">
-                            <input
-                              type="tel"
-                              value={newPhone}
-                              onChange={(e) => setNewPhone(e.target.value)}
-                              className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
-                              placeholder={business.phone}
-                            />
-                            <button 
-                              onClick={updatePhone} 
-                              disabled={updatingPhone}
-                              className="text-green-600 text-xs hover:text-green-800 disabled:opacity-50"
-                            >
-                              {updatingPhone ? 'Saving...' : 'Save'}
-                            </button>
-                            <button 
-                              onClick={() => setEditingPhone(false)} 
-                              className="text-gray-500 text-xs hover:text-gray-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-700 mt-1">{business.phone || 'Not set'}</p>
-                        )}
-                      </div>
-                      {!editingPhone && (
-                        <button 
-                          onClick={() => {
-                            setNewPhone(business.phone || '');
-                            setEditingPhone(true);
-                          }}
-                          className="text-xs text-green-500 hover:text-green-700 ml-2"
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">Location</p>
-                        <p className="text-sm text-gray-700 mt-1">
-                          {business.physical_address?.city || ''}, {business.physical_address?.province || ''}
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => openRequestModal('Location', `${business.physical_address?.city || ''}, ${business.physical_address?.province || ''}`)}
-                        className="text-xs text-blue-500 hover:text-blue-700 ml-2"
-                      >
-                        Request Change
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {business.establishment_type && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">Establishment Type</p>
-                      <p className="text-sm text-gray-700 mt-1">{business.establishment_type}</p>
-                    </div>
-                  )}
-                  
                   {business.total_rooms && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Total Rooms</p>
                       <p className="text-sm text-gray-700 mt-1">{business.total_rooms}</p>
                     </div>
                   )}
-                  
                   {business.avg_price && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">Average Room Price</p>
@@ -1533,11 +1093,6 @@ useEffect(() => {
                             <p className="font-medium text-gray-900">{guest.guest_name}</p>
                             <p className="text-xs text-gray-500">{guest.guest_phone}</p>
                           </div>
-                          <a href={`mailto:${guest.guest_email}`} className="text-green-600 hover:text-green-800">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </a>
                         </div>
                       ))}
                     </div>
@@ -1565,11 +1120,6 @@ useEffect(() => {
                             <p className="font-medium text-gray-900">{guest.guest_name}</p>
                             <p className="text-xs text-gray-500">{guest.guest_phone}</p>
                           </div>
-                          <a href={`mailto:${guest.guest_email}`} className="text-blue-600 hover:text-blue-800">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </a>
                         </div>
                       ))}
                     </div>
@@ -1597,11 +1147,6 @@ useEffect(() => {
                             <p className="font-medium text-gray-900">{guest.guest_name}</p>
                             <p className="text-xs text-gray-500">{guest.guest_phone}</p>
                           </div>
-                          <a href={`mailto:${guest.guest_email}`} className="text-orange-600 hover:text-orange-800">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </a>
                         </div>
                       ))}
                     </div>
@@ -1661,276 +1206,264 @@ useEffect(() => {
           </div>
         )}
 
-        {/* If business is null, show loading or error */}
-        {activeTab === 'overview' && !business && (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <p className="text-gray-500">Unable to load business information. Please refresh the page.</p>
-            <button
-              onClick={refreshData}
-              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-            >
-              Retry
-            </button>
-          </div>
-        )}
+        {/* ============================================================ */}
+        {/* CHECK-INS TAB */}
+        {/* ============================================================ */}
+        {activeTab === 'checkins' && (
+          <div className="space-y-6">
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => {
+                      setDateRange(e.target.value as typeof dateRange);
+                      setStartDate('');
+                      setEndDate('');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="7days">Last 7 days</option>
+                    <option value="30days">Last 30 days</option>
+                    <option value="90days">Last 90 days</option>
+                    <option value="12months">Last 12 months</option>
+                    <option value="all">All time</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">From:</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setDateRange('all');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">To:</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setDateRange('all');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or phone..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
 
-       {/* ============================================================ */}
-{/* CHECK-INS TAB */}
-{/* ============================================================ */}
-{activeTab === 'checkins' && (
-  <div className="space-y-6">
-    {/* Filters */}
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="flex items-center gap-2">
-          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          <select
-            value={dateRange}
-            onChange={(e) => {
-              setDateRange(e.target.value as DateRange);
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-          >
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-            <option value="90days">Last 90 days</option>
-            <option value="12months">Last 12 months</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">From:</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setDateRange('all');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">To:</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setDateRange('all');
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-          />
-        </div>
-        
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-        </div>
-      </div>
+              <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="checked_in">Checked In</option>
+                  <option value="completed">Completed</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+                
+                <select
+                  value={provinceFilter}
+                  onChange={(e) => setProvinceFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Provinces</option>
+                  {uniqueProvinces.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                
+                <select
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Cities</option>
+                  {uniqueCities.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                
+                <select
+                  value={countryFilter}
+                  onChange={(e) => setCountryFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">All Countries</option>
+                  {uniqueCountries.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                
+                {isFilterActive() && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            </div>
 
-      <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-        >
-          <option value="">All Statuses</option>
-          <option value="checked_in">Checked In</option>
-          <option value="completed">Completed</option>
-          <option value="confirmed">Confirmed</option>
-        </select>
-        
-        <select
-          value={provinceFilter}
-          onChange={(e) => setProvinceFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-        >
-          <option value="">All Provinces</option>
-          {uniqueProvinces.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        
-        <select
-          value={cityFilter}
-          onChange={(e) => setCityFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-        >
-          <option value="">All Cities</option>
-          {uniqueCities.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        
-        <select
-          value={countryFilter}
-          onChange={(e) => setCountryFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-        >
-          <option value="">All Countries</option>
-          {uniqueCountries.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        
-        {/* ✅ FIXED: Clear filters button - resets to 'all' not '30days' */}
-        {(dateRange !== 'all' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter) && (
-          <button
-            onClick={() => {
-              setDateRange('all');  // ← CHANGED from '30days' to 'all'
-              setStartDate('');
-              setEndDate('');
-              setSearchTerm('');
-              setStatusFilter('');
-              setProvinceFilter('');
-              setCityFilter('');
-              setCountryFilter('');
-            }}
-            className="text-sm text-orange-600 hover:text-orange-700"
-          >
-            Clear all filters
-          </button>
-        )}
-      </div>
-    </div>
+            {/* Page Size Selector */}
+            <div className="flex justify-end items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(parseInt(e.target.value));
+                    setCurrentPage(1);
+                    loadBookings();
+                  }}
+                  className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+                >
+                  {PAGE_SIZE_OPTIONS.map(size => (
+                    <option key={size} value={size}>{size} per page</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-    {/* Check-ins Table */}
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-        <p className="text-sm text-gray-500">Total: {filteredBookings.length} bookings</p>
-      </div>
-      <div className="overflow-x-auto">
-        {filteredBookings.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400">No check-ins found</p>
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedBookings.map((booking, index) => (
-                <tr key={booking.id || index} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {booking.guest_name || 'N/A'}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-500">
-                    <div>{booking.guest_email || 'N/A'}</div>
-                    <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-500">
-                    <div>{booking.guest_country || 'N/A'}</div>
-                    <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                  </td>
-                  <td className="px-4 py-4 text-sm font-mono text-gray-500">
-                    {booking.guest_id_number ? (
-                      <span className="cursor-help">
-                        {booking.guest_id_number.substring(0, 8)}...
-                      </span>
-                    ) : 'N/A'}
-                    {booking.guest_id_photo && (
-                      <span className="ml-1 text-green-500" title="ID photo available">📷</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {booking.check_in_date || 'N/A'}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {booking.nights || 1}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    R {(booking.total_amount || 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {booking.booking_source || booking.referral_source || 'N/A'}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                      {booking.status || 'pending'}
+            {/* Check-ins Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+                <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
+              </div>
+              <div className="overflow-x-auto">
+                {filteredBookings.length === 0 && bookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400">Loading bookings...</p>
+                  </div>
+                ) : filteredBookings.length === 0 && bookings.length > 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400">No check-ins match your filters</p>
+                    <button
+                      onClick={clearAllFilters}
+                      className="mt-2 text-sm text-orange-600 hover:text-orange-700"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredBookings.map((booking, index) => (
+                        <tr key={booking.id || index} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {booking.guest_name || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            <div>{booking.guest_email || 'N/A'}</div>
+                            <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            <div>{booking.guest_country || 'N/A'}</div>
+                            <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
+                          </td>
+                          <td className="px-4 py-4 text-sm font-mono text-gray-500">
+                            {booking.guest_id_number ? (
+                              <span className="cursor-help">
+                                {booking.guest_id_number.substring(0, 8)}...
+                              </span>
+                            ) : 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.check_in_date || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            {booking.nights || 1}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            R {(booking.total_amount || 0).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.booking_source || booking.referral_source || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                              {booking.status || 'pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                  <p className="text-sm text-gray-500">
+                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {filteredBookings.length} bookings
+                  </p>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-3 py-1 text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
                     </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                    {booking.guest_id_photo ? (
-                      <button
-                        onClick={() => alert('ID photo available in guest profile')}
-                        className="text-blue-500 hover:text-blue-700 text-xs"
-                        title="View ID photo"
-                      >
-                        View ID
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => requestIDPhoto(booking)}
-                        className="text-orange-500 hover:text-orange-700 text-xs"
-                        title="Request ID photo"
-                      >
-                        Request ID
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      
-      {totalPages > 1 && (
-        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-          <p className="text-sm text-gray-500">
-            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
-          </p>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              Next
-            </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
+        )}
 
         {/* ============================================================ */}
         {/* REPORTS TAB */}
@@ -1948,7 +1481,7 @@ useEffect(() => {
                   <select
                     value={dateRange}
                     onChange={(e) => {
-                      setDateRange(e.target.value as DateRange);
+                      setDateRange(e.target.value as typeof dateRange);
                       setStartDate('');
                       setEndDate('');
                     }}
@@ -1987,16 +1520,12 @@ useEffect(() => {
                   />
                 </div>
                 
-                {(dateRange !== '30days' || startDate || endDate) && (
+                {isFilterActive() && (
                   <button
-                    onClick={() => {
-                      setDateRange('30days');
-                      setStartDate('');
-                      setEndDate('');
-                    }}
+                    onClick={clearAllFilters}
                     className="text-sm text-orange-600 hover:text-orange-700"
                   >
-                    Reset
+                    Clear filters
                   </button>
                 )}
               </div>
@@ -2023,10 +1552,13 @@ useEffect(() => {
                   </p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-500">Total Nights Booked</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0)}
-                  </p>
+                  <p className="text-sm text-gray-500">Export Data</p>
+                  <button
+                    onClick={exportToCSV}
+                    className="mt-2 px-3 py-1 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600"
+                  >
+                    Download CSV
+                  </button>
                 </div>
               </div>
             </div>
@@ -2035,7 +1567,7 @@ useEffect(() => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
-                {guestOriginData.length === 0 ? (
+                {filteredBookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
@@ -2043,7 +1575,10 @@ useEffect(() => {
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={guestOriginData}
+                        data={Object.entries(filteredBookings.reduce((acc, b) => {
+                          if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)).map(([name, value]) => ({ name, value }))}
                         cx="50%"
                         cy="50%"
                         innerRadius={60}
@@ -2052,7 +1587,10 @@ useEffect(() => {
                         dataKey="value"
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                       >
-                        {guestOriginData.map((entry, index) => (
+                        {Object.entries(filteredBookings.reduce((acc, b) => {
+                          if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)).map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -2064,7 +1602,7 @@ useEffect(() => {
 
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
-                {referralData.length === 0 ? (
+                {filteredBookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
@@ -2072,7 +1610,13 @@ useEffect(() => {
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={referralData}
+                        data={Object.entries(filteredBookings.reduce((acc, b) => {
+                          const source = b.booking_source || b.referral_source;
+                          if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
+                            acc[source] = (acc[source] || 0) + 1;
+                          }
+                          return acc;
+                        }, {} as Record<string, number>)).map(([name, value]) => ({ name, value }))}
                         cx="50%"
                         cy="50%"
                         innerRadius={60}
@@ -2081,7 +1625,13 @@ useEffect(() => {
                         dataKey="value"
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                       >
-                        {referralData.map((entry, index) => (
+                        {Object.entries(filteredBookings.reduce((acc, b) => {
+                          const source = b.booking_source || b.referral_source;
+                          if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
+                            acc[source] = (acc[source] || 0) + 1;
+                          }
+                          return acc;
+                        }, {} as Record<string, number>)).map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -2110,18 +1660,8 @@ useEffect(() => {
                       <div><span className="text-gray-500">Business ID:</span> {getBusinessId()}</div>
                       <div><span className="text-gray-500">Trading Name:</span> {business?.trading_name}</div>
                       {business?.slogan && <div><span className="text-gray-500">Slogan:</span> <span className="italic">{business.slogan}</span></div>}
-                      <div><span className="text-gray-500">Registered Name:</span> {business?.registered_name}</div>
                       <div><span className="text-gray-500">Email:</span> {business?.email}</div>
                       <div><span className="text-gray-500">Phone:</span> {business?.phone}</div>
-                      {business?.physical_address?.city && (
-                        <div><span className="text-gray-500">Location:</span> {business.physical_address.city}, {business.physical_address.province}</div>
-                      )}
-                      {business?.establishment_type && (
-                        <div><span className="text-gray-500">Establishment Type:</span> {business.establishment_type}</div>
-                      )}
-                      {business?.tgsa_grading && business.tgsa_grading !== 'NA' && (
-                        <div><span className="text-gray-500">TGSA Grading:</span> {business.tgsa_grading}</div>
-                      )}
                     </div>
                   </div>
                   
@@ -2130,7 +1670,6 @@ useEffect(() => {
                     <div className="space-y-2 text-sm">
                       <div><span className="text-gray-500">Total Rooms:</span> {business?.total_rooms || 'Not set'}</div>
                       <div><span className="text-gray-500">Average Room Price:</span> {business?.avg_price ? `R ${business.avg_price.toLocaleString()}` : 'Not set'}</div>
-                      <div><span className="text-gray-500">Welcome Message:</span> {business?.welcome_message || 'Not set'}</div>
                     </div>
                   </div>
                 </div>
@@ -2142,130 +1681,12 @@ useEffect(() => {
                   </div>
                 )}
                 
-                {business?.hero_image_url && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Hero Image</p>
-                    <img src={business.hero_image_url} alt="Hero Image" className="h-32 w-auto border rounded-lg p-2 bg-white object-cover" />
-                  </div>
-                )}
-                
                 <button
                   onClick={() => setEditingProfile(true)}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                 >
                   Edit Profile
                 </button>
-
-                {/* Newsletter Settings */}
-                <div className="border-t border-gray-200 pt-6 mt-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">📧 Newsletter Promotion</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Enable to include a newsletter subscription offer in your check-in confirmation emails.
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">Enable Newsletter Promotion</p>
-                        <p className="text-sm text-gray-500">Add a "Win Your Next Stay" block to confirmation emails</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newsletterEnabled}
-                          onChange={(e) => setNewsletterEnabled(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                      </label>
-                    </div>
-                    
-                    {newsletterEnabled && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Promotion Title</label>
-                          <input
-                            type="text"
-                            value={newsletterTitle}
-                            onChange={(e) => setNewsletterTitle(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Prize Description</label>
-                          <input
-                            type="text"
-                            value={newsletterPrize}
-                            onChange={(e) => setNewsletterPrize(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">CTA Button Text</label>
-                          <input
-                            type="text"
-                            value={newsletterCta}
-                            onChange={(e) => setNewsletterCta(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Draw Date (Optional)</label>
-                          <input
-                            type="date"
-                            value={newsletterDrawDate}
-                            onChange={(e) => setNewsletterDrawDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Share Text</label>
-                          <input
-                            type="text"
-                            value={newsletterShareText}
-                            onChange={(e) => setNewsletterShareText(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
-                          <textarea
-                            value={newsletterTerms}
-                            onChange={(e) => setNewsletterTerms(e.target.value)}
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                        </div>
-                        
-                        <div className="md:col-span-2">
-                          <button
-                            onClick={saveNewsletterSettings}
-                            disabled={savingNewsletter}
-                            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                          >
-                            {savingNewsletter ? 'Saving...' : 'Save Newsletter Settings'}
-                          </button>
-                        </div>
-                        
-                        <div className="md:col-span-2 bg-white p-4 rounded-lg border border-gray-200">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                          <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-4 rounded-lg text-center">
-                            <p className="font-bold text-amber-800">🎁 {newsletterTitle}</p>
-                            <p className="text-sm text-amber-700 mt-1">✨ {newsletterPrize} ✨</p>
-                            <button className="mt-2 px-4 py-1 bg-amber-500 text-white rounded-full text-xs">
-                              {newsletterCta}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -2277,7 +1698,6 @@ useEffect(() => {
                       value={profileForm.total_rooms}
                       onChange={(e) => setProfileForm({ ...profileForm, total_rooms: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="e.g., 20"
                     />
                   </div>
                   <div>
@@ -2286,20 +1706,17 @@ useEffect(() => {
                       type="number"
                       value={profileForm.avg_price}
                       onChange={(e) => setProfileForm({ ...profileForm, avg_price: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="e.g., 1500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Slogan (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slogan</label>
                     <input
                       type="text"
                       value={profileForm.slogan}
                       onChange={(e) => setProfileForm({ ...profileForm, slogan: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="Your business slogan"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Appears on check-in welcome page</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
@@ -2307,15 +1724,14 @@ useEffect(() => {
                       type="text"
                       value={profileForm.welcome_message}
                       onChange={(e) => setProfileForm({ ...profileForm, welcome_message: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                      placeholder="Welcome to our establishment"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Business Logo</label>
                     <div className="flex items-center gap-4">
                       {profileForm.logo_url ? (
-                        <img src={profileForm.logo_url} alt="Business Logo Preview" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
+                        <img src={profileForm.logo_url} alt="Logo Preview" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
                       ) : (
                         <div className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
                           <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2335,7 +1751,7 @@ useEffect(() => {
                         <button
                           onClick={() => document.getElementById('logo-upload')?.click()}
                           disabled={uploadingLogo}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                         >
                           {uploadingLogo ? 'Uploading...' : 'Choose Image'}
                         </button>
@@ -2344,46 +1760,6 @@ useEffect(() => {
                       {profileForm.logo_url && (
                         <button
                           onClick={() => setProfileForm({ ...profileForm, logo_url: '' })}
-                          className="text-red-500 hover:text-red-700 text-sm"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Hero Image (Check-in Welcome Page)</label>
-                    <div className="flex items-center gap-4">
-                      {profileForm.hero_image_url ? (
-                        <img src={profileForm.hero_image_url} alt="Hero Image Preview" className="h-20 w-32 object-cover border rounded-lg p-1 bg-white" />
-                      ) : (
-                        <div className="h-20 w-32 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <input
-                          type="file"
-                          id="hero-upload"
-                          accept="image/*"
-                          onChange={handleHeroUpload}
-                          className="hidden"
-                          disabled={uploadingHero}
-                        />
-                        <button
-                          onClick={() => document.getElementById('hero-upload')?.click()}
-                          disabled={uploadingHero}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                        >
-                          {uploadingHero ? 'Uploading...' : 'Choose Hero Image'}
-                        </button>
-                        <p className="text-xs text-gray-400 mt-1">Recommended: 1200x600px, JPG/PNG up to 5MB</p>
-                      </div>
-                      {profileForm.hero_image_url && (
-                        <button
-                          onClick={() => setProfileForm({ ...profileForm, hero_image_url: '' })}
                           className="text-red-500 hover:text-red-700 text-sm"
                         >
                           Remove
@@ -2411,87 +1787,45 @@ useEffect(() => {
             )}
           </div>
         )}
+      </main>
 
-      {/* Request Change Modal */}
+      {/* Modals */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full">
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Change: {requestField}</h3>
-              
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Value</label>
-                <input
-                  type="text"
-                  value={requestCurrentValue}
-                  disabled
-                  className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg"
-                />
+                <input type="text" value={requestCurrentValue} disabled className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg" />
               </div>
-              
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Value *</label>
-                <input
-                  type="text"
-                  value={requestNewValue}
-                  onChange={(e) => setRequestNewValue(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="Enter the new value"
-                />
+                <input type="text" value={requestNewValue} onChange={(e) => setRequestNewValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
               </div>
-              
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Change *</label>
-                <textarea
-                  rows={3}
-                  value={requestReason}
-                  onChange={(e) => setRequestReason(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="Please explain why this change is needed..."
-                />
+                <textarea rows={3} value={requestReason} onChange={(e) => setRequestReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
               </div>
-              
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowRequestModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitChangeRequest}
-                  disabled={sendingRequest || !requestNewValue || !requestReason}
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {sendingRequest ? 'Submitting...' : 'Submit Request'}
-                </button>
+                <button onClick={() => setShowRequestModal(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
+                <button onClick={submitChangeRequest} disabled={sendingRequest || !requestNewValue || !requestReason} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">Submit</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Appeal Modal */}
       {showAppealModal && rejectedRequest && business && (
         <AppealModal
           isOpen={showAppealModal}
-          onClose={() => {
-            setShowAppealModal(false);
-            setRejectedRequest(null);
-          }}
+          onClose={() => { setShowAppealModal(false); setRejectedRequest(null); }}
           request={rejectedRequest}
-          business={{
-            id: business.id,
-            trading_name: business.trading_name,
-            email: business.email
-          }}
-          onSubmit={() => {
-            fetchChangeRequests();
-          }}
+          business={{ id: business.id, trading_name: business.trading_name, email: business.email }}
+          onSubmit={() => fetchChangeRequests()}
         />
       )}
 
-      {/* QR Code Modal */}
       {showQRModal && business && (
         <QRCodeModal
           businessId={business.id}
@@ -2502,18 +1836,13 @@ useEffect(() => {
         />
       )}
 
-           {/* Import Google Forms Modal */}
       {showImportModal && business && (
         <ImportGoogleForms
           businessId={business.id || getBusinessId()}
-          onImportComplete={() => {
-            loadBookings();
-            setShowImportModal(false);
-          }}
+          onImportComplete={() => { loadBookings(); setShowImportModal(false); }}
           onClose={() => setShowImportModal(false)}
         />
       )}
-    </main>
     </div>
   );
 }
