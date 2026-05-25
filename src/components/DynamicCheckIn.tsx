@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import CheckInForm from './CheckInForm';
+import CheckInForm from '../components/CheckInForm';
 
 interface BusinessBranding {
   id: string;
@@ -15,6 +15,8 @@ export default function DynamicCheckIn() {
   const { businessId } = useParams<{ businessId: string }>();
   const [business, setBusiness] = useState<BusinessBranding | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Loading check-in system...');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,6 +26,23 @@ export default function DynamicCheckIn() {
       return;
     }
 
+    // Progress simulation for better UX
+    const progressSteps = [
+      { progress: 20, message: 'Connecting to secure server...', time: 300 },
+      { progress: 40, message: 'Loading business information...', time: 600 },
+      { progress: 60, message: 'Preparing secure check-in form...', time: 900 },
+      { progress: 80, message: 'Almost ready...', time: 1200 },
+    ];
+
+    let stepIndex = 0;
+    const progressInterval = setInterval(() => {
+      if (stepIndex < progressSteps.length) {
+        setLoadingProgress(progressSteps[stepIndex].progress);
+        setLoadingMessage(progressSteps[stepIndex].message);
+        stepIndex++;
+      }
+    }, 800);
+
     // Fetch business branding
     fetch(`/.netlify/functions/get-business-branding?id=${businessId}`)
       .then(res => {
@@ -31,25 +50,63 @@ export default function DynamicCheckIn() {
         return res.json();
       })
       .then(data => {
+        setLoadingProgress(100);
+        setLoadingMessage('Ready!');
         setBusiness(data);
-        // ✅ CRITICAL: Update browser tab title dynamically
+        // Update browser tab title dynamically
         document.title = `${data.trading_name} - Check-In | FastCheckin`;
-        setLoading(false);
+        
+        // Small delay for smooth transition
+        setTimeout(() => setLoading(false), 500);
       })
       .catch(err => {
         console.error('Error fetching business:', err);
         setError(err.message);
         setLoading(false);
+      })
+      .finally(() => {
+        clearInterval(progressInterval);
       });
+
+    return () => clearInterval(progressInterval);
   }, [businessId]);
 
-  // Loading state
+  // Enhanced Loading state with progress bar
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p className="text-white">Loading check-in...</p>
+        <div className="text-center max-w-md mx-auto px-4">
+          {/* Animated logo */}
+          <div className="mb-8">
+            <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+              <svg className="w-10 h-10 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full bg-stone-700 rounded-full h-2 mb-4 overflow-hidden">
+            <div 
+              className="bg-amber-500 h-2 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          
+          {/* Loading message */}
+          <p className="text-stone-300 text-sm font-medium">
+            {loadingMessage}
+          </p>
+          <p className="text-stone-500 text-xs mt-2">
+            Please wait while we prepare your secure check-in
+          </p>
+          
+          {/* Spinner dots */}
+          <div className="mt-6 flex justify-center space-x-1">
+            <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
         </div>
       </div>
     );
@@ -63,9 +120,9 @@ export default function DynamicCheckIn() {
           <div className="text-6xl mb-4">🔒</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Check-in Link</h1>
           <p className="text-gray-600 mb-6">
-            This check-in link is invalid or the business no longer exists.
+            {error || 'This check-in link is invalid or the business no longer exists.'}
           </p>
-          <a href="/" className="inline-block bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold">
+          <a href="/" className="inline-block bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-600 transition-colors">
             Return to Home
           </a>
         </div>
@@ -73,7 +130,7 @@ export default function DynamicCheckIn() {
     );
   }
 
-  // ✅ Pass business branding to CheckInForm
+  // Pass business branding to CheckInForm
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Dynamic Hero Section (if hero image exists) */}
@@ -84,6 +141,7 @@ export default function DynamicCheckIn() {
               src={business.hero_image_url} 
               alt={business.trading_name}
               className="w-full h-full object-cover"
+              onLoad={() => console.log('Hero image loaded')}
             />
             <div className="absolute inset-0 bg-black/50" />
           </div>
@@ -94,6 +152,7 @@ export default function DynamicCheckIn() {
                   src={business.logo_url} 
                   alt={business.trading_name}
                   className="h-20 w-auto object-contain mb-6"
+                  onLoad={() => console.log('Logo loaded')}
                 />
               )}
               <h1 className="text-5xl md:text-6xl font-serif font-bold mb-4">
@@ -117,7 +176,7 @@ export default function DynamicCheckIn() {
       <CheckInForm 
         onComplete={(booking) => {
           console.log('Check-in complete:', booking);
-          // Handle post-check-in success (show modal, etc.)
+          // Handle post-check-in success
         }}
         businessId={businessId}
       />
