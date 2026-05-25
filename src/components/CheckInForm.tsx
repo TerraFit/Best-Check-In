@@ -252,23 +252,27 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     };
   }, [cameraStream]);
 
-  const fetchBusinessBranding = async () => {
-    try {
-      console.log('📡 Fetching business branding for ID:', businessId);
-      const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Business branding received');
-        setBranding(data);
-      } else {
-        console.error('❌ Failed to fetch branding:', response.status);
-      }
-    } catch (error) {
-      console.error('Error fetching business branding:', error);
-    } finally {
-      setLoadingBranding(false);
+  // In src/components/CheckInForm.tsx, around line 320-340
+
+const fetchBusinessBranding = async () => {
+  try {
+    console.log('📡 Fetching business branding for ID:', businessId);
+    setLoadingBranding(true);
+    
+    const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Business branding received');
+      setBranding(data);
+    } else {
+      console.error('❌ Failed to fetch branding:', response.status);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching business branding:', error);
+  } finally {
+    setLoadingBranding(false);
+  }
+};
 
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
@@ -820,14 +824,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     );
   }
 
-  if (loadingBranding) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2" 
-             style={{ borderColor: branding?.primary_color || '#f59e0b' }}></div>
+  // Better loading state with message
+if (loadingBranding) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" 
+             style={{ borderColor: branding?.primary_color || '#f59e0b' }} />
+        <p className="text-stone-600 text-sm">Loading check-in form...</p>
+        <p className="text-stone-400 text-xs mt-2">Please wait while we prepare your secure check-in</p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   const primaryColor = branding?.primary_color || '#f59e0b';
   const secondaryColor = branding?.secondary_color || '#1e1e1e';
