@@ -69,7 +69,8 @@ export const handler = async (event) => {
       return createResponse(500, { success: false, error: 'Server configuration error' });
     }
 
-    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
+    // ✅ FIXED: Use unified bookings table
+    const BOOKINGS_TABLE = 'bookings';
     
     // Build URL with filters
     let url = `${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}?business_id=eq.${targetBusinessId}&select=*&order=check_in_date.desc&limit=${limit}`;
@@ -119,7 +120,7 @@ export const handler = async (event) => {
     console.log(`✅ Total bookings fetched: ${allBookings.length}`);
 
     // ============================================================
-    // FULL ANALYTICS - NOTHING REMOVED
+    // FULL ANALYTICS WITH FIXED STAYOVER CALCULATION
     // ============================================================
     
     const totalRevenue = allBookings.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
@@ -158,13 +159,41 @@ export const handler = async (event) => {
       ? (allBookings.reduce((sum, b) => sum + (Number(b.nights) || Number(b.num_nights) || 1), 0) / allBookings.length).toFixed(1)
       : 0;
 
-    // Today's activity calculations
-    const today = new Date().toISOString().split('T')[0];
-    const todayCheckIns = allBookings.filter(b => b.check_in_date === today).length;
-    const todayCheckOuts = allBookings.filter(b => b.check_out_date === today).length;
-    const todayStayovers = allBookings.filter(b => 
-      b.check_in_date <= today && b.check_out_date > today
-    ).length;
+    // ✅ FIXED: Today's activity calculations with proper date handling
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Today's check-ins (arrivals)
+    const todayCheckIns = allBookings.filter(b => b.check_in_date === todayStr).length;
+    
+    // Today's check-outs (departures)
+    const todayCheckOuts = allBookings.filter(b => b.check_out_date === todayStr).length;
+    
+    // ✅ FIXED: Current stayovers (guests who checked in before today and haven't checked out yet)
+    const todayStayovers = allBookings.filter(b => {
+      if (!b.check_in_date) return false;
+      
+      const checkInDate = new Date(b.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
+      
+      // If check-in is today, it's an arrival, not a stayover
+      if (checkInDate.getTime() === today.getTime()) return false;
+      
+      // If check-in is in the future, not a stayover yet
+      if (checkInDate > today) return false;
+      
+      // If no check-out date, they're still here
+      if (!b.check_out_date) return true;
+      
+      const checkOutDate = new Date(b.check_out_date);
+      checkOutDate.setHours(0, 0, 0, 0);
+      
+      // Stayover if check-out is AFTER today OR equal to today (they haven't left yet)
+      return checkOutDate >= today;
+    }).length;
+
+    console.log(`📊 Today's Stats - Arrivals: ${todayCheckIns}, Stayovers: ${todayStayovers}, Departures: ${todayCheckOuts}`);
 
     return createResponse(200, {
       success: true,
