@@ -435,11 +435,12 @@ const loadBookings = async () => {
       console.log('📋 Check-ins tab - fetching past and present bookings (check_in_date <= today)');
       url += `&endDate=${today}`;  // Only bookings with check_in_date <= today
     } 
-    // For Overview tab - show only active (future bookings + current stayovers)
-    else if (activeTab === 'overview') {
-      console.log('📅 Overview tab - fetching future/upcoming bookings');
-      url += `&futureOnly=true`;
-    }
+   // For Overview tab - fetch ALL bookings, then filter in frontend
+else if (activeTab === 'overview') {
+  console.log('📅 Overview tab - fetching all bookings for stayovers and future arrivals');
+  // Don't add any date filters - get everything
+  // URL already has the base with businessId and limit
+}
     // For Reports tab - respect date filters
     else if (activeTab === 'reports') {
       if (startDate && endDate) {
