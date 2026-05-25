@@ -42,6 +42,10 @@
 [functions."generate-monthly-reports"]
   schedule = "0 5 1 * *"
 
+# ✅ Archive old bookings - Runs daily at 2 AM (keeps active tables manageable)
+[functions."archive-old-bookings"]
+  schedule = "0 2 * * *"
+
 # ============================================================
 # REDIRECTS
 # ============================================================
