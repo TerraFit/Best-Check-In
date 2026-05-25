@@ -1631,262 +1631,263 @@ useEffect(() => {
           </div>
         )}
 
-        {/* ============================================================ */}
-        {/* CHECK-INS TAB */}
-        {/* ============================================================ */}
-        {activeTab === 'checkins' && (
-          <div className="space-y-6">
-            {/* Filters */}
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-2">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <select
-                    value={dateRange}
-                    onChange={(e) => {
-                      setDateRange(e.target.value as DateRange);
-                      setStartDate('');
-                      setEndDate('');
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                  >
-                    <option value="7days">Last 7 days</option>
-                    <option value="30days">Last 30 days</option>
-                    <option value="90days">Last 90 days</option>
-                    <option value="12months">Last 12 months</option>
-                    <option value="all">All time</option>
-                  </select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">From:</span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setDateRange('all');
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">To:</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setDateRange('all');
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-                
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search by name, email, or phone..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                >
-                  <option value="">All Statuses</option>
-                  <option value="checked_in">Checked In</option>
-                  <option value="completed">Completed</option>
-                  <option value="confirmed">Confirmed</option>
-                </select>
-                
-                <select
-                  value={provinceFilter}
-                  onChange={(e) => setProvinceFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                >
-                  <option value="">All Provinces</option>
-                  {uniqueProvinces.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                
-                <select
-                  value={cityFilter}
-                  onChange={(e) => setCityFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                >
-                  <option value="">All Cities</option>
-                  {uniqueCities.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                
-                <select
-                  value={countryFilter}
-                  onChange={(e) => setCountryFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-                >
-                  <option value="">All Countries</option>
-                  {uniqueCountries.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                
-                {(dateRange !== '30days' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter) && (
-                  <button
-                    onClick={() => {
-                      setDateRange('30days');
-                      setStartDate('');
-                      setEndDate('');
-                      setSearchTerm('');
-                      setStatusFilter('');
-                      setProvinceFilter('');
-                      setCityFilter('');
-                      setCountryFilter('');
-                    }}
-                    className="text-sm text-orange-600 hover:text-orange-700"
-                  >
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Check-ins Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-                <p className="text-sm text-gray-500">Total: {filteredBookings.length} bookings</p>
-              </div>
-              <div className="overflow-x-auto">
-                {filteredBookings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400">No check-ins found</p>
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedBookings.map((booking, index) => (
-                        <tr key={booking.id || index} className="hover:bg-gray-50">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {booking.guest_name || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-500">
-                            <div>{booking.guest_email || 'N/A'}</div>
-                            <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-500">
-                            <div>{booking.guest_country || 'N/A'}</div>
-                            <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                          </td>
-                          <td className="px-4 py-4 text-sm font-mono text-gray-500">
-                            {booking.guest_id_number ? (
-                              <span className="cursor-help">
-                                {booking.guest_id_number.substring(0, 8)}...
-                              </span>
-                            ) : 'N/A'}
-                            {booking.guest_id_photo && (
-                              <span className="ml-1 text-green-500" title="ID photo available">📷</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.check_in_date || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {booking.nights || 1}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            R {(booking.total_amount || 0).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.booking_source || booking.referral_source || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                              {booking.status || 'pending'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            {booking.guest_id_photo ? (
-                              <button
-                                onClick={() => alert('ID photo available in guest profile')}
-                                className="text-blue-500 hover:text-blue-700 text-xs"
-                                title="View ID photo"
-                              >
-                                View ID
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => requestIDPhoto(booking)}
-                                className="text-orange-500 hover:text-orange-700 text-xs"
-                                title="Request ID photo"
-                              >
-                                Request ID
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              
-              {totalPages > 1 && (
-                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-                  <p className="text-sm text-gray-500">
-                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
-                  </p>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+       {/* ============================================================ */}
+{/* CHECK-INS TAB */}
+{/* ============================================================ */}
+{activeTab === 'checkins' && (
+  <div className="space-y-6">
+    {/* Filters */}
+    <div className="bg-white rounded-lg shadow p-4">
+      <div className="flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2">
+          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <select
+            value={dateRange}
+            onChange={(e) => {
+              setDateRange(e.target.value as DateRange);
+              setStartDate('');
+              setEndDate('');
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+          >
+            <option value="7days">Last 7 days</option>
+            <option value="30days">Last 30 days</option>
+            <option value="90days">Last 90 days</option>
+            <option value="12months">Last 12 months</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">From:</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setDateRange('all');
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">To:</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setDateRange('all');
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+          />
+        </div>
+        
+        <div className="flex-1 min-w-[200px]">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search by name, email, or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+            />
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+        >
+          <option value="">All Statuses</option>
+          <option value="checked_in">Checked In</option>
+          <option value="completed">Completed</option>
+          <option value="confirmed">Confirmed</option>
+        </select>
+        
+        <select
+          value={provinceFilter}
+          onChange={(e) => setProvinceFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+        >
+          <option value="">All Provinces</option>
+          {uniqueProvinces.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        
+        <select
+          value={cityFilter}
+          onChange={(e) => setCityFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+        >
+          <option value="">All Cities</option>
+          {uniqueCities.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        
+        <select
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
+        >
+          <option value="">All Countries</option>
+          {uniqueCountries.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        
+        {/* ✅ FIXED: Clear filters button - resets to 'all' not '30days' */}
+        {(dateRange !== 'all' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter) && (
+          <button
+            onClick={() => {
+              setDateRange('all');  // ← CHANGED from '30days' to 'all'
+              setStartDate('');
+              setEndDate('');
+              setSearchTerm('');
+              setStatusFilter('');
+              setProvinceFilter('');
+              setCityFilter('');
+              setCountryFilter('');
+            }}
+            className="text-sm text-orange-600 hover:text-orange-700"
+          >
+            Clear all filters
+          </button>
         )}
+      </div>
+    </div>
+
+    {/* Check-ins Table */}
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+        <p className="text-sm text-gray-500">Total: {filteredBookings.length} bookings</p>
+      </div>
+      <div className="overflow-x-auto">
+        {filteredBookings.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-400">No check-ins found</p>
+          </div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {paginatedBookings.map((booking, index) => (
+                <tr key={booking.id || index} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {booking.guest_name || 'N/A'}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-500">
+                    <div>{booking.guest_email || 'N/A'}</div>
+                    <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-500">
+                    <div>{booking.guest_country || 'N/A'}</div>
+                    <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
+                  </td>
+                  <td className="px-4 py-4 text-sm font-mono text-gray-500">
+                    {booking.guest_id_number ? (
+                      <span className="cursor-help">
+                        {booking.guest_id_number.substring(0, 8)}...
+                      </span>
+                    ) : 'N/A'}
+                    {booking.guest_id_photo && (
+                      <span className="ml-1 text-green-500" title="ID photo available">📷</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {booking.check_in_date || 'N/A'}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                    {booking.nights || 1}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                    R {(booking.total_amount || 0).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {booking.booking_source || booking.referral_source || 'N/A'}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                      {booking.status || 'pending'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    {booking.guest_id_photo ? (
+                      <button
+                        onClick={() => alert('ID photo available in guest profile')}
+                        className="text-blue-500 hover:text-blue-700 text-xs"
+                        title="View ID photo"
+                      >
+                        View ID
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => requestIDPhoto(booking)}
+                        className="text-orange-500 hover:text-orange-700 text-xs"
+                        title="Request ID photo"
+                      >
+                        Request ID
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      
+      {totalPages > 1 && (
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+          <p className="text-sm text-gray-500">
+            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
+          </p>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
         {/* ============================================================ */}
         {/* REPORTS TAB */}
