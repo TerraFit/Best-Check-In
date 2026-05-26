@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
@@ -23,11 +22,7 @@ export const handler = async function(event) {
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
+    process.env.SUPABASE_SERVICE_KEY
   );
 
   try {
@@ -43,6 +38,7 @@ export const handler = async function(event) {
       };
     }
 
+    // Prepare profile data
     const profileToSave = {
       email: email.toLowerCase().trim(),
       full_name: profileData.fullName || '',
@@ -56,6 +52,14 @@ export const handler = async function(event) {
       updated_at: new Date().toISOString()
     };
 
+    // Remove undefined fields
+    Object.keys(profileToSave).forEach(key => {
+      if (profileToSave[key] === undefined) {
+        delete profileToSave[key];
+      }
+    });
+
+    // Upsert the profile
     const { data, error } = await supabase
       .from('guest_profiles')
       .upsert(profileToSave, {
@@ -67,9 +71,8 @@ export const handler = async function(event) {
     if (error) {
       console.error('❌ Database error:', error);
       
-      if (error.message.includes('column') && (error.message.includes('first_name') || error.message.includes('last_name'))) {
-        console.log('⚠️ Trying simplified profile save without first_name/last_name');
-        
+      // Try simplified version if column error
+      if (error.message.includes('column')) {
         const simplifiedProfile = {
           email: email.toLowerCase().trim(),
           full_name: profileData.fullName || '',
@@ -91,7 +94,14 @@ export const handler = async function(event) {
           
         if (simplifiedError) {
           console.error('❌ Simplified save also failed:', simplifiedError);
-          throw simplifiedError;
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              success: false, 
+              error: simplifiedError.message 
+            })
+          };
         }
         
         console.log('✅ Guest profile saved (simplified):', simplifiedData);
@@ -106,11 +116,19 @@ export const handler = async function(event) {
         };
       }
       
-      throw error;
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          success: false, 
+          error: error.message 
+        })
+      };
     }
 
     console.log('✅ Guest profile saved:', data);
     
+    // Update visit count
     const { data: existingProfile } = await supabase
       .from('guest_profiles')
       .select('total_visits')
