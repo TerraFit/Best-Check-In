@@ -43,33 +43,7 @@ export const handler = async (event) => {
 
     const BOOKINGS_TABLE = 'bookings';
 
-    // Get business info (without max_active_bookings to avoid missing column error)
-    const businessResponse = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${body.business_id}&select=trading_name,subscription_tier`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      }
-    );
-
-    if (!businessResponse.ok) {
-      throw new Error(`Failed to fetch business data: ${businessResponse.status}`);
-    }
-
-    const businesses = await businessResponse.json();
-    const business = businesses[0];
-
-    if (!business) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found' })
-      };
-    }
-
-    // Clean names - Remove titles (Mr., Mrs., Dr., etc.)
+    // Clean names - Remove titles
     const cleanName = (name) => {
       if (!name) return '';
       const titlePattern = /^(Mr\.?|Mrs\.?|Ms\.?|Miss\.?|Dr\.?|Prof\.?|Rev\.?)\s+/i;
@@ -119,7 +93,7 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log(`💾 Saving booking for ${business.trading_name} to:`, BOOKINGS_TABLE);
+    console.log('💾 Saving booking to:', BOOKINGS_TABLE);
     console.log('📦 Booking data:', JSON.stringify(bookingData, null, 2));
 
     const response = await fetch(`${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}`, {
@@ -151,7 +125,7 @@ export const handler = async (event) => {
     const result = await response.json();
     const newBooking = result[0];
 
-    console.log(`✅ Booking saved successfully for ${business.trading_name}:`, newBooking?.id);
+    console.log('✅ Booking saved successfully:', newBooking?.id);
 
     return {
       statusCode: 200,
@@ -170,8 +144,7 @@ export const handler = async (event) => {
       headers,
       body: JSON.stringify({
         success: false,
-        error: err.message || 'Internal Server Error',
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        error: err.message || 'Internal Server Error'
       })
     };
   }
