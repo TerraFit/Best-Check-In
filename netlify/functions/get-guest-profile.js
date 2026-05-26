@@ -1,19 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  if (event.httpMethod !== 'POST') {
+  if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
       headers,
@@ -23,17 +22,13 @@ export const handler = async function(event) {
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
+    process.env.SUPABASE_SERVICE_KEY
   );
 
   try {
-    const { email, profileData } = JSON.parse(event.body);
-
-    console.log('📝 Saving guest profile for email:', email);
+    const email = event.queryStringParameters?.email;
+    
+    console.log('🔍 Loading guest profile for email:', email);
 
     if (!email) {
       return {
@@ -43,102 +38,58 @@ export const handler = async function(event) {
       };
     }
 
-    const profileToSave = {
-      email: email.toLowerCase().trim(),
-      full_name: profileData.fullName || '',
-      first_name: profileData.firstName || '',
-      last_name: profileData.lastName || '',
-      phone: profileData.phone || '',
-      passport_or_id: profileData.passportOrId || '',
-      country: profileData.country || '',
-      city: profileData.city || '',
-      province: profileData.province || '',
-      updated_at: new Date().toISOString()
-    };
-
     const { data, error } = await supabase
       .from('guest_profiles')
-      .upsert(profileToSave, {
-        onConflict: 'email',
-        ignoreDuplicates: false
-      })
-      .select();
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
 
     if (error) {
       console.error('❌ Database error:', error);
-      
-      if (error.message.includes('column') && (error.message.includes('first_name') || error.message.includes('last_name'))) {
-        console.log('⚠️ Trying simplified profile save without first_name/last_name');
-        
-        const simplifiedProfile = {
-          email: email.toLowerCase().trim(),
-          full_name: profileData.fullName || '',
-          phone: profileData.phone || '',
-          passport_or_id: profileData.passportOrId || '',
-          country: profileData.country || '',
-          city: profileData.city || '',
-          province: profileData.province || '',
-          updated_at: new Date().toISOString()
-        };
-        
-        const { data: simplifiedData, error: simplifiedError } = await supabase
-          .from('guest_profiles')
-          .upsert(simplifiedProfile, {
-            onConflict: 'email',
-            ignoreDuplicates: false
-          })
-          .select();
-          
-        if (simplifiedError) {
-          console.error('❌ Simplified save also failed:', simplifiedError);
-          throw simplifiedError;
-        }
-        
-        console.log('✅ Guest profile saved (simplified):', simplifiedData);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ 
-            success: true, 
-            message: 'Profile saved successfully',
-            profile: simplifiedData
-          })
-        };
-      }
-      
-      throw error;
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: error.message })
+      };
     }
 
-    console.log('✅ Guest profile saved:', data);
-    
-    const { data: existingProfile } = await supabase
-      .from('guest_profiles')
-      .select('total_visits')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-    
-    if (existingProfile) {
-      await supabase
-        .from('guest_profiles')
-        .update({ 
-          total_visits: (existingProfile.total_visits || 0) + 1,
-          last_visit_date: new Date().toISOString().split('T')[0]
+    if (!data) {
+      console.log('ℹ️ No profile found for email:', email);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          success: true, 
+          profile: null,
+          message: 'No profile found' 
         })
-        .eq('email', email.toLowerCase().trim());
+      };
     }
+
+    console.log('✅ Guest profile found:', data);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
-        message: 'Profile saved successfully',
-        profile: data
+        profile: {
+          full_name: data.full_name,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          passport_or_id: data.passport_or_id,
+          country: data.country,
+          city: data.city,
+          province: data.province,
+          total_visits: data.total_visits,
+          last_visit_date: data.last_visit_date
+        }
       })
     };
 
   } catch (error) {
-    console.error('❌ Error saving guest profile:', error);
+    console.error('❌ Error loading guest profile:', error);
     return {
       statusCode: 500,
       headers,
