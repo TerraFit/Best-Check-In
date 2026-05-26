@@ -1902,9 +1902,9 @@ export default function BusinessDashboard() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </main>
+        </div>
+      )}
+    </div>  // ← Changed from </main> to </div>
 
       {/* Modals */}
       {showRequestModal && (
