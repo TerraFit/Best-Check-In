@@ -585,10 +585,11 @@ export default function BusinessDashboard() {
   };
 
   // ============================================================
-  // FILTERS AND METRICS
-  // ============================================================
+  // // ============================================================
+// FILTERS AND METRICS
+// ============================================================
 
-  const applyFilters = useCallback(() => {
+  const filteredBookings = useMemo(() => {
     let filtered = [...bookings];
     
     if (currentFilters.searchTerm) {
@@ -614,12 +615,39 @@ export default function BusinessDashboard() {
       filtered = filtered.filter(b => b.guest_country === currentFilters.countryFilter);
     }
     
-    setFilteredBookings(filtered);
-    setCurrentPage(1);
+    return filtered;
   }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, 
       currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
 
-  const getStatusBadge = (status: string) => {
+  const guestOriginData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredBookings.forEach(b => {
+      if (b.guest_country) counts[b.guest_country] = (counts[b.guest_country] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredBookings]);
+
+  const referralData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredBookings.forEach(b => {
+      const source = b.booking_source || b.referral_source;
+      if (source && source !== 'NULL' && source !== 'null' && source.trim()) {
+        const cleanSource = source.replace(/\.$/, '').trim();
+        counts[cleanSource] = (counts[cleanSource] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredBookings]);
+
+  const reportSummary = useMemo(() => ({
+    totalBookings: filteredBookings.length,
+    totalRevenue: filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0),
+    averageStay: filteredBookings.length > 0 
+      ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / filteredBookings.length).toFixed(1)
+      : '0'
+  }), [filteredBookings]);
+
+  const getStatusBadge = useCallback((status: string) => {
     const styles: Record<string, string> = {
       checked_in: 'bg-green-100 text-green-800',
       completed: 'bg-blue-100 text-blue-800',
@@ -627,7 +655,7 @@ export default function BusinessDashboard() {
       cancelled: 'bg-red-100 text-red-800'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
-  };
+  }, []);
 
   // ============================================================
   // UPDATE FUNCTIONS
@@ -889,41 +917,34 @@ export default function BusinessDashboard() {
   }, [filteredBookings, business]);
 
   // ============================================================
-  // EFFECTS
-  // ============================================================
+// EFFECTS
+// ============================================================
 
   // Initial load
   useEffect(() => {
-    loadBusinessProfile();
-    loadBookings();
-    fetchChangeRequests();
-  }, []);
+    const init = async () => {
+      setInitialLoading(true);
+      await loadBusinessProfile();
+      setInitialLoading(false);
+    };
+    init();
+  }, [loadBusinessProfile]);
 
-  // Apply frontend filters (search, status, province, city, country)
+  // Single consolidated effect for bookings
   useEffect(() => {
-    applyFilters();
-  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, 
-      currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
-
-  // Reload when tab, page size, or page changes
-  useEffect(() => {
-    setCurrentPage(1);
-    loadBookings();
-  }, [activeTab, pageSize]);
-
-  // Reload when page changes
-  useEffect(() => {
-    loadBookings();
-  }, [currentPage]);
-
-  // ✅ CRITICAL: Reload when date filters change in Reports tab
-  useEffect(() => {
-    if (activeTab === 'reports') {
-      console.log('📅 Date filter changed, reloading bookings...');
-      setCurrentPage(1);
+    if (!initialLoading) {
       loadBookings();
     }
-  }, [currentFilters.dateRange, currentFilters.startDate, currentFilters.endDate]);
+  }, [loadBookings, initialLoading]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // ============================================================
   // LOADING STATE
@@ -1244,7 +1265,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* ============================================================ */}
+               {/* ============================================================ */}
         {/* CHECK-INS TAB */}
         {/* ============================================================ */}
         {activeTab === 'checkins' && (
@@ -1259,7 +1280,7 @@ export default function BusinessDashboard() {
                   <select
                     value={currentFilters.dateRange}
                     onChange={(e) => {
-                      updateFilter('dateRange', e.target.value as typeof currentFilters.dateRange);
+                      updateFilter('dateRange', e.target.value as any);
                       updateFilter('startDate', '');
                       updateFilter('endDate', '');
                     }}
@@ -1390,116 +1411,117 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-           {/* Check-ins Table */}
-<div className="bg-white rounded-lg shadow overflow-hidden">
-  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-    <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-    <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
-  </div>
-  <div className="overflow-x-auto">
-    {filteredBookings.length === 0 && bookings.length === 0 ? (
-      <div className="text-center py-12">
-        <p className="text-gray-400">Loading bookings...</p>
-      </div>
-    ) : filteredBookings.length === 0 && bookings.length > 0 ? (
-      <div className="text-center py-12">
-        <p className="text-gray-400">No check-ins match your filters</p>
-        <button
-          onClick={clearCurrentFilters}
-          className="mt-2 text-sm text-orange-600 hover:text-orange-700"
-        >
-          Clear all filters
-        </button>
-      </div>
-    ) : (
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {filteredBookings.map((booking, index) => (
-            <tr key={booking.id || index} className="hover:bg-gray-50">
-              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                {booking.guest_name || 'N/A'}
-              </td>
-              <td className="px-4 py-4 text-sm text-gray-500">
-                <div>{booking.guest_email || 'N/A'}</div>
-                <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-              </td>
-              <td className="px-4 py-4 text-sm text-gray-500">
-                <div>{booking.guest_country || 'N/A'}</div>
-                <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-              </td>
-              <td className="px-4 py-4 text-sm font-mono text-gray-500">
-                {booking.guest_id_number ? (
-                  <span className="cursor-help">
-                    {booking.guest_id_number.substring(0, 8)}...
-                  </span>
-                ) : 'N/A'}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                {booking.check_in_date || 'N/A'}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                {booking.nights || 1}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                R {(booking.total_amount || 0).toLocaleString()}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                {(booking.booking_source || booking.referral_source || 'N/A').replace(/\.$/, '').trim()}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-center">
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                  {booking.status || 'pending'}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </div>
-  
-  {/* Pagination */}
-  {totalPages > 1 && (
-    <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-      <p className="text-sm text-gray-500">
-        Showing {filteredBookings.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {totalBookingsCount} bookings
-      </p>
-      <div className="flex space-x-2 items-center">
-        <button
-          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-        >
-          Previous
-        </button>
-        <span className="px-3 py-1 text-sm text-gray-600">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-          disabled={currentPage === totalPages}
-          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  )}
-</div>
- )}
+            {/* Check-ins Table - NO DOUBLE PAGINATION */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+                <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
+              </div>
+              <div className="overflow-x-auto">
+                {filteredBookings.length === 0 && bookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400">Loading bookings...</p>
+                  </div>
+                ) : filteredBookings.length === 0 && bookings.length > 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400">No check-ins match your filters</p>
+                    <button
+                      onClick={clearCurrentFilters}
+                      className="mt-2 text-sm text-orange-600 hover:text-orange-700"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredBookings.map((booking, index) => (
+                        <tr key={booking.id || index} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {booking.guest_name || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            <div>{booking.guest_email || 'N/A'}</div>
+                            <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            <div>{booking.guest_country || 'N/A'}</div>
+                            <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
+                          </td>
+                          <td className="px-4 py-4 text-sm font-mono text-gray-500">
+                            {booking.guest_id_number ? (
+                              <span className="cursor-help">
+                                {booking.guest_id_number.substring(0, 8)}...
+                              </span>
+                            ) : 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {booking.check_in_date || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            {booking.nights || 1}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                            R {(booking.total_amount || 0).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {(booking.booking_source || booking.referral_source || 'N/A').replace(/\.$/, '').trim()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                              {booking.status || 'pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                  <p className="text-sm text-gray-500">
+                    Showing {filteredBookings.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalBookingsCount)} of {totalBookingsCount} bookings
+                  </p>
+                  <div className="flex space-x-2 items-center">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-3 py-1 text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
             {/* ============================================================ */}
        {/* REPORTS TAB */}
         {/* ============================================================ */}
@@ -1761,7 +1783,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* ============================================================ */}
+                {/* ============================================================ */}
         {/* SETTINGS TAB */}
         {/* ============================================================ */}
         {activeTab === 'settings' && (
@@ -1861,7 +1883,29 @@ export default function BusinessDashboard() {
                           type="file"
                           id="logo-upload"
                           accept="image/*"
-                          onChange={handleLogoUpload}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (!file.type.startsWith('image/')) {
+                              alert('Please upload an image file (PNG, JPG, etc.)');
+                              return;
+                            }
+                            if (file.size > 2 * 1024 * 1024) {
+                              alert('File must be less than 2MB');
+                              return;
+                            }
+                            setUploadingLogo(true);
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProfileForm(prev => ({ ...prev, logo_url: reader.result as string }));
+                              setUploadingLogo(false);
+                            };
+                            reader.onerror = () => {
+                              setUploadingLogo(false);
+                              alert('Error reading file');
+                            };
+                            reader.readAsDataURL(file);
+                          }}
                           className="hidden"
                           disabled={uploadingLogo}
                         />
@@ -1889,9 +1933,10 @@ export default function BusinessDashboard() {
                 <div className="flex gap-4">
                   <button
                     onClick={saveBusinessProfile}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={savingProfile}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Changes
+                    {savingProfile ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button
                     onClick={() => setEditingProfile(false)}
@@ -1902,63 +1947,5 @@ export default function BusinessDashboard() {
                 </div>
               </div>
             )}
-        </div>
-      )}
-
-      {/* Modals */}
-      {showRequestModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Change: {requestField}</h3>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Value</label>
-                <input type="text" value={requestCurrentValue} disabled className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg" />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Value *</label>
-                <input type="text" value={requestNewValue} onChange={(e) => setRequestNewValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Change *</label>
-                <textarea rows={3} value={requestReason} onChange={(e) => setRequestReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowRequestModal(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button onClick={submitChangeRequest} disabled={sendingRequest || !requestNewValue || !requestReason} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">Submit</button>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
-
-      {showAppealModal && rejectedRequest && business && (
-        <AppealModal
-          isOpen={showAppealModal}
-          onClose={() => { setShowAppealModal(false); setRejectedRequest(null); }}
-          request={rejectedRequest}
-          business={{ id: business.id, trading_name: business.trading_name, email: business.email }}
-          onSubmit={() => fetchChangeRequests()}
-        />
-      )}
-
-      {showQRModal && business && (
-        <QRCodeModal
-          businessId={business.id}
-          businessName={business.trading_name}
-          businessLogo={business.logo_url}
-          businessPhone={business.phone}
-          onClose={() => setShowQRModal(false)}
-        />
-      )}
-
-            {showImportModal && business && (
-        <ImportGoogleForms
-          businessId={business.id || getBusinessId()}
-          onImportComplete={() => { loadBookings(); setShowImportModal(false); }}
-          onClose={() => setShowImportModal(false)}
-        />
-      )}
-    </div>
-  );
-}
+        )}
