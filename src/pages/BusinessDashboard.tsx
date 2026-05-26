@@ -307,7 +307,8 @@ export default function BusinessDashboard() {
       }
     }));
     setCurrentPage(1);
-    loadBookings();
+    // Trigger reload after clearing filters
+    setTimeout(() => loadBookings(), 100);
   };
 
   const isFilterActive = () => {
@@ -464,20 +465,31 @@ export default function BusinessDashboard() {
       console.log('📡 Fetching bookings for business:', businessId);
       console.log('📅 Current activeTab:', activeTab);
       console.log(`📄 Page: ${currentPage}, Page Size: ${pageSize}`);
+      console.log('📅 Current filters dateRange:', currentFilters.dateRange);
+      console.log('📅 Current filters startDate:', currentFilters.startDate);
+      console.log('📅 Current filters endDate:', currentFilters.endDate);
       
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=${pageSize}&page=${currentPage}`;
       
-      // Apply date filters for Reports tab only
+      // Apply date filters ONLY for Reports tab
       if (activeTab === 'reports') {
+        // Custom date range (From - To)
         if (currentFilters.startDate && currentFilters.endDate) {
           url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}&limit=${pageSize}&page=${currentPage}`;
-        } else if (currentFilters.dateRange !== 'all') {
+          console.log('📅 Using custom date range:', currentFilters.startDate, 'to', currentFilters.endDate);
+        } 
+        // Preset date ranges
+        else if (currentFilters.dateRange !== 'all') {
           const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
           if (days[currentFilters.dateRange]) {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
-            url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
+            const startDateParam = cutoffDate.toISOString().split('T')[0];
+            url += `&startDate=${startDateParam}`;
+            console.log(`📅 Using preset range: ${currentFilters.dateRange}, from ${startDateParam}`);
           }
+        } else {
+          console.log('📅 No date filter - showing all bookings');
         }
       }
       
@@ -604,7 +616,8 @@ export default function BusinessDashboard() {
     
     setFilteredBookings(filtered);
     setCurrentPage(1);
-  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
+  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, 
+      currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -879,31 +892,35 @@ export default function BusinessDashboard() {
   // EFFECTS
   // ============================================================
 
+  // Initial load
   useEffect(() => {
     loadBusinessProfile();
     loadBookings();
     fetchChangeRequests();
   }, []);
 
+  // Apply frontend filters (search, status, province, city, country)
   useEffect(() => {
     applyFilters();
-  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
+  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, 
+      currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
 
+  // Reload when tab, page size, or page changes
   useEffect(() => {
-    if (activeTab === 'checkins' || activeTab === 'overview') {
-      loadBookings();
-    } else if (activeTab === 'reports') {
-      loadBookings();
-    }
     setCurrentPage(1);
+    loadBookings();
   }, [activeTab, pageSize]);
 
+  // Reload when page changes
   useEffect(() => {
     loadBookings();
   }, [currentPage]);
 
+  // ✅ CRITICAL: Reload when date filters change in Reports tab
   useEffect(() => {
     if (activeTab === 'reports') {
+      console.log('📅 Date filter changed, reloading bookings...');
+      setCurrentPage(1);
       loadBookings();
     }
   }, [currentFilters.dateRange, currentFilters.startDate, currentFilters.endDate]);
@@ -1447,7 +1464,7 @@ export default function BusinessDashboard() {
                               {booking.status || 'pending'}
                             </span>
                           </td>
-                        </tr>
+                        <tr>
                       ))}
                     </tbody>
                   </table>
@@ -1504,6 +1521,8 @@ export default function BusinessDashboard() {
                       updateFilter('dateRange', e.target.value as typeof currentFilters.dateRange);
                       updateFilter('startDate', '');
                       updateFilter('endDate', '');
+                      // Trigger reload immediately
+                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   >
@@ -1523,6 +1542,8 @@ export default function BusinessDashboard() {
                     onChange={(e) => {
                       updateFilter('startDate', e.target.value);
                       updateFilter('dateRange', 'all');
+                      // Trigger reload immediately
+                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="From"
@@ -1534,6 +1555,8 @@ export default function BusinessDashboard() {
                     onChange={(e) => {
                       updateFilter('endDate', e.target.value);
                       updateFilter('dateRange', 'all');
+                      // Trigger reload immediately
+                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="To"
