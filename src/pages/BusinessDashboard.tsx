@@ -6,7 +6,7 @@ import { getBusinessId, getAuthToken, clearAuth } from '../utils/auth';
 import QRCodeModal from '../components/QRCodeModal';
 import AppealModal from '../components/AppealModal';
 import ImportGoogleForms from '../components/ImportGoogleForms';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import * as XLSX from 'xlsx';
 
 // Types
@@ -85,7 +85,7 @@ interface ChangeRequest {
 }
 
 // Constants
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;
 
 // Chart colors
@@ -118,15 +118,43 @@ export default function BusinessDashboard() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
   
-  // Filter states
-  const [dateRange, setDateRange] = useState<'7days' | '30days' | '90days' | '12months' | 'all'>('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [provinceFilter, setProvinceFilter] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [countryFilter, setCountryFilter] = useState('');
+  // Chart type states
+  const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
+  const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
+  
+  // Tab-specific filters - each tab maintains its own filter state
+  const [filters, setFilters] = useState({
+    overview: {
+      dateRange: 'all' as '7days' | '30days' | '90days' | '12months' | 'all',
+      startDate: '',
+      endDate: '',
+      searchTerm: '',
+      statusFilter: '',
+      provinceFilter: '',
+      cityFilter: '',
+      countryFilter: ''
+    },
+    checkins: {
+      dateRange: 'all' as '7days' | '30days' | '90days' | '12months' | 'all',
+      startDate: '',
+      endDate: '',
+      searchTerm: '',
+      statusFilter: '',
+      provinceFilter: '',
+      cityFilter: '',
+      countryFilter: ''
+    },
+    reports: {
+      dateRange: '30days' as '7days' | '30days' | '90days' | '12months' | 'all',
+      startDate: '',
+      endDate: '',
+      searchTerm: '',
+      statusFilter: '',
+      provinceFilter: '',
+      cityFilter: '',
+      countryFilter: ''
+    }
+  });
   
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -191,6 +219,9 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
+  // Get current tab's filters
+  const currentFilters = filters[activeTab as keyof typeof filters];
+
   // ============================================================
   // AUTH HELPERS
   // ============================================================
@@ -251,21 +282,38 @@ export default function BusinessDashboard() {
   // HELPER FUNCTIONS
   // ============================================================
 
-  const isFilterActive = () => {
-    return dateRange !== 'all' || startDate || endDate || searchTerm || statusFilter || provinceFilter || cityFilter || countryFilter;
+  const updateFilter = <K extends keyof typeof currentFilters>(key: K, value: typeof currentFilters[K]) => {
+    setFilters(prev => ({
+      ...prev,
+      [activeTab]: {
+        ...prev[activeTab as keyof typeof prev],
+        [key]: value
+      }
+    }));
   };
 
-  const clearAllFilters = () => {
-    setDateRange('all');
-    setStartDate('');
-    setEndDate('');
-    setSearchTerm('');
-    setStatusFilter('');
-    setProvinceFilter('');
-    setCityFilter('');
-    setCountryFilter('');
+  const clearCurrentFilters = () => {
+    setFilters(prev => ({
+      ...prev,
+      [activeTab]: {
+        dateRange: activeTab === 'reports' ? '30days' : 'all',
+        startDate: '',
+        endDate: '',
+        searchTerm: '',
+        statusFilter: '',
+        provinceFilter: '',
+        cityFilter: '',
+        countryFilter: ''
+      }
+    }));
     setCurrentPage(1);
     loadBookings();
+  };
+
+  const isFilterActive = () => {
+    const f = currentFilters;
+    const defaultRange = activeTab === 'reports' ? '30days' : 'all';
+    return f.dateRange !== defaultRange || f.startDate || f.endDate || f.searchTerm || f.statusFilter || f.provinceFilter || f.cityFilter || f.countryFilter;
   };
 
   // ============================================================
@@ -419,15 +467,15 @@ export default function BusinessDashboard() {
       
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=${pageSize}&page=${currentPage}`;
       
-      // Apply filters for Reports tab
+      // Apply date filters for Reports tab only
       if (activeTab === 'reports') {
-        if (startDate && endDate) {
-          url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${startDate}&endDate=${endDate}&limit=${pageSize}&page=${currentPage}`;
-        } else if (dateRange !== 'all') {
+        if (currentFilters.startDate && currentFilters.endDate) {
+          url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}&limit=${pageSize}&page=${currentPage}`;
+        } else if (currentFilters.dateRange !== 'all') {
           const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
-          if (days[dateRange]) {
+          if (days[currentFilters.dateRange]) {
             const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
+            cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
             url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
           }
         }
@@ -453,7 +501,8 @@ export default function BusinessDashboard() {
       setBookings(validBookings);
       setFilteredBookings(validBookings);
       setTotalBookingsCount(result.total_count || validBookings.length);
-      setTotalPages(result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize));
+      const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
+      setTotalPages(calculatedTotalPages);
       
       // Extract unique filter values from current page
       const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
@@ -464,72 +513,31 @@ export default function BusinessDashboard() {
       setUniqueCities(cities.sort());
       setUniqueCountries(countries.sort());
       
-      // ✅ USE BACKEND'S TODAY ACTIVITY - NO FRONTEND RECALCULATION
-      if (result.summary?.today_activity) {
-        const backendArrivals = result.summary.today_activity.arrivals || 0;
-        const backendStayovers = result.summary.today_activity.stayovers || 0;
-        const backendCheckouts = result.summary.today_activity.checkouts || 0;
-        
-        console.log(`📊 Backend Today's Activity: ${backendArrivals} arrivals, ${backendStayovers} stayovers, ${backendCheckouts} checkouts`);
-        
-        // Find the actual booking objects for display
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
-        
-        const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-        const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-        
-        // Use backend logic for stayovers
-        const stayovers = validBookings.filter(b => {
-          if (!b.check_in_date) return false;
-          const checkInDate = new Date(b.check_in_date);
-          checkInDate.setHours(0, 0, 0, 0);
-          if (checkInDate.getTime() === todayDate.getTime()) return false;
-          if (checkInDate > todayDate) return false;
-          if (!b.check_out_date) return true;
-          const checkOutDate = new Date(b.check_out_date);
-          checkOutDate.setHours(0, 0, 0, 0);
-          return checkOutDate >= todayDate;
-        });
-        
-        setTodayArrivals(arrivals);
-        setTodayStayovers(stayovers);
-        setTodayCheckouts(checkouts);
-        
-        console.log(`📊 Frontend Display - Arrivals: ${arrivals.length}, Stayovers: ${stayovers.length}, Checkouts: ${checkouts.length}`);
-        
-        if (stayovers.length > 0) {
-          console.log('📊 Current stayovers:', stayovers.map(s => ({
-            name: s.guest_name,
-            check_in: s.check_in_date,
-            check_out: s.check_out_date || 'not set'
-          })));
-        }
-      } else {
-        // Fallback calculation only if backend doesn't provide today_activity
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
-        
-        const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-        const stayovers = validBookings.filter(b => {
-          if (!b.check_in_date) return false;
-          const checkInDate = new Date(b.check_in_date);
-          checkInDate.setHours(0, 0, 0, 0);
-          if (checkInDate.getTime() === todayDate.getTime()) return false;
-          if (checkInDate > todayDate) return false;
-          if (!b.check_out_date) return true;
-          const checkOutDate = new Date(b.check_out_date);
-          checkOutDate.setHours(0, 0, 0, 0);
-          return checkOutDate >= todayDate;
-        });
-        const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-        
-        setTodayArrivals(arrivals);
-        setTodayStayovers(stayovers);
-        setTodayCheckouts(checkouts);
-      }
+      // Calculate today's activity
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+      
+      const stayovers = validBookings.filter(b => {
+        if (!b.check_in_date) return false;
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        if (checkInDate.getTime() === todayDate.getTime()) return false;
+        if (checkInDate > todayDate) return false;
+        if (!b.check_out_date) return true;
+        const checkOutDate = new Date(b.check_out_date);
+        checkOutDate.setHours(0, 0, 0, 0);
+        return checkOutDate >= todayDate;
+      });
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+      
+      console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
       
     } catch (err) {
       console.error('❌ Error loading bookings:', err);
@@ -571,8 +579,8 @@ export default function BusinessDashboard() {
   const applyFilters = useCallback(() => {
     let filtered = [...bookings];
     
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (currentFilters.searchTerm) {
+      const term = currentFilters.searchTerm.toLowerCase();
       filtered = filtered.filter(b => 
         b.guest_name?.toLowerCase().includes(term) ||
         b.guest_email?.toLowerCase().includes(term) ||
@@ -580,23 +588,23 @@ export default function BusinessDashboard() {
       );
     }
     
-    if (statusFilter) {
-      filtered = filtered.filter(b => b.status === statusFilter);
+    if (currentFilters.statusFilter) {
+      filtered = filtered.filter(b => b.status === currentFilters.statusFilter);
     }
     
-    if (provinceFilter) {
-      filtered = filtered.filter(b => b.guest_province === provinceFilter);
+    if (currentFilters.provinceFilter) {
+      filtered = filtered.filter(b => b.guest_province === currentFilters.provinceFilter);
     }
-    if (cityFilter) {
-      filtered = filtered.filter(b => b.guest_city === cityFilter);
+    if (currentFilters.cityFilter) {
+      filtered = filtered.filter(b => b.guest_city === currentFilters.cityFilter);
     }
-    if (countryFilter) {
-      filtered = filtered.filter(b => b.guest_country === countryFilter);
+    if (currentFilters.countryFilter) {
+      filtered = filtered.filter(b => b.guest_country === currentFilters.countryFilter);
     }
     
     setFilteredBookings(filtered);
     setCurrentPage(1);
-  }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
+  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -854,7 +862,7 @@ export default function BusinessDashboard() {
       b.nights || 1,
       b.total_amount || 0,
       b.status || 'pending',
-      `"${b.booking_source || b.referral_source || ''}"`
+      `"${(b.booking_source || b.referral_source || '').replace(/\.$/, '').trim()}"`
     ]);
     
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -879,13 +887,26 @@ export default function BusinessDashboard() {
 
   useEffect(() => {
     applyFilters();
-  }, [bookings, searchTerm, statusFilter, provinceFilter, cityFilter, countryFilter]);
+  }, [bookings, currentFilters.searchTerm, currentFilters.statusFilter, currentFilters.provinceFilter, currentFilters.cityFilter, currentFilters.countryFilter]);
 
   useEffect(() => {
     if (activeTab === 'checkins' || activeTab === 'overview') {
       loadBookings();
+    } else if (activeTab === 'reports') {
+      loadBookings();
     }
-  }, [activeTab, currentPage, pageSize, dateRange, startDate, endDate]);
+    setCurrentPage(1);
+  }, [activeTab, pageSize]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadBookings();
+    }
+  }, [currentFilters.dateRange, currentFilters.startDate, currentFilters.endDate]);
 
   // ============================================================
   // LOADING STATE
@@ -1036,7 +1057,7 @@ export default function BusinessDashboard() {
         {/* ============================================================ */}
         {activeTab === 'overview' && business && (
           <div className="space-y-6">
-            {/* Business Information Card - Simplified */}
+            {/* Business Information Card */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-orange-50 to-white border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Business Information</h2>
@@ -1219,11 +1240,11 @@ export default function BusinessDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
                   <select
-                    value={dateRange}
+                    value={currentFilters.dateRange}
                     onChange={(e) => {
-                      setDateRange(e.target.value as typeof dateRange);
-                      setStartDate('');
-                      setEndDate('');
+                      updateFilter('dateRange', e.target.value as typeof currentFilters.dateRange);
+                      updateFilter('startDate', '');
+                      updateFilter('endDate', '');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   >
@@ -1239,10 +1260,10 @@ export default function BusinessDashboard() {
                   <span className="text-sm text-gray-500">From:</span>
                   <input
                     type="date"
-                    value={startDate}
+                    value={currentFilters.startDate}
                     onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setDateRange('all');
+                      updateFilter('startDate', e.target.value);
+                      updateFilter('dateRange', 'all');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   />
@@ -1252,10 +1273,10 @@ export default function BusinessDashboard() {
                   <span className="text-sm text-gray-500">To:</span>
                   <input
                     type="date"
-                    value={endDate}
+                    value={currentFilters.endDate}
                     onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setDateRange('all');
+                      updateFilter('endDate', e.target.value);
+                      updateFilter('dateRange', 'all');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   />
@@ -1269,8 +1290,8 @@ export default function BusinessDashboard() {
                     <input
                       type="text"
                       placeholder="Search by name, email, or phone..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      value={currentFilters.searchTerm}
+                      onChange={(e) => updateFilter('searchTerm', e.target.value)}
                       className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     />
                   </div>
@@ -1279,8 +1300,8 @@ export default function BusinessDashboard() {
 
               <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
                 <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  value={currentFilters.statusFilter}
+                  onChange={(e) => updateFilter('statusFilter', e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                 >
                   <option value="">All Statuses</option>
@@ -1290,8 +1311,8 @@ export default function BusinessDashboard() {
                 </select>
                 
                 <select
-                  value={provinceFilter}
-                  onChange={(e) => setProvinceFilter(e.target.value)}
+                  value={currentFilters.provinceFilter}
+                  onChange={(e) => updateFilter('provinceFilter', e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                 >
                   <option value="">All Provinces</option>
@@ -1301,8 +1322,8 @@ export default function BusinessDashboard() {
                 </select>
                 
                 <select
-                  value={cityFilter}
-                  onChange={(e) => setCityFilter(e.target.value)}
+                  value={currentFilters.cityFilter}
+                  onChange={(e) => updateFilter('cityFilter', e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                 >
                   <option value="">All Cities</option>
@@ -1312,8 +1333,8 @@ export default function BusinessDashboard() {
                 </select>
                 
                 <select
-                  value={countryFilter}
-                  onChange={(e) => setCountryFilter(e.target.value)}
+                  value={currentFilters.countryFilter}
+                  onChange={(e) => updateFilter('countryFilter', e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                 >
                   <option value="">All Countries</option>
@@ -1324,7 +1345,7 @@ export default function BusinessDashboard() {
                 
                 {isFilterActive() && (
                   <button
-                    onClick={clearAllFilters}
+                    onClick={clearCurrentFilters}
                     className="text-sm text-orange-600 hover:text-orange-700"
                   >
                     Clear all filters
@@ -1342,7 +1363,6 @@ export default function BusinessDashboard() {
                   onChange={(e) => {
                     setPageSize(parseInt(e.target.value));
                     setCurrentPage(1);
-                    loadBookings();
                   }}
                   className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                 >
@@ -1368,7 +1388,7 @@ export default function BusinessDashboard() {
                   <div className="text-center py-12">
                     <p className="text-gray-400">No check-ins match your filters</p>
                     <button
-                      onClick={clearAllFilters}
+                      onClick={clearCurrentFilters}
                       className="mt-2 text-sm text-orange-600 hover:text-orange-700"
                     >
                       Clear all filters
@@ -1420,7 +1440,7 @@ export default function BusinessDashboard() {
                             R {(booking.total_amount || 0).toLocaleString()}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.booking_source || booking.referral_source || 'N/A'}
+                            {(booking.booking_source || booking.referral_source || 'N/A').replace(/\.$/, '').trim()}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
@@ -1438,9 +1458,9 @@ export default function BusinessDashboard() {
               {totalPages > 1 && (
                 <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
                   <p className="text-sm text-gray-500">
-                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {filteredBookings.length} bookings
+                    Showing {filteredBookings.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {totalBookingsCount} bookings
                   </p>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-2 items-center">
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
@@ -1479,11 +1499,11 @@ export default function BusinessDashboard() {
                   </svg>
                   <span className="text-sm font-medium text-gray-700">Report Period:</span>
                   <select
-                    value={dateRange}
+                    value={currentFilters.dateRange}
                     onChange={(e) => {
-                      setDateRange(e.target.value as typeof dateRange);
-                      setStartDate('');
-                      setEndDate('');
+                      updateFilter('dateRange', e.target.value as typeof currentFilters.dateRange);
+                      updateFilter('startDate', '');
+                      updateFilter('endDate', '');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   >
@@ -1499,10 +1519,10 @@ export default function BusinessDashboard() {
                   <span className="text-sm text-gray-500">Custom:</span>
                   <input
                     type="date"
-                    value={startDate}
+                    value={currentFilters.startDate}
                     onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setDateRange('all');
+                      updateFilter('startDate', e.target.value);
+                      updateFilter('dateRange', 'all');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="From"
@@ -1510,10 +1530,10 @@ export default function BusinessDashboard() {
                   <span className="text-gray-500">to</span>
                   <input
                     type="date"
-                    value={endDate}
+                    value={currentFilters.endDate}
                     onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setDateRange('all');
+                      updateFilter('endDate', e.target.value);
+                      updateFilter('dateRange', 'all');
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="To"
@@ -1522,7 +1542,7 @@ export default function BusinessDashboard() {
                 
                 {isFilterActive() && (
                   <button
-                    onClick={clearAllFilters}
+                    onClick={clearCurrentFilters}
                     className="text-sm text-orange-600 hover:text-orange-700"
                   >
                     Clear filters
@@ -1565,80 +1585,156 @@ export default function BusinessDashboard() {
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Guest Origins Chart */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Origins by Country</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Guest Origins by Country</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setGuestChartType('donut')}
+                      className={`p-2 rounded-lg transition-colors ${guestChartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      title="Donut Chart"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setGuestChartType('bar')}
+                      className={`p-2 rounded-lg transition-colors ${guestChartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      title="Bar Chart"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
                 {filteredBookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(filteredBookings.reduce((acc, b) => {
-                          if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)).map(([name, value]) => ({ name, value }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                ) : (() => {
+                  const guestData = Object.entries(filteredBookings.reduce((acc, b) => {
+                    if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>)).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+                  
+                  return guestChartType === 'donut' ? (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <PieChart>
+                        <Pie
+                          data={guestData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={3}
+                          dataKey="value"
+                          label={({ name, percent }) => percent > 0.03 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
+                          labelLine={false}
+                        >
+                          {guestData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value, name) => [`${value} bookings`, name]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart
+                        data={guestData}
+                        layout="vertical"
+                        margin={{ left: 80, right: 20 }}
                       >
-                        {Object.entries(filteredBookings.reduce((acc, b) => {
-                          if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                        <XAxis type="number" />
+                        <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(value) => [`${value} bookings`, 'Count']} />
+                        <Bar dataKey="value" fill="#f59e0b" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
 
+              {/* Referral Sources Chart */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">How Guests Found You</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">How Guests Found You</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setReferralChartType('donut')}
+                      className={`p-2 rounded-lg transition-colors ${referralChartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      title="Donut Chart"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setReferralChartType('bar')}
+                      className={`p-2 rounded-lg transition-colors ${referralChartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      title="Bar Chart"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
                 {filteredBookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(filteredBookings.reduce((acc, b) => {
-                          const source = b.booking_source || b.referral_source;
-                          if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
-                            acc[source] = (acc[source] || 0) + 1;
-                          }
-                          return acc;
-                        }, {} as Record<string, number>)).map(([name, value]) => ({ name, value }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                ) : (() => {
+                  const referralData = Object.entries(filteredBookings.reduce((acc, b) => {
+                    const source = b.booking_source || b.referral_source;
+                    if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
+                      const cleanSource = source.replace(/\.$/, '').trim();
+                      acc[cleanSource] = (acc[cleanSource] || 0) + 1;
+                    }
+                    return acc;
+                  }, {} as Record<string, number>)).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+                  
+                  return referralChartType === 'donut' ? (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <PieChart>
+                        <Pie
+                          data={referralData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={3}
+                          dataKey="value"
+                          label={({ name, percent }) => percent > 0.03 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
+                          labelLine={false}
+                        >
+                          {referralData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value, name) => [`${value} bookings`, name]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart
+                        data={referralData}
+                        layout="vertical"
+                        margin={{ left: 120, right: 20 }}
                       >
-                        {Object.entries(filteredBookings.reduce((acc, b) => {
-                          const source = b.booking_source || b.referral_source;
-                          if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
-                            acc[source] = (acc[source] || 0) + 1;
-                          }
-                          return acc;
-                        }, {} as Record<string, number>)).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                        <XAxis type="number" />
+                        <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(value) => [`${value} bookings`, 'Count']} />
+                        <Bar dataKey="value" fill="#3b82f6" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
             </div>
           </div>
