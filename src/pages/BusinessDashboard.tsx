@@ -1952,12 +1952,13 @@ export default function BusinessDashboard() {
         />
       )}
 
-      {showImportModal && business && (
+            {showImportModal && business && (
         <ImportGoogleForms
           businessId={business.id || getBusinessId()}
           onImportComplete={() => { loadBookings(); setShowImportModal(false); }}
           onClose={() => setShowImportModal(false)}
         />
       )}
+    </div>
   );
 }
