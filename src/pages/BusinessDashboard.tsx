@@ -1390,117 +1390,115 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Check-ins Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-                <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
-              </div>
-              <div className="overflow-x-auto">
-                {filteredBookings.length === 0 && bookings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400">Loading bookings...</p>
-                  </div>
-                ) : filteredBookings.length === 0 && bookings.length > 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400">No check-ins match your filters</p>
-                    <button
-                      onClick={clearCurrentFilters}
-                      className="mt-2 text-sm text-orange-600 hover:text-orange-700"
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredBookings.map((booking, index) => (
-                        <tr key={booking.id || index} className="hover:bg-gray-50">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {booking.guest_name || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-500">
-                            <div>{booking.guest_email || 'N/A'}</div>
-                            <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-500">
-                            <div>{booking.guest_country || 'N/A'}</div>
-                            <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
-                          </td>
-                          <td className="px-4 py-4 text-sm font-mono text-gray-500">
-                            {booking.guest_id_number ? (
-                              <span className="cursor-help">
-                                {booking.guest_id_number.substring(0, 8)}...
-                              </span>
-                            ) : 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {booking.check_in_date || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {booking.nights || 1}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            R {(booking.total_amount || 0).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {(booking.booking_source || booking.referral_source || 'N/A').replace(/\.$/, '').trim()}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
-                              {booking.status || 'pending'}
-                            </span>
-                          </td>
-                        <tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-                  <p className="text-sm text-gray-500">
-                    Showing {filteredBookings.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {totalBookingsCount} bookings
-                  </p>
-                  <div className="flex space-x-2 items-center">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                    >
-                      Previous
-                    </button>
-                    <span className="px-3 py-1 text-sm text-gray-600">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+           {/* Check-ins Table */}
+<div className="bg-white rounded-lg shadow overflow-hidden">
+  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+    <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+    <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
+  </div>
+  <div className="overflow-x-auto">
+    {filteredBookings.length === 0 && bookings.length === 0 ? (
+      <div className="text-center py-12">
+        <p className="text-gray-400">Loading bookings...</p>
+      </div>
+    ) : filteredBookings.length === 0 && bookings.length > 0 ? (
+      <div className="text-center py-12">
+        <p className="text-gray-400">No check-ins match your filters</p>
+        <button
+          onClick={clearCurrentFilters}
+          className="mt-2 text-sm text-orange-600 hover:text-orange-700"
+        >
+          Clear all filters
+        </button>
+      </div>
+    ) : (
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {filteredBookings.map((booking, index) => (
+            <tr key={booking.id || index} className="hover:bg-gray-50">
+              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                {booking.guest_name || 'N/A'}
+              </td>
+              <td className="px-4 py-4 text-sm text-gray-500">
+                <div>{booking.guest_email || 'N/A'}</div>
+                <div className="text-xs">{booking.guest_phone || 'N/A'}</div>
+              </td>
+              <td className="px-4 py-4 text-sm text-gray-500">
+                <div>{booking.guest_country || 'N/A'}</div>
+                <div className="text-xs">{booking.guest_province || ''} {booking.guest_city || ''}</div>
+              </td>
+              <td className="px-4 py-4 text-sm font-mono text-gray-500">
+                {booking.guest_id_number ? (
+                  <span className="cursor-help">
+                    {booking.guest_id_number.substring(0, 8)}...
+                  </span>
+                ) : 'N/A'}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                {booking.check_in_date || 'N/A'}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                {booking.nights || 1}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                R {(booking.total_amount || 0).toLocaleString()}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                {(booking.booking_source || booking.referral_source || 'N/A').replace(/\.$/, '').trim()}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                  {booking.status || 'pending'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+  
+  {/* Pagination */}
+  {totalPages > 1 && (
+    <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+      <p className="text-sm text-gray-500">
+        Showing {filteredBookings.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredBookings.length)} of {totalBookingsCount} bookings
+      </p>
+      <div className="flex space-x-2 items-center">
+        <button
+          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        >
+          Previous
+        </button>
+        <span className="px-3 py-1 text-sm text-gray-600">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  )}
+</div>
 
         {/* ============================================================ */}
         {/* REPORTS TAB */}
