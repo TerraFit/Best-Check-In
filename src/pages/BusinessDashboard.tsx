@@ -1959,6 +1959,5 @@ export default function BusinessDashboard() {
           onClose={() => setShowImportModal(false)}
         />
       )}
-    </div>
   );
 }
