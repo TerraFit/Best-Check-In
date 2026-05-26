@@ -1,4 +1,10 @@
 export const handler = async (event) => {
+  console.log(`📊 Request received at ${new Date().toISOString()}`);
+  console.log(`🔑 Request ID: ${event.headers['x-request-id'] || 'unknown'}`);
+  
+  // Rest of your code...
+}
+  export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
