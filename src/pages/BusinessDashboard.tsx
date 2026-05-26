@@ -1989,4 +1989,3 @@ export default function BusinessDashboard() {
     </div>
   );
 }
-```
