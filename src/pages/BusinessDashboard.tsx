@@ -224,7 +224,16 @@ export default function BusinessDashboard() {
   ];
 
   // Get current tab's filters
-  const currentFilters = filters[activeTab as keyof typeof filters];
+   const currentFilters = filters[activeTab as keyof typeof filters] || {
+    dateRange: activeTab === 'reports' ? '30days' : 'all',
+    startDate: '',
+    endDate: '',
+    searchTerm: '',
+    statusFilter: '',
+    provinceFilter: '',
+    cityFilter: '',
+    countryFilter: ''
+  };
 
   // ============================================================
   // AUTH HELPERS
@@ -282,35 +291,61 @@ export default function BusinessDashboard() {
     }
   };
 
-  // ============================================================
+   // ============================================================
   // HELPER FUNCTIONS
   // ============================================================
 
-   const updateFilter = <K extends keyof typeof currentFilters>(key: K, value: typeof currentFilters[K]) => {
+  const updateFilter = <K extends keyof typeof currentFilters>(key: K, value: typeof currentFilters[K]) => {
     console.log(`🔧 updateFilter: ${String(key)} = ${value}`);
+    
     setFilters(prev => {
+      // Start with the existing filters for this tab
+      const existingTabFilters = prev[activeTab as keyof typeof prev] || {
+        dateRange: 'all',
+        startDate: '',
+        endDate: '',
+        searchTerm: '',
+        statusFilter: '',
+        provinceFilter: '',
+        cityFilter: '',
+        countryFilter: ''
+      };
+      
+      // Build update object
+      let updates: any = { [key]: value };
+      
+      // If changing dateRange preset, clear custom dates
+      if (key === 'dateRange') {
+        updates.startDate = '';
+        updates.endDate = '';
+        console.log('   📅 Preset changed - clearing custom dates');
+      }
+      
+      // If setting custom startDate or endDate, set dateRange to 'all'
+      if (key === 'startDate' && value) {
+        updates.dateRange = 'all';
+        console.log('   📅 Custom start date set - switching to "all"');
+      }
+      if (key === 'endDate' && value) {
+        updates.dateRange = 'all';
+        console.log('   📅 Custom end date set - switching to "all"');
+      }
+      
       const newFilters = {
         ...prev,
         [activeTab]: {
-          ...(prev[activeTab as keyof typeof prev] || {
-            dateRange: 'all',
-            startDate: '',
-            endDate: '',
-            searchTerm: '',
-            statusFilter: '',
-            provinceFilter: '',
-            cityFilter: '',
-            countryFilter: ''
-          }),
-          [key]: value
+          ...existingTabFilters,
+          ...updates
         }
       };
-      console.log('📝 New filters:', newFilters[activeTab as keyof typeof newFilters]);
+      
+      console.log('📝 New filters for tab:', newFilters[activeTab as keyof typeof newFilters]);
       return newFilters;
     });
   };
 
   const clearCurrentFilters = () => {
+    console.log('🧹 Clearing filters for tab:', activeTab);
     setFilters(prev => ({
       ...prev,
       [activeTab]: {
@@ -325,14 +360,15 @@ export default function BusinessDashboard() {
       }
     }));
     setCurrentPage(1);
-    // Trigger reload after clearing filters
-    setTimeout(() => loadBookings(), 100);
+    // Immediately reload bookings
+    loadBookings();
   };
 
   const isFilterActive = () => {
+    if (!currentFilters) return false;
     const f = currentFilters;
     const defaultRange = activeTab === 'reports' ? '30days' : 'all';
-    return f.dateRange !== defaultRange || f.startDate || f.endDate || f.searchTerm || f.statusFilter || f.provinceFilter || f.cityFilter || f.countryFilter;
+    return f.dateRange !== defaultRange || !!f.startDate || !!f.endDate || !!f.searchTerm || !!f.statusFilter || !!f.provinceFilter || !!f.cityFilter || !!f.countryFilter;
   };
 
    // ============================================================
@@ -955,7 +991,7 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
 
-    // ============================================================
+      // ============================================================
   // EFFECTS
   // ============================================================
 
@@ -969,13 +1005,13 @@ export default function BusinessDashboard() {
     init();
   }, []);
 
-  // Single consolidated effect for bookings - with proper dependencies
+  // Single consolidated effect for bookings
   useEffect(() => {
     if (!initialLoading) {
       console.log('🔄 Effect triggered - reloading bookings');
-      console.log('   dateRange:', currentFilters?.dateRange);
-      console.log('   startDate:', currentFilters?.startDate);
-      console.log('   endDate:', currentFilters?.endDate);
+      console.log('   📅 dateRange:', currentFilters?.dateRange);
+      console.log('   📅 startDate:', currentFilters?.startDate);
+      console.log('   📅 endDate:', currentFilters?.endDate);
       loadBookings();
     }
   }, [
@@ -988,11 +1024,12 @@ export default function BusinessDashboard() {
     initialLoading
   ]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - cancel any in-flight requests
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+        console.log('🛑 Aborted pending request on unmount');
       }
     };
   }, []);
