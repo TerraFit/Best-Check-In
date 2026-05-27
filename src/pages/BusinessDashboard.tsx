@@ -321,7 +321,7 @@ export default function BusinessDashboard() {
     return f.dateRange !== defaultRange || f.startDate || f.endDate || f.searchTerm || f.statusFilter || f.provinceFilter || f.cityFilter || f.countryFilter;
   };
 
-  // ============================================================
+   // ============================================================
   // FETCH FUNCTIONS
   // ============================================================
 
@@ -455,6 +455,7 @@ export default function BusinessDashboard() {
   };
 
   const loadBookings = async () => {
+    // Prevent concurrent requests
     if (refreshing) {
       console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
       return;
@@ -463,31 +464,45 @@ export default function BusinessDashboard() {
     const businessId = getBusinessId();
     if (!businessId) {
       console.warn('⚠️ No businessId found');
-      setLoading(false);
       return;
     }
 
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setRefreshing(true);
+
     try {
-      setRefreshing(true);
       console.log('📡 Fetching bookings for business:', businessId);
       console.log('📅 Current activeTab:', activeTab);
       console.log(`📄 Page: ${currentPage}, Page Size: ${pageSize}`);
-      console.log('📅 Current filters dateRange:', currentFilters.dateRange);
-      console.log('📅 Current filters startDate:', currentFilters.startDate);
-      console.log('📅 Current filters endDate:', currentFilters.endDate);
+      console.log('📅 Current filters dateRange:', currentFilters?.dateRange);
+      console.log('📅 Current filters startDate:', currentFilters?.startDate);
+      console.log('📅 Current filters endDate:', currentFilters?.endDate);
       
+      // Build base URL
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=${pageSize}&page=${currentPage}`;
       
-      // Apply date filters ONLY for Reports tab
-      if (activeTab === 'reports') {
-        // Custom date range (From - To)
-        if (currentFilters.startDate && currentFilters.endDate) {
-          url = `/.netlify/functions/get-business-bookings?businessId=${businessId}&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}&limit=${pageSize}&page=${currentPage}`;
+      // Apply date filters for Reports tab AND Check-ins tab
+      if (activeTab === 'reports' || activeTab === 'checkins') {
+        // Custom date range (From - To) - takes priority
+        if (currentFilters?.startDate && currentFilters?.endDate) {
+          url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
           console.log('📅 Using custom date range:', currentFilters.startDate, 'to', currentFilters.endDate);
         } 
         // Preset date ranges
-        else if (currentFilters.dateRange !== 'all') {
-          const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
+        else if (currentFilters?.dateRange && currentFilters.dateRange !== 'all') {
+          const days: Record<string, number> = { 
+            '7days': 7, 
+            '30days': 30, 
+            '90days': 90, 
+            '12months': 365 
+          };
           if (days[currentFilters.dateRange]) {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
@@ -502,7 +517,7 @@ export default function BusinessDashboard() {
       
       console.log('🔗 Fetching URL:', url);
       
-      const res = await fetchWithAuth(url);
+      const res = await fetchWithAuth(url, { signal: controller.signal });
       const result = await res.json();
       
       let rawBookings = [];
@@ -522,10 +537,10 @@ export default function BusinessDashboard() {
       const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
       setTotalPages(calculatedTotalPages);
       
-      // Extract unique filter values from current page
+      // Extract unique filter values - CLEAN country names (remove trailing periods)
       const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
       const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-      const countries = [...new Set(validBookings.map(b => b.guest_country).filter(Boolean))];
+      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
       
       setUniqueProvinces(provinces.sort());
       setUniqueCities(cities.sort());
@@ -557,10 +572,14 @@ export default function BusinessDashboard() {
       
       console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
       
-    } catch (err) {
-      console.error('❌ Error loading bookings:', err);
+    } catch (err: any) {
+      // Don't log AbortError as it's expected when cancelling requests
+      if (err.name !== 'AbortError') {
+        console.error('❌ Error loading bookings:', err);
+      }
     } finally {
       setRefreshing(false);
+      abortControllerRef.current = null;
     }
   };
 
