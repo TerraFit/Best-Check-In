@@ -78,20 +78,21 @@ export const handler = async (event) => {
     // Build the base URL
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
-    // Apply date filters
+    // CRITICAL FIX: Apply date filters correctly
     if (startDate && endDate) {
       // Both start and end dates provided (custom range)
       url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
       console.log(`📅 Custom date range: ${startDate} to ${endDate}`);
     } else if (startDate && !endDate) {
-      // Only start date provided (preset like "Last 7 days")
+      // Only start date provided (preset like "Last 7 days", "Last 30 days", etc.)
+      // Use gte (greater than or equal to) for start date
       url += `&check_in_date=gte.${startDate}`;
-      console.log(`📅 Start date filter: >= ${startDate}`);
+      console.log(`📅 Start date filter: check_in_date >= ${startDate}`);
     } else {
-      console.log(`📅 No date filters applied`);
+      console.log(`📅 No date filters applied - showing all bookings`);
     }
     
-    console.log(`🔗 Fetching URL: ${url}`);
+    console.log(`🔗 FINAL SUPABASE URL: ${url}`);
 
     const response = await fetch(url, {
       headers: {
@@ -133,31 +134,20 @@ export const handler = async (event) => {
 
     console.log(`📊 Total bookings matching filter: ${totalBookings}, Total pages: ${totalPages}`);
 
-    // Calculate today's activity (for dashboard overview)
-    // Use all recent bookings for accurate stayover calculation
-    let recentBookings = bookings;
-    if (parseInt(page) === 1 && totalBookings > 0) {
-      // Fetch more recent bookings to calculate accurate stayovers
-      const recentUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=200`;
-      const recentResponse = await fetch(recentUrl, {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      });
-      if (recentResponse.ok) {
-        recentBookings = await recentResponse.json();
-      }
+    // DEBUG: Log first few bookings to verify date filtering
+    if (bookings.length > 0) {
+      console.log(`🔍 Sample booking dates:`, bookings.slice(0, 5).map(b => b.check_in_date));
     }
 
+    // Calculate today's activity (for dashboard overview)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
     
-    const todayCheckIns = recentBookings.filter(b => b.check_in_date === todayStr).length;
-    const todayCheckOuts = recentBookings.filter(b => b.check_out_date === todayStr).length;
+    const todayCheckIns = bookings.filter(b => b.check_in_date === todayStr).length;
+    const todayCheckOuts = bookings.filter(b => b.check_out_date === todayStr).length;
     
-    const todayStayovers = recentBookings.filter(b => {
+    const todayStayovers = bookings.filter(b => {
       if (!b.check_in_date) return false;
       const checkInDate = new Date(b.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
