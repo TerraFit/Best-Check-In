@@ -35,20 +35,20 @@ export const handler = async (event) => {
       return createResponse(403, { success: false, error: 'Token missing business ID' });
     }
 
+    // Get query parameters
     const { 
       businessId: businessIdFromQuery, 
       startDate, 
       endDate, 
-      dateRange,
-      futureOnly,
-      limit = 20,      // ← Default 20 records per page
-      page = 1         // ← Default page 1
+      limit = 25,
+      page = 1
     } = event.queryStringParameters || {};
 
     const targetBusinessId = businessIdFromQuery || businessIdFromToken;
     
+    // Security check
     if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
-      console.error(`❌ Security violation`);
+      console.error(`❌ Security violation - business ID mismatch`);
       return createResponse(403, { success: false, error: 'Forbidden' });
     }
     
@@ -58,6 +58,7 @@ export const handler = async (event) => {
 
     console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
     console.log(`📊 Limit: ${limit}, Page: ${page}`);
+    console.log(`📅 StartDate: ${startDate}, EndDate: ${endDate}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -71,38 +72,25 @@ export const handler = async (event) => {
     // Calculate offset for pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // Exclude large base64 fields for listing
+    // Select fields (exclude large base64 fields)
     const selectFields = 'id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_id_number,check_in_date,check_out_date,nights,adults,children,total_amount,status,guest_province,guest_city,guest_country,booking_source,referral_source,marketing_consent,created_at,updated_at';
     
+    // Build the base URL
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
-
-    // Apply futureOnly filter
-    if (futureOnly === 'true') {
-      const today = new Date().toISOString().split('T')[0];
-      url += `&check_in_date=gte.${today}`;
-    }
-
+    
     // Apply date filters
     if (startDate && endDate) {
+      // Both start and end dates provided (custom range)
       url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (dateRange === '7days') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      url += `&check_in_date=gte.${sevenDaysAgo.toISOString().split('T')[0]}`;
-    } else if (dateRange === '30days') {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      url += `&check_in_date=gte.${thirtyDaysAgo.toISOString().split('T')[0]}`;
-    } else if (dateRange === '90days') {
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-      url += `&check_in_date=gte.${ninetyDaysAgo.toISOString().split('T')[0]}`;
-    } else if (dateRange === '12months') {
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-      url += `&check_in_date=gte.${twelveMonthsAgo.toISOString().split('T')[0]}`;
+      console.log(`📅 Custom date range: ${startDate} to ${endDate}`);
+    } else if (startDate && !endDate) {
+      // Only start date provided (preset like "Last 7 days")
+      url += `&check_in_date=gte.${startDate}`;
+      console.log(`📅 Start date filter: >= ${startDate}`);
+    } else {
+      console.log(`📅 No date filters applied`);
     }
-
+    
     console.log(`🔗 Fetching URL: ${url}`);
 
     const response = await fetch(url, {
@@ -121,19 +109,17 @@ export const handler = async (event) => {
     const bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // Get total count for pagination (without limit)
+    // Get total count for pagination (respecting date filters)
     let countUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=id`;
+    
+    // Apply SAME date filters to count query
     if (startDate && endDate) {
       countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (dateRange !== 'all' && dateRange) {
-      // Apply same date filters for count
-      const days = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
-      if (days[dateRange]) {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
-        countUrl += `&check_in_date=gte.${cutoffDate.toISOString().split('T')[0]}`;
-      }
+    } else if (startDate && !endDate) {
+      countUrl += `&check_in_date=gte.${startDate}`;
     }
+    
+    console.log(`🔗 Count URL: ${countUrl}`);
     
     const countResponse = await fetch(countUrl, {
       headers: {
@@ -143,12 +129,15 @@ export const handler = async (event) => {
     });
     const totalCountData = await countResponse.json();
     const totalBookings = totalCountData.length;
+    const totalPages = Math.ceil(totalBookings / parseInt(limit));
 
-    // Calculate today's activity from ALL bookings (not just current page)
-    // For accurate stayovers, we need to check all recent bookings
+    console.log(`📊 Total bookings matching filter: ${totalBookings}, Total pages: ${totalPages}`);
+
+    // Calculate today's activity (for dashboard overview)
+    // Use all recent bookings for accurate stayover calculation
     let recentBookings = bookings;
-    if (parseInt(page) === 1) {
-      // On first page, fetch a few more to ensure we have all recent bookings
+    if (parseInt(page) === 1 && totalBookings > 0) {
+      // Fetch more recent bookings to calculate accurate stayovers
       const recentUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=200`;
       const recentResponse = await fetch(recentUrl, {
         headers: {
@@ -188,7 +177,7 @@ export const handler = async (event) => {
       total_count: totalBookings,
       page: parseInt(page),
       limit: parseInt(limit),
-      total_pages: Math.ceil(totalBookings / parseInt(limit)),
+      total_pages: totalPages,
       today_activity: {
         arrivals: todayCheckIns,
         stayovers: todayStayovers,
