@@ -1611,7 +1611,7 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* ============================================================ */}
+                {/* ============================================================ */}
         {/* REPORTS TAB */}
         {/* ============================================================ */}
         {activeTab === 'reports' && (
@@ -1627,11 +1627,9 @@ export default function BusinessDashboard() {
                   <select
                     value={currentFilters.dateRange}
                     onChange={(e) => {
-                      updateFilter('dateRange', e.target.value as typeof currentFilters.dateRange);
+                      updateFilter('dateRange', e.target.value as any);
                       updateFilter('startDate', '');
                       updateFilter('endDate', '');
-                      // Trigger reload immediately
-                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                   >
@@ -1651,8 +1649,6 @@ export default function BusinessDashboard() {
                     onChange={(e) => {
                       updateFilter('startDate', e.target.value);
                       updateFilter('dateRange', 'all');
-                      // Trigger reload immediately
-                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="From"
@@ -1664,8 +1660,6 @@ export default function BusinessDashboard() {
                     onChange={(e) => {
                       updateFilter('endDate', e.target.value);
                       updateFilter('dateRange', 'all');
-                      // Trigger reload immediately
-                      setTimeout(() => loadBookings(), 100);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
                     placeholder="To"
@@ -1683,23 +1677,23 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Report Summary */}
+            {/* Report Summary - USING bookings (API-filtered data) */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Summary</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-sm text-gray-500">Total Bookings</p>
-                  <p className="text-2xl font-bold text-gray-900">{filteredBookings.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{bookings.length}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-sm text-gray-500">Total Revenue</p>
-                  <p className="text-2xl font-bold text-gray-900">R {filteredBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-gray-900">R {bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-sm text-gray-500">Average Stay</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {filteredBookings.length > 0 
-                      ? (filteredBookings.reduce((sum, b) => sum + (b.nights || 1), 0) / filteredBookings.length).toFixed(1)
+                    {bookings.length > 0 
+                      ? (bookings.reduce((sum, b) => sum + (b.nights || 1), 0) / bookings.length).toFixed(1)
                       : '0'} nights
                   </p>
                 </div>
@@ -1715,7 +1709,7 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Charts */}
+            {/* Charts - USING bookings (API-filtered data) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Guest Origins Chart */}
               <div className="bg-white rounded-lg shadow p-6">
@@ -1742,13 +1736,16 @@ export default function BusinessDashboard() {
                     </button>
                   </div>
                 </div>
-                {filteredBookings.length === 0 ? (
+                {bookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
                 ) : (() => {
-                  const guestData = Object.entries(filteredBookings.reduce((acc, b) => {
-                    if (b.guest_country) acc[b.guest_country] = (acc[b.guest_country] || 0) + 1;
+                  const guestData = Object.entries(bookings.reduce((acc, b) => {
+                    if (b.guest_country) {
+                      const cleanCountry = b.guest_country.replace(/\.$/, '').trim();
+                      acc[cleanCountry] = (acc[cleanCountry] || 0) + 1;
+                    }
                     return acc;
                   }, {} as Record<string, number>)).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
                   
@@ -1816,12 +1813,12 @@ export default function BusinessDashboard() {
                     </button>
                   </div>
                 </div>
-                {filteredBookings.length === 0 ? (
+                {bookings.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-gray-400">
                     No data available for selected period
                   </div>
                 ) : (() => {
-                  const referralData = Object.entries(filteredBookings.reduce((acc, b) => {
+                  const referralData = Object.entries(bookings.reduce((acc, b) => {
                     const source = b.booking_source || b.referral_source;
                     if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
                       const cleanSource = source.replace(/\.$/, '').trim();
