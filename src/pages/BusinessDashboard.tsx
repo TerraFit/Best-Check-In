@@ -286,14 +286,28 @@ export default function BusinessDashboard() {
   // HELPER FUNCTIONS
   // ============================================================
 
-  const updateFilter = <K extends keyof typeof currentFilters>(key: K, value: typeof currentFilters[K]) => {
-    setFilters(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab as keyof typeof prev],
-        [key]: value
-      }
-    }));
+   const updateFilter = <K extends keyof typeof currentFilters>(key: K, value: typeof currentFilters[K]) => {
+    console.log(`🔧 updateFilter: ${String(key)} = ${value}`);
+    setFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [activeTab]: {
+          ...(prev[activeTab as keyof typeof prev] || {
+            dateRange: 'all',
+            startDate: '',
+            endDate: '',
+            searchTerm: '',
+            statusFilter: '',
+            provinceFilter: '',
+            cityFilter: '',
+            countryFilter: ''
+          }),
+          [key]: value
+        }
+      };
+      console.log('📝 New filters:', newFilters[activeTab as keyof typeof newFilters]);
+      return newFilters;
+    });
   };
 
   const clearCurrentFilters = () => {
@@ -941,7 +955,7 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [filteredBookings, business]);
 
-  // ============================================================
+    // ============================================================
   // EFFECTS
   // ============================================================
 
@@ -955,12 +969,24 @@ export default function BusinessDashboard() {
     init();
   }, []);
 
-  // Single consolidated effect for bookings
+  // Single consolidated effect for bookings - with proper dependencies
   useEffect(() => {
     if (!initialLoading) {
+      console.log('🔄 Effect triggered - reloading bookings');
+      console.log('   dateRange:', currentFilters?.dateRange);
+      console.log('   startDate:', currentFilters?.startDate);
+      console.log('   endDate:', currentFilters?.endDate);
       loadBookings();
     }
-  }, [currentPage, pageSize, activeTab, currentFilters.dateRange, currentFilters.startDate, currentFilters.endDate, initialLoading]);
+  }, [
+    currentPage, 
+    pageSize, 
+    activeTab, 
+    currentFilters?.dateRange,
+    currentFilters?.startDate,
+    currentFilters?.endDate,
+    initialLoading
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
