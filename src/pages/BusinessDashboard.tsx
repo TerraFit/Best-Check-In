@@ -504,151 +504,151 @@ export default function BusinessDashboard() {
     }
   };
 
- const loadBookings = async () => {
-  // Prevent concurrent requests
-  if (refreshing) {
-    console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
-    return;
-  }
-
-  const businessId = getBusinessId();
-  if (!businessId) {
-    console.warn('⚠️ No businessId found');
-    return;
-  }
-
-  // Cancel any in-flight request
-  if (abortControllerRef.current) {
-    abortControllerRef.current.abort();
-  }
-
-  const controller = new AbortController();
-  abortControllerRef.current = controller;
-
-  setRefreshing(true);
-
-  try {
-    console.log('📡 Fetching bookings for business:', businessId);
-    console.log('📅 Current activeTab:', activeTab);
-    console.log(`📄 Page: ${currentPage}, Page Size: ${pageSize}`);
-    console.log('📅 Current filters dateRange:', currentFilters?.dateRange);
-    console.log('📅 Current filters startDate:', currentFilters?.startDate);
-    console.log('📅 Current filters endDate:', currentFilters?.endDate);
-    
-    // Build base URL
-    let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
-    
-    // For Reports tab, fetch ALL bookings (no pagination)
-    if (activeTab === 'reports') {
-      url += `&limit=10000&page=1`;
-      console.log('📊 REPORTS TAB: Fetching ALL bookings (limit=10000)');
-    } else {
-      // For Check-ins tab and Overview tab, use pagination
-      url += `&limit=${pageSize}&page=${currentPage}`;
+   const loadBookings = async () => {
+    // Prevent concurrent requests
+    if (refreshing) {
+      console.log('⏭️ Skipping duplicate loadBookings call - already in progress');
+      return;
     }
-    
-    // Apply date filters for Reports tab AND Check-ins tab
-    if (activeTab === 'reports' || activeTab === 'checkins') {
-      // Custom date range (From - To) - takes priority
-      if (currentFilters?.startDate && currentFilters?.endDate) {
-        url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
-        console.log('📅 Using custom date range:', currentFilters.startDate, 'to', currentFilters.endDate);
-      } 
-      // Preset date ranges
-      else if (currentFilters?.dateRange && currentFilters.dateRange !== 'all') {
-        const days = { 
-          '7days': 7, 
-          '30days': 30, 
-          '90days': 90, 
-          '12months': 365 
-        };
-        if (days[currentFilters.dateRange]) {
-          const cutoffDate = new Date();
-          cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
-          const startDateParam = cutoffDate.toISOString().split('T')[0];
-          url += `&startDate=${startDateParam}`;
-          console.log(`📅 Using preset range: ${currentFilters.dateRange}, from ${startDateParam}`);
-        }
+
+    const businessId = getBusinessId();
+    if (!businessId) {
+      console.warn('⚠️ No businessId found');
+      return;
+    }
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setRefreshing(true);
+
+    try {
+      console.log('📡 Fetching bookings for business:', businessId);
+      console.log('📅 Current activeTab:', activeTab);
+      console.log(`📄 Page: ${currentPage}, Page Size: ${pageSize}`);
+      console.log('📅 Current filters dateRange:', currentFilters?.dateRange);
+      console.log('📅 Current filters startDate:', currentFilters?.startDate);
+      console.log('📅 Current filters endDate:', currentFilters?.endDate);
+      
+      // Build base URL
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
+      
+      // For Reports tab, fetch ALL bookings (no pagination)
+      if (activeTab === 'reports') {
+        url += `&limit=10000&page=1`;
+        console.log('📊 REPORTS TAB: Fetching ALL bookings (limit=10000)');
       } else {
-        console.log('📅 No date filter - showing all bookings');
+        // For Check-ins tab and Overview tab, use pagination
+        url += `&limit=${pageSize}&page=${currentPage}`;
       }
+      
+      // Apply date filters for Reports tab AND Check-ins tab
+      if (activeTab === 'reports' || activeTab === 'checkins') {
+        // Custom date range (From - To) - takes priority
+        if (currentFilters?.startDate && currentFilters?.endDate) {
+          url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
+          console.log('📅 Using custom date range:', currentFilters.startDate, 'to', currentFilters.endDate);
+        } 
+        // Preset date ranges
+        else if (currentFilters?.dateRange && currentFilters.dateRange !== 'all') {
+          const days: Record<string, number> = { 
+            '7days': 7, 
+            '30days': 30, 
+            '90days': 90, 
+            '12months': 365 
+          };
+          if (days[currentFilters.dateRange]) {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
+            const startDateParam = cutoffDate.toISOString().split('T')[0];
+            url += `&startDate=${startDateParam}`;
+            console.log(`📅 Using preset range: ${currentFilters.dateRange}, from ${startDateParam}`);
+          }
+        } else {
+          console.log('📅 No date filter - showing all bookings');
+        }
+      }
+      
+      console.log('🔗 Fetching URL:', url);
+      
+      const res = await fetchWithAuth(url, { signal: controller.signal });
+      const result = await res.json();
+      
+      let rawBookings = [];
+      if (result.bookings && Array.isArray(result.bookings)) {
+        rawBookings = result.bookings;
+      } else if (result.success && Array.isArray(result.data)) {
+        rawBookings = result.data;
+      } else if (Array.isArray(result)) {
+        rawBookings = result;
+      }
+      
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      console.log(`📦 Loaded ${validBookings.length} bookings from API`);
+      
+      setBookings(validBookings);
+      
+      // Only update pagination for non-reports tabs
+      if (activeTab !== 'reports') {
+        setTotalBookingsCount(result.total_count || validBookings.length);
+        const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
+        setTotalPages(calculatedTotalPages);
+      } else {
+        // For Reports tab, total is all bookings
+        setTotalBookingsCount(validBookings.length);
+        setTotalPages(1);
+      }
+      
+      // Extract unique filter values - CLEAN country names (remove trailing periods)
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
+      
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
+      
+      // Calculate today's activity
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
+      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+      
+      const stayovers = validBookings.filter(b => {
+        if (!b.check_in_date) return false;
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        if (checkInDate.getTime() === todayDate.getTime()) return false;
+        if (checkInDate > todayDate) return false;
+        if (!b.check_out_date) return true;
+        const checkOutDate = new Date(b.check_out_date);
+        checkOutDate.setHours(0, 0, 0, 0);
+        return checkOutDate >= todayDate;
+      });
+      
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
+      
+      console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
+      
+    } catch (err: any) {
+      // Don't log AbortError as it's expected when cancelling requests
+      if (err.name !== 'AbortError') {
+        console.error('❌ Error loading bookings:', err);
+      }
+    } finally {
+      setRefreshing(false);
+      abortControllerRef.current = null;
     }
-    
-    console.log('🔗 Fetching URL:', url);
-    
-    const res = await fetchWithAuth(url, { signal: controller.signal });
-    const result = await res.json();
-    
-    let rawBookings = [];
-    if (result.bookings && Array.isArray(result.bookings)) {
-      rawBookings = result.bookings;
-    } else if (result.success && Array.isArray(result.data)) {
-      rawBookings = result.data;
-    } else if (Array.isArray(result)) {
-      rawBookings = result;
-    }
-    
-    const validBookings = rawBookings.filter(b => b.business_id === businessId);
-    console.log(`📦 Loaded ${validBookings.length} bookings from API`);
-    
-    setBookings(validBookings);
-    
-    // Only update pagination for non-reports tabs
-    if (activeTab !== 'reports') {
-      setTotalBookingsCount(result.total_count || validBookings.length);
-      const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
-      setTotalPages(calculatedTotalPages);
-    } else {
-      // For Reports tab, total is all bookings
-      setTotalBookingsCount(validBookings.length);
-      setTotalPages(1);
-    }
-    
-    // Extract unique filter values - CLEAN country names (remove trailing periods)
-    const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
-    const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-    const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
-    
-    setUniqueProvinces(provinces.sort());
-    setUniqueCities(cities.sort());
-    setUniqueCountries(countries.sort());
-    
-    // Calculate today's activity
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    
-    const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-    const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-    
-    const stayovers = validBookings.filter(b => {
-      if (!b.check_in_date) return false;
-      const checkInDate = new Date(b.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      if (checkInDate.getTime() === todayDate.getTime()) return false;
-      if (checkInDate > todayDate) return false;
-      if (!b.check_out_date) return true;
-      const checkOutDate = new Date(b.check_out_date);
-      checkOutDate.setHours(0, 0, 0, 0);
-      return checkOutDate >= todayDate;
-    });
-    
-    setTodayArrivals(arrivals);
-    setTodayStayovers(stayovers);
-    setTodayCheckouts(checkouts);
-    
-    console.log(`📊 Today's Activity: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-    
-  } catch (err: any) {
-    // Don't log AbortError as it's expected when cancelling requests
-    if (err.name !== 'AbortError') {
-      console.error('❌ Error loading bookings:', err);
-    }
-  } finally {
-    setRefreshing(false);
-    abortControllerRef.current = null;
-  }
-};
+  };
 
   // ============================================================
   // FILTERS AND METRICS
