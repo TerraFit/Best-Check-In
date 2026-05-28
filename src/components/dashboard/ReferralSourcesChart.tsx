@@ -27,6 +27,9 @@ export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }:
     )
   }
 
+  // Calculate percentages instead of raw counts
+  const totalBookings = bookings.length
+
   const referralData = Object.entries(
     bookings.reduce((acc, b) => {
       const source = b.booking_source || b.referral_source
@@ -37,8 +40,12 @@ export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }:
       return acc
     }, {} as Record<string, number>)
   )
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
+    .map(([name, count]) => ({ 
+      name, 
+      count,
+      percentage: ((count / totalBookings) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.count - a.count)
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -80,7 +87,7 @@ export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }:
               innerRadius={60}
               outerRadius={100}
               paddingAngle={3}
-              dataKey="value"
+              dataKey="count"
               label={({ name, percent }) => percent > 0.03 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
               labelLine={false}
             >
@@ -88,17 +95,40 @@ export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }:
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value, name) => [`${value} bookings`, name]} />
+            <Tooltip 
+              formatter={(value, name, props) => {
+                const item = referralData.find(d => d.name === name)
+                return [`${item?.percentage}% (${value} bookings)`, name]
+              }}
+            />
           </PieChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={referralData} layout="vertical" margin={{ left: 120, right: 20 }}>
+          <BarChart 
+            data={referralData} 
+            layout="vertical" 
+            margin={{ left: 120, right: 20 }}
+          >
             <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-            <XAxis type="number" />
+            <XAxis type="number" tickFormatter={(value) => `${value}%`} domain={[0, 100]} />
             <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(value) => [`${value} bookings`, 'Count']} />
-            <Bar dataKey="value" fill="#3b82f6" radius={[0, 8, 8, 0]} />
+            <Tooltip 
+              formatter={(value, name, props) => {
+                const item = referralData.find(d => d.name === props.payload.name)
+                return [`${item?.percentage}% (${item?.count} bookings)`, 'Percentage']
+              }}
+            />
+            <Bar 
+              dataKey="percentage" 
+              fill="#3b82f6" 
+              radius={[0, 8, 8, 0]}
+              label={{ 
+                position: 'right', 
+                formatter: (value: number) => `${value}%`,
+                fontSize: 11
+              }}
+            />
           </BarChart>
         </ResponsiveContainer>
       )}
