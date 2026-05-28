@@ -22,6 +22,7 @@ import { ReportFilters } from '../components/dashboard/ReportFilters';
 import { ReportSummary } from '../components/dashboard/ReportSummary';
 import { GuestOriginsChart } from '../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../components/dashboard/ReferralSourcesChart';
+import { LengthOfStayChart } from '../components/dashboard/LengthOfStayChart'
 import { SettingsTab } from '../components/dashboard/SettingsTab';
 import { DashboardModals } from '../components/dashboard/DashboardModals';
 
@@ -556,36 +557,39 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-        {/* REPORTS TAB */}
-        {activeTab === 'reports' && (
-          <div className="space-y-6">
-            <ReportFilters
-              filters={currentFilters}
-              updateFilter={updateFilter}
-              clearCurrentFilters={clearCurrentFilters}
-              isFilterActive={isFilterActive}
-            />
+       {/* REPORTS TAB */}
+{activeTab === 'reports' && (
+  <div className="space-y-6">
+    <ReportFilters
+      filters={currentFilters}
+      updateFilter={updateFilter}
+      clearCurrentFilters={clearCurrentFilters}
+      isFilterActive={isFilterActive}
+    />
 
-            <ReportSummary
-              bookings={bookings}
-              onExport={exportToCSV}
-            />
+    <ReportSummary
+      bookings={bookings}
+      onExport={exportToCSV}
+    />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <GuestOriginsChart
-                bookings={bookings}
-                chartType={guestChartType}
-                onChartTypeChange={setGuestChartType}
-              />
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <GuestOriginsChart
+        bookings={bookings}
+        chartType={guestChartType}
+        onChartTypeChange={setGuestChartType}
+      />
 
-              <ReferralSourcesChart
-                bookings={bookings}
-                chartType={referralChartType}
-                onChartTypeChange={setReferralChartType}
-              />
-            </div>
-          </div>
-        )}
+      <ReferralSourcesChart
+        bookings={bookings}
+        chartType={referralChartType}
+        onChartTypeChange={setReferralChartType}
+      />
+    </div>
+
+    {/* Length of Stay Chart - Full width */}
+    <LengthOfStayChart bookings={bookings} />
+  </div>
+)}
 
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
