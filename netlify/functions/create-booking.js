@@ -2,9 +2,6 @@ export const handler = async (event) => {
   console.log(`📊 Request received at ${new Date().toISOString()}`);
   console.log(`🔑 Request ID: ${event.headers['x-request-id'] || 'unknown'}`);
   
-  // Rest of your code...
-}
-  export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -77,7 +74,7 @@ export const handler = async (event) => {
       guest_name: fullName || guestName,
       guest_first_name: firstName,
       guest_last_name: lastName,
-      guest_email: body.guest_email || '',
+      guest_email: (body.guest_email || '').toLowerCase().trim(),
       guest_phone: body.guest_phone || '',
       guest_id_number: body.guest_id_number || '',
       guest_id_photo: body.guest_id_photo || '',
@@ -99,7 +96,96 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving booking to:', BOOKINGS_TABLE);
+    // ============================================================
+    // DUPLICATE DETECTION - Check if booking already exists
+    // ============================================================
+    
+    const checkForDuplicate = async () => {
+      // Strategy 1: Check by email + check_in_date (most reliable)
+      if (bookingData.guest_email) {
+        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_email=eq.${encodeURIComponent(bookingData.guest_email)}&select=id`;
+        
+        console.log(`🔍 Checking duplicate by email: ${bookingData.guest_email}`);
+        const checkResponse = await fetch(checkUrl, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        });
+        
+        const existing = await checkResponse.json();
+        if (existing && existing.length > 0) {
+          console.log(`⚠️ Duplicate found by email: ${bookingData.guest_email} on ${bookingData.check_in_date}`);
+          return true;
+        }
+      }
+      
+      // Strategy 2: Check by name + check_in_date (fallback for no email)
+      if (bookingData.guest_name) {
+        const encodedName = encodeURIComponent(bookingData.guest_name);
+        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_name=eq.${encodedName}&select=id`;
+        
+        console.log(`🔍 Checking duplicate by name: ${bookingData.guest_name}`);
+        const checkResponse = await fetch(checkUrl, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        });
+        
+        const existing = await checkResponse.json();
+        if (existing && existing.length > 0) {
+          console.log(`⚠️ Duplicate found by name: ${bookingData.guest_name} on ${bookingData.check_in_date}`);
+          return true;
+        }
+      }
+      
+      // Strategy 3: Check by phone + check_in_date (if available)
+      if (bookingData.guest_phone) {
+        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_phone=eq.${encodeURIComponent(bookingData.guest_phone)}&select=id`;
+        
+        console.log(`🔍 Checking duplicate by phone: ${bookingData.guest_phone}`);
+        const checkResponse = await fetch(checkUrl, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        });
+        
+        const existing = await checkResponse.json();
+        if (existing && existing.length > 0) {
+          console.log(`⚠️ Duplicate found by phone: ${bookingData.guest_phone} on ${bookingData.check_in_date}`);
+          return true;
+        }
+      }
+      
+      console.log('✅ No duplicate found');
+      return false;
+    };
+
+    // Check for duplicate before saving
+    const isDuplicate = await checkForDuplicate();
+    
+    if (isDuplicate) {
+      console.log('⏭️ Skipping duplicate booking:', {
+        guest_email: bookingData.guest_email,
+        guest_name: bookingData.guest_name,
+        check_in_date: bookingData.check_in_date
+      });
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          duplicate: true,
+          message: 'Duplicate booking skipped',
+          booking: null
+        })
+      };
+    }
+
+    console.log('💾 Saving new booking to:', BOOKINGS_TABLE);
     console.log('📦 Booking data:', JSON.stringify(bookingData, null, 2));
 
     const response = await fetch(`${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}`, {
@@ -138,6 +224,7 @@ export const handler = async (event) => {
       headers,
       body: JSON.stringify({
         success: true,
+        duplicate: false,
         booking: newBooking,
         message: 'Booking created successfully'
       })
