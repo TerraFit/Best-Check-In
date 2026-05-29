@@ -32,16 +32,8 @@ export default function BusinessDashboard() {
   // ============================================================
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
   
+  // UI state and pagination from dashboard state (NOT business data)
   const {
-    // Business data
-    business,
-    bookings,
-    todayStayovers,
-    todayCheckouts,
-    todayArrivals,
-    loading,
-    refreshing,
-    
     // Pagination
     currentPage,
     setCurrentPage,
@@ -146,8 +138,22 @@ export default function BusinessDashboard() {
   } = useDashboardState();
 
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
-  const { refreshData } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+  
+  // ✅ BUSINESS DATA COMES FROM HERE - NOT from useDashboardState
+  const { 
+    business,
+    bookings,
+    loading,
+    refreshing,
+    todayArrivals,
+    todayStayovers,
+    todayCheckouts,
+    refreshData
+  } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+  
   console.log('🔍 DEBUG - loading:', loading, 'business:', !!business, 'bookings:', bookings.length);
+  
+  // ... rest of your component continues unchanged
   // ============================================================
   // UI HELPER FUNCTIONS
   // ============================================================
