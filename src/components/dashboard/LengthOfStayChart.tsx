@@ -6,7 +6,7 @@ interface LengthOfStayChartProps {
 }
 
 export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
-  if (bookings.length === 0) {
+  if (!bookings || bookings.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Length of Stay Distribution</h3>
@@ -20,7 +20,7 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
   // Calculate distribution of nights
   const distribution: Record<number, number> = {}
   
-  bookings.forEach(booking => {
+  bookings.forEach((booking: any) => {
     const nights = booking.nights || 1
     distribution[nights] = (distribution[nights] || 0) + 1
   })
@@ -31,12 +31,12 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
   const data = Object.entries(distribution)
     .map(([nights, count]) => ({
       nights: parseInt(nights),
-      count,
+      count: count,
       percentage: ((count / totalBookings) * 100).toFixed(1)
     }))
     .sort((a, b) => a.nights - b.nights)
     // Only show up to 14 nights, group 14+ as "14+"
-    .reduce((acc, curr) => {
+    .reduce((acc: any[], curr) => {
       if (curr.nights >= 14) {
         const existing = acc.find(d => d.nights === '14+')
         if (existing) {
@@ -53,23 +53,23 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
         acc.push(curr)
       }
       return acc
-    }, [] as any[])
+    }, [])
 
   // Color gradient based on percentage
   const getBarColor = (percentage: number) => {
-    if (percentage >= 30) return '#ef4444' // Red - most common
-    if (percentage >= 15) return '#f59e0b' // Orange - common
-    if (percentage >= 5) return '#10b981'  // Green - average
-    return '#3b82f6'                        // Blue - rare
+    if (percentage >= 30) return '#ef4444'
+    if (percentage >= 15) return '#f59e0b'
+    if (percentage >= 5) return '#10b981'
+    return '#3b82f6'
   }
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold text-gray-900">
-            {label === '14+' ? '14+ nights' : `${label} night${label !== '1' ? 's' : ''}`}
+            {dataPoint.nights === '14+' ? '14+ nights' : `${dataPoint.nights} night${dataPoint.nights !== 1 ? 's' : ''}`}
           </p>
           <p className="text-sm text-gray-600">
             <span className="font-medium">{dataPoint.count}</span> bookings
@@ -83,16 +83,17 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
     return null
   }
 
+  // Find most common stay length for display
+  const mostCommon = data.reduce((max, curr) => curr.count > max.count ? curr : max, data[0])
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Length of Stay Distribution</h3>
         <p className="text-sm text-gray-500 mt-1">
           Most guests stay <span className="font-medium text-orange-600">
-            {data.reduce((max, curr) => curr.count > max.count ? curr : max, data[0])?.nights === '14+' 
-              ? '14+ nights' 
-              : `${data.reduce((max, curr) => curr.count > max.count ? curr : max, data[0])?.nights} night${data.reduce((max, curr) => curr.count > max.count ? curr : max, data[0])?.nights !== 1 ? 's' : ''}`
-          }</span>
+            {mostCommon?.nights === '14+' ? '14+ nights' : `${mostCommon?.nights} night${mostCommon?.nights !== 1 ? 's' : ''}`}
+          </span>
         </p>
       </div>
       
@@ -120,11 +121,8 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
             }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Bar 
-            dataKey="count" 
-            radius={[8, 8, 0, 0]}
-          >
-            {data.map((entry, index) => (
+          <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+            {data.map((entry: any, index: number) => (
               <Cell 
                 key={`cell-${index}`} 
                 fill={getBarColor(parseFloat(entry.percentage))}
@@ -139,36 +137,36 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">1-night stays</p>
           <p className="font-bold text-gray-900">
-            {data.find(d => d.nights === 1)?.count || 0} 
+            {(data.find((d: any) => d.nights === 1)?.count || 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({data.find(d => d.nights === 1)?.percentage || 0}%)
+              ({data.find((d: any) => d.nights === 1)?.percentage || 0}%)
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">2-3 nights</p>
           <p className="font-bold text-gray-900">
-            {(data.find(d => d.nights === 2)?.count || 0) + (data.find(d => d.nights === 3)?.count || 0)}
+            {((data.find((d: any) => d.nights === 2)?.count || 0) + (data.find((d: any) => d.nights === 3)?.count || 0)).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({((data.find(d => d.nights === 2)?.count || 0) + (data.find(d => d.nights === 3)?.count || 0)) / totalBookings * 100}%)
+              ({((data.find((d: any) => d.nights === 2)?.count || 0) + (data.find((d: any) => d.nights === 3)?.count || 0)) / totalBookings * 100}%)
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">4-7 nights</p>
           <p className="font-bold text-gray-900">
-            {[4,5,6,7].reduce((sum, n) => sum + (data.find(d => d.nights === n)?.count || 0), 0)}
+            {[4,5,6,7].reduce((sum, n) => sum + (data.find((d: any) => d.nights === n)?.count || 0), 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({[4,5,6,7].reduce((sum, n) => sum + (data.find(d => d.nights === n)?.count || 0), 0) / totalBookings * 100}%)
+              ({[4,5,6,7].reduce((sum, n) => sum + (data.find((d: any) => d.nights === n)?.count || 0), 0) / totalBookings * 100}%)
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">8+ nights</p>
           <p className="font-bold text-gray-900">
-            {data.filter(d => typeof d.nights === 'number' && d.nights >= 8).reduce((sum, d) => sum + d.count, 0) + (data.find(d => d.nights === '14+')?.count || 0)}
+            {(data.filter((d: any) => typeof d.nights === 'number' && d.nights >= 8).reduce((sum: number, d: any) => sum + d.count, 0) + (data.find((d: any) => d.nights === '14+')?.count || 0)).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              {(data.filter(d => typeof d.nights === 'number' && d.nights >= 8).reduce((sum, d) => sum + d.count, 0) + (data.find(d => d.nights === '14+')?.count || 0)) / totalBookings * 100}%
+              {(data.filter((d: any) => typeof d.nights === 'number' && d.nights >= 8).reduce((sum: number, d: any) => sum + d.count, 0) + (data.find((d: any) => d.nights === '14+')?.count || 0)) / totalBookings * 100}%
             </span>
           </p>
         </div>
