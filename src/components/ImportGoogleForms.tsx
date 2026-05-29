@@ -19,19 +19,19 @@ interface ImportPreview {
   detectedColumns: string[];
 }
 
-// ✅ Database fields that FastCheckin understands
+// Database fields that FastCheckin understands
 const FASTCHECKIN_FIELDS = [
-  { key: 'guest_first_name', label: 'First Name', required: true, description: 'Guest first name (first word only)' },
-  { key: 'guest_last_name', label: 'Last Name', required: true, description: 'Guest last name (last word only)' },
+  { key: 'guest_first_name', label: 'First Name', required: true, description: 'Guest first name' },
+  { key: 'guest_last_name', label: 'Last Name', required: true, description: 'Guest last name' },
   { key: 'guest_email', label: 'Email Address', required: false, description: 'Guest email for confirmation' },
   { key: 'guest_phone', label: 'Phone Number', required: false, description: 'Contact number' },
-  { key: 'check_in_date', label: 'Check-in Date', required: true, description: 'Arrival date (YYYY-MM-DD or DD/MM/YYYY)' },
+  { key: 'check_in_date', label: 'Check-in Date', required: true, description: 'Arrival date (DD/MM/YYYY)' },
   { key: 'check_out_date', label: 'Check-out Date', required: false, description: 'Departure date' },
-  { key: 'nights', label: 'Number of Nights', required: false, description: 'Auto-calculated if check-out date provided' },
+  { key: 'nights', label: 'Number of Nights', required: false, description: 'Auto-calculated' },
   { key: 'guest_country', label: 'Country', required: false, description: 'Country of residence' },
   { key: 'guest_province', label: 'Province/State', required: false, description: 'Province or state' },
   { key: 'guest_city', label: 'City/Town', required: false, description: 'City or town name' },
-  { key: 'referral_source', label: 'How did they hear about us?', required: false, description: 'Referral source' },
+  { key: 'referral_source', label: 'Referral Source', required: false, description: 'How they heard about us' },
   { key: 'settlement_method', label: 'Payment Method', required: false, description: 'How they paid' },
   { key: 'adults', label: 'Number of Adults', required: false, description: 'Adult guests count' },
   { key: 'children', label: 'Number of Children', required: false, description: 'Children count' },
@@ -53,18 +53,19 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dateFormat, setDateFormat] = useState<'DMY' | 'MDY'>('DMY');
 
   const downloadTemplate = () => {
     const templateData = [{
       'Full Name': 'John Smith',
       'Email Address': 'john@example.com',
       'Phone Number': '+27 82 123 4567',
-      'Check-in Date': '2024-12-25',
-      'Check-out Date': '2024-12-30',
+      'Check-in Date': '25/12/2024',
+      'Check-out Date': '30/12/2024',
       'Country': 'South Africa',
       'Province/State': 'Western Cape',
       'City/Town': 'Cape Town',
-      'How did they hear about us?': 'Google',
+      'Referral Source': 'Google',
       'Payment Method': 'Card',
       'Adults': '2',
       'Children': '1',
@@ -79,28 +80,21 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     const instructions = [
       ['FASTCHECKIN IMPORT TEMPLATE INSTRUCTIONS'],
       [''],
+      ['DATE FORMAT: Use DD/MM/YYYY (e.g., 25/12/2024 for 25 December 2024)'],
+      [''],
       ['REQUIRED FIELDS:'],
-      ['- Full Name - The full name of the guest (will be split into First Name and Last Name)'],
-      ['- Check-in Date - Date of arrival (YYYY-MM-DD or DD/MM/YYYY format)'],
+      ['- Full Name - The full name of the guest'],
+      ['- Check-in Date - Date of arrival (DD/MM/YYYY format)'],
       [''],
       ['HOW NAMES ARE PROCESSED:'],
       ['- "John Smith" → First Name: "John", Last Name: "Smith"'],
-      ['- "John Michael Smith" → First Name: "John", Last Name: "Smith" (middle names ignored)'],
-      ['- "Cher" → First Name: "Cher", Last Name: "" (single name)'],
+      ['- "John Michael Smith" → First Name: "John", Last Name: "Smith"'],
       [''],
       ['RECOMMENDED FIELDS:'],
       ['- Email Address - For sending confirmation emails'],
       ['- Phone Number - Contact number'],
       ['- Check-out Date - For calculating stay duration'],
-      ['- Country - Guest country of residence'],
-      [''],
-      ['OPTIONAL FIELDS:'],
-      ['- Province/State, City/Town, How did they hear about us?, Payment Method, Adults, Children, Total Amount, ID/Passport Number'],
-      [''],
-      ['NOTES:'],
-      ['- Dates can be in format: YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY'],
-      ['- The system will auto-calculate nights if check-out date is provided'],
-      ['- Missing optional fields will be left empty']
+      ['- Country - Guest country of residence']
     ];
     
     const instructionsSheet = XLSX.utils.aoa_to_sheet(instructions);
@@ -109,62 +103,68 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     XLSX.writeFile(workbook, 'fastcheckin_import_template.xlsx');
   };
 
-  // ✅ Split full name into first name (first word) and last name (last word)
   const splitFullName = (fullName: string): { firstName: string; lastName: string } => {
     if (!fullName) return { firstName: '', lastName: '' };
     
     const trimmed = fullName.trim();
     const words = trimmed.split(' ').filter(w => w.length > 0);
     
-    if (words.length === 0) {
-      return { firstName: '', lastName: '' };
-    }
+    if (words.length === 0) return { firstName: '', lastName: '' };
+    if (words.length === 1) return { firstName: words[0], lastName: '' };
     
-    if (words.length === 1) {
-      // Only one word - treat as first name
-      return { firstName: words[0], lastName: '' };
-    }
-    
-    // First name = first word
-    const firstName = words[0];
-    // Last name = last word (ignore everything in between)
-    const lastName = words[words.length - 1];
-    
-    return { firstName, lastName };
+    return { firstName: words[0], lastName: words[words.length - 1] };
   };
 
-  // ✅ FIXED: parseDate that handles strings, numbers, and Excel serial dates
-  const parseDate = (dateStr: any): string => {
+  // ✅ CORRECTED: parseDate that respects selected format
+  const parseDate = (dateStr: any, format: 'DMY' | 'MDY'): string => {
     if (!dateStr) return '';
     
     let strValue = '';
     
     // Handle Excel serial date numbers
     if (typeof dateStr === 'number') {
-      // Excel dates start from Jan 1, 1900 (serial 1)
-      const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+      const excelEpoch = new Date(1899, 11, 30);
       const date = new Date(excelEpoch.getTime() + dateStr * 86400000);
-      strValue = date.toISOString().split('T')[0];
-    } else {
-      strValue = String(dateStr).trim();
+      return date.toISOString().split('T')[0];
     }
     
-    // Handle YYYY-MM-DD format
+    strValue = String(dateStr).trim();
+    
+    // Handle YYYY-MM-DD format (already correct)
     let match = strValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (match) {
-      return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+      const year = match[1];
+      const month = match[2].padStart(2, '0');
+      const day = match[3].padStart(2, '0');
+      const testDate = new Date(`${year}-${month}-${day}`);
+      if (!isNaN(testDate.getTime())) {
+        return `${year}-${month}-${day}`;
+      }
     }
     
-    // Handle DD/MM/YYYY format
+    // Handle DD/MM/YYYY or MM/DD/YYYY based on selected format
     match = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (match) {
-      return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
-    }
-    
-    // Handle MM/DD/YYYY format
-    match = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+      const first = match[1].padStart(2, '0');
+      const second = match[2].padStart(2, '0');
+      const year = match[3];
+      
+      let month: string, day: string;
+      
+      if (format === 'DMY') {
+        // DD/MM/YYYY
+        day = first;
+        month = second;
+      } else {
+        // MM/DD/YYYY
+        month = first;
+        day = second;
+      }
+      
+      const testDate = new Date(`${year}-${month}-${day}`);
+      if (!isNaN(testDate.getTime())) {
+        return `${year}-${month}-${day}`;
+      }
     }
     
     // Try JavaScript Date parsing as fallback
@@ -173,10 +173,10 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       return date.toISOString().split('T')[0];
     }
     
+    console.error('Failed to parse date:', strValue, 'with format:', format);
     return '';
   };
 
-  // ✅ FIXED: calculateNights with error handling
   const calculateNights = (checkIn: string, checkOut: string): number => {
     if (!checkIn) return 1;
     try {
@@ -206,36 +206,32 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         throw new Error('No data found in file');
       }
       
-      // ✅ NO PRE-PROCESSING - use the data exactly as it is
       setRawData(jsonData);
       
-      // Get columns from the original data
       const columns = Object.keys(jsonData[0]);
       console.log('📊 Detected columns:', columns);
       setDetectedColumns(columns);
       
-      // Auto-map columns - match exactly to your CSV column names
+      // Auto-map columns
       const autoMapping: Record<string, string> = {};
       columns.forEach(col => {
         const lowerCol = col.toLowerCase();
         
-        if (lowerCol === 'guest_first_name') {
-          autoMapping[col] = 'guest_first_name';
-        } else if (lowerCol === 'guest_last_name') {
-          autoMapping[col] = 'guest_last_name';
-        } else if (lowerCol === 'guest_email') {
-          autoMapping[col] = 'guest_email';
-        } else if (lowerCol === 'guest_country') {
-          autoMapping[col] = 'guest_country';
-        } else if (lowerCol === 'check_in_date') {
-          autoMapping[col] = 'check_in_date';
-        } else if (lowerCol === 'check_out_date') {
-          autoMapping[col] = 'check_out_date';
-        } else if (lowerCol.includes('email')) {
-          autoMapping[col] = 'guest_email';
-        } else if (lowerCol.includes('country')) {
-          autoMapping[col] = 'guest_country';
-        }
+        if (lowerCol.includes('first')) autoMapping[col] = 'guest_first_name';
+        else if (lowerCol.includes('last')) autoMapping[col] = 'guest_last_name';
+        else if (lowerCol.includes('email')) autoMapping[col] = 'guest_email';
+        else if (lowerCol.includes('phone')) autoMapping[col] = 'guest_phone';
+        else if (lowerCol.includes('country')) autoMapping[col] = 'guest_country';
+        else if (lowerCol.includes('province')) autoMapping[col] = 'guest_province';
+        else if (lowerCol.includes('city')) autoMapping[col] = 'guest_city';
+        else if (lowerCol.includes('check_in') || lowerCol.includes('arrival')) autoMapping[col] = 'check_in_date';
+        else if (lowerCol.includes('check_out') || lowerCol.includes('departure')) autoMapping[col] = 'check_out_date';
+        else if (lowerCol.includes('referral')) autoMapping[col] = 'referral_source';
+        else if (lowerCol.includes('payment')) autoMapping[col] = 'settlement_method';
+        else if (lowerCol.includes('adult')) autoMapping[col] = 'adults';
+        else if (lowerCol.includes('child')) autoMapping[col] = 'children';
+        else if (lowerCol.includes('amount')) autoMapping[col] = 'total_amount';
+        else if (lowerCol.includes('id') || lowerCol.includes('passport')) autoMapping[col] = 'id_number';
       });
       
       console.log('🔗 Auto mapping:', autoMapping);
@@ -266,19 +262,17 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
           let value = row[column];
           
           if (field === 'check_in_date' || field === 'check_out_date') {
-            if (value === undefined || value === null || value === '') {
-              if (field === 'check_in_date') {
-                errors.push('Check-in date is missing');
-              }
+            if (!value) {
+              if (field === 'check_in_date') errors.push('Check-in date is missing');
             } else {
-              value = parseDate(value);
+              value = parseDate(value, dateFormat);
               if (field === 'check_in_date' && !value) {
-                errors.push('Check-in date is invalid');
+                errors.push(`Check-in date is invalid: ${row[column]}`);
               }
             }
           }
           
-          if (field === 'adults' || field === 'children' || field === 'nights') {
+          if (field === 'adults' || field === 'children') {
             value = parseInt(value) || 0;
           }
           
@@ -290,6 +284,13 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         }
       }
 
+      // Handle Full Name column if present
+      if (mappedData.guest_full_name && !mappedData.guest_first_name) {
+        const { firstName, lastName } = splitFullName(mappedData.guest_full_name);
+        mappedData.guest_first_name = firstName;
+        mappedData.guest_last_name = lastName;
+      }
+
       // Validate required fields
       if (!mappedData.guest_first_name) {
         errors.push('First name is required');
@@ -297,13 +298,6 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
 
       if (!mappedData.check_in_date) {
         errors.push('Check-in date is required');
-      }
-
-      // Filter out title-only names
-      const invalidNames = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'mr.', 'mrs.', 'ms.', 'dr.', 'mister', 'master'];
-      const lowerFirstName = mappedData.guest_first_name?.toLowerCase().trim();
-      if (lowerFirstName && invalidNames.includes(lowerFirstName) && !mappedData.guest_last_name) {
-        errors.push('Invalid guest name (title only)');
       }
 
       // Auto-calculate nights
@@ -316,10 +310,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
 
       // Warnings for missing contact info
       if (!mappedData.guest_email && !mappedData.guest_phone) {
-        warnings.push('No email or phone provided - guest cannot be contacted');
-      }
-      if (!mappedData.guest_country) {
-        warnings.push('Country not specified');
+        warnings.push('No email or phone provided');
       }
 
       const isValid = errors.length === 0;
@@ -386,7 +377,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               guest_last_name: row.data.guest_last_name || '',
               guest_email: row.data.guest_email || '',
               guest_phone: row.data.guest_phone || '',
-              guest_country: row.data.guest_country || '',
+              guest_country: row.data.guest_country || 'South Africa',
               guest_province: row.data.guest_province || '',
               guest_city: row.data.guest_city || '',
               guest_id_number: row.data.id_number || '',
@@ -441,7 +432,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     maxSize: 50 * 1024 * 1024
   });
 
-  // Render functions for each step (upload, mapping, preview, importing, complete)
+  // Upload Step
   if (step === 'upload') {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -450,6 +441,24 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Import Guest Data</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            {/* Date Format Selector */}
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date Format in your file
+              </label>
+              <select
+                value={dateFormat}
+                onChange={(e) => setDateFormat(e.target.value as 'DMY' | 'MDY')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="DMY">DD/MM/YYYY (Day/Month/Year) - Recommended</option>
+                <option value="MDY">MM/DD/YYYY (Month/Day/Year)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                Select the format your dates are in. Most Google Forms exports use DD/MM/YYYY.
+              </p>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -481,12 +490,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
                 <li>Your file can have any column names - you'll map them in the next step</li>
                 <li><strong>Required:</strong> Full Name and Check-in Date</li>
-                <li><strong>How names are processed:</strong> "John Smith" → First: "John", Last: "Smith"</li>
-                <li><strong>Middle names are ignored:</strong> "John Michael Smith" → First: "John", Last: "Smith"</li>
-                <li><strong>Recommended:</strong> Email or Phone for guest communication</li>
-                <li>Dates can be in YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY format</li>
-                <li>Missing optional fields will be left empty</li>
-                <li>Additional columns not mapped will be ignored</li>
+                <li><strong>Dates must be in the format you selected above</strong></li>
+                <li>Recommended: Email or Phone for guest communication</li>
               </ul>
             </div>
 
@@ -497,6 +502,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     );
   }
 
+  // Mapping Step
   if (step === 'mapping' && preview) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -547,6 +553,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     );
   }
 
+  // Preview Step
   if (step === 'preview' && preview) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -633,6 +640,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     );
   }
 
+  // Importing Step
   if (step === 'importing') {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -649,6 +657,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
     );
   }
 
+  // Complete Step
   if (step === 'complete' && importResult) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
