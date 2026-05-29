@@ -145,9 +145,9 @@ export default function BusinessDashboard() {
     setLoadingSubscribers,
   } = useDashboardState();
 
-  const { refreshData } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
-
+  const { refreshData } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+ 
   // ============================================================
   // UI HELPER FUNCTIONS
   // ============================================================
