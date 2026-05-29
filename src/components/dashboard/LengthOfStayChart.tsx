@@ -1,11 +1,83 @@
 // src/components/dashboard/LengthOfStayChart.tsx
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts'
+import { useMemo } from 'react'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, TooltipProps } from 'recharts'
+import { Booking } from '../../types'  // Import your existing type
 
-interface LengthOfStayChartProps {
-  bookings: any[]
+// ============================================================
+// TYPES
+// ============================================================
+
+interface StayData {
+  nights: number        // Numeric value for calculations (1-13, or 14 for grouped)
+  label: string         // Display label ("1", "2", ..., "14+")
+  count: number
+  percentage: number
 }
 
+interface LengthOfStayChartProps {
+  bookings: Booking[]
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const GROUP_THRESHOLD = 14
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const getValidNights = (nights: unknown): number => {
+  if (typeof nights === 'number' && !isNaN(nights) && nights > 0) {
+    return nights
+  }
+  return 1  // Default to 1 night for invalid data
+}
+
+const formatPercentage = (value: number): string => {
+  return `${value.toFixed(1)}%`
+}
+
+const getBarColor = (percentage: number): string => {
+  if (percentage >= 30) return '#ef4444'
+  if (percentage >= 15) return '#f59e0b'
+  if (percentage >= 5)  return '#10b981'
+  return '#3b82f6'
+}
+
+// ============================================================
+// CUSTOM TOOLTIP
+// ============================================================
+
+const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  if (active && payload && payload.length) {
+    const dataPoint = payload[0].payload as StayData
+    return (
+      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <p className="font-semibold text-gray-900">
+          {dataPoint.label === `${GROUP_THRESHOLD}+` 
+            ? `${GROUP_THRESHOLD}+ nights` 
+            : `${dataPoint.label} night${dataPoint.label !== '1' ? 's' : ''}`}
+        </p>
+        <p className="text-sm text-gray-600">
+          <span className="font-medium">{dataPoint.count.toLocaleString()}</span> bookings
+        </p>
+        <p className="text-sm text-orange-600 font-medium">
+          {formatPercentage(dataPoint.percentage)}
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+
 export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
+  // Early return with guard
   if (!bookings || bookings.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
@@ -17,94 +89,106 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
     )
   }
 
-  // Calculate distribution of nights
-  const distribution: Record<number, number> = {}
-  
-  bookings.forEach((booking: any) => {
-    const nights = booking.nights || 1
-    distribution[nights] = (distribution[nights] || 0) + 1
-  })
-
-  // Convert to array for chart and calculate percentages
   const totalBookings = bookings.length
-  
-  const data = Object.entries(distribution)
-    .map(([nights, count]) => ({
-      nights: parseInt(nights),
-      count: count,
-      percentage: ((count / totalBookings) * 100).toFixed(1)
-    }))
-    .sort((a, b) => a.nights - b.nights)
-    // Only show up to 14 nights, group 14+ as "14+"
-    .reduce((acc: any[], curr) => {
-      if (curr.nights >= 14) {
-        const existing = acc.find(d => d.nights === '14+')
-        if (existing) {
-          existing.count += curr.count
-          existing.percentage = ((existing.count / totalBookings) * 100).toFixed(1)
-        } else {
-          acc.push({
-            nights: '14+',
-            count: curr.count,
-            percentage: ((curr.count / totalBookings) * 100).toFixed(1)
-          })
+
+  // Calculate distribution using useMemo for performance
+  const chartData = useMemo((): StayData[] => {
+    const distribution: Record<number, number> = {}
+
+    // Count occurrences of each night value
+    bookings.forEach((booking) => {
+      const nights = getValidNights(booking.nights)
+      distribution[nights] = (distribution[nights] || 0) + 1
+    })
+
+    // Convert to array and calculate percentages
+    const rawData: StayData[] = Object.entries(distribution)
+      .map(([nightsStr, count]) => {
+        const nights = parseInt(nightsStr, 10)
+        return {
+          nights,
+          label: nights.toString(),
+          count,
+          percentage: (count / totalBookings) * 100
         }
+      })
+      .sort((a, b) => a.nights - b.nights)
+
+    // Group nights >= GROUP_THRESHOLD into a single category
+    const result: StayData[] = []
+    let groupedCount = 0
+    let groupedPercentage = 0
+
+    for (const item of rawData) {
+      if (item.nights >= GROUP_THRESHOLD) {
+        groupedCount += item.count
+        groupedPercentage += item.percentage
       } else {
-        acc.push(curr)
+        result.push(item)
       }
-      return acc
-    }, [])
-
-  // Color gradient based on percentage
-  const getBarColor = (percentage: number) => {
-    if (percentage >= 30) return '#ef4444'
-    if (percentage >= 15) return '#f59e0b'
-    if (percentage >= 5) return '#10b981'
-    return '#3b82f6'
-  }
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const dataPoint = payload[0].payload
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-900">
-            {dataPoint.nights === '14+' ? '14+ nights' : `${dataPoint.nights} night${dataPoint.nights !== 1 ? 's' : ''}`}
-          </p>
-          <p className="text-sm text-gray-600">
-            <span className="font-medium">{dataPoint.count}</span> bookings
-          </p>
-          <p className="text-sm text-orange-600 font-medium">
-            {dataPoint.percentage}% of total
-          </p>
-        </div>
-      )
     }
-    return null
-  }
 
-  // Find most common stay length for display
-  const mostCommon = data.reduce((max, curr) => curr.count > max.count ? curr : max, data[0])
+    // Add grouped category if there are any 14+ nights
+    if (groupedCount > 0) {
+      result.push({
+        nights: GROUP_THRESHOLD,
+        label: `${GROUP_THRESHOLD}+`,
+        count: groupedCount,
+        percentage: groupedPercentage
+      })
+    }
+
+    return result
+  }, [bookings, totalBookings])
+
+  // Create lookup map for O(1) access
+  const dataMap = useMemo(() => {
+    return Object.fromEntries(
+      chartData.map(d => [d.label, d])
+    )
+  }, [chartData])
+
+  // Find most common stay length (safe)
+  const mostCommon = chartData.length > 0
+    ? chartData.reduce((max, curr) => curr.count > max.count ? curr : max)
+    : null
+
+  // Summary stats using the map for efficiency
+  const oneNightCount = dataMap['1']?.count || 0
+  const twoThreeCount = (dataMap['2']?.count || 0) + (dataMap['3']?.count || 0)
+  const fourToSevenCount = [4, 5, 6, 7].reduce((sum, n) => sum + (dataMap[n.toString()]?.count || 0), 0)
+  const eightPlusCount = chartData
+    .filter(d => d.nights >= 8 && d.nights < GROUP_THRESHOLD)
+    .reduce((sum, d) => sum + d.count, 0) + (dataMap[`${GROUP_THRESHOLD}+`]?.count || 0)
+
+  const oneNightPercent = (oneNightCount / totalBookings) * 100
+  const twoThreePercent = (twoThreeCount / totalBookings) * 100
+  const fourToSevenPercent = (fourToSevenCount / totalBookings) * 100
+  const eightPlusPercent = (eightPlusCount / totalBookings) * 100
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Length of Stay Distribution</h3>
-        <p className="text-sm text-gray-500 mt-1">
-          Most guests stay <span className="font-medium text-orange-600">
-            {mostCommon?.nights === '14+' ? '14+ nights' : `${mostCommon?.nights} night${mostCommon?.nights !== 1 ? 's' : ''}`}
-          </span>
-        </p>
+        {mostCommon && (
+          <p className="text-sm text-gray-500 mt-1">
+            Most guests stay <span className="font-medium text-orange-600">
+              {mostCommon.label === `${GROUP_THRESHOLD}+` 
+                ? `${GROUP_THRESHOLD}+ nights` 
+                : `${mostCommon.label} night${mostCommon.label !== '1' ? 's' : ''}`}
+            </span>
+          </p>
+        )}
       </div>
-      
+
       <ResponsiveContainer width="100%" height={350}>
         <BarChart
-          data={data}
+          data={chartData}
           margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis 
-            dataKey="nights" 
+            dataKey="label"
             label={{ 
               value: 'Number of Nights', 
               position: 'bottom', 
@@ -122,51 +206,51 @@ export function LengthOfStayChart({ bookings }: LengthOfStayChartProps) {
           />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-            {data.map((entry: any, index: number) => (
+            {chartData.map((entry, index) => (
               <Cell 
                 key={`cell-${index}`} 
-                fill={getBarColor(parseFloat(entry.percentage))}
+                fill={getBarColor(entry.percentage)}
               />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      
+
       {/* Summary stats */}
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">1-night stays</p>
           <p className="font-bold text-gray-900">
-            {(data.find((d: any) => d.nights === 1)?.count || 0).toLocaleString()}
+            {oneNightCount.toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({data.find((d: any) => d.nights === 1)?.percentage || 0}%)
+              ({formatPercentage(oneNightPercent)})
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">2-3 nights</p>
           <p className="font-bold text-gray-900">
-            {((data.find((d: any) => d.nights === 2)?.count || 0) + (data.find((d: any) => d.nights === 3)?.count || 0)).toLocaleString()}
+            {twoThreeCount.toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({((data.find((d: any) => d.nights === 2)?.count || 0) + (data.find((d: any) => d.nights === 3)?.count || 0)) / totalBookings * 100}%)
+              ({formatPercentage(twoThreePercent)})
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">4-7 nights</p>
           <p className="font-bold text-gray-900">
-            {[4,5,6,7].reduce((sum, n) => sum + (data.find((d: any) => d.nights === n)?.count || 0), 0).toLocaleString()}
+            {fourToSevenCount.toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              ({[4,5,6,7].reduce((sum, n) => sum + (data.find((d: any) => d.nights === n)?.count || 0), 0) / totalBookings * 100}%)
+              ({formatPercentage(fourToSevenPercent)})
             </span>
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <p className="text-gray-500">8+ nights</p>
           <p className="font-bold text-gray-900">
-            {(data.filter((d: any) => typeof d.nights === 'number' && d.nights >= 8).reduce((sum: number, d: any) => sum + d.count, 0) + (data.find((d: any) => d.nights === '14+')?.count || 0)).toLocaleString()}
+            {eightPlusCount.toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
-              {(data.filter((d: any) => typeof d.nights === 'number' && d.nights >= 8).reduce((sum: number, d: any) => sum + d.count, 0) + (data.find((d: any) => d.nights === '14+')?.count || 0)) / totalBookings * 100}%
+              ({formatPercentage(eightPlusPercent)})
             </span>
           </p>
         </div>
