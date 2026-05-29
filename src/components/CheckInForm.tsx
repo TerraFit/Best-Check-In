@@ -293,92 +293,99 @@ const fetchBusinessBranding = async () => {
     return () => clearTimeout(timer);
   }, [formData.email]);
 
-  const loadGuestProfile = async (email: string) => {
-    if (!email || !email.includes('@')) {
-      console.log('ℹ️ Invalid email, skipping profile load');
-      return;
-    }
+  // In CheckInForm.tsx - REPLACE the loadGuestProfile function
+const loadGuestProfile = async (email: string) => {
+  if (!email || !email.includes('@')) {
+    console.log('ℹ️ Invalid email, skipping profile load');
+    return;
+  }
+  
+  try {
+    console.log('🔍 Loading guest profile for email:', email);
+    const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
+    const data = await response.json();
     
-    try {
-      console.log('🔍 Loading guest profile for email:', email);
-      const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(email)}`);
-      const data = await response.json();
+    if (response.ok && data.profile) {
+      console.log('✅ Profile found:', data.profile);
       
-      if (response.ok && data.profile) {
-        console.log('✅ Profile found:', data.profile);
-        
-        // Extract first and last name
-        let firstName = data.profile.first_name || '';
-        let lastName = data.profile.last_name || '';
-        
-        if (!firstName && data.profile.full_name) {
-          const nameParts = data.profile.full_name.split(' ');
-          firstName = nameParts[0] || '';
-          lastName = nameParts.slice(1).join(' ') || '';
-        }
-        
-        setFormData(prev => ({
-          ...prev,
-          firstName: firstName,
-          lastName: lastName,
-          fullName: data.profile.full_name || '',
-          phone: data.profile.phone || prev.phone,
-          passportOrId: data.profile.passport_or_id || prev.passportOrId,
-          country: data.profile.country || prev.country,
-          city: data.profile.city || prev.city,
-          province: data.profile.province || prev.province,
-        }));
-        
-        setProfileLoaded(true);
-        setTimeout(() => setProfileLoaded(false), 3000);
-      } else {
-        console.log('ℹ️ No profile found for this email');
+      // Extract first and last name
+      let firstName = data.profile.first_name || '';
+      let lastName = data.profile.last_name || '';
+      
+      if (!firstName && data.profile.full_name) {
+        const nameParts = data.profile.full_name.split(' ');
+        firstName = nameParts[0] || '';
+        lastName = nameParts.slice(1).join(' ') || '';
       }
-    } catch (error) {
-      console.error('❌ Error loading guest profile:', error);
+      
+      setFormData(prev => ({
+        ...prev,
+        firstName: firstName,
+        lastName: lastName,
+        phone: data.profile.phone || prev.phone,
+        passportOrId: data.profile.passport_or_id || prev.passportOrId,
+        country: data.profile.country || prev.country,
+        city: data.profile.city || prev.city,
+        province: data.profile.province || prev.province,
+      }));
+      
+      setProfileLoaded(true);
+      setTimeout(() => setProfileLoaded(false), 3000);
+    } else {
+      console.log('ℹ️ No profile found for this email');
     }
-  };
+  } catch (error) {
+    console.error('❌ Error loading guest profile:', error);
+  }
+};
 
-  const saveGuestProfile = async () => {
-    if (!formData.saveDetails) {
-      console.log('ℹ️ User opted not to save details');
-      return;
-    }
+ const saveGuestProfile = async () => {
+  if (!formData.saveDetails) {
+    console.log('ℹ️ User opted not to save details');
+    return;
+  }
+  
+  if (!formData.email || !formData.email.includes('@')) {
+    console.log('ℹ️ No valid email, skipping profile save');
+    return;
+  }
+  
+  try {
+    console.log('💾 Saving guest profile for email:', formData.email);
     
-    try {
-      console.log('💾 Saving guest profile for email:', formData.email);
-      
-      const response = await fetch('/.netlify/functions/save-guest-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          profileData: {
-            fullName: updateFullName(formData.firstName, formData.lastName),
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone,
-            passportOrId: formData.passportOrId,
-            country: formData.country,
-            city: formData.city,
-            province: formData.province
-          }
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        console.log('✅ Guest profile saved successfully');
-        setProfileSaveSuccess(true);
-        setTimeout(() => setProfileSaveSuccess(false), 3000);
-      } else {
-        console.error('❌ Failed to save profile:', result.error);
-      }
-    } catch (error) {
-      console.error('❌ Error saving profile:', error);
+    const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+    
+    const response = await fetch('/.netlify/functions/save-guest-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: formData.email.toLowerCase().trim(),
+        profileData: {
+          fullName: fullName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          passportOrId: formData.passportOrId,
+          country: formData.country,
+          city: formData.city,
+          province: formData.province
+        }
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      console.log('✅ Guest profile saved successfully');
+      setProfileSaveSuccess(true);
+      setTimeout(() => setProfileSaveSuccess(false), 3000);
+    } else {
+      console.error('❌ Failed to save profile:', result.error);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error saving profile:', error);
+  }
+};
 
   const handleIndemnityScroll = () => {
     if (indemnityRef.current) {
@@ -569,25 +576,28 @@ const fetchBusinessBranding = async () => {
 
   // API functions
   const saveBookingToDatabase = async (booking: any) => {
-    try {
-      const response = await fetch('/.netlify/functions/create-booking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(booking)
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        return { success: true, bookingId: result.booking?.id || result.id };
-      } else {
-        return { success: false, error: result };
-      }
-    } catch (error) {
-      console.error('Error saving booking:', error);
-      return { success: false, error };
+  console.log('🔗 saveBookingToDatabase called with:', booking);
+  try {
+    const response = await fetch('/.netlify/functions/create-booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(booking)
+    });
+    
+    console.log('📡 Response status:', response.status);
+    const result = await response.json();
+    console.log('📡 Response body:', result);
+    
+    if (response.ok) {
+      return { success: true, bookingId: result.booking?.id || result.id };
+    } else {
+      return { success: false, error: result };
     }
-  };
+  } catch (error) {
+    console.error('❌ Error saving booking:', error);
+    return { success: false, error };
+  }
+};
 
   const saveIndemnityRecord = async (bookingId: string) => {
     try {
@@ -636,165 +646,159 @@ const fetchBusinessBranding = async () => {
 
   // Main submit handler with validation
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (loading) return;
-    
-    if (step === 1) {
-      setLoginLoading(true);
-      setTimeout(() => setLoginLoading(false), 500);
-      setStep(2);
+  e.preventDefault();
+  
+  console.log('🔵 handleSubmit called, step:', step);
+  
+  if (loading) return;
+  
+  if (step === 1) {
+    console.log('🔵 Step 1: Setting loginLoading and moving to step 2');
+    setLoginLoading(true);
+    setTimeout(() => setLoginLoading(false), 500);
+    setStep(2);
+    return;
+  }
+  
+  if (step === 2) {
+    console.log('🔵 Step 2: Validating personal details');
+    const errors = validateStep2();
+    if (errors.length > 0) {
+      console.log('🔵 Validation errors:', errors);
+      setSubmitAttempted(true);
+      // ... existing validation code
       return;
     }
-    
-    if (step === 2) {
-      const errors = validateStep2();
-      if (errors.length > 0) {
-        setSubmitAttempted(true);
-        setTouched({
-          firstName: true,
-          lastName: true,
-          passportOrId: true,
-          phone: true,
-          country: true,
-          province: true,
-          city: true,
-          arrivalDate: true,
-          nights: true,
-          referral: true,
-          nextDestination: true,
-          settlement: true,
-          idPhoto: false,
-          signature: false,
-          acceptLegal: false,
-        });
-        
-        const firstErrorField = document.querySelector('.border-red-500');
-        if (firstErrorField) {
-          firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        
-        alert(`Please complete the following required fields:\n\n• ${errors.join('\n• ')}`);
-        return;
-      }
-      setStep(3);
+    console.log('🔵 Validation passed, moving to step 3');
+    setStep(3);
+    return;
+  }
+  
+  if (step === 3) {
+    console.log('🔵 Step 3: Validating indemnity and submitting');
+    const errors = validateStep3();
+    if (errors.length > 0) {
+      console.log('🔵 Indemnity validation errors:', errors);
+      // ... existing validation code
       return;
     }
-    
-    if (step === 3) {
-      const errors = validateStep3();
-      if (errors.length > 0) {
-        setSubmitAttempted(true);
-        setTouched(prev => ({
-          ...prev,
-          idPhoto: true,
-          signature: true,
-          acceptLegal: true,
-        }));
-        
-        if (!hasScrolledToBottom) {
-          alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
-          indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
-        } else if (!formData.signature) {
-          alert("Please provide your digital signature.");
-        } else if (!formData.idPhoto) {
-          alert("Please take a photo of your ID/passport.");
-        } else {
-          alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
-        }
-        return;
-      }
 
-      setLoading(true);
+    setLoading(true);
+    console.log('🔵 Starting booking submission...');
 
-      try {
-        const totalAmount = await calculateTotalAmount(formData.nights);
-        const fullName = updateFullName(formData.firstName, formData.lastName);
-
-        const dbBooking = {
-          business_id: businessId,
-          guest_name: fullName,
-          guest_first_name: formData.firstName,
-          guest_last_name: formData.lastName,
-          guest_email: formData.email,
-          guest_phone: formData.phone,
-          guest_id_number: formData.passportOrId,
-          guest_id_photo: formData.idPhoto,
-          guest_signature: formData.signature,
-          check_in_date: formData.arrivalDate,
-          check_out_date: formData.departureDate,
-          nights: formData.nights,
-          adults: formData.adults,
-          children: formData.kids,
-          total_amount: totalAmount,
-          status: 'checked_in',
-          guest_province: formData.province,
-          guest_city: formData.city,
-          guest_country: formData.country,
-          booking_source: formData.referral,
-          referral_source: formData.referral,
-          marketing_consent: formData.popiaConsent,
-          created_at: new Date().toISOString()
-        };
-
-        const saveResult = await saveBookingToDatabase(dbBooking);
-        
-        if (!saveResult.success) {
-          alert('Failed to save booking. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        const bookingId = saveResult.bookingId;
-        const accessToken = await saveIndemnityRecord(bookingId);
-        
-        await sendConfirmationEmail(dbBooking, accessToken);
-
-        const newBooking: Booking = {
-          id: bookingId || Math.random().toString(36).substr(2, 9),
-          guestName: fullName,
-          email: formData.email,
-          phone: formData.phone,
-          country: formData.country,
-          city: formData.city,
-          province: formData.province,
-          passportOrId: formData.passportOrId,
-          nextDestination: formData.nextDestination,
-          checkInDate: formData.arrivalDate,
-          checkOutDate: formData.departureDate,
-          nights: formData.nights,
-          adults: formData.adults,
-          kids: formData.kids,
-          guests: formData.adults + formData.kids,
-          settlementMethod: formData.settlement as any,
-          referralSource: formData.referral as any,
-          roomType: 'Suite',
-          totalAmount: totalAmount,
-          status: 'Checked-In',
-          year: new Date().getFullYear(),
-          month: new Date().toLocaleString('default', { month: 'short' }),
-          signatureData: formData.signature,
-          idPhotoData: formData.idPhoto,
-          popiaMarketingConsent: formData.popiaConsent,
-          timestamp: new Date().toISOString(),
-          tenantId: businessId || 'default',
-          source: 'live_checkin',
-        };
-
-        // Save guest profile if they opted in
-        if (formData.saveDetails) {
-          await saveGuestProfile();
-        }
-
-        onComplete(newBooking, accessToken);
-      } catch (error) {
-        console.error('Check-in error:', error);
-        alert('Something went wrong. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    }
+   try {
+  const totalAmount = await calculateTotalAmount(formData.nights);
+  console.log('🔵 Total amount calculated:', totalAmount);
+  
+  // Format dates first
+  const formattedCheckInDate = formData.arrivalDate.split('T')[0];
+  const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
+  
+  console.log('🔵 Formatted check-in date:', formattedCheckInDate);
+  console.log('🔵 Formatted check-out date:', formattedCheckOutDate);
+  
+  const fullName = updateFullName(formData.firstName, formData.lastName);
+  console.log('🔵 Full name:', fullName);
+  
+  // Create dbBooking with formatted dates
+  const dbBooking = {
+    business_id: businessId,
+    guest_name: fullName,
+    guest_first_name: formData.firstName,
+    guest_last_name: formData.lastName,
+    guest_email: formData.email,
+    guest_phone: formData.phone,
+    guest_id_number: formData.passportOrId,
+    guest_id_photo: formData.idPhoto,
+    guest_signature: formData.signature,
+    check_in_date: formattedCheckInDate,
+    check_out_date: formattedCheckOutDate,
+    nights: formData.nights,
+    adults: formData.adults,
+    children: formData.kids,
+    total_amount: totalAmount,
+    status: 'checked_in',
+    guest_province: formData.province,
+    guest_city: formData.city,
+    guest_country: formData.country,
+    booking_source: formData.referral,
+    referral_source: formData.referral,
+    marketing_consent: formData.popiaConsent,
+    created_at: new Date().toISOString()
   };
+
+  console.log('🔗 Sending to create-booking API...', {
+    check_in_date: formattedCheckInDate,
+    check_out_date: formattedCheckOutDate,
+    guest_name: fullName,
+    guest_email: formData.email
+  });
+  
+  const saveResult = await saveBookingToDatabase(dbBooking);
+  console.log('🔵 Save result:', saveResult);
+  
+  if (!saveResult.success) {
+    console.error('❌ Save failed:', saveResult.error);
+    alert('Failed to save booking. Please try again.');
+    setLoading(false);
+    return;
+  }
+
+  const bookingId = saveResult.bookingId;
+  console.log('✅ Booking saved with ID:', bookingId);
+  
+  console.log('🔗 Saving indemnity record...');
+  const accessToken = await saveIndemnityRecord(bookingId);
+  console.log('✅ Indemnity token:', accessToken);
+  
+  console.log('🔗 Sending confirmation email...');
+  await sendConfirmationEmail(dbBooking, accessToken);
+  console.log('✅ Confirmation email sent');
+
+  // Save guest profile if they opted in
+  if (formData.saveDetails) {
+    await saveGuestProfile();
+  }
+
+  const newBooking: Booking = {
+    id: bookingId || Math.random().toString(36).substr(2, 9),
+    guestName: fullName,
+    email: formData.email,
+    phone: formData.phone,
+    country: formData.country,
+    city: formData.city,
+    province: formData.province,
+    passportOrId: formData.passportOrId,
+    nextDestination: formData.nextDestination,
+    checkInDate: formattedCheckInDate,
+    checkOutDate: formattedCheckOutDate,
+    nights: formData.nights,
+    adults: formData.adults,
+    kids: formData.kids,
+    guests: formData.adults + formData.kids,
+    settlementMethod: formData.settlement as any,
+    referralSource: formData.referral as any,
+    roomType: 'Suite',
+    totalAmount: totalAmount,
+    status: 'Checked-In',
+    year: new Date().getFullYear(),
+    month: new Date().toLocaleString('default', { month: 'short' }),
+    signatureData: formData.signature,
+    idPhotoData: formData.idPhoto,
+    popiaMarketingConsent: formData.popiaConsent,
+    timestamp: new Date().toISOString(),
+    tenantId: businessId || 'default',
+    source: 'live_checkin',
+  };
+
+  onComplete(newBooking, accessToken);
+  
+} catch (error) {
+  console.error('❌ Check-in error:', error);
+  alert('Something went wrong. Please try again.');
+} finally {
+  setLoading(false);
+}
 
   // Loading and error states
   if (branding?.service_paused) {
