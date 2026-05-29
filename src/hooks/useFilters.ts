@@ -1,5 +1,5 @@
 // src/hooks/useFilters.ts
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 
 export type FilterType = {
   dateRange: string
@@ -36,7 +36,11 @@ export function useFilters(activeTab: string) {
     settings: { ...defaultFilters }
   })
 
-  const currentFilters = filters[activeTab] || defaultFilters
+  // ✅ CRITICAL FIX: Use useMemo to stabilize currentFilters reference
+  // This prevents infinite re-renders in dependent hooks
+  const currentFilters = useMemo(() => {
+    return filters[activeTab] || (activeTab === 'reports' ? { ...reportsDefaultFilters } : { ...defaultFilters })
+  }, [filters, activeTab])
 
   const updateFilter = useCallback(<K extends keyof FilterType>(key: K, value: FilterType[K]) => {
     console.log(`🔧 updateFilter: ${String(key)} = ${value}`);
@@ -55,13 +59,15 @@ export function useFilters(activeTab: string) {
         updates.dateRange = 'all'
       }
       
-      return {
+      const newFilters = {
         ...prev,
         [activeTab]: {
           ...existingTabFilters,
           ...updates
         }
       }
+      
+      return newFilters
     })
   }, [activeTab])
 
