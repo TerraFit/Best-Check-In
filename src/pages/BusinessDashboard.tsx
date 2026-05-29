@@ -147,7 +147,7 @@ export default function BusinessDashboard() {
 
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
   const { refreshData } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
- 
+  console.log('🔍 DEBUG - loading:', loading, 'business:', !!business, 'bookings:', bookings.length);
   // ============================================================
   // UI HELPER FUNCTIONS
   // ============================================================
