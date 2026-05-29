@@ -27,7 +27,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   const [business, setBusiness] = useState<any>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [totalBookingsCount, setTotalBookingsCount] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -42,7 +41,8 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
-  const businessLoadedRef = useRef(false)
+  const initialLoadDoneRef = useRef(false)
+  const lastFiltersRef = useRef<string>('')
 
   // Cleanup on unmount
   useEffect(() => {
@@ -61,7 +61,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       if (!businessId) {
         if (isMountedRef.current) {
           setLoading(false)
-          setInitialLoading(false)
         }
         return
       }
@@ -86,17 +85,17 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       } finally {
         if (isMountedRef.current) {
           setLoading(false)
-          setInitialLoading(false)
-          businessLoadedRef.current = true
+          initialLoadDoneRef.current = true
         }
       }
     }
 
-    // Only run once on mount
-    loadBusinessProfile()
-  }, []) // Empty dependency array - runs only once
+    if (!initialLoadDoneRef.current) {
+      loadBusinessProfile()
+    }
+  }, [fetchWithAuth, getBusinessId])
 
-  // Load Bookings - runs when dependencies change, but only if business exists
+  // Load Bookings function
   const loadBookings = useCallback(async () => {
     const businessId = getBusinessId()
     if (!businessId || !business) {
@@ -106,6 +105,27 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     if (refreshing) {
       return
     }
+
+    // Create a unique key for current filters to detect changes
+    const filtersKey = JSON.stringify({
+      activeTab,
+      currentPage,
+      pageSize,
+      dateRange: currentFilters?.dateRange,
+      startDate: currentFilters?.startDate,
+      endDate: currentFilters?.endDate,
+      searchTerm: currentFilters?.searchTerm,
+      statusFilter: currentFilters?.statusFilter,
+      provinceFilter: currentFilters?.provinceFilter,
+      cityFilter: currentFilters?.cityFilter,
+      countryFilter: currentFilters?.countryFilter
+    })
+
+    // Skip if same filters (prevent double calls)
+    if (lastFiltersRef.current === filtersKey) {
+      return
+    }
+    lastFiltersRef.current = filtersKey
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -209,15 +229,17 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     }
   }, [activeTab, currentPage, pageSize, currentFilters, fetchWithAuth, getBusinessId, refreshing, business])
 
-  // Trigger bookings load when dependencies change
+  // Trigger bookings load ONLY when business is loaded AND dependencies change
   useEffect(() => {
-    if (business) {
+    if (business && initialLoadDoneRef.current) {
       loadBookings()
     }
-  }, [business, currentPage, pageSize, activeTab, currentFilters, loadBookings])
+  }, [business, currentPage, pageSize, activeTab, currentFilters?.dateRange, currentFilters?.startDate, currentFilters?.endDate, loadBookings])
 
   const refreshData = useCallback(() => {
     if (business) {
+      // Reset the filter cache to force a reload
+      lastFiltersRef.current = ''
       loadBookings()
     }
   }, [loadBookings, business])
@@ -226,7 +248,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     business,
     bookings,
     loading,
-    initialLoading,
     refreshing,
     totalBookingsCount,
     totalPages,
