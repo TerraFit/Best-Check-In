@@ -50,6 +50,9 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
+  // Version marker for deployment verification
+  console.log('🚀 CHECKINFORM VERSION: 2026-05-31-FINAL-FIX');
+
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
   
@@ -332,7 +335,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Never throws - handles errors gracefully
+  // ✅ SAFE: Never throws errors - handles gracefully internally
   const saveGuestProfile = async () => {
     if (!formData.saveDetails) {
       console.log('ℹ️ User opted not to save details');
@@ -379,7 +382,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.error('❌ Failed to save profile:', result.error);
       }
     } catch (error) {
-      console.error('❌ Error saving profile:', error);
+      console.error('❌ Error saving profile (non-critical):', error);
     }
   };
 
@@ -570,7 +573,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ FIXED: Handles both success and duplicate responses
+  // ✅ SAFE: Handles both success and duplicate responses
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -628,7 +631,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Never throws - always returns
+  // ✅ SAFE: Never throws errors - handles gracefully internally
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string) => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
@@ -780,11 +783,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const accessToken = await saveIndemnityRecord(bookingId);
         console.log('✅ Indemnity token:', accessToken);
         
-        // ✅ SEND EMAIL - Non-blocking (don't crash if fails)
+        // ✅ SEND EMAIL - Function handles errors internally (no .catch() needed)
         console.log('🔗 Sending confirmation email...');
         sendConfirmationEmail(dbBooking, accessToken);
         
-        // ✅ SAVE PROFILE - Non-blocking (don't crash if fails)
+        // ✅ SAVE PROFILE - Function handles errors internally (no .catch() needed)
         if (formData.saveDetails) {
           console.log('🔗 Saving guest profile...');
           saveGuestProfile();
