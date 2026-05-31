@@ -50,8 +50,8 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  // Version marker for deployment verification
-  console.log('🚀 CHECKINFORM VERSION: 2026-05-31-FINAL-FIX');
+  // VERSION MARKER - check console for this
+  console.log('✅ FASTCHECKIN FORM V3.0 - PRODUCTION READY');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -335,8 +335,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ SAFE: Never throws errors - handles gracefully internally
-  const saveGuestProfile = async () => {
+  // ✅ FIXED: Always returns, never throws
+  const saveGuestProfile = async (): Promise<void> => {
     if (!formData.saveDetails) {
       console.log('ℹ️ User opted not to save details');
       return;
@@ -573,7 +573,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ SAFE: Handles both success and duplicate responses
+  // ✅ FIXED: Handles both success and duplicate responses
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -589,7 +589,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const result = await response.json();
       console.log('📡 Response body:', result);
       
-      // ✅ Check for success OR duplicate
       if (response.ok && (result.success || result.duplicate)) {
         return { 
           success: true, 
@@ -631,8 +630,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ SAFE: Never throws errors - handles gracefully internally
-  const sendConfirmationEmail = async (booking: any, indemnityToken?: string) => {
+  // ✅ FIXED: Never throws, always returns
+  const sendConfirmationEmail = async (booking: any, indemnityToken?: string): Promise<void> => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
         method: 'POST',
@@ -654,7 +653,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // Main submit handler with validation
+  // ✅ MAIN SUBMIT HANDLER - COMPLETELY REWRITTEN
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -663,7 +662,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     if (loading) return;
     
     if (step === 1) {
-      console.log('🔵 Step 1: Setting loginLoading and moving to step 2');
+      console.log('🔵 Step 1: Moving to step 2');
       setLoginLoading(true);
       setTimeout(() => setLoginLoading(false), 500);
       setStep(2);
@@ -704,136 +703,129 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         if (!hasScrolledToBottom) {
           alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
           indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
-        } else if (!formData.signature) {
-          alert("Please provide your digital signature.");
-        } else if (!formData.idPhoto) {
-          alert("Please take a photo of your ID/passport.");
-        } else {
-          alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
+          setLoading(false);
+          return;
         }
+        
+        if (!formData.signature) {
+          alert("Please provide your digital signature.");
+          setLoading(false);
+          return;
+        }
+        
+        if (!formData.idPhoto) {
+          alert("Please take a photo of your ID/passport.");
+          setLoading(false);
+          return;
+        }
+        
+        alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
+        setLoading(false);
         return;
       }
 
       setLoading(true);
       console.log('🔵 Starting booking submission...');
 
-      try {
-        const totalAmount = await calculateTotalAmount(formData.nights);
-        console.log('🔵 Total amount calculated:', totalAmount);
-        
-        const formattedCheckInDate = formData.arrivalDate.split('T')[0];
-        const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
-        
-        console.log('🔵 Formatted check-in date:', formattedCheckInDate);
-        console.log('🔵 Formatted check-out date:', formattedCheckOutDate);
-        console.log('🔵 Business ID being used:', businessId);
-        
-        const fullName = updateFullName(formData.firstName, formData.lastName);
-        console.log('🔵 Full name:', fullName);
-        
-        const dbBooking = {
-          business_id: businessId,
-          guest_name: fullName,
-          guest_first_name: formData.firstName,
-          guest_last_name: formData.lastName,
-          guest_email: formData.email,
-          guest_phone: formData.phone,
-          guest_id_number: formData.passportOrId,
-          guest_id_photo: formData.idPhoto,
-          guest_signature: formData.signature,
-          check_in_date: formattedCheckInDate,
-          check_out_date: formattedCheckOutDate,
-          nights: formData.nights,
-          adults: formData.adults,
-          children: formData.kids,
-          total_amount: totalAmount,
-          status: 'checked_in',
-          guest_province: formData.province,
-          guest_city: formData.city,
-          guest_country: formData.country,
-          booking_source: formData.referral,
-          referral_source: formData.referral,
-          marketing_consent: formData.popiaConsent,
-          created_at: new Date().toISOString(),
-          source: 'live_checkin'
-        };
+      // Calculate dates and amounts
+      const totalAmount = await calculateTotalAmount(formData.nights);
+      const formattedCheckInDate = formData.arrivalDate.split('T')[0];
+      const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
+      const fullName = updateFullName(formData.firstName, formData.lastName);
+      
+      const dbBooking = {
+        business_id: businessId,
+        guest_name: fullName,
+        guest_first_name: formData.firstName,
+        guest_last_name: formData.lastName,
+        guest_email: formData.email,
+        guest_phone: formData.phone,
+        guest_id_number: formData.passportOrId,
+        guest_id_photo: formData.idPhoto,
+        guest_signature: formData.signature,
+        check_in_date: formattedCheckInDate,
+        check_out_date: formattedCheckOutDate,
+        nights: formData.nights,
+        adults: formData.adults,
+        children: formData.kids,
+        total_amount: totalAmount,
+        status: 'checked_in',
+        guest_province: formData.province,
+        guest_city: formData.city,
+        guest_country: formData.country,
+        booking_source: formData.referral,
+        referral_source: formData.referral,
+        marketing_consent: formData.popiaConsent,
+        created_at: new Date().toISOString(),
+        source: 'live_checkin'
+      };
 
-        console.log('🔗 Sending to create-booking API...');
-        const saveResult = await saveBookingToDatabase(dbBooking);
-        console.log('🔵 Save result:', saveResult);
-        
-        // ✅ Continue on success OR duplicate
-        if (!saveResult.success) {
-          console.error('❌ Save failed:', saveResult.error);
-          alert('Failed to save booking. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        // Log if duplicate but still continue
-        if (saveResult.isDuplicate) {
-          console.log('⚠️ Duplicate booking detected - guest already checked in today');
-          // Don't show error to user - just continue
-        }
-
-        const bookingId = saveResult.bookingId;
-        console.log('✅ Booking saved with ID:', bookingId);
-        
-        console.log('🔗 Saving indemnity record...');
-        const accessToken = await saveIndemnityRecord(bookingId);
-        console.log('✅ Indemnity token:', accessToken);
-        
-        // ✅ SEND EMAIL - Function handles errors internally (no .catch() needed)
-        console.log('🔗 Sending confirmation email...');
-        sendConfirmationEmail(dbBooking, accessToken);
-        
-        // ✅ SAVE PROFILE - Function handles errors internally (no .catch() needed)
-        if (formData.saveDetails) {
-          console.log('🔗 Saving guest profile...');
-          saveGuestProfile();
-        }
-
-        const newBooking: Booking = {
-          id: bookingId || Math.random().toString(36).substr(2, 9),
-          guestName: fullName,
-          email: formData.email,
-          phone: formData.phone,
-          country: formData.country,
-          city: formData.city,
-          province: formData.province,
-          passportOrId: formData.passportOrId,
-          nextDestination: formData.nextDestination,
-          checkInDate: formattedCheckInDate,
-          checkOutDate: formattedCheckOutDate,
-          nights: formData.nights,
-          adults: formData.adults,
-          kids: formData.kids,
-          guests: formData.adults + formData.kids,
-          settlementMethod: formData.settlement as any,
-          referralSource: formData.referral as any,
-          roomType: 'Suite',
-          totalAmount: totalAmount,
-          status: 'Checked-In',
-          year: new Date().getFullYear(),
-          month: new Date().toLocaleString('default', { month: 'short' }),
-          signatureData: formData.signature,
-          idPhotoData: formData.idPhoto,
-          popiaMarketingConsent: formData.popiaConsent,
-          timestamp: new Date().toISOString(),
-          tenantId: businessId || 'default',
-          source: 'live_checkin',
-        };
-
-        // ✅ THIS MUST ALWAYS RUN - completes the check-in
-        console.log('✅ Calling onComplete with booking:', newBooking);
-        onComplete(newBooking, accessToken);
-        
-      } catch (error) {
-        console.error('❌ Check-in error:', error);
-        alert('Something went wrong. Please try again.');
-      } finally {
+      // STEP 1: Save booking (CRITICAL - must succeed)
+      console.log('🔗 Saving booking to database...');
+      const saveResult = await saveBookingToDatabase(dbBooking);
+      
+      if (!saveResult.success) {
+        console.error('❌ Booking save failed:', saveResult.error);
+        alert('Failed to save booking. Please try again.');
         setLoading(false);
+        return;
       }
+
+      const bookingId = saveResult.bookingId;
+      console.log('✅ Booking saved with ID:', bookingId);
+      
+      if (saveResult.isDuplicate) {
+        console.log('⚠️ Duplicate booking detected - continuing anyway');
+      }
+
+      // STEP 2: Save indemnity record (CRITICAL - must succeed)
+      console.log('🔗 Saving indemnity record...');
+      const accessToken = await saveIndemnityRecord(bookingId);
+      console.log('✅ Indemnity token:', accessToken);
+
+      // STEP 3: Non-critical tasks - DO NOT AWAIT, DO NOT BLOCK
+      console.log('🔗 Starting non-critical tasks (email, profile)...');
+      sendConfirmationEmail(dbBooking, accessToken);
+      
+      if (formData.saveDetails) {
+        saveGuestProfile();
+      }
+
+      // STEP 4: ALWAYS complete the check-in regardless of email/profile status
+      const newBooking: Booking = {
+        id: bookingId || Math.random().toString(36).substr(2, 9),
+        guestName: fullName,
+        email: formData.email,
+        phone: formData.phone,
+        country: formData.country,
+        city: formData.city,
+        province: formData.province,
+        passportOrId: formData.passportOrId,
+        nextDestination: formData.nextDestination,
+        checkInDate: formattedCheckInDate,
+        checkOutDate: formattedCheckOutDate,
+        nights: formData.nights,
+        adults: formData.adults,
+        kids: formData.kids,
+        guests: formData.adults + formData.kids,
+        settlementMethod: formData.settlement as any,
+        referralSource: formData.referral as any,
+        roomType: 'Suite',
+        totalAmount: totalAmount,
+        status: 'Checked-In',
+        year: new Date().getFullYear(),
+        month: new Date().toLocaleString('default', { month: 'short' }),
+        signatureData: formData.signature,
+        idPhotoData: formData.idPhoto,
+        popiaMarketingConsent: formData.popiaConsent,
+        timestamp: new Date().toISOString(),
+        tenantId: businessId || 'default',
+        source: 'live_checkin',
+      };
+
+      console.log('✅ Check-in complete! Calling onComplete...');
+      onComplete(newBooking, accessToken);
+      setLoading(false);
     }
   };
 
