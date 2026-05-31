@@ -569,9 +569,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // API functions
+  // ✅ FIXED: saveBookingToDatabase handles both success and duplicate responses
   const saveBookingToDatabase = async (booking: any) => {
-    console.log('🔗 saveBookingToDatabase called with:', booking);
+    console.log('🔗 saveBookingToDatabase called');
     try {
       const response = await fetch('/.netlify/functions/create-booking', {
         method: 'POST',
@@ -583,10 +583,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const result = await response.json();
       console.log('📡 Response body:', result);
       
-      if (response.ok) {
-        return { success: true, bookingId: result.booking?.id || result.id };
+      // ✅ Check for success OR duplicate
+      if (response.ok && (result.success || result.duplicate)) {
+        return { 
+          success: true, 
+          bookingId: result.booking?.id || result.id,
+          isDuplicate: result.duplicate || false
+        };
       } else {
-        return { success: false, error: result };
+        return { success: false, error: result.error || 'Unknown error' };
       }
     } catch (error) {
       console.error('❌ Error saving booking:', error);
@@ -635,7 +640,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('✅ Confirmation email sent');
       }
     } catch (error) {
-      console.error('❌ Email error:', error);
+      console.warn('⚠️ Email error (non-critical):', error);
     }
   };
 
@@ -738,18 +743,26 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           booking_source: formData.referral,
           referral_source: formData.referral,
           marketing_consent: formData.popiaConsent,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          source: 'live_checkin'
         };
 
         console.log('🔗 Sending to create-booking API...');
         const saveResult = await saveBookingToDatabase(dbBooking);
         console.log('🔵 Save result:', saveResult);
         
+        // ✅ FIX: Continue on success OR duplicate (no error message)
         if (!saveResult.success) {
           console.error('❌ Save failed:', saveResult.error);
           alert('Failed to save booking. Please try again.');
           setLoading(false);
           return;
+        }
+
+        // Log if duplicate but still continue
+        if (saveResult.isDuplicate) {
+          console.log('⚠️ Duplicate booking detected - guest already checked in today');
+          // Still continue with success flow
         }
 
         const bookingId = saveResult.bookingId;
@@ -1018,7 +1031,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 2 - Personal Details with Validation */}
+          {/* Step 2 - Personal Details */}
           {step === 2 && (
             <div className="p-10 md:p-16 animate-fade-in flex-grow overflow-y-auto">
               {submitAttempted && validateStep2().length > 0 && (
@@ -1346,9 +1359,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       <div className="bg-amber-50 p-8 border-l-4 border-amber-600 text-stone-900 font-bold leading-relaxed rounded-r-2xl">
                         ⚠️ WARNING: THIS IS A LEGALLY BINDING AND IMPORTANT DOCUMENT THAT LIMITS AND EXCLUDES LEGAL RIGHTS. BY SIGNING IT, YOU ASSUME RISKS AND WAIVE CERTAIN RIGHTS, INCLUDING THE RIGHT TO SUE OR CLAIM COMPENSATION UNDER CERTAIN CIRCUMSTANCES.
                       </div>
-
-                      {/* Full indemnity text - same as original */}
-                      {/* ... (keep all the indemnity text from your original file) ... */}
 
                       <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
                         <div className="flex items-start gap-5">
