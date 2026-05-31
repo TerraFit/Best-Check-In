@@ -572,6 +572,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   // ✅ FIXED: saveBookingToDatabase handles both success and duplicate responses
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
+    console.log('📤 Booking data being sent:', booking);
+    
     try {
       const response = await fetch('/.netlify/functions/create-booking', {
         method: 'POST',
@@ -591,10 +593,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           isDuplicate: result.duplicate || false
         };
       } else {
+        console.error('❌ API returned error:', result);
         return { success: false, error: result.error || 'Unknown error' };
       }
     } catch (error) {
-      console.error('❌ Error saving booking:', error);
+      console.error('❌ Network error saving booking:', error);
       return { success: false, error };
     }
   };
@@ -638,6 +641,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Confirmation email sent');
+      } else {
+        console.warn('⚠️ Email sending failed but check-in continues');
       }
     } catch (error) {
       console.warn('⚠️ Email error (non-critical):', error);
@@ -716,6 +721,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         
         console.log('🔵 Formatted check-in date:', formattedCheckInDate);
         console.log('🔵 Formatted check-out date:', formattedCheckOutDate);
+        console.log('🔵 Business ID being used:', businessId);
         
         const fullName = updateFullName(formData.firstName, formData.lastName);
         console.log('🔵 Full name:', fullName);
@@ -762,6 +768,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         // Log if duplicate but still continue
         if (saveResult.isDuplicate) {
           console.log('⚠️ Duplicate booking detected - guest already checked in today');
+          alert('This guest has already checked in today. Continuing with existing booking.');
           // Still continue with success flow
         }
 
