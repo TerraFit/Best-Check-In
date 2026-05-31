@@ -332,6 +332,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // ✅ FIXED: Never throws - handles errors gracefully
   const saveGuestProfile = async () => {
     if (!formData.saveDetails) {
       console.log('ℹ️ User opted not to save details');
@@ -569,7 +570,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ FIXED: saveBookingToDatabase handles both success and duplicate responses
+  // ✅ FIXED: Handles both success and duplicate responses
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -627,6 +628,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // ✅ FIXED: Never throws - always returns
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string) => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
@@ -642,7 +644,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       if (response.ok) {
         console.log('✅ Confirmation email sent');
       } else {
-        console.warn('⚠️ Email sending failed but check-in continues');
+        console.warn('⚠️ Email sending failed with status:', response.status);
       }
     } catch (error) {
       console.warn('⚠️ Email error (non-critical):', error);
@@ -757,7 +759,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const saveResult = await saveBookingToDatabase(dbBooking);
         console.log('🔵 Save result:', saveResult);
         
-        // ✅ FIX: Continue on success OR duplicate (no error message)
+        // ✅ Continue on success OR duplicate
         if (!saveResult.success) {
           console.error('❌ Save failed:', saveResult.error);
           alert('Failed to save booking. Please try again.');
@@ -768,8 +770,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         // Log if duplicate but still continue
         if (saveResult.isDuplicate) {
           console.log('⚠️ Duplicate booking detected - guest already checked in today');
-          alert('This guest has already checked in today. Continuing with existing booking.');
-          // Still continue with success flow
+          // Don't show error to user - just continue
         }
 
         const bookingId = saveResult.bookingId;
@@ -779,12 +780,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const accessToken = await saveIndemnityRecord(bookingId);
         console.log('✅ Indemnity token:', accessToken);
         
+        // ✅ SEND EMAIL - Non-blocking (don't crash if fails)
         console.log('🔗 Sending confirmation email...');
-        await sendConfirmationEmail(dbBooking, accessToken);
-        console.log('✅ Confirmation email sent');
-
+        sendConfirmationEmail(dbBooking, accessToken);
+        
+        // ✅ SAVE PROFILE - Non-blocking (don't crash if fails)
         if (formData.saveDetails) {
-          await saveGuestProfile();
+          console.log('🔗 Saving guest profile...');
+          saveGuestProfile();
         }
 
         const newBooking: Booking = {
@@ -818,6 +821,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           source: 'live_checkin',
         };
 
+        // ✅ THIS MUST ALWAYS RUN - completes the check-in
+        console.log('✅ Calling onComplete with booking:', newBooking);
         onComplete(newBooking, accessToken);
         
       } catch (error) {
