@@ -9,10 +9,25 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Functions configuration - ws removed since we're migrating to REST
+# ============================================================
+# FUNCTIONS CONFIGURATION
+# ============================================================
+# ws is REQUIRED for Supabase Realtime client support in Node.js 20
+# Without ws, all Supabase functions will fail with 502/500 errors
+
 [functions."*"]
   node_bundler = "esbuild"
-  external_node_modules = ["@supabase/supabase-js", "jsonwebtoken", "bcryptjs", "resend", "qrcode", "uuid", "stripe"]
+  external_node_modules = [
+    "@supabase/supabase-js",
+    "jsonwebtoken",
+    "bcryptjs",
+    "resend",
+    "qrcode",
+    "uuid",
+    "stripe",
+    "xlsx",
+    "ws"
+  ]
 
 # ============================================================
 # SCHEDULED FUNCTIONS (Cron Jobs)
@@ -42,7 +57,7 @@
 [functions."generate-monthly-reports"]
   schedule = "0 5 1 * *"
 
-# ✅ Archive old bookings - Runs daily at 2 AM (keeps active tables manageable)
+# Archive old bookings - Runs daily at 2 AM (keeps active tables manageable)
 [functions."archive-old-bookings"]
   schedule = "0 2 * * *"
 
