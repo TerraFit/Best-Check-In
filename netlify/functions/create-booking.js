@@ -1,8 +1,10 @@
+// netlify/functions/create-booking.js - DEBUG VERSION
+
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
 
 export const handler = async (event) => {
-  console.log(`📊 Request received at ${new Date().toISOString()}`);
+  console.log(`📊 create-booking called at ${new Date().toISOString()}`);
   
   const headers = {
     'Content-Type': 'application/json',
@@ -25,12 +27,7 @@ export const handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    console.log('📝 Received booking data:', {
-      business_id: body.business_id,
-      guest_name: body.guest_name,
-      guest_email: body.guest_email,
-      check_in_date: body.check_in_date
-    });
+    console.log('📝 Parsed body:', JSON.stringify(body, null, 2));
 
     if (!body.business_id) {
       return {
@@ -61,43 +58,19 @@ export const handler = async (event) => {
       }
     );
 
-    const BOOKINGS_TABLE = 'bookings';
-
-    // Clean names - Remove titles
-    const cleanName = (name) => {
-      if (!name) return '';
-      const titlePattern = /^(Mr\.?|Mrs\.?|Ms\.?|Miss\.?|Dr\.?|Prof\.?|Rev\.?)\s+/i;
-      return name.replace(titlePattern, '').trim();
-    };
-
-    let firstName = body.guest_first_name || '';
-    let lastName = body.guest_last_name || '';
-    let guestName = body.guest_name || '';
-
-    firstName = cleanName(firstName);
-    lastName = cleanName(lastName);
-    
-    if (guestName && !firstName && !lastName) {
-      guestName = cleanName(guestName);
-      const nameParts = guestName.trim().split(' ');
-      firstName = nameParts[0] || '';
-      lastName = nameParts.slice(1).join(' ') || '';
-    }
-
-    const fullName = `${firstName} ${lastName}`.trim();
-
+    // Prepare booking data - ONLY include fields that exist in the table
     const bookingData = {
       business_id: body.business_id,
-      guest_name: fullName || guestName,
-      guest_first_name: firstName,
-      guest_last_name: lastName,
-      guest_email: (body.guest_email || '').toLowerCase().trim(),
+      guest_name: body.guest_name || `${body.guest_first_name || ''} ${body.guest_last_name || ''}`.trim(),
+      guest_first_name: body.guest_first_name || '',
+      guest_last_name: body.guest_last_name || '',
+      guest_email: body.guest_email ? body.guest_email.toLowerCase().trim() : '',
       guest_phone: body.guest_phone || '',
       guest_id_number: body.guest_id_number || '',
       guest_id_photo: body.guest_id_photo || '',
       guest_signature: body.guest_signature || '',
       check_in_date: body.check_in_date || new Date().toISOString().split('T')[0],
-      check_out_date: body.check_out_date || '',
+      check_out_date: body.check_out_date || null,
       nights: body.nights || 1,
       adults: body.adults || 1,
       children: body.children || 0,
@@ -113,68 +86,43 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    // Remove empty strings to avoid database errors
+    // Remove undefined/null/empty fields that might cause issues
+    const cleanData = {};
     Object.keys(bookingData).forEach(key => {
-      if (bookingData[key] === '') {
-        delete bookingData[key];
+      if (bookingData[key] !== undefined && bookingData[key] !== null && bookingData[key] !== '') {
+        cleanData[key] = bookingData[key];
       }
     });
 
-    console.log('💾 Saving booking to database...');
+    console.log('💾 Clean booking data:', JSON.stringify(cleanData, null, 2));
 
-    // Insert the booking
-    const { data: newBooking, error: insertError } = await supabase
-      .from(BOOKINGS_TABLE)
-      .insert([bookingData])
+    // Try a simple insert first
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert([cleanData])
       .select();
 
-    if (insertError) {
-      console.error('❌ Supabase insert error:', insertError);
-      
-      // Check if table exists
-      if (insertError.message.includes('relation') && insertError.message.includes('does not exist')) {
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Database table not configured. Please contact support.',
-            code: 'TABLE_NOT_FOUND'
-          })
-        };
-      }
-      
-      // Check for duplicate key violation
-      if (insertError.code === '23505') {
-        console.log('⚠️ Duplicate key violation');
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            duplicate: true,
-            message: 'Duplicate booking - guest already checked in today',
-            booking: null
-          })
-        };
-      }
+    if (error) {
+      console.error('❌ Insert error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error.details);
       
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({
           success: false,
-          error: insertError.message,
-          code: insertError.code,
-          details: 'Failed to save booking to database'
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
         })
       };
     }
 
-    // Handle the response - could be array or single object
-    const savedBooking = newBooking && newBooking.length > 0 ? newBooking[0] : newBooking;
-    
-    console.log('✅ Booking saved successfully:', savedBooking?.id);
+    const savedBooking = data && data.length > 0 ? data[0] : data;
+    console.log('✅ Booking saved:', savedBooking?.id);
 
     return {
       statusCode: 200,
@@ -188,13 +136,14 @@ export const handler = async (event) => {
     };
 
   } catch (err) {
-    console.error('❌ create-booking error:', err);
+    console.error('❌ Fatal error:', err);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         success: false,
-        error: err.message || 'Internal Server Error'
+        error: err.message,
+        stack: err.stack
       })
     };
   }
