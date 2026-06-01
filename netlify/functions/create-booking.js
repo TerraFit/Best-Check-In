@@ -3,7 +3,6 @@ import ws from 'ws';
 
 export const handler = async (event) => {
   console.log(`📊 Request received at ${new Date().toISOString()}`);
-  console.log(`🔑 Request ID: ${event.headers['x-request-id'] || 'unknown'}`);
   
   const headers = {
     'Content-Type': 'application/json',
@@ -53,7 +52,6 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ CRITICAL FIX: Create Supabase client with WebSocket support
     const supabase = createClient(
       supabaseUrl,
       supabaseKey,
@@ -115,112 +113,20 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    // ============================================================
-    // DUPLICATE DETECTION - Check if booking already exists
-    // ============================================================
-    
-    const checkForDuplicate = async () => {
-      // Strategy 1: Check by email + check_in_date (most reliable)
-      if (bookingData.guest_email) {
-        try {
-          const { data: existing, error } = await supabase
-            .from(BOOKINGS_TABLE)
-            .select('id')
-            .eq('business_id', bookingData.business_id)
-            .eq('check_in_date', bookingData.check_in_date)
-            .eq('guest_email', bookingData.guest_email)
-            .limit(1);
-          
-          if (!error && existing && existing.length > 0) {
-            console.log(`⚠️ Duplicate found by email: ${bookingData.guest_email} on ${bookingData.check_in_date}`);
-            return true;
-          }
-        } catch (err) {
-          console.warn('⚠️ Email duplicate check failed:', err.message);
-        }
+    // Remove empty strings to avoid database errors
+    Object.keys(bookingData).forEach(key => {
+      if (bookingData[key] === '') {
+        delete bookingData[key];
       }
-      
-      // Strategy 2: Check by name + check_in_date (fallback for no email)
-      if (bookingData.guest_name) {
-        try {
-          const { data: existing, error } = await supabase
-            .from(BOOKINGS_TABLE)
-            .select('id')
-            .eq('business_id', bookingData.business_id)
-            .eq('check_in_date', bookingData.check_in_date)
-            .eq('guest_name', bookingData.guest_name)
-            .limit(1);
-          
-          if (!error && existing && existing.length > 0) {
-            console.log(`⚠️ Duplicate found by name: ${bookingData.guest_name} on ${bookingData.check_in_date}`);
-            return true;
-          }
-        } catch (err) {
-          console.warn('⚠️ Name duplicate check failed:', err.message);
-        }
-      }
-      
-      // Strategy 3: Check by phone + check_in_date (if available)
-      if (bookingData.guest_phone) {
-        try {
-          const { data: existing, error } = await supabase
-            .from(BOOKINGS_TABLE)
-            .select('id')
-            .eq('business_id', bookingData.business_id)
-            .eq('check_in_date', bookingData.check_in_date)
-            .eq('guest_phone', bookingData.guest_phone)
-            .limit(1);
-          
-          if (!error && existing && existing.length > 0) {
-            console.log(`⚠️ Duplicate found by phone: ${bookingData.guest_phone} on ${bookingData.check_in_date}`);
-            return true;
-          }
-        } catch (err) {
-          console.warn('⚠️ Phone duplicate check failed:', err.message);
-        }
-      }
-      
-      console.log('✅ No duplicate found');
-      return false;
-    };
-
-    // Check for duplicate before saving
-    const isDuplicate = await checkForDuplicate();
-    
-    if (isDuplicate) {
-      console.log('⏭️ Skipping duplicate booking:', {
-        guest_email: bookingData.guest_email,
-        guest_name: bookingData.guest_name,
-        check_in_date: bookingData.check_in_date
-      });
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          duplicate: true,
-          message: 'Duplicate booking skipped',
-          booking: null
-        })
-      };
-    }
-
-    console.log('💾 Saving new booking to:', BOOKINGS_TABLE);
-    console.log('📦 Booking data summary:', {
-      business_id: bookingData.business_id,
-      guest_name: bookingData.guest_name,
-      guest_email: bookingData.guest_email,
-      check_in_date: bookingData.check_in_date,
-      nights: bookingData.nights
     });
 
-    // Use Supabase client instead of raw fetch
+    console.log('💾 Saving booking to database...');
+
+    // Insert the booking
     const { data: newBooking, error: insertError } = await supabase
       .from(BOOKINGS_TABLE)
       .insert([bookingData])
-      .select()
-      .single();
+      .select();
 
     if (insertError) {
       console.error('❌ Supabase insert error:', insertError);
@@ -238,18 +144,37 @@ export const handler = async (event) => {
         };
       }
       
+      // Check for duplicate key violation
+      if (insertError.code === '23505') {
+        console.log('⚠️ Duplicate key violation');
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            duplicate: true,
+            message: 'Duplicate booking - guest already checked in today',
+            booking: null
+          })
+        };
+      }
+      
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({
           success: false,
           error: insertError.message,
+          code: insertError.code,
           details: 'Failed to save booking to database'
         })
       };
     }
 
-    console.log('✅ Booking saved successfully:', newBooking?.id);
+    // Handle the response - could be array or single object
+    const savedBooking = newBooking && newBooking.length > 0 ? newBooking[0] : newBooking;
+    
+    console.log('✅ Booking saved successfully:', savedBooking?.id);
 
     return {
       statusCode: 200,
@@ -257,7 +182,7 @@ export const handler = async (event) => {
       body: JSON.stringify({
         success: true,
         duplicate: false,
-        booking: newBooking,
+        booking: savedBooking,
         message: 'Booking created successfully'
       })
     };
