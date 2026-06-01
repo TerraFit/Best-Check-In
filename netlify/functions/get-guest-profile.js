@@ -1,3 +1,5 @@
+// netlify/functions/get-guest-profile.js
+
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
 
@@ -9,6 +11,7 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
+  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
@@ -20,16 +23,6 @@ export const handler = async function(event) {
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
-
-  // ✅ CRITICAL FIX: Add WebSocket support for Node.js 20
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
 
   try {
     const email = event.queryStringParameters?.email;
@@ -44,120 +37,124 @@ export const handler = async function(event) {
       };
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    
-    // First, check if the table exists
-    const { error: tableCheckError } = await supabase
-      .from('guest_profiles')
-      .select('id')
-      .limit(1);
+    // Validate Supabase credentials
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (tableCheckError && tableCheckError.message.includes('relation') && tableCheckError.message.includes('does not exist')) {
-      console.warn('⚠️ guest_profiles table does not exist yet');
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase environment variables');
       return {
-        statusCode: 200,
+        statusCode: 200, // Return 200 with null profile to prevent frontend crash
         headers,
         body: JSON.stringify({ 
           success: true, 
           profile: null,
-          message: 'Profile system not yet available' 
+          message: 'Profile service temporarily unavailable' 
         })
       };
     }
 
-    // Query the profile
-    const { data, error } = await supabase
-      .from('guest_profiles')
-      .select('full_name, first_name, last_name, phone, passport_or_id, country, city, province, total_visits, last_visit_date')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Create Supabase client with WebSocket support
+    const supabase = createClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
+    );
 
-    if (error) {
-      console.error('❌ Database error:', error.message);
-      
-      // If columns are missing, try with minimal fields
-      if (error.message.includes('column') && error.message.includes('does not exist')) {
-        console.warn('⚠️ Some columns missing, trying with basic fields');
+    // First, check if the table exists by trying a simple query
+    try {
+      // Query the profile
+      const { data, error } = await supabase
+        .from('guest_profiles')
+        .select('full_name, first_name, last_name, phone, passport_or_id, country, city, province, total_visits, last_visit_date')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Database error:', error.message);
         
-        const { data: basicData, error: basicError } = await supabase
-          .from('guest_profiles')
-          .select('full_name, phone')
-          .eq('email', normalizedEmail)
-          .maybeSingle();
-        
-        if (!basicError && basicData) {
+        // If the table doesn't exist, return null profile gracefully
+        if (error.message.includes('relation') && error.message.includes('does not exist')) {
+          console.warn('⚠️ guest_profiles table does not exist yet');
           return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
               success: true, 
-              profile: {
-                full_name: basicData.full_name || '',
-                first_name: '',
-                last_name: '',
-                phone: basicData.phone || '',
-                passport_or_id: '',
-                country: '',
-                city: '',
-                province: '',
-                total_visits: 0,
-                last_visit_date: null
-              },
-              message: 'Profile found (limited data)'
+              profile: null,
+              message: 'Profile system not yet available' 
             })
           };
         }
+        
+        // For other errors, still return 200 with null profile
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ 
+            success: true, 
+            profile: null,
+            message: 'Database query failed, but continuing' 
+          })
+        };
       }
-      
+
+      if (!data) {
+        console.log('ℹ️ No profile found for email:', normalizedEmail);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ 
+            success: true, 
+            profile: null,
+            message: 'No profile found' 
+          })
+        };
+      }
+
+      console.log('✅ Guest profile found for:', normalizedEmail);
+
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
           success: true, 
-          profile: null,
-          message: 'Database error, but continuing' 
+          profile: {
+            full_name: data.full_name || '',
+            first_name: data.first_name || '',
+            last_name: data.last_name || '',
+            phone: data.phone || '',
+            passport_or_id: data.passport_or_id || '',
+            country: data.country || '',
+            city: data.city || '',
+            province: data.province || '',
+            total_visits: data.total_visits || 0,
+            last_visit_date: data.last_visit_date || null
+          }
         })
       };
-    }
 
-    if (!data) {
-      console.log('ℹ️ No profile found for email:', normalizedEmail);
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError);
       return {
-        statusCode: 200,
+        statusCode: 200, // Return 200 to prevent frontend crash
         headers,
         body: JSON.stringify({ 
           success: true, 
           profile: null,
-          message: 'No profile found' 
+          message: 'Database temporarily unavailable' 
         })
       };
     }
-
-    console.log('✅ Guest profile found for:', normalizedEmail);
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        success: true, 
-        profile: {
-          full_name: data.full_name || '',
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          phone: data.phone || '',
-          passport_or_id: data.passport_or_id || '',
-          country: data.country || '',
-          city: data.city || '',
-          province: data.province || '',
-          total_visits: data.total_visits || 0,
-          last_visit_date: data.last_visit_date || null
-        }
-      })
-    };
 
   } catch (error) {
-    console.error('❌ Error loading guest profile:', error);
-    // Return 200 with null profile instead of 500 to prevent frontend crashes
+    console.error('❌ Unhandled error in get-guest-profile:', error);
+    // Always return 200 with null profile to prevent frontend from breaking
     return {
       statusCode: 200,
       headers,
