@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { COUNTRIES, SETTLEMENT_METHODS } from '../constants';
-import { Booking } from '../types';
-import { getRegionsForCountry, getRegionTypeLabel } from '../services/countryRegionService';
+import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
+import { Booking } from './types';
+import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
 
 interface BusinessBranding {
   id: string;
@@ -50,7 +50,7 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  console.log('✅ FASTCHECKIN FORM V4.0 - WITH DUPLICATE HANDLING');
+  console.log('✅ FASTCHECKIN FORM V5.0 - COMPLETE REWRITE');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -60,6 +60,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [checkinSuccess, setCheckinSuccess] = useState(false);
   
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -118,6 +119,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
+  // Auto-dismiss duplicate warning
+  useEffect(() => {
+    if (duplicateWarning) {
+      const timer = setTimeout(() => setDuplicateWarning(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [duplicateWarning]);
+
   // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -127,15 +136,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setSubmitAttempted(false);
   }, [step]);
 
-  // Auto-dismiss duplicate warning
-  useEffect(() => {
-    if (duplicateWarning) {
-      const timer = setTimeout(() => setDuplicateWarning(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [duplicateWarning]);
-
-  const updateFullName = (firstName: string, lastName: string) => {
+  const updateFullName = (firstName: string, lastName: string): string => {
     return `${firstName} ${lastName}`.trim();
   };
 
@@ -576,7 +577,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ FIXED: Handles both success and duplicate responses correctly
+  // ✅ FIXED: Proper API response handling
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -590,26 +591,38 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       console.log('📡 Response status:', response.status);
       const result = await response.json();
-      console.log('📡 Response body:', result);
+      console.log('📡 Response body:', JSON.stringify(result, null, 2));
       
-      // ✅ CRITICAL FIX: Check response.ok AND result.success
-      if (response.ok && result.success === true) {
+      // Check if the request was successful
+      if (!response.ok) {
+        console.error('❌ HTTP error:', response.status);
+        return { success: false, error: `HTTP ${response.status}` };
+      }
+      
+      // Check the response structure from create-booking function
+      // The function returns: { success: true, duplicate: false, booking: {...} }
+      // OR: { success: true, duplicate: true, message: '...', booking: null }
+      if (result.success === true) {
         return { 
           success: true, 
-          bookingId: result.booking?.id || result.id,
+          bookingId: result.booking?.id,
           isDuplicate: result.duplicate === true
         };
-      } else if (response.ok && result.booking?.id) {
-        // Fallback for older API response format
+      }
+      
+      // Fallback for older response format
+      if (result.booking?.id) {
         return { 
           success: true, 
           bookingId: result.booking.id,
           isDuplicate: false
         };
-      } else {
-        console.error('❌ API returned error:', result);
-        return { success: false, error: result.error || 'Unknown error' };
       }
+      
+      // If we got here, something unexpected happened
+      console.error('❌ Unexpected response format:', result);
+      return { success: false, error: result.error || 'Unexpected response format' };
+      
     } catch (error) {
       console.error('❌ Network error saving booking:', error);
       return { success: false, error };
@@ -634,6 +647,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       });
       
       const result = await response.json();
+      console.log('📡 Indemnity response:', result);
       return result.access_token;
     } catch (error) {
       console.error('Error saving indemnity record:', error);
@@ -641,7 +655,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Never throws, always returns - completely non-blocking
+  // ✅ FIXED: Non-blocking email sending - never throws
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string): Promise<void> => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
@@ -672,6 +686,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     
     if (loading) return;
     
+    // STEP 1: Email entry - just move to step 2
     if (step === 1) {
       console.log('🔵 Step 1: Moving to step 2');
       setLoginLoading(true);
@@ -680,14 +695,20 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
+    // STEP 2: Personal details validation
     if (step === 2) {
       console.log('🔵 Step 2: Validating personal details');
       const errors = validateStep2();
       if (errors.length > 0) {
         console.log('🔵 Validation errors:', errors);
         setSubmitAttempted(true);
+        
         // Mark all fields as touched to show errors
-        const allFields: (keyof TouchedFields)[] = ['firstName', 'lastName', 'passportOrId', 'phone', 'country', 'province', 'city', 'arrivalDate', 'nights', 'referral', 'nextDestination', 'settlement'];
+        const allFields: (keyof TouchedFields)[] = [
+          'firstName', 'lastName', 'passportOrId', 'phone', 'country', 
+          'province', 'city', 'arrivalDate', 'nights', 'referral', 
+          'nextDestination', 'settlement'
+        ];
         allFields.forEach(field => markTouched(field));
         
         const firstErrorField = document.querySelector('.border-red-500');
@@ -702,6 +723,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
+    // STEP 3: Indemnity and final submission
     if (step === 3) {
       console.log('🔵 Step 3: Validating indemnity and submitting');
       const errors = validateStep3();
@@ -739,7 +761,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       console.log('🔵 Starting booking submission...');
 
       try {
-        // Calculate dates and amounts
+        // Calculate total amount
         const totalAmount = await calculateTotalAmount(formData.nights);
         const formattedCheckInDate = formData.arrivalDate.split('T')[0];
         const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
@@ -750,7 +772,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           guest_name: fullName,
           guest_first_name: formData.firstName,
           guest_last_name: formData.lastName,
-          guest_email: formData.email,
+          guest_email: formData.email.toLowerCase().trim(),
           guest_phone: formData.phone,
           guest_id_number: formData.passportOrId,
           guest_id_photo: formData.idPhoto,
@@ -786,7 +808,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const bookingId = saveResult.bookingId;
         console.log('✅ Booking saved with ID:', bookingId);
         
-        // Show duplicate warning if applicable
+        // Show duplicate warning if applicable (but don't block)
         if (saveResult.isDuplicate) {
           console.log('⚠️ Duplicate booking detected - guest already checked in today');
           setDuplicateWarning('Note: This guest has already checked in today. Their record has been updated.');
@@ -805,11 +827,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           saveGuestProfile();
         }
 
-        // STEP 4: ALWAYS complete the check-in regardless of email/profile status
+        // STEP 4: Create the booking object for the success callback
         const newBooking: Booking = {
           id: bookingId || Math.random().toString(36).substr(2, 9),
           guestName: fullName,
-          email: formData.email,
+          email: formData.email.toLowerCase().trim(),
           phone: formData.phone,
           country: formData.country,
           city: formData.city,
