@@ -1,3 +1,6 @@
+import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
+
 export const handler = async (event) => {
   console.log(`📊 Request received at ${new Date().toISOString()}`);
   console.log(`🔑 Request ID: ${event.headers['x-request-id'] || 'unknown'}`);
@@ -23,7 +26,12 @@ export const handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    console.log('📝 Received booking data:', body);
+    console.log('📝 Received booking data:', {
+      business_id: body.business_id,
+      guest_name: body.guest_name,
+      guest_email: body.guest_email,
+      check_in_date: body.check_in_date
+    });
 
     if (!body.business_id) {
       return {
@@ -37,12 +45,23 @@ export const handler = async (event) => {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Server configuration error' })
       };
     }
+
+    // ✅ CRITICAL FIX: Create Supabase client with WebSocket support
+    const supabase = createClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        realtime: { ws: ws },
+        auth: { persistSession: false }
+      }
+    );
 
     const BOOKINGS_TABLE = 'bookings';
 
@@ -103,59 +122,61 @@ export const handler = async (event) => {
     const checkForDuplicate = async () => {
       // Strategy 1: Check by email + check_in_date (most reliable)
       if (bookingData.guest_email) {
-        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_email=eq.${encodeURIComponent(bookingData.guest_email)}&select=id`;
-        
-        console.log(`🔍 Checking duplicate by email: ${bookingData.guest_email}`);
-        const checkResponse = await fetch(checkUrl, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
+        try {
+          const { data: existing, error } = await supabase
+            .from(BOOKINGS_TABLE)
+            .select('id')
+            .eq('business_id', bookingData.business_id)
+            .eq('check_in_date', bookingData.check_in_date)
+            .eq('guest_email', bookingData.guest_email)
+            .limit(1);
+          
+          if (!error && existing && existing.length > 0) {
+            console.log(`⚠️ Duplicate found by email: ${bookingData.guest_email} on ${bookingData.check_in_date}`);
+            return true;
           }
-        });
-        
-        const existing = await checkResponse.json();
-        if (existing && existing.length > 0) {
-          console.log(`⚠️ Duplicate found by email: ${bookingData.guest_email} on ${bookingData.check_in_date}`);
-          return true;
+        } catch (err) {
+          console.warn('⚠️ Email duplicate check failed:', err.message);
         }
       }
       
       // Strategy 2: Check by name + check_in_date (fallback for no email)
       if (bookingData.guest_name) {
-        const encodedName = encodeURIComponent(bookingData.guest_name);
-        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_name=eq.${encodedName}&select=id`;
-        
-        console.log(`🔍 Checking duplicate by name: ${bookingData.guest_name}`);
-        const checkResponse = await fetch(checkUrl, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
+        try {
+          const { data: existing, error } = await supabase
+            .from(BOOKINGS_TABLE)
+            .select('id')
+            .eq('business_id', bookingData.business_id)
+            .eq('check_in_date', bookingData.check_in_date)
+            .eq('guest_name', bookingData.guest_name)
+            .limit(1);
+          
+          if (!error && existing && existing.length > 0) {
+            console.log(`⚠️ Duplicate found by name: ${bookingData.guest_name} on ${bookingData.check_in_date}`);
+            return true;
           }
-        });
-        
-        const existing = await checkResponse.json();
-        if (existing && existing.length > 0) {
-          console.log(`⚠️ Duplicate found by name: ${bookingData.guest_name} on ${bookingData.check_in_date}`);
-          return true;
+        } catch (err) {
+          console.warn('⚠️ Name duplicate check failed:', err.message);
         }
       }
       
       // Strategy 3: Check by phone + check_in_date (if available)
       if (bookingData.guest_phone) {
-        const checkUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${bookingData.business_id}&check_in_date=eq.${bookingData.check_in_date}&guest_phone=eq.${encodeURIComponent(bookingData.guest_phone)}&select=id`;
-        
-        console.log(`🔍 Checking duplicate by phone: ${bookingData.guest_phone}`);
-        const checkResponse = await fetch(checkUrl, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
+        try {
+          const { data: existing, error } = await supabase
+            .from(BOOKINGS_TABLE)
+            .select('id')
+            .eq('business_id', bookingData.business_id)
+            .eq('check_in_date', bookingData.check_in_date)
+            .eq('guest_phone', bookingData.guest_phone)
+            .limit(1);
+          
+          if (!error && existing && existing.length > 0) {
+            console.log(`⚠️ Duplicate found by phone: ${bookingData.guest_phone} on ${bookingData.check_in_date}`);
+            return true;
           }
-        });
-        
-        const existing = await checkResponse.json();
-        if (existing && existing.length > 0) {
-          console.log(`⚠️ Duplicate found by phone: ${bookingData.guest_phone} on ${bookingData.check_in_date}`);
-          return true;
+        } catch (err) {
+          console.warn('⚠️ Phone duplicate check failed:', err.message);
         }
       }
       
@@ -186,36 +207,47 @@ export const handler = async (event) => {
     }
 
     console.log('💾 Saving new booking to:', BOOKINGS_TABLE);
-    console.log('📦 Booking data:', JSON.stringify(bookingData, null, 2));
-
-    const response = await fetch(`${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}`, {
-      method: 'POST',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify([bookingData])
+    console.log('📦 Booking data summary:', {
+      business_id: bookingData.business_id,
+      guest_name: bookingData.guest_name,
+      guest_email: bookingData.guest_email,
+      check_in_date: bookingData.check_in_date,
+      nights: bookingData.nights
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Supabase error:', errorText);
+    // Use Supabase client instead of raw fetch
+    const { data: newBooking, error: insertError } = await supabase
+      .from(BOOKINGS_TABLE)
+      .insert([bookingData])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('❌ Supabase insert error:', insertError);
+      
+      // Check if table exists
+      if (insertError.message.includes('relation') && insertError.message.includes('does not exist')) {
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: 'Database table not configured. Please contact support.',
+            code: 'TABLE_NOT_FOUND'
+          })
+        };
+      }
       
       return {
-        statusCode: response.status,
+        statusCode: 500,
         headers,
         body: JSON.stringify({
           success: false,
-          error: `Database error: ${errorText}`,
-          details: `Failed to save to ${BOOKINGS_TABLE} table`
+          error: insertError.message,
+          details: 'Failed to save booking to database'
         })
       };
     }
-
-    const result = await response.json();
-    const newBooking = result[0];
 
     console.log('✅ Booking saved successfully:', newBooking?.id);
 
