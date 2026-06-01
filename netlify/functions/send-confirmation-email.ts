@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 interface BookingData {
   guest_name: string;
@@ -18,6 +19,16 @@ interface BookingData {
 export const handler: Handler = async (event) => {
   console.log('📧 Email function triggered', new Date().toISOString());
 
+  // ✅ CRITICAL FIX: Add WebSocket support for Node.js 20
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    {
+      realtime: { ws: ws },
+      auth: { persistSession: false }
+    }
+  );
+
   try {
     if (!event.body) {
       throw new Error('No booking data provided');
@@ -27,34 +38,50 @@ export const handler: Handler = async (event) => {
     console.log('📧 Sending email to:', booking.guest_email);
     console.log('📧 Marketing consent:', booking.marketing_consent);
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
-
     let newsletterSettings = null;
     if (booking.business_id) {
-      const { data: business } = await supabase
-        .from('businesses')
-        .select('newsletter_enabled, newsletter_title, newsletter_prize, newsletter_cta, newsletter_terms, newsletter_draw_date, newsletter_share_text, trading_name')
-        .eq('id', booking.business_id)
-        .single();
-      
-      newsletterSettings = business;
+      try {
+        const { data: business, error } = await supabase
+          .from('businesses')
+          .select('newsletter_enabled, newsletter_title, newsletter_prize, newsletter_cta, newsletter_terms, newsletter_draw_date, newsletter_share_text, trading_name')
+          .eq('id', booking.business_id)
+          .single();
+        
+        if (error) {
+          console.warn('⚠️ Could not fetch newsletter settings:', error.message);
+        } else {
+          newsletterSettings = business;
+        }
+      } catch (err) {
+        console.warn('⚠️ Error fetching business settings:', err);
+      }
     }
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY not configured');
+      // Don't throw - just log and return success (email is non-critical)
+      console.warn('⚠️ Continuing without email - check-in already saved');
       return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Email service not configured' })
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: true, 
+          warning: 'Email service not configured, but check-in completed',
+          email_sent: false 
+        })
       };
     }
 
     const emailHtml = generateEmailTemplate(booking, newsletterSettings);
+    
+    // Extract domain from sender email or use default
+    const fromEmail = newsletterSettings?.trading_name 
+      ? `${newsletterSettings.trading_name.replace(/[^a-zA-Z0-9]/g, '')} <checkin@fastcheckin.co.za>`
+      : 'FastCheckin <checkin@fastcheckin.co.za>';
 
+    console.log('📧 Sending email via Resend...');
+    
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -62,7 +89,7 @@ export const handler: Handler = async (event) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: `${newsletterSettings?.trading_name || 'FastCheckin'} <checkin@fastcheckin.co.za>`,
+        from: fromEmail,
         to: [booking.guest_email],
         subject: `✅ Check-in Confirmed: ${booking.business_name || 'Your Stay'}`,
         html: emailHtml,
@@ -74,7 +101,16 @@ export const handler: Handler = async (event) => {
 
     if (!response.ok) {
       console.error('❌ Resend API error:', result);
-      throw new Error(`Email sending failed: ${result.message}`);
+      // Don't throw - email is non-critical
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: true, 
+          warning: `Email sending failed: ${result.message}`,
+          email_sent: false,
+          booking_completed: true
+        })
+      };
     }
 
     console.log('✅ Email sent successfully:', result.id);
@@ -84,7 +120,7 @@ export const handler: Handler = async (event) => {
     // ============================================================
     if (booking.marketing_consent === true && booking.guest_email && booking.business_id) {
       try {
-        console.log('📧 Marketing consent true - adding to newsletter subscribers:', booking.guest_email);
+        console.log('📧 Adding to newsletter subscribers:', booking.guest_email);
         
         const { error: upsertError } = await supabase
           .from('newsletter_subscribers')
@@ -101,7 +137,7 @@ export const handler: Handler = async (event) => {
         if (upsertError) {
           console.error('❌ Failed to add to newsletter subscribers:', upsertError);
         } else {
-          console.log('✅ Successfully added to newsletter subscribers:', booking.guest_email);
+          console.log('✅ Successfully added to newsletter subscribers');
         }
       } catch (err) {
         console.error('❌ Error adding to newsletter:', err);
@@ -109,20 +145,29 @@ export const handler: Handler = async (event) => {
     } else {
       console.log('📧 Marketing consent false or missing - not adding to newsletter');
     }
-    // ============================================================
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ success: true, id: result.id })
+      body: JSON.stringify({ 
+        success: true, 
+        id: result.id,
+        email_sent: true,
+        message: 'Confirmation email sent successfully'
+      })
     };
 
   } catch (error) {
+    // Log the error but return 200 - email is non-critical
     console.error('❌ Email function error:', error);
+    
+    // Return success anyway - the booking is already saved
     return {
-      statusCode: 500,
+      statusCode: 200,
       body: JSON.stringify({ 
-        error: 'Failed to send email',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        success: true, 
+        warning: 'Email could not be sent, but check-in completed successfully',
+        email_sent: false,
+        error_details: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }
@@ -142,18 +187,29 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
 function generateEmailTemplate(booking: BookingData, settings: any): string {
   const businessName = booking.business_name || 'your accommodation';
   const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
-  const checkInDate = new Date(booking.check_in_date).toLocaleDateString('en-ZA', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  const checkOutDate = new Date(booking.check_out_date).toLocaleDateString('en-ZA', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  
+  let checkInDate = '';
+  let checkOutDate = '';
+  
+  try {
+    checkInDate = new Date(booking.check_in_date).toLocaleDateString('en-ZA', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    checkOutDate = new Date(booking.check_out_date).toLocaleDateString('en-ZA', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (err) {
+    console.warn('⚠️ Date formatting error:', err);
+    checkInDate = booking.check_in_date;
+    checkOutDate = booking.check_out_date;
+  }
 
   const indemnityUrl = booking.indemnity_token 
     ? `https://fastcheckin.co.za/indemnity/${booking.indemnity_token}`
@@ -387,11 +443,11 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
         
         <div class="content">
           <div class="greeting">
-            Hi <strong>${guestName}</strong>,
+            Hi <strong>${escapeHtml(guestName)}</strong>,
           </div>
           
           <p>
-            Welcome to <strong>${businessName}</strong>! We're thrilled to have you stay with us.
+            Welcome to <strong>${escapeHtml(businessName)}</strong>! We're thrilled to have you stay with us.
             Your check-in has been successfully completed.
           </p>
           
@@ -400,12 +456,12 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             
             <div class="detail-row">
               <span class="detail-label">Check-in:</span>
-              <span class="detail-value">${checkInDate}</span>
+              <span class="detail-value">${escapeHtml(checkInDate)}</span>
             </div>
             
             <div class="detail-row">
               <span class="detail-label">Check-out:</span>
-              <span class="detail-value">${checkOutDate}</span>
+              <span class="detail-value">${escapeHtml(checkOutDate)}</span>
             </div>
             
             <div class="detail-row">
@@ -434,9 +490,9 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
           <div class="divider"></div>
           
           <div class="newsletter-block">
-            <h2>🎁 ${settings?.newsletter_title || 'Win Your Next Stay With Us'}</h2>
+            <h2>🎁 ${escapeHtml(settings?.newsletter_title || 'Win Your Next Stay With Us')}</h2>
             <div class="prize">
-              ✨ ${settings?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'} ✨
+              ✨ ${escapeHtml(settings?.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne')} ✨
             </div>
             
             <p style="color: #4b5563; margin-bottom: 16px;">
@@ -450,15 +506,15 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
             </ul>
             
             <a href="${subscribeUrl}" class="subscribe-btn">
-              📧 ${settings?.newsletter_cta || 'Subscribe now (takes 1 click)'}
+              📧 ${escapeHtml(settings?.newsletter_cta || 'Subscribe now (takes 1 click)')}
             </a>
             
             <div class="share-text">
-              💡 ${settings?.newsletter_share_text || 'Want better odds? Share this with friends and family — they can enter too!'}
+              💡 ${escapeHtml(settings?.newsletter_share_text || 'Want better odds? Share this with friends and family — they can enter too!')}
             </div>
             
             <div class="fine-print">
-              ${settings?.newsletter_terms || '*T&C\'s apply. Winner announced in the September newsletter. Draw takes place on 30 October.'}
+              ${escapeHtml(settings?.newsletter_terms || '*T&C\'s apply. Winner announced in the September newsletter. Draw takes place on 30 October.')}
               ${settings?.newsletter_draw_date ? ` Draw takes place on ${new Date(settings.newsletter_draw_date).toLocaleDateString()}.` : ''}
             </div>
           </div>
@@ -481,4 +537,15 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
     </body>
     </html>
   `;
+}
+
+// Helper function to escape HTML special characters
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
