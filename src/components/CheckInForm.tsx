@@ -50,8 +50,7 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  // VERSION MARKER - check console for this
-  console.log('✅ FASTCHECKIN FORM V3.0 - PRODUCTION READY');
+  console.log('✅ FASTCHECKIN FORM V4.0 - WITH DUPLICATE HANDLING');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -60,6 +59,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -127,6 +127,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setSubmitAttempted(false);
   }, [step]);
 
+  // Auto-dismiss duplicate warning
+  useEffect(() => {
+    if (duplicateWarning) {
+      const timer = setTimeout(() => setDuplicateWarning(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [duplicateWarning]);
+
   const updateFullName = (firstName: string, lastName: string) => {
     return `${firstName} ${lastName}`.trim();
   };
@@ -135,7 +143,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Region';
 
   // Validation functions for Step 2
-  const validateStep2 = () => {
+  const validateStep2 = (): string[] => {
     const errors: string[] = [];
     
     if (!formData.firstName.trim()) errors.push('First Name');
@@ -155,7 +163,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   // Validation for Step 3
-  const validateStep3 = () => {
+  const validateStep3 = (): string[] => {
     const errors: string[] = [];
     
     if (!formData.idPhoto) errors.push('ID Photo');
@@ -169,14 +177,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setTouched(prev => ({ ...prev, [field]: true }));
   };
 
-  const getErrorClass = (field: keyof TouchedFields, validationPassed: boolean) => {
+  const getErrorClass = (field: keyof TouchedFields, validationPassed: boolean): string => {
     const isTouched = touched[field];
     const hasError = !validationPassed;
     
-    if (submitAttempted && hasError) {
-      return 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500';
-    }
-    if (isTouched && hasError) {
+    if ((submitAttempted || isTouched) && hasError) {
       return 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500';
     }
     return 'border-stone-200 focus:ring-amber-500 focus:border-amber-500';
@@ -187,22 +192,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     
     if (!showError) return null;
     
-    const isValid = () => {
+    const isValid = (): boolean => {
       switch(field) {
-        case 'firstName': return formData.firstName.trim();
-        case 'lastName': return formData.lastName.trim();
-        case 'passportOrId': return formData.passportOrId.trim();
-        case 'phone': return formData.phone.trim();
-        case 'country': return formData.country;
-        case 'province': return formData.province;
-        case 'city': return formData.city.trim();
-        case 'arrivalDate': return formData.arrivalDate;
+        case 'firstName': return !!formData.firstName.trim();
+        case 'lastName': return !!formData.lastName.trim();
+        case 'passportOrId': return !!formData.passportOrId.trim();
+        case 'phone': return !!formData.phone.trim();
+        case 'country': return !!formData.country;
+        case 'province': return !!formData.province;
+        case 'city': return !!formData.city.trim();
+        case 'arrivalDate': return !!formData.arrivalDate;
         case 'nights': return formData.nights >= 1;
-        case 'referral': return formData.referral;
-        case 'nextDestination': return formData.nextDestination.trim();
-        case 'settlement': return formData.settlement;
-        case 'idPhoto': return formData.idPhoto;
-        case 'signature': return formData.signature;
+        case 'referral': return !!formData.referral;
+        case 'nextDestination': return !!formData.nextDestination.trim();
+        case 'settlement': return !!formData.settlement;
+        case 'idPhoto': return !!formData.idPhoto;
+        case 'signature': return !!formData.signature;
         case 'acceptLegal': return formData.acceptLegal;
         default: return true;
       }
@@ -300,10 +305,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       const response = await fetch(`/.netlify/functions/get-guest-profile?email=${encodeURIComponent(normalizedEmail)}`);
       const data = await response.json();
-      console.log('📡 Profile API response:', response.status, data);
+      console.log('📡 Profile API response:', response.status);
       
       if (response.ok && data.profile) {
-        console.log('✅ Profile found:', data.profile);
+        console.log('✅ Profile found');
         
         let firstName = data.profile.first_name || '';
         let lastName = data.profile.last_name || '';
@@ -335,7 +340,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Always returns, never throws
   const saveGuestProfile = async (): Promise<void> => {
     if (!formData.saveDetails) {
       console.log('ℹ️ User opted not to save details');
@@ -372,7 +376,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       });
       
       const result = await response.json();
-      console.log('📡 Save profile response:', result);
       
       if (response.ok && result.success) {
         console.log('✅ Guest profile saved successfully');
@@ -573,7 +576,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ FIXED: Handles both success and duplicate responses
+  // ✅ FIXED: Handles both success and duplicate responses correctly
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -589,11 +592,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const result = await response.json();
       console.log('📡 Response body:', result);
       
-      if (response.ok && (result.success || result.duplicate)) {
+      // ✅ CRITICAL FIX: Check response.ok AND result.success
+      if (response.ok && result.success === true) {
         return { 
           success: true, 
           bookingId: result.booking?.id || result.id,
-          isDuplicate: result.duplicate || false
+          isDuplicate: result.duplicate === true
+        };
+      } else if (response.ok && result.booking?.id) {
+        // Fallback for older API response format
+        return { 
+          success: true, 
+          bookingId: result.booking.id,
+          isDuplicate: false
         };
       } else {
         console.error('❌ API returned error:', result);
@@ -630,7 +641,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Never throws, always returns
+  // ✅ FIXED: Never throws, always returns - completely non-blocking
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string): Promise<void> => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
@@ -675,6 +686,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       if (errors.length > 0) {
         console.log('🔵 Validation errors:', errors);
         setSubmitAttempted(true);
+        // Mark all fields as touched to show errors
+        const allFields: (keyof TouchedFields)[] = ['firstName', 'lastName', 'passportOrId', 'phone', 'country', 'province', 'city', 'arrivalDate', 'nights', 'referral', 'nextDestination', 'settlement'];
+        allFields.forEach(field => markTouched(field));
+        
         const firstErrorField = document.querySelector('.border-red-500');
         if (firstErrorField) {
           firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -703,129 +718,134 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         if (!hasScrolledToBottom) {
           alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
           indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
-          setLoading(false);
           return;
         }
         
         if (!formData.signature) {
           alert("Please provide your digital signature.");
-          setLoading(false);
           return;
         }
         
         if (!formData.idPhoto) {
           alert("Please take a photo of your ID/passport.");
-          setLoading(false);
           return;
         }
         
         alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
-        setLoading(false);
         return;
       }
 
       setLoading(true);
       console.log('🔵 Starting booking submission...');
 
-      // Calculate dates and amounts
-      const totalAmount = await calculateTotalAmount(formData.nights);
-      const formattedCheckInDate = formData.arrivalDate.split('T')[0];
-      const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
-      const fullName = updateFullName(formData.firstName, formData.lastName);
-      
-      const dbBooking = {
-        business_id: businessId,
-        guest_name: fullName,
-        guest_first_name: formData.firstName,
-        guest_last_name: formData.lastName,
-        guest_email: formData.email,
-        guest_phone: formData.phone,
-        guest_id_number: formData.passportOrId,
-        guest_id_photo: formData.idPhoto,
-        guest_signature: formData.signature,
-        check_in_date: formattedCheckInDate,
-        check_out_date: formattedCheckOutDate,
-        nights: formData.nights,
-        adults: formData.adults,
-        children: formData.kids,
-        total_amount: totalAmount,
-        status: 'checked_in',
-        guest_province: formData.province,
-        guest_city: formData.city,
-        guest_country: formData.country,
-        booking_source: formData.referral,
-        referral_source: formData.referral,
-        marketing_consent: formData.popiaConsent,
-        created_at: new Date().toISOString(),
-        source: 'live_checkin'
-      };
+      try {
+        // Calculate dates and amounts
+        const totalAmount = await calculateTotalAmount(formData.nights);
+        const formattedCheckInDate = formData.arrivalDate.split('T')[0];
+        const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
+        const fullName = updateFullName(formData.firstName, formData.lastName);
+        
+        const dbBooking = {
+          business_id: businessId,
+          guest_name: fullName,
+          guest_first_name: formData.firstName,
+          guest_last_name: formData.lastName,
+          guest_email: formData.email,
+          guest_phone: formData.phone,
+          guest_id_number: formData.passportOrId,
+          guest_id_photo: formData.idPhoto,
+          guest_signature: formData.signature,
+          check_in_date: formattedCheckInDate,
+          check_out_date: formattedCheckOutDate,
+          nights: formData.nights,
+          adults: formData.adults,
+          children: formData.kids,
+          total_amount: totalAmount,
+          status: 'checked_in',
+          guest_province: formData.province,
+          guest_city: formData.city,
+          guest_country: formData.country,
+          booking_source: formData.referral,
+          referral_source: formData.referral,
+          marketing_consent: formData.popiaConsent,
+          created_at: new Date().toISOString(),
+          source: 'live_checkin'
+        };
 
-      // STEP 1: Save booking (CRITICAL - must succeed)
-      console.log('🔗 Saving booking to database...');
-      const saveResult = await saveBookingToDatabase(dbBooking);
-      
-      if (!saveResult.success) {
-        console.error('❌ Booking save failed:', saveResult.error);
-        alert('Failed to save booking. Please try again.');
+        // STEP 1: Save booking (CRITICAL - must succeed)
+        console.log('🔗 Saving booking to database...');
+        const saveResult = await saveBookingToDatabase(dbBooking);
+        
+        if (!saveResult.success) {
+          console.error('❌ Booking save failed:', saveResult.error);
+          alert('Failed to save booking. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        const bookingId = saveResult.bookingId;
+        console.log('✅ Booking saved with ID:', bookingId);
+        
+        // Show duplicate warning if applicable
+        if (saveResult.isDuplicate) {
+          console.log('⚠️ Duplicate booking detected - guest already checked in today');
+          setDuplicateWarning('Note: This guest has already checked in today. Their record has been updated.');
+        }
+
+        // STEP 2: Save indemnity record (CRITICAL - must succeed)
+        console.log('🔗 Saving indemnity record...');
+        const accessToken = await saveIndemnityRecord(bookingId);
+        console.log('✅ Indemnity token:', accessToken);
+
+        // STEP 3: Non-critical tasks - DO NOT AWAIT, DO NOT BLOCK
+        console.log('🔗 Starting non-critical tasks (email, profile)...');
+        sendConfirmationEmail(dbBooking, accessToken);
+        
+        if (formData.saveDetails) {
+          saveGuestProfile();
+        }
+
+        // STEP 4: ALWAYS complete the check-in regardless of email/profile status
+        const newBooking: Booking = {
+          id: bookingId || Math.random().toString(36).substr(2, 9),
+          guestName: fullName,
+          email: formData.email,
+          phone: formData.phone,
+          country: formData.country,
+          city: formData.city,
+          province: formData.province,
+          passportOrId: formData.passportOrId,
+          nextDestination: formData.nextDestination,
+          checkInDate: formattedCheckInDate,
+          checkOutDate: formattedCheckOutDate,
+          nights: formData.nights,
+          adults: formData.adults,
+          kids: formData.kids,
+          guests: formData.adults + formData.kids,
+          settlementMethod: formData.settlement as any,
+          referralSource: formData.referral as any,
+          roomType: 'Suite',
+          totalAmount: totalAmount,
+          status: 'Checked-In',
+          year: new Date().getFullYear(),
+          month: new Date().toLocaleString('default', { month: 'short' }),
+          signatureData: formData.signature,
+          idPhotoData: formData.idPhoto,
+          popiaMarketingConsent: formData.popiaConsent,
+          timestamp: new Date().toISOString(),
+          tenantId: businessId || 'default',
+          source: 'live_checkin',
+        };
+
+        console.log('✅ Check-in complete! Calling onComplete...');
+        onComplete(newBooking, accessToken);
+        
+      } catch (error) {
+        console.error('❌ Unexpected error during check-in:', error);
+        alert('An unexpected error occurred. Please try again.');
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const bookingId = saveResult.bookingId;
-      console.log('✅ Booking saved with ID:', bookingId);
-      
-      if (saveResult.isDuplicate) {
-        console.log('⚠️ Duplicate booking detected - continuing anyway');
-      }
-
-      // STEP 2: Save indemnity record (CRITICAL - must succeed)
-      console.log('🔗 Saving indemnity record...');
-      const accessToken = await saveIndemnityRecord(bookingId);
-      console.log('✅ Indemnity token:', accessToken);
-
-      // STEP 3: Non-critical tasks - DO NOT AWAIT, DO NOT BLOCK
-      console.log('🔗 Starting non-critical tasks (email, profile)...');
-      sendConfirmationEmail(dbBooking, accessToken);
-      
-      if (formData.saveDetails) {
-        saveGuestProfile();
-      }
-
-      // STEP 4: ALWAYS complete the check-in regardless of email/profile status
-      const newBooking: Booking = {
-        id: bookingId || Math.random().toString(36).substr(2, 9),
-        guestName: fullName,
-        email: formData.email,
-        phone: formData.phone,
-        country: formData.country,
-        city: formData.city,
-        province: formData.province,
-        passportOrId: formData.passportOrId,
-        nextDestination: formData.nextDestination,
-        checkInDate: formattedCheckInDate,
-        checkOutDate: formattedCheckOutDate,
-        nights: formData.nights,
-        adults: formData.adults,
-        kids: formData.kids,
-        guests: formData.adults + formData.kids,
-        settlementMethod: formData.settlement as any,
-        referralSource: formData.referral as any,
-        roomType: 'Suite',
-        totalAmount: totalAmount,
-        status: 'Checked-In',
-        year: new Date().getFullYear(),
-        month: new Date().toLocaleString('default', { month: 'short' }),
-        signatureData: formData.signature,
-        idPhotoData: formData.idPhoto,
-        popiaMarketingConsent: formData.popiaConsent,
-        timestamp: new Date().toISOString(),
-        tenantId: businessId || 'default',
-        source: 'live_checkin',
-      };
-
-      console.log('✅ Check-in complete! Calling onComplete...');
-      onComplete(newBooking, accessToken);
-      setLoading(false);
     }
   };
 
@@ -882,6 +902,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {/* Duplicate Warning Toast */}
+      {duplicateWarning && (
+        <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+          <div className="bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>{duplicateWarning}</span>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto py-10 px-4">
         {/* Business Header */}
         {!heroImage && businessId && branding && (
