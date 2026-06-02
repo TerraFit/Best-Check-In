@@ -1,6 +1,7 @@
+// netlify/functions/create-indemnity-record.ts - COMPLETE REST REPLACEMENT
+// DELETE the old version and use this
+
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 import crypto from 'crypto';
 
 export const handler: Handler = async (event) => {
@@ -80,16 +81,6 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // ✅ CRITICAL FIX: Create Supabase client with WebSocket support
-    const supabase = createClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
-
     // Generate a unique access token for the indemnity record
     const accessToken = crypto.randomBytes(32).toString('hex');
 
@@ -112,53 +103,63 @@ export const handler: Handler = async (event) => {
       created_at: new Date().toISOString()
     };
 
+    // Remove undefined values
+    Object.keys(indemnityRecord).forEach(key => {
+      if (indemnityRecord[key] === undefined) {
+        delete indemnityRecord[key];
+      }
+    });
+
     console.log('📝 Creating indemnity record for booking:', booking_id);
     console.log('📝 Guest:', guest_name);
     console.log('📝 Access token generated:', accessToken.substring(0, 16) + '...');
 
-    // Insert the indemnity record using Supabase client
-    const { data, error } = await supabase
-      .from('indemnity_records')
-      .insert([indemnityRecord])
-      .select()
-      .single();
+    // REST API call - NO Supabase client, NO WebSocket
+    const response = await fetch(`${supabaseUrl}/rest/v1/indemnity_records`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify([indemnityRecord])
+    });
 
-    if (error) {
-      console.error('❌ Database error:', error);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Insert error:', response.status, errorText);
       
-      // Check if table exists
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Indemnity records table not configured. Please contact support.',
-            code: 'TABLE_NOT_FOUND'
-          })
-        };
-      }
-      
-      // Check if it's a duplicate
-      if (error.code === '23505') {
+      // Check if it's a duplicate (PG error code 23505)
+      if (errorText.includes('23505')) {
         console.warn('⚠️ Indemnity record already exists for booking:', booking_id);
         
         // Try to fetch existing record
-        const { data: existing, error: fetchError } = await supabase
-          .from('indemnity_records')
-          .select('access_token')
-          .eq('booking_id', booking_id)
-          .single();
+        const fetchResponse = await fetch(
+          `${supabaseUrl}/rest/v1/indemnity_records?booking_id=eq.${booking_id}&select=access_token`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Accept': 'application/json'
+            }
+          }
+        );
         
-        if (!fetchError && existing) {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ 
-              success: true, 
-              access_token: existing.access_token,
-              message: 'Existing indemnity record found'
-            })
-          };
+        if (fetchResponse.ok) {
+          const existing = await fetchResponse.json();
+          if (existing && existing.length > 0) {
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ 
+                success: true, 
+                access_token: existing[0].access_token,
+                message: 'Existing indemnity record found'
+              })
+            };
+          }
         }
       }
       
@@ -167,12 +168,15 @@ export const handler: Handler = async (event) => {
         headers,
         body: JSON.stringify({ 
           error: 'Failed to save indemnity record',
-          details: error.message
+          details: errorText
         })
       };
     }
 
-    console.log('✅ Indemnity record saved successfully:', data?.id);
+    const result = await response.json();
+    const savedRecord = result && result[0];
+    
+    console.log('✅ Indemnity record saved successfully:', savedRecord?.id);
     console.log('✅ Access token:', accessToken);
 
     return {
@@ -181,7 +185,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ 
         success: true, 
         access_token: accessToken,
-        indemnity_id: data?.id,
+        indemnity_id: savedRecord?.id,
         message: 'Indemnity record created successfully'
       })
     };
