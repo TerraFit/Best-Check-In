@@ -1,7 +1,4 @@
-// netlify/functions/save-guest-profile.js
-
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
+// netlify/functions/save-guest-profile.js - COMPLETE REST MIGRATION
 
 export const handler = async function(event) {
   const headers = {
@@ -11,6 +8,7 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
@@ -37,138 +35,131 @@ export const handler = async function(event) {
       };
     }
 
-    // Validate Supabase credentials
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing Supabase environment variables');
+      console.error('❌ Missing Supabase credentials');
       return {
-        statusCode: 200, // Return 200 to prevent frontend crash
+        statusCode: 200,
         headers,
         body: JSON.stringify({ 
           success: true, 
           warning: 'Profile service not configured',
-          message: 'Profile not saved, but check-in continues'
+          message: 'Check-in continues'
         })
       };
     }
 
-    // Create Supabase client with WebSocket support
-    const supabase = createClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        realtime: { ws: ws },
-        auth: { persistSession: false }
-      }
-    );
-
     const normalizedEmail = email.toLowerCase().trim();
     
-    // Prepare profile data
+    // Build full name from available data
+    let fullName = '';
+    if (profileData?.fullName) {
+      fullName = profileData.fullName;
+    } else if (profileData?.firstName || profileData?.lastName) {
+      fullName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
+    }
+
+    // First, check if profile exists to get current visit count
+    let totalVisits = 1;
+    try {
+      const checkResponse = await fetch(
+        `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodeURIComponent(normalizedEmail)}&select=total_visits`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (checkResponse.ok) {
+        const existing = await checkResponse.json();
+        if (existing && existing.length > 0 && existing[0].total_visits) {
+          totalVisits = existing[0].total_visits + 1;
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not check existing profile:', err.message);
+      // Continue with totalVisits = 1
+    }
+
+    // Build profile object with ONLY fields that exist in your table
     const profileToSave = {
       email: normalizedEmail,
-      full_name: profileData?.fullName || '',
-      first_name: profileData?.firstName || '',
-      last_name: profileData?.lastName || '',
+      full_name: fullName,
       phone: profileData?.phone || '',
       passport_or_id: profileData?.passportOrId || '',
       country: profileData?.country || '',
       city: profileData?.city || '',
       province: profileData?.province || '',
+      total_visits: totalVisits,
+      last_visit_date: new Date().toISOString().split('T')[0],
       updated_at: new Date().toISOString()
     };
 
-    // Remove undefined fields
+    // Remove undefined or empty values
     Object.keys(profileToSave).forEach(key => {
       if (profileToSave[key] === undefined || profileToSave[key] === '') {
         delete profileToSave[key];
       }
     });
 
-    console.log('📦 Saving profile:', Object.keys(profileToSave));
+    console.log('📦 Saving profile data:', Object.keys(profileToSave));
 
-    // Try to get existing profile first
-    const { data: existingProfile, error: fetchError } = await supabase
-      .from('guest_profiles')
-      .select('id, total_visits')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
+    // UPSERT using POST with conflict handling
+    const upsertResponse = await fetch(`${supabaseUrl}/rest/v1/guest_profiles`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(profileToSave)
+    });
 
-    if (fetchError && !fetchError.message.includes('does not exist')) {
-      console.error('❌ Error checking existing profile:', fetchError);
-      // Continue anyway - try to upsert
-    }
-
-    // Increment visit count if profile exists
-    const totalVisits = (existingProfile?.total_visits || 0) + 1;
-    
-    // Upsert the profile
-    const { data, error } = await supabase
-      .from('guest_profiles')
-      .upsert({
-        ...profileToSave,
-        total_visits: totalVisits,
-        last_visit_date: new Date().toISOString().split('T')[0]
-      }, {
-        onConflict: 'email',
-        ignoreDuplicates: false
-      })
-      .select();
-
-    if (error) {
-      console.error('❌ Database error:', error.message);
+    if (!upsertResponse.ok) {
+      const errorText = await upsertResponse.text();
+      console.error('❌ Upsert failed:', upsertResponse.status, errorText);
       
-      // Check if table doesn't exist
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        console.warn('⚠️ guest_profiles table does not exist - skipping save');
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ 
-            success: true, 
-            warning: 'Profile table not available',
-            message: 'Profile not saved, but check-in continues'
-          })
-        };
-      }
-      
-      // For other errors, still return success to not block check-in
+      // Don't fail the check-in - just log the error
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
           success: true, 
           warning: 'Profile save failed',
-          message: 'Profile not saved, but check-in continues',
-          error: error.message
+          message: 'Check-in continues',
+          error: errorText
         })
       };
     }
 
-    console.log('✅ Guest profile saved/updated:', normalizedEmail);
+    console.log('✅ Guest profile saved successfully for:', normalizedEmail);
     
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
-        message: 'Profile saved successfully',
-        profile: data
+        message: 'Profile saved successfully'
       })
     };
 
   } catch (error) {
-    console.error('❌ Error saving guest profile:', error);
-    // Always return 200 to prevent blocking the check-in
+    console.error('❌ Unhandled error in save-guest-profile:', error);
+    // ALWAYS return 200 - never block the check-in
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
         success: true, 
         warning: 'Profile save error',
-        message: 'Check-in continues, but profile not saved'
+        message: 'Check-in continues'
       })
     };
   }
