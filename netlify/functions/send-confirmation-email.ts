@@ -1,6 +1,6 @@
+// netlify/functions/send-confirmation-email.ts - COMPLETE REST MIGRATION
+
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 
 interface BookingData {
   guest_name: string;
@@ -19,41 +19,51 @@ interface BookingData {
 export const handler: Handler = async (event) => {
   console.log('📧 Email function triggered', new Date().toISOString());
 
-  // ✅ CRITICAL FIX: Add WebSocket support for Node.js 20
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      realtime: { ws: ws },
-      auth: { persistSession: false }
-    }
-  );
-
+  // Always return 200 - email is non-critical
   try {
     if (!event.body) {
-      throw new Error('No booking data provided');
+      console.warn('No booking data provided');
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: true, 
+          warning: 'No booking data',
+          email_sent: false 
+        })
+      };
     }
 
     const booking: BookingData = JSON.parse(event.body);
     console.log('📧 Sending email to:', booking.guest_email);
-    console.log('📧 Marketing consent:', booking.marketing_consent);
 
     let newsletterSettings = null;
     if (booking.business_id) {
       try {
-        const { data: business, error } = await supabase
-          .from('businesses')
-          .select('newsletter_enabled, newsletter_title, newsletter_prize, newsletter_cta, newsletter_terms, newsletter_draw_date, newsletter_share_text, trading_name')
-          .eq('id', booking.business_id)
-          .single();
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
         
-        if (error) {
-          console.warn('⚠️ Could not fetch newsletter settings:', error.message);
-        } else {
-          newsletterSettings = business;
+        if (supabaseUrl && supabaseKey) {
+          const response = await fetch(
+            `${supabaseUrl}/rest/v1/businesses?id=eq.${booking.business_id}&select=newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,trading_name`,
+            {
+              method: 'GET',
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            newsletterSettings = data && data[0] ? data[0] : null;
+            console.log('📧 Newsletter settings fetched');
+          }
         }
       } catch (err) {
-        console.warn('⚠️ Error fetching business settings:', err);
+        console.warn('⚠️ Could not fetch newsletter settings:', err);
+        // Continue without newsletter
       }
     }
 
@@ -61,13 +71,11 @@ export const handler: Handler = async (event) => {
     
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY not configured');
-      // Don't throw - just log and return success (email is non-critical)
-      console.warn('⚠️ Continuing without email - check-in already saved');
       return {
         statusCode: 200,
         body: JSON.stringify({ 
           success: true, 
-          warning: 'Email service not configured, but check-in completed',
+          warning: 'Email service not configured',
           email_sent: false 
         })
       };
@@ -75,7 +83,6 @@ export const handler: Handler = async (event) => {
 
     const emailHtml = generateEmailTemplate(booking, newsletterSettings);
     
-    // Extract domain from sender email or use default
     const fromEmail = newsletterSettings?.trading_name 
       ? `${newsletterSettings.trading_name.replace(/[^a-zA-Z0-9]/g, '')} <checkin@fastcheckin.co.za>`
       : 'FastCheckin <checkin@fastcheckin.co.za>';
@@ -101,49 +108,51 @@ export const handler: Handler = async (event) => {
 
     if (!response.ok) {
       console.error('❌ Resend API error:', result);
-      // Don't throw - email is non-critical
       return {
         statusCode: 200,
         body: JSON.stringify({ 
           success: true, 
-          warning: `Email sending failed: ${result.message}`,
-          email_sent: false,
-          booking_completed: true
+          warning: `Email sending failed: ${result.message || 'Unknown error'}`,
+          email_sent: false
         })
       };
     }
 
     console.log('✅ Email sent successfully:', result.id);
 
-    // ============================================================
-    // ✅ ADD TO NEWSLETTER SUBSCRIBERS IF MARKETING CONSENT GIVEN
-    // ============================================================
+    // Add to newsletter if consented (using REST)
     if (booking.marketing_consent === true && booking.guest_email && booking.business_id) {
       try {
-        console.log('📧 Adding to newsletter subscribers:', booking.guest_email);
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
         
-        const { error: upsertError } = await supabase
-          .from('newsletter_subscribers')
-          .upsert({
-            business_id: booking.business_id,
-            email: booking.guest_email.toLowerCase().trim(),
-            guest_name: booking.guest_name,
-            source: 'check-in_consent',
-            created_at: new Date().toISOString()
-          }, {
-            onConflict: 'business_id,email'
+        if (supabaseUrl && supabaseKey) {
+          const subscribeResponse = await fetch(`${supabaseUrl}/rest/v1/newsletter_subscribers`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              business_id: booking.business_id,
+              email: booking.guest_email.toLowerCase().trim(),
+              guest_name: booking.guest_name,
+              source: 'check-in_consent',
+              created_at: new Date().toISOString()
+            })
           });
-        
-        if (upsertError) {
-          console.error('❌ Failed to add to newsletter subscribers:', upsertError);
-        } else {
-          console.log('✅ Successfully added to newsletter subscribers');
+          
+          if (subscribeResponse.ok) {
+            console.log('✅ Added to newsletter subscribers');
+          } else {
+            console.warn('⚠️ Failed to add to newsletter:', await subscribeResponse.text());
+          }
         }
       } catch (err) {
         console.error('❌ Error adding to newsletter:', err);
       }
-    } else {
-      console.log('📧 Marketing consent false or missing - not adding to newsletter');
     }
 
     return {
@@ -157,33 +166,20 @@ export const handler: Handler = async (event) => {
     };
 
   } catch (error) {
-    // Log the error but return 200 - email is non-critical
     console.error('❌ Email function error:', error);
-    
-    // Return success anyway - the booking is already saved
+    // ALWAYS return 200 - never block the check-in
     return {
       statusCode: 200,
       body: JSON.stringify({ 
         success: true, 
-        warning: 'Email could not be sent, but check-in completed successfully',
-        email_sent: false,
-        error_details: error instanceof Error ? error.message : 'Unknown error'
+        warning: 'Email could not be sent, but check-in completed',
+        email_sent: false
       })
     };
   }
 };
 
-// Helper function to split full name into first and last name
-function splitFullName(fullName: string): { firstName: string; lastName: string } {
-  if (!fullName) return { firstName: '', lastName: '' };
-  
-  const nameParts = fullName.trim().split(' ');
-  const firstName = nameParts[0] || '';
-  const lastName = nameParts.slice(1).join(' ') || '';
-  
-  return { firstName, lastName };
-}
-
+// Email template generator - unchanged from your original
 function generateEmailTemplate(booking: BookingData, settings: any): string {
   const businessName = booking.business_name || 'your accommodation';
   const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
@@ -215,9 +211,13 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
     ? `https://fastcheckin.co.za/indemnity/${booking.indemnity_token}`
     : null;
 
-  const newsletterEnabled = settings?.newsletter_enabled || false;
-  const { firstName, lastName } = splitFullName(booking.guest_name);
+  // Split name for newsletter subscription
+  const nameParts = (booking.guest_name || '').trim().split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
   const subscribeUrl = `https://fastcheckin.co.za/subscribe?business=${booking.business_id}&email=${encodeURIComponent(booking.guest_email)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+
+  const newsletterEnabled = settings?.newsletter_enabled || false;
 
   return `
     <!DOCTYPE html>
@@ -539,7 +539,6 @@ function generateEmailTemplate(booking: BookingData, settings: any): string {
   `;
 }
 
-// Helper function to escape HTML special characters
 function escapeHtml(str: string): string {
   if (!str) return '';
   return str
