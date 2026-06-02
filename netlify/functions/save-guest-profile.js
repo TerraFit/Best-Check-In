@@ -1,4 +1,4 @@
-// netlify/functions/save-guest-profile.js - COMPLETE REST MIGRATION
+// netlify/functions/save-guest-profile.js - CORRECTED VERSION
 
 export const handler = async function(event) {
   const headers = {
@@ -8,7 +8,6 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
@@ -71,7 +70,7 @@ export const handler = async function(event) {
           headers: {
             'apikey': supabaseKey,
             'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
           }
         }
       );
@@ -84,7 +83,6 @@ export const handler = async function(event) {
       }
     } catch (err) {
       console.warn('⚠️ Could not check existing profile:', err.message);
-      // Continue with totalVisits = 1
     }
 
     // Build profile object with ONLY fields that exist in your table
@@ -110,31 +108,33 @@ export const handler = async function(event) {
 
     console.log('📦 Saving profile data:', Object.keys(profileToSave));
 
-    // UPSERT using POST with conflict handling
-    const upsertResponse = await fetch(`${supabaseUrl}/rest/v1/guest_profiles`, {
-      method: 'POST',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify(profileToSave)
-    });
+    // ✅ CORRECTED UPSERT with explicit conflict target
+    const upsertResponse = await fetch(
+      `${supabaseUrl}/rest/v1/guest_profiles?on_conflict=email`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(profileToSave)
+      }
+    );
 
     if (!upsertResponse.ok) {
       const errorText = await upsertResponse.text();
       console.error('❌ Upsert failed:', upsertResponse.status, errorText);
       
-      // Don't fail the check-in - just log the error
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
           success: true, 
           warning: 'Profile save failed',
-          message: 'Check-in continues',
-          error: errorText
+          message: 'Check-in continues'
         })
       };
     }
@@ -152,7 +152,6 @@ export const handler = async function(event) {
 
   } catch (error) {
     console.error('❌ Unhandled error in save-guest-profile:', error);
-    // ALWAYS return 200 - never block the check-in
     return {
       statusCode: 200,
       headers,
