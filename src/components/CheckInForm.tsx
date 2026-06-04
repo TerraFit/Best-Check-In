@@ -1,3 +1,9 @@
+// Add this right after the opening { of CheckInForm component
+useEffect(() => {
+  console.log('🔥🔥🔥 CHECKINFORM IS LOADED AND RUNNING 🔥🔥🔥');
+  console.log('🔥🔥🔥 BRANDING DATA:', branding);
+  console.log('🔥🔥🔥 THIS IS VERSION 8.0 WITH FIX');
+}, []);
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
