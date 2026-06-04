@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
 import { Booking } from './types';
 import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
+import { IndemnityText } from './IndemnityText';
 
 interface BusinessBranding {
   id: string;
@@ -50,7 +51,7 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  console.log('✅ FASTCHECKIN FORM V6.0 - COMPLETE WITH FULL INDEMNITY');
+  console.log('✅ FASTCHECKIN FORM V6.0 - WITH EXTRACTED INDEMNITY');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -60,6 +61,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   
   const [step, setStep] = useState(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -118,6 +120,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
+  // Auto-dismiss notifications
   useEffect(() => {
     if (duplicateWarning) {
       const timer = setTimeout(() => setDuplicateWarning(null), 5000);
@@ -125,6 +128,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [duplicateWarning]);
 
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setTimeout(() => {
@@ -278,6 +289,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [formData.arrivalDate, formData.nights]);
 
+  // Load guest profile when email is entered
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -393,6 +405,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Camera functions
   const startCamera = async () => {
     console.log("📷 startCamera called");
     setCameraError(null);
@@ -482,6 +495,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
 
+  // Signature pad functions
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -654,11 +668,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Confirmation email sent');
+        setNotification({ type: 'success', message: 'Confirmation email sent successfully!' });
       } else {
         console.warn('⚠️ Email sending failed with status:', response.status);
+        setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
       }
     } catch (error) {
       console.warn('⚠️ Email error (non-critical):', error);
+      setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
     }
   };
 
@@ -669,6 +686,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     
     if (loading) return;
     
+    // STEP 1: Email entry
     if (step === 1) {
       console.log('🔵 Step 1: Moving to step 2');
       setLoginLoading(true);
@@ -677,6 +695,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
+    // STEP 2: Personal details validation
     if (step === 2) {
       console.log('🔵 Step 2: Validating personal details');
       const errors = validateStep2();
@@ -703,6 +722,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
+    // STEP 3: Indemnity and final submission
     if (step === 3) {
       console.log('🔵 Step 3: Validating indemnity and submitting');
       const errors = validateStep3();
@@ -786,7 +806,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('✅ Booking saved with ID:', bookingId);
         
         if (saveResult.isDuplicate) {
-          console.log('⚠️ Duplicate booking detected - guest already checked in today');
+          console.log('⚠️ Duplicate booking detected');
           setDuplicateWarning('Note: This guest has already checked in today. Their record has been updated.');
         }
 
@@ -833,11 +853,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         };
 
         console.log('✅ Check-in complete! Calling onComplete...');
-        if (typeof onComplete === 'function') {
-          onComplete(newBooking, accessToken);
-        } else {
-          console.error('onComplete is not a function:', onComplete);
-        }
+        onComplete(newBooking, accessToken);
         
       } catch (error) {
         console.error('❌ Unexpected error during check-in:', error);
@@ -848,6 +864,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Loading and error states
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -900,6 +917,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {/* Duplicate Warning Toast */}
       {duplicateWarning && (
         <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
           <div className="bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
@@ -911,7 +929,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         </div>
       )}
 
+      {/* General Notification Toast */}
+      {notification && (
+        <div className="fixed bottom-4 left-4 z-50 animate-fade-in">
+          <div className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+            notification.type === 'success' ? 'bg-green-500 text-white' :
+            notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
+          }`}>
+            {notification.type === 'success' && (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {notification.type === 'error' && (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span>{notification.message}</span>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto py-10 px-4">
+        {/* Business Header */}
         {!heroImage && businessId && branding && (
           <div className="text-center mb-8">
             {branding.logo_url ? (
@@ -951,6 +992,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           </div>
         )}
 
+        {/* Progress Steps */}
         <div className="flex justify-center mb-8 items-center space-x-2">
           {[1, 2, 3].map(s => (
             <React.Fragment key={s}>
@@ -1093,6 +1135,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
@@ -1139,6 +1182,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
+                {/* Passport/ID */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Passport / ID Number <span className="text-red-500">*</span>
@@ -1154,6 +1198,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
                 </div>
                 
+                {/* Phone */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Mobile Phone <span className="text-red-500">*</span>
@@ -1169,6 +1214,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="phone" message="Mobile phone number is required" />
                 </div>
                 
+                {/* Country */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Country of Origin <span className="text-red-500">*</span>
@@ -1188,6 +1234,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="country" message="Country of origin is required" />
                 </div>
 
+                {/* Province/Region */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     {regionTypeLabel} <span className="text-red-500">*</span>
@@ -1221,6 +1268,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
                 </div>
 
+                {/* City */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     City / Town <span className="text-red-500">*</span>
@@ -1236,6 +1284,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
+                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
@@ -1272,6 +1321,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
+                {/* Referral Source */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     How did you hear about us? <span className="text-red-500">*</span>
@@ -1297,6 +1347,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
 
+                {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Next Destination <span className="text-red-500">*</span>
@@ -1313,6 +1364,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="nextDestination" message="Next destination is required" />
                 </div>
                 
+                {/* Settlement Method */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Method of Settlement <span className="text-red-500">*</span>
@@ -1344,7 +1396,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature - WITH FULL INDEMNITY TEXT */}
+          {/* Step 3 - Indemnity & Signature - USING EXTRACTED COMPONENT */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
@@ -1374,163 +1426,37 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    <div className="space-y-8 max-w-3xl mx-auto">
-                      {/* Header */}
-                      <div className="text-center space-y-3 mb-12">
-                        <p className="font-bold text-2xl text-stone-900 font-serif">{businessName}</p>
-                        <p className="font-bold text-xs tracking-widest uppercase border-y border-stone-200 py-3">GUEST ACKNOWLEDGEMENT OF INHERENT RISK, WAIVER OF CLAIMS, AND INDEMNITY AGREEMENT</p>
+                    <IndemnityText 
+                      businessName={businessName} 
+                      showWarning={true}
+                      showGuestDetails={true}
+                      guestName={updateFullName(formData.firstName, formData.lastName)}
+                      passportOrId={formData.passportOrId}
+                    />
+                    
+                    {/* Checkbox Section - INSIDE scrollable div */}
+                    <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
+                      <div className="flex items-start gap-5">
+                        <input 
+                          type="checkbox" 
+                          id="legalCheck" 
+                          className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
+                          disabled={!hasScrolledToBottom}
+                          checked={formData.acceptLegal} 
+                          onChange={e => {
+                            setFormData({...formData, acceptLegal: e.target.checked});
+                            markTouched('acceptLegal');
+                          }} 
+                        />
+                        <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
+                          I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
+                        </label>
                       </div>
-                      
-                      {/* Warning Block */}
-                      <div className="bg-amber-50 p-8 border-l-4 border-amber-600 text-stone-900 font-bold leading-relaxed rounded-r-2xl">
-                        ⚠️ WARNING: THIS IS A LEGALLY BINDING AND IMPORTANT DOCUMENT THAT LIMITS AND EXCLUDES LEGAL RIGHTS. BY SIGNING IT, YOU ASSUME RISKS AND WAIVE CERTAIN RIGHTS, INCLUDING THE RIGHT TO SUE OR CLAIM COMPENSATION UNDER CERTAIN CIRCUMSTANCES.
-                      </div>
+                      <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
+                    </div>
 
-                      {/* PART A */}
-                      <div>
-                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART A: WARNING AND NOTICE</h4>
-                        <p className="mb-4">
-                          DO NOT SIGN THIS DOCUMENT UNLESS YOU HAVE READ IT, UNDERSTOOD IT, AND VOLUNTARILY ACCEPT ITS TERMS. 
-                          IF YOU ARE UNCERTAIN ABOUT ITS MEANING OR EFFECT, YOU SHOULD SEEK INDEPENDENT LEGAL ADVICE BEFORE SIGNING.
-                        </p>
-                        <p className="mb-4">
-                          THIS AGREEMENT APPLIES DURING YOUR ENTIRE STAY AT {businessName.toUpperCase()} AND TO ALL ACTIVITIES 
-                          UNDERTAKEN ON THE PROPERTY.
-                        </p>
-                      </div>
-
-                      {/* PART B */}
-                      <div>
-                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART B: DETAILED ACKNOWLEDGEMENT OF INHERENT RISKS</h4>
-                        <p className="mb-4">
-                          I, the undersigned Guest, for myself, my heirs, executors, administrators, and assigns, hereby acknowledge and agree as follows:
-                        </p>
-                        <p className="mb-4">
-                          <strong>Nature of the Environment:</strong> I understand and accept that {businessName} is situated within a natural 
-                          sanctuary environment that is home to wild, dangerous, and unpredictable animals, reptiles, birds, and insects. 
-                          Encounters with such wildlife, whether during organized activities or incidental to my stay, carry an inherent 
-                          and unavoidable risk of serious bodily injury, permanent disability, trauma, death, and/or loss of or damage to 
-                          personal property.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Nature of Activities:</strong> I understand that participating in activities such as, but not limited to, 
-                          guided or unguided walks, hiking trails, mountain bike rides, game drives, or simply being present on the lodge grounds, 
-                          involves inherent risks. These risks include, but are not limited to: terrain hazards; variable weather conditions; 
-                          encounters with wildlife; the potential for collisions, falls, or equipment failure; and the possibility of becoming 
-                          lost or stranded. Medical assistance may be significantly delayed in the event of an emergency.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Assumption of Inherent Risk:</strong> I hereby freely and voluntarily assume ALL KNOWN AND UNKNOWN INHERENT RISKS 
-                          associated with my stay and participation in activities at {businessName}, whether described herein or not.
-                        </p>
-                      </div>
-
-                      {/* PART C */}
-                      <div>
-                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART C: WAIVER OF CLAIMS AND INDEMNITY</h4>
-                        <p className="mb-4">
-                          In consideration for being permitted to enter and stay at {businessName} and to participate in its activities, I hereby agree:
-                        </p>
-                        <p className="mb-4">
-                          <strong>Waiver of Claims:</strong> To the fullest extent permitted by the law of South Africa, I, on behalf of myself 
-                          and my successors, hereby WAIVE, RELEASE, AND DISCHARGE {businessName}, its directors, officers, employees, agents, 
-                          contractors, guides, landowners, and affiliated companies (collectively, the "Released Parties") from ANY AND ALL 
-                          CLAIMS, DEMANDS, CAUSES OF ACTION, AND LIABILITY for personal injury, illness, death, or loss of or damage to property 
-                          which I may suffer, arising out of or connected in any way with my stay or participation in activities, WHERE SUCH 
-                          CLAIMS ARISE FROM THE ORDINARY NEGLIGENCE OF THE RELEASED PARTIES.
-                        </p>
-                        <p className="mb-4 font-bold text-stone-900">
-                          I EXPRESSLY ACKNOWLEDGE THAT THIS WAIVER DOES NOT APPLY TO CLAIMS ARISING FROM THE GROSS NEGLIGENCE OR WILLFUL 
-                          MISCONDUCT OF THE RELEASED PARTIES.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Indemnity:</strong> I further agree to DEFEND, INDEMNIFY, AND HOLD HARMLESS the Released Parties from and 
-                          against any and all claims, demands, lawsuits, judgments, costs, and expenses (including legal fees) brought by or on 
-                          behalf of: Myself; Any member of my family (including minor children); Any companion, invitee, or dependent accompanying 
-                          me; or Any third party, arising from my acts, omissions, or breach of this Agreement, or my participation in any activity 
-                          during my stay.
-                        </p>
-                      </div>
-
-                      {/* PART D */}
-                      <div>
-                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART D: GUEST WARRANTIES AND GENERAL TERMS</h4>
-                        <p className="mb-4">
-                          <strong>Authority and Capacity:</strong> I warrant that I am at least 18 years of age, of sound mind, and have the legal 
-                          authority to enter into this Agreement. If I am signing on behalf of any minor children, I warrant that I am their parent 
-                          or legal guardian and have the full authority to bind them to these terms.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Rules and Safety:</strong> I agree to abide by all rules, regulations, and safety instructions provided by the 
-                          Lodge, its staff, or guides, whether given verbally or in writing. I accept that failure to do so may result in the 
-                          termination of my stay without refund and will vitiate any protection offered by this Agreement.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Health and Fitness:</strong> I warrant that I am in good health, physically fit, and have no known medical, 
-                          psychological, or physical condition that would prevent my safe participation in the activities I intend to undertake. 
-                          I am responsible for carrying any necessary personal medication.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Emergency Medical Consent:</strong> In the event of a medical emergency, I authorise the Released Parties to 
-                          secure, at my sole expense, such medical treatment and transport as they, in their sole discretion, deem necessary.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Limitation of Liability for Property:</strong> The Lodge provides a safe in each room for valuables. The Lodge's 
-                          liability for loss of or damage to guest property is strictly limited to a maximum amount of ZAR 5,000 (Five Thousand Rand), 
-                          unless such loss is directly attributable to the proven gross negligence of the Lodge and the property was deposited with 
-                          the front desk for safekeeping. The Lodge is not liable for loss of money, jewellery, or other high-value items kept in 
-                          guest rooms.
-                        </p>
-                        <p className="mb-4">
-                          <strong>Severability & Governing Law:</strong> This Agreement shall be governed by and construed in accordance with the 
-                          laws of the Republic of South Africa.
-                        </p>
-                      </div>
-
-                      {/* PART E */}
-                      <div>
-                        <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART E: DECLARATION AND SIGNATURE</h4>
-                        <p className="font-bold text-stone-900 text-sm mb-6">
-                          I HEREBY CERTIFY THAT I HAVE READ THIS ENTIRE DOCUMENT, I UNDERSTAND ITS CONTENTS COMPLETELY, AND I SIGN IT OF MY 
-                          OWN FREE WILL. I UNDERSTAND THAT I AM GIVING UP SUBSTANTIAL LEGAL RIGHTS.
-                        </p>
-                        
-                        <p className="mb-6 font-bold text-stone-800 bg-stone-50 p-6 border border-stone-200 rounded-2xl leading-relaxed italic">
-                          "We confirm that the contents of this document was explained to us, the guest, and that they were given sufficient 
-                          opportunity to read and ask questions before signing."
-                        </p>
-
-                        <div className="bg-stone-50 p-8 rounded-3xl space-y-4 mt-8 border border-stone-200 shadow-sm">
-                          <p className="text-sm"><strong>PRIMARY GUEST:</strong> {updateFullName(formData.firstName, formData.lastName) || '________________'}</p>
-                          <p className="text-sm"><strong>ID/Passport Number:</strong> {formData.passportOrId || '________________'}</p>
-                          <p className="text-sm"><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                        </div>
-                      </div>
-
-                      {/* Checkbox Section - INSIDE scrollable div */}
-                      <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
-                        <div className="flex items-start gap-5">
-                          <input 
-                            type="checkbox" 
-                            id="legalCheck" 
-                            className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
-                            disabled={!hasScrolledToBottom}
-                            checked={formData.acceptLegal} 
-                            onChange={e => {
-                              setFormData({...formData, acceptLegal: e.target.checked});
-                              markTouched('acceptLegal');
-                            }} 
-                          />
-                          <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
-                            I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
-                          </label>
-                        </div>
-                        <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
-                      </div>
-
-                      <div className="text-center text-stone-400 text-xs pt-4">
-                        — End of Document —
-                      </div>
+                    <div className="text-center text-stone-400 text-xs pt-4">
+                      — End of Document —
                     </div>
                   </div>
                   
@@ -1720,6 +1646,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         </form>
       </div>
 
+      {/* Powered by FastCheckin Footer */}
       <div className="text-center py-6 border-t border-stone-200 mt-8">
         <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
           <span>Powered by</span>
