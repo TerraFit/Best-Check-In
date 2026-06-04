@@ -9,6 +9,18 @@ interface BusinessBranding {
   logo_url?: string;
   slogan?: string;
   welcome_message?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  phone?: string;
+  email?: string;
+  avg_price?: number;
+  service_paused?: boolean;
+  physical_address?: {
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+  };
 }
 
 export default function DynamicCheckIn() {
@@ -50,6 +62,8 @@ export default function DynamicCheckIn() {
         return res.json();
       })
       .then(data => {
+        console.log('✅ DynamicCheckIn - Business branding received:', data);
+        console.log('✅ DynamicCheckIn - Trading name:', data.trading_name);
         setLoadingProgress(100);
         setLoadingMessage('Ready!');
         setBusiness(data);
@@ -172,13 +186,14 @@ export default function DynamicCheckIn() {
         </div>
       )}
 
-      {/* Check-in Form */}
+      {/* Check-in Form - PASS THE BRANDING DATA AS A PROP */}
       <CheckInForm 
         onComplete={(booking) => {
           console.log('Check-in complete:', booking);
           // Handle post-check-in success
         }}
         businessId={businessId}
+        businessBranding={business}  // ← CRITICAL: Pass the fetched branding here
       />
     </div>
   );
