@@ -5,14 +5,27 @@ interface IndemnityTextProps {
   businessName: string;
   showWarning?: boolean;
   className?: string;
+  showGuestDetails?: boolean;
+  guestName?: string;
+  passportOrId?: string;
 }
 
-export function IndemnityText({ businessName, showWarning = true, className = '' }: IndemnityTextProps) {
+export function IndemnityText({ 
+  businessName, 
+  showWarning = true, 
+  className = '',
+  showGuestDetails = false,
+  guestName = '',
+  passportOrId = ''
+}: IndemnityTextProps) {
+  // Ensure business name is displayed properly
+  const displayBusinessName = businessName || '[Business Name]';
+  
   return (
     <div className={`space-y-8 max-w-3xl mx-auto ${className}`}>
       {/* Header */}
       <div className="text-center space-y-3 mb-12">
-        <p className="font-bold text-2xl text-stone-900 font-serif">{businessName}</p>
+        <p className="font-bold text-2xl text-stone-900 font-serif">{displayBusinessName}</p>
         <p className="font-bold text-xs tracking-widest uppercase border-y border-stone-200 py-3">
           GUEST ACKNOWLEDGEMENT OF INHERENT RISK, WAIVER OF CLAIMS, AND INDEMNITY AGREEMENT
         </p>
@@ -27,7 +40,7 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
         </div>
       )}
 
-      {/* PART A */}
+      {/* PART A: WARNING AND NOTICE */}
       <div>
         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART A: WARNING AND NOTICE</h4>
         <p className="mb-4">
@@ -35,19 +48,19 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
           IF YOU ARE UNCERTAIN ABOUT ITS MEANING OR EFFECT, YOU SHOULD SEEK INDEPENDENT LEGAL ADVICE BEFORE SIGNING.
         </p>
         <p className="mb-4">
-          THIS AGREEMENT APPLIES DURING YOUR ENTIRE STAY AT {businessName.toUpperCase()} AND TO ALL ACTIVITIES 
+          THIS AGREEMENT APPLIES DURING YOUR ENTIRE STAY AT {displayBusinessName.toUpperCase()} AND TO ALL ACTIVITIES 
           UNDERTAKEN ON THE PROPERTY.
         </p>
       </div>
 
-      {/* PART B */}
+      {/* PART B: DETAILED ACKNOWLEDGEMENT OF INHERENT RISKS */}
       <div>
         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART B: DETAILED ACKNOWLEDGEMENT OF INHERENT RISKS</h4>
         <p className="mb-4">
           I, the undersigned Guest, for myself, my heirs, executors, administrators, and assigns, hereby acknowledge and agree as follows:
         </p>
         <p className="mb-4">
-          <strong>Nature of the Environment:</strong> I understand and accept that {businessName} is situated within a natural 
+          <strong>Nature of the Environment:</strong> I understand and accept that {displayBusinessName} is situated within a natural 
           sanctuary environment that is home to wild, dangerous, and unpredictable animals, reptiles, birds, and insects. 
           Encounters with such wildlife, whether during organized activities or incidental to my stay, carry an inherent 
           and unavoidable risk of serious bodily injury, permanent disability, trauma, death, and/or loss of or damage to 
@@ -62,19 +75,19 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
         </p>
         <p className="mb-4">
           <strong>Assumption of Inherent Risk:</strong> I hereby freely and voluntarily assume ALL KNOWN AND UNKNOWN INHERENT RISKS 
-          associated with my stay and participation in activities at {businessName}, whether described herein or not.
+          associated with my stay and participation in activities at {displayBusinessName}, whether described herein or not.
         </p>
       </div>
 
-      {/* PART C */}
+      {/* PART C: WAIVER OF CLAIMS AND INDEMNITY */}
       <div>
         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART C: WAIVER OF CLAIMS AND INDEMNITY</h4>
         <p className="mb-4">
-          In consideration for being permitted to enter and stay at {businessName} and to participate in its activities, I hereby agree:
+          In consideration for being permitted to enter and stay at {displayBusinessName} and to participate in its activities, I hereby agree:
         </p>
         <p className="mb-4">
           <strong>Waiver of Claims:</strong> To the fullest extent permitted by the law of South Africa, I, on behalf of myself 
-          and my successors, hereby WAIVE, RELEASE, AND DISCHARGE {businessName}, its directors, officers, employees, agents, 
+          and my successors, hereby WAIVE, RELEASE, AND DISCHARGE {displayBusinessName}, its directors, officers, employees, agents, 
           contractors, guides, landowners, and affiliated companies (collectively, the "Released Parties") from ANY AND ALL 
           CLAIMS, DEMANDS, CAUSES OF ACTION, AND LIABILITY for personal injury, illness, death, or loss of or damage to property 
           which I may suffer, arising out of or connected in any way with my stay or participation in activities, WHERE SUCH 
@@ -93,7 +106,7 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
         </p>
       </div>
 
-      {/* PART D */}
+      {/* PART D: GUEST WARRANTIES AND GENERAL TERMS */}
       <div>
         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART D: GUEST WARRANTIES AND GENERAL TERMS</h4>
         <p className="mb-4">
@@ -128,7 +141,7 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
         </p>
       </div>
 
-      {/* PART E */}
+      {/* PART E: DECLARATION AND SIGNATURE */}
       <div>
         <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART E: DECLARATION AND SIGNATURE</h4>
         <p className="font-bold text-stone-900 text-sm mb-6">
@@ -140,6 +153,30 @@ export function IndemnityText({ businessName, showWarning = true, className = ''
           "We confirm that the contents of this document was explained to us, the guest, and that they were given sufficient 
           opportunity to read and ask questions before signing."
         </p>
+
+        {/* Guest Details Section - Only shown when showGuestDetails is true */}
+        {showGuestDetails && (
+          <div className="bg-stone-50 p-8 rounded-3xl space-y-4 mt-8 border border-stone-200 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-stone-500 font-medium uppercase tracking-wider">Primary Guest</p>
+                <p className="text-sm font-semibold text-stone-900 mt-1">{guestName || '________________'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-stone-500 font-medium uppercase tracking-wider">ID / Passport Number</p>
+                <p className="text-sm font-mono text-stone-800 mt-1">{passportOrId || '________________'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-stone-500 font-medium uppercase tracking-wider">Date Signed</p>
+                <p className="text-sm text-stone-700 mt-1">{new Date().toLocaleDateString('en-ZA')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-stone-500 font-medium uppercase tracking-wider">Time Signed</p>
+                <p className="text-sm text-stone-700 mt-1">{new Date().toLocaleTimeString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
