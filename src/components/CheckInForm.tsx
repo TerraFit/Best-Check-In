@@ -269,7 +269,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Business branding received:', data.trading_name);
+        console.log('✅ Business branding received:', data);
+        console.log('✅ Trading name:', data.trading_name);
         setBranding(data);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
@@ -907,13 +908,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const primaryColor = branding?.primary_color || '#f59e0b';
   const secondaryColor = branding?.secondary_color || '#1e1e1e';
-  const businessName = branding?.trading_name || 'our establishment';
+  // CRITICAL: Use branding.trading_name directly, not a fallback variable
+  const businessName = branding?.trading_name || '';
   const welcomeMessage = branding?.welcome_message || 'Welcome to our establishment';
   const businessSlogan = branding?.slogan || '';
   const heroImage = branding?.hero_image_url;
   const businessLocation = branding?.physical_address 
     ? `${branding.physical_address.city}, ${branding.physical_address.province}`
     : '';
+
+  // Debug log to verify business name
+  console.log('🏪 Business Name from branding:', businessName);
+  console.log('🏪 Full branding object:', branding);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -1028,7 +1034,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               {businessSlogan && !heroImage && (
                 <p className="text-xl text-stone-500 mb-8 italic font-serif">{businessSlogan}</p>
               )}
-              <p className="text-xl text-stone-500 mb-12 italic font-serif opacity-80">{businessName}</p>
+              <p className="text-xl text-stone-500 mb-12 italic font-serif opacity-80">{businessName || 'Guest Check-in'}</p>
               
               <div className="max-w-md w-full mx-auto space-y-8 text-left">
                 <div className="space-y-3">
@@ -1080,7 +1086,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
                   />
                   <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
-                    Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName}</span>. 
+                    Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName || 'us'}</span>. 
                     Unsubscribe anytime.
                   </label>
                 </div>
@@ -1426,8 +1432,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    {/* ✅ CRITICAL FIX: Only render IndemnityText when branding is loaded */}
-                    {branding ? (
+                    {/* ✅ CRITICAL FIX: Only render IndemnityText when branding is loaded and has trading_name */}
+                    {branding && branding.trading_name ? (
                       <IndemnityText 
                         businessName={branding.trading_name} 
                         showWarning={true}
