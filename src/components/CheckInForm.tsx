@@ -269,7 +269,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Business branding received');
+        console.log('✅ Business branding received:', data.trading_name);
         setBranding(data);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
@@ -1398,54 +1398,26 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
           {/* Step 3 - Indemnity & Signature - USING EXTRACTED COMPONENT */}
           {step === 3 && (
-  <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
-    <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
-    
-    {submitAttempted && validateStep3().length > 0 && (
-      // ... your validation error display
-    )}
-    
-    <div className="space-y-10 flex-grow">
-      <div className="relative border border-stone-200 rounded-[2rem] overflow-hidden shadow-inner bg-white">
-        <div 
-          ref={indemnityRef}
-          onScroll={handleIndemnityScroll}
-          className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
-        >
-          {/* ✅ FIX: Only render IndemnityText when branding is loaded */}
-          {branding ? (
-            <IndemnityText 
-              businessName={branding.trading_name} 
-              showWarning={true}
-              showGuestDetails={true}
-              guestName={updateFullName(formData.firstName, formData.lastName)}
-              passportOrId={formData.passportOrId}
-            />
-          ) : (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-            </div>
-          )}
-          
-          {/* Checkbox Section */}
-          <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
-            {/* ... your checkbox code ... */}
-          </div>
-          
-          <div className="text-center text-stone-400 text-xs pt-4">
-            — End of Document —
-          </div>
-        </div>
-        
-        {!hasScrolledToBottom && (
-          // ... your scroll indicator ...
-        )}
-      </div>
-      
-      {/* Camera and Signature sections remain the same */}
-    </div>
-  </div>
-)}
+            <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
+              <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
+              
+              {submitAttempted && validateStep3().length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-red-800 text-sm">Please complete before submitting:</p>
+                      <ul className="text-red-700 text-xs mt-1 list-disc list-inside">
+                        {!formData.idPhoto && <li>Take a photo of your ID/passport</li>}
+                        {!formData.signature && <li>Provide your digital signature</li>}
+                        {!formData.acceptLegal && <li>Scroll to the bottom and accept the indemnity terms</li>}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="space-y-10 flex-grow">
                 <div className="relative border border-stone-200 rounded-[2rem] overflow-hidden shadow-inner bg-white">
@@ -1454,13 +1426,21 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    <IndemnityText 
-                      businessName={businessName} 
-                      showWarning={true}
-                      showGuestDetails={true}
-                      guestName={updateFullName(formData.firstName, formData.lastName)}
-                      passportOrId={formData.passportOrId}
-                    />
+                    {/* ✅ CRITICAL FIX: Only render IndemnityText when branding is loaded */}
+                    {branding ? (
+                      <IndemnityText 
+                        businessName={branding.trading_name} 
+                        showWarning={true}
+                        showGuestDetails={true}
+                        guestName={updateFullName(formData.firstName, formData.lastName)}
+                        passportOrId={formData.passportOrId}
+                      />
+                    ) : (
+                      <div className="flex justify-center items-center h-64">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+                        <p className="text-stone-500 ml-3">Loading indemnity form...</p>
+                      </div>
+                    )}
                     
                     {/* Checkbox Section - INSIDE scrollable div */}
                     <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
