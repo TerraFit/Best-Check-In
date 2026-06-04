@@ -1,10 +1,3 @@
-// FORCE REBUILD - DELETE THIS LINE
-// Add this right after the opening { of CheckInForm component
-useEffect(() => {
-  console.log('🔥🔥🔥 CHECKINFORM IS LOADED AND RUNNING 🔥🔥🔥');
-  console.log('🔥🔥🔥 BRANDING DATA:', branding);
-  console.log('🔥🔥🔥 THIS IS VERSION 8.0 WITH FIX');
-}, []);
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
@@ -37,6 +30,7 @@ interface BusinessBranding {
 interface CheckInFormProps {
   onComplete: (booking: Booking, indemnityToken?: string) => void;
   businessId?: string;
+  businessBranding?: BusinessBranding | null;
 }
 
 interface TouchedFields {
@@ -57,15 +51,20 @@ interface TouchedFields {
   acceptLegal: boolean;
 }
 
-const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
+const CheckInForm: React.FC<CheckInFormProps> = ({ 
+  onComplete, 
+  businessId: propBusinessId,
+  businessBranding 
+}) => {
   console.log('🔴🔴🔴 FILE HAS BEEN UPDATED AT:', new Date().toISOString());
-  console.log('✅ FASTCHECKIN FORM V6.0 - WITH EXTRACTED INDEMNITY');
-  
+  console.log('✅ FASTCHECKIN FORM V8.0 - WITH BRANDING PROP');
+
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
   
-  const [branding, setBranding] = useState<BusinessBranding | null>(null);
-  const [loadingBranding, setLoadingBranding] = useState(!!businessId);
+  // Use passed branding if available, otherwise fetch
+  const [branding, setBranding] = useState<BusinessBranding | null>(businessBranding || null);
+  const [loadingBranding, setLoadingBranding] = useState(!businessBranding && !!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -127,6 +126,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+
+  // Debug effect to log branding
+  useEffect(() => {
+    console.log('🔥🔥🔥 CHECKINFORM IS LOADED AND RUNNING 🔥🔥🔥');
+    console.log('🔥🔥🔥 BRANDING FROM PROP:', businessBranding);
+    console.log('🔥🔥🔥 BRANDING STATE:', branding);
+  }, [businessBranding, branding]);
 
   // Auto-dismiss notifications
   useEffect(() => {
@@ -255,11 +261,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Only fetch if no branding was passed as prop
   useEffect(() => {
-    if (businessId) {
+    if (businessId && !businessBranding && !branding) {
       fetchBusinessBranding();
     }
-  }, [businessId]);
+  }, [businessId, businessBranding]);
 
   useEffect(() => {
     return () => {
@@ -280,7 +287,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('✅ Business branding received:', data);
         console.log('✅ Trading name:', data.trading_name);
         setBranding(data);
-        // Force a re-render by updating a dummy state
         setLoadingBranding(false);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
@@ -587,18 +593,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   useEffect(() => { 
-   {step === 3 && (
-  <>
-    {/* TEST BOX - DELETE AFTER VERIFICATION */}
-    <div style={{ backgroundColor: 'red', color: 'white', padding: '20px', margin: '20px', textAlign: 'center' }}>
-      🔥 VERSION 8.0 LOADED! Business name: {branding?.trading_name || 'NOT LOADED YET'}
-    </div>
-    
-    {/* Rest of your step 3 content */}
-    <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
-    {/* ... rest of step 3 ... */}
-  </>
-)} if (step === 3) {
+    if (step === 3) {
       setTimeout(() => {
         if (canvasRef.current) initSignaturePad(canvasRef.current);
       }, 500);
@@ -947,6 +942,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {/* TEST BOX - DELETE AFTER VERIFICATION */}
+      <div style={{ backgroundColor: 'red', color: 'white', padding: '20px', margin: '20px', textAlign: 'center', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
+        🔥 VERSION 8.0 LOADED! Business name: {branding?.trading_name || 'NOT LOADED YET'}
+      </div>
+
       {/* Duplicate Warning Toast */}
       {duplicateWarning && (
         <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
@@ -1165,7 +1165,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
@@ -1212,7 +1211,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
-                {/* Passport/ID */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Passport / ID Number <span className="text-red-500">*</span>
@@ -1228,7 +1226,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
                 </div>
                 
-                {/* Phone */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Mobile Phone <span className="text-red-500">*</span>
@@ -1244,7 +1241,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="phone" message="Mobile phone number is required" />
                 </div>
                 
-                {/* Country */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Country of Origin <span className="text-red-500">*</span>
@@ -1264,7 +1260,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="country" message="Country of origin is required" />
                 </div>
 
-                {/* Province/Region */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     {regionTypeLabel} <span className="text-red-500">*</span>
@@ -1298,7 +1293,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
                 </div>
 
-                {/* City */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     City / Town <span className="text-red-500">*</span>
@@ -1314,7 +1308,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
-                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
@@ -1351,7 +1344,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
-                {/* Referral Source */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     How did you hear about us? <span className="text-red-500">*</span>
@@ -1377,7 +1369,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
 
-                {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Next Destination <span className="text-red-500">*</span>
@@ -1394,7 +1385,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="nextDestination" message="Next destination is required" />
                 </div>
                 
-                {/* Settlement Method */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Method of Settlement <span className="text-red-500">*</span>
@@ -1426,7 +1416,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature - USING EXTRACTED COMPONENT */}
+          {/* Step 3 - Indemnity & Signature */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
@@ -1456,7 +1446,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    {/* ✅ CRITICAL: Always render IndemnityText with the business name from branding */}
                     <IndemnityText 
                       businessName={branding?.trading_name || 'our establishment'} 
                       showWarning={true}
@@ -1465,7 +1454,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       passportOrId={formData.passportOrId}
                     />
                     
-                    {/* Checkbox Section - INSIDE scrollable div */}
                     <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
                       <div className="flex items-start gap-5">
                         <input 
@@ -1498,9 +1486,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   )}
                 </div>
 
-                {/* Camera and Signature */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
-                  {/* LEFT COLUMN - CAMERA */}
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
                       1. Guest ID Verification <span className="text-red-500">*</span>
@@ -1511,24 +1497,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         <div className="relative w-full h-full">
                           <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
                           <div className="absolute top-2 right-2 flex gap-1">
-                            <button 
-                              onClick={retakePhoto} 
-                              className="bg-blue-600 text-white p-1.5 rounded-full text-xs hover:bg-blue-700 transition-colors"
-                              title="Retake photo"
-                            >
-                              ↻
-                            </button>
+                            <button onClick={retakePhoto} className="bg-blue-600 text-white p-1.5 rounded-full text-xs hover:bg-blue-700" title="Retake photo">↻</button>
                           </div>
                         </div>
                       ) : isCameraActive ? (
                         <div className="w-full h-full bg-black">
-                          <video 
-                            ref={videoRef} 
-                            autoPlay 
-                            playsInline 
-                            muted
-                            className="w-full h-full object-cover"
-                          />
+                          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                         </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-stone-100">
@@ -1553,11 +1527,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       {!formData.idPhoto && (
                         <>
                           {!isCameraActive ? (
-                            <button 
-                              type="button" 
-                              onClick={startCamera} 
-                              className="w-full bg-amber-500 text-white py-2.5 rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 text-sm"
-                            >
+                            <button type="button" onClick={startCamera} className="w-full bg-amber-500 text-white py-2.5 rounded-lg font-medium hover:bg-amber-600 flex items-center justify-center gap-2 text-sm">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1566,22 +1536,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                             </button>
                           ) : (
                             <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={capturePhoto}
-                                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                              >
+                              <button type="button" onClick={capturePhoto} className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 flex items-center justify-center gap-2 text-sm">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                                 Capture
                               </button>
-                              <button
-                                type="button"
-                                onClick={stopCamera}
-                                className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                              >
+                              <button type="button" onClick={stopCamera} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 flex items-center justify-center gap-2 text-sm">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -1591,24 +1553,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           )}
                           
                           <div className="text-center">
-                            <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600 transition-colors">
+                            <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600">
                               📁 Or upload from gallery
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
-                                      markTouched('idPhoto');
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              />
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                    markTouched('idPhoto');
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }} />
                             </label>
                           </div>
                           
@@ -1621,11 +1578,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       )}
                       
                       {formData.idPhoto && (
-                        <button
-                          type="button"
-                          onClick={retakePhoto}
-                          className="w-full bg-stone-200 text-stone-700 py-2.5 rounded-lg font-medium hover:bg-stone-300 transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
+                        <button type="button" onClick={retakePhoto} className="w-full bg-stone-200 text-stone-700 py-2.5 rounded-lg font-medium hover:bg-stone-300 flex items-center justify-center gap-2 text-sm">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1636,7 +1589,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     </div>
                   </div>
 
-                  {/* RIGHT COLUMN - SIGNATURE */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
@@ -1663,7 +1615,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="mt-8 flex justify-between pt-6 border-t border-stone-100 items-center">
-                <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">← Return to Details</button>
+                <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest">← Return to Details</button>
                 <button 
                   type="submit" 
                   disabled={loading || !hasScrolledToBottom}
@@ -1677,15 +1629,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         </form>
       </div>
 
-      {/* Powered by FastCheckin Footer */}
       <div className="text-center py-6 border-t border-stone-200 mt-8">
         <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
           <span>Powered by</span>
-          <img 
-            src="/fastcheckin-logo.png" 
-            alt="FastCheckin" 
-            className="h-4 w-auto object-contain"
-          />
+          <img src="/fastcheckin-logo.png" alt="FastCheckin" className="h-4 w-auto object-contain" />
           <span>FastCheckin</span>
         </div>
       </div>
