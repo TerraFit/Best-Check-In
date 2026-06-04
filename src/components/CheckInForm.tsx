@@ -1,3 +1,11 @@
+// FORCE DEBUG - RIGHT BEFORE RETURN
+console.log('========== DEBUG INFO ==========');
+console.log('businessBranding prop:', businessBranding);
+console.log('branding state:', branding);
+console.log('branding?.trading_name:', branding?.trading_name);
+console.log('businessName variable:', businessName);
+console.log('Step:', step);
+console.log('================================');
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
