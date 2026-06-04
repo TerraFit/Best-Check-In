@@ -585,7 +585,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   useEffect(() => { 
-    if (step === 3) {
+   {step === 3 && (
+  <>
+    {/* TEST BOX - DELETE AFTER VERIFICATION */}
+    <div style={{ backgroundColor: 'red', color: 'white', padding: '20px', margin: '20px', textAlign: 'center' }}>
+      🔥 VERSION 8.0 LOADED! Business name: {branding?.trading_name || 'NOT LOADED YET'}
+    </div>
+    
+    {/* Rest of your step 3 content */}
+    <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
+    {/* ... rest of step 3 ... */}
+  </>
+)} if (step === 3) {
       setTimeout(() => {
         if (canvasRef.current) initSignaturePad(canvasRef.current);
       }, 500);
