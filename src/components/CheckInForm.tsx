@@ -57,7 +57,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const businessId = propBusinessId || urlBusinessId;
   
   const [branding, setBranding] = useState<BusinessBranding | null>(null);
-  const [brandingLoaded, setBrandingLoaded] = useState(false);
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -273,13 +272,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('✅ Business branding received:', data);
         console.log('✅ Trading name:', data.trading_name);
         setBranding(data);
-        setBrandingLoaded(true);
+        // Force a re-render by updating a dummy state
+        setLoadingBranding(false);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
+        setLoadingBranding(false);
       }
     } catch (error) {
       console.error('Error fetching business branding:', error);
-    } finally {
       setLoadingBranding(false);
     }
   };
@@ -867,8 +867,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // Debug before render
+  console.log('🔴 BEFORE RENDER - branding:', branding);
+  console.log('🔴 BEFORE RENDER - step:', step);
+  console.log('🔴 BEFORE RENDER - businessName from branding:', branding?.trading_name);
+
   // Show loading state while branding is being fetched
-  if (loadingBranding) {
+  if (loadingBranding && !branding) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <div className="text-center">
@@ -918,9 +923,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     ? `${branding.physical_address.city}, ${branding.physical_address.province}`
     : '';
 
-  console.log('🏪 RENDER - Business Name from branding:', businessName);
-  console.log('🏪 RENDER - Full branding:', branding);
-  console.log('🏪 RENDER - Step:', step);
+  console.log('🎯 RENDER - Business Name:', businessName);
+  console.log('🎯 RENDER - Full branding:', branding);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -1433,21 +1437,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    {/* ✅ CRITICAL: Wait for branding to be loaded before rendering IndemnityText */}
-                    {brandingLoaded && branding ? (
-                      <IndemnityText 
-                        businessName={branding.trading_name} 
-                        showWarning={true}
-                        showGuestDetails={true}
-                        guestName={updateFullName(formData.firstName, formData.lastName)}
-                        passportOrId={formData.passportOrId}
-                      />
-                    ) : (
-                      <div className="flex flex-col justify-center items-center h-64 gap-4">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-                        <p className="text-stone-500 text-sm">Loading indemnity form...</p>
-                      </div>
-                    )}
+                    {/* ✅ CRITICAL: Always render IndemnityText with the business name from branding */}
+                    <IndemnityText 
+                      businessName={branding?.trading_name || 'our establishment'} 
+                      showWarning={true}
+                      showGuestDetails={true}
+                      guestName={updateFullName(formData.firstName, formData.lastName)}
+                      passportOrId={formData.passportOrId}
+                    />
                     
                     {/* Checkbox Section - INSIDE scrollable div */}
                     <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
