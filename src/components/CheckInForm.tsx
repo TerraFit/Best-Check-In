@@ -57,6 +57,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const businessId = propBusinessId || urlBusinessId;
   
   const [branding, setBranding] = useState<BusinessBranding | null>(null);
+  const [brandingLoaded, setBrandingLoaded] = useState(false);
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -272,6 +273,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('✅ Business branding received:', data);
         console.log('✅ Trading name:', data.trading_name);
         setBranding(data);
+        setBrandingLoaded(true);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
       }
@@ -865,7 +867,20 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // Loading and error states
+  // Show loading state while branding is being fetched
+  if (loadingBranding) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
+          <p className="text-stone-600 text-sm">Loading check-in form...</p>
+          <p className="text-stone-400 text-xs mt-2">Please wait while we prepare your secure check-in</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show service paused state
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -893,22 +908,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     );
   }
 
-  if (loadingBranding) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" 
-               style={{ borderColor: branding?.primary_color || '#f59e0b' }} />
-          <p className="text-stone-600 text-sm">Loading check-in form...</p>
-          <p className="text-stone-400 text-xs mt-2">Please wait while we prepare your secure check-in</p>
-        </div>
-      </div>
-    );
-  }
-
   const primaryColor = branding?.primary_color || '#f59e0b';
   const secondaryColor = branding?.secondary_color || '#1e1e1e';
-  // CRITICAL: Use branding.trading_name directly, not a fallback variable
   const businessName = branding?.trading_name || '';
   const welcomeMessage = branding?.welcome_message || 'Welcome to our establishment';
   const businessSlogan = branding?.slogan || '';
@@ -917,9 +918,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     ? `${branding.physical_address.city}, ${branding.physical_address.province}`
     : '';
 
-  // Debug log to verify business name
-  console.log('🏪 Business Name from branding:', businessName);
-  console.log('🏪 Full branding object:', branding);
+  console.log('🏪 RENDER - Business Name from branding:', businessName);
+  console.log('🏪 RENDER - Full branding:', branding);
+  console.log('🏪 RENDER - Step:', step);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -1432,8 +1433,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    {/* ✅ CRITICAL FIX: Only render IndemnityText when branding is loaded and has trading_name */}
-                    {branding && branding.trading_name ? (
+                    {/* ✅ CRITICAL: Wait for branding to be loaded before rendering IndemnityText */}
+                    {brandingLoaded && branding ? (
                       <IndemnityText 
                         businessName={branding.trading_name} 
                         showWarning={true}
@@ -1442,9 +1443,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         passportOrId={formData.passportOrId}
                       />
                     ) : (
-                      <div className="flex justify-center items-center h-64">
+                      <div className="flex flex-col justify-center items-center h-64 gap-4">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-                        <p className="text-stone-500 ml-3">Loading indemnity form...</p>
+                        <p className="text-stone-500 text-sm">Loading indemnity form...</p>
                       </div>
                     )}
                     
