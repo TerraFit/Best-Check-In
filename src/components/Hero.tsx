@@ -11,7 +11,6 @@ interface HeroProps {
 }
 
 export default function Hero({ onCheckIn, businessBranding, loading }: HeroProps) {
-  // Loading state
   if (loading) {
     return (
       <div className="relative bg-stone-900 min-h-[80vh] flex items-center justify-center">
@@ -23,7 +22,6 @@ export default function Hero({ onCheckIn, businessBranding, loading }: HeroProps
     );
   }
 
-  // If we have business branding (from QR code), use it
   if (businessBranding) {
     const backgroundImage = businessBranding.hero_image_url || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80';
     
@@ -65,7 +63,7 @@ export default function Hero({ onCheckIn, businessBranding, loading }: HeroProps
     );
   }
 
-  // Fallback for non-QR home page (only shows "Welcome" not specific business)
+  // Fallback for home page
   return (
     <div className="relative bg-stone-900 text-white min-h-[80vh] flex items-center">
       <div className="absolute inset-0 overflow-hidden">
