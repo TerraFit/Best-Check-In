@@ -41,7 +41,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Fetch ALL business fields needed for branding
+    // Fetch ALL business fields needed for branding including logo_url
     const response = await fetch(
       `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,establishment_type,tgsa_grading,status,created_at,service_paused,setup_complete,primary_color,secondary_color`,
       {
@@ -70,7 +70,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Return the business data directly for simplicity
+    // Return the business data directly
     return {
       statusCode: 200,
       headers,
