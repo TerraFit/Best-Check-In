@@ -990,45 +990,50 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
       )}
 
       <div className="max-w-5xl mx-auto py-10 px-4">
-        {/* Business Header */}
-        {businessId && branding && (
-          <div className="text-center mb-8">
-            {branding.logo_url ? (
-              <div className="flex justify-center mb-4">
-                <img 
-                  src={branding.logo_url} 
-                  alt={businessName}
-                  className="logo-high-res"
-                  style={{
-                    maxHeight: '120px',
-                    maxWidth: '280px',
-                    width: 'auto',
-                    height: 'auto',
-                    objectFit: 'contain',
-                    imageRendering: 'auto'
-                  }}
-                />
-              </div>
-            ) : (
-              <h1 className="text-3xl font-bold mb-2" style={{ color: secondaryColor }}>
-                {businessName}
-              </h1>
-            )}
-            {businessSlogan && (
-              <p className="text-stone-500 italic text-lg">{businessSlogan}</p>
-            )}
-            {businessLocation && (
-              <p className="text-stone-400 text-sm mt-1 flex items-center justify-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {businessLocation}
-              </p>
-            )}
-            <p className="text-stone-500 italic mt-2">{welcomeMessage}</p>
-          </div>
-        )}
+        {/* Business Header - Show ALWAYS when branding exists */}
+{businessId && branding && (
+  <div className="text-center mb-8">
+    {branding.logo_url ? (
+      <div className="flex justify-center mb-4">
+        <img 
+          src={branding.logo_url} 
+          alt={businessName}
+          className="logo-high-res"
+          style={{
+            maxHeight: '120px',
+            maxWidth: '280px',
+            width: 'auto',
+            height: 'auto',
+            objectFit: 'contain',
+            imageRendering: 'auto'
+          }}
+          onError={(e) => {
+            console.error('Logo failed to load');
+            e.currentTarget.style.display = 'none';
+          }}
+          onLoad={() => console.log('Logo loaded successfully')}
+        />
+      </div>
+    ) : (
+      <h1 className="text-3xl font-bold mb-2" style={{ color: secondaryColor }}>
+        {businessName}
+      </h1>
+    )}
+    {businessSlogan && (
+      <p className="text-stone-500 italic text-lg">{businessSlogan}</p>
+    )}
+    {businessLocation && (
+      <p className="text-stone-400 text-sm mt-1 flex items-center justify-center gap-1">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        {businessLocation}
+      </p>
+    )}
+    <p className="text-stone-500 italic mt-2">{welcomeMessage}</p>
+  </div>
+)}
 
         {/* Progress Steps */}
         <div className="flex justify-center mb-8 items-center space-x-2">
