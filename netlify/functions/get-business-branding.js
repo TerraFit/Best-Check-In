@@ -33,6 +33,7 @@ export const handler = async function(event) {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase environment variables');
       return {
         statusCode: 500,
         headers,
@@ -40,19 +41,22 @@ export const handler = async function(event) {
       };
     }
 
-    // Simplified query - fewer fields to avoid issues
+    // Fetch ALL business fields needed for branding
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,establishment_type,tgsa_grading,status,created_at,service_paused,setup_complete,newsletter_enabled,newsletter_title,newsletter_prize,newsletter_cta,newsletter_terms,newsletter_draw_date,newsletter_share_text,primary_color,secondary_color`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,establishment_type,tgsa_grading,status,created_at,service_paused,setup_complete,primary_color,secondary_color`,
       {
         headers: {
           'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
         }
       }
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorText = await response.text();
+      console.error('Supabase error:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
@@ -66,13 +70,11 @@ export const handler = async function(event) {
       };
     }
 
+    // Return the business data directly for simplicity
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        data: business
-      })
+      body: JSON.stringify(business)
     };
 
   } catch (error) {
