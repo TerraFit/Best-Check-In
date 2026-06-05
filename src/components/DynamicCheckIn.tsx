@@ -5,6 +5,7 @@ import CheckInForm from '../components/CheckInForm';
 interface BusinessBranding {
   id: string;
   trading_name: string;
+  registered_name?: string;
   hero_image_url?: string;
   logo_url?: string;
   slogan?: string;
@@ -55,7 +56,7 @@ export default function DynamicCheckIn() {
       }
     }, 800);
 
-    // Fetch business branding
+    // Fetch business branding - API returns business object directly
     fetch(`/.netlify/functions/get-business-branding?id=${businessId}`)
       .then(res => {
         if (!res.ok) throw new Error('Business not found');
@@ -90,7 +91,6 @@ export default function DynamicCheckIn() {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          {/* Animated logo */}
           <div className="mb-8">
             <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
               <svg className="w-10 h-10 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +99,6 @@ export default function DynamicCheckIn() {
             </div>
           </div>
           
-          {/* Progress bar */}
           <div className="w-full bg-stone-700 rounded-full h-2 mb-4 overflow-hidden">
             <div 
               className="bg-amber-500 h-2 rounded-full transition-all duration-500 ease-out"
@@ -107,7 +106,6 @@ export default function DynamicCheckIn() {
             />
           </div>
           
-          {/* Loading message */}
           <p className="text-stone-300 text-sm font-medium">
             {loadingMessage}
           </p>
@@ -115,7 +113,6 @@ export default function DynamicCheckIn() {
             Please wait while we prepare your secure check-in
           </p>
           
-          {/* Spinner dots */}
           <div className="mt-6 flex justify-center space-x-1">
             <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
             <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -190,10 +187,9 @@ export default function DynamicCheckIn() {
       <CheckInForm 
         onComplete={(booking) => {
           console.log('Check-in complete:', booking);
-          // Handle post-check-in success
         }}
         businessId={businessId}
-        businessBranding={business}  // ← CRITICAL: Pass the fetched branding here
+        businessBranding={business}
       />
     </div>
   );
