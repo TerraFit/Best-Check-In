@@ -32,12 +32,21 @@ export const handler = async function(event) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
+    if (!supabaseUrl || !supabaseKey) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Server configuration error' })
+      };
+    }
+
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify({
         hero_image_url: hero_image_url || null,
@@ -46,7 +55,9 @@ export const handler = async function(event) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorText = await response.text();
+      console.error('Update error:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
     return {
