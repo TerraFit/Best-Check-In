@@ -270,27 +270,32 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
   }, [cameraStream]);
 
   const fetchBusinessBranding = async () => {
-    try {
-      console.log('📡 Fetching business branding for ID:', businessId);
-      setLoadingBranding(true);
+  try {
+    console.log('📡 Fetching business branding for ID:', businessId);
+    setLoadingBranding(true);
+    
+    const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Business branding received');
       
-      const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Business branding received:', data);
-        console.log('✅ Trading name:', data.trading_name);
-        console.log('✅ Logo URL exists:', !!data.logo_url);
-        setBranding(data);
-        setLoadingBranding(false);
-      } else {
-        console.error('❌ Failed to fetch branding:', response.status);
-        setLoadingBranding(false);
-      }
-    } catch (error) {
-      console.error('Error fetching business branding:', error);
-      setLoadingBranding(false);
+      // ✅ DEBUG: Log the logo_url specifically
+      console.log('🖼️ Logo URL from API:', data.logo_url);
+      console.log('🖼️ Logo URL type:', typeof data.logo_url);
+      console.log('🖼️ Logo URL length:', data.logo_url?.length);
+      console.log('🖼️ Is base64?', data.logo_url?.startsWith('data:'));
+      console.log('🖼️ Full branding object:', data);
+      
+      setBranding(data);
+    } else {
+      console.error('❌ Failed to fetch branding:', response.status);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching business branding:', error);
+  } finally {
+    setLoadingBranding(false);
+  }
+};
 
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
