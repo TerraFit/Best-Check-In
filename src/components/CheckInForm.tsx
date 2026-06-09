@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
 import { Booking } from './types';
 import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
-import { IndemnityText } from './IndemnityText';
+import { IndemnityText } from './components/IndemnityText';
 
 interface BusinessBranding {
   id: string;
@@ -56,7 +56,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
   businessId: propBusinessId,
   businessBranding 
 }) => {
-  console.log('🔴🔴🔴 V9.0 - LOGO FIX VERSION 🔴🔴🔴');
+  console.log('✅ FASTCHECKIN FORM V10.0 - WITH PROPER ERROR HANDLING');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -125,11 +125,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
-  useEffect(() => {
-    console.log('🔥 BRANDING FROM PROP:', businessBranding);
-    console.log('🔥 BRANDING STATE:', branding);
-  }, [businessBranding, branding]);
-
+  // Auto-dismiss notifications
   useEffect(() => {
     if (duplicateWarning) {
       const timer = setTimeout(() => setDuplicateWarning(null), 5000);
@@ -144,6 +140,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     }
   }, [notification]);
 
+  // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setTimeout(() => {
@@ -270,32 +267,25 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
   }, [cameraStream]);
 
   const fetchBusinessBranding = async () => {
-  try {
-    console.log('📡 Fetching business branding for ID:', businessId);
-    setLoadingBranding(true);
-    
-    const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ Business branding received');
+    try {
+      console.log('📡 Fetching business branding for ID:', businessId);
+      setLoadingBranding(true);
       
-      // ✅ DEBUG: Log the logo_url specifically
-      console.log('🖼️ Logo URL from API:', data.logo_url);
-      console.log('🖼️ Logo URL type:', typeof data.logo_url);
-      console.log('🖼️ Logo URL length:', data.logo_url?.length);
-      console.log('🖼️ Is base64?', data.logo_url?.startsWith('data:'));
-      console.log('🖼️ Full branding object:', data);
-      
-      setBranding(data);
-    } else {
-      console.error('❌ Failed to fetch branding:', response.status);
+      const response = await fetch(`/.netlify/functions/get-business-branding?id=${businessId}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Business branding received');
+        console.log('✅ Trading name:', data.trading_name);
+        setBranding(data);
+      } else {
+        console.error('❌ Failed to fetch branding:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching business branding:', error);
+    } finally {
+      setLoadingBranding(false);
     }
-  } catch (error) {
-    console.error('Error fetching business branding:', error);
-  } finally {
-    setLoadingBranding(false);
-  }
-};
+  };
 
   useEffect(() => {
     if (formData.arrivalDate && formData.nights) {
@@ -305,6 +295,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     }
   }, [formData.arrivalDate, formData.nights]);
 
+  // Load guest profile when email is entered
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -420,6 +411,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     }
   };
 
+  // Camera functions
   const startCamera = async () => {
     console.log("📷 startCamera called");
     setCameraError(null);
@@ -509,6 +501,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
 
+  // Signature pad functions
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -681,14 +674,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
       
       if (response.ok) {
         console.log('✅ Confirmation email sent');
-        setNotification({ type: 'success', message: 'Confirmation email sent successfully!' });
       } else {
         console.warn('⚠️ Email sending failed with status:', response.status);
-        setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
       }
     } catch (error) {
       console.warn('⚠️ Email error (non-critical):', error);
-      setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
     }
   };
 
@@ -769,6 +759,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
       setLoading(true);
       console.log('🔵 Starting booking submission...');
 
+      let bookingId: string | null = null;
+      let bookingSaveFailed = false;
+
       try {
         const totalAmount = await calculateTotalAmount(formData.nights);
         const formattedCheckInDate = formData.arrivalDate.split('T')[0];
@@ -807,12 +800,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         
         if (!saveResult.success) {
           console.error('❌ Booking save failed:', saveResult.error);
-          alert('Failed to save booking. Please try again.');
+          bookingSaveFailed = true;
+          setNotification({ type: 'error', message: 'Failed to save booking. Please try again.' });
           setLoading(false);
           return;
         }
 
-        const bookingId = saveResult.bookingId;
+        bookingId = saveResult.bookingId;
         console.log('✅ Booking saved with ID:', bookingId);
         
         if (saveResult.isDuplicate) {
@@ -824,13 +818,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         const accessToken = await saveIndemnityRecord(bookingId);
         console.log('✅ Indemnity token:', accessToken);
 
-        console.log('🔗 Starting non-critical tasks (email, profile)...');
-        sendConfirmationEmail(dbBooking, accessToken);
-        
-        if (formData.saveDetails) {
-          saveGuestProfile();
-        }
-
+        // Create booking object for callback
         const newBooking: Booking = {
           id: bookingId || Math.random().toString(36).substr(2, 9),
           guestName: fullName,
@@ -863,17 +851,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         };
 
         console.log('✅ Check-in complete! Calling onComplete...');
+        
+        // Call onComplete BEFORE non-critical tasks to ensure navigation happens
         onComplete(newBooking, accessToken);
+        
+        // Non-critical tasks - fire and forget, don't await
+        sendConfirmationEmail(dbBooking, accessToken).catch(e => console.warn('Email error:', e));
+        
+        if (formData.saveDetails) {
+          saveGuestProfile().catch(e => console.warn('Profile save error:', e));
+        }
         
       } catch (error) {
         console.error('❌ Unexpected error during check-in:', error);
-        alert('An unexpected error occurred. Please try again.');
+        // Only show error if booking wasn't saved
+        if (!bookingId && !bookingSaveFailed) {
+          setNotification({ type: 'error', message: 'An unexpected error occurred. Please try again.' });
+        }
       } finally {
         setLoading(false);
       }
     }
   };
 
+  // Show loading state while branding is being fetched
   if (loadingBranding && !branding) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
@@ -886,6 +887,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     );
   }
 
+  // Show service paused state
   if (branding?.service_paused) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 p-4">
@@ -915,7 +917,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
 
   const primaryColor = branding?.primary_color || '#f59e0b';
   const secondaryColor = branding?.secondary_color || '#1e1e1e';
-  const businessName = branding?.trading_name || '';
+  const businessName = branding?.trading_name || 'our establishment';
   const welcomeMessage = branding?.welcome_message || 'Welcome to our establishment';
   const businessSlogan = branding?.slogan || '';
   const heroImage = branding?.hero_image_url;
@@ -923,17 +925,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     ? `${branding.physical_address.city}, ${branding.physical_address.province}`
     : '';
 
-  console.log('🎯 RENDER - Business Name:', businessName);
-  console.log('🎯 RENDER - Has Logo:', !!branding?.logo_url);
-  console.log('🎯 RENDER - Has Hero Image:', !!heroImage);
-
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* TEST BOX */}
-      <div style={{ backgroundColor: 'red', color: 'white', padding: '20px', margin: '20px', textAlign: 'center', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
-        🔥 VERSION 9.0 LOADED! Logo present: {branding?.logo_url ? 'YES' : 'NO'}
-      </div>
-
+      {/* Duplicate Warning Toast */}
       {duplicateWarning && (
         <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
           <div className="bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
@@ -945,6 +939,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         </div>
       )}
 
+      {/* General Notification Toast */}
       {notification && (
         <div className="fixed bottom-4 left-4 z-50 animate-fade-in">
           <div className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
@@ -957,8 +952,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
       )}
 
       <div className="max-w-5xl mx-auto py-10 px-4">
-        {/* Business Header - NOW SHOWS ALWAYS when branding exists (removed !heroImage condition) */}
-        {businessId && branding && (
+        {/* Business Header */}
+        {!heroImage && businessId && branding && (
           <div className="text-center mb-8">
             {branding.logo_url ? (
               <div className="flex justify-center mb-4">
@@ -975,10 +970,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                     imageRendering: 'auto'
                   }}
                   onError={(e) => {
-                    console.error('Logo failed to load:', branding.logo_url?.substring(0, 100));
+                    console.error('Logo failed to load');
                     e.currentTarget.style.display = 'none';
                   }}
-                  onLoad={() => console.log('Logo loaded successfully!')}
+                  onLoad={() => console.log('Logo loaded successfully')}
                 />
               </div>
             ) : (
@@ -1029,6 +1024,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
+          
           {/* Step 1 - Email Entry */}
           {step === 1 && (
             <div className="p-10 md:p-16 text-center animate-fade-in flex flex-col flex-grow items-center justify-center">
@@ -1037,7 +1033,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
               {businessSlogan && !heroImage && (
                 <p className="text-xl text-stone-500 mb-8 italic font-serif">{businessSlogan}</p>
               )}
-              <p className="text-xl text-stone-500 mb-12 italic font-serif opacity-80">{businessName || 'Guest Check-in'}</p>
+              <p className="text-xl text-stone-500 mb-12 italic font-serif opacity-80">{businessName}</p>
               
               <div className="max-w-md w-full mx-auto space-y-8 text-left">
                 <div className="space-y-3">
@@ -1089,7 +1085,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                     onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
                   />
                   <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
-                    Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName || 'us'}</span>. 
+                    Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName}</span>. 
                     Unsubscribe anytime.
                   </label>
                 </div>
@@ -1144,6 +1140,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
@@ -1190,6 +1187,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   </div>
                 </div>
 
+                {/* Passport/ID */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Passport / ID Number <span className="text-red-500">*</span>
@@ -1205,6 +1203,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
                 </div>
                 
+                {/* Phone */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Mobile Phone <span className="text-red-500">*</span>
@@ -1220,6 +1219,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="phone" message="Mobile phone number is required" />
                 </div>
                 
+                {/* Country */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Country of Origin <span className="text-red-500">*</span>
@@ -1239,6 +1239,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="country" message="Country of origin is required" />
                 </div>
 
+                {/* Province/Region */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     {regionTypeLabel} <span className="text-red-500">*</span>
@@ -1272,6 +1273,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
                 </div>
 
+                {/* City */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     City / Town <span className="text-red-500">*</span>
@@ -1287,6 +1289,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
+                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
@@ -1323,6 +1326,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   </div>
                 </div>
 
+                {/* Referral Source */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     How did you hear about us? <span className="text-red-500">*</span>
@@ -1348,6 +1352,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
 
+                {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Next Destination <span className="text-red-500">*</span>
@@ -1364,6 +1369,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   <ErrorMessage field="nextDestination" message="Next destination is required" />
                 </div>
                 
+                {/* Settlement Method */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Method of Settlement <span className="text-red-500">*</span>
@@ -1425,6 +1431,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
+                    {/* Indemnity Text Component */}
                     <IndemnityText 
                       businessName={branding?.trading_name || 'our establishment'} 
                       showWarning={true}
@@ -1432,7 +1439,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                       guestName={updateFullName(formData.firstName, formData.lastName)}
                       passportOrId={formData.passportOrId}
                     />
-                    
+
+                    {/* Checkbox Section */}
                     <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
                       <div className="flex items-start gap-5">
                         <input 
@@ -1465,7 +1473,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   )}
                 </div>
 
+                {/* Camera and Signature Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
+                  {/* LEFT COLUMN - CAMERA */}
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
                       1. Guest ID Verification <span className="text-red-500">*</span>
@@ -1476,12 +1486,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                         <div className="relative w-full h-full">
                           <img src={formData.idPhoto} alt="Guest ID" className="w-full h-full object-cover" />
                           <div className="absolute top-2 right-2 flex gap-1">
-                            <button onClick={retakePhoto} className="bg-blue-600 text-white p-1.5 rounded-full text-xs hover:bg-blue-700" title="Retake photo">↻</button>
+                            <button 
+                              onClick={retakePhoto} 
+                              className="bg-blue-600 text-white p-1.5 rounded-full text-xs hover:bg-blue-700 transition-colors"
+                              title="Retake photo"
+                            >
+                              ↻
+                            </button>
                           </div>
                         </div>
                       ) : isCameraActive ? (
                         <div className="w-full h-full bg-black">
-                          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                          <video 
+                            ref={videoRef} 
+                            autoPlay 
+                            playsInline 
+                            muted
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-stone-100">
@@ -1506,7 +1528,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                       {!formData.idPhoto && (
                         <>
                           {!isCameraActive ? (
-                            <button type="button" onClick={startCamera} className="w-full bg-amber-500 text-white py-2.5 rounded-lg font-medium hover:bg-amber-600 flex items-center justify-center gap-2 text-sm">
+                            <button 
+                              type="button" 
+                              onClick={startCamera} 
+                              className="w-full bg-amber-500 text-white py-2.5 rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1515,14 +1541,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                             </button>
                           ) : (
                             <div className="flex gap-2">
-                              <button type="button" onClick={capturePhoto} className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 flex items-center justify-center gap-2 text-sm">
+                              <button
+                                type="button"
+                                onClick={capturePhoto}
+                                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                                 Capture
                               </button>
-                              <button type="button" onClick={stopCamera} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 flex items-center justify-center gap-2 text-sm">
+                              <button
+                                type="button"
+                                onClick={stopCamera}
+                                className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -1532,19 +1566,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                           )}
                           
                           <div className="text-center">
-                            <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600">
+                            <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600 transition-colors">
                               📁 Or upload from gallery
-                              <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
-                                    markTouched('idPhoto');
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }} />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setFormData(prev => ({ ...prev, idPhoto: reader.result as string }));
+                                      markTouched('idPhoto');
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
                             </label>
                           </div>
                           
@@ -1557,7 +1596,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                       )}
                       
                       {formData.idPhoto && (
-                        <button type="button" onClick={retakePhoto} className="w-full bg-stone-200 text-stone-700 py-2.5 rounded-lg font-medium hover:bg-stone-300 flex items-center justify-center gap-2 text-sm">
+                        <button
+                          type="button"
+                          onClick={retakePhoto}
+                          className="w-full bg-stone-200 text-stone-700 py-2.5 rounded-lg font-medium hover:bg-stone-300 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1568,6 +1611,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                     </div>
                   </div>
 
+                  {/* RIGHT COLUMN - SIGNATURE */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
@@ -1594,7 +1638,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
               </div>
 
               <div className="mt-8 flex justify-between pt-6 border-t border-stone-100 items-center">
-                <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest">← Return to Details</button>
+                <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">← Return to Details</button>
                 <button 
                   type="submit" 
                   disabled={loading || !hasScrolledToBottom}
@@ -1608,10 +1652,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         </form>
       </div>
 
+      {/* Powered by FastCheckin Footer */}
       <div className="text-center py-6 border-t border-stone-200 mt-8">
         <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
           <span>Powered by</span>
-          <img src="/fastcheckin-logo.png" alt="FastCheckin" className="h-4 w-auto object-contain" />
+          <img 
+            src="/fastcheckin-logo.png" 
+            alt="FastCheckin" 
+            className="h-4 w-auto object-contain"
+          />
           <span>FastCheckin</span>
         </div>
       </div>
