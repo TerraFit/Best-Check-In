@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import CheckInForm from '../components/CheckInForm';
 
 interface BusinessBranding {
@@ -24,13 +24,89 @@ interface BusinessBranding {
   };
 }
 
+// Success Modal Component
+function SuccessModal({ booking, businessName, onClose }: { 
+  booking: any; 
+  businessName: string; 
+  onClose: () => void;
+}) {
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          onClose();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl animate-scale-in">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        
+        <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
+          Check-in Complete! 🎉
+        </h2>
+        
+        <p className="text-stone-600 mb-4">
+          Welcome to <span className="font-semibold text-amber-600">{businessName}</span>,<br />
+          <span className="font-medium">{booking?.guestName}</span>!
+        </p>
+        
+        <div className="bg-amber-50 rounded-xl p-4 mb-6 text-left">
+          <p className="text-sm text-amber-800 font-semibold mb-2">✨ Booking Summary</p>
+          <div className="space-y-1 text-sm">
+            <p><span className="text-stone-600">Check-in:</span> {booking?.checkInDate}</p>
+            <p><span className="text-stone-600">Nights:</span> {booking?.nights}</p>
+            <p><span className="text-stone-600">Guests:</span> {booking?.adults} Adult(s), {booking?.kids} Child(ren)</p>
+          </div>
+        </div>
+        
+        <p className="text-sm text-stone-500 mb-4">
+          A confirmation email has been sent to your email address.
+        </p>
+        
+        <button
+          onClick={onClose}
+          className="w-full bg-amber-500 text-white py-3 rounded-xl font-semibold hover:bg-amber-600 transition-colors"
+        >
+          New Check-in ({countdown}s)
+        </button>
+        
+        <button
+          onClick={() => window.location.href = '/'}
+          className="w-full mt-3 text-stone-500 text-sm hover:text-stone-700 transition-colors"
+        >
+          Return to Home
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function DynamicCheckIn() {
   const { businessId } = useParams<{ businessId: string }>();
+  const navigate = useNavigate();
+  
   const [business, setBusiness] = useState<BusinessBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading check-in system...');
   const [error, setError] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastBooking, setLastBooking] = useState<any>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!businessId) {
@@ -84,7 +160,20 @@ export default function DynamicCheckIn() {
       });
 
     return () => clearInterval(progressInterval);
-  }, [businessId]);
+  }, [businessId, refreshKey]);
+
+  const handleCheckinComplete = (booking: any, accessToken?: string) => {
+    console.log('✅ Check-in complete!', booking);
+    setLastBooking(booking);
+    setShowSuccessModal(true);
+  };
+
+  const handleModalClose = () => {
+    setShowSuccessModal(false);
+    setLastBooking(null);
+    // Force refresh to reset the form
+    setRefreshKey(prev => prev + 1);
+  };
 
   // Enhanced Loading state with progress bar
   if (loading) {
@@ -185,12 +274,20 @@ export default function DynamicCheckIn() {
 
       {/* Check-in Form - PASS THE BRANDING DATA AS A PROP */}
       <CheckInForm 
-        onComplete={(booking) => {
-          console.log('Check-in complete:', booking);
-        }}
+        key={refreshKey}
+        onComplete={handleCheckinComplete}
         businessId={businessId}
         businessBranding={business}
       />
+
+      {/* Success Modal */}
+      {showSuccessModal && lastBooking && (
+        <SuccessModal 
+          booking={lastBooking}
+          businessName={business.trading_name}
+          onClose={handleModalClose}
+        />
+      )}
     </div>
   );
 }
