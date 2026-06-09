@@ -1,4 +1,4 @@
-// netlify/functions/create-indemnity-record.ts - COMPLETE REST REPLACEMENT
+// netlify/functions/create-indemnity-record.ts - UPDATED VERSION
 // DELETE the old version and use this
 
 import { Handler } from '@netlify/functions';
@@ -26,6 +26,7 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    const body = JSON.parse(event.body || '{}');
     const { 
       booking_id, 
       business_id, 
@@ -33,8 +34,12 @@ export const handler: Handler = async (event) => {
       guest_first_name, 
       guest_last_name, 
       passport_or_id, 
-      signature_data 
-    } = JSON.parse(event.body || '{}');
+      signature_data,
+      guest_signature  // ADD THIS - accept both field names
+    } = body;
+
+    // Use either signature_data or guest_signature (prioritize signature_data)
+    const finalSignature = signature_data || guest_signature;
 
     // Validate required fields
     if (!booking_id) {
@@ -61,11 +66,11 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    if (!signature_data) {
+    if (!finalSignature) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing signature_data' })
+        body: JSON.stringify({ error: 'Missing signature (signature_data or guest_signature required)' })
       };
     }
 
@@ -84,7 +89,7 @@ export const handler: Handler = async (event) => {
     // Generate a unique access token for the indemnity record
     const accessToken = crypto.randomBytes(32).toString('hex');
 
-    // Prepare indemnity record
+    // Prepare indemnity record - use finalSignature for signature_data
     const indemnityRecord = {
       booking_id,
       business_id,
@@ -92,7 +97,7 @@ export const handler: Handler = async (event) => {
       guest_first_name: guest_first_name || '',
       guest_last_name: guest_last_name || '',
       passport_or_id: passport_or_id || '',
-      signature_data,
+      signature_data: finalSignature,  // Use the mapped value
       access_token: accessToken,
       signed_at: new Date().toISOString(),
       ip_address: event.headers['x-forwarded-for'] || 
@@ -112,6 +117,7 @@ export const handler: Handler = async (event) => {
 
     console.log('📝 Creating indemnity record for booking:', booking_id);
     console.log('📝 Guest:', guest_name);
+    console.log('📝 Signature provided:', finalSignature.substring(0, 50) + '...');
     console.log('📝 Access token generated:', accessToken.substring(0, 16) + '...');
 
     // REST API call - NO Supabase client, NO WebSocket
