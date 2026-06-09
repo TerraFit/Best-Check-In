@@ -51,7 +51,7 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  console.log('✅ FASTCHECKIN FORM V6.0 - COMPLETE REWRITE WITH FIXES');
+  console.log('✅ FASTCHECKIN FORM V9.0 - WITH INDEMNITY TEXT COMPONENT');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -270,6 +270,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Business branding received');
+        console.log('✅ Trading name:', data.trading_name);
+        console.log('✅ Logo URL exists:', !!data.logo_url);
         setBranding(data);
       } else {
         console.error('❌ Failed to fetch branding:', response.status);
@@ -583,7 +585,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     } 
   }, [step]);
 
-  // ✅ FIXED: Proper API response handling with duplicate detection
   const saveBookingToDatabase = async (booking: any) => {
     console.log('🔗 saveBookingToDatabase called');
     console.log('📤 Booking data being sent:', booking);
@@ -599,14 +600,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       const result = await response.json();
       console.log('📡 Response body:', JSON.stringify(result, null, 2));
       
-      // Check if the request was successful
       if (!response.ok) {
         console.error('❌ HTTP error:', response.status);
         return { success: false, error: `HTTP ${response.status}` };
       }
       
-      // The create-booking function returns: { success: true, duplicate: false, booking: {...} }
-      // OR: { success: true, duplicate: true, message: '...', booking: null }
       if (result.success === true) {
         return { 
           success: true, 
@@ -615,7 +613,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         };
       }
       
-      // Fallback for older response format
       if (result.booking?.id) {
         return { 
           success: true, 
@@ -659,7 +656,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ FIXED: Non-blocking email sending - never throws, never blocks
   const sendConfirmationEmail = async (booking: any, indemnityToken?: string): Promise<void> => {
     try {
       const response = await fetch('/.netlify/functions/send-confirmation-email', {
@@ -685,7 +681,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
-  // ✅ MAIN SUBMIT HANDLER
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -693,7 +688,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     
     if (loading) return;
     
-    // STEP 1: Email entry
     if (step === 1) {
       console.log('🔵 Step 1: Moving to step 2');
       setLoginLoading(true);
@@ -702,7 +696,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
-    // STEP 2: Personal details validation
     if (step === 2) {
       console.log('🔵 Step 2: Validating personal details');
       const errors = validateStep2();
@@ -710,7 +703,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         console.log('🔵 Validation errors:', errors);
         setSubmitAttempted(true);
         
-        // Mark all fields as touched to show errors
         const allFields: (keyof TouchedFields)[] = [
           'firstName', 'lastName', 'passportOrId', 'phone', 'country', 
           'province', 'city', 'arrivalDate', 'nights', 'referral', 
@@ -730,7 +722,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       return;
     }
     
-    // STEP 3: Indemnity and final submission
     if (step === 3) {
       console.log('🔵 Step 3: Validating indemnity and submitting');
       const errors = validateStep3();
@@ -768,7 +759,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       console.log('🔵 Starting booking submission...');
 
       try {
-        // Calculate total amount
         const totalAmount = await calculateTotalAmount(formData.nights);
         const formattedCheckInDate = formData.arrivalDate.split('T')[0];
         const formattedCheckOutDate = formData.departureDate ? formData.departureDate.split('T')[0] : '';
@@ -801,7 +791,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           source: 'live_checkin'
         };
 
-        // STEP 1: Save booking (CRITICAL)
         console.log('🔗 Saving booking to database...');
         const saveResult = await saveBookingToDatabase(dbBooking);
         
@@ -815,18 +804,15 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const bookingId = saveResult.bookingId;
         console.log('✅ Booking saved with ID:', bookingId);
         
-        // Show duplicate warning if applicable
         if (saveResult.isDuplicate) {
           console.log('⚠️ Duplicate booking detected');
           setDuplicateWarning('Note: This guest has already checked in today. Their record has been updated.');
         }
 
-        // STEP 2: Save indemnity record (CRITICAL)
         console.log('🔗 Saving indemnity record...');
         const accessToken = await saveIndemnityRecord(bookingId);
         console.log('✅ Indemnity token:', accessToken);
 
-        // STEP 3: Non-critical tasks - DO NOT AWAIT
         console.log('🔗 Starting non-critical tasks (email, profile)...');
         sendConfirmationEmail(dbBooking, accessToken);
         
@@ -834,7 +820,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           saveGuestProfile();
         }
 
-        // STEP 4: Create booking object for callback
         const newBooking: Booking = {
           id: bookingId || Math.random().toString(36).substr(2, 9),
           guestName: fullName,
@@ -983,6 +968,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     objectFit: 'contain',
                     imageRendering: 'auto'
                   }}
+                  onError={(e) => {
+                    console.error('Logo failed to load');
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  onLoad={() => console.log('Logo loaded successfully')}
                 />
               </div>
             ) : (
@@ -1149,7 +1139,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-6 col-span-full">
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
@@ -1196,7 +1185,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
-                {/* Passport/ID */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Passport / ID Number <span className="text-red-500">*</span>
@@ -1212,7 +1200,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
                 </div>
                 
-                {/* Phone */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Mobile Phone <span className="text-red-500">*</span>
@@ -1228,7 +1215,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="phone" message="Mobile phone number is required" />
                 </div>
                 
-                {/* Country */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Country of Origin <span className="text-red-500">*</span>
@@ -1248,7 +1234,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="country" message="Country of origin is required" />
                 </div>
 
-                {/* Province/Region */}
                 <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     {regionTypeLabel} <span className="text-red-500">*</span>
@@ -1282,7 +1267,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
                 </div>
 
-                {/* City */}
                 <div className="space-y-1 group">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     City / Town <span className="text-red-500">*</span>
@@ -1298,7 +1282,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="city" message="City/Town is required" />
                 </div>
 
-                {/* Stay Details */}
                 <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
@@ -1335,7 +1318,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   </div>
                 </div>
 
-                {/* Referral Source */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     How did you hear about us? <span className="text-red-500">*</span>
@@ -1361,7 +1343,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
 
-                {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Next Destination <span className="text-red-500">*</span>
@@ -1378,7 +1359,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   <ErrorMessage field="nextDestination" message="Next destination is required" />
                 </div>
                 
-                {/* Settlement Method */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                     Method of Settlement <span className="text-red-500">*</span>
@@ -1410,7 +1390,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
           )}
 
-          {/* Step 3 - Indemnity & Signature */}
+          {/* Step 3 - Indemnity & Signature - CORRECTED VERSION */}
           {step === 3 && (
             <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
               <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
@@ -1440,38 +1420,40 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
+                    {/* Indemnity Text Component */}
                     <IndemnityText 
-  businessName={branding?.trading_name || 'our establishment'} 
-  showWarning={true}
-  showGuestDetails={true}
-  guestName={updateFullName(formData.firstName, formData.lastName)}
-  passportOrId={formData.passportOrId}
-/>
+                      businessName={branding?.trading_name || 'our establishment'} 
+                      showWarning={true}
+                      showGuestDetails={true}
+                      guestName={updateFullName(formData.firstName, formData.lastName)}
+                      passportOrId={formData.passportOrId}
+                    />
 
-{/* Checkbox Section */}
-<div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
-  <div className="flex items-start gap-5">
-    <input 
-      type="checkbox" 
-      id="legalCheck" 
-      className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
-      disabled={!hasScrolledToBottom}
-      checked={formData.acceptLegal} 
-      onChange={e => {
-        setFormData({...formData, acceptLegal: e.target.checked});
-        markTouched('acceptLegal');
-      }} 
-    />
-    <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
-      I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
-    </label>
-  </div>
-  <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
-</div>
+                    {/* Checkbox Section */}
+                    <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
+                      <div className="flex items-start gap-5">
+                        <input 
+                          type="checkbox" 
+                          id="legalCheck" 
+                          className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
+                          disabled={!hasScrolledToBottom}
+                          checked={formData.acceptLegal} 
+                          onChange={e => {
+                            setFormData({...formData, acceptLegal: e.target.checked});
+                            markTouched('acceptLegal');
+                          }} 
+                        />
+                        <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
+                          I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
+                        </label>
+                      </div>
+                      <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
+                    </div>
 
-<div className="text-center text-stone-400 text-xs pt-4">
-  — End of Document —
-</div>
+                    <div className="text-center text-stone-400 text-xs pt-4">
+                      — End of Document —
+                    </div>
+                  </div>
                   
                   {!hasScrolledToBottom && (
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-8 py-3 rounded-full text-[10px] font-bold animate-bounce shadow-2xl pointer-events-none uppercase tracking-widest z-10">
@@ -1480,6 +1462,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   )}
                 </div>
 
+                {/* Camera and Signature Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
                   {/* LEFT COLUMN - CAMERA */}
                   <div className="space-y-4">
