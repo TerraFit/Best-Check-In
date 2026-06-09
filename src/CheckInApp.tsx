@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
 import { Booking } from './types';
 import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
+import { IndemnityText } from './components/IndemnityText';
 
 interface BusinessBranding {
   id: string;
@@ -1439,41 +1440,38 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     onScroll={handleIndemnityScroll}
                     className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                   >
-                    <div className="space-y-8 max-w-3xl mx-auto">
-                      <div className="text-center space-y-3 mb-12">
-                        <p className="font-bold text-2xl text-stone-900 font-serif">{businessName}</p>
-                        <p className="font-bold text-xs tracking-widest uppercase border-y border-stone-200 py-3">GUEST ACKNOWLEDGEMENT OF INHERENT RISK, WAIVER OF CLAIMS, AND INDEMNITY AGREEMENT</p>
-                      </div>
-                      
-                      <div className="bg-amber-50 p-8 border-l-4 border-amber-600 text-stone-900 font-bold leading-relaxed rounded-r-2xl">
-                        ⚠️ WARNING: THIS IS A LEGALLY BINDING AND IMPORTANT DOCUMENT THAT LIMITS AND EXCLUDES LEGAL RIGHTS. BY SIGNING IT, YOU ASSUME RISKS AND WAIVE CERTAIN RIGHTS, INCLUDING THE RIGHT TO SUE OR CLAIM COMPENSATION UNDER CERTAIN CIRCUMSTANCES.
-                      </div>
+                    <IndemnityText 
+  businessName={branding?.trading_name || 'our establishment'} 
+  showWarning={true}
+  showGuestDetails={true}
+  guestName={updateFullName(formData.firstName, formData.lastName)}
+  passportOrId={formData.passportOrId}
+/>
 
-                      <div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
-                        <div className="flex items-start gap-5">
-                          <input 
-                            type="checkbox" 
-                            id="legalCheck" 
-                            className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
-                            disabled={!hasScrolledToBottom}
-                            checked={formData.acceptLegal} 
-                            onChange={e => {
-                              setFormData({...formData, acceptLegal: e.target.checked});
-                              markTouched('acceptLegal');
-                            }} 
-                          />
-                          <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
-                            I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
-                          </label>
-                        </div>
-                        <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
-                      </div>
+{/* Checkbox Section */}
+<div className={`mt-12 p-8 rounded-3xl border-2 transition-all ${hasScrolledToBottom ? 'bg-amber-50 border-amber-500' : 'bg-stone-50 border-stone-200 opacity-50'}`}>
+  <div className="flex items-start gap-5">
+    <input 
+      type="checkbox" 
+      id="legalCheck" 
+      className={`w-8 h-8 rounded border-stone-300 focus:ring-amber-600 cursor-pointer disabled:cursor-not-allowed mt-1 ${getErrorClass('acceptLegal', formData.acceptLegal)}`}
+      disabled={!hasScrolledToBottom}
+      checked={formData.acceptLegal} 
+      onChange={e => {
+        setFormData({...formData, acceptLegal: e.target.checked});
+        markTouched('acceptLegal');
+      }} 
+    />
+    <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
+      I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
+    </label>
+  </div>
+  <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
+</div>
 
-                      <div className="text-center text-stone-400 text-xs pt-4">
-                        — End of Document —
-                      </div>
-                    </div>
-                  </div>
+<div className="text-center text-stone-400 text-xs pt-4">
+  — End of Document —
+</div>
                   
                   {!hasScrolledToBottom && (
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-8 py-3 rounded-full text-[10px] font-bold animate-bounce shadow-2xl pointer-events-none uppercase tracking-widest z-10">
