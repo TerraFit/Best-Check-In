@@ -1,210 +1,58 @@
-// netlify/functions/create-indemnity-record.ts - UPDATED VERSION
-// DELETE the old version and use this
-
+// netlify/functions/create-indemnity-record.ts - SIMPLIFIED TEST VERSION
 import { Handler } from '@netlify/functions';
-import crypto from 'crypto';
 
 export const handler: Handler = async (event) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  // Handle preflight
+  // Handle OPTIONS preflight
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
   }
 
+  // Only allow POST
   if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method not allowed' }) 
+    return {
+      statusCode: 405,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { 
-      booking_id, 
-      business_id, 
-      guest_name, 
-      guest_first_name, 
-      guest_last_name, 
-      passport_or_id, 
-      signature_data,
-      guest_signature  // ADD THIS - accept both field names
-    } = body;
-
-    // Use either signature_data or guest_signature (prioritize signature_data)
-    const finalSignature = signature_data || guest_signature;
-
-    // Validate required fields
-    if (!booking_id) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing booking_id' })
-      };
-    }
-
-    if (!business_id) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing business_id' })
-      };
-    }
-
-    if (!guest_name) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing guest_name' })
-      };
-    }
-
-    if (!finalSignature) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing signature (signature_data or guest_signature required)' })
-      };
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing Supabase credentials');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
-    }
-
-    // Generate a unique access token for the indemnity record
-    const accessToken = crypto.randomBytes(32).toString('hex');
-
-    // Prepare indemnity record - use finalSignature for signature_data
-    const indemnityRecord = {
-      booking_id,
-      business_id,
-      guest_name: guest_name.trim(),
-      guest_first_name: guest_first_name || '',
-      guest_last_name: guest_last_name || '',
-      passport_or_id: passport_or_id || '',
-      signature_data: finalSignature,  // Use the mapped value
-      access_token: accessToken,
-      signed_at: new Date().toISOString(),
-      ip_address: event.headers['x-forwarded-for'] || 
-                  event.headers['client-ip'] || 
-                  event.headers['x-real-ip'] || 
-                  'unknown',
-      user_agent: event.headers['user-agent'] || 'unknown',
-      created_at: new Date().toISOString()
-    };
-
-    // Remove undefined values
-    Object.keys(indemnityRecord).forEach(key => {
-      if (indemnityRecord[key] === undefined) {
-        delete indemnityRecord[key];
-      }
-    });
-
-    console.log('📝 Creating indemnity record for booking:', booking_id);
-    console.log('📝 Guest:', guest_name);
-    console.log('📝 Signature provided:', finalSignature.substring(0, 50) + '...');
-    console.log('📝 Access token generated:', accessToken.substring(0, 16) + '...');
-
-    // REST API call - NO Supabase client, NO WebSocket
-    const response = await fetch(`${supabaseUrl}/rest/v1/indemnity_records`, {
-      method: 'POST',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify([indemnityRecord])
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Insert error:', response.status, errorText);
-      
-      // Check if it's a duplicate (PG error code 23505)
-      if (errorText.includes('23505')) {
-        console.warn('⚠️ Indemnity record already exists for booking:', booking_id);
-        
-        // Try to fetch existing record
-        const fetchResponse = await fetch(
-          `${supabaseUrl}/rest/v1/indemnity_records?booking_id=eq.${booking_id}&select=access_token`,
-          {
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Accept': 'application/json'
-            }
-          }
-        );
-        
-        if (fetchResponse.ok) {
-          const existing = await fetchResponse.json();
-          if (existing && existing.length > 0) {
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify({ 
-                success: true, 
-                access_token: existing[0].access_token,
-                message: 'Existing indemnity record found'
-              })
-            };
-          }
-        }
-      }
-      
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Failed to save indemnity record',
-          details: errorText
-        })
-      };
-    }
-
-    const result = await response.json();
-    const savedRecord = result && result[0];
+    console.log('📥 Received request body:', event.body);
     
-    console.log('✅ Indemnity record saved successfully:', savedRecord?.id);
-    console.log('✅ Access token:', accessToken);
-
+    const body = JSON.parse(event.body || '{}');
+    console.log('📦 Parsed body:', JSON.stringify(body, null, 2));
+    
+    // Return success for testing (skip actual database insert)
     return {
       statusCode: 200,
-      headers,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ 
         success: true, 
-        access_token: accessToken,
-        indemnity_id: savedRecord?.id,
-        message: 'Indemnity record created successfully'
+        access_token: 'test-token-' + Date.now(),
+        message: 'Test successful - function is working'
       })
     };
-
+    
   } catch (error) {
-    console.error('❌ Error creating indemnity record:', error);
-    return { 
-      statusCode: 500, 
-      headers, 
+    console.error('❌ Error:', error);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        error: 'Internal server error',
+        error: 'Internal error',
         message: error instanceof Error ? error.message : 'Unknown error'
-      }) 
+      })
     };
   }
 };
