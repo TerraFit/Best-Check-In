@@ -1,4 +1,4 @@
-// netlify/functions/save-indemnity.ts
+// netlify/functions/create-indemnity-record.ts
 import { Handler } from '@netlify/functions';
 
 export const handler: Handler = async (event) => {
@@ -25,9 +25,11 @@ export const handler: Handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    console.log('✅ save-indemnity function called for booking:', body.booking_id);
+    console.log('✅ create-indemnity-record called for booking:', body.booking_id);
     
-    // Return success - we'll add database later
+    // Generate a test token
+    const accessToken = `test-token-${body.booking_id}-${Date.now()}`;
+    
     return {
       statusCode: 200,
       headers: {
@@ -36,8 +38,8 @@ export const handler: Handler = async (event) => {
       },
       body: JSON.stringify({ 
         success: true, 
-        access_token: 'token-' + Date.now(),
-        message: 'Indemnity recorded successfully'
+        access_token: accessToken,
+        message: 'Indemnity recorded (test mode - no database yet)'
       })
     };
     
@@ -45,7 +47,10 @@ export const handler: Handler = async (event) => {
     console.error('❌ Error:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json' 
+      },
       body: JSON.stringify({ error: 'Internal error' })
     };
   }
