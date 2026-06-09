@@ -482,7 +482,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         console.log("Photo captured and saved");
       }
     } else {
-      alert("Camera not ready. Please try again.");
+      setNotification({ type: 'error', message: "Camera not ready. Please try again." });
     }
   };
 
@@ -682,6 +682,59 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     }
   };
 
+  const resetFormForNewCheckin = () => {
+    setStep(1);
+    setFormData({
+      email: '',
+      firstName: '',
+      lastName: '',
+      fullName: '',
+      phone: '',
+      passportOrId: '',
+      country: '',
+      city: '',
+      province: '',
+      nextDestination: '',
+      settlement: '',
+      arrivalDate: new Date().toISOString().split('T')[0],
+      nights: 1,
+      adults: 1,
+      kids: 0,
+      departureDate: '',
+      referral: '',
+      idPhoto: '',
+      signature: '',
+      acceptLegal: false,
+      popiaConsent: false,
+      saveDetails: false,
+    });
+    setHasScrolledToBottom(false);
+    setTouched({
+      firstName: false,
+      lastName: false,
+      passportOrId: false,
+      phone: false,
+      country: false,
+      province: false,
+      city: false,
+      arrivalDate: false,
+      nights: false,
+      referral: false,
+      nextDestination: false,
+      settlement: false,
+      idPhoto: false,
+      signature: false,
+      acceptLegal: false,
+    });
+    setSubmitAttempted(false);
+    
+    // Clear signature canvas if it exists
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -715,7 +768,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         if (firstErrorField) {
           firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        alert(`Please complete the following required fields:\n\n• ${errors.join('\n• ')}`);
+        setNotification({ type: 'error', message: `Please complete: ${errors.join(', ')}` });
         return;
       }
       console.log('🔵 Validation passed, moving to step 3');
@@ -737,22 +790,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         }));
         
         if (!hasScrolledToBottom) {
-          alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
+          setNotification({ type: 'error', message: "Please scroll to the bottom of the indemnity agreement to enable acceptance." });
           indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
           return;
         }
         
         if (!formData.signature) {
-          alert("Please provide your digital signature.");
+          setNotification({ type: 'error', message: "Please provide your digital signature." });
           return;
         }
         
         if (!formData.idPhoto) {
-          alert("Please take a photo of your ID/passport.");
+          setNotification({ type: 'error', message: "Please take a photo of your ID/passport." });
           return;
         }
         
-        alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
+        setNotification({ type: 'error', message: `Please complete: ${errors.join(', ')}` });
         return;
       }
 
@@ -851,16 +904,27 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         };
 
         console.log('✅ Check-in complete! Calling onComplete...');
-        
-        // Call onComplete BEFORE non-critical tasks to ensure navigation happens
-        onComplete(newBooking, accessToken);
-        
+
+        // Safely call onComplete if it exists
+        if (onComplete && typeof onComplete === 'function') {
+          try {
+            onComplete(newBooking, accessToken);
+          } catch (callbackError) {
+            console.warn('⚠️ onComplete callback error (non-critical):', callbackError);
+          }
+        } else {
+          console.warn('⚠️ onComplete is not a function or undefined, skipping callback');
+        }
+
         // Non-critical tasks - fire and forget, don't await
         sendConfirmationEmail(dbBooking, accessToken).catch(e => console.warn('Email error:', e));
         
         if (formData.saveDetails) {
           saveGuestProfile().catch(e => console.warn('Profile save error:', e));
         }
+
+        // Move to success screen
+        setStep(4);
         
       } catch (error) {
         console.error('❌ Unexpected error during check-in:', error);
@@ -998,30 +1062,32 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
         )}
 
         {/* Progress Steps */}
-        <div className="flex justify-center mb-8 items-center space-x-2">
-          {[1, 2, 3].map(s => (
-            <React.Fragment key={s}>
-              <div 
-                className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all ${
-                  step >= s 
-                    ? 'text-white shadow-lg' 
-                    : 'bg-stone-200 text-stone-500'
-                }`}
-                style={step >= s ? { backgroundColor: primaryColor } : {}}
-              >
-                {s}
-              </div>
-              {s < 3 && (
+        {step !== 4 && (
+          <div className="flex justify-center mb-8 items-center space-x-2">
+            {[1, 2, 3].map(s => (
+              <React.Fragment key={s}>
                 <div 
-                  className={`w-16 h-0.5 transition-all ${
-                    step > s ? 'bg-stone-900' : 'bg-stone-200'
+                  className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all ${
+                    step >= s 
+                      ? 'text-white shadow-lg' 
+                      : 'bg-stone-200 text-stone-500'
                   }`}
-                  style={step > s ? { backgroundColor: secondaryColor } : {}}
-                />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
+                  style={step >= s ? { backgroundColor: primaryColor } : {}}
+                >
+                  {s}
+                </div>
+                {s < 3 && (
+                  <div 
+                    className={`w-16 h-0.5 transition-all ${
+                      step > s ? 'bg-stone-900' : 'bg-stone-200'
+                    }`}
+                    style={step > s ? { backgroundColor: secondaryColor } : {}}
+                  />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
           
@@ -1649,21 +1715,63 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
               </div>
             </div>
           )}
+
+          {/* Step 4 - Success Screen */}
+          {step === 4 && (
+            <div className="p-10 md:p-16 text-center animate-fade-in flex flex-col items-center justify-center min-h-[700px]">
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              
+              <h2 className="text-3xl font-serif font-bold text-stone-900 mb-4">
+                Check-in Complete! 🎉
+              </h2>
+              
+              <p className="text-lg text-stone-600 mb-2">
+                Welcome to {branding?.trading_name || 'our establishment'}
+              </p>
+              
+              <p className="text-stone-500 mb-8">
+                A confirmation email has been sent to <strong>{formData.email}</strong>
+              </p>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 max-w-md mx-auto mb-8 text-left">
+                <h3 className="font-bold text-amber-800 mb-2">What's next?</h3>
+                <ul className="text-sm text-amber-700 space-y-2">
+                  <li>✓ Your check-in has been recorded</li>
+                  <li>✓ An indemnity record has been saved</li>
+                  <li>✓ A confirmation email has been sent</li>
+                  <li>✓ Please proceed to reception to collect your keys</li>
+                </ul>
+              </div>
+              
+              <button
+                onClick={resetFormForNewCheckin}
+                className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider"
+              >
+                Check in another guest
+              </button>
+            </div>
+          )}
         </form>
       </div>
 
       {/* Powered by FastCheckin Footer */}
-      <div className="text-center py-6 border-t border-stone-200 mt-8">
-        <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
-          <span>Powered by</span>
-          <img 
-            src="/fastcheckin-logo.png" 
-            alt="FastCheckin" 
-            className="h-4 w-auto object-contain"
-          />
-          <span>FastCheckin</span>
+      {step !== 4 && (
+        <div className="text-center py-6 border-t border-stone-200 mt-8">
+          <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
+            <span>Powered by</span>
+            <img 
+              src="/fastcheckin-logo.png" 
+              alt="FastCheckin" 
+              className="h-4 w-auto object-contain"
+            />
+            <span>FastCheckin</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
