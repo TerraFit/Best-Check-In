@@ -952,7 +952,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
       <div className="max-w-5xl mx-auto py-10 px-4">
         {/* Business Header */}
-        {!heroImage && businessId && branding && (
+        {businessId && branding && (
           <div className="text-center mb-8">
             {branding.logo_url ? (
               <div className="flex justify-center mb-4">
