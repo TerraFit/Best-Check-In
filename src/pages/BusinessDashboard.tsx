@@ -22,7 +22,7 @@ import { ReportFilters } from '../components/dashboard/ReportFilters';
 import { ReportSummary } from '../components/dashboard/ReportSummary';
 import { GuestOriginsChart } from '../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../components/dashboard/ReferralSourcesChart';
-import { LengthOfStayChart } from '../components/dashboard/LengthOfStayChart'
+import { LengthOfStayChart } from '../components/dashboard/LengthOfStayChart';
 import { SettingsTab } from '../components/dashboard/SettingsTab';
 import { DashboardModals } from '../components/dashboard/DashboardModals';
 
@@ -621,12 +621,14 @@ export default function BusinessDashboard() {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Guest Origins Chart - Using Legend for better visibility */}
               <GuestOriginsChart
                 bookings={bookings}
                 chartType={guestChartType}
                 onChartTypeChange={setGuestChartType}
               />
 
+              {/* Referral Sources Chart - Using Legend for better visibility */}
               <ReferralSourcesChart
                 bookings={bookings}
                 chartType={referralChartType}
