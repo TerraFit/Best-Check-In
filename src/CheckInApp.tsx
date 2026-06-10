@@ -51,7 +51,7 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  console.log('✅ FASTCHECKIN FORM V9.0 - WITH INDEMNITY TEXT COMPONENT');
+  console.log('✅ FASTCHECKIN FORM V10.0 - WITH INDEMNITY TEXT COMPONENT');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
