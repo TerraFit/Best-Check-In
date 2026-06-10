@@ -153,7 +153,6 @@ export default function BusinessDashboard() {
   
   console.log('🔍 DEBUG - loading:', loading, 'business:', !!business, 'bookings:', bookings.length);
   
-  // ... rest of your component continues unchanged
   // ============================================================
   // UI HELPER FUNCTIONS
   // ============================================================
@@ -484,49 +483,6 @@ export default function BusinessDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Add this after <main className="..."> and before the tabs content */}
-<div className="mb-6">
-  <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg shadow-lg p-6">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-orange-100 text-sm font-medium">Total Check-ins</p>
-        <p className="text-4xl font-bold text-white mt-1">
-          {totalBookingsCount.toLocaleString()}
-        </p>
-        <p className="text-orange-100 text-xs mt-2">All time • All statuses</p>
-      </div>
-      <div className="bg-white/20 rounded-full p-4">
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </div>
-    </div>
-  </div>
-</div>
-
-        {/* ===== ADD QUICK STATS ROW HERE ===== */}
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-xs text-gray-500">Today's Arrivals</p>
-      <p className="text-2xl font-bold text-gray-900">{todayArrivals.length}</p>
-    </div>
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-xs text-gray-500">Current Stayovers</p>
-      <p className="text-2xl font-bold text-gray-900">{todayStayovers.length}</p>
-    </div>
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-xs text-gray-500">Today's Check-outs</p>
-      <p className="text-2xl font-bold text-gray-900">{todayCheckouts.length}</p>
-    </div>
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-xs text-gray-500">Total Revenue</p>
-      <p className="text-2xl font-bold text-gray-900">
-        R {bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}
-      </p>
-    </div>
-  </div>
-  {/* ===== END QUICK STATS ROW ===== */}
-        
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && business && (
           <div className="space-y-6">
@@ -606,39 +562,82 @@ export default function BusinessDashboard() {
           </div>
         )}
 
-       {/* REPORTS TAB */}
-{activeTab === 'reports' && (
-  <div className="space-y-6">
-    <ReportFilters
-      filters={currentFilters}
-      updateFilter={updateFilter}
-      clearCurrentFilters={clearCurrentFilters}
-      isFilterActive={isFilterActive}
-    />
+        {/* REPORTS TAB - WITH TOTAL CHECK-INS COUNTER */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            
+            {/* Total Check-ins Counter Card */}
+            <div className="mb-6">
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg shadow-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Total Check-ins</p>
+                    <p className="text-4xl font-bold text-white mt-1">
+                      {totalBookingsCount.toLocaleString()}
+                    </p>
+                    <p className="text-orange-100 text-xs mt-2">All time • All statuses</p>
+                  </div>
+                  <div className="bg-white/20 rounded-full p-4">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-    <ReportSummary
-      bookings={bookings}
-      onExport={exportToCSV}
-    />
+            {/* Quick Stats Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-xs text-gray-500">Today's Arrivals</p>
+                <p className="text-2xl font-bold text-gray-900">{todayArrivals.length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-xs text-gray-500">Current Stayovers</p>
+                <p className="text-2xl font-bold text-gray-900">{todayStayovers.length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-xs text-gray-500">Today's Check-outs</p>
+                <p className="text-2xl font-bold text-gray-900">{todayCheckouts.length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-xs text-gray-500">Total Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  R {bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <GuestOriginsChart
-        bookings={bookings}
-        chartType={guestChartType}
-        onChartTypeChange={setGuestChartType}
-      />
+            <ReportFilters
+              filters={currentFilters}
+              updateFilter={updateFilter}
+              clearCurrentFilters={clearCurrentFilters}
+              isFilterActive={isFilterActive}
+            />
 
-      <ReferralSourcesChart
-        bookings={bookings}
-        chartType={referralChartType}
-        onChartTypeChange={setReferralChartType}
-      />
-    </div>
+            <ReportSummary
+              bookings={bookings}
+              onExport={exportToCSV}
+            />
 
-    {/* Length of Stay Chart - Full width */}
-    <LengthOfStayChart bookings={bookings} />
-  </div>
-)}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <GuestOriginsChart
+                bookings={bookings}
+                chartType={guestChartType}
+                onChartTypeChange={setGuestChartType}
+              />
+
+              <ReferralSourcesChart
+                bookings={bookings}
+                chartType={referralChartType}
+                onChartTypeChange={setReferralChartType}
+              />
+            </div>
+
+            {/* Length of Stay Chart - Full width */}
+            <LengthOfStayChart bookings={bookings} />
+          </div>
+        )}
 
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
