@@ -1,0 +1,20 @@
+// src/components/dashboard/index.ts
+export { BusinessInfoCard } from './BusinessInfoCard';
+export { CheckinsTable } from './CheckinsTable';
+export { DashboardModals } from './DashboardModals';
+export { FiltersBar } from './FiltersBar';
+export { GuestOriginsChart } from './GuestOriginsChart';
+export { Header } from './Header';
+export { LengthOfStayChart } from './LengthOfStayChart';
+export { NavigationTabs } from './NavigationTabs';
+export { PageSizeSelector } from './PageSizeSelector';
+export { Pagination } from './Pagination';
+export { QuickActions } from './QuickActions';
+export { ReferralSourcesChart } from './ReferralSourcesChart';
+export { ReportFilters } from './ReportFilters';
+export { ReportSummary } from './ReportSummary';
+export { SettingsEditForm } from './SettingsEditForm';
+export { SettingsTab } from './SettingsTab';
+export { SettingsView } from './SettingsView';
+export { TodayActivityCards } from './TodayActivityCards';
+export { TrialBanner } from './TrialBanner';
