@@ -1418,7 +1418,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
                   </select>
                   <ErrorMessage field="referral" message="Please select how you heard about us" />
                 </div>
-
+            
+                {/* Arriving From - NEW FIELD */}
+                <div className="space-y-1 group col-span-full">
+              <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+              🏠 Arriving From <span className="text-green-600 font-normal lowercase">(Where did you spend last night?)</span>
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Johannesburg, Cape Town, Frankfurt, London"
+                  className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors"
+                  value={formData.arrivingFrom} 
+                  onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
+                />
+                <p className="text-xs text-stone-400">💡 Helps us understand travel patterns for better service</p>
+              </div>
+                
                 {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
                   <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
