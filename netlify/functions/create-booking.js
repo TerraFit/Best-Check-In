@@ -65,7 +65,6 @@ export const handler = async (event) => {
 
     const fullName = `${firstName} ${lastName}`.trim();
 
-    // ✅ ONLY include fields that are GUARANTEED to exist in the table
     // Start with core required fields
     const bookingData = {
       business_id: body.business_id,
@@ -78,7 +77,7 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
-    // ✅ Add optional fields ONLY if they have values (table may not have them yet)
+    // Add optional fields
     if (firstName) bookingData.guest_first_name = firstName;
     if (lastName) bookingData.guest_last_name = lastName;
     if (body.guest_phone) bookingData.guest_phone = body.guest_phone;
@@ -95,6 +94,10 @@ export const handler = async (event) => {
     if (body.booking_source) bookingData.booking_source = body.booking_source;
     if (body.referral_source) bookingData.referral_source = body.referral_source;
     if (body.marketing_consent !== undefined) bookingData.marketing_consent = body.marketing_consent;
+    
+    // ✅ NEW FIELDS for travel pattern analytics
+    if (body.arriving_from) bookingData.arriving_from = body.arriving_from;
+    if (body.next_destination) bookingData.next_destination = body.next_destination;
 
     console.log('💾 Inserting booking via REST...');
     console.log('📦 Fields being saved:', Object.keys(bookingData));
