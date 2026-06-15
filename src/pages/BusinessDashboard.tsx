@@ -1,4 +1,4 @@
-// src/pages/BusinessDashboard.tsx - REFACTORED
+// src/pages/BusinessDashboard.tsx - REFACTORED WITH FIXES
 
 import { useMemo, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -15,7 +15,7 @@ export default function BusinessDashboard() {
     currentPage, setCurrentPage,
     pageSize, setPageSize,
     totalBookingsCount: localTotalBookingsCount,
-    totalPages,
+    totalPages: localTotalPages,
     activeTab, setActiveTab,
     showQRModal, setShowQRModal,
     showImportModal, setShowImportModal,
@@ -55,6 +55,7 @@ export default function BusinessDashboard() {
 
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
   
+  // ✅ FIX: useBusinessData returns the API totals
   const { 
     business,
     bookings,
@@ -63,9 +64,14 @@ export default function BusinessDashboard() {
     todayArrivals,
     todayStayovers,
     todayCheckouts,
-    totalBookingsCount: apiTotalBookings,
+    totalBookingsCount: apiTotalBookings,  // API total (correct for pagination)
+    totalPages: apiTotalPages,             // API total pages (correct)
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+
+  // ✅ FIX: Use API totals for ALL tabs
+  const displayTotalBookings = apiTotalBookings;
+  const displayTotalPages = apiTotalPages;
 
   const getStatusBadge = useCallback((status: string) => {
     const styles: Record<string, string> = {
@@ -112,8 +118,9 @@ export default function BusinessDashboard() {
   }, [bookings, activeTab, currentFilters]);
 
   const exportToCSV = useCallback(() => {
+    const dataToExport = activeTab === 'reports' ? bookings : filteredCheckinsBookings;
     const headers = ['Guest Name', 'Email', 'Phone', 'ID Number', 'Country', 'Province', 'City', 'Check-in Date', 'Check-out Date', 'Nights', 'Total Amount', 'Status', 'Referral Source'];
-    const rows = (activeTab === 'reports' ? bookings : filteredCheckinsBookings).map(b => [
+    const rows = dataToExport.map(b => [
       `"${b.guest_name || ''}"`,
       `"${b.guest_email || ''}"`,
       `"${b.guest_phone || ''}"`,
@@ -139,13 +146,13 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business]);
 
-  // Update functions remain the same...
-  const updateEmail = async () => { /* ... */ };
-  const updatePhone = async () => { /* ... */ };
-  const saveBusinessProfile = async () => { /* ... */ };
-  const saveNewsletterSettings = async () => { /* ... */ };
-  const submitChangeRequest = async () => { /* ... */ };
-  const openRequestModal = (field: string, currentValue: string) => { /* ... */ };
+  // Update functions (unchanged from your refactored version)
+  const updateEmail = async () => { /* ... existing code ... */ };
+  const updatePhone = async () => { /* ... existing code ... */ };
+  const saveBusinessProfile = async () => { /* ... existing code ... */ };
+  const saveNewsletterSettings = async () => { /* ... existing code ... */ };
+  const submitChangeRequest = async () => { /* ... existing code ... */ };
+  const openRequestModal = (field: string, currentValue: string) => { /* ... existing code ... */ };
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -203,9 +210,9 @@ export default function BusinessDashboard() {
           <CheckinsTab
             bookings={bookings}
             filteredBookings={filteredCheckinsBookings}
-            totalBookings={localTotalBookingsCount}
+            totalBookings={displayTotalBookings}           // ✅ FIXED: Use API total
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalPages={displayTotalPages}                 // ✅ FIXED: Use API pages
             pageSize={pageSize}
             onPageChange={setCurrentPage}
             onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
@@ -224,7 +231,7 @@ export default function BusinessDashboard() {
         {activeTab === 'reports' && (
           <ReportsTab
             bookings={bookings}
-            totalBookings={apiTotalBookings}
+            totalBookings={displayTotalBookings}           // ✅ Already correct
             todayArrivals={todayArrivals}
             todayStayovers={todayStayovers}
             todayCheckouts={todayCheckouts}
