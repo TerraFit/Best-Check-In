@@ -1,7 +1,46 @@
-/* src/index.css - Complete with all custom styles */
+/* src/index.css - Complete with all custom styles and multilingual support */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   BASE STYLES WITH MULTILINGUAL SUPPORT
+   ============================================================ */
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 
+        'Helvetica Neue', Arial, 'Noto Sans', 
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Sans CJK SC', 'Noto Sans CJK KR',
+        'Noto Sans Arabic', 'Noto Sans Hebrew',
+        'Noto Sans Cyrillic', 'Cyrillic', 'PT Sans', 'Georgia',
+        sans-serif;
+    background-color: #f5f5f0;
+    color: #1c1917;
+    min-height: 100vh;
+    font-smooth: antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, .font-serif {
+    font-family: 'Playfair Display', 'Noto Serif', 'Georgia', serif;
+}
+
+/* Better Cyrillic rendering for Russian */
+.cyrillic-text,
+[lang="ru"] {
+    font-family: 'Inter', 'Noto Sans Cyrillic', 'PT Sans', 'Georgia', sans-serif;
+    font-weight: 400;
+    font-feature-settings: 'locl' 1;
+}
+
+/* Adjust line height for Cyrillic text */
+[lang="ru"] p,
+[lang="ru"] label,
+[lang="ru"] .text-sm {
+    line-height: 1.5;
+}
 
 /* ============================================================
    CUSTOM ANIMATIONS
@@ -82,6 +121,13 @@
     100% { background-position: -200% 0; }
 }
 
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
 /* ============================================================
    ANIMATION UTILITY CLASSES
    ============================================================ */
@@ -129,6 +175,111 @@
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
 .delay-500 { animation-delay: 500ms; }
+
+/* ============================================================
+   RTL LANGUAGE SUPPORT
+   ============================================================ */
+
+/* Direction utility classes */
+.rtl {
+    direction: rtl;
+}
+
+.ltr {
+    direction: ltr;
+}
+
+/* RTL-aware text alignment */
+[dir="rtl"] .text-left {
+    text-align: right;
+}
+
+[dir="rtl"] .text-right {
+    text-align: left;
+}
+
+[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+    margin-right: calc(0.5rem * var(--tw-space-x-reverse));
+    margin-left: calc(0.5rem * calc(1 - var(--tw-space-x-reverse)));
+}
+
+[dir="rtl"] .flex-row {
+    flex-direction: row-reverse;
+}
+
+/* RTL padding/margin overrides */
+[dir="rtl"] .pl-4 {
+    padding-left: 0;
+    padding-right: 1rem;
+}
+
+[dir="rtl"] .pr-4 {
+    padding-right: 0;
+    padding-left: 1rem;
+}
+
+[dir="rtl"] .ml-2 {
+    margin-left: 0;
+    margin-right: 0.5rem;
+}
+
+[dir="rtl"] .mr-2 {
+    margin-right: 0;
+    margin-left: 0.5rem;
+}
+
+/* RTL form inputs - keep LTR for numbers/emails */
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="tel"],
+[dir="rtl"] input[type="number"] {
+    direction: ltr;
+    text-align: right;
+}
+
+/* ============================================================
+   LANGUAGE SELECTOR STYLES
+   ============================================================ */
+
+/* Language selector dropdown */
+.language-selector-trigger {
+    transition: all 0.2s ease;
+}
+
+.language-selector-trigger:hover {
+    background-color: #fef3c7;
+    color: #f59e0b;
+}
+
+/* Language option hover effect */
+.language-option {
+    transition: all 0.15s ease;
+}
+
+.language-option:hover {
+    background-color: #f9fafb;
+}
+
+/* Active language highlight */
+.language-active {
+    background-color: #fffbeb;
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+/* Language detection toast */
+.language-toast {
+    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 9.7s forwards;
+}
+
+/* Language flag emoji size consistency */
+.flag-emoji {
+    font-size: 1.25rem;
+    line-height: 1;
+    display: inline-block;
+    width: 1.5rem;
+    text-align: center;
+}
 
 /* ============================================================
    CUSTOM SCROLLBAR
@@ -246,7 +397,7 @@
 }
 
 /* ============================================================
-   PRINT STYLES
+   PRINT STYLES (Enhanced for multilingual)
    ============================================================ */
 
 @media print {
@@ -254,6 +405,7 @@
         background: white;
         padding: 0;
         margin: 0;
+        font-family: 'Inter', 'Noto Sans', 'Segoe UI', sans-serif;
     }
     
     .no-print {
@@ -268,6 +420,16 @@
     img {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
+    }
+    
+    /* Print in guest's language */
+    [lang="ru"] {
+        font-family: 'Noto Sans Cyrillic', 'PT Sans', serif;
+    }
+    
+    /* Force black text for better printing */
+    .text-stone-900, .text-gray-900 {
+        color: black !important;
     }
 }
 
