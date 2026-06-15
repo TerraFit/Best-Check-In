@@ -1,5 +1,5 @@
 // src/i18n/types.ts
-export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es';
+export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru';
 
 export interface LanguageOption {
   code: SupportedLanguage;
@@ -82,9 +82,10 @@ export interface TranslationKeys {
   language_dutch: string;
   language_portuguese: string;
   language_spanish: string;
+  language_russian: string;
   language_detected_message: string;
   language_switch_confirm: string;
   language_stay: string;
 }
 
-export type Translation = Record<keyof TranslationKeys, string>;
+export interface Translation extends Record<keyof TranslationKeys, string> {}
