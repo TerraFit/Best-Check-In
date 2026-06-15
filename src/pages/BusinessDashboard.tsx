@@ -1,4 +1,5 @@
 // src/pages/BusinessDashboard.tsx - REFACTORED VERSION
+
 import { useMemo, useCallback } from 'react';
 
 // Hooks
@@ -148,10 +149,12 @@ export default function BusinessDashboard() {
     todayArrivals,
     todayStayovers,
     todayCheckouts,
+    totalBookings: apiTotalBookings,
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
   
-  console.log('🔍 DEBUG - loading:', loading, 'business:', !!business, 'bookings:', bookings.length);
+  // ✅ Use the API total for Reports tab, local filtered count for Check-ins tab
+  const displayTotalBookings = activeTab === 'reports' ? apiTotalBookings : totalBookingsCount;
   
   // ============================================================
   // UI HELPER FUNCTIONS
@@ -167,7 +170,11 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
 
-  const filteredBookings = useMemo(() => {
+  // Filtered bookings for CHECK-INS tab only (applies search/filter criteria)
+  const filteredCheckinsBookings = useMemo(() => {
+    // Only filter when on checkins tab
+    if (activeTab !== 'checkins') return bookings;
+    
     let filtered = [...bookings];
     
     if (currentFilters.searchTerm) {
@@ -196,7 +203,13 @@ export default function BusinessDashboard() {
     }
     
     return filtered;
-  }, [bookings, currentFilters]);
+  }, [bookings, activeTab, currentFilters]);
+
+  // For Reports tab - use ALL bookings (already filtered by date from API)
+  const filteredReportsBookings = bookings;
+
+  // Smart filteredBookings that returns the appropriate array based on active tab
+  const filteredBookings = activeTab === 'reports' ? filteredReportsBookings : filteredCheckinsBookings;
 
   const exportToCSV = useCallback(() => {
     const headers = ['Guest Name', 'Email', 'Phone', 'ID Number', 'Country', 'Province', 'City', 'Check-in Date', 'Check-out Date', 'Nights', 'Total Amount', 'Status', 'Referral Source'];
@@ -468,6 +481,7 @@ export default function BusinessDashboard() {
         refreshing={refreshing}
         onRefresh={refreshData}
         onLogout={handleLogout}
+        onShowQRModal={() => setShowQRModal(true)}
       />
 
       <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
@@ -526,14 +540,14 @@ export default function BusinessDashboard() {
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
-                <p className="text-sm text-gray-500">Total: {totalBookingsCount} bookings</p>
+                <p className="text-sm text-gray-500">Total: {displayTotalBookings} bookings</p>
               </div>
 
-              {filteredBookings.length === 0 && bookings.length === 0 ? (
+              {filteredCheckinsBookings.length === 0 && bookings.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-gray-400">Loading bookings...</p>
                 </div>
-              ) : filteredBookings.length === 0 && bookings.length > 0 ? (
+              ) : filteredCheckinsBookings.length === 0 && bookings.length > 0 ? (
                 <div className="text-center py-12">
                   <p className="text-gray-400">No check-ins match your filters</p>
                   <button
@@ -545,7 +559,7 @@ export default function BusinessDashboard() {
                 </div>
               ) : (
                 <CheckinsTable
-                  bookings={filteredBookings}
+                  bookings={filteredCheckinsBookings}
                   loading={bookings.length === 0}
                   getStatusBadge={getStatusBadge}
                 />
@@ -555,27 +569,31 @@ export default function BusinessDashboard() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 pageSize={pageSize}
-                totalCount={totalBookingsCount}
+                totalCount={displayTotalBookings}
                 onPageChange={setCurrentPage}
               />
             </div>
           </div>
         )}
 
-        {/* REPORTS TAB - WITH TOTAL CHECK-INS COUNTER */}
+        {/* REPORTS TAB - WITH CORRECT TOTAL CHECK-INS COUNT */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
             
-            {/* Total Check-ins Counter Card */}
+            {/* Total Check-ins Counter Card - NOW SHOWS CORRECT COUNT */}
             <div className="mb-6">
               <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg shadow-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-orange-100 text-sm font-medium">Total Check-ins</p>
                     <p className="text-4xl font-bold text-white mt-1">
-                      {totalBookingsCount.toLocaleString()}
+                      {apiTotalBookings.toLocaleString()}
                     </p>
-                    <p className="text-orange-100 text-xs mt-2">All time • All statuses</p>
+                    <p className="text-orange-100 text-xs mt-2">
+                      {currentFilters.dateRange !== 'all' || currentFilters.startDate 
+                        ? 'For selected date range' 
+                        : 'All time • All statuses'}
+                    </p>
                   </div>
                   <div className="bg-white/20 rounded-full p-4">
                     <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -613,6 +631,10 @@ export default function BusinessDashboard() {
               updateFilter={updateFilter}
               clearCurrentFilters={clearCurrentFilters}
               isFilterActive={isFilterActive}
+              onFilterChange={() => {
+                // Reset to page 1 when filters change
+                setCurrentPage(1);
+              }}
             />
 
             <ReportSummary
@@ -621,14 +643,14 @@ export default function BusinessDashboard() {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Guest Origins Chart - Using Legend for better visibility */}
+              {/* Guest Origins Chart */}
               <GuestOriginsChart
                 bookings={bookings}
                 chartType={guestChartType}
                 onChartTypeChange={setGuestChartType}
               />
 
-              {/* Referral Sources Chart - Using Legend for better visibility */}
+              {/* Referral Sources Chart */}
               <ReferralSourcesChart
                 bookings={bookings}
                 chartType={referralChartType}
@@ -652,6 +674,22 @@ export default function BusinessDashboard() {
             onEdit={() => setEditingProfile(true)}
             onCancelEdit={() => setEditingProfile(false)}
             onSave={saveBusinessProfile}
+            newsletterEnabled={newsletterEnabled}
+            newsletterTitle={newsletterTitle}
+            newsletterPrize={newsletterPrize}
+            newsletterCta={newsletterCta}
+            newsletterTerms={newsletterTerms}
+            newsletterDrawDate={newsletterDrawDate}
+            newsletterShareText={newsletterShareText}
+            savingNewsletter={savingNewsletter}
+            onNewsletterEnabledChange={setNewsletterEnabled}
+            onNewsletterTitleChange={setNewsletterTitle}
+            onNewsletterPrizeChange={setNewsletterPrize}
+            onNewsletterCtaChange={setNewsletterCta}
+            onNewsletterTermsChange={setNewsletterTerms}
+            onNewsletterDrawDateChange={setNewsletterDrawDate}
+            onNewsletterShareTextChange={setNewsletterShareText}
+            onSaveNewsletter={saveNewsletterSettings}
           />
         )}
         
@@ -670,10 +708,13 @@ export default function BusinessDashboard() {
           setShowAppealModal(false);
           setRejectedRequest(null);
         }}
-        onImportComplete={() => setShowImportModal(false)}
-        onAppealSubmit={() => {}}
+        onImportComplete={() => {
+          refreshData();
+          setShowImportModal(false);
+        }}
+        onAppealSubmit={refreshData}
         loadBookings={refreshData}
-        fetchChangeRequests={() => {}}
+        fetchChangeRequests={refreshData}
       />
     </div>
   );
