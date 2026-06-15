@@ -108,6 +108,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
     country: '',
     city: '',
     province: '',
+    arrivingFrom: '',        // ✅ ADDED: Where they came from last night
     nextDestination: '',
     settlement: '',
     arrivalDate: new Date().toISOString().split('T')[0],
@@ -695,6 +696,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
       country: '',
       city: '',
       province: '',
+      arrivingFrom: '',        // ✅ ADDED
       nextDestination: '',
       settlement: '',
       arrivalDate: new Date().toISOString().split('T')[0],
@@ -844,6 +846,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
           guest_country: formData.country,
           booking_source: formData.referral,
           referral_source: formData.referral,
+          arriving_from: formData.arrivingFrom,        // ✅ ADDED
+          next_destination: formData.nextDestination,   // ✅ FIXED: changed from nextDestination
           marketing_consent: formData.popiaConsent,
           created_at: new Date().toISOString(),
           source: 'live_checkin'
@@ -1421,18 +1425,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({
             
                 {/* Arriving From - NEW FIELD */}
                 <div className="space-y-1 group col-span-full">
-              <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-              🏠 Arriving From <span className="text-green-600 font-normal lowercase">(Where did you spend last night?)</span>
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Johannesburg, Cape Town, Frankfurt, London"
-                  className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors"
-                  value={formData.arrivingFrom} 
-                  onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
-                />
-                <p className="text-xs text-stone-400">💡 Helps us understand travel patterns for better service</p>
-              </div>
+                  <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                    🏠 Arriving From <span className="text-green-600 font-normal lowercase">(Where did you spend last night?)</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g., Johannesburg, Cape Town, Frankfurt, London"
+                    className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors"
+                    value={formData.arrivingFrom} 
+                    onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
+                  />
+                  <p className="text-xs text-stone-400">💡 Helps us understand travel patterns for better service</p>
+                </div>
                 
                 {/* Next Destination */}
                 <div className="space-y-1 group col-span-full">
