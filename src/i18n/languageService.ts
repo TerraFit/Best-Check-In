@@ -7,6 +7,7 @@ import frTranslations from './translations/fr.json';
 import nlTranslations from './translations/nl.json';
 import ptTranslations from './translations/pt.json';
 import esTranslations from './translations/es.json';
+import ruTranslations from './translations/ru.json';
 
 // All translations
 const translationMap: Record<SupportedLanguage, Translation> = {
@@ -16,7 +17,8 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   fr: frTranslations as Translation,
   nl: nlTranslations as Translation,
   pt: ptTranslations as Translation,
-  es: esTranslations as Translation
+  es: esTranslations as Translation,
+  ru: ruTranslations as Translation
 };
 
 // Language options for selector
@@ -27,7 +29,8 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
   { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' }
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' }
 ];
 
 // Storage key for user preference
@@ -36,6 +39,7 @@ const LANGUAGE_STORAGE_KEY = 'fastcheckin_preferred_language';
 // Current language state (singleton for non-React contexts)
 let currentLanguage: SupportedLanguage = 'en';
 let languageChangeCallbacks: Set<(lang: SupportedLanguage) => void> = new Set();
+let isInitialized = false;
 
 // Detect browser language
 export const detectBrowserLanguage = (): SupportedLanguage => {
@@ -47,6 +51,7 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
   if (browserLang === 'nl') return 'nl';
   if (browserLang === 'pt') return 'pt';
   if (browserLang === 'es') return 'es';
+  if (browserLang === 'ru') return 'ru';
   
   return 'en';
 };
@@ -55,11 +60,12 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
 export const loadSavedLanguage = (): SupportedLanguage => {
   try {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (saved && (saved === 'en' || saved === 'af' || saved === 'de' || saved === 'fr' || saved === 'nl' || saved === 'pt' || saved === 'es')) {
+    const validLanguages: SupportedLanguage[] = ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru'];
+    if (saved && validLanguages.includes(saved as SupportedLanguage)) {
       return saved as SupportedLanguage;
     }
   } catch (e) {
-    // localStorage not available
+    console.warn('Failed to load saved language preference:', e);
   }
   return detectBrowserLanguage();
 };
@@ -69,17 +75,30 @@ export const saveLanguagePreference = (lang: SupportedLanguage): void => {
   try {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
   } catch (e) {
-    // localStorage not available
+    console.warn('Failed to save language preference:', e);
   }
 };
 
 // Set current language
 export const setLanguage = (lang: SupportedLanguage): void => {
+  if (currentLanguage === lang && isInitialized) return;
+  
   currentLanguage = lang;
   saveLanguagePreference(lang);
   
+  // Update document direction for RTL languages
+  const direction = getLanguageDirection(lang);
+  document.documentElement.dir = direction;
+  document.documentElement.lang = lang;
+  
   // Notify all listeners
-  languageChangeCallbacks.forEach(callback => callback(lang));
+  languageChangeCallbacks.forEach(callback => {
+    try {
+      callback(lang);
+    } catch (err) {
+      console.error('Error in language change callback:', err);
+    }
+  });
 };
 
 // Get current language
@@ -95,15 +114,50 @@ export const onLanguageChange = (callback: (lang: SupportedLanguage) => void): (
 
 // Initialize language system
 export const initLanguage = (): SupportedLanguage => {
+  if (isInitialized) return currentLanguage;
+  
   const saved = loadSavedLanguage();
   currentLanguage = saved;
+  
+  // Set document attributes
+  const direction = getLanguageDirection(saved);
+  document.documentElement.dir = direction;
+  document.documentElement.lang = saved;
+  
+  isInitialized = true;
+  console.log(`🌐 Language initialized: ${saved} (${getLanguageName(saved)})`);
+  
   return saved;
 };
 
-// Translation function with interpolation
+// Get language name from code
+export const getLanguageName = (code: SupportedLanguage): string => {
+  const option = LANGUAGE_OPTIONS.find(opt => opt.code === code);
+  return option?.nativeName || option?.name || code;
+};
+
+// Get flag emoji for language
+export const getLanguageFlag = (code: SupportedLanguage): string => {
+  const option = LANGUAGE_OPTIONS.find(opt => opt.code === code);
+  return option?.flag || '🌐';
+};
+
+// Translation function with interpolation and fallback
 export const t = (key: keyof TranslationKeys, params?: Record<string, string | number>): string => {
-  const translation = translationMap[currentLanguage];
-  let text = translation[key] || translationMap.en[key] || key;
+  // Get translation for current language
+  let translation = translationMap[currentLanguage];
+  let text = translation?.[key];
+  
+  // Fallback to English if translation missing
+  if (!text && currentLanguage !== 'en') {
+    text = translationMap.en?.[key];
+  }
+  
+  // Final fallback to the key itself
+  if (!text) {
+    console.warn(`Missing translation key: ${key} for language: ${currentLanguage}`);
+    return key;
+  }
   
   // Replace interpolation params like {name}
   if (params) {
@@ -117,16 +171,50 @@ export const t = (key: keyof TranslationKeys, params?: Record<string, string | n
 
 // Get full translation object (for components that need nested access)
 export const getTranslations = (): Translation => {
-  return translationMap[currentLanguage];
+  return translationMap[currentLanguage] || translationMap.en;
+};
+
+// Get translations for a specific language
+export const getTranslationsForLanguage = (lang: SupportedLanguage): Translation => {
+  return translationMap[lang] || translationMap.en;
 };
 
 // Check if a language is RTL
 export const isRTL = (lang: SupportedLanguage): boolean => {
-  const rtlLanguages: SupportedLanguage[] = [];
+  const rtlLanguages: SupportedLanguage[] = ['ar', 'he', 'fa', 'ur'];
   return rtlLanguages.includes(lang);
 };
 
 // Get language direction
 export const getLanguageDirection = (lang: SupportedLanguage): 'ltr' | 'rtl' => {
   return isRTL(lang) ? 'rtl' : 'ltr';
+};
+
+// Get available languages list
+export const getAvailableLanguages = (): LanguageOption[] => {
+  return [...LANGUAGE_OPTIONS];
+};
+
+// Get supported language codes
+export const getSupportedLanguageCodes = (): SupportedLanguage[] => {
+  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru'];
+};
+
+// Check if a language code is supported
+export const isLanguageSupported = (code: string): code is SupportedLanguage => {
+  return getSupportedLanguageCodes().includes(code as SupportedLanguage);
+};
+
+// Auto-detect and set language based on browser preferences
+export const autoDetectLanguage = (): SupportedLanguage => {
+  const detected = detectBrowserLanguage();
+  setLanguage(detected);
+  return detected;
+};
+
+// Reset to browser default language
+export const resetToBrowserLanguage = (): SupportedLanguage => {
+  const browserLang = detectBrowserLanguage();
+  setLanguage(browserLang);
+  return browserLang;
 };
