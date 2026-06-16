@@ -1,5 +1,8 @@
 // src/pages/tabs/SettingsTab.tsx
+
+import { useState } from 'react';
 import { SettingsView, SettingsEditForm } from '../../components/dashboard';
+import ChangeRequestModal from '../../components/ChangeRequestModal';
 
 interface SettingsTabProps {
   business: any;
@@ -26,46 +29,47 @@ interface SettingsTabProps {
   onNewsletterDrawDateChange: (date: string) => void;
   onNewsletterShareTextChange: (text: string) => void;
   onSaveNewsletter: () => void;
+  onRefreshBusiness: () => void; // Added for refreshing after change request
 }
 
-export function SettingsTab({
-  business,
-  editingProfile,
-  profileForm,
-  savingProfile,
-  businessId,
-  onEdit,
-  onCancelEdit,
-  onSave,
-  newsletterEnabled,
-  newsletterTitle,
-  newsletterPrize,
-  newsletterCta,
-  newsletterTerms,
-  newsletterDrawDate,
-  newsletterShareText,
-  savingNewsletter,
-  onNewsletterEnabledChange,
-  onNewsletterTitleChange,
-  onNewsletterPrizeChange,
-  onNewsletterCtaChange,
-  onNewsletterTermsChange,
-  onNewsletterDrawDateChange,
-  onNewsletterShareTextChange,
-  onSaveNewsletter,
-}: SettingsTabProps) {
+export function SettingsTab(props: SettingsTabProps) {
+  const [changeRequestField, setChangeRequestField] = useState<{
+    field: string;
+    currentValue: string;
+    label: string;
+  } | null>(null);
+
+  const handleChangeRequest = (field: string, currentValue: string, label: string) => {
+    setChangeRequestField({ field, currentValue, label });
+  };
+
+  const handleChangeRequestClose = () => {
+    setChangeRequestField(null);
+  };
+
+  const handleChangeRequestSubmit = () => {
+    setChangeRequestField(null);
+    props.onRefreshBusiness();
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
       
-      {!editingProfile ? (
-        <SettingsView business={business} businessId={businessId} onEdit={onEdit} />
+      {/* Business Profile Section */}
+      {!props.editingProfile ? (
+        <SettingsView 
+          business={props.business} 
+          businessId={props.businessId} 
+          onEdit={props.onEdit}
+          onRequestChange={handleChangeRequest}
+        />
       ) : (
         <SettingsEditForm
-          initialForm={profileForm}
-          onSave={onSave}
-          onCancel={onCancelEdit}
-          saving={savingProfile}
+          initialForm={props.profileForm}
+          onSave={props.onSave}
+          onCancel={props.onCancelEdit}
+          saving={props.savingProfile}
         />
       )}
 
@@ -77,8 +81,8 @@ export function SettingsTab({
             <input
               type="checkbox"
               id="newsletterEnabled"
-              checked={newsletterEnabled}
-              onChange={(e) => onNewsletterEnabledChange(e.target.checked)}
+              checked={props.newsletterEnabled}
+              onChange={(e) => props.onNewsletterEnabledChange(e.target.checked)}
               className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
             />
             <label htmlFor="newsletterEnabled" className="text-sm font-medium text-gray-700">
@@ -86,14 +90,14 @@ export function SettingsTab({
             </label>
           </div>
 
-          {newsletterEnabled && (
+          {props.newsletterEnabled && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Newsletter Title</label>
                 <input
                   type="text"
-                  value={newsletterTitle}
-                  onChange={(e) => onNewsletterTitleChange(e.target.value)}
+                  value={props.newsletterTitle}
+                  onChange={(e) => props.onNewsletterTitleChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -101,8 +105,8 @@ export function SettingsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Prize Description</label>
                 <input
                   type="text"
-                  value={newsletterPrize}
-                  onChange={(e) => onNewsletterPrizeChange(e.target.value)}
+                  value={props.newsletterPrize}
+                  onChange={(e) => props.onNewsletterPrizeChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -110,8 +114,8 @@ export function SettingsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Call to Action</label>
                 <input
                   type="text"
-                  value={newsletterCta}
-                  onChange={(e) => onNewsletterCtaChange(e.target.value)}
+                  value={props.newsletterCta}
+                  onChange={(e) => props.onNewsletterCtaChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -119,8 +123,8 @@ export function SettingsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
                 <input
                   type="text"
-                  value={newsletterTerms}
-                  onChange={(e) => onNewsletterTermsChange(e.target.value)}
+                  value={props.newsletterTerms}
+                  onChange={(e) => props.onNewsletterTermsChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -128,8 +132,8 @@ export function SettingsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Draw Date (optional)</label>
                 <input
                   type="date"
-                  value={newsletterDrawDate}
-                  onChange={(e) => onNewsletterDrawDateChange(e.target.value)}
+                  value={props.newsletterDrawDate}
+                  onChange={(e) => props.onNewsletterDrawDateChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -137,22 +141,39 @@ export function SettingsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Share Text</label>
                 <input
                   type="text"
-                  value={newsletterShareText}
-                  onChange={(e) => onNewsletterShareTextChange(e.target.value)}
+                  value={props.newsletterShareText}
+                  onChange={(e) => props.onNewsletterShareTextChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
               <button
-                onClick={onSaveNewsletter}
-                disabled={savingNewsletter}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                onClick={props.onSaveNewsletter}
+                disabled={props.savingNewsletter}
+                className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+                  props.savingNewsletter 
+                    ? 'bg-orange-400 cursor-not-allowed' 
+                    : 'bg-orange-500 hover:bg-orange-600'
+                }`}
               >
-                {savingNewsletter ? 'Saving...' : 'Save Newsletter Settings'}
+                {props.savingNewsletter ? 'Saving...' : 'Save Newsletter Settings'}
               </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Change Request Modal */}
+      {changeRequestField && (
+        <ChangeRequestModal
+          fieldName={changeRequestField.field}
+          currentValue={changeRequestField.currentValue}
+          label={changeRequestField.label}
+          businessId={props.businessId}
+          businessName={props.business?.trading_name || ''}
+          onClose={handleChangeRequestClose}
+          onSubmit={handleChangeRequestSubmit}
+        />
+      )}
     </div>
   );
 }
