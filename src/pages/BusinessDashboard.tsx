@@ -272,6 +272,7 @@ export default function BusinessDashboard() {
             onNewsletterDrawDateChange={setNewsletterDrawDate}
             onNewsletterShareTextChange={setNewsletterShareText}
             onSaveNewsletter={saveNewsletterSettings}
+            onRefreshBusiness={refreshData}  // ✅ Add this
           />
         )}
       </main>
