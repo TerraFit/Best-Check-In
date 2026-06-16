@@ -55,7 +55,6 @@ export default function BusinessDashboard() {
 
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
   
-  // ✅ FIX: useBusinessData returns the API totals
   const { 
     business,
     bookings,
@@ -64,12 +63,11 @@ export default function BusinessDashboard() {
     todayArrivals,
     todayStayovers,
     todayCheckouts,
-    totalBookingsCount: apiTotalBookings,  // API total (correct for pagination)
-    totalPages: apiTotalPages,             // API total pages (correct)
+    totalBookingsCount: apiTotalBookings,
+    totalPages: apiTotalPages,
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  // ✅ FIX: Use API totals for ALL tabs
   const displayTotalBookings = apiTotalBookings;
   const displayTotalPages = apiTotalPages;
 
@@ -146,13 +144,13 @@ export default function BusinessDashboard() {
     URL.revokeObjectURL(url);
   }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business]);
 
-  // Update functions (unchanged from your refactored version)
-  const updateEmail = async () => { /* ... existing code ... */ };
-  const updatePhone = async () => { /* ... existing code ... */ };
-  const saveBusinessProfile = async () => { /* ... existing code ... */ };
-  const saveNewsletterSettings = async () => { /* ... existing code ... */ };
-  const submitChangeRequest = async () => { /* ... existing code ... */ };
-  const openRequestModal = (field: string, currentValue: string) => { /* ... existing code ... */ };
+  // Update functions (keep your existing implementations)
+  const updateEmail = async () => { /* ... */ };
+  const updatePhone = async () => { /* ... */ };
+  const saveBusinessProfile = async () => { /* ... */ };
+  const saveNewsletterSettings = async () => { /* ... */ };
+  const submitChangeRequest = async () => { /* ... */ };
+  const openRequestModal = (field: string, currentValue: string) => { /* ... */ };
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -210,9 +208,9 @@ export default function BusinessDashboard() {
           <CheckinsTab
             bookings={bookings}
             filteredBookings={filteredCheckinsBookings}
-            totalBookings={displayTotalBookings}           // ✅ FIXED: Use API total
+            totalBookings={displayTotalBookings}
             currentPage={currentPage}
-            totalPages={displayTotalPages}                 // ✅ FIXED: Use API pages
+            totalPages={displayTotalPages}
             pageSize={pageSize}
             onPageChange={setCurrentPage}
             onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
@@ -231,7 +229,7 @@ export default function BusinessDashboard() {
         {activeTab === 'reports' && (
           <ReportsTab
             bookings={bookings}
-            totalBookings={displayTotalBookings}           // ✅ Already correct
+            totalBookings={displayTotalBookings}
             todayArrivals={todayArrivals}
             todayStayovers={todayStayovers}
             todayCheckouts={todayCheckouts}
