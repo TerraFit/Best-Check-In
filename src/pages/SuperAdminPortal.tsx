@@ -1,3 +1,5 @@
+// src/pages/SuperAdminPortal.tsx - UPDATED WITH ENHANCED CHANGE REQUESTS
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
@@ -22,6 +24,9 @@ interface Business {
   tgsa_grading?: string;
   phone: string;
   email: string;
+  secondary_email?: string;
+  mobile_phone?: string;
+  secondary_phone?: string;
   physical_address: {
     street: string;
     city: string;
@@ -55,7 +60,8 @@ interface ChangeRequest {
   current_value: string;
   requested_value: string;
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'draft' | 'appealed';
+  attachments?: Array<{ name: string; type: string; size: number; url?: string; data?: string }>;
   created_at: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -190,7 +196,6 @@ export default function SuperAdminPortal() {
       
       console.log('🔍 API Response:', result);
       
-      // Handle both response shapes
       let data = [];
       if (result.success && Array.isArray(result.data)) {
         data = result.data;
@@ -752,22 +757,52 @@ export default function SuperAdminPortal() {
                 pendingChangeRequests.map(request => (
                   <div key={request.id} className="p-4 hover:bg-gray-50">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-900">{request.business_name}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{request.business_name}</p>
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                            {request.status}
+                          </span>
+                        </div>
                         <p className="text-sm text-gray-600 mt-1">
                           <span className="font-medium">Field:</span> {request.field_name.replace(/_/g, ' ').toUpperCase()}
                         </p>
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Current:</span> {request.current_value || '(empty)'}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Requested:</span> {request.requested_value}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                          <div className="bg-red-50 p-2 rounded-lg">
+                            <p className="text-xs text-gray-500">Current Value</p>
+                            <p className="text-sm font-medium text-red-700">{request.current_value || '(empty)'}</p>
+                          </div>
+                          <div className="bg-green-50 p-2 rounded-lg">
+                            <p className="text-xs text-gray-500">Requested Value</p>
+                            <p className="text-sm font-medium text-green-700">{request.requested_value}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2">
                           <span className="font-medium">Reason:</span> {request.reason}
                         </p>
+                        {request.attachments && request.attachments.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-700">Attachments:</p>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {request.attachments.map((att, idx) => (
+                                <a
+                                  key={idx}
+                                  href={att.url || att.data}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-500 hover:text-blue-700 underline flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                  </svg>
+                                  {att.name}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 ml-4">
                         <button
                           onClick={() => {
                             setSelectedChangeRequest(request);
@@ -1340,6 +1375,27 @@ export default function SuperAdminPortal() {
                 <p className="text-sm text-gray-600 mt-2">
                   <strong>Reason:</strong> {selectedChangeRequest.reason}
                 </p>
+                {selectedChangeRequest.attachments && selectedChangeRequest.attachments.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-gray-700">Attachments:</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedChangeRequest.attachments.map((att, idx) => (
+                        <a
+                          key={idx}
+                          href={att.url || att.data}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:text-blue-700 underline flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                          {att.name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {changeRequestAction === 'reject' && (
