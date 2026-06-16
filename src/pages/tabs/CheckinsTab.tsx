@@ -1,4 +1,4 @@
-// src/pages/tabs/CheckinsTab.tsx
+// src/pages/tabs/CheckinsTab.tsx - CORRECT VERSION (Container only)
 
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
 
@@ -68,7 +68,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
           />
         )}
 
-        {/* ✅ ENHANCED PAGINATION FOOTER */}
+        {/* Enhanced Pagination Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             {/* Left side - Range info */}
