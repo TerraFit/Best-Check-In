@@ -1,4 +1,4 @@
-// src/components/dashboard/CheckinsTable.tsx
+// src/components/dashboard/CheckinsTable.tsx - TABLE RENDERER ONLY
 
 interface Booking {
   id?: string
