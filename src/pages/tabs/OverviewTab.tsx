@@ -11,19 +11,27 @@ interface OverviewTabProps {
   onShowImportModal: () => void;
 }
 
-export function OverviewTab(props: OverviewTabProps) {
+export function OverviewTab({
+  business,
+  todayArrivals,
+  todayStayovers,
+  todayCheckouts,
+  businessId,
+  onShowQRModal,
+  onShowImportModal,
+}: OverviewTabProps) {
   return (
     <div className="space-y-6">
-      <BusinessInfoCard business={props.business} />
+      <BusinessInfoCard business={business} />
       <TodayActivityCards
-        arrivals={props.todayArrivals}
-        stayovers={props.todayStayovers}
-        checkouts={props.todayCheckouts}
+        arrivals={todayArrivals}
+        stayovers={todayStayovers}
+        checkouts={todayCheckouts}
       />
       <QuickActions
-        businessId={props.businessId}
-        onShowQRModal={props.onShowQRModal}
-        onShowImportModal={props.onShowImportModal}
+        businessId={businessId}
+        onShowQRModal={onShowQRModal}
+        onShowImportModal={onShowImportModal}
       />
     </div>
   );
