@@ -20,6 +20,7 @@ import ScrollToTop from './components/ScrollToTop';
 import NewsletterSubscribe from './pages/NewsletterSubscribe';
 import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
+import { LanguageSelector } from './i18n';
 
 // Unauthorized Page Component
 function UnauthorizedPage() {
@@ -54,6 +55,11 @@ function NotFoundPage() {
 function AppContent() {
   return (
     <>
+      {/* ✅ Global Language Selector - Fixed position */}
+      <div className="fixed top-4 right-4 z-50">
+        <LanguageSelector variant="header" />
+      </div>
+      
       <ScrollToTop />
       <Routes>
         {/* Public Routes */}
