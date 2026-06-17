@@ -1,9 +1,11 @@
+// src/CheckInApp.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
 import { Booking } from './types';
 import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
 import { IndemnityText } from './components/IndemnityText';
+import { useTranslation } from './i18n';
 
 interface BusinessBranding {
   id: string;
@@ -51,6 +53,9 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
+  // ✅ ADDED: Translation hook
+  const { t, language } = useTranslation();
+  
   console.log('✅ FASTCHECKIN FORM V10.0 - WITH PROPER ERROR HANDLING');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
@@ -154,18 +159,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const validateStep2 = (): string[] => {
     const errors: string[] = [];
     
-    if (!formData.firstName.trim()) errors.push('First Name');
-    if (!formData.lastName.trim()) errors.push('Last Name');
-    if (!formData.passportOrId.trim()) errors.push('ID/Passport Number');
-    if (!formData.phone.trim()) errors.push('Mobile Phone');
-    if (!formData.country) errors.push('Country of Origin');
+    if (!formData.firstName.trim()) errors.push(t('checkin_first_name'));
+    if (!formData.lastName.trim()) errors.push(t('checkin_last_name'));
+    if (!formData.passportOrId.trim()) errors.push(t('checkin_passport'));
+    if (!formData.phone.trim()) errors.push(t('checkin_phone'));
+    if (!formData.country) errors.push(t('checkin_country'));
     if (!formData.province) errors.push(regionTypeLabel);
-    if (!formData.city.trim()) errors.push('City/Town');
-    if (!formData.arrivalDate) errors.push('Arrival Date');
-    if (!formData.nights || formData.nights < 1) errors.push('Nights');
-    if (!formData.referral) errors.push('Referral Source');
-    if (!formData.nextDestination.trim()) errors.push('Next Destination');
-    if (!formData.settlement) errors.push('Settlement Method');
+    if (!formData.city.trim()) errors.push(t('checkin_city'));
+    if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
+    if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
+    if (!formData.referral) errors.push(t('checkin_referral'));
+    if (!formData.nextDestination.trim()) errors.push(t('checkin_next_destination'));
+    if (!formData.settlement) errors.push(t('checkin_settlement'));
     
     return errors;
   };
@@ -173,9 +178,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   const validateStep3 = (): string[] => {
     const errors: string[] = [];
     
-    if (!formData.idPhoto) errors.push('ID Photo');
-    if (!formData.signature) errors.push('Digital Signature');
-    if (!formData.acceptLegal) errors.push('Indemnity Acceptance');
+    if (!formData.idPhoto) errors.push(t('checkin_id_photo'));
+    if (!formData.signature) errors.push(t('checkin_signature'));
+    if (!formData.acceptLegal) errors.push(t('error_indemnity_required'));
     
     return errors;
   };
@@ -670,14 +675,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       
       if (response.ok) {
         console.log('✅ Confirmation email sent');
-        setNotification({ type: 'success', message: 'Confirmation email sent successfully!' });
+        setNotification({ type: 'success', message: t('success_email_sent') });
       } else {
         console.warn('⚠️ Email sending failed with status:', response.status);
-        setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
+        setNotification({ type: 'error', message: t('error_email_failed') });
       }
     } catch (error) {
       console.warn('⚠️ Email error (non-critical):', error);
-      setNotification({ type: 'error', message: 'Could not send confirmation email, but check-in is complete.' });
+      setNotification({ type: 'error', message: t('error_email_failed') });
     }
   };
 
@@ -714,7 +719,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         if (firstErrorField) {
           firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        alert(`Please complete the following required fields:\n\n• ${errors.join('\n• ')}`);
+        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
         return;
       }
       console.log('🔵 Validation passed, moving to step 3');
@@ -736,22 +741,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         }));
         
         if (!hasScrolledToBottom) {
-          alert("Please scroll to the bottom of the indemnity agreement to enable acceptance.");
+          alert(t('error_scroll_indemnity'));
           indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
           return;
         }
         
         if (!formData.signature) {
-          alert("Please provide your digital signature.");
+          alert(t('error_signature_required_alert'));
           return;
         }
         
         if (!formData.idPhoto) {
-          alert("Please take a photo of your ID/passport.");
+          alert(t('error_id_photo_required_alert'));
           return;
         }
         
-        alert(`Please complete the following:\n\n• ${errors.join('\n• ')}`);
+        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
         return;
       }
 
@@ -796,7 +801,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         
         if (!saveResult.success) {
           console.error('❌ Booking save failed:', saveResult.error);
-          alert('Failed to save booking. Please try again.');
+          alert(t('error_booking_failed'));
           setLoading(false);
           return;
         }
@@ -806,7 +811,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         
         if (saveResult.isDuplicate) {
           console.log('⚠️ Duplicate booking detected');
-          setDuplicateWarning('Note: This guest has already checked in today. Their record has been updated.');
+          setDuplicateWarning(t('warning_duplicate_booking'));
         }
 
         console.log('🔗 Saving indemnity record...');
@@ -853,7 +858,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
 
         console.log('✅ Check-in complete! Calling onComplete...');
 
-        // Safely call onComplete if it exists
         if (onComplete && typeof onComplete === 'function') {
           try {
             onComplete(newBooking, accessToken);
@@ -864,21 +868,19 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           console.warn('⚠️ onComplete is not a function or undefined, skipping callback');
         }
 
-        // Send email in background (don't await)
         sendConfirmationEmail(dbBooking, accessToken).catch(e => console.warn('Email error:', e));
 
         if (formData.saveDetails) {
           saveGuestProfile().catch(e => console.warn('Profile save error:', e));
         }
 
-        // Move to success screen
         setStep(4);
         setLoading(false);
         return;
 
       } catch (error) {
         console.error('❌ Unexpected error during check-in:', error);
-        setNotification({ type: 'error', message: 'An unexpected error occurred. Please try again.' });
+        setNotification({ type: 'error', message: t('error_unexpected') });
       } finally {
         setLoading(false);
       }
@@ -1033,23 +1035,23 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             </div>
             
             <h2 className="text-3xl font-serif font-bold text-stone-900 mb-4">
-              Check-in Complete! 🎉
+              {t('success_checkin_complete')}
             </h2>
             
             <p className="text-lg text-stone-600 mb-2">
-              Welcome to {businessName}
+              {t('success_welcome', { businessName })}
             </p>
             
             <p className="text-stone-500 mb-8">
-              A confirmation email has been sent to <strong>{formData.email}</strong>
+              {t('success_email_sent', { email: formData.email })}
             </p>
             
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 max-w-md mx-auto mb-8 text-left">
-              <h3 className="font-bold text-amber-800 mb-2">What's next?</h3>
+              <h3 className="font-bold text-amber-800 mb-2">{t('success_next_steps')}</h3>
               <ul className="text-sm text-amber-700 space-y-2">
-                <li>✓ Your check-in has been recorded</li>
-                <li>✓ A confirmation email has been sent</li>
-                <li>✓ Please proceed to reception to collect your keys</li>
+                <li>✓ {t('success_step_checkin_recorded')}</li>
+                <li>✓ {t('success_step_email_sent')}</li>
+                <li>✓ {t('success_step_keys')}</li>
               </ul>
             </div>
             
@@ -1085,7 +1087,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
               }}
               className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider"
             >
-              Check in another guest
+              {t('success_new_guest_button')}
             </button>
           </div>
         )}
@@ -1097,8 +1099,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
             {/* Step 1 - Email Entry */}
             {step === 1 && (
               <div className="p-10 md:p-16 text-center animate-fade-in flex flex-col flex-grow items-center justify-center">
-                <h2 className="text-sm font-bold tracking-[0.3em] text-amber-700 uppercase mb-4">Statutory Registration</h2>
-                <h1 className="text-5xl font-serif text-stone-900 mb-6 uppercase tracking-tight">Welcome Home</h1>
+                <h2 className="text-sm font-bold tracking-[0.3em] text-amber-700 uppercase mb-4">
+                  {t('checkin_title')}
+                </h2>
+                <h1 className="text-5xl font-serif text-stone-900 mb-6 uppercase tracking-tight">
+                  {t('common_welcome_home')}
+                </h1>
                 {businessSlogan && !heroImage && (
                   <p className="text-xl text-stone-500 mb-8 italic font-serif">{businessSlogan}</p>
                 )}
@@ -1106,7 +1112,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 
                 <div className="max-w-md w-full mx-auto space-y-8 text-left">
                   <div className="space-y-3">
-                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest">Confirm your Email *</label>
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                      {t('checkin_email_label')}
+                    </label>
                     <input 
                       required 
                       type="email" 
@@ -1118,7 +1126,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     
                     {profileLoaded && (
                       <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm animate-fade-in">
-                        ✓ Your saved details have been loaded
+                        ✓ {t('checkin_profile_loaded')}
                       </div>
                     )}
                   </div>
@@ -1133,14 +1141,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onChange={e => setFormData({...formData, saveDetails: e.target.checked})}
                     />
                     <label htmlFor="saveDetails" className="text-sm text-stone-700 cursor-pointer">
-                      <span className="font-bold">Save my details for next time</span>
-                      <span className="text-xs text-stone-500 block">Your information will be securely stored for faster check-ins</span>
+                      <span className="font-bold">{t('checkin_save_details')}</span>
+                      <span className="text-xs text-stone-500 block">{t('checkin_save_details_sub')}</span>
                     </label>
                   </div>
                   
                   {profileSaveSuccess && (
                     <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 animate-fade-in">
-                      ✓ Your details have been saved for next time
+                      ✓ {t('checkin_profile_saved')}
                     </div>
                   )}
 
@@ -1154,8 +1162,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onChange={e => setFormData({...formData, popiaConsent: e.target.checked})}
                     />
                     <label htmlFor="popia" className="text-xs text-stone-500 leading-relaxed cursor-pointer select-none">
-                      Get exclusive offers and updates from <span className="font-medium text-stone-700">{businessName}</span>. 
-                      Unsubscribe anytime.
+                      {t('checkin_popia_consent', { businessName })}
                     </label>
                   </div>
                 </div>
@@ -1172,10 +1179,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Processing...
+                      {t('common_processing')}
                     </>
                   ) : (
-                    'Begin Statutory Check-In'
+                    t('checkin_begin_button')
                   )}
                 </button>
               </div>
@@ -1191,7 +1198,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <div>
-                        <p className="font-semibold text-red-800 text-sm">Please complete all required fields:</p>
+                        <p className="font-semibold text-red-800 text-sm">{t('error_complete_fields')}</p>
                         <ul className="text-red-700 text-xs mt-1 list-disc list-inside">
                           {validateStep2().map(err => (
                             <li key={err}>{err}</li>
@@ -1203,16 +1210,17 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 )}
 
                 <div className="border-b border-stone-100 pb-8 mb-10">
-                  <h2 className="text-3xl font-serif font-bold text-stone-900">Personal Registry</h2>
-                  <p className="text-stone-400 text-[10px] mt-2 uppercase tracking-[0.2em] font-bold">Immigration Act Requirement (Section 40)</p>
-                  <p className="text-red-500 text-xs mt-2">* All fields marked with asterisk are required</p>
+                  <h2 className="text-3xl font-serif font-bold text-stone-900">{t('checkin_personal_details')}</h2>
+                  <p className="text-stone-400 text-[10px] mt-2 uppercase tracking-[0.2em] font-bold">{t('checkin_immigration_act')}</p>
+                  <p className="text-red-500 text-xs mt-2">* {t('error_all_required')}</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                  {/* First Name and Last Name */}
                   <div className="grid grid-cols-2 gap-6 col-span-full">
                     <div className="space-y-1 group">
                       <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                        First Name <span className="text-red-500">*</span>
+                        {t('checkin_first_name')} <span className="text-red-500">*</span>
                       </label>
                       <input 
                         required 
@@ -1229,12 +1237,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           });
                         }} 
                       />
-                      <ErrorMessage field="firstName" message="First name is required" />
+                      <ErrorMessage field="firstName" message={t('error_first_name_required')} />
                     </div>
                     
                     <div className="space-y-1 group">
                       <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                        Last Name <span className="text-red-500">*</span>
+                        {t('checkin_last_name')} <span className="text-red-500">*</span>
                       </label>
                       <input 
                         required 
@@ -1251,13 +1259,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           });
                         }} 
                       />
-                      <ErrorMessage field="lastName" message="Last name is required" />
+                      <ErrorMessage field="lastName" message={t('error_last_name_required')} />
                     </div>
                   </div>
 
+                  {/* Passport/ID */}
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      Passport / ID Number <span className="text-red-500">*</span>
+                      {t('checkin_passport')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required 
@@ -1267,12 +1276,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onFocus={() => markTouched('passportOrId')}
                       onChange={e => setFormData({...formData, passportOrId: e.target.value})} 
                     />
-                    <ErrorMessage field="passportOrId" message="ID/Passport number is required" />
+                    <ErrorMessage field="passportOrId" message={t('error_passport_required')} />
                   </div>
                   
+                  {/* Phone */}
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      Mobile Phone <span className="text-red-500">*</span>
+                      {t('checkin_phone')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required 
@@ -1282,12 +1292,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onFocus={() => markTouched('phone')}
                       onChange={e => setFormData({...formData, phone: e.target.value})} 
                     />
-                    <ErrorMessage field="phone" message="Mobile phone number is required" />
+                    <ErrorMessage field="phone" message={t('error_phone_required')} />
                   </div>
                   
+                  {/* Country */}
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      Country of Origin <span className="text-red-500">*</span>
+                      {t('checkin_country')} <span className="text-red-500">*</span>
                     </label>
                     <select 
                       required 
@@ -1298,12 +1309,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         setFormData({...formData, country: e.target.value, province: ''});
                       }}
                     >
-                      <option value="">Select Country</option>
+                      <option value="">{t('checkin_select_country')}</option>
                       {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <ErrorMessage field="country" message="Country of origin is required" />
+                    <ErrorMessage field="country" message={t('error_country_required')} />
                   </div>
 
+                  {/* Province/Region */}
                   <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       {regionTypeLabel} <span className="text-red-500">*</span>
@@ -1317,7 +1329,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         onChange={e => setFormData({...formData, province: e.target.value})}
                         disabled={!formData.country}
                       >
-                        <option value="">Select {regionTypeLabel}</option>
+                        <option value="">{t('checkin_select_province')}</option>
                         {availableRegions.map(region => (
                           <option key={region} value={region}>{region}</option>
                         ))}
@@ -1326,7 +1338,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       <input 
                         required 
                         type="text" 
-                        placeholder={`Enter your ${regionTypeLabel.toLowerCase()}`}
+                        placeholder={`${t('checkin_enter_province')}`}
                         className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('province', !!formData.province)}`}
                         value={formData.province} 
                         onFocus={() => markTouched('province')}
@@ -1334,12 +1346,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         disabled={!formData.country}
                       />
                     )}
-                    <ErrorMessage field="province" message={`${regionTypeLabel} is required`} />
+                    <ErrorMessage field="province" message={`${regionTypeLabel} ${t('error_is_required')}`} />
                   </div>
 
+                  {/* City */}
                   <div className="space-y-1 group">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      City / Town <span className="text-red-500">*</span>
+                      {t('checkin_city')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required 
@@ -1349,20 +1362,21 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onFocus={() => markTouched('city')}
                       onChange={e => setFormData({...formData, city: e.target.value})} 
                     />
-                    <ErrorMessage field="city" message="City/Town is required" />
+                    <ErrorMessage field="city" message={t('error_city_required')} />
                   </div>
 
+                  {/* Stay Details */}
                   <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Adults (Sharing)</label>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_adults')}</label>
                       <input required type="number" min="1" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.adults} onChange={e => setFormData({...formData, adults: parseInt(e.target.value)})} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Children (Under 16 sharing with adults)</label>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_children')}</label>
                       <input required type="number" min="0" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.kids} onChange={e => setFormData({...formData, kids: parseInt(e.target.value)})} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Arrival Date <span className="text-red-500">*</span></label>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_arrival_date')} <span className="text-red-500">*</span></label>
                       <input 
                         required 
                         type="date" 
@@ -1371,10 +1385,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         onFocus={() => markTouched('arrivalDate')}
                         onChange={e => setFormData({...formData, arrivalDate: e.target.value})} 
                       />
-                      <ErrorMessage field="arrivalDate" message="Arrival date is required" />
+                      <ErrorMessage field="arrivalDate" message={t('error_arrival_date_required')} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Duration (Nights) <span className="text-red-500">*</span></label>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_nights')} <span className="text-red-500">*</span></label>
                       <input 
                         required 
                         type="number" 
@@ -1384,13 +1398,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         onFocus={() => markTouched('nights')}
                         onChange={e => setFormData({...formData, nights: parseInt(e.target.value)})} 
                       />
-                      <ErrorMessage field="nights" message="Number of nights is required" />
+                      <ErrorMessage field="nights" message={t('error_nights_required')} />
                     </div>
                   </div>
 
+                  {/* Referral Source */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      How did you hear about us? <span className="text-red-500">*</span>
+                      {t('checkin_referral')} <span className="text-red-500">*</span>
                     </label>
                     <select 
                       required
@@ -1399,39 +1414,41 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onChange={e => setFormData({...formData, referral: e.target.value})}
                       className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('referral', !!formData.referral)}`}
                     >
-                      <option value="">Select referral source</option>
-                      <option value="Word of mouth">Word of mouth</option>
+                      <option value="">{t('checkin_select_referral')}</option>
+                      <option value="Word of mouth">{t('checkin_referral_word_of_mouth')}</option>
                       <option value="Booking.com">Booking.com</option>
                       <option value="Google">Google</option>
                       <option value="Facebook / Instagram">Facebook / Instagram</option>
-                      <option value="Travel Agency">Travel Agency</option>
+                      <option value="Travel Agency">{t('checkin_referral_travel_agency')}</option>
                       <option value="LinkedIn">LinkedIn</option>
                       <option value="YouTube">YouTube</option>
-                      <option value="Research engine">Research engine</option>
+                      <option value="Research engine">{t('checkin_referral_research')}</option>
                       <option value="TikTok">TikTok</option>
                     </select>
-                    <ErrorMessage field="referral" message="Please select how you heard about us" />
+                    <ErrorMessage field="referral" message={t('error_referral_required')} />
                   </div>
 
+                  {/* Next Destination */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      Next Destination <span className="text-red-500">*</span>
+                      {t('checkin_next_destination')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required 
                       type="text" 
-                      placeholder="Where is your journey continuing?"
+                      placeholder={t('checkin_next_destination_placeholder')}
                       className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
                       value={formData.nextDestination} 
                       onFocus={() => markTouched('nextDestination')}
                       onChange={e => setFormData({...formData, nextDestination: e.target.value})} 
                     />
-                    <ErrorMessage field="nextDestination" message="Next destination is required" />
+                    <ErrorMessage field="nextDestination" message={t('error_next_destination_required')} />
                   </div>
                   
+                  {/* Settlement Method */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-                      Method of Settlement <span className="text-red-500">*</span>
+                      {t('checkin_settlement')} <span className="text-red-500">*</span>
                     </label>
                     <select 
                       required 
@@ -1440,30 +1457,30 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onFocus={() => markTouched('settlement')}
                       onChange={e => setFormData({...formData, settlement: e.target.value})}
                     >
-                      <option value="">Select Settlement</option>
+                      <option value="">{t('checkin_select_settlement')}</option>
                       {SETTLEMENT_METHODS.filter(m => formData.country === 'South Africa' || m !== 'Instant EFT (RSA resident only)').map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
-                    <ErrorMessage field="settlement" message="Please select payment method" />
+                    <ErrorMessage field="settlement" message={t('error_settlement_required')} />
                   </div>
                 </div>
 
                 <div className="mt-16 flex justify-between">
-                  <button type="button" onClick={() => setStep(1)} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">Back</button>
+                  <button type="button" onClick={() => setStep(1)} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">{t('common_back')}</button>
                   <button 
                     type="submit" 
                     className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
                     style={{ backgroundColor: secondaryColor }}
                   >
-                    Continue to Indemnity
+                    {t('checkin_continue_indemnity')}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Step 3 - Indemnity & Signature - CORRECTED VERSION */}
+            {/* Step 3 - Indemnity & Signature */}
             {step === 3 && (
               <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
-                <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Indemnity & Waiver</h2>
+                <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">{t('checkin_indemnity')}</h2>
                 
                 {submitAttempted && validateStep3().length > 0 && (
                   <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
@@ -1472,11 +1489,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <div>
-                        <p className="font-semibold text-red-800 text-sm">Please complete before submitting:</p>
+                        <p className="font-semibold text-red-800 text-sm">{t('error_complete_before_submit')}</p>
                         <ul className="text-red-700 text-xs mt-1 list-disc list-inside">
-                          {!formData.idPhoto && <li>Take a photo of your ID/passport</li>}
-                          {!formData.signature && <li>Provide your digital signature</li>}
-                          {!formData.acceptLegal && <li>Scroll to the bottom and accept the indemnity terms</li>}
+                          {!formData.idPhoto && <li>{t('error_id_photo_required')}</li>}
+                          {!formData.signature && <li>{t('error_signature_required')}</li>}
+                          {!formData.acceptLegal && <li>{t('error_indemnity_scroll')}</li>}
                         </ul>
                       </div>
                     </div>
@@ -1490,7 +1507,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onScroll={handleIndemnityScroll}
                       className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                     >
-                      {/* Indemnity Text Component */}
+                      {/* Indemnity Text Component - Already translated via props */}
                       <IndemnityText 
                         businessName={branding?.trading_name || 'our establishment'} 
                         showWarning={true}
@@ -1514,20 +1531,20 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                             }} 
                           />
                           <label htmlFor="legalCheck" className={`text-base font-bold leading-relaxed select-none ${hasScrolledToBottom ? 'text-amber-900 cursor-pointer' : 'text-stone-400'}`}>
-                            I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.
+                            {t('indemnity_accept')}
                           </label>
                         </div>
-                        <ErrorMessage field="acceptLegal" message="You must accept the indemnity terms to continue" />
+                        <ErrorMessage field="acceptLegal" message={t('error_indemnity_required')} />
                       </div>
 
                       <div className="text-center text-stone-400 text-xs pt-4">
-                        — End of Document —
+                        {t('indemnity_scroll_bottom')}
                       </div>
                     </div>
                     
                     {!hasScrolledToBottom && (
                       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-8 py-3 rounded-full text-[10px] font-bold animate-bounce shadow-2xl pointer-events-none uppercase tracking-widest z-10">
-                        ↓ Scroll to end of document to enable acceptance ↓
+                        {t('indemnity_scroll_to_accept')}
                       </div>
                     )}
                   </div>
@@ -1537,7 +1554,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     {/* LEFT COLUMN - CAMERA */}
                     <div className="space-y-4">
                       <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                        1. Guest ID Verification <span className="text-red-500">*</span>
+                        {t('checkin_id_photo')} <span className="text-red-500">*</span>
                       </h4>
                       
                       <div className={`aspect-[3/2] bg-stone-100 rounded-xl overflow-hidden border-2 transition-colors ${submitAttempted && !formData.idPhoto ? 'border-red-500' : 'border-dashed border-stone-300'}`}>
@@ -1579,7 +1596,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          ID photo is required
+                          {t('error_id_photo_required')}
                         </p>
                       )}
 
@@ -1596,7 +1613,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                Open Camera
+                                {t('common_open_camera')}
                               </button>
                             ) : (
                               <div className="flex gap-2">
@@ -1609,7 +1626,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                   </svg>
-                                  Capture
+                                  {t('common_capture')}
                                 </button>
                                 <button
                                   type="button"
@@ -1619,14 +1636,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                   </svg>
-                                  Cancel
+                                  {t('common_cancel')}
                                 </button>
                               </div>
                             )}
                             
                             <div className="text-center">
                               <label className="text-xs text-stone-500 cursor-pointer hover:text-amber-600 transition-colors">
-                                📁 Or upload from gallery
+                                📁 {t('common_upload_from_gallery')}
                                 <input
                                   type="file"
                                   accept="image/*"
@@ -1664,7 +1681,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
-                            Take New Photo
+                            {t('common_take_new_photo')}
                           </button>
                         )}
                       </div>
@@ -1674,9 +1691,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">
-                          2. Primary Guest Signature <span className="text-red-500">*</span>
+                          {t('checkin_signature')} <span className="text-red-500">*</span>
                         </h4>
-                        <button type="button" onClick={clearCanvas} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">Clear</button>
+                        <button type="button" onClick={clearCanvas} className="text-[10px] font-bold text-amber-700 uppercase hover:underline">{t('common_clear')}</button>
                       </div>
                       <canvas 
                         ref={canvasRef} 
@@ -1688,22 +1705,22 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          Digital signature is required
+                          {t('error_signature_required')}
                         </p>
                       )}
-                      <p className="text-xs text-stone-400">Sign with your finger or mouse</p>
+                      <p className="text-xs text-stone-400">{t('checkin_signature_instruction')}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-8 flex justify-between pt-6 border-t border-stone-100 items-center">
-                  <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">← Return to Details</button>
+                  <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">{t('common_back_to_details')}</button>
                   <button 
                     type="submit" 
                     disabled={loading || !hasScrolledToBottom}
                     className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? 'Processing...' : 'Complete Registration'}
+                    {loading ? t('common_processing') : t('checkin_complete_button')}
                   </button>
                 </div>
               </div>
@@ -1716,7 +1733,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       {step !== 4 && (
         <div className="text-center py-6 border-t border-stone-200 mt-8">
           <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
-            <span>Powered by</span>
+            <span>{t('common_powered_by')}</span>
             <img 
               src="/fastcheckin-logo.png" 
               alt="FastCheckin" 
