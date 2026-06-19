@@ -192,23 +192,39 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       setUniqueCities(cities.sort())
       setUniqueCountries(countries.sort())
       
+      // ============================================================
+      // ✅ FIXED: Today's Activity Calculations
+      // ============================================================
+      
       const todayStr = new Date().toISOString().split('T')[0]
       const todayDate = new Date()
       todayDate.setHours(0, 0, 0, 0)
       
+      // Arrivals: checking in today
       const arrivals = validBookings.filter(b => b.check_in_date === todayStr)
+      
+      // Checkouts: checking out today
       const checkouts = validBookings.filter(b => b.check_out_date === todayStr)
       
+      // ✅ FIXED: Stayovers - checked in BEFORE today AND checking out AFTER today
       const stayovers = validBookings.filter(b => {
         if (!b.check_in_date) return false
+        
         const checkInDate = new Date(b.check_in_date)
         checkInDate.setHours(0, 0, 0, 0)
-        if (checkInDate.getTime() === todayDate.getTime()) return false
-        if (checkInDate > todayDate) return false
+        
+        // Must have checked in BEFORE today (not today, not future)
+        if (checkInDate.getTime() >= todayDate.getTime()) return false
+        
+        // If no check-out date, they're still staying (ongoing stay)
         if (!b.check_out_date) return true
+        
         const checkOutDate = new Date(b.check_out_date)
         checkOutDate.setHours(0, 0, 0, 0)
-        return checkOutDate >= todayDate
+        
+        // Must check out AFTER today (strictly greater than today)
+        // If check-out date is today, they are NOT a stayover (they're in checkouts)
+        return checkOutDate > todayDate
       })
       
       setTodayArrivals(arrivals)
@@ -216,6 +232,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       setTodayCheckouts(checkouts)
       
       console.log(`📦 Loaded ${validBookings.length} bookings`)
+      console.log(`📊 Today: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`)
       
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMountedRef.current) {
