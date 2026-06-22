@@ -8,6 +8,9 @@ import nlTranslations from './translations/nl.json';
 import ptTranslations from './translations/pt.json';
 import esTranslations from './translations/es.json';
 import ruTranslations from './translations/ru.json';
+import zhTranslations from './translations/zh.json';
+import arTranslations from './translations/ar.json';
+import heTranslations from './translations/he.json';
 
 // All translations
 const translationMap: Record<SupportedLanguage, Translation> = {
@@ -18,7 +21,10 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   nl: nlTranslations as Translation,
   pt: ptTranslations as Translation,
   es: esTranslations as Translation,
-  ru: ruTranslations as Translation
+  ru: ruTranslations as Translation,
+  zh: zhTranslations as Translation,
+  ar: arTranslations as Translation,
+  he: heTranslations as Translation
 };
 
 // Language options for selector
@@ -31,6 +37,9 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' }
+   { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' }
 ];
 
 // Storage key for user preference
@@ -52,6 +61,9 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
   if (browserLang === 'pt') return 'pt';
   if (browserLang === 'es') return 'es';
   if (browserLang === 'ru') return 'ru';
+  if (browserLang === 'zh') return 'zh';
+  if (browserLang === 'ar') return 'ar';
+  if (browserLang === 'he') return 'he';
   
   return 'en';
 };
@@ -197,7 +209,7 @@ export const getAvailableLanguages = (): LanguageOption[] => {
 
 // Get supported language codes
 export const getSupportedLanguageCodes = (): SupportedLanguage[] => {
-  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru'];
+  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he'];
 };
 
 // Check if a language code is supported
