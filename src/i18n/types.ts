@@ -1,5 +1,5 @@
 // src/i18n/types.ts
-export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru';
+export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru' | 'zh' | 'ar' | 'he';
 
 export interface LanguageOption {
   code: SupportedLanguage;
