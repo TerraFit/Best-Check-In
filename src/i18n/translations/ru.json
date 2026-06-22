@@ -1,4 +1,3 @@
-// src/i18n/translations/ru.json
 {
   "common_welcome": "Добро пожаловать",
   "common_loading": "Загрузка...",
@@ -10,7 +9,6 @@
   "common_next": "Далее",
   "common_continue": "Продолжить",
   "common_complete": "Завершить",
-  
   "checkin_title": "Обязательная регистрация",
   "checkin_personal_details": "Личный регистр",
   "checkin_first_name": "Имя",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Завершить регистрацию",
   "checkin_success_message": "Регистрация завершена! 🎉",
   "checkin_confirmation_sent": "Письмо с подтверждением отправлено на {email}",
-  
   "error_required": "{field} обязательно для заполнения",
   "error_invalid_email": "Пожалуйста, введите действительный адрес электронной почты",
   "error_passwords_mismatch": "Пароли не совпадают",
@@ -40,7 +37,6 @@
   "error_photo_required": "Требуется фотография удостоверения личности",
   "error_signature_required": "Требуется электронная подпись",
   "error_indemnity_required": "Пожалуйста, примите условия отказа от ответственности",
-  
   "indemnity_warning": "⚠️ ПРЕДУПРЕЖДЕНИЕ: Это юридически обязывающий документ, который ограничивает ваши законные права.",
   "indemnity_title": "Подтверждение осознания риска, отказ от претензий и соглашение о возмещении ущерба",
   "indemnity_accept": "Настоящим подтверждаю, что прочитал(а) и принял(а) условия и положения и отказ от ответственности, указанные выше.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "ЧАСТЬ E: ЗАЯВЛЕНИЕ И ПОДПИСЬ",
   "indemnity_scroll_to_accept": "↓ Прокрутите до конца документа, чтобы принять условия ↓",
   "indemnity_scroll_bottom": "— Конец документа —",
-  
   "success_checkin_complete": "Регистрация завершена! 🎉",
   "success_welcome": "Добро пожаловать в {businessName}",
   "success_email_sent": "Письмо с подтверждением отправлено на {email}",
   "success_next_steps": "Что дальше?",
   "success_key_collection": "Пожалуйста, подойдите к стойке регистрации, чтобы получить ключи",
   "success_new_guest_button": "Зарегистрировать другого гостя",
-  
   "language_selector_title": "Язык",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
