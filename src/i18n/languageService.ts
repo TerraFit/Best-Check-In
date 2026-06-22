@@ -8,7 +8,6 @@ import nlTranslations from './translations/nl.json';
 import ptTranslations from './translations/pt.json';
 import esTranslations from './translations/es.json';
 import ruTranslations from './translations/ru.json';
-// ✅ Add these imports
 import zhTranslations from './translations/zh.json';
 import arTranslations from './translations/ar.json';
 import heTranslations from './translations/he.json';
@@ -24,7 +23,6 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   pt: ptTranslations as Translation,
   es: esTranslations as Translation,
   ru: ruTranslations as Translation,
-  // ✅ Add these
   zh: zhTranslations as Translation,
   ar: arTranslations as Translation,
   he: heTranslations as Translation,
@@ -41,10 +39,9 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
-  // ✅ Add these - with proper commas!
   { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
-  { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' }
+  { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
   { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' }
 ];
 
@@ -67,7 +64,6 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
   if (browserLang === 'pt') return 'pt';
   if (browserLang === 'es') return 'es';
   if (browserLang === 'ru') return 'ru';
-  // ✅ Add these
   if (browserLang === 'zh') return 'zh';
   if (browserLang === 'ar') return 'ar';
   if (browserLang === 'he') return 'he';
