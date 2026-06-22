@@ -1,4 +1,3 @@
-// src/i18n/translations/es.json
 {
   "common_welcome": "Bienvenido",
   "common_loading": "Cargando...",
@@ -10,7 +9,6 @@
   "common_next": "Siguiente",
   "common_continue": "Continuar",
   "common_complete": "Completar",
-  
   "checkin_title": "Registro Estatutario",
   "checkin_personal_details": "Registro Personal",
   "checkin_first_name": "Nombre",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Completar Registro",
   "checkin_success_message": "¡Check-in Completado! 🎉",
   "checkin_confirmation_sent": "Se ha enviado un correo de confirmación a {email}",
-  
   "error_required": "{field} es obligatorio",
   "error_invalid_email": "Por favor, introduzca una dirección de correo válida",
   "error_passwords_mismatch": "Las contraseñas no coinciden",
@@ -40,7 +37,6 @@
   "error_photo_required": "Se requiere la foto del documento de identidad",
   "error_signature_required": "Se requiere la firma digital",
   "error_indemnity_required": "Por favor, acepte los términos de exención de responsabilidad",
-  
   "indemnity_warning": "⚠️ ADVERTENCIA: Este es un documento legalmente vinculante que limita sus derechos legales.",
   "indemnity_title": "Reconocimiento de Riesgo Inherente, Renuncia de Reclamaciones y Acuerdo de Indemnización",
   "indemnity_accept": "Por la presente certifico que he leído y aceptado los Términos y Condiciones y la Exención de Responsabilidad que se muestran arriba.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "PARTE E: DECLARACIÓN Y FIRMA",
   "indemnity_scroll_to_accept": "↓ Desplácese hasta el final del documento para activar la aceptación ↓",
   "indemnity_scroll_bottom": "— Fin del Documento —",
-  
   "success_checkin_complete": "¡Check-in Completado! 🎉",
   "success_welcome": "Bienvenido a {businessName}",
   "success_email_sent": "Se ha enviado un correo de confirmación a {email}",
   "success_next_steps": "¿Qué sigue?",
   "success_key_collection": "Por favor, diríjase a recepción para recoger sus llaves",
   "success_new_guest_button": "Registrar otro huésped",
-  
   "language_selector_title": "Idioma",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
