@@ -1,5 +1,5 @@
 // src/i18n/types.ts
-export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru' | 'zh' | 'ar' | 'he';
+export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru' | 'zh' | 'ar' | 'he' | 'it';
 
 export interface LanguageOption {
   code: SupportedLanguage;
@@ -142,6 +142,7 @@ export interface TranslationKeys {
   language_chinese: string;
   language_arabic: string;
   language_hebrew: string;
+  language_italian: string;
   language_detected_message: string;
   language_switch_confirm: string;
   language_stay: string;
