@@ -1,4 +1,3 @@
-// src/i18n/translations/pt.json
 {
   "common_welcome": "Bem-vindo",
   "common_loading": "Carregando...",
@@ -10,7 +9,6 @@
   "common_next": "Próximo",
   "common_continue": "Continuar",
   "common_complete": "Concluir",
-  
   "checkin_title": "Registo Estatutário",
   "checkin_personal_details": "Registo Pessoal",
   "checkin_first_name": "Primeiro Nome",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Concluir Registo",
   "checkin_success_message": "Check-in Concluído! 🎉",
   "checkin_confirmation_sent": "Um e-mail de confirmação foi enviado para {email}",
-  
   "error_required": "{field} é obrigatório",
   "error_invalid_email": "Por favor, insira um endereço de e-mail válido",
   "error_passwords_mismatch": "As palavras-passe não coincidem",
@@ -40,7 +37,6 @@
   "error_photo_required": "A foto do documento é obrigatória",
   "error_signature_required": "A assinatura digital é obrigatória",
   "error_indemnity_required": "Por favor, aceite os termos de responsabilidade",
-  
   "indemnity_warning": "⚠️ AVISO: Este é um documento juridicamente vinculativo que limita os seus direitos legais.",
   "indemnity_title": "Reconhecimento de Risco Inerente, Renúncia de Reclamações e Acordo de Indemnização",
   "indemnity_accept": "Certifico que li e aceitei os Termos e Condições e a Cláusula de Responsabilidade acima.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "PARTE E: DECLARAÇÃO E ASSINATURA",
   "indemnity_scroll_to_accept": "↓ Role até o final do documento para ativar a aceitação ↓",
   "indemnity_scroll_bottom": "— Fim do Documento —",
-  
   "success_checkin_complete": "Check-in Concluído! 🎉",
   "success_welcome": "Bem-vindo ao {businessName}",
   "success_email_sent": "Um e-mail de confirmação foi enviado para {email}",
   "success_next_steps": "Próximos passos?",
   "success_key_collection": "Por favor, dirija-se à receção para recolher as suas chaves",
   "success_new_guest_button": "Registar outro hóspede",
-  
   "language_selector_title": "Idioma",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
