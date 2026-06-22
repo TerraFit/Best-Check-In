@@ -12,6 +12,7 @@ import ruTranslations from './translations/ru.json';
 import zhTranslations from './translations/zh.json';
 import arTranslations from './translations/ar.json';
 import heTranslations from './translations/he.json';
+import itTranslations from './translations/it.json';
 
 // All translations
 const translationMap: Record<SupportedLanguage, Translation> = {
@@ -26,7 +27,8 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   // ✅ Add these
   zh: zhTranslations as Translation,
   ar: arTranslations as Translation,
-  he: heTranslations as Translation
+  he: heTranslations as Translation,
+  it: itTranslations as Translation
 };
 
 // Language options for selector
@@ -43,6 +45,7 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
   { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' }
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' }
 ];
 
 // Storage key for user preference
@@ -68,6 +71,7 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
   if (browserLang === 'zh') return 'zh';
   if (browserLang === 'ar') return 'ar';
   if (browserLang === 'he') return 'he';
+  if (browserLang === 'it') return 'it';
   
   return 'en';
 };
@@ -76,7 +80,7 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
 export const loadSavedLanguage = (): SupportedLanguage => {
   try {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    const validLanguages: SupportedLanguage[] = ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he'];
+    const validLanguages: SupportedLanguage[] = ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he', 'it'];
     if (saved && validLanguages.includes(saved as SupportedLanguage)) {
       return saved as SupportedLanguage;
     }
@@ -213,7 +217,7 @@ export const getAvailableLanguages = (): LanguageOption[] => {
 
 // Get supported language codes
 export const getSupportedLanguageCodes = (): SupportedLanguage[] => {
-  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he'];
+  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he', 'it'];
 };
 
 // Check if a language code is supported
