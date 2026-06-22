@@ -1,4 +1,3 @@
-// src/i18n/translations/af.json
 {
   "common_welcome": "Welkom",
   "common_loading": "Laai...",
@@ -19,7 +18,6 @@
   "common_take_new_photo": "Neem Nuwe Foto",
   "common_powered_by": "Aangedryf deur",
   "common_clear": "Vee Uit",
-  
   "checkin_title": "Statutêre Registrasie",
   "checkin_personal_details": "Persoonlike Register",
   "checkin_first_name": "Voornaam",
@@ -41,7 +39,6 @@
   "checkin_complete_button": "Voltooi Registrasie",
   "checkin_success_message": "Inboek Voltooi! 🎉",
   "checkin_confirmation_sent": "'n Bevestigingse-pos is gestuur na {email}",
-  
   "checkin_email_label": "Bevestig jou E-pos *",
   "checkin_save_details": "Stoor my besonderhede vir volgende keer",
   "checkin_save_details_sub": "Jou inligting sal veilig gestoor word vir vinniger inboek",
@@ -62,7 +59,6 @@
   "checkin_signature_instruction": "Teken met jou vinger of muis",
   "checkin_adults": "Volwassenes (Deel)",
   "checkin_children": "Kinders (Onder 16 wat met volwassenes deel)",
-  
   "error_required": "{field} word vereis",
   "error_invalid_email": "Voer asseblief 'n geldige e-posadres in",
   "error_passwords_mismatch": "Wagwoorde stem nie ooreen nie",
@@ -70,7 +66,6 @@
   "error_photo_required": "ID foto word vereis",
   "error_signature_required": "Digitale handtekening word vereis",
   "error_indemnity_required": "Aanvaar asseblief die vrywaringsvoorwaardes",
-  
   "error_complete_fields": "Voltooi asseblief alle vereiste velde:",
   "error_all_required": "Alle velde met asterisk is vereis",
   "error_first_name_required": "Voornaam word vereis",
@@ -92,9 +87,7 @@
   "error_booking_failed": "Kon nie bespreking stoor nie. Probeer asseblief weer.",
   "error_unexpected": "'n Onverwagte fout het voorgekom. Probeer asseblief weer.",
   "error_email_failed": "Kon nie bevestigingse-pos stuur nie, maar inboek is voltooi.",
-  
   "warning_duplicate_booking": "Let wel: Hierdie gas het reeds vandag ingeboek. Hulle rekord is opgedateer.",
-  
   "indemnity_warning": "⚠️ WAARSKUWING: Dit is 'n wetlik bindende dokument wat jou regte beperk.",
   "indemnity_title": "Gast Erkenning van Inherente Risiko, Vrywaring van Eise, en Skadeloosstelling Ooreenkoms",
   "indemnity_accept": "Hiermee sertifiseer ek dat ek die bepalings en voorwaardes hierbo gelees en aanvaar het.",
@@ -105,7 +98,6 @@
   "indemnity_part_e": "DEEL E: VERKLARING EN HANDTEKENING",
   "indemnity_scroll_to_accept": "↓ Rol na onder van dokument om aanvaarding te aktiveer ↓",
   "indemnity_scroll_bottom": "— Einde van Dokument —",
-  
   "success_checkin_complete": "Inboek Voltooi! 🎉",
   "success_welcome": "Welkom by {businessName}",
   "success_email_sent": "'n Bevestigingse-pos is gestuur na {email}",
@@ -115,7 +107,6 @@
   "success_step_checkin_recorded": "Jou inboek is aangeteken",
   "success_step_email_sent": "'n Bevestigingse-pos is gestuur",
   "success_step_keys": "Gaan asseblief na ontvangs om jou sleutels te kry",
-  
   "language_selector_title": "Taal",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
