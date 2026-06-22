@@ -1,4 +1,3 @@
-// src/i18n/translations/nl.json
 {
   "common_welcome": "Welkom",
   "common_loading": "Laden...",
@@ -10,7 +9,6 @@
   "common_next": "Volgende",
   "common_continue": "Doorgaan",
   "common_complete": "Voltooien",
-  
   "checkin_title": "Wettelijke Registratie",
   "checkin_personal_details": "Persoonlijk Register",
   "checkin_first_name": "Voornaam",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Registratie Voltooien",
   "checkin_success_message": "Check-in Voltooid! 🎉",
   "checkin_confirmation_sent": "Een bevestigingsmail is verzonden naar {email}",
-  
   "error_required": "{field} is vereist",
   "error_invalid_email": "Voer een geldig e-mailadres in",
   "error_passwords_mismatch": "Wachtwoorden komen niet overeen",
@@ -40,7 +37,6 @@
   "error_photo_required": "ID-foto is vereist",
   "error_signature_required": "Digitale handtekening is vereist",
   "error_indemnity_required": "Accepteer de vrijwaringsvoorwaarden",
-  
   "indemnity_warning": "⚠️ WAARSCHUWING: Dit is een juridisch bindend document dat uw rechten beperkt.",
   "indemnity_title": "Erkenning van Inherent Risico, Vrijwaring van Claims en Schadeloosstellingsovereenkomst",
   "indemnity_accept": "Hierbij verklaar ik dat ik de bovenstaande algemene voorwaarden en vrijwaring heb gelezen en geaccepteerd.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "DEEL E: VERKLARING EN HANDTEKENING",
   "indemnity_scroll_to_accept": "↓ Scroll naar beneden om acceptatie in te schakelen ↓",
   "indemnity_scroll_bottom": "— Einde van Document —",
-  
   "success_checkin_complete": "Check-in Voltooid! 🎉",
   "success_welcome": "Welkom bij {businessName}",
   "success_email_sent": "Een bevestigingsmail is verzonden naar {email}",
   "success_next_steps": "Wat nu?",
   "success_key_collection": "Ga naar de receptie om uw sleutels op te halen",
   "success_new_guest_button": "Nieuwe gast inchecken",
-  
   "language_selector_title": "Taal",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
