@@ -1,4 +1,3 @@
-// src/i18n/translations/fr.json
 {
   "common_welcome": "Bienvenue",
   "common_loading": "Chargement...",
@@ -10,7 +9,6 @@
   "common_next": "Suivant",
   "common_continue": "Continuer",
   "common_complete": "Terminer",
-  
   "checkin_title": "Enregistrement Statutaire",
   "checkin_personal_details": "Registre Personnel",
   "checkin_first_name": "Prénom",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Terminer l'Enregistrement",
   "checkin_success_message": "Enregistrement Terminé ! 🎉",
   "checkin_confirmation_sent": "Un e-mail de confirmation a été envoyé à {email}",
-  
   "error_required": "{field} est requis",
   "error_invalid_email": "Veuillez saisir une adresse e-mail valide",
   "error_passwords_mismatch": "Les mots de passe ne correspondent pas",
@@ -40,7 +37,6 @@
   "error_photo_required": "La photo de la pièce d'identité est requise",
   "error_signature_required": "La signature numérique est requise",
   "error_indemnity_required": "Veuillez accepter les conditions de non-responsabilité",
-  
   "indemnity_warning": "⚠️ AVERTISSEMENT : Ceci est un document juridiquement contraignant qui limite vos droits légaux.",
   "indemnity_title": "Reconnaissance des Risques Inhérents, Renonciation aux Réclamations et Accord d'Indemnisation",
   "indemnity_accept": "Je certifie avoir lu et accepté les termes et conditions ainsi que la clause de non-responsabilité ci-dessus.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "PARTIE E : DÉCLARATION ET SIGNATURE",
   "indemnity_scroll_to_accept": "↓ Faites défiler jusqu'au bas du document pour activer l'acceptation ↓",
   "indemnity_scroll_bottom": "— Fin du Document —",
-  
   "success_checkin_complete": "Enregistrement Terminé ! 🎉",
   "success_welcome": "Bienvenue chez {businessName}",
   "success_email_sent": "Un e-mail de confirmation a été envoyé à {email}",
   "success_next_steps": "Prochaines étapes ?",
   "success_key_collection": "Veuillez vous rendre à la réception pour récupérer vos clés",
   "success_new_guest_button": "Enregistrer un autre client",
-  
   "language_selector_title": "Langue",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
