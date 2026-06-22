@@ -45,6 +45,7 @@ interface TouchedFields {
   arrivalDate: boolean;
   nights: boolean;
   referral: boolean;
+  arrivingFrom: boolean;      // ✅ NEW
   nextDestination: boolean;
   settlement: boolean;
   idPhoto: boolean;
@@ -53,7 +54,6 @@ interface TouchedFields {
 }
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
-  // ✅ ADDED: Translation hook
   const { t, language } = useTranslation();
   
   console.log('✅ FASTCHECKIN FORM V10.0 - WITH PROPER ERROR HANDLING');
@@ -88,6 +88,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     arrivalDate: false,
     nights: false,
     referral: false,
+    arrivingFrom: false,        // ✅ NEW
     nextDestination: false,
     settlement: false,
     idPhoto: false,
@@ -107,6 +108,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     country: '',
     city: '',
     province: '',
+    arrivingFrom: '',           // ✅ NEW
     nextDestination: '',
     settlement: '',
     arrivalDate: new Date().toISOString().split('T')[0],
@@ -166,6 +168,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     if (!formData.country) errors.push(t('checkin_country'));
     if (!formData.province) errors.push(regionTypeLabel);
     if (!formData.city.trim()) errors.push(t('checkin_city'));
+    if (!formData.arrivingFrom.trim()) errors.push('Arriving From');    // ✅ NEW
     if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
     if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
     if (!formData.referral) errors.push(t('checkin_referral'));
@@ -213,6 +216,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         case 'country': return !!formData.country;
         case 'province': return !!formData.province;
         case 'city': return !!formData.city.trim();
+        case 'arrivingFrom': return !!formData.arrivingFrom.trim();    // ✅ NEW
         case 'arrivalDate': return !!formData.arrivalDate;
         case 'nights': return formData.nights >= 1;
         case 'referral': return !!formData.referral;
@@ -711,7 +715,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         const allFields: (keyof TouchedFields)[] = [
           'firstName', 'lastName', 'passportOrId', 'phone', 'country', 
           'province', 'city', 'arrivalDate', 'nights', 'referral', 
-          'nextDestination', 'settlement'
+          'arrivingFrom', 'nextDestination', 'settlement'
         ];
         allFields.forEach(field => markTouched(field));
         
@@ -789,6 +793,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           guest_province: formData.province,
           guest_city: formData.city,
           guest_country: formData.country,
+          arriving_from: formData.arrivingFrom,               // ✅ NEW
+          next_destination: formData.nextDestination,
           booking_source: formData.referral,
           referral_source: formData.referral,
           marketing_consent: formData.popiaConsent,
@@ -834,6 +840,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           city: formData.city,
           province: formData.province,
           passportOrId: formData.passportOrId,
+          arrivingFrom: formData.arrivingFrom,              // ✅ NEW
           nextDestination: formData.nextDestination,
           checkInDate: formattedCheckInDate,
           checkOutDate: formattedCheckOutDate,
@@ -1068,6 +1075,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   country: '',
                   city: '',
                   province: '',
+                  arrivingFrom: '',           // ✅ NEW
                   nextDestination: '',
                   settlement: '',
                   arrivalDate: new Date().toISOString().split('T')[0],
@@ -1365,6 +1373,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="city" message={t('error_city_required')} />
                   </div>
 
+                  {/* ✅ NEW: Arriving From - Where the guest traveled from */}
+                  <div className="space-y-1 group col-span-full">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+                      Arriving From <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="e.g., Johannesburg, Cape Town, Gaborone..."
+                      className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('arrivingFrom', !!formData.arrivingFrom.trim())}`}
+                      value={formData.arrivingFrom} 
+                      onFocus={() => markTouched('arrivingFrom')}
+                      onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
+                    />
+                    <p className="text-xs text-stone-400">Where did you travel from to reach us?</p>
+                    <ErrorMessage field="arrivingFrom" message="Arriving from location is required" />
+                  </div>
+
                   {/* Stay Details */}
                   <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
                     <div className="space-y-1">
@@ -1428,7 +1454,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="referral" message={t('error_referral_required')} />
                   </div>
 
-                  {/* Next Destination */}
+                  {/* Next Destination - Existing field */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       {t('checkin_next_destination')} <span className="text-red-500">*</span>
