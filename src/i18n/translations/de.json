@@ -1,4 +1,3 @@
-// src/i18n/translations/de.json
 {
   "common_welcome": "Willkommen",
   "common_loading": "Wird geladen...",
@@ -10,7 +9,6 @@
   "common_next": "Weiter",
   "common_continue": "Fortfahren",
   "common_complete": "Abschließen",
-  
   "checkin_title": "Gesetzliche Registrierung",
   "checkin_personal_details": "Persönliches Register",
   "checkin_first_name": "Vorname",
@@ -32,7 +30,6 @@
   "checkin_complete_button": "Registrierung abschließen",
   "checkin_success_message": "Check-in abgeschlossen! 🎉",
   "checkin_confirmation_sent": "Eine Bestätigungs-E-Mail wurde an {email} gesendet",
-  
   "error_required": "{field} ist erforderlich",
   "error_invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
   "error_passwords_mismatch": "Passwörter stimmen nicht überein",
@@ -40,7 +37,6 @@
   "error_photo_required": "Ausweisfoto ist erforderlich",
   "error_signature_required": "Digitale Unterschrift ist erforderlich",
   "error_indemnity_required": "Bitte akzeptieren Sie die Haftungsbedingungen",
-  
   "indemnity_warning": "⚠️ WARNUNG: Dies ist ein rechtlich bindendes Dokument, das Ihre Rechte einschränkt.",
   "indemnity_title": "Gastanerkennung von Eigenrisiken, Haftungsverzicht und Freistellungsvereinbarung",
   "indemnity_accept": "Hiermit bestätige ich, dass ich die oben angezeigten Geschäftsbedingungen gelesen und akzeptiert habe.",
@@ -51,14 +47,12 @@
   "indemnity_part_e": "TEIL E: ERKLÄRUNG UND UNTERSCHRIFT",
   "indemnity_scroll_to_accept": "↓ Scrollen Sie zum Ende des Dokuments, um die Zustimmung zu aktivieren ↓",
   "indemnity_scroll_bottom": "— Ende des Dokuments —",
-  
   "success_checkin_complete": "Check-in abgeschlossen! 🎉",
   "success_welcome": "Willkommen bei {businessName}",
   "success_email_sent": "Eine Bestätigungs-E-Mail wurde an {email} gesendet",
   "success_next_steps": "Was kommt als Nächstes?",
   "success_key_collection": "Bitte begeben Sie sich zur Rezeption, um Ihre Schlüssel abzuholen",
   "success_new_guest_button": "Weiteren Gast einchecken",
-  
   "language_selector_title": "Sprache",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
