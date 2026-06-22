@@ -1,4 +1,3 @@
-// src/i18n/translations/en.json
 {
   "common_welcome": "Welcome",
   "common_loading": "Loading...",
@@ -19,7 +18,6 @@
   "common_take_new_photo": "Take New Photo",
   "common_powered_by": "Powered by",
   "common_clear": "Clear",
-  
   "checkin_title": "Statutory Registration",
   "checkin_personal_details": "Personal Registry",
   "checkin_first_name": "First Name",
@@ -41,7 +39,6 @@
   "checkin_complete_button": "Complete Registration",
   "checkin_success_message": "Check-in Complete! 🎉",
   "checkin_confirmation_sent": "A confirmation email has been sent to {email}",
-  
   "checkin_email_label": "Confirm your Email *",
   "checkin_save_details": "Save my details for next time",
   "checkin_save_details_sub": "Your information will be securely stored for faster check-ins",
@@ -62,7 +59,6 @@
   "checkin_signature_instruction": "Sign with your finger or mouse",
   "checkin_adults": "Adults (Sharing)",
   "checkin_children": "Children (Under 16 sharing with adults)",
-  
   "error_required": "{field} is required",
   "error_invalid_email": "Please enter a valid email address",
   "error_passwords_mismatch": "Passwords do not match",
@@ -70,7 +66,6 @@
   "error_photo_required": "ID photo is required",
   "error_signature_required": "Digital signature is required",
   "error_indemnity_required": "Please accept the indemnity terms",
-  
   "error_complete_fields": "Please complete all required fields:",
   "error_all_required": "All fields marked with asterisk are required",
   "error_first_name_required": "First name is required",
@@ -92,9 +87,7 @@
   "error_booking_failed": "Failed to save booking. Please try again.",
   "error_unexpected": "An unexpected error occurred. Please try again.",
   "error_email_failed": "Could not send confirmation email, but check-in is complete.",
-  
   "warning_duplicate_booking": "Note: This guest has already checked in today. Their record has been updated.",
-  
   "indemnity_warning": "⚠️ WARNING: This is a legally binding document that limits your legal rights.",
   "indemnity_title": "Guest Acknowledgement of Inherent Risk, Waiver of Claims, and Indemnity Agreement",
   "indemnity_accept": "I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.",
@@ -105,7 +98,6 @@
   "indemnity_part_e": "PART E: DECLARATION AND SIGNATURE",
   "indemnity_scroll_to_accept": "↓ Scroll to end of document to enable acceptance ↓",
   "indemnity_scroll_bottom": "— End of Document —",
-  
   "success_checkin_complete": "Check-in Complete! 🎉",
   "success_welcome": "Welcome to {businessName}",
   "success_email_sent": "A confirmation email has been sent to {email}",
@@ -115,7 +107,6 @@
   "success_step_checkin_recorded": "Your check-in has been recorded",
   "success_step_email_sent": "A confirmation email has been sent",
   "success_step_keys": "Please proceed to reception to collect your keys",
-  
   "language_selector_title": "Language",
   "language_english": "English",
   "language_afrikaans": "Afrikaans",
