@@ -8,6 +8,7 @@ import nlTranslations from './translations/nl.json';
 import ptTranslations from './translations/pt.json';
 import esTranslations from './translations/es.json';
 import ruTranslations from './translations/ru.json';
+// ✅ Add these imports
 import zhTranslations from './translations/zh.json';
 import arTranslations from './translations/ar.json';
 import heTranslations from './translations/he.json';
@@ -22,6 +23,7 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   pt: ptTranslations as Translation,
   es: esTranslations as Translation,
   ru: ruTranslations as Translation,
+  // ✅ Add these
   zh: zhTranslations as Translation,
   ar: arTranslations as Translation,
   he: heTranslations as Translation
@@ -36,8 +38,9 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
-  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' }
-   { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  // ✅ Add these - with proper commas!
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
   { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' }
 ];
@@ -61,6 +64,7 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
   if (browserLang === 'pt') return 'pt';
   if (browserLang === 'es') return 'es';
   if (browserLang === 'ru') return 'ru';
+  // ✅ Add these
   if (browserLang === 'zh') return 'zh';
   if (browserLang === 'ar') return 'ar';
   if (browserLang === 'he') return 'he';
@@ -72,7 +76,7 @@ export const detectBrowserLanguage = (): SupportedLanguage => {
 export const loadSavedLanguage = (): SupportedLanguage => {
   try {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    const validLanguages: SupportedLanguage[] = ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru'];
+    const validLanguages: SupportedLanguage[] = ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he'];
     if (saved && validLanguages.includes(saved as SupportedLanguage)) {
       return saved as SupportedLanguage;
     }
@@ -193,7 +197,7 @@ export const getTranslationsForLanguage = (lang: SupportedLanguage): Translation
 
 // Check if a language is RTL
 export const isRTL = (lang: SupportedLanguage): boolean => {
-  const rtlLanguages: SupportedLanguage[] = ['ar', 'he', 'fa', 'ur'];
+  const rtlLanguages: SupportedLanguage[] = ['ar', 'he'];
   return rtlLanguages.includes(lang);
 };
 
