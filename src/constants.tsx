@@ -1,6 +1,6 @@
 // src/constants.tsx
 import { Booking, MonthlyData } from './types';
-import countryData from '../data/countries.json';
+import countryData from './data/countries.json';  // ✅ Fixed path - changed from ../data to ./data
 
 export const COLORS = {
   primary: '#2D3E40', // Deep Forest Green
