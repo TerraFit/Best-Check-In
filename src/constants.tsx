@@ -1,5 +1,6 @@
-
+// src/constants.tsx
 import { Booking, MonthlyData } from './types';
+import countryData from '../data/countries.json';
 
 export const COLORS = {
   primary: '#2D3E40', // Deep Forest Green
@@ -31,24 +32,47 @@ export const SETTLEMENT_METHODS = [
   'Part of a package'
 ];
 
-export const COUNTRIES = [
-  "South Africa",
-  "Germany",
-  "Switzerland",
-  "Netherlands",
-  "United Kingdom",
-  "United States of America",
-  "France",
-  "Belgium",
-  "Austria",
-  "Italy",
-  "Australia",
-  "Canada",
-  "Spain",
-  "China",
-  "Japan",
-  "India"
-];
+/**
+ * COUNTRIES - Dynamically loaded from countries.json
+ * 
+ * This ensures all countries with region data are available in the dropdown.
+ * If countries.json fails to load, falls back to a hardcoded list.
+ */
+export const COUNTRIES: string[] = (() => {
+  try {
+    if (countryData && typeof countryData === 'object') {
+      const countries = Object.keys(countryData).sort();
+      if (countries.length > 0) {
+        return countries;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load countries from countries.json, using fallback list:', error);
+  }
+  
+  // Fallback: Hardcoded list of countries (should match the minimum required)
+  return [
+    "South Africa",
+    "Germany",
+    "Switzerland",
+    "Netherlands",
+    "United Kingdom",
+    "United States of America",
+    "France",
+    "Belgium",
+    "Austria",
+    "Italy",
+    "Australia",
+    "Canada",
+    "Spain",
+    "China",
+    "Japan",
+    "India"
+  ];
+})();
+
+// Export the full country data for other uses (like regions)
+export const COUNTRY_DATA = countryData;
 
 export const SAMPLE_BOOKINGS: Booking[] = [
   {
