@@ -26,6 +26,7 @@
   "checkin_arriving_from_placeholder": "ej., Johannesburgo, Ciudad del Cabo, Gaborone...",
   "checkin_arriving_from_help": "¿Desde dónde viaja para llegar a nosotros?",
   "checkin_next_destination": "Próximo Destino",
+  "checkin_next_destination_placeholder": "ej., Johannesburgo, Ciudad del Cabo, Gaborone...",
   "checkin_settlement": "Método de Pago",
   "checkin_indemnity": "Exención de Responsabilidad",
   "checkin_signature": "Firma Digital",
