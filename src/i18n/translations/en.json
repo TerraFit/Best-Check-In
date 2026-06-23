@@ -35,6 +35,7 @@
   "checkin_arriving_from_placeholder": "e.g., Johannesburg, Cape Town, Gaborone...",
   "checkin_arriving_from_help": "Where did you travel from to reach us?",
   "checkin_next_destination": "Next Destination",
+  "checkin_next_destination_placeholder": "e.g., Kruger National Park, Durban, Namibia...",
   "checkin_settlement": "Method of Settlement",
   "checkin_indemnity": "Indemnity & Waiver",
   "checkin_signature": "Digital Signature",
