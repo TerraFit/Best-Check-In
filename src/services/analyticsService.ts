@@ -532,7 +532,7 @@ export class AnalyticsService {
           const key = `${cityName}|${country}`;
           
           if (!goingMap[key]) {
-            goingMap[key] = { count: 0; originalInputs: [], country };
+            goingMap[key] = { count: 0, originalInputs: [], country };
           }
           goingMap[key].count++;
           if (suggestion?.isCorrection) {
