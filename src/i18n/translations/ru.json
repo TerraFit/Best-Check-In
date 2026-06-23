@@ -26,6 +26,7 @@
   "checkin_arriving_from_placeholder": "напр., Йоханнесбург, Кейптаун, Габороне...",
   "checkin_arriving_from_help": "Откуда вы приехали, чтобы добраться до нас?",
   "checkin_next_destination": "Следующий пункт назначения",
+  "checkin_next_destination_placeholder": "напр., Йоханнесбург, Кейптаун, Габороне...",
   "checkin_settlement": "Способ оплаты",
   "checkin_indemnity": "Отказ от ответственности",
   "checkin_signature": "Электронная подпись",
