@@ -35,6 +35,7 @@
   "checkin_arriving_from_placeholder": "مثال، جوهانسبرغ، كيب تاون، غابورون...",
   "checkin_arriving_from_help": "من أين أتيت للوصول إلينا؟",
   "checkin_next_destination": "الوجهة التالية",
+  "checkin_next_destination_placeholder": "مثال، جوهانسبرغ، كيب تاون، غابورون...",
   "checkin_settlement": "طريقة الدفع",
   "checkin_indemnity": "إخلاء المسؤولية",
   "checkin_signature": "التوقيع الرقمي",
