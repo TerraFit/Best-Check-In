@@ -1,16 +1,20 @@
-// src/pages/BusinessDashboard.tsx - REFACTORED WITH FIXES
-
-import { useMemo, useCallback } from 'react';
+// src/pages/BusinessDashboard.tsx
+import { useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useBusinessData } from '../hooks/useBusinessData';
 import { useFilters } from '../hooks/useFilters';
 import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../components/dashboard';
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
+import { SubscriptionTier } from '../types/analytics';
 
 export default function BusinessDashboard() {
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
-  
+
+  // ============================================================
+  // DASHBOARD STATE
+  // ============================================================
+
   const {
     currentPage, setCurrentPage,
     pageSize, setPageSize,
@@ -53,9 +57,13 @@ export default function BusinessDashboard() {
     loadingSubscribers, setLoadingSubscribers,
   } = useDashboardState();
 
+  // ============================================================
+  // FILTERS & DATA
+  // ============================================================
+
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
-  
-  const { 
+
+  const {
     business,
     bookings,
     loading,
@@ -68,89 +76,143 @@ export default function BusinessDashboard() {
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  const displayTotalBookings = apiTotalBookings;
-  const displayTotalPages = apiTotalPages;
+  // Determine subscription tier from business data
+  const subscriptionTier = useMemo((): SubscriptionTier => {
+    const tier = business?.subscription_tier || 'starter';
+    // Map to valid subscription tiers
+    if (['starter', 'growth', 'pro', 'business'].includes(tier)) {
+      return tier as SubscriptionTier;
+    }
+    return 'starter';
+  }, [business]);
+
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
+
+  const displayTotalBookings = apiTotalBookings || localTotalBookingsCount || 0;
+  const displayTotalPages = apiTotalPages || localTotalPages || 1;
 
   const getStatusBadge = useCallback((status: string) => {
     const styles: Record<string, string> = {
       checked_in: 'bg-green-100 text-green-800',
       completed: 'bg-blue-100 text-blue-800',
       confirmed: 'bg-yellow-100 text-yellow-800',
-      cancelled: 'bg-red-100 text-red-800'
+      cancelled: 'bg-red-100 text-red-800',
+      pending: 'bg-gray-100 text-gray-800'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
 
-  // Filtered bookings for CHECK-INS tab only
+  // ============================================================
+  // FILTERED BOOKINGS FOR CHECK-INS TAB
+  // ============================================================
+
   const filteredCheckinsBookings = useMemo(() => {
     if (activeTab !== 'checkins') return bookings;
-    
+
     let filtered = [...bookings];
-    
+
     if (currentFilters.searchTerm) {
       const term = currentFilters.searchTerm.toLowerCase();
-      filtered = filtered.filter(b => 
+      filtered = filtered.filter(b =>
         b.guest_name?.toLowerCase().includes(term) ||
         b.guest_email?.toLowerCase().includes(term) ||
         b.guest_phone?.includes(term)
       );
     }
-    
+
     if (currentFilters.statusFilter) {
       filtered = filtered.filter(b => b.status === currentFilters.statusFilter);
     }
-    
+
     if (currentFilters.provinceFilter) {
       filtered = filtered.filter(b => b.guest_province === currentFilters.provinceFilter);
     }
-    
+
     if (currentFilters.cityFilter) {
       filtered = filtered.filter(b => b.guest_city === currentFilters.cityFilter);
     }
-    
+
     if (currentFilters.countryFilter) {
       filtered = filtered.filter(b => b.guest_country === currentFilters.countryFilter);
     }
-    
+
     return filtered;
   }, [bookings, activeTab, currentFilters]);
 
+  // ============================================================
+  // EXPORT TO CSV
+  // ============================================================
+
   const exportToCSV = useCallback(() => {
     const dataToExport = activeTab === 'reports' ? bookings : filteredCheckinsBookings;
-    const headers = ['Guest Name', 'Email', 'Phone', 'ID Number', 'Country', 'Province', 'City', 'Check-in Date', 'Check-out Date', 'Nights', 'Total Amount', 'Status', 'Referral Source'];
-    const rows = dataToExport.map(b => [
-      `"${b.guest_name || ''}"`,
-      `"${b.guest_email || ''}"`,
-      `"${b.guest_phone || ''}"`,
-      `"${b.guest_id_number || ''}"`,
-      `"${b.guest_country || ''}"`,
-      `"${b.guest_province || ''}"`,
-      `"${b.guest_city || ''}"`,
-      b.check_in_date || '',
-      b.check_out_date || '',
-      b.nights || 1,
-      b.total_amount || 0,
-      b.status || 'pending',
-      `"${(b.booking_source || b.referral_source || '').replace(/\.$/, '').trim()}"`
-    ]);
-    
+
+    if (dataToExport.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    // Build headers dynamically based on available fields
+    const firstRow = dataToExport[0] || {};
+    const headers = [
+      'Guest Name', 'Email', 'Phone', 'ID Number', 'Country',
+      'Province', 'City', 'Check-in Date', 'Check-out Date',
+      'Nights', 'Total Amount', 'Status', 'Referral Source',
+      // Include travel pattern fields if available
+      ...(firstRow.arriving_from ? ['Arriving From'] : []),
+      ...(firstRow.next_destination ? ['Next Destination'] : [])
+    ];
+
+    const rows = dataToExport.map(b => {
+      const baseRow = [
+        `"${b.guest_name || ''}"`,
+        `"${b.guest_email || ''}"`,
+        `"${b.guest_phone || ''}"`,
+        `"${b.guest_id_number || ''}"`,
+        `"${b.guest_country || ''}"`,
+        `"${b.guest_province || ''}"`,
+        `"${b.guest_city || ''}"`,
+        b.check_in_date || '',
+        b.check_out_date || '',
+        b.nights || 1,
+        b.total_amount || 0,
+        b.status || 'pending',
+        `"${(b.booking_source || b.referral_source || '').replace(/\.$/, '').trim()}"`
+      ];
+
+      // Add travel fields if they exist
+      if (b.arriving_from) baseRow.push(`"${b.arriving_from}"`);
+      if (b.next_destination) baseRow.push(`"${b.next_destination}"`);
+
+      return baseRow;
+    });
+
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${business?.trading_name || 'bookings'}_export_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business]);
+  }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business, activeTab]);
 
-  // Update functions (keep your existing implementations)
-  const updateEmail = async () => { /* ... */ };
-  const updatePhone = async () => { /* ... */ };
-  const saveBusinessProfile = async () => { /* ... */ };
-  const saveNewsletterSettings = async () => { /* ... */ };
-  const submitChangeRequest = async () => { /* ... */ };
-  const openRequestModal = (field: string, currentValue: string) => { /* ... */ };
+  // ============================================================
+  // BUSINESS PROFILE UPDATE FUNCTIONS
+  // ============================================================
+
+  const saveBusinessProfile = useCallback(async () => {
+    // Implementation
+  }, []);
+
+  const saveNewsletterSettings = useCallback(async () => {
+    // Implementation
+  }, []);
+
+  // ============================================================
+  // TABS CONFIGURATION
+  // ============================================================
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -158,6 +220,10 @@ export default function BusinessDashboard() {
     { id: 'reports', name: 'Reports' },
     { id: 'settings', name: 'Settings' },
   ];
+
+  // ============================================================
+  // LOADING STATE
+  // ============================================================
 
   if (loading) {
     return (
@@ -170,8 +236,13 @@ export default function BusinessDashboard() {
     );
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <Header
         business={business}
         refreshing={refreshing}
@@ -180,8 +251,10 @@ export default function BusinessDashboard() {
         onShowQRModal={() => setShowQRModal(true)}
       />
 
+      {/* Trial Banner */}
       <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
 
+      {/* Navigation */}
       <NavigationTabs
         tabs={tabs}
         activeTab={activeTab}
@@ -191,7 +264,9 @@ export default function BusinessDashboard() {
         }}
       />
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Overview Tab */}
         {activeTab === 'overview' && (
           <OverviewTab
             business={business}
@@ -204,6 +279,7 @@ export default function BusinessDashboard() {
           />
         )}
 
+        {/* Check-ins Tab */}
         {activeTab === 'checkins' && (
           <CheckinsTab
             bookings={bookings}
@@ -226,6 +302,7 @@ export default function BusinessDashboard() {
           />
         )}
 
+        {/* Reports Tab - Premium Analytics */}
         {activeTab === 'reports' && (
           <ReportsTab
             bookings={bookings}
@@ -243,9 +320,11 @@ export default function BusinessDashboard() {
             referralChartType={referralChartType}
             onReferralChartTypeChange={setReferralChartType}
             onExport={exportToCSV}
+            subscriptionTier={subscriptionTier}
           />
         )}
 
+        {/* Settings Tab */}
         {activeTab === 'settings' && (
           <SettingsTab
             business={business}
@@ -272,11 +351,12 @@ export default function BusinessDashboard() {
             onNewsletterDrawDateChange={setNewsletterDrawDate}
             onNewsletterShareTextChange={setNewsletterShareText}
             onSaveNewsletter={saveNewsletterSettings}
-            onRefreshBusiness={refreshData}  // ✅ Add this
+            onRefreshBusiness={refreshData}
           />
         )}
       </main>
 
+      {/* Modals */}
       <DashboardModals
         showQRModal={showQRModal}
         showImportModal={showImportModal}
