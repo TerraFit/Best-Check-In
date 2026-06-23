@@ -67,15 +67,15 @@ export const handler = async (event) => {
 
     // Start with core required fields
     const bookingData = {
-      business_id: body.business_id,
-      guest_name: fullName || guestName,
-      guest_email: body.guest_email ? body.guest_email.toLowerCase().trim() : null,
-      check_in_date: body.check_in_date || new Date().toISOString().split('T')[0],
-      nights: body.nights || 1,
-      status: body.status || 'checked_in',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+  business_id: body.business_id,
+  guest_name: fullName || guestName,
+  guest_email: body.guest_email ? body.guest_email.toLowerCase().trim() : null,
+  check_in_date: body.check_in_date || new Date().toISOString().split('T')[0],
+  nights: body.nights || 1,
+  status: body.status || 'checked_in',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
 
     // Add optional fields
     if (firstName) bookingData.guest_first_name = firstName;
@@ -94,7 +94,6 @@ export const handler = async (event) => {
     if (body.booking_source) bookingData.booking_source = body.booking_source;
     if (body.referral_source) bookingData.referral_source = body.referral_source;
     if (body.marketing_consent !== undefined) bookingData.marketing_consent = body.marketing_consent;
-    
     // ✅ NEW FIELDS for travel pattern analytics
     if (body.arriving_from) bookingData.arriving_from = body.arriving_from;
     if (body.next_destination) bookingData.next_destination = body.next_destination;
