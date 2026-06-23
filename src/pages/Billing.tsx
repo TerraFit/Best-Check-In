@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
-import SubscriptionStatus from '../components/billing/SubscriptionStatus';
+import SubscriptionStatus from '../components/Billing/SubscriptionStatus';
 import { PlanType } from '../types/entitlements';
 
 // ============================================================
