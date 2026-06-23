@@ -30,7 +30,6 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
     
     setSendingEmail(true);
     try {
-      // Call your email function
       const response = await fetch('/.netlify/functions/send-checkin-confirmation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,6 +84,13 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
           <p><span className="text-stone-500">Check-in:</span> {booking?.checkInDate || booking?.check_in_date}</p>
           <p><span className="text-stone-500">Nights:</span> {booking?.nights}</p>
           <p><span className="text-stone-500">Guests:</span> {booking?.adults || booking?.adults} Adult(s), {booking?.kids || booking?.children} Child(ren)</p>
+          {/* ✅ NEW: Travel Pattern Data */}
+          {booking?.arriving_from && (
+            <p><span className="text-stone-500">Arriving From:</span> {booking.arriving_from}</p>
+          )}
+          {booking?.next_destination && (
+            <p><span className="text-stone-500">Next Destination:</span> {booking.next_destination}</p>
+          )}
         </div>
       </div>
 
