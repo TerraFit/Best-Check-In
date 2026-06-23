@@ -28,7 +28,6 @@
     "jsonwebtoken": "^9.0.0",
     "ws": "^8.18.0",
     "@stripe/stripe-js": "^3.5.0",
-    "react-simple-maps": "^3.0.0",
     "d3-scale": "^4.0.2",
     "d3-geo": "^3.1.0"
   },
@@ -44,7 +43,6 @@
     "postcss": "^8.4.32",
     "autoprefixer": "^10.4.16",
     "@netlify/functions": "^2.8.0",
-    "@types/react-simple-maps": "^3.0.0",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-geo": "^3.1.0"
   }
