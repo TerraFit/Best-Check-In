@@ -26,6 +26,7 @@
   "checkin_arriving_from_placeholder": "z.B., Johannesburg, Kapstadt, Gaborone...",
   "checkin_arriving_from_help": "Von wo sind Sie angereist?",
   "checkin_next_destination": "Nächstes Reiseziel",
+  "checkin_next_destination_placeholder": "z.B., Johannesburg, Kapstadt, Gaborone...",
   "checkin_settlement": "Zahlungsmethode",
   "checkin_indemnity": "Haftungsausschluss",
   "checkin_signature": "Digitale Unterschrift",
