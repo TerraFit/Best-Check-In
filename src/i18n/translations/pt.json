@@ -26,6 +26,7 @@
   "checkin_arriving_from_placeholder": "ex., Joanesburgo, Cidade do Cabo, Gaborone...",
   "checkin_arriving_from_help": "De onde viajou para chegar até nós?",
   "checkin_next_destination": "Próximo Destino",
+  "checkin_next_destination_placeholder": "ex., Joanesburgo, Cidade do Cabo, Gaborone...",
   "checkin_settlement": "Método de Pagamento",
   "checkin_indemnity": "Termo de Responsabilidade",
   "checkin_signature": "Assinatura Digital",
