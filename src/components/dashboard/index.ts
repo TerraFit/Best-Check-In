@@ -21,3 +21,5 @@ export { TrialBanner } from './TrialBanner';
 export { VisitorOriginMap } from '../analytics/VisitorOriginMap';
 export { TravelPatternsCard } from '../analytics/TravelPatternsCard';
 export { UpgradePreview } from '../analytics/UpgradePreview';
+export { VisitorOriginMap } from '../analytics/VisitorOriginMap';
+export { TravelPatternsCard } from '../analytics/TravelPatternsCard';
