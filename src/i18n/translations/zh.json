@@ -35,6 +35,7 @@
   "checkin_arriving_from_placeholder": "例如，约翰内斯堡，开普敦，哈博罗内...",
   "checkin_arriving_from_help": "您从哪里来到我们这里？",
   "checkin_next_destination": "下一站目的地",
+  "checkin_next_destination_placeholder": "例如，约翰内斯堡，开普敦，哈博罗内...",
   "checkin_settlement": "支付方式",
   "checkin_indemnity": "免责声明",
   "checkin_signature": "电子签名",
