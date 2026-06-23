@@ -26,6 +26,7 @@
   "checkin_arriving_from_placeholder": "ex., Johannesburg, Le Cap, Gaborone...",
   "checkin_arriving_from_help": "D'où voyagez-vous pour nous rejoindre ?",
   "checkin_next_destination": "Prochaine Destination",
+  "checkin_next_destination_placeholder": "ex., Johannesburg, Le Cap, Gaborone...",
   "checkin_settlement": "Mode de Paiement",
   "checkin_indemnity": "Clause de Non-responsabilité",
   "checkin_signature": "Signature Numérique",
