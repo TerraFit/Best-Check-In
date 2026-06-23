@@ -18,3 +18,6 @@ export { SettingsTab } from './SettingsTab';
 export { SettingsView } from './SettingsView';
 export { TodayActivityCards } from './TodayActivityCards';
 export { TrialBanner } from './TrialBanner';
+export { VisitorOriginMap } from '../analytics/VisitorOriginMap';
+export { TravelPatternsCard } from '../analytics/TravelPatternsCard';
+export { UpgradePreview } from '../analytics/UpgradePreview';
