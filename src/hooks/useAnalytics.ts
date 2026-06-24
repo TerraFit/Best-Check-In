@@ -12,9 +12,36 @@ export function useAnalytics(bookings: any[], subscriptionTier: string = 'starte
   const [drillLevel, setDrillLevel] = useState<DrillLevel>('world');
   const [drillPath, setDrillPath] = useState<string[]>([]);
 
-  // Get subscription limits
+  // ✅ FIX: Map subscription tier to valid plan names
+  const getValidTier = (tier: string): 'starter' | 'growth' | 'pro' | 'business' => {
+    // If tier is already a valid plan name, use it
+    const validPlans = ['starter', 'growth', 'pro', 'business'];
+    const normalizedTier = tier?.toLowerCase() || 'starter';
+    
+    if (validPlans.includes(normalizedTier)) {
+      return normalizedTier as 'starter' | 'growth' | 'pro' | 'business';
+    }
+    
+    // Map billing cycles to plans (temporary - business should set plan separately)
+    const tierMap: Record<string, 'starter' | 'growth' | 'pro' | 'business'> = {
+      'monthly': 'starter',
+      'annual': 'starter',
+      'trial': 'starter',
+      'complimentary': 'starter',
+      'free': 'starter',
+      'standard': 'starter',
+      'premium': 'growth',
+    };
+    
+    return tierMap[normalizedTier] || 'starter';
+  };
+
+  // Get subscription limits with proper tier mapping
   const limits = useMemo(() => {
-    return SUBSCRIPTION_LIMITS[subscriptionTier as keyof typeof SUBSCRIPTION_LIMITS] || SUBSCRIPTION_LIMITS.starter;
+    const validTier = getValidTier(subscriptionTier);
+    console.log('📊 useAnalytics - subscriptionTier:', subscriptionTier, '→ mapped to:', validTier);
+    
+    return SUBSCRIPTION_LIMITS[validTier] || SUBSCRIPTION_LIMITS.starter;
   }, [subscriptionTier]);
 
   // Filter bookings by date range
@@ -85,6 +112,13 @@ export function useAnalytics(bookings: any[], subscriptionTier: string = 'starte
     return messages[feature] || 'Upgrade to unlock this feature';
   }, []);
 
+  // ✅ FIX: Include the actual tier in limits for display
+  const limitsWithTier = useMemo(() => ({
+    ...limits,
+    subscriptionTier: getValidTier(subscriptionTier),
+    rawSubscriptionTier: subscriptionTier, // Keep original for debugging
+  }), [limits, subscriptionTier]);
+
   return {
     analyticsData,
     filters,
@@ -93,7 +127,7 @@ export function useAnalytics(bookings: any[], subscriptionTier: string = 'starte
     setDrillLevel,
     drillPath,
     setDrillPath,
-    limits,
+    limits: limitsWithTier, // ← Return enhanced limits
     canDrillDeeper,
     getUpgradeMessage,
     isLoading: filteredBookings.length === 0
