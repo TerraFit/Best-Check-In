@@ -5,6 +5,7 @@ import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCar
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
 import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
+import { UpgradePreview } from '../../components/analytics/UpgradePreview';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
 
@@ -45,8 +46,6 @@ export function ReportsTab(props: ReportsTabProps) {
   // Handle drill down
   const handleDrillDown = (item: any) => {
     if (item.children && canDrillDeeper('continent')) {
-      // If drilling to continent, we'd need to fetch continent data
-      // For now, just update the drill level
       setDrillLevel('continent');
       setDrillPath([...drillPath, item.name]);
     }
@@ -63,7 +62,7 @@ export function ReportsTab(props: ReportsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards - Compact row */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Guests</p>
@@ -91,7 +90,7 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Interactive World Map - HERO SECTION */}
+      {/* 🌍 Interactive World Map - SINGLE RENDER */}
       <VisitorOriginMap
         data={analyticsData.originData}
         drillLevel={drillLevel}
@@ -103,9 +102,8 @@ export function ReportsTab(props: ReportsTabProps) {
         isLoading={isLoading}
       />
 
-      {/* Supporting Analytics - 2 Column Layout */}
+      {/* Supporting Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Guest Origins by Country */}
         {limits.canViewCountries ? (
           <GuestOriginsChart
             bookings={props.bookings}
@@ -120,7 +118,6 @@ export function ReportsTab(props: ReportsTabProps) {
           />
         )}
 
-        {/* How Guests Found You */}
         {limits.canViewCountries ? (
           <ReferralSourcesChart
             bookings={props.bookings}
@@ -136,7 +133,7 @@ export function ReportsTab(props: ReportsTabProps) {
         )}
       </div>
 
-      {/* Travel Patterns - Pro+ */}
+      {/* Travel Patterns */}
       {limits.canViewTravelPatterns ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <TravelPatternsCard
@@ -154,27 +151,6 @@ export function ReportsTab(props: ReportsTabProps) {
           upgradeTo="Pro"
         />
       )}
-    </div>
-  );
-}
-
-// UpgradePreview Component (inline for completeness)
-function UpgradePreview({ title, description, upgradeTo }: { title: string; description: string; upgradeTo: string }) {
-  return (
-    <div className="bg-gradient-to-br from-stone-50 to-amber-50 rounded-xl border border-amber-200 p-8 text-center">
-      <div className="w-12 h-12 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
-        <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      </div>
-      <h4 className="text-lg font-semibold text-stone-900 mb-2">{title}</h4>
-      <p className="text-sm text-stone-500 mb-4">{description}</p>
-      <button
-        onClick={() => window.location.href = '/business/billing'}
-        className="px-6 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors text-sm"
-      >
-        Upgrade to {upgradeTo}
-      </button>
     </div>
   );
 }
