@@ -8,30 +8,29 @@
     "build": "vite build",
     "preview": "vite preview"
   },
- 
-"dependencies": {
-  "react": "^19.2.4",
-  "react-dom": "^19.2.4",
-  "react-router-dom": "^6.22.0",
-  "react-dropzone": "^14.2.3",
-  "recharts": "^2.12.0",
-  "papaparse": "^5.4.1",
-  "@types/papaparse": "^5.3.14",
-  "@types/recharts": "^1.8.29",
-  "@supabase/supabase-js": "^2.39.0",
-  "bcryptjs": "^2.4.3",
-  "uuid": "^9.0.1",
-  "resend": "^4.0.0",
-  "qrcode": "^1.5.3",
-  "@heroicons/react": "^2.0.0",
-  "xlsx": "^0.18.5",
-  "stripe": "^17.5.0",
-  "jsonwebtoken": "^9.0.0",
-  "ws": "^8.18.0",
-  "@stripe/stripe-js": "^3.5.0",
-  "d3-scale": "^4.0.2",
-  "d3-geo": "^3.1.0"
-}
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^6.22.0",
+    "react-dropzone": "^14.2.3",
+    "recharts": "^2.12.0",
+    "papaparse": "^5.4.1",
+    "@types/papaparse": "^5.3.14",
+    "@types/recharts": "^1.8.29",
+    "@supabase/supabase-js": "^2.39.0",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.1",
+    "resend": "^4.0.0",
+    "qrcode": "^1.5.3",
+    "@heroicons/react": "^2.0.0",
+    "xlsx": "^0.18.5",
+    "stripe": "^17.5.0",
+    "jsonwebtoken": "^9.0.0",
+    "ws": "^8.18.0",
+    "@stripe/stripe-js": "^3.5.0",
+    "d3-scale": "^4.0.2",
+    "d3-geo": "^3.1.0"
+  },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",
     "typescript": "^5.8.2",
@@ -44,7 +43,6 @@
     "postcss": "^8.4.32",
     "autoprefixer": "^10.4.16",
     "@netlify/functions": "^2.8.0",
-    "@types/leaflet": "^1.9.8",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-geo": "^3.1.0"
   }
