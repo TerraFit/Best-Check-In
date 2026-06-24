@@ -1,6 +1,6 @@
 // src/hooks/useAnalytics.ts
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { AnalyticsData, AnalyticsFilters, DrillLevel, SubscriptionLimits, SUBSCRIPTION_LIMITS } from '../types/analytics';
+import { useState, useMemo, useCallback } from 'react';
+import { AnalyticsFilters, DrillLevel, SUBSCRIPTION_LIMITS } from '../types/analytics';
 import { analyticsService } from '../services/analyticsService';
 
 export function useAnalytics(bookings: any[], subscriptionTier: string = 'starter') {
