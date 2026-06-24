@@ -1,18 +1,17 @@
 // src/components/analytics/VisitorOriginContinentMap.tsx
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { geoEquirectangular, geoPath } from 'd3-geo';
+import { useState, useMemo, useRef, useEffect } from 'react';
 
 interface ContinentData {
   name: string;
   count: number;
   percentage: number;
-  color: string;
+  color?: string;
 }
 
 interface VisitorOriginContinentMapProps {
   data: ContinentData[];
   onContinentClick: (continent: string) => void;
-  onContinentHover: (continent: string | null) => void;
+  onContinentHover?: (continent: string | null) => void;
   isLoading: boolean;
   highlightedContinent?: string | null;
 }
@@ -25,6 +24,7 @@ const CONTINENT_COLORS: Record<string, string> = {
   'South America': '#ef4444',
   'Oceania': '#ec4899',
   'Antarctica': '#94a3b8',
+  'Other': '#94a3b8'
 };
 
 const CONTINENT_COORDS: Record<string, { x: number; y: number }> = {
@@ -35,20 +35,22 @@ const CONTINENT_COORDS: Record<string, { x: number; y: number }> = {
   'South America': { x: 300, y: 320 },
   'Oceania': { x: 550, y: 340 },
   'Antarctica': { x: 400, y: 430 },
+  'Other': { x: 400, y: 400 }
 };
 
 export function VisitorOriginContinentMap({
   data,
   onContinentClick,
-  onContinentHover,
+  onContinentHover = () => {},
   isLoading,
   highlightedContinent
 }: VisitorOriginContinentMapProps) {
   const [hoveredContinent, setHoveredContinent] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; data: ContinentData } | null>(null);
-  
-  const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Debug: Log data
+  console.log('🌍 ContinentMap received data:', data);
 
   const maxCount = useMemo(() => {
     if (!data || data.length === 0) return 1;
@@ -95,6 +97,7 @@ export function VisitorOriginContinentMap({
   };
 
   const handleClick = (continent: ContinentData) => {
+    console.log('🖱️ Clicked continent:', continent.name);
     onContinentClick(continent.name);
   };
 
@@ -125,46 +128,29 @@ export function VisitorOriginContinentMap({
 
   return (
     <div ref={containerRef} className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
-      {/* Background Map (Simplified) */}
       <svg
-        ref={svgRef}
         viewBox="0 0 800 450"
         preserveAspectRatio="xMidYMid meet"
         className="w-full h-full"
         style={{ background: 'transparent' }}
       >
-        {/* Simple continent outlines - using circles as placeholders */}
+        {/* Simple world map background - just a subtle outline */}
         <g opacity="0.1">
-          {Object.keys(CONTINENT_COORDS).map(name => {
-            const coords = CONTINENT_COORDS[name];
-            return (
-              <circle
-                key={name}
-                cx={coords.x}
-                cy={coords.y}
-                r={100}
-                fill="none"
-                stroke="#94a3b8"
-                strokeWidth={1}
-                strokeDasharray="4 4"
-              />
-            );
-          })}
-        </g>
-
-        {/* Grid lines for reference */}
-        <g opacity="0.05">
-          <line x1="0" y1="225" x2="800" y2="225" stroke="#94a3b8" strokeWidth={1} />
-          <line x1="400" y1="0" x2="400" y2="450" stroke="#94a3b8" strokeWidth={1} />
+          <circle cx="400" cy="225" r="200" fill="none" stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 4" />
+          <line x1="0" y1="225" x2="800" y2="225" stroke="#94a3b8" strokeWidth={0.5} opacity="0.3" />
+          <line x1="400" y1="0" x2="400" y2="450" stroke="#94a3b8" strokeWidth={0.5} opacity="0.3" />
         </g>
 
         {/* Continent Bubbles */}
         {data.map((continent) => {
           const coords = CONTINENT_COORDS[continent.name];
-          if (!coords) return null;
+          if (!coords) {
+            console.warn(`⚠️ No coordinates for continent: ${continent.name}`);
+            return null;
+          }
 
           const radius = getBubbleRadius(continent.count);
-          const color = CONTINENT_COLORS[continent.name] || '#94a3b8';
+          const color = CONTINENT_COLORS[continent.name] || CONTINENT_COLORS['Other'];
           const opacity = getBubbleOpacity(continent.name);
           const scale = getBubbleScale(continent.name);
           const isHovered = hoveredContinent === continent.name;
@@ -260,7 +246,7 @@ export function VisitorOriginContinentMap({
                   transition: 'all 0.3s ease'
                 }}
               >
-                {continent.percentage.toFixed(1)}% of visitors
+                {continent.percentage.toFixed(1)}%
               </text>
             </g>
           );
@@ -272,10 +258,10 @@ export function VisitorOriginContinentMap({
           <text x="12" y="20" className="text-xs font-semibold text-stone-700">Visitor Origins</text>
           <text x="12" y="38" className="text-[10px] text-stone-400">Hover for details · Click to explore</text>
           
-          {/* Color legend */}
+          {/* Color legend - show top 3 */}
           {data.slice(0, 3).map((item, i) => (
             <g key={i} transform={`translate(12, ${48 + i * 16})`}>
-              <circle cx="6" cy="6" r="5" fill={CONTINENT_COLORS[item.name] || '#94a3b8'} />
+              <circle cx="6" cy="6" r="5" fill={CONTINENT_COLORS[item.name] || CONTINENT_COLORS['Other']} />
               <text x="16" y="9" className="text-[10px] text-stone-600">{item.name}</text>
               <text x="120" y="9" className="text-[10px] text-stone-400 text-right">{item.count}</text>
             </g>
@@ -299,7 +285,7 @@ export function VisitorOriginContinentMap({
           <div className="flex items-center gap-2 mb-1">
             <div 
               className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: CONTINENT_COLORS[tooltip.data.name] || '#94a3b8' }}
+              style={{ backgroundColor: CONTINENT_COLORS[tooltip.data.name] || CONTINENT_COLORS['Other'] }}
             />
             <p className="font-semibold text-stone-900 text-sm">{tooltip.data.name}</p>
           </div>
