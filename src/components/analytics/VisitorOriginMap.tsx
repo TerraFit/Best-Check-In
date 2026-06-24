@@ -12,8 +12,11 @@ import {
   PieChart, 
   Pie 
 } from 'recharts';
-import { geoMercator, geoPath } from 'd3-geo';
+import { geoMercator, geoPath, geoEquirectangular } from 'd3-geo';
 import { feature } from 'topojson-client';
+import { zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
+import { select } from 'd3-selection';
+import 'd3-transition';
 
 // ============================================================
 // TYPES
@@ -46,6 +49,8 @@ interface CountryFeature {
     name: string;
     iso_n3?: string;
     iso_a2?: string;
+    ADMIN?: string;
+    COUNTRY?: string;
     [key: string]: any;
   };
   geometry: any;
@@ -58,19 +63,93 @@ interface CountryFeature {
 const COLOR_SCALE = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706'];
 const NO_DATA_COLOR = '#e5e7eb';
 
+// Comprehensive country name mapping for data matching
 const COUNTRY_NAME_MAP: Record<string, string> = {
+  // Common variants
   'United States of America': 'United States',
   'United States': 'United States of America',
+  'USA': 'United States',
+  'US': 'United States',
   'UK': 'United Kingdom',
   'U.K.': 'United Kingdom',
+  'England': 'United Kingdom',
+  'Scotland': 'United Kingdom',
+  'Wales': 'United Kingdom',
+  'Great Britain': 'United Kingdom',
   'Russia': 'Russia',
+  'Russian Federation': 'Russia',
   'Czechia': 'Czech Republic',
+  'Czech Republic': 'Czechia',
   'South Korea': 'South Korea',
+  'Korea': 'South Korea',
   'Congo': 'Democratic Republic of the Congo',
   'Tanzania': 'United Republic of Tanzania',
   'Swaziland': 'Eswatini',
   'Burma': 'Myanmar',
   'Cabo Verde': 'Cape Verde',
+  'South Africa': 'South Africa',
+  'Germany': 'Germany',
+  'France': 'France',
+  'Italy': 'Italy',
+  'Spain': 'Spain',
+  'Netherlands': 'Netherlands',
+  'Switzerland': 'Switzerland',
+  'Austria': 'Austria',
+  'Belgium': 'Belgium',
+  'Portugal': 'Portugal',
+  'Sweden': 'Sweden',
+  'Norway': 'Norway',
+  'Denmark': 'Denmark',
+  'Finland': 'Finland',
+  'Greece': 'Greece',
+  'Ireland': 'Ireland',
+  'Poland': 'Poland',
+  'Hungary': 'Hungary',
+  'Romania': 'Romania',
+  'Bulgaria': 'Bulgaria',
+  'Croatia': 'Croatia',
+  'Ukraine': 'Ukraine',
+  'China': 'China',
+  'India': 'India',
+  'Japan': 'Japan',
+  'Singapore': 'Singapore',
+  'Malaysia': 'Malaysia',
+  'Indonesia': 'Indonesia',
+  'Thailand': 'Thailand',
+  'Vietnam': 'Vietnam',
+  'Philippines': 'Philippines',
+  'Saudi Arabia': 'Saudi Arabia',
+  'United Arab Emirates': 'United Arab Emirates',
+  'Israel': 'Israel',
+  'Turkey': 'Turkey',
+  'Australia': 'Australia',
+  'New Zealand': 'New Zealand',
+  'Canada': 'Canada',
+  'Mexico': 'Mexico',
+  'Brazil': 'Brazil',
+  'Argentina': 'Argentina',
+  'Chile': 'Chile',
+  'Colombia': 'Colombia',
+  'Peru': 'Peru',
+  'Venezuela': 'Venezuela',
+  'Egypt': 'Egypt',
+  'Morocco': 'Morocco',
+  'Tunisia': 'Tunisia',
+  'Algeria': 'Algeria',
+  'Nigeria': 'Nigeria',
+  'Ghana': 'Ghana',
+  'Kenya': 'Kenya',
+  'Namibia': 'Namibia',
+  'Botswana': 'Botswana',
+  'Zimbabwe': 'Zimbabwe',
+  'Mozambique': 'Mozambique',
+  'Zambia': 'Zambia',
+  'Angola': 'Angola',
+  'Malawi': 'Malawi',
+  'Mauritius': 'Mauritius',
+  'Seychelles': 'Seychelles',
+  'Lesotho': 'Lesotho',
+  'Eswatini': 'Eswatini',
 };
 
 // ============================================================
@@ -88,7 +167,7 @@ export function VisitorOriginMap({
   isLoading
 }: VisitorOriginMapProps) {
   // ============================================================
-  // ALL HOOKS AT TOP LEVEL (NO CONDITIONAL HOOKS)
+  // STATE
   // ============================================================
 
   const [viewType, setViewType] = useState<'map' | 'bar' | 'pie'>('map');
@@ -97,9 +176,11 @@ export function VisitorOriginMap({
   const [geoData, setGeoData] = useState<any>(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [zoomTransform, setZoomTransform] = useState<ZoomTransform | null>(null);
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pathRefs = useRef<Map<string, SVGPathElement>>(new Map());
 
   // ============================================================
   // CDN GEOJSON LOADER
@@ -112,7 +193,6 @@ export function VisitorOriginMap({
     const sources = [
       'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
       'https://unpkg.com/world-atlas@2/countries-110m.json',
-      'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson'
     ];
 
     for (const source of sources) {
@@ -136,9 +216,6 @@ export function VisitorOriginMap({
         } else if (rawData.type === 'FeatureCollection') {
           features = rawData.features || [];
           console.log(`✅ Loaded ${features.length} countries from GeoJSON`);
-        } else if (Array.isArray(rawData)) {
-          features = rawData;
-          console.log(`✅ Loaded ${features.length} countries from array`);
         } else {
           throw new Error('Unrecognized data format');
         }
@@ -155,7 +232,7 @@ export function VisitorOriginMap({
       }
     }
 
-    setLoadError('Could not load map data from any source. Please check your internet connection.');
+    setLoadError('Could not load map data from any source.');
     setLoadingGeo(false);
   }, []);
 
@@ -164,7 +241,80 @@ export function VisitorOriginMap({
   }, [loadGeoJsonFromCDN]);
 
   // ============================================================
-  // COMPUTED VALUES (useMemo hooks - always called)
+  // ZOOM SETUP
+  // ============================================================
+
+  useEffect(() => {
+    if (!svgRef.current || !geoData) return;
+
+    const svg = select(svgRef.current);
+    const container = select(containerRef.current);
+
+    // Create zoom behavior
+    const zoomBehavior = zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 8])
+      .translateExtent([
+        [-400, -225],
+        [1200, 675]
+      ])
+      .on('zoom', (event) => {
+        const transform = event.transform;
+        setZoomTransform(transform);
+        
+        // Apply transform to the map group
+        svg.select('g.map-group')
+          .attr('transform', transform.toString());
+      });
+
+    // Apply zoom to SVG
+    svg.call(zoomBehavior);
+
+    // Double-click to reset
+    svg.on('dblclick.zoom', () => {
+      svg.transition()
+        .duration(750)
+        .call(zoomBehavior.transform, zoomIdentity);
+    });
+
+    // Cleanup
+    return () => {
+      svg.on('.zoom', null);
+    };
+  }, [geoData]);
+
+  // ============================================================
+  // DATA MATCHING - Find data for each country
+  // ============================================================
+
+  const getCountryData = useCallback((countryName: string) => {
+    if (!countryName) return null;
+    
+    // Try direct match
+    let found = data.find(d => d.name === countryName);
+    if (found) return found;
+    
+    // Try normalized match
+    const normalized = COUNTRY_NAME_MAP[countryName] || countryName;
+    found = data.find(d => d.name === normalized);
+    if (found) return found;
+    
+    // Try case-insensitive match
+    const lowerName = countryName.toLowerCase();
+    found = data.find(d => d.name.toLowerCase() === lowerName);
+    if (found) return found;
+    
+    // Try partial match (for "United States" vs "United States of America")
+    found = data.find(d => 
+      d.name.includes(countryName) || 
+      countryName.includes(d.name)
+    );
+    if (found) return found;
+    
+    return null;
+  }, [data]);
+
+  // ============================================================
+  // COMPUTED VALUES
   // ============================================================
 
   const maxCount = useMemo(() => {
@@ -175,13 +325,7 @@ export function VisitorOriginMap({
   const getCountryColor = useCallback((countryName: string): string => {
     if (!data || data.length === 0) return NO_DATA_COLOR;
     
-    const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
-    const countryData = data.find(d => 
-      d.name === normalizedName || 
-      d.name === countryName ||
-      COUNTRY_NAME_MAP[d.name] === countryName
-    );
-    
+    const countryData = getCountryData(countryName);
     if (!countryData || countryData.count === 0) return NO_DATA_COLOR;
     
     const ratio = countryData.count / maxCount;
@@ -190,28 +334,18 @@ export function VisitorOriginMap({
     if (ratio < 0.6) return COLOR_SCALE[2];
     if (ratio < 0.8) return COLOR_SCALE[3];
     return COLOR_SCALE[4];
-  }, [data, maxCount]);
-
-  const getCountryData = useCallback((countryName: string) => {
-    const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
-    return data.find(d => 
-      d.name === normalizedName || 
-      d.name === countryName ||
-      COUNTRY_NAME_MAP[d.name] === countryName
-    );
-  }, [data]);
+  }, [data, maxCount, getCountryData]);
 
   const hasChildren = useCallback((countryName: string): boolean => {
     const countryData = getCountryData(countryName);
     return !!(countryData?.children && countryData.children.length > 0);
   }, [getCountryData]);
 
-  // Map projection - always computed
+  // Map projection - use equirectangular for better world view
   const projection = useMemo(() => {
-    return geoMercator()
+    return geoEquirectangular()
       .fitSize([800, 450], { type: 'Sphere' })
       .translate([400, 225])
-      .center([0, 0])
       .scale(100);
   }, []);
 
@@ -253,18 +387,19 @@ export function VisitorOriginMap({
     const countryData = getCountryData(countryName);
     if (!countryData) return;
     
-    if (countryData.children && canDrillDeeper('continent')) {
+    // If this is a continent (has children), drill down
+    if (countryData.children && countryData.children.length > 0 && canDrillDeeper('continent')) {
       onDrillDown(countryData);
-    } else if (countryData.children && !canDrillDeeper('continent')) {
+    } else if (countryData.children && countryData.children.length > 0 && !canDrillDeeper('continent')) {
       const upgradeMsg = getUpgradeMessage('countries');
       alert(upgradeMsg);
     }
   }, [getCountryData, canDrillDeeper, onDrillDown, getUpgradeMessage]);
 
   const handleChartClick = useCallback((item: any) => {
-    if (item.children && canDrillDeeper('continent')) {
+    if (item.children && item.children.length > 0 && canDrillDeeper('continent')) {
       onDrillDown(item);
-    } else if (item.children && !canDrillDeeper('continent')) {
+    } else if (item.children && item.children.length > 0 && !canDrillDeeper('continent')) {
       const upgradeMsg = getUpgradeMessage('countries');
       alert(upgradeMsg);
     }
@@ -272,10 +407,8 @@ export function VisitorOriginMap({
 
   const getCountryStyle = useCallback((countryName: string) => {
     const isHovered = hoveredId === countryName;
-    const hasData = data.some(d => 
-      d.name === countryName || 
-      d.name === COUNTRY_NAME_MAP[countryName]
-    );
+    const countryData = getCountryData(countryName);
+    const hasData = !!countryData && countryData.count > 0;
     
     return {
       fill: getCountryColor(countryName),
@@ -283,9 +416,8 @@ export function VisitorOriginMap({
       strokeWidth: isHovered ? 2 : 0.5,
       opacity: isHovered ? 1 : (hasData ? 0.9 : 0.6),
       cursor: hasChildren(countryName) ? 'pointer' : 'default',
-      transition: 'all 0.15s ease'
     };
-  }, [hoveredId, data, getCountryColor, hasChildren]);
+  }, [hoveredId, getCountryData, getCountryColor, hasChildren]);
 
   const CustomTooltip = useCallback(({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -299,10 +431,10 @@ export function VisitorOriginMap({
           <p className="text-sm text-orange-600 font-medium">
             {(item.percentage || 0).toFixed(1)}%
           </p>
-          {item.children && canDrillDeeper('continent') && (
+          {item.children && item.children.length > 0 && canDrillDeeper('continent') && (
             <p className="text-xs text-stone-400 mt-1 border-t border-stone-100 pt-1">👆 Click to explore</p>
           )}
-          {item.children && !canDrillDeeper('continent') && (
+          {item.children && item.children.length > 0 && !canDrillDeeper('continent') && (
             <p className="text-xs text-amber-500 mt-1">🔒 Upgrade to explore</p>
           )}
         </div>
@@ -315,7 +447,6 @@ export function VisitorOriginMap({
   // EARLY RETURNS AFTER ALL HOOKS
   // ============================================================
 
-  // Loading state
   if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -325,16 +456,12 @@ export function VisitorOriginMap({
             <p className="text-stone-400">
               {loadingGeo ? 'Loading world map data...' : 'Loading visitor data...'}
             </p>
-            <p className="text-stone-300 text-xs mt-2">
-              {loadingGeo ? 'Fetching from CDN...' : 'Processing analytics...'}
-            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (loadError) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -347,7 +474,7 @@ export function VisitorOriginMap({
               onClick={loadGeoJsonFromCDN}
               className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
             >
-              Retry Loading Map
+              Retry
             </button>
           </div>
         </div>
@@ -355,7 +482,6 @@ export function VisitorOriginMap({
     );
   }
 
-  // Empty data state
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -364,7 +490,7 @@ export function VisitorOriginMap({
             <div className="text-5xl mb-4">🌍</div>
             <h3 className="text-lg font-semibold text-stone-900 mb-2">No visitor origin data available yet</h3>
             <p className="text-stone-400 text-sm">
-              As guests check in, this map will highlight where they come from around the world.
+              As guests check in, this map will highlight where they come from.
             </p>
           </div>
         </div>
@@ -372,7 +498,6 @@ export function VisitorOriginMap({
     );
   }
 
-  // No features state
   if (!geoData || !geoData.features || geoData.features.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -380,12 +505,11 @@ export function VisitorOriginMap({
           <div className="text-center max-w-md">
             <div className="text-5xl mb-4">🗺️</div>
             <h3 className="text-lg font-semibold text-stone-900 mb-2">Map Data Unavailable</h3>
-            <p className="text-stone-500 text-sm mb-4">Could not load country boundaries.</p>
             <button
               onClick={loadGeoJsonFromCDN}
               className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
             >
-              Retry Loading Map
+              Retry
             </button>
           </div>
         </div>
@@ -405,6 +529,10 @@ export function VisitorOriginMap({
     { color: '#d97706', label: 'Very High (80-100%)' }
   ];
 
+  // Log data for debugging
+  console.log('📊 Map Data:', data);
+  console.log('🌍 Geo Features:', geoData.features.length);
+
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
       {/* Header */}
@@ -415,9 +543,9 @@ export function VisitorOriginMap({
             Visitor Origin Explorer
           </h3>
           <p className="text-xs text-stone-400">
-            {drillLevel === 'world' && 'Global view - Hover for details, click to explore'}
-            {drillLevel === 'continent' && 'Continent view'}
-            {drillLevel === 'country' && 'Country view'}
+            {drillLevel === 'world' && '🌍 Global view - Scroll to zoom • Click countries to explore'}
+            {drillLevel === 'continent' && '🌍 Continent view'}
+            {drillLevel === 'country' && '🌍 Country view'}
           </p>
         </div>
 
@@ -469,49 +597,118 @@ export function VisitorOriginMap({
       <div ref={containerRef} className="p-6">
         {viewType === 'map' ? (
           <div className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
+            {/* Zoom Controls */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-1">
+              <button
+                onClick={() => {
+                  const svg = select(svgRef.current);
+                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
+                    .scaleExtent([0.5, 8])
+                    .on('zoom', (event) => {
+                      const transform = event.transform;
+                      setZoomTransform(transform);
+                      svg.select('g.map-group')
+                        .attr('transform', transform.toString());
+                    });
+                  svg.transition()
+                    .duration(300)
+                    .call(zoomBehavior.scaleBy, 1.3);
+                }}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200"
+              >
+                +
+              </button>
+              <button
+                onClick={() => {
+                  const svg = select(svgRef.current);
+                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
+                    .scaleExtent([0.5, 8])
+                    .on('zoom', (event) => {
+                      const transform = event.transform;
+                      setZoomTransform(transform);
+                      svg.select('g.map-group')
+                        .attr('transform', transform.toString());
+                    });
+                  svg.transition()
+                    .duration(300)
+                    .call(zoomBehavior.scaleBy, 0.7);
+                }}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200"
+              >
+                −
+              </button>
+              <button
+                onClick={() => {
+                  const svg = select(svgRef.current);
+                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
+                    .scaleExtent([0.5, 8])
+                    .on('zoom', (event) => {
+                      const transform = event.transform;
+                      setZoomTransform(transform);
+                      svg.select('g.map-group')
+                        .attr('transform', transform.toString());
+                    });
+                  svg.transition()
+                    .duration(750)
+                    .call(zoomBehavior.transform, zoomIdentity);
+                }}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-xs font-medium border border-stone-200"
+              >
+                ⟲
+              </button>
+            </div>
+
             <svg
               ref={svgRef}
               viewBox="0 0 800 450"
               preserveAspectRatio="xMidYMid meet"
-              className="w-full h-full"
+              className="w-full h-full cursor-grab active:cursor-grabbing"
+              style={{ background: 'transparent' }}
             >
-              {geoData.features.map((feature: CountryFeature, index: number) => {
-                const countryName = feature.properties?.name || 
-                                   feature.properties?.ADMIN || 
-                                   feature.properties?.COUNTRY;
-                
-                if (!countryName) return null;
-                
-                const style = getCountryStyle(countryName);
-                
-                let path = '';
-                try {
-                  path = pathGenerator(feature) || '';
-                } catch (e) {
-                  console.warn(`Could not generate path for ${countryName}:`, e);
-                  return null;
-                }
-                
-                if (!path) return null;
-                
-                return (
-                  <path
-                    key={index}
-                    d={path}
-                    fill={style.fill}
-                    stroke={style.stroke}
-                    strokeWidth={style.strokeWidth}
-                    opacity={style.opacity}
-                    style={{ 
-                      cursor: style.cursor,
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => handleMouseEnter(e, countryName)}
-                    onMouseLeave={handleMouseLeave}
-                    onClick={() => handleCountryClick(countryName)}
-                  />
-                );
-              })}
+              <g className="map-group">
+                {geoData.features.map((feature: CountryFeature, index: number) => {
+                  const countryName = feature.properties?.name || 
+                                     feature.properties?.ADMIN || 
+                                     feature.properties?.COUNTRY;
+                  
+                  if (!countryName) return null;
+                  
+                  const style = getCountryStyle(countryName);
+                  const countryData = getCountryData(countryName);
+                  
+                  // Debug: log first few countries with data
+                  if (countryData && index < 5) {
+                    console.log(`📍 ${countryName}: ${countryData.count} visitors`);
+                  }
+                  
+                  let path = '';
+                  try {
+                    path = pathGenerator(feature) || '';
+                  } catch (e) {
+                    return null;
+                  }
+                  
+                  if (!path) return null;
+                  
+                  return (
+                    <path
+                      key={index}
+                      d={path}
+                      fill={style.fill}
+                      stroke={style.stroke}
+                      strokeWidth={style.strokeWidth}
+                      opacity={style.opacity}
+                      style={{ 
+                        cursor: style.cursor,
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => handleMouseEnter(e, countryName)}
+                      onMouseLeave={handleMouseLeave}
+                      onClick={() => handleCountryClick(countryName)}
+                    />
+                  );
+                })}
+              </g>
             </svg>
 
             {/* Map Legend */}
@@ -662,14 +859,14 @@ export function VisitorOriginMap({
           </div>
           
           <div className="text-xs text-stone-400">
-            {viewType === 'map' && '🌍 Hover for details • Click to explore'}
+            {viewType === 'map' && '🖱️ Scroll to zoom • Click to explore'}
             {viewType === 'bar' && '📊 Click a bar to explore'}
             {viewType === 'pie' && '🍩 Click a slice to explore'}
           </div>
         </div>
 
         {/* Subscription Upgrade Notice */}
-        {drillLevel === 'world' && !limits.canViewCountries && data.some(d => d.children) && (
+        {drillLevel === 'world' && !limits.canViewCountries && data.some(d => d.children && d.children.length > 0) && (
           <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-xs text-amber-700 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
