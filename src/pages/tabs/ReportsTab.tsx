@@ -189,8 +189,57 @@ export function ReportsTab(props: ReportsTabProps) {
 
   console.log('📊 ReportsTab - mapData:', mapData);
 
+  // Get the display name for the current tier
+  const tierDisplayNames: Record<string, string> = {
+    'starter': 'Starter',
+    'growth': 'Growth',
+    'pro': 'Pro',
+    'business': 'Business'
+  };
+
+  const tierColors: Record<string, string> = {
+    'starter': 'bg-green-100 text-green-700',
+    'growth': 'bg-blue-100 text-blue-700',
+    'pro': 'bg-purple-100 text-purple-700',
+    'business': 'bg-amber-100 text-amber-700'
+  };
+
   return (
     <div className="space-y-6">
+      {/* ✅ Plan Tier Indicator */}
+      <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Analytics & Reports</h2>
+          <p className="text-sm text-gray-500">Understand your guest demographics and booking patterns</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">Current Plan:</span>
+          <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${tierColors[tier] || 'bg-gray-100 text-gray-700'}`}>
+            {tierDisplayNames[tier] || tier}
+          </span>
+          {(tier === 'starter' || tier === 'growth') && (
+            <button 
+              onClick={() => window.location.href = '/business/billing'}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium transition-colors flex items-center gap-1"
+            >
+              Upgrade →
+              <span className="text-[10px] text-stone-400 font-normal">
+                {tier === 'starter' ? 'to unlock countries' : 'to unlock regions'}
+              </span>
+            </button>
+          )}
+          {tier === 'pro' && (
+            <button 
+              onClick={() => window.location.href = '/business/billing'}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium transition-colors flex items-center gap-1"
+            >
+              Upgrade to Business →
+              <span className="text-[10px] text-stone-400 font-normal">for city-level insights</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
@@ -244,6 +293,13 @@ export function ReportsTab(props: ReportsTabProps) {
             title="Guest Origins by Country"
             description="Discover which countries your guests are coming from to target your marketing efforts."
             upgradeTo="Growth"
+            icon={
+              <div className="w-12 h-12 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            }
           />
         )}
 
@@ -258,6 +314,13 @@ export function ReportsTab(props: ReportsTabProps) {
             title="How Guests Found You"
             description="Understand your marketing channels and where your bookings are coming from."
             upgradeTo="Growth"
+            icon={
+              <div className="w-12 h-12 mx-auto mb-4 bg-purple-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+            }
           />
         )}
       </div>
@@ -278,6 +341,13 @@ export function ReportsTab(props: ReportsTabProps) {
           title="Guest Travel Patterns"
           description="Discover where guests stay before arriving and where they travel to after departure."
           upgradeTo="Pro"
+          icon={
+            <div className="w-12 h-12 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+          }
         />
       )}
     </div>
