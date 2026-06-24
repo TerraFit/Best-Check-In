@@ -1,5 +1,5 @@
 // src/components/analytics/VisitorOriginMap.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
 import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
 import { UpgradePromptModal } from './UpgradePromptModal';
@@ -10,6 +10,7 @@ interface VisitorOriginMapProps {
   limits: {
     canViewCountries: boolean;
     maxDrillLevel: string;
+    subscriptionTier?: string; // ← Add this
     [key: string]: any;
   };
   onDrillDown: (item: any) => void;
@@ -37,6 +38,15 @@ export function VisitorOriginMap({
   const [loadingGeo, setLoadingGeo] = useState(true);
   const [view, setView] = useState<'continents' | 'countries'>('continents');
 
+  // Debug: Log what we're receiving
+  console.log('🔍 VisitorOriginMap props:', { 
+    dataLength: data?.length, 
+    drillLevel, 
+    limits,
+    canViewCountries: limits?.canViewCountries,
+    maxDrillLevel: limits?.maxDrillLevel
+  });
+
   // Load GeoJSON data
   useEffect(() => {
     const loadGeoData = async () => {
@@ -46,6 +56,7 @@ export function VisitorOriginMap({
         const { feature } = await import('topojson-client');
         const geoJson = feature(topology, topology.objects.countries);
         setGeoData(geoJson);
+        console.log('✅ GeoJSON loaded:', geoJson.features?.length, 'features');
       } catch (error) {
         console.error('Error loading map data:', error);
       } finally {
@@ -55,16 +66,82 @@ export function VisitorOriginMap({
     loadGeoData();
   }, []);
 
-  // Aggregate continent data from country data
+  // ✅ FIX: Determine current tier from limits
+  const currentTier = useMemo(() => {
+    // If limits has subscriptionTier, use it directly
+    if (limits?.subscriptionTier) {
+      const tier = limits.subscriptionTier.toLowerCase();
+      if (['starter', 'growth', 'pro', 'business'].includes(tier)) {
+        return tier;
+      }
+    }
+    
+    // Otherwise detect from maxDrillLevel
+    const level = limits?.maxDrillLevel || 'world';
+    const tierMap: Record<string, string> = {
+      'world': 'starter',
+      'continent': 'growth',
+      'country': 'pro',
+      'city': 'business'
+    };
+    return tierMap[level] || 'starter';
+  }, [limits]);
+
+  console.log('🏷️ Current tier:', currentTier);
+
+  // Aggregate continent data from bookings
   const continentData = useCallback(() => {
+    if (!data || data.length === 0) return [];
+
     const continentMap: Record<string, { count: number; name: string }> = {};
     
-    data.forEach(item => {
-      const continent = item.continent || 'Other';
+    data.forEach((item: any) => {
+      // Try to determine continent from country
+      let continent = item.continent || 'Other';
+      
+      // If no continent, try to infer from country
+      if (!item.continent && item.guest_country) {
+        const country = item.guest_country;
+        // Simple continent mapping for common countries
+        const countryToContinent: Record<string, string> = {
+          'South Africa': 'Africa',
+          'Namibia': 'Africa',
+          'Botswana': 'Africa',
+          'Zimbabwe': 'Africa',
+          'Mozambique': 'Africa',
+          'Lesotho': 'Africa',
+          'Eswatini': 'Africa',
+          'Germany': 'Europe',
+          'France': 'Europe',
+          'United Kingdom': 'Europe',
+          'Italy': 'Europe',
+          'Spain': 'Europe',
+          'Netherlands': 'Europe',
+          'Switzerland': 'Europe',
+          'Austria': 'Europe',
+          'Belgium': 'Europe',
+          'United States': 'North America',
+          'Canada': 'North America',
+          'Mexico': 'North America',
+          'Brazil': 'South America',
+          'Argentina': 'South America',
+          'Chile': 'South America',
+          'Colombia': 'South America',
+          'China': 'Asia',
+          'India': 'Asia',
+          'Japan': 'Asia',
+          'Singapore': 'Asia',
+          'Malaysia': 'Asia',
+          'Australia': 'Oceania',
+          'New Zealand': 'Oceania',
+        };
+        continent = countryToContinent[country] || 'Other';
+      }
+      
       if (!continentMap[continent]) {
         continentMap[continent] = { count: 0, name: continent };
       }
-      continentMap[continent].count += item.count || 0;
+      continentMap[continent].count += item.count || 1;
     });
 
     const total = Object.values(continentMap).reduce((sum, c) => sum + c.count, 0) || 1;
@@ -73,17 +150,21 @@ export function VisitorOriginMap({
       name: c.name,
       count: c.count,
       percentage: (c.count / total) * 100,
-      color: '#f59e0b'
     })).sort((a, b) => b.count - a.count);
   }, [data]);
 
   const handleContinentClick = (continentName: string) => {
+    console.log('🖱️ Continent clicked:', continentName);
+    
     // Check if user can drill down to countries
-    if (limits.canViewCountries && canDrillDeeper('continent')) {
+    if (limits?.canViewCountries && canDrillDeeper('continent')) {
       setSelectedContinent(continentName);
       setView('countries');
       // Find the continent data and drill down
-      const continentItem = data.find(d => d.name === continentName);
+      const continentItem = data.find(d => 
+        d.continent === continentName || 
+        d.name === continentName
+      );
       if (continentItem) {
         onDrillDown(continentItem);
       }
@@ -96,9 +177,11 @@ export function VisitorOriginMap({
   };
 
   const handleCountryClick = (countryName: string) => {
+    console.log('🖱️ Country clicked:', countryName);
+    
     // Check if user can drill down to regions
     if (canDrillDeeper('country')) {
-      const countryItem = data.find(d => d.name === countryName);
+      const countryItem = data.find(d => d.guest_country === countryName || d.name === countryName);
       if (countryItem) {
         onDrillDown(countryItem);
       }
@@ -123,6 +206,29 @@ export function VisitorOriginMap({
     window.location.href = '/business/billing?tab=compare';
   };
 
+  // If no data, show empty state
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-stone-100">
+          <h3 className="text-xl font-semibold text-stone-900 flex items-center gap-2">
+            <span className="text-2xl">🌍</span>
+            Visitor Origin Explorer
+          </h3>
+        </div>
+        <div className="h-[450px] flex items-center justify-center">
+          <div className="text-center max-w-md px-6">
+            <div className="text-5xl mb-4">🌍</div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">No visitor data available yet</h3>
+            <p className="text-stone-400 text-sm">
+              As guests check in, this map will show where they come from.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -136,13 +242,8 @@ export function VisitorOriginMap({
     );
   }
 
-  // Determine current tier from limits
-  const currentTier = (() => {
-    if (limits.maxDrillLevel === 'world') return 'starter';
-    if (limits.maxDrillLevel === 'continent') return 'growth';
-    if (limits.maxDrillLevel === 'country') return 'pro';
-    return 'business';
-  })();
+  const continentDataResult = continentData();
+  console.log('📊 Continent data:', continentDataResult);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -170,6 +271,11 @@ export function VisitorOriginMap({
           }`}>
             {currentTier}
           </span>
+          {currentTier === 'starter' && (
+            <span className="text-[10px] text-amber-500 ml-1">
+              ↑ Upgrade to explore more
+            </span>
+          )}
         </div>
       </div>
 
@@ -177,14 +283,17 @@ export function VisitorOriginMap({
       <div className="p-6">
         {view === 'continents' ? (
           <VisitorOriginContinentMap
-            data={continentData()}
+            data={continentDataResult}
             onContinentClick={handleContinentClick}
             onContinentHover={() => {}}
-            isLoading={isLoading}
+            isLoading={isLoading || continentDataResult.length === 0}
           />
         ) : (
           <VisitorOriginCountryMap
-            data={data.filter(d => d.continent === selectedContinent)}
+            data={data.filter(d => 
+              d.continent === selectedContinent || 
+              d.name === selectedContinent
+            )}
             continentName={selectedContinent || ''}
             onCountryClick={handleCountryClick}
             onCountryHover={() => {}}
