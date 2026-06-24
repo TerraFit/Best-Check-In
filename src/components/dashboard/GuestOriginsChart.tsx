@@ -162,7 +162,6 @@ const COUNTRY_ISO_MAP: Record<string, string> = {
   'Slovenia': 'SI',
   'Solomon Islands': 'SB',
   'Somalia': 'SO',
-  'South Africa': 'ZA',
   'South Korea': 'KR',
   'South Sudan': 'SS',
   'Spain': 'ES',
