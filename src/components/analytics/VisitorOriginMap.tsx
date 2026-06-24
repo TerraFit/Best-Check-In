@@ -105,7 +105,6 @@ export function VisitorOriginMap({
   isLoading
 }: VisitorOriginMapProps) {
   const [viewType, setViewType] = useState<'map' | 'bar' | 'pie'>('map');
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   // Calculate max count for color scaling
   const maxCount = useMemo(() => {
@@ -263,7 +262,7 @@ export function VisitorOriginMap({
         </div>
       </div>
 
-      {/* Map / Chart */}
+      {/* Map / Chart - SINGLE RENDER */}
       <div className="p-6">
         {viewType === 'map' ? (
           <div className="relative w-full h-[450px] rounded-xl overflow-hidden shadow-inner">
@@ -358,8 +357,6 @@ export function VisitorOriginMap({
                   <Cell 
                     key={`cell-${index}`} 
                     fill={entry.color}
-                    onMouseEnter={() => setHoveredItem(entry.name)}
-                    onMouseLeave={() => setHoveredItem(null)}
                   />
                 ))}
               </Bar>
@@ -385,8 +382,6 @@ export function VisitorOriginMap({
                   <Cell 
                     key={`cell-${index}`} 
                     fill={entry.color}
-                    onMouseEnter={() => setHoveredItem(entry.name)}
-                    onMouseLeave={() => setHoveredItem(null)}
                   />
                 ))}
               </Pie>
