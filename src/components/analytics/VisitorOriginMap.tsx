@@ -1,5 +1,5 @@
 // src/components/analytics/VisitorOriginMap.tsx
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -20,14 +20,35 @@ import { feature } from 'topojson-client';
 // ============================================================
 
 interface VisitorOriginMapProps {
-  data: any[];
+  data: Array<{
+    name: string;
+    count: number;
+    percentage: number;
+    children?: any[];
+    [key: string]: any;
+  }>;
   drillLevel: string;
-  limits: any;
+  limits: {
+    canViewCountries: boolean;
+    maxDrillLevel: string;
+    [key: string]: any;
+  };
   onDrillDown: (item: any) => void;
   onDrillUp: () => void;
   canDrillDeeper: (level: string) => boolean;
   getUpgradeMessage: (feature: string) => string;
   isLoading: boolean;
+}
+
+interface CountryFeature {
+  type: string;
+  properties: {
+    name: string;
+    iso_n3?: string;
+    iso_a2?: string;
+    [key: string]: any;
+  };
+  geometry: any;
 }
 
 // ============================================================
@@ -37,16 +58,19 @@ interface VisitorOriginMapProps {
 const COLOR_SCALE = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706'];
 const NO_DATA_COLOR = '#e5e7eb';
 
-// Country name normalization
 const COUNTRY_NAME_MAP: Record<string, string> = {
   'United States of America': 'United States',
   'United States': 'United States of America',
-  'United Kingdom': 'United Kingdom',
+  'UK': 'United Kingdom',
+  'U.K.': 'United Kingdom',
   'Russia': 'Russia',
   'Czechia': 'Czech Republic',
   'South Korea': 'South Korea',
   'Congo': 'Democratic Republic of the Congo',
   'Tanzania': 'United Republic of Tanzania',
+  'Swaziland': 'Eswatini',
+  'Burma': 'Myanmar',
+  'Cabo Verde': 'Cape Verde',
 };
 
 // ============================================================
@@ -63,48 +87,84 @@ export function VisitorOriginMap({
   getUpgradeMessage,
   isLoading
 }: VisitorOriginMapProps) {
+  // ============================================================
+  // ALL HOOKS AT TOP LEVEL (NO CONDITIONAL HOOKS)
+  // ============================================================
+
   const [viewType, setViewType] = useState<'map' | 'bar' | 'pie'>('map');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; data: any } | null>(null);
   const [geoData, setGeoData] = useState<any>(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ============================================================
-  // LOAD GEOJSON DATA FROM CDN
+  // CDN GEOJSON LOADER
   // ============================================================
 
-  useEffect(() => {
-    const loadGeoData = async () => {
+  const loadGeoJsonFromCDN = useCallback(async () => {
+    setLoadingGeo(true);
+    setLoadError(null);
+
+    const sources = [
+      'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
+      'https://unpkg.com/world-atlas@2/countries-110m.json',
+      'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson'
+    ];
+
+    for (const source of sources) {
       try {
-        // ✅ Use CDN - no local import needed
-        const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+        console.log(`🌍 Attempting to load map from: ${source}`);
+        const response = await fetch(source);
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          console.warn(`Source ${source} returned ${response.status}`);
+          continue;
         }
+
+        const rawData = await response.json();
         
-        const topology = await response.json();
-        console.log('✅ Loaded world map topology');
+        let features: any[] = [];
         
-        // Convert TopoJSON to GeoJSON features
-        const geoJson = feature(topology, topology.objects.countries);
-        console.log('✅ Features loaded:', geoJson.features?.length);
-        
-        setGeoData(geoJson);
-      } catch (error) {
-        console.error('Error loading map data:', error);
-        setGeoData(null);
-      } finally {
+        if (rawData.type === 'Topology') {
+          const geoJson = feature(rawData, rawData.objects.countries);
+          features = geoJson.features || [];
+          console.log(`✅ Loaded ${features.length} countries from TopoJSON`);
+        } else if (rawData.type === 'FeatureCollection') {
+          features = rawData.features || [];
+          console.log(`✅ Loaded ${features.length} countries from GeoJSON`);
+        } else if (Array.isArray(rawData)) {
+          features = rawData;
+          console.log(`✅ Loaded ${features.length} countries from array`);
+        } else {
+          throw new Error('Unrecognized data format');
+        }
+
+        if (features.length === 0) {
+          throw new Error('No features found in data');
+        }
+
+        setGeoData({ type: 'FeatureCollection', features });
         setLoadingGeo(false);
+        return;
+      } catch (err) {
+        console.warn(`Failed to load from ${source}:`, err);
       }
-    };
-    loadGeoData();
+    }
+
+    setLoadError('Could not load map data from any source. Please check your internet connection.');
+    setLoadingGeo(false);
   }, []);
 
+  useEffect(() => {
+    loadGeoJsonFromCDN();
+  }, [loadGeoJsonFromCDN]);
+
   // ============================================================
-  // HELPERS
+  // COMPUTED VALUES (useMemo hooks - always called)
   // ============================================================
 
   const maxCount = useMemo(() => {
@@ -112,11 +172,15 @@ export function VisitorOriginMap({
     return Math.max(...data.map(d => d.count || 0), 1);
   }, [data]);
 
-  const getCountryColor = (countryName: string): string => {
+  const getCountryColor = useCallback((countryName: string): string => {
     if (!data || data.length === 0) return NO_DATA_COLOR;
     
     const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
-    const countryData = data.find(d => d.name === normalizedName || d.name === countryName);
+    const countryData = data.find(d => 
+      d.name === normalizedName || 
+      d.name === countryName ||
+      COUNTRY_NAME_MAP[d.name] === countryName
+    );
     
     if (!countryData || countryData.count === 0) return NO_DATA_COLOR;
     
@@ -126,23 +190,48 @@ export function VisitorOriginMap({
     if (ratio < 0.6) return COLOR_SCALE[2];
     if (ratio < 0.8) return COLOR_SCALE[3];
     return COLOR_SCALE[4];
-  };
+  }, [data, maxCount]);
 
-  const getCountryData = (countryName: string) => {
+  const getCountryData = useCallback((countryName: string) => {
     const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
-    return data.find(d => d.name === normalizedName || d.name === countryName);
-  };
+    return data.find(d => 
+      d.name === normalizedName || 
+      d.name === countryName ||
+      COUNTRY_NAME_MAP[d.name] === countryName
+    );
+  }, [data]);
 
-  const hasChildren = (countryName: string): boolean => {
+  const hasChildren = useCallback((countryName: string): boolean => {
     const countryData = getCountryData(countryName);
     return !!(countryData?.children && countryData.children.length > 0);
-  };
+  }, [getCountryData]);
+
+  // Map projection - always computed
+  const projection = useMemo(() => {
+    return geoMercator()
+      .fitSize([800, 450], { type: 'Sphere' })
+      .translate([400, 225])
+      .center([0, 0])
+      .scale(100);
+  }, []);
+
+  const pathGenerator = useMemo(() => {
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // Enhanced data for charts
+  const enhancedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      color: getCountryColor(item.name)
+    }));
+  }, [data, getCountryColor]);
 
   // ============================================================
   // EVENT HANDLERS
   // ============================================================
 
-  const handleMouseEnter = (e: React.MouseEvent, countryName: string) => {
+  const handleMouseEnter = useCallback((e: React.MouseEvent, countryName: string) => {
     setHoveredId(countryName);
     const countryData = getCountryData(countryName);
     if (countryData) {
@@ -153,14 +242,14 @@ export function VisitorOriginMap({
         data: countryData
       });
     }
-  };
+  }, [getCountryData]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setHoveredId(null);
     setTooltip(null);
-  };
+  }, []);
 
-  const handleClick = (countryName: string) => {
+  const handleCountryClick = useCallback((countryName: string) => {
     const countryData = getCountryData(countryName);
     if (!countryData) return;
     
@@ -170,24 +259,23 @@ export function VisitorOriginMap({
       const upgradeMsg = getUpgradeMessage('countries');
       alert(upgradeMsg);
     }
-  };
+  }, [getCountryData, canDrillDeeper, onDrillDown, getUpgradeMessage]);
 
-  const handleChartClick = (item: any) => {
+  const handleChartClick = useCallback((item: any) => {
     if (item.children && canDrillDeeper('continent')) {
       onDrillDown(item);
     } else if (item.children && !canDrillDeeper('continent')) {
       const upgradeMsg = getUpgradeMessage('countries');
       alert(upgradeMsg);
     }
-  };
+  }, [canDrillDeeper, onDrillDown, getUpgradeMessage]);
 
-  // ============================================================
-  // RENDER HELPERS
-  // ============================================================
-
-  const getCountryStyle = (countryName: string) => {
+  const getCountryStyle = useCallback((countryName: string) => {
     const isHovered = hoveredId === countryName;
-    const hasData = data.some(d => d.name === countryName || d.name === COUNTRY_NAME_MAP[countryName]);
+    const hasData = data.some(d => 
+      d.name === countryName || 
+      d.name === COUNTRY_NAME_MAP[countryName]
+    );
     
     return {
       fill: getCountryColor(countryName),
@@ -195,15 +283,16 @@ export function VisitorOriginMap({
       strokeWidth: isHovered ? 2 : 0.5,
       opacity: isHovered ? 1 : (hasData ? 0.9 : 0.6),
       cursor: hasChildren(countryName) ? 'pointer' : 'default',
+      transition: 'all 0.15s ease'
     };
-  };
+  }, [hoveredId, data, getCountryColor, hasChildren]);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = useCallback(({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload;
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg max-w-sm">
-          <p className="font-semibold text-gray-900">{item.name}</p>
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg max-w-sm pointer-events-none">
+          <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
           <p className="text-sm text-gray-600">
             <span className="font-medium">{item.count?.toLocaleString() || 0}</span> visitors
           </p>
@@ -220,43 +309,53 @@ export function VisitorOriginMap({
       );
     }
     return null;
-  };
+  }, [canDrillDeeper]);
 
   // ============================================================
-  // MAP PROJECTION
+  // EARLY RETURNS AFTER ALL HOOKS
   // ============================================================
 
-  const projection = useMemo(() => {
-    return geoMercator()
-      .fitSize([800, 450], { type: 'Sphere' })
-      .translate([400, 225]);
-  }, []);
-
-  const pathGenerator = useMemo(() => {
-    return geoPath().projection(projection);
-  }, [projection]);
-
-  // ============================================================
-  // LOADING STATE
-  // ============================================================
-
+  // Loading state
   if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
         <div className="h-96 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-            <p className="text-stone-400">{loadingGeo ? 'Loading map data...' : 'Loading visitor data...'}</p>
+            <p className="text-stone-400">
+              {loadingGeo ? 'Loading world map data...' : 'Loading visitor data...'}
+            </p>
+            <p className="text-stone-300 text-xs mt-2">
+              {loadingGeo ? 'Fetching from CDN...' : 'Processing analytics...'}
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ============================================================
-  // EMPTY STATE
-  // ============================================================
+  // Error state
+  if (loadError) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
+        <div className="h-96 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="text-5xl mb-4">🌍</div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">Unable to Load Map</h3>
+            <p className="text-stone-500 text-sm mb-4">{loadError}</p>
+            <button
+              onClick={loadGeoJsonFromCDN}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              Retry Loading Map
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
+  // Empty data state
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -273,16 +372,30 @@ export function VisitorOriginMap({
     );
   }
 
+  // No features state
+  if (!geoData || !geoData.features || geoData.features.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
+        <div className="h-96 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="text-5xl mb-4">🗺️</div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">Map Data Unavailable</h3>
+            <p className="text-stone-500 text-sm mb-4">Could not load country boundaries.</p>
+            <button
+              onClick={loadGeoJsonFromCDN}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              Retry Loading Map
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ============================================================
   // MAIN RENDER
   // ============================================================
-
-  const enhancedData = useMemo(() => {
-    return data.map(item => ({
-      ...item,
-      color: getCountryColor(item.name)
-    }));
-  }, [data, maxCount]);
 
   const colorScaleLegend = [
     { color: '#fef3c7', label: 'Low (0-20%)' },
@@ -362,13 +475,15 @@ export function VisitorOriginMap({
               preserveAspectRatio="xMidYMid meet"
               className="w-full h-full"
             >
-              {geoData?.features?.map((feature: any, index: number) => {
-                const countryName = feature.properties?.name;
+              {geoData.features.map((feature: CountryFeature, index: number) => {
+                const countryName = feature.properties?.name || 
+                                   feature.properties?.ADMIN || 
+                                   feature.properties?.COUNTRY;
+                
                 if (!countryName) return null;
                 
                 const style = getCountryStyle(countryName);
                 
-                // Generate actual country path using d3-geo
                 let path = '';
                 try {
                   path = pathGenerator(feature) || '';
@@ -393,7 +508,7 @@ export function VisitorOriginMap({
                     }}
                     onMouseEnter={(e) => handleMouseEnter(e, countryName)}
                     onMouseLeave={handleMouseLeave}
-                    onClick={() => handleClick(countryName)}
+                    onClick={() => handleCountryClick(countryName)}
                   />
                 );
               })}
