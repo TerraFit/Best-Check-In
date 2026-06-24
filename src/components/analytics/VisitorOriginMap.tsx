@@ -1,5 +1,5 @@
 // src/components/analytics/VisitorOriginMap.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie } from 'recharts';
 import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -106,9 +106,8 @@ export function VisitorOriginMap({
   getUpgradeMessage,
   isLoading
 }: VisitorOriginMapProps) {
-  const [chartType, setChartType] = useState<'bar' | 'pie' | 'map'>('map');
+  const [chartType, setChartType] = useState<'map' | 'bar' | 'pie'>('map');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
 
   // Prepare map data with coordinates
   const mapData = data
@@ -124,10 +123,8 @@ export function VisitorOriginMap({
     .filter(Boolean)
     .sort((a, b) => b.count - a.count);
 
-  // Calculate max count for color scaling
   const maxCount = mapData[0]?.count || 1;
 
-  // Get color based on density
   const getColor = (count: number): string => {
     const ratio = count / maxCount;
     if (ratio < 0.2) return '#fef3c7';
@@ -137,12 +134,10 @@ export function VisitorOriginMap({
     return '#d97706';
   };
 
-  // Get radius based on count
   const getRadius = (count: number): number => {
     return Math.max(8, Math.min(40, (count / maxCount) * 35));
   };
 
-  // Handle map click
   const handleMapClick = (item: any) => {
     if (item.children && canDrillDeeper('continent')) {
       onDrillDown(item);
@@ -152,7 +147,6 @@ export function VisitorOriginMap({
     }
   };
 
-  // Custom tooltip for charts
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload;
@@ -177,7 +171,6 @@ export function VisitorOriginMap({
     return null;
   };
 
-  // Chart click handler
   const handleChartClick = (item: any) => {
     if (item.children && canDrillDeeper('continent')) {
       onDrillDown(item);
@@ -269,7 +262,6 @@ export function VisitorOriginMap({
               zoom={2}
               style={{ height: '100%', width: '100%' }}
               zoomControl={false}
-              ref={mapRef}
             >
               <ZoomControl position="bottomright" />
               <TileLayer
