@@ -1,17 +1,8 @@
 // src/components/analytics/VisitorOriginMap.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie } from 'recharts';
-import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix Leaflet icon issue
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+import { geoMercator, geoPath } from 'd3-geo';
+import { feature } from 'topojson-client';
 
 interface VisitorOriginMapProps {
   data: any[];
@@ -24,74 +15,21 @@ interface VisitorOriginMapProps {
   isLoading: boolean;
 }
 
-// Country coordinates for the map
-const COUNTRY_COORDINATES: Record<string, { lat: number; lng: number }> = {
-  'South Africa': { lat: -30, lng: 25 },
-  'Namibia': { lat: -22, lng: 17 },
-  'Botswana': { lat: -22, lng: 24 },
-  'Zimbabwe': { lat: -19, lng: 30 },
-  'Mozambique': { lat: -18, lng: 35 },
-  'Lesotho': { lat: -29, lng: 28 },
-  'Eswatini': { lat: -26, lng: 31 },
-  'Zambia': { lat: -15, lng: 28 },
-  'Angola': { lat: -12, lng: 18 },
-  'Malawi': { lat: -13, lng: 34 },
-  'Tanzania': { lat: -6, lng: 35 },
-  'Kenya': { lat: -1, lng: 38 },
-  'Nigeria': { lat: 9, lng: 8 },
-  'Ghana': { lat: 8, lng: -1 },
-  'Egypt': { lat: 26, lng: 30 },
-  'Morocco': { lat: 31, lng: -7 },
-  'Germany': { lat: 51, lng: 10 },
-  'France': { lat: 47, lng: 2 },
-  'United Kingdom': { lat: 55, lng: -3 },
-  'Italy': { lat: 42, lng: 12 },
-  'Spain': { lat: 40, lng: -3 },
-  'Netherlands': { lat: 52, lng: 5 },
-  'Switzerland': { lat: 47, lng: 8 },
-  'Austria': { lat: 47, lng: 13 },
-  'Belgium': { lat: 50, lng: 4 },
-  'Portugal': { lat: 39, lng: -8 },
-  'Sweden': { lat: 60, lng: 18 },
-  'Norway': { lat: 61, lng: 8 },
-  'Denmark': { lat: 56, lng: 10 },
-  'Finland': { lat: 64, lng: 26 },
-  'Greece': { lat: 39, lng: 22 },
-  'Ireland': { lat: 53, lng: -8 },
-  'Poland': { lat: 52, lng: 19 },
-  'Czech Republic': { lat: 49, lng: 15 },
-  'Hungary': { lat: 47, lng: 19 },
-  'Romania': { lat: 46, lng: 25 },
-  'Bulgaria': { lat: 43, lng: 25 },
-  'Croatia': { lat: 45, lng: 16 },
-  'Russia': { lat: 64, lng: 100 },
-  'Ukraine': { lat: 49, lng: 32 },
-  'United States': { lat: 39, lng: -98 },
-  'Canada': { lat: 56, lng: -106 },
-  'Mexico': { lat: 23, lng: -102 },
-  'Brazil': { lat: -15, lng: -47 },
-  'Argentina': { lat: -35, lng: -64 },
-  'Chile': { lat: -30, lng: -71 },
-  'Colombia': { lat: 4, lng: -73 },
-  'Peru': { lat: -9, lng: -75 },
-  'Venezuela': { lat: 7, lng: -66 },
-  'China': { lat: 35, lng: 104 },
-  'India': { lat: 20, lng: 78 },
-  'Japan': { lat: 36, lng: 138 },
-  'South Korea': { lat: 36, lng: 128 },
-  'Singapore': { lat: 1, lng: 104 },
-  'Malaysia': { lat: 4, lng: 102 },
-  'Indonesia': { lat: -5, lng: 120 },
-  'Thailand': { lat: 15, lng: 101 },
-  'Vietnam': { lat: 16, lng: 108 },
-  'Philippines': { lat: 13, lng: 122 },
-  'Saudi Arabia': { lat: 24, lng: 45 },
-  'United Arab Emirates': { lat: 24, lng: 54 },
-  'Israel': { lat: 31, lng: 35 },
-  'Turkey': { lat: 39, lng: 35 },
-  'Australia': { lat: -25, lng: 134 },
-  'New Zealand': { lat: -40, lng: 174 },
-  'Fiji': { lat: -17, lng: 179 }
+const COLOR_SCALE = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706'];
+const NO_DATA_COLOR = '#e5e7eb';
+
+// World map data URL
+const WORLD_MAP_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+// Country name normalization
+const COUNTRY_NAME_MAP: Record<string, string> = {
+  'United States of America': 'United States',
+  'United Kingdom': 'UK',
+  'Russia': 'Russian Federation',
+  'Czechia': 'Czech Republic',
+  'South Korea': 'Korea',
+  'Congo': 'Democratic Republic of the Congo',
+  'Tanzania': 'United Republic of Tanzania'
 };
 
 export function VisitorOriginMap({
@@ -105,6 +43,29 @@ export function VisitorOriginMap({
   isLoading
 }: VisitorOriginMapProps) {
   const [viewType, setViewType] = useState<'map' | 'bar' | 'pie'>('map');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; data: any } | null>(null);
+  const [geoData, setGeoData] = useState<any>(null);
+  const [loadingGeo, setLoadingGeo] = useState(true);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load GeoJSON data
+  useEffect(() => {
+    const loadGeoData = async () => {
+      try {
+        const response = await fetch(WORLD_MAP_URL);
+        const topology = await response.json();
+        const geoJson = feature(topology, topology.objects.countries);
+        setGeoData(geoJson);
+      } catch (error) {
+        console.error('Error loading map data:', error);
+      } finally {
+        setLoadingGeo(false);
+      }
+    };
+    loadGeoData();
+  }, []);
 
   // Calculate max count for color scaling
   const maxCount = useMemo(() => {
@@ -112,42 +73,85 @@ export function VisitorOriginMap({
     return Math.max(...data.map(d => d.count), 1);
   }, [data]);
 
-  // Get color based on density
-  const getColor = (count: number): string => {
-    const ratio = count / maxCount;
-    if (ratio < 0.2) return '#fef3c7';
-    if (ratio < 0.4) return '#fde68a';
-    if (ratio < 0.6) return '#fcd34d';
-    if (ratio < 0.8) return '#f59e0b';
-    return '#d97706';
+  // Get color for a country
+  const getCountryColor = (countryName: string): string => {
+    if (!data || data.length === 0) return NO_DATA_COLOR;
+    
+    const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
+    const countryData = data.find(d => d.name === normalizedName || d.name === countryName);
+    
+    if (!countryData || countryData.count === 0) return NO_DATA_COLOR;
+    
+    const ratio = countryData.count / maxCount;
+    if (ratio < 0.2) return COLOR_SCALE[0];
+    if (ratio < 0.4) return COLOR_SCALE[1];
+    if (ratio < 0.6) return COLOR_SCALE[2];
+    if (ratio < 0.8) return COLOR_SCALE[3];
+    return COLOR_SCALE[4];
   };
 
-  // Prepare map data with coordinates
-  const mapData = useMemo(() => {
-    return data
-      .map(item => {
-        const coords = COUNTRY_COORDINATES[item.name];
-        if (!coords) return null;
-        return {
-          ...item,
-          lat: coords.lat,
-          lng: coords.lng,
-          color: getColor(item.count)
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.count - a.count);
-  }, [data, maxCount]);
+  // Get country data for tooltip
+  const getCountryData = (countryName: string) => {
+    const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
+    return data.find(d => d.name === normalizedName || d.name === countryName);
+  };
 
-  // Prepare enhanced data with color for charts
-  const enhancedData = useMemo(() => {
-    return data.map(item => ({
-      ...item,
-      color: getColor(item.count)
-    }));
-  }, [data, maxCount]);
+  // Check if country has children (drillable)
+  const hasChildren = (countryName: string): boolean => {
+    const countryData = getCountryData(countryName);
+    return !!(countryData?.children && countryData.children.length > 0);
+  };
 
-  const handleClick = (item: any) => {
+  // Handle mouse enter
+  const handleMouseEnter = (e: React.MouseEvent, countryName: string) => {
+    setHoveredId(countryName);
+    const countryData = getCountryData(countryName);
+    if (countryData) {
+      const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+      setTooltip({
+        x: e.clientX + 15,
+        y: e.clientY - 10,
+        data: countryData
+      });
+    }
+  };
+
+  // Handle mouse leave
+  const handleMouseLeave = () => {
+    setHoveredId(null);
+    setTooltip(null);
+  };
+
+  // Handle click
+  const handleClick = (countryName: string) => {
+    const countryData = getCountryData(countryName);
+    if (!countryData) return;
+    
+    if (countryData.children && canDrillDeeper('continent')) {
+      onDrillDown(countryData);
+    } else if (countryData.children && !canDrillDeeper('continent')) {
+      const upgradeMsg = getUpgradeMessage('countries');
+      alert(upgradeMsg);
+    }
+  };
+
+  // Get country style
+  const getCountryStyle = (countryName: string) => {
+    const isHovered = hoveredId === countryName;
+    const hasData = data.some(d => d.name === countryName || d.name === COUNTRY_NAME_MAP[countryName]);
+    
+    return {
+      fill: getCountryColor(countryName),
+      stroke: isHovered ? '#f59e0b' : '#ffffff',
+      strokeWidth: isHovered ? 2 : 0.5,
+      opacity: isHovered ? 1 : (hasData ? 0.9 : 0.6),
+      cursor: hasChildren(countryName) ? 'pointer' : 'default',
+      transition: 'all 0.15s ease'
+    };
+  };
+
+  // Chart click handler
+  const handleChartClick = (item: any) => {
     if (item.children && canDrillDeeper('continent')) {
       onDrillDown(item);
     } else if (item.children && !canDrillDeeper('continent')) {
@@ -182,20 +186,46 @@ export function VisitorOriginMap({
 
   // Color scale legend items
   const colorScaleLegend = [
-    { color: '#fef3c7', label: 'Low' },
-    { color: '#fde68a', label: 'Low-Mid' },
-    { color: '#fcd34d', label: 'Medium' },
-    { color: '#f59e0b', label: 'High' },
-    { color: '#d97706', label: 'Very High' }
+    { color: '#fef3c7', label: 'Low (0-20%)' },
+    { color: '#fde68a', label: 'Low-Mid (20-40%)' },
+    { color: '#fcd34d', label: 'Medium (40-60%)' },
+    { color: '#f59e0b', label: 'High (60-80%)' },
+    { color: '#d97706', label: 'Very High (80-100%)' }
   ];
 
-  if (isLoading || !data || data.length === 0) {
+  // Prepare data with color for charts
+  const enhancedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      color: getCountryColor(item.name)
+    }));
+  }, [data, maxCount]);
+
+  // Loading state
+  if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
         <div className="h-96 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-            <p className="text-stone-400">Loading visitor data...</p>
+            <p className="text-stone-400">{loadingGeo ? 'Loading map data...' : 'Loading visitor data...'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
+        <div className="h-96 flex items-center justify-center">
+          <div className="text-center max-w-md px-6">
+            <div className="text-5xl mb-4">🌍</div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">No visitor origin data available yet</h3>
+            <p className="text-stone-400 text-sm">
+              As guests check in, this map will highlight where they come from around the world.
+            </p>
           </div>
         </div>
       </div>
@@ -212,7 +242,7 @@ export function VisitorOriginMap({
             Visitor Origin Explorer
           </h3>
           <p className="text-xs text-stone-400">
-            {drillLevel === 'world' && 'Global view - Click to drill down'}
+            {drillLevel === 'world' && 'Global view - Hover for details, click to explore'}
             {drillLevel === 'continent' && 'Continent view'}
             {drillLevel === 'country' && 'Country view'}
           </p>
@@ -262,69 +292,94 @@ export function VisitorOriginMap({
         </div>
       </div>
 
-      {/* Map / Chart - SINGLE RENDER */}
-      <div className="p-6">
+      {/* Map / Chart */}
+      <div ref={containerRef} className="p-6">
         {viewType === 'map' ? (
-          <div className="relative w-full h-[450px] rounded-xl overflow-hidden shadow-inner">
-            <MapContainer
-              center={[20, 10]}
-              zoom={2}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
+          <div className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
+            <svg
+              ref={svgRef}
+              viewBox="0 0 800 450"
+              preserveAspectRatio="xMidYMid meet"
+              className="w-full h-full"
             >
-              <ZoomControl position="bottomright" />
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {mapData.map((item, index) => (
-                <CircleMarker
-                  key={index}
-                  center={[item.lat, item.lng]}
-                  radius={Math.max(8, Math.min(40, (item.count / maxCount) * 35))}
-                  fillColor={item.color}
-                  color="#fff"
-                  weight={2}
-                  opacity={1}
-                  fillOpacity={0.8}
-                  eventHandlers={{
-                    click: () => handleClick(item),
-                    mouseover: (e) => e.target.openPopup(),
-                    mouseout: (e) => e.target.closePopup(),
-                  }}
-                >
-                  <Popup>
-                    <div className="text-center min-w-[120px]">
-                      <p className="font-semibold text-gray-900">{item.name}</p>
-                      <p className="text-sm text-gray-600">{item.count.toLocaleString()} visitors</p>
-                      <p className="text-sm text-orange-600 font-medium">{item.percentage.toFixed(1)}%</p>
-                      {item.children && canDrillDeeper('continent') && (
-                        <p className="text-xs text-stone-400 mt-1">👆 Click to explore</p>
-                      )}
-                      {item.children && !canDrillDeeper('continent') && (
-                        <p className="text-xs text-amber-500 mt-1">🔒 Upgrade to explore</p>
-                      )}
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
-            </MapContainer>
+              <g transform="scale(0.85) translate(70, 30)">
+                {geoData?.features?.map((feature: any, index: number) => {
+                  const countryName = feature.properties?.name;
+                  if (!countryName) return null;
+                  
+                  const style = getCountryStyle(countryName);
+                  
+                  // Generate path for this country
+                  // In production, you'd use geoPath() to generate the actual path
+                  // This is a placeholder - the actual path would be generated from the GeoJSON
+                  const path = geoPath()
+                    .projection(geoMercator().fitSize([800, 450], feature))
+                    (feature);
+                  
+                  return (
+                    <path
+                      key={index}
+                      d={path || `M ${10 + Math.random() * 780} ${10 + Math.random() * 430}`}
+                      fill={style.fill}
+                      stroke={style.stroke}
+                      strokeWidth={style.strokeWidth}
+                      opacity={style.opacity}
+                      style={{ 
+                        cursor: style.cursor,
+                        transition: style.transition
+                      }}
+                      onMouseEnter={(e) => handleMouseEnter(e, countryName)}
+                      onMouseLeave={handleMouseLeave}
+                      onClick={() => handleClick(countryName)}
+                    />
+                  );
+                })}
+              </g>
+            </svg>
 
             {/* Map Legend */}
-            <div className="absolute bottom-4 left-4 flex items-center gap-3 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm text-xs">
-              <span className="text-stone-500">Low</span>
+            <div className="absolute bottom-4 left-4 flex items-center gap-3 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm border border-stone-200">
+              <span className="text-[10px] text-stone-500">Low</span>
               <div className="flex gap-0.5">
                 {colorScaleLegend.map((item, index) => (
                   <div key={index} className="w-5 h-2 rounded" style={{ backgroundColor: item.color }} />
                 ))}
               </div>
-              <span className="text-stone-500">High</span>
+              <span className="text-[10px] text-stone-500">High</span>
+              <span className="text-[10px] text-stone-300 mx-1">|</span>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-2 rounded" style={{ backgroundColor: NO_DATA_COLOR }} />
+                <span className="text-[10px] text-stone-400">No Data</span>
+              </div>
             </div>
 
             {/* Country Count */}
-            <div className="absolute bottom-4 right-4 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm text-xs text-stone-500">
-              {mapData.length} countries
+            <div className="absolute bottom-4 right-4 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm border border-stone-200 text-xs text-stone-500">
+              {data.length} countries with data
             </div>
+
+            {/* Tooltip */}
+            {tooltip && (
+              <div
+                className="fixed bg-white p-3 rounded-xl shadow-lg border border-stone-200 max-w-[220px] pointer-events-none z-50"
+                style={{
+                  left: tooltip.x,
+                  top: tooltip.y,
+                  transform: 'translateY(-8px)'
+                }}
+              >
+                <p className="font-semibold text-stone-900 text-sm">{tooltip.data.name}</p>
+                <p className="text-sm text-stone-600">
+                  {tooltip.data.count.toLocaleString()} visitors
+                  <span className="ml-2 text-orange-500">
+                    ({tooltip.data.percentage.toFixed(1)}%)
+                  </span>
+                </p>
+                {tooltip.data.children && tooltip.data.children.length > 0 && (
+                  <p className="text-[10px] text-stone-400 mt-1 border-t border-stone-100 pt-1">👆 Click to explore</p>
+                )}
+              </div>
+            )}
           </div>
         ) : viewType === 'bar' ? (
           <ResponsiveContainer width="100%" height={400}>
@@ -345,7 +400,7 @@ export function VisitorOriginMap({
               <Bar 
                 dataKey="count" 
                 radius={[0, 8, 8, 0]}
-                onClick={handleClick}
+                onClick={handleChartClick}
                 cursor="pointer"
                 label={{ 
                   position: 'right', 
@@ -357,6 +412,8 @@ export function VisitorOriginMap({
                   <Cell 
                     key={`cell-${index}`} 
                     fill={entry.color}
+                    onMouseEnter={() => setHoveredId(entry.name)}
+                    onMouseLeave={() => setHoveredId(null)}
                   />
                 ))}
               </Bar>
@@ -375,13 +432,15 @@ export function VisitorOriginMap({
                 dataKey="count"
                 label={({ name, percent }) => percent > 0.05 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
                 labelLine={false}
-                onClick={handleClick}
+                onClick={handleChartClick}
                 cursor="pointer"
               >
                 {enhancedData.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
                     fill={entry.color}
+                    onMouseEnter={() => setHoveredId(entry.name)}
+                    onMouseLeave={() => setHoveredId(null)}
                   />
                 ))}
               </Pie>
@@ -426,7 +485,7 @@ export function VisitorOriginMap({
           </div>
           
           <div className="text-xs text-stone-400">
-            {viewType === 'map' && '🌍 Click a circle to explore'}
+            {viewType === 'map' && '🌍 Hover for details • Click to explore'}
             {viewType === 'bar' && '📊 Click a bar to explore'}
             {viewType === 'pie' && '🍩 Click a slice to explore'}
           </div>
