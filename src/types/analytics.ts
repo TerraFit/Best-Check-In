@@ -55,6 +55,7 @@ export interface SubscriptionLimits {
   canViewRegions: boolean;
   canViewCities: boolean;
   canViewTravelPatterns: boolean;
+  canExportData: boolean;
 }
 
 export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> = {
@@ -63,27 +64,31 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     canViewCountries: false,
     canViewRegions: false,
     canViewCities: false,
-    canViewTravelPatterns: false
+    canViewTravelPatterns: false,
+    canExportData: false,
   },
   growth: {
     maxDrillLevel: 'continent',
     canViewCountries: true,
     canViewRegions: false,
     canViewCities: false,
-    canViewTravelPatterns: false
+    canViewTravelPatterns: false,
+    canExportData: true,
   },
   pro: {
     maxDrillLevel: 'country',
     canViewCountries: true,
     canViewRegions: true,
     canViewCities: false,
-    canViewTravelPatterns: true
+    canViewTravelPatterns: true,
+    canExportData: true,
   },
   business: {
     maxDrillLevel: 'city',
     canViewCountries: true,
     canViewRegions: true,
     canViewCities: true,
-    canViewTravelPatterns: true
+    canViewTravelPatterns: true,
+    canExportData: true,
   }
 };
