@@ -12,11 +12,8 @@ import {
   PieChart, 
   Pie 
 } from 'recharts';
-import { geoMercator, geoPath, geoEquirectangular } from 'd3-geo';
+import { geoEquirectangular, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
-import { select } from 'd3-selection';
-import 'd3-transition';
 
 // ============================================================
 // TYPES
@@ -43,19 +40,6 @@ interface VisitorOriginMapProps {
   isLoading: boolean;
 }
 
-interface CountryFeature {
-  type: string;
-  properties: {
-    name: string;
-    iso_n3?: string;
-    iso_a2?: string;
-    ADMIN?: string;
-    COUNTRY?: string;
-    [key: string]: any;
-  };
-  geometry: any;
-}
-
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -63,9 +47,8 @@ interface CountryFeature {
 const COLOR_SCALE = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706'];
 const NO_DATA_COLOR = '#e5e7eb';
 
-// Comprehensive country name mapping for data matching
+// Comprehensive country name mapping
 const COUNTRY_NAME_MAP: Record<string, string> = {
-  // Common variants
   'United States of America': 'United States',
   'United States': 'United States of America',
   'USA': 'United States',
@@ -176,11 +159,16 @@ export function VisitorOriginMap({
   const [geoData, setGeoData] = useState<any>(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [zoomTransform, setZoomTransform] = useState<ZoomTransform | null>(null);
   
+  // Zoom state using CSS transform
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomTranslate, setZoomTranslate] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const pathRefs = useRef<Map<string, SVGPathElement>>(new Map());
 
   // ============================================================
   // CDN GEOJSON LOADER
@@ -241,69 +229,67 @@ export function VisitorOriginMap({
   }, [loadGeoJsonFromCDN]);
 
   // ============================================================
-  // ZOOM SETUP
+  // ZOOM HANDLERS (Native SVG transform)
   // ============================================================
 
-  useEffect(() => {
-    if (!svgRef.current || !geoData) return;
+  const handleZoomIn = useCallback(() => {
+    setZoomScale(prev => Math.min(prev * 1.3, 8));
+  }, []);
 
-    const svg = select(svgRef.current);
-    const container = select(containerRef.current);
+  const handleZoomOut = useCallback(() => {
+    setZoomScale(prev => Math.max(prev / 1.3, 0.5));
+  }, []);
 
-    // Create zoom behavior
-    const zoomBehavior = zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 8])
-      .translateExtent([
-        [-400, -225],
-        [1200, 675]
-      ])
-      .on('zoom', (event) => {
-        const transform = event.transform;
-        setZoomTransform(transform);
-        
-        // Apply transform to the map group
-        svg.select('g.map-group')
-          .attr('transform', transform.toString());
-      });
+  const handleZoomReset = useCallback(() => {
+    setZoomScale(1);
+    setZoomTranslate({ x: 0, y: 0 });
+  }, []);
 
-    // Apply zoom to SVG
-    svg.call(zoomBehavior);
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoomScale(prev => Math.max(0.5, Math.min(8, prev * delta)));
+  }, []);
 
-    // Double-click to reset
-    svg.on('dblclick.zoom', () => {
-      svg.transition()
-        .duration(750)
-        .call(zoomBehavior.transform, zoomIdentity);
-    });
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setDragOffset({ x: 0, y: 0 });
+  }, []);
 
-    // Cleanup
-    return () => {
-      svg.on('.zoom', null);
-    };
-  }, [geoData]);
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    setZoomTranslate(prev => ({
+      x: prev.x + dx,
+      y: prev.y + dy
+    }));
+    setDragStart({ x: e.clientX, y: e.clientY });
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   // ============================================================
-  // DATA MATCHING - Find data for each country
+  // DATA MATCHING
   // ============================================================
 
   const getCountryData = useCallback((countryName: string) => {
     if (!countryName) return null;
     
-    // Try direct match
     let found = data.find(d => d.name === countryName);
     if (found) return found;
     
-    // Try normalized match
     const normalized = COUNTRY_NAME_MAP[countryName] || countryName;
     found = data.find(d => d.name === normalized);
     if (found) return found;
     
-    // Try case-insensitive match
     const lowerName = countryName.toLowerCase();
     found = data.find(d => d.name.toLowerCase() === lowerName);
     if (found) return found;
     
-    // Try partial match (for "United States" vs "United States of America")
     found = data.find(d => 
       d.name.includes(countryName) || 
       countryName.includes(d.name)
@@ -341,7 +327,7 @@ export function VisitorOriginMap({
     return !!(countryData?.children && countryData.children.length > 0);
   }, [getCountryData]);
 
-  // Map projection - use equirectangular for better world view
+  // Map projection
   const projection = useMemo(() => {
     return geoEquirectangular()
       .fitSize([800, 450], { type: 'Sphere' })
@@ -387,7 +373,6 @@ export function VisitorOriginMap({
     const countryData = getCountryData(countryName);
     if (!countryData) return;
     
-    // If this is a continent (has children), drill down
     if (countryData.children && countryData.children.length > 0 && canDrillDeeper('continent')) {
       onDrillDown(countryData);
     } else if (countryData.children && countryData.children.length > 0 && !canDrillDeeper('continent')) {
@@ -444,7 +429,7 @@ export function VisitorOriginMap({
   }, [canDrillDeeper]);
 
   // ============================================================
-  // EARLY RETURNS AFTER ALL HOOKS
+  // EARLY RETURNS
   // ============================================================
 
   if (isLoading || loadingGeo) {
@@ -529,7 +514,7 @@ export function VisitorOriginMap({
     { color: '#d97706', label: 'Very High (80-100%)' }
   ];
 
-  // Log data for debugging
+  // Debug logging
   console.log('📊 Map Data:', data);
   console.log('🌍 Geo Features:', geoData.features.length);
 
@@ -543,7 +528,7 @@ export function VisitorOriginMap({
             Visitor Origin Explorer
           </h3>
           <p className="text-xs text-stone-400">
-            {drillLevel === 'world' && '🌍 Global view - Scroll to zoom • Click countries to explore'}
+            {drillLevel === 'world' && '🌍 Scroll to zoom • Drag to pan • Click to explore'}
             {drillLevel === 'continent' && '🌍 Continent view'}
             {drillLevel === 'country' && '🌍 Country view'}
           </p>
@@ -596,77 +581,61 @@ export function VisitorOriginMap({
       {/* Map / Chart */}
       <div ref={containerRef} className="p-6">
         {viewType === 'map' ? (
-          <div className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
+          <div 
+            className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden"
+            onWheel={handleWheel}
+          >
             {/* Zoom Controls */}
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-1">
               <button
-                onClick={() => {
-                  const svg = select(svgRef.current);
-                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
-                    .scaleExtent([0.5, 8])
-                    .on('zoom', (event) => {
-                      const transform = event.transform;
-                      setZoomTransform(transform);
-                      svg.select('g.map-group')
-                        .attr('transform', transform.toString());
-                    });
-                  svg.transition()
-                    .duration(300)
-                    .call(zoomBehavior.scaleBy, 1.3);
-                }}
-                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200"
+                onClick={handleZoomIn}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200 transition-colors"
+                title="Zoom In"
               >
                 +
               </button>
               <button
-                onClick={() => {
-                  const svg = select(svgRef.current);
-                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
-                    .scaleExtent([0.5, 8])
-                    .on('zoom', (event) => {
-                      const transform = event.transform;
-                      setZoomTransform(transform);
-                      svg.select('g.map-group')
-                        .attr('transform', transform.toString());
-                    });
-                  svg.transition()
-                    .duration(300)
-                    .call(zoomBehavior.scaleBy, 0.7);
-                }}
-                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200"
+                onClick={handleZoomOut}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-lg font-bold border border-stone-200 transition-colors"
+                title="Zoom Out"
               >
                 −
               </button>
               <button
-                onClick={() => {
-                  const svg = select(svgRef.current);
-                  const zoomBehavior = zoom<SVGSVGElement, unknown>()
-                    .scaleExtent([0.5, 8])
-                    .on('zoom', (event) => {
-                      const transform = event.transform;
-                      setZoomTransform(transform);
-                      svg.select('g.map-group')
-                        .attr('transform', transform.toString());
-                    });
-                  svg.transition()
-                    .duration(750)
-                    .call(zoomBehavior.transform, zoomIdentity);
-                }}
-                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-xs font-medium border border-stone-200"
+                onClick={handleZoomReset}
+                className="w-8 h-8 bg-white rounded-lg shadow-md hover:bg-gray-50 flex items-center justify-center text-xs font-medium border border-stone-200 transition-colors"
+                title="Reset View"
               >
                 ⟲
               </button>
+            </div>
+
+            {/* Zoom Level Indicator */}
+            <div className="absolute top-4 left-4 z-10 bg-white/90 px-2 py-1 rounded text-xs text-stone-500 border border-stone-200">
+              {Math.round(zoomScale * 100)}%
             </div>
 
             <svg
               ref={svgRef}
               viewBox="0 0 800 450"
               preserveAspectRatio="xMidYMid meet"
-              className="w-full h-full cursor-grab active:cursor-grabbing"
-              style={{ background: 'transparent' }}
+              className="w-full h-full"
+              style={{ 
+                cursor: isDragging ? 'grabbing' : 'grab',
+                background: 'transparent'
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
             >
-              <g className="map-group">
-                {geoData.features.map((feature: CountryFeature, index: number) => {
+              {/* Map Group with Transform */}
+              <g
+                className="map-group"
+                transform={`translate(${zoomTranslate.x}, ${zoomTranslate.y}) scale(${zoomScale})`}
+                style={{ transformOrigin: 'center center' }}
+              >
+                {geoData.features.map((feature: any, index: number) => {
                   const countryName = feature.properties?.name || 
                                      feature.properties?.ADMIN || 
                                      feature.properties?.COUNTRY;
@@ -859,7 +828,7 @@ export function VisitorOriginMap({
           </div>
           
           <div className="text-xs text-stone-400">
-            {viewType === 'map' && '🖱️ Scroll to zoom • Click to explore'}
+            {viewType === 'map' && '🖱️ Scroll to zoom • Drag to pan • Click to explore'}
             {viewType === 'bar' && '📊 Click a bar to explore'}
             {viewType === 'pie' && '🍩 Click a slice to explore'}
           </div>
