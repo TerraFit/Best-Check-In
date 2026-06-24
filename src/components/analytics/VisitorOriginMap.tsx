@@ -1,5 +1,5 @@
 // src/components/analytics/VisitorOriginMap.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie } from 'recharts';
 import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -23,8 +23,6 @@ interface VisitorOriginMapProps {
   getUpgradeMessage: (feature: string) => string;
   isLoading: boolean;
 }
-
-const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
 
 // Country coordinates for the map
 const COUNTRY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -106,25 +104,16 @@ export function VisitorOriginMap({
   getUpgradeMessage,
   isLoading
 }: VisitorOriginMapProps) {
-  const [chartType, setChartType] = useState<'map' | 'bar' | 'pie'>('map');
+  const [viewType, setViewType] = useState<'map' | 'bar' | 'pie'>('map');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  // Prepare map data with coordinates
-  const mapData = data
-    .map(item => {
-      const coords = COUNTRY_COORDINATES[item.name];
-      if (!coords) return null;
-      return {
-        ...item,
-        lat: coords.lat,
-        lng: coords.lng
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.count - a.count);
+  // Calculate max count for color scaling
+  const maxCount = useMemo(() => {
+    if (!data || data.length === 0) return 1;
+    return Math.max(...data.map(d => d.count), 1);
+  }, [data]);
 
-  const maxCount = mapData[0]?.count || 1;
-
+  // Get color based on density
   const getColor = (count: number): string => {
     const ratio = count / maxCount;
     if (ratio < 0.2) return '#fef3c7';
@@ -134,11 +123,32 @@ export function VisitorOriginMap({
     return '#d97706';
   };
 
-  const getRadius = (count: number): number => {
-    return Math.max(8, Math.min(40, (count / maxCount) * 35));
-  };
+  // Prepare map data with coordinates
+  const mapData = useMemo(() => {
+    return data
+      .map(item => {
+        const coords = COUNTRY_COORDINATES[item.name];
+        if (!coords) return null;
+        return {
+          ...item,
+          lat: coords.lat,
+          lng: coords.lng,
+          color: getColor(item.count)
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.count - a.count);
+  }, [data, maxCount]);
 
-  const handleMapClick = (item: any) => {
+  // Prepare enhanced data with color for charts
+  const enhancedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      color: getColor(item.count)
+    }));
+  }, [data, maxCount]);
+
+  const handleClick = (item: any) => {
     if (item.children && canDrillDeeper('continent')) {
       onDrillDown(item);
     } else if (item.children && !canDrillDeeper('continent')) {
@@ -171,14 +181,14 @@ export function VisitorOriginMap({
     return null;
   };
 
-  const handleChartClick = (item: any) => {
-    if (item.children && canDrillDeeper('continent')) {
-      onDrillDown(item);
-    } else if (item.children && !canDrillDeeper('continent')) {
-      const upgradeMsg = getUpgradeMessage('countries');
-      alert(upgradeMsg);
-    }
-  };
+  // Color scale legend items
+  const colorScaleLegend = [
+    { color: '#fef3c7', label: 'Low' },
+    { color: '#fde68a', label: 'Low-Mid' },
+    { color: '#fcd34d', label: 'Medium' },
+    { color: '#f59e0b', label: 'High' },
+    { color: '#d97706', label: 'Very High' }
+  ];
 
   if (isLoading || !data || data.length === 0) {
     return (
@@ -210,31 +220,31 @@ export function VisitorOriginMap({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Chart Type Toggle */}
+          {/* View Type Toggle */}
           <div className="flex bg-stone-100 rounded-lg p-0.5">
             <button
-              onClick={() => setChartType('map')}
+              onClick={() => setViewType('map')}
               className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                chartType === 'map' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+                viewType === 'map' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
-              Map
+              🗺️ Map
             </button>
             <button
-              onClick={() => setChartType('bar')}
+              onClick={() => setViewType('bar')}
               className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                chartType === 'bar' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+                viewType === 'bar' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
-              Bar
+              📊 Bar
             </button>
             <button
-              onClick={() => setChartType('pie')}
+              onClick={() => setViewType('pie')}
               className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                chartType === 'pie' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+                viewType === 'pie' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
-              Pie
+              🍩 Pie
             </button>
           </div>
 
@@ -253,9 +263,9 @@ export function VisitorOriginMap({
         </div>
       </div>
 
-      {/* Chart / Map */}
+      {/* Map / Chart */}
       <div className="p-6">
-        {chartType === 'map' ? (
+        {viewType === 'map' ? (
           <div className="relative w-full h-[450px] rounded-xl overflow-hidden shadow-inner">
             <MapContainer
               center={[20, 10]}
@@ -272,14 +282,14 @@ export function VisitorOriginMap({
                 <CircleMarker
                   key={index}
                   center={[item.lat, item.lng]}
-                  radius={getRadius(item.count)}
-                  fillColor={getColor(item.count)}
+                  radius={Math.max(8, Math.min(40, (item.count / maxCount) * 35))}
+                  fillColor={item.color}
                   color="#fff"
                   weight={2}
                   opacity={1}
                   fillOpacity={0.8}
                   eventHandlers={{
-                    click: () => handleMapClick(item),
+                    click: () => handleClick(item),
                     mouseover: (e) => e.target.openPopup(),
                     mouseout: (e) => e.target.closePopup(),
                   }}
@@ -305,24 +315,22 @@ export function VisitorOriginMap({
             <div className="absolute bottom-4 left-4 flex items-center gap-3 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm text-xs">
               <span className="text-stone-500">Low</span>
               <div className="flex gap-0.5">
-                <div className="w-5 h-2 rounded" style={{ backgroundColor: '#fef3c7' }} />
-                <div className="w-5 h-2 rounded" style={{ backgroundColor: '#fde68a' }} />
-                <div className="w-5 h-2 rounded" style={{ backgroundColor: '#fcd34d' }} />
-                <div className="w-5 h-2 rounded" style={{ backgroundColor: '#f59e0b' }} />
-                <div className="w-5 h-2 rounded" style={{ backgroundColor: '#d97706' }} />
+                {colorScaleLegend.map((item, index) => (
+                  <div key={index} className="w-5 h-2 rounded" style={{ backgroundColor: item.color }} />
+                ))}
               </div>
               <span className="text-stone-500">High</span>
             </div>
 
             {/* Country Count */}
             <div className="absolute bottom-4 right-4 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm text-xs text-stone-500">
-              {mapData.length} countries represented
+              {mapData.length} countries
             </div>
           </div>
-        ) : chartType === 'bar' ? (
-          <ResponsiveContainer width="100%" height={450}>
+        ) : viewType === 'bar' ? (
+          <ResponsiveContainer width="100%" height={400}>
             <BarChart
-              data={data}
+              data={enhancedData}
               layout="vertical"
               margin={{ left: 120, right: 30 }}
             >
@@ -337,9 +345,8 @@ export function VisitorOriginMap({
               <Tooltip content={<CustomTooltip />} />
               <Bar 
                 dataKey="count" 
-                fill="#f59e0b" 
                 radius={[0, 8, 8, 0]}
-                onClick={handleChartClick}
+                onClick={handleClick}
                 cursor="pointer"
                 label={{ 
                   position: 'right', 
@@ -347,10 +354,10 @@ export function VisitorOriginMap({
                   fontSize: 11
                 }}
               >
-                {data.map((entry, index) => (
+                {enhancedData.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
-                    fill={COLORS[index % COLORS.length]}
+                    fill={entry.color}
                     onMouseEnter={() => setHoveredItem(entry.name)}
                     onMouseLeave={() => setHoveredItem(null)}
                   />
@@ -359,10 +366,10 @@ export function VisitorOriginMap({
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <ResponsiveContainer width="100%" height={450}>
+          <ResponsiveContainer width="100%" height={400}>
             <PieChart>
               <Pie
-                data={data}
+                data={enhancedData}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
@@ -371,13 +378,13 @@ export function VisitorOriginMap({
                 dataKey="count"
                 label={({ name, percent }) => percent > 0.05 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
                 labelLine={false}
-                onClick={handleChartClick}
+                onClick={handleClick}
                 cursor="pointer"
               >
-                {data.map((entry, index) => (
+                {enhancedData.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
-                    fill={COLORS[index % COLORS.length]}
+                    fill={entry.color}
                     onMouseEnter={() => setHoveredItem(entry.name)}
                     onMouseLeave={() => setHoveredItem(null)}
                   />
@@ -388,8 +395,27 @@ export function VisitorOriginMap({
           </ResponsiveContainer>
         )}
 
+        {/* Color Scale Legend */}
+        <div className="mt-4 pt-3 border-t border-stone-100">
+          <p className="text-xs text-stone-500 mb-2">Visitor Density Scale:</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {colorScaleLegend.map((item, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <div 
+                  className="w-5 h-4 rounded-sm border border-stone-200" 
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-[10px] text-stone-500">{item.label}</span>
+                {index < colorScaleLegend.length - 1 && (
+                  <span className="text-stone-300 text-xs">→</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Stats Footer */}
-        <div className="mt-4 pt-4 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-3 pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-6 text-sm">
             <span className="text-stone-500">
               Total: <span className="font-semibold text-stone-900">
@@ -405,9 +431,9 @@ export function VisitorOriginMap({
           </div>
           
           <div className="text-xs text-stone-400">
-            {chartType === 'map' && '🌍 Click a circle to explore'}
-            {chartType === 'bar' && '📊 Click a bar to explore'}
-            {chartType === 'pie' && '🍩 Click a slice to explore'}
+            {viewType === 'map' && '🌍 Click a circle to explore'}
+            {viewType === 'bar' && '📊 Click a bar to explore'}
+            {viewType === 'pie' && '🍩 Click a slice to explore'}
           </div>
         </div>
 
