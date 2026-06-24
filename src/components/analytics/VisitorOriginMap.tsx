@@ -14,10 +14,6 @@ import {
 } from 'recharts';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { Feature, Geometry } from 'geojson';
-
-// ✅ Import world map data
-import worldMapData from 'world-atlas/countries-110m.json';
 
 // ============================================================
 // TYPES
@@ -32,15 +28,6 @@ interface VisitorOriginMapProps {
   canDrillDeeper: (level: string) => boolean;
   getUpgradeMessage: (feature: string) => string;
   isLoading: boolean;
-}
-
-interface CountryFeature extends Feature {
-  properties: {
-    name: string;
-    iso_n3?: string;
-    iso_a2?: string;
-    [key: string]: any;
-  };
 }
 
 // ============================================================
@@ -85,31 +72,30 @@ export function VisitorOriginMap({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ============================================================
-  // LOAD GEOJSON DATA
+  // LOAD GEOJSON DATA FROM CDN
   // ============================================================
 
   useEffect(() => {
     const loadGeoData = async () => {
       try {
-        // Use the imported TopoJSON data
-        const topology = worldMapData as any;
+        // ✅ Use CDN - no local import needed
+        const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
         
-        // ✅ FIX: Convert TopoJSON to GeoJSON features with proper geometry
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const topology = await response.json();
+        console.log('✅ Loaded world map topology');
+        
+        // Convert TopoJSON to GeoJSON features
         const geoJson = feature(topology, topology.objects.countries);
+        console.log('✅ Features loaded:', geoJson.features?.length);
         
-        console.log('✅ Loaded GeoJSON features:', geoJson.features?.length);
         setGeoData(geoJson);
       } catch (error) {
         console.error('Error loading map data:', error);
-        // Fallback: Try fetching from CDN
-        try {
-          const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-          const topology = await response.json();
-          const geoJson = feature(topology, topology.objects.countries);
-          setGeoData(geoJson);
-        } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError);
-        }
+        setGeoData(null);
       } finally {
         setLoadingGeo(false);
       }
@@ -237,6 +223,20 @@ export function VisitorOriginMap({
   };
 
   // ============================================================
+  // MAP PROJECTION
+  // ============================================================
+
+  const projection = useMemo(() => {
+    return geoMercator()
+      .fitSize([800, 450], { type: 'Sphere' })
+      .translate([400, 225]);
+  }, []);
+
+  const pathGenerator = useMemo(() => {
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // ============================================================
   // LOADING STATE
   // ============================================================
 
@@ -284,18 +284,6 @@ export function VisitorOriginMap({
     }));
   }, [data, maxCount]);
 
-  // ✅ FIX: Generate map projection and paths
-  const projection = useMemo(() => {
-    return geoMercator()
-      .fitSize([800, 450], { type: 'Sphere' })
-      .translate([400, 225]);
-  }, []);
-
-  const pathGenerator = useMemo(() => {
-    return geoPath().projection(projection);
-  }, [projection]);
-
-  // Color scale legend
   const colorScaleLegend = [
     { color: '#fef3c7', label: 'Low (0-20%)' },
     { color: '#fde68a', label: 'Low-Mid (20-40%)' },
@@ -368,23 +356,22 @@ export function VisitorOriginMap({
       <div ref={containerRef} className="p-6">
         {viewType === 'map' ? (
           <div className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
-            {/* ✅ FIX: Render actual country paths */}
             <svg
               ref={svgRef}
               viewBox="0 0 800 450"
               preserveAspectRatio="xMidYMid meet"
               className="w-full h-full"
             >
-              {geoData?.features?.map((feature: CountryFeature, index: number) => {
+              {geoData?.features?.map((feature: any, index: number) => {
                 const countryName = feature.properties?.name;
                 if (!countryName) return null;
                 
                 const style = getCountryStyle(countryName);
                 
-                // ✅ Generate actual country path using d3-geo
+                // Generate actual country path using d3-geo
                 let path = '';
                 try {
-                  path = pathGenerator(feature as any) || '';
+                  path = pathGenerator(feature) || '';
                 } catch (e) {
                   console.warn(`Could not generate path for ${countryName}:`, e);
                   return null;
