@@ -29,6 +29,10 @@ interface ReportsTabProps {
 }
 
 export function ReportsTab(props: ReportsTabProps) {
+  // ✅ FIX: Ensure subscriptionTier is properly passed
+  const tier = props.subscriptionTier || 'starter';
+  console.log('📊 ReportsTab - subscriptionTier received:', tier);
+  
   const {
     analyticsData,
     drillLevel,
@@ -39,12 +43,16 @@ export function ReportsTab(props: ReportsTabProps) {
     canDrillDeeper,
     getUpgradeMessage,
     isLoading
-  } = useAnalytics(props.bookings, props.subscriptionTier);
+  } = useAnalytics(props.bookings, tier);
+  
+  // Debug: Log what limits we got
+  console.log('📊 ReportsTab - limits:', limits);
 
   const totalRevenue = props.bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
 
   // Handle drill down
   const handleDrillDown = (item: any) => {
+    console.log('🔽 Drill down:', item);
     if (item.children && canDrillDeeper('continent')) {
       setDrillLevel('continent');
       setDrillPath([...drillPath, item.name]);
@@ -52,6 +60,7 @@ export function ReportsTab(props: ReportsTabProps) {
   };
 
   const handleDrillUp = () => {
+    console.log('⬆️ Drill up from:', drillLevel);
     if (drillLevel === 'continent') {
       setDrillLevel('world');
       setDrillPath(drillPath.slice(0, -1));
@@ -59,6 +68,126 @@ export function ReportsTab(props: ReportsTabProps) {
       setDrillLevel('continent');
     }
   };
+
+  // Prepare data for the map - ensure we have continent data
+  const mapData = useMemo(() => {
+    if (!props.bookings || props.bookings.length === 0) return [];
+    
+    // Aggregate by continent from guest_country
+    const continentMap: Record<string, { name: string; count: number; children: any[] }> = {};
+    
+    props.bookings.forEach((b: any) => {
+      const country = b.guest_country || b.country;
+      if (!country) return;
+      
+      // Simple continent mapping
+      const countryToContinent: Record<string, string> = {
+        // Africa
+        'South Africa': 'Africa',
+        'Namibia': 'Africa',
+        'Botswana': 'Africa',
+        'Zimbabwe': 'Africa',
+        'Mozambique': 'Africa',
+        'Lesotho': 'Africa',
+        'Eswatini': 'Africa',
+        'Zambia': 'Africa',
+        'Angola': 'Africa',
+        'Malawi': 'Africa',
+        'Tanzania': 'Africa',
+        'Kenya': 'Africa',
+        'Nigeria': 'Africa',
+        'Ghana': 'Africa',
+        'Egypt': 'Africa',
+        'Morocco': 'Africa',
+        'Tunisia': 'Africa',
+        'Algeria': 'Africa',
+        'Mauritius': 'Africa',
+        'Seychelles': 'Africa',
+        // Europe
+        'Germany': 'Europe',
+        'France': 'Europe',
+        'United Kingdom': 'Europe',
+        'Italy': 'Europe',
+        'Spain': 'Europe',
+        'Netherlands': 'Europe',
+        'Switzerland': 'Europe',
+        'Austria': 'Europe',
+        'Belgium': 'Europe',
+        'Portugal': 'Europe',
+        'Sweden': 'Europe',
+        'Norway': 'Europe',
+        'Denmark': 'Europe',
+        'Finland': 'Europe',
+        'Greece': 'Europe',
+        'Ireland': 'Europe',
+        'Poland': 'Europe',
+        'Czech Republic': 'Europe',
+        'Hungary': 'Europe',
+        'Romania': 'Europe',
+        'Bulgaria': 'Europe',
+        'Croatia': 'Europe',
+        'Russia': 'Europe',
+        'Ukraine': 'Europe',
+        // North America
+        'United States': 'North America',
+        'United States of America': 'North America',
+        'Canada': 'North America',
+        'Mexico': 'North America',
+        // South America
+        'Brazil': 'South America',
+        'Argentina': 'South America',
+        'Chile': 'South America',
+        'Colombia': 'South America',
+        'Peru': 'South America',
+        'Venezuela': 'South America',
+        // Asia
+        'China': 'Asia',
+        'India': 'Asia',
+        'Japan': 'Asia',
+        'South Korea': 'Asia',
+        'Singapore': 'Asia',
+        'Malaysia': 'Asia',
+        'Indonesia': 'Asia',
+        'Thailand': 'Asia',
+        'Vietnam': 'Asia',
+        'Philippines': 'Asia',
+        'Saudi Arabia': 'Asia',
+        'United Arab Emirates': 'Asia',
+        'Israel': 'Asia',
+        'Turkey': 'Asia',
+        // Oceania
+        'Australia': 'Oceania',
+        'New Zealand': 'Oceania',
+        'Fiji': 'Oceania',
+      };
+      
+      const continent = countryToContinent[country] || 'Other';
+      
+      if (!continentMap[continent]) {
+        continentMap[continent] = { name: continent, count: 0, children: [] };
+      }
+      continentMap[continent].count += 1;
+      continentMap[continent].children.push({
+        name: country,
+        count: 1,
+        percentage: 0 // Will be calculated later
+      });
+    });
+    
+    const total = Object.values(continentMap).reduce((sum, c) => sum + c.count, 0) || 1;
+    
+    return Object.values(continentMap).map(c => ({
+      name: c.name,
+      count: c.count,
+      percentage: (c.count / total) * 100,
+      children: c.children.map((child: any) => ({
+        ...child,
+        percentage: (child.count / c.count) * 100
+      }))
+    })).sort((a, b) => b.count - a.count);
+  }, [props.bookings]);
+
+  console.log('📊 ReportsTab - mapData:', mapData);
 
   return (
     <div className="space-y-6">
@@ -90,16 +219,16 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Interactive World Map - SINGLE RENDER */}
+      {/* 🌍 Interactive World Map */}
       <VisitorOriginMap
-        data={analyticsData.originData}
+        data={mapData}
         drillLevel={drillLevel}
         limits={limits}
         onDrillDown={handleDrillDown}
         onDrillUp={handleDrillUp}
         canDrillDeeper={canDrillDeeper}
         getUpgradeMessage={getUpgradeMessage}
-        isLoading={isLoading}
+        isLoading={isLoading || props.bookings.length === 0}
       />
 
       {/* Supporting Analytics */}
