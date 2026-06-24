@@ -1,8 +1,8 @@
 // src/pages/Billing.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
-import SubscriptionStatus from '../components/Billing/SubscriptionStatus';
+import SubscriptionStatus from '../components/billing/SubscriptionStatus';
 import { PlanType } from '../types/entitlements';
 
 // ============================================================
@@ -14,6 +14,7 @@ interface Plan {
   name: string;
   priceMonthly: number;
   priceYearly: number;
+  minRooms: number;
   maxRooms: number;
   description: string;
   features: string[];
@@ -31,6 +32,7 @@ const plans: Plan[] = [
     name: 'Starter',
     priceMonthly: 349,
     priceYearly: 3490,
+    minRooms: 1,
     maxRooms: 5,
     description: 'Perfect for small guesthouses starting out',
     features: [
@@ -48,6 +50,7 @@ const plans: Plan[] = [
     name: 'Growth',
     priceMonthly: 649,
     priceYearly: 6490,
+    minRooms: 6,
     maxRooms: 10,
     description: 'Best for growing guesthouses',
     features: [
@@ -68,6 +71,7 @@ const plans: Plan[] = [
     name: 'Pro',
     priceMonthly: 949,
     priceYearly: 9490,
+    minRooms: 11,
     maxRooms: 15,
     description: 'For established properties needing team access',
     features: [
@@ -87,6 +91,7 @@ const plans: Plan[] = [
     name: 'Business',
     priceMonthly: 1290,
     priceYearly: 12900,
+    minRooms: 16,
     maxRooms: 20,
     description: 'For larger operations that need insights',
     features: [
@@ -153,6 +158,7 @@ export default function Billing() {
   
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [currentPlan, setCurrentPlan] = useState<string>('');
+  const [totalRooms, setTotalRooms] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [business, setBusiness] = useState<any>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -186,6 +192,7 @@ export default function Billing() {
       const data = await response.json();
       setBusiness(data);
       setCurrentPlan(data.current_plan || data.subscription_tier || 'starter');
+      setTotalRooms(data.total_rooms || 0);
     } catch (error) {
       console.error('Error loading current plan:', error);
     }
@@ -206,10 +213,81 @@ export default function Billing() {
   };
 
   // ============================================================
+  // PLAN VALIDATION
+  // ============================================================
+
+  // Get the minimum plan for the business based on room count
+  const getMinimumPlan = (rooms: number): Plan | null => {
+    // Sort plans by minRooms
+    const sorted = [...plans].sort((a, b) => a.minRooms - b.minRooms);
+    
+    for (const plan of sorted) {
+      if (rooms >= plan.minRooms && rooms <= plan.maxRooms) {
+        return plan;
+      }
+    }
+    
+    // If rooms > 20, return the highest plan
+    return plans[plans.length - 1];
+  };
+
+  // Check if a plan is eligible for downgrade
+  const canDowngradeTo = (targetPlanId: string): boolean => {
+    const minimumPlan = getMinimumPlan(totalRooms);
+    if (!minimumPlan) return false;
+    
+    const targetPlan = plans.find(p => p.id === targetPlanId);
+    if (!targetPlan) return false;
+    
+    // Can only downgrade to the minimum plan or higher
+    const targetIndex = plans.findIndex(p => p.id === targetPlanId);
+    const minIndex = plans.findIndex(p => p.id === minimumPlan.id);
+    
+    return targetIndex >= minIndex;
+  };
+
+  // Check if a plan is eligible for upgrade
+  const canUpgradeTo = (targetPlanId: string): boolean => {
+    const currentPlanObj = plans.find(p => p.id === currentPlan);
+    if (!currentPlanObj) return true;
+    
+    const targetPlan = plans.find(p => p.id === targetPlanId);
+    if (!targetPlan) return false;
+    
+    // Can upgrade to any plan with a higher index
+    const currentIndex = plans.findIndex(p => p.id === currentPlan);
+    const targetIndex = plans.findIndex(p => p.id === targetPlanId);
+    
+    return targetIndex > currentIndex;
+  };
+
+  // Get upgrade message for a plan
+  const getUpgradeMessage = (targetPlanId: string): string | null => {
+    if (targetPlanId === currentPlan) return null;
+    
+    const targetPlan = plans.find(p => p.id === targetPlanId);
+    if (!targetPlan) return null;
+    
+    // Check if this is a downgrade
+    const currentIndex = plans.findIndex(p => p.id === currentPlan);
+    const targetIndex = plans.findIndex(p => p.id === targetPlanId);
+    
+    if (targetIndex < currentIndex) {
+      const minimumPlan = getMinimumPlan(totalRooms);
+      if (minimumPlan && targetIndex < plans.findIndex(p => p.id === minimumPlan.id)) {
+        return `⚠️ Your property has ${totalRooms} rooms. The minimum plan for this number of rooms is ${minimumPlan.name}.`;
+      }
+      return `⬇️ Downgrading to ${targetPlan.name}`;
+    }
+    
+    return `⬆️ Upgrading to ${targetPlan.name}`;
+  };
+
+  // ============================================================
   // HANDLERS
   // ============================================================
 
-  const handleUpgrade = async (planId: string) => {
+  const handlePlanChange = async (planId: string) => {
     setLoading(true);
     
     if (!businessId) {
@@ -218,17 +296,28 @@ export default function Billing() {
       return;
     }
 
-    try {
-      // Get the selected plan
-      const selectedPlan = plans.find(p => p.id === planId);
-      if (!selectedPlan) {
-        throw new Error('Plan not found');
+    const targetPlan = plans.find(p => p.id === planId);
+    if (!targetPlan) {
+      alert('Plan not found');
+      setLoading(false);
+      return;
+    }
+
+    // Check if downgrade is allowed
+    const currentIndex = plans.findIndex(p => p.id === currentPlan);
+    const targetIndex = plans.findIndex(p => p.id === planId);
+    
+    if (targetIndex < currentIndex) {
+      // This is a downgrade - check if allowed
+      if (!canDowngradeTo(planId)) {
+        const minimumPlan = getMinimumPlan(totalRooms);
+        alert(`⚠️ Cannot downgrade to ${targetPlan.name}. Your property has ${totalRooms} rooms. The minimum plan you can downgrade to is ${minimumPlan?.name || 'Starter'}.`);
+        setLoading(false);
+        return;
       }
+    }
 
-      // Check if this is a complimentary upgrade
-      const isComplimentary = subscriptionStatus?.status === 'complimentary';
-
-      // Update the plan in the database
+    try {
       const response = await fetch('/.netlify/functions/update-business-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,19 +326,20 @@ export default function Billing() {
           current_plan: planId,
           subscription_tier: planId,
           billing_cycle: billingCycle,
-          max_rooms: selectedPlan.maxRooms,
-          // Don't override complimentary status if active
-          skip_pricing_update: isComplimentary
+          max_rooms: targetPlan.maxRooms,
+          total_rooms: totalRooms
         })
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const isComplimentary = subscriptionStatus?.status === 'complimentary';
         
         if (isComplimentary) {
-          alert(`✅ Plan updated to ${selectedPlan.name}. Your complimentary access continues!`);
+          alert(`✅ Plan updated to ${targetPlan.name}. Your complimentary access continues!`);
+        } else if (targetIndex < currentIndex) {
+          alert(`✅ Successfully downgraded to ${targetPlan.name}!`);
         } else {
-          // Redirect to payment gateway
+          // Redirect to payment gateway for upgrades
           const paymentResponse = await fetch('/.netlify/functions/create-checkout-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -258,7 +348,7 @@ export default function Billing() {
               planId,
               billingCycle,
               email: business?.email,
-              amount: billingCycle === 'monthly' ? selectedPlan.priceMonthly : selectedPlan.priceYearly
+              amount: billingCycle === 'monthly' ? targetPlan.priceMonthly : targetPlan.priceYearly
             })
           });
 
@@ -270,18 +360,17 @@ export default function Billing() {
             }
           }
           
-          // Fallback if payment not integrated yet
-          alert(`✅ Successfully upgraded to ${selectedPlan.name} plan!`);
+          alert(`✅ Successfully upgraded to ${targetPlan.name} plan!`);
         }
         
         setCurrentPlan(planId);
         loadSubscriptionStatus();
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to upgrade. Please try again.');
+        alert(error.error || 'Failed to update plan. Please try again.');
       }
     } catch (error) {
-      console.error('Upgrade error:', error);
+      console.error('Plan change error:', error);
       alert('An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -295,11 +384,9 @@ export default function Billing() {
   };
 
   const getEffectivePrice = (plan: Plan): { monthly: number; yearly: number } => {
-    // If subscription is complimentary, show R0.00
     if (subscriptionStatus?.status === 'complimentary') {
       return { monthly: 0, yearly: 0 };
     }
-    // If on trial, show R0.00 with note
     if (subscriptionStatus?.status === 'trial') {
       return { monthly: 0, yearly: 0 };
     }
@@ -314,22 +401,18 @@ export default function Billing() {
     const isFree = prices.monthly === 0 && prices.yearly === 0;
     
     if (isFree && subscriptionStatus?.status === 'complimentary') {
-      return {
-        amount: 'R0.00',
-        note: 'Complimentary Access'
-      };
+      return { amount: 'R0.00', note: 'Complimentary Access' };
     }
     if (isFree && subscriptionStatus?.status === 'trial') {
-      return {
-        amount: 'R0.00',
-        note: 'Free Trial'
-      };
+      return { amount: 'R0.00', note: 'Free Trial' };
     }
     return {
       amount: billingCycle === 'monthly' ? `R${prices.monthly}` : `R${prices.yearly}`,
       note: null
     };
   };
+
+  const minimumPlan = getMinimumPlan(totalRooms);
 
   // ============================================================
   // RENDER
@@ -352,6 +435,20 @@ export default function Billing() {
           </div>
         )}
 
+        {/* Room Count & Minimum Plan Info */}
+        {totalRooms > 0 && (
+          <div className="max-w-md mx-auto mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <p className="text-sm text-blue-800">
+              🏠 Your property has <strong>{totalRooms}</strong> room{totalRooms > 1 ? 's' : ''}
+              {minimumPlan && (
+                <span className="ml-2">
+                  • Minimum plan: <strong className="capitalize">{minimumPlan.name}</strong>
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
         {/* Current Plan Status */}
         {currentPlan && (
           <div className="max-w-md mx-auto mb-8 bg-white rounded-lg shadow p-4 text-center border border-stone-200">
@@ -366,7 +463,7 @@ export default function Billing() {
           </div>
         )}
 
-        {/* Billing Toggle - Hide if complimentary */}
+        {/* Billing Toggle */}
         {subscriptionStatus?.status !== 'complimentary' && (
           <div className="flex justify-center mb-8">
             <div className="bg-stone-100 rounded-full p-1 inline-flex">
@@ -404,13 +501,41 @@ export default function Billing() {
             const priceDisplay = getPriceDisplay(plan);
             const savings = getAnnualSavings(plan.priceMonthly, plan.priceYearly);
             
+            const currentIndex = plans.findIndex(p => p.id === currentPlan);
+            const targetIndex = plans.findIndex(p => p.id === plan.id);
+            const isDowngrade = targetIndex < currentIndex;
+            const isUpgrade = targetIndex > currentIndex;
+            const canDowngrade = canDowngradeTo(plan.id);
+            const canUpgrade = canUpgradeTo(plan.id);
+            const isActionDisabled = isCurrentPlan || 
+              (isDowngrade && !canDowngrade) ||
+              (isComplimentary && !isCurrentPlan);
+            
+            let actionLabel = 'Current Plan';
+            let actionTooltip = '';
+            
+            if (isCurrentPlan) {
+              actionLabel = '✓ Current Plan';
+            } else if (isComplimentary && !isCurrentPlan) {
+              actionLabel = 'Complimentary Access Active';
+            } else if (isDowngrade && !canDowngrade) {
+              actionLabel = '⛔ Cannot Downgrade';
+              actionTooltip = `Minimum plan for ${totalRooms} rooms is ${minimumPlan?.name}`;
+            } else if (isDowngrade && canDowngrade) {
+              actionLabel = '⬇️ Downgrade';
+            } else if (isUpgrade) {
+              actionLabel = '⬆️ Upgrade Now';
+            } else {
+              actionLabel = 'Select Plan';
+            }
+            
             return (
               <div
                 key={plan.id}
                 className={`relative bg-white rounded-2xl shadow-lg overflow-hidden transition-all hover:shadow-xl ${
                   plan.popular ? 'ring-2 ring-amber-500' : 'border border-stone-200'
                 } ${isCurrentPlan ? 'ring-2 ring-amber-300' : ''} ${
-                  isComplimentary && !isCurrentPlan ? 'opacity-75' : ''
+                  isDowngrade && !canDowngrade ? 'opacity-60' : ''
                 }`}
               >
                 {plan.popular && (
@@ -425,6 +550,14 @@ export default function Billing() {
                   <div className="absolute top-0 left-0">
                     <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">
                       Current Plan
+                    </div>
+                  </div>
+                )}
+                
+                {isDowngrade && !canDowngrade && (
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
+                    <div className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-b-lg">
+                      ⛔ Not Available
                     </div>
                   </div>
                 )}
@@ -450,7 +583,13 @@ export default function Billing() {
                     )}
                   </div>
                   
-                  <p className="text-sm text-stone-500 mt-2">Up to {plan.maxRooms} rooms</p>
+                  <p className="text-sm text-stone-500 mt-2">
+                    {plan.minRooms}–{plan.maxRooms} rooms
+                    {plan.id === 'starter' && ' (1-5)'}
+                    {plan.id === 'growth' && ' (6-10)'}
+                    {plan.id === 'pro' && ' (11-15)'}
+                    {plan.id === 'business' && ' (16-20)'}
+                  </p>
                   
                   <ul className="mt-6 space-y-2">
                     {plan.features.map((feature, idx) => (
@@ -464,20 +603,20 @@ export default function Billing() {
                   </ul>
                   
                   <button
-                    onClick={() => handleUpgrade(plan.id)}
-                    disabled={loading || isCurrentPlan || (isComplimentary && !isCurrentPlan)}
+                    onClick={() => handlePlanChange(plan.id)}
+                    disabled={isActionDisabled || loading}
                     className={`w-full mt-8 py-3 rounded-lg font-semibold transition-all ${
                       isCurrentPlan
                         ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+                        : isDowngrade && !canDowngrade
+                        ? 'bg-red-100 text-red-500 cursor-not-allowed'
                         : isComplimentary && !isCurrentPlan
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         : `${styles.button} text-white`
                     }`}
+                    title={actionTooltip}
                   >
-                    {loading ? 'Processing...' : 
-                     isCurrentPlan ? '✓ Current Plan' : 
-                     isComplimentary ? 'Complimentary Access Active' : 
-                     'Upgrade Now'}
+                    {loading ? 'Processing...' : actionLabel}
                   </button>
                 </div>
               </div>
@@ -505,25 +644,55 @@ export default function Billing() {
           </button>
         </div>
 
+        {/* Room-Based Rules Info */}
+        <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-stone-200">
+          <h4 className="text-sm font-semibold text-stone-900 mb-3">📋 Plan Rules Based on Room Count</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+              <p className="font-semibold text-green-800">⬆️ Upgrade</p>
+              <p className="text-green-700">You can upgrade to any higher plan at any time.</p>
+              <p className="text-xs text-green-600 mt-1">Even if it's above your room count.</p>
+            </div>
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <p className="font-semibold text-amber-800">⬇️ Downgrade</p>
+              <p className="text-amber-700">You can only downgrade to the plan that matches your room count.</p>
+              <p className="text-xs text-amber-600 mt-1">Example: 6 rooms → minimum Growth plan.</p>
+            </div>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <p className="font-semibold text-blue-800">🏠 Room-Based Minimum</p>
+              <p className="text-blue-700">Your minimum plan is determined by your number of rooms.</p>
+              <p className="text-xs text-blue-600 mt-1">1-5 rooms: Starter • 6-10 rooms: Growth • etc.</p>
+            </div>
+          </div>
+        </div>
+
         {/* FAQ Section */}
-        <div className="mt-12 bg-white rounded-2xl shadow-lg p-8">
+        <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
           <h3 className="text-xl font-bold text-stone-900 mb-6 text-center">Frequently Asked Questions</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-stone-900 mb-2">Can I change plans later?</h4>
-              <p className="text-sm text-stone-600">Yes, you can upgrade or downgrade your plan at any time.</p>
+              <p className="text-sm text-stone-600">Yes, you can upgrade or downgrade your plan at any time. Upgrades are immediate, downgrades take effect at the next billing cycle.</p>
             </div>
             <div>
               <h4 className="font-semibold text-stone-900 mb-2">What happens when my trial ends?</h4>
-              <p className="text-sm text-stone-600">Your account will automatically be downgraded to Starter plan. Upgrade to continue enjoying full features.</p>
+              <p className="text-sm text-stone-600">Your account will automatically be assigned to the minimum plan for your room count. Upgrade to continue enjoying full features.</p>
             </div>
             <div>
               <h4 className="font-semibold text-stone-900 mb-2">Do you offer discounts for annual billing?</h4>
               <p className="text-sm text-stone-600">Yes, annual billing saves you 17% compared to monthly.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">What is complimentary access?</h4>
-              <p className="text-sm text-stone-600">Complimentary access grants you full features of a plan at no charge for a specified period. Your account will automatically revert to standard pricing when it expires.</p>
+              <h4 className="font-semibold text-stone-900 mb-2">Is there a setup fee?</h4>
+              <p className="text-sm text-stone-600">No, there are no hidden fees or setup costs.</p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-stone-900 mb-2">Can I downgrade below my room count?</h4>
+              <p className="text-sm text-stone-600">No. The minimum plan is based on your number of rooms. For example, a 6-room property cannot downgrade to Starter.</p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-stone-900 mb-2">Can I upgrade above my room count?</h4>
+              <p className="text-sm text-stone-600">Yes! You can upgrade to any higher plan regardless of your room count to access advanced features.</p>
             </div>
           </div>
         </div>
