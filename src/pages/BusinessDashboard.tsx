@@ -76,13 +76,68 @@ export default function BusinessDashboard() {
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  // Determine subscription tier from business data
+  // ============================================================
+  // ✅ FIX: Determine subscription tier from business data
+  // ============================================================
+
   const subscriptionTier = useMemo((): SubscriptionTier => {
-    const tier = business?.subscription_tier || 'starter';
-    // Map to valid subscription tiers
+    // If business is not loaded yet, default to starter
+    if (!business) return 'starter';
+
+    console.log('🏷️ Business data:', {
+      subscription_tier: business.subscription_tier,
+      current_plan: business.current_plan,
+      plan: business.plan,
+      total_rooms: business.total_rooms,
+      trading_name: business.trading_name
+    });
+
+    // 1. Check for explicit plan fields first
+    const planFields = [
+      business.current_plan,
+      business.plan,
+      business.subscription_plan,
+    ];
+
+    for (const field of planFields) {
+      if (field) {
+        const normalized = field.toLowerCase();
+        if (['starter', 'growth', 'pro', 'business', 'enterprise'].includes(normalized)) {
+          console.log(`✅ Found plan from field: ${field} → ${normalized}`);
+          return normalized as SubscriptionTier;
+        }
+      }
+    }
+
+    // 2. Check subscription_tier (which might be 'monthly' or 'annual')
+    const tier = business.subscription_tier?.toLowerCase() || '';
+    
+    // 3. If subscription_tier is a billing cycle, determine plan from total_rooms
+    if (['monthly', 'annual', 'trial', 'complimentary'].includes(tier)) {
+      const rooms = business.total_rooms || 0;
+      
+      // Map room count to plan
+      let plan: SubscriptionTier = 'starter';
+      if (rooms >= 16) plan = 'business';
+      else if (rooms >= 11) plan = 'pro';
+      else if (rooms >= 6) plan = 'growth';
+      else plan = 'starter';
+      
+      console.log(`🏠 ${rooms} rooms → ${plan} plan (billing: ${tier})`);
+      return plan;
+    }
+
+    // 4. If subscription_tier is already a valid plan name, use it
     if (['starter', 'growth', 'pro', 'business'].includes(tier)) {
+      console.log(`✅ Using subscription_tier: ${tier}`);
       return tier as SubscriptionTier;
     }
+
+    // 5. Fallback: determine from total_rooms
+    const rooms = business.total_rooms || 0;
+    if (rooms >= 16) return 'business';
+    if (rooms >= 11) return 'pro';
+    if (rooms >= 6) return 'growth';
     return 'starter';
   }, [business]);
 
