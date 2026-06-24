@@ -1,8 +1,27 @@
 // src/components/analytics/VisitorOriginMap.tsx
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie } from 'recharts';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Cell, 
+  PieChart, 
+  Pie 
+} from 'recharts';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
+import { Feature, Geometry } from 'geojson';
+
+// ✅ Import world map data
+import worldMapData from 'world-atlas/countries-110m.json';
+
+// ============================================================
+// TYPES
+// ============================================================
 
 interface VisitorOriginMapProps {
   data: any[];
@@ -15,22 +34,37 @@ interface VisitorOriginMapProps {
   isLoading: boolean;
 }
 
+interface CountryFeature extends Feature {
+  properties: {
+    name: string;
+    iso_n3?: string;
+    iso_a2?: string;
+    [key: string]: any;
+  };
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
 const COLOR_SCALE = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706'];
 const NO_DATA_COLOR = '#e5e7eb';
-
-// World map data URL
-const WORLD_MAP_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
 // Country name normalization
 const COUNTRY_NAME_MAP: Record<string, string> = {
   'United States of America': 'United States',
-  'United Kingdom': 'UK',
-  'Russia': 'Russian Federation',
+  'United States': 'United States of America',
+  'United Kingdom': 'United Kingdom',
+  'Russia': 'Russia',
   'Czechia': 'Czech Republic',
-  'South Korea': 'Korea',
+  'South Korea': 'South Korea',
   'Congo': 'Democratic Republic of the Congo',
-  'Tanzania': 'United Republic of Tanzania'
+  'Tanzania': 'United Republic of Tanzania',
 };
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export function VisitorOriginMap({
   data,
@@ -50,16 +84,32 @@ export function VisitorOriginMap({
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load GeoJSON data
+  // ============================================================
+  // LOAD GEOJSON DATA
+  // ============================================================
+
   useEffect(() => {
     const loadGeoData = async () => {
       try {
-        const response = await fetch(WORLD_MAP_URL);
-        const topology = await response.json();
+        // Use the imported TopoJSON data
+        const topology = worldMapData as any;
+        
+        // ✅ FIX: Convert TopoJSON to GeoJSON features with proper geometry
         const geoJson = feature(topology, topology.objects.countries);
+        
+        console.log('✅ Loaded GeoJSON features:', geoJson.features?.length);
         setGeoData(geoJson);
       } catch (error) {
         console.error('Error loading map data:', error);
+        // Fallback: Try fetching from CDN
+        try {
+          const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+          const topology = await response.json();
+          const geoJson = feature(topology, topology.objects.countries);
+          setGeoData(geoJson);
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+        }
       } finally {
         setLoadingGeo(false);
       }
@@ -67,13 +117,15 @@ export function VisitorOriginMap({
     loadGeoData();
   }, []);
 
-  // Calculate max count for color scaling
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
   const maxCount = useMemo(() => {
     if (!data || data.length === 0) return 1;
-    return Math.max(...data.map(d => d.count), 1);
+    return Math.max(...data.map(d => d.count || 0), 1);
   }, [data]);
 
-  // Get color for a country
   const getCountryColor = (countryName: string): string => {
     if (!data || data.length === 0) return NO_DATA_COLOR;
     
@@ -90,19 +142,20 @@ export function VisitorOriginMap({
     return COLOR_SCALE[4];
   };
 
-  // Get country data for tooltip
   const getCountryData = (countryName: string) => {
     const normalizedName = COUNTRY_NAME_MAP[countryName] || countryName;
     return data.find(d => d.name === normalizedName || d.name === countryName);
   };
 
-  // Check if country has children (drillable)
   const hasChildren = (countryName: string): boolean => {
     const countryData = getCountryData(countryName);
     return !!(countryData?.children && countryData.children.length > 0);
   };
 
-  // Handle mouse enter
+  // ============================================================
+  // EVENT HANDLERS
+  // ============================================================
+
   const handleMouseEnter = (e: React.MouseEvent, countryName: string) => {
     setHoveredId(countryName);
     const countryData = getCountryData(countryName);
@@ -116,13 +169,11 @@ export function VisitorOriginMap({
     }
   };
 
-  // Handle mouse leave
   const handleMouseLeave = () => {
     setHoveredId(null);
     setTooltip(null);
   };
 
-  // Handle click
   const handleClick = (countryName: string) => {
     const countryData = getCountryData(countryName);
     if (!countryData) return;
@@ -135,7 +186,19 @@ export function VisitorOriginMap({
     }
   };
 
-  // Get country style
+  const handleChartClick = (item: any) => {
+    if (item.children && canDrillDeeper('continent')) {
+      onDrillDown(item);
+    } else if (item.children && !canDrillDeeper('continent')) {
+      const upgradeMsg = getUpgradeMessage('countries');
+      alert(upgradeMsg);
+    }
+  };
+
+  // ============================================================
+  // RENDER HELPERS
+  // ============================================================
+
   const getCountryStyle = (countryName: string) => {
     const isHovered = hoveredId === countryName;
     const hasData = data.some(d => d.name === countryName || d.name === COUNTRY_NAME_MAP[countryName]);
@@ -146,34 +209,23 @@ export function VisitorOriginMap({
       strokeWidth: isHovered ? 2 : 0.5,
       opacity: isHovered ? 1 : (hasData ? 0.9 : 0.6),
       cursor: hasChildren(countryName) ? 'pointer' : 'default',
-      transition: 'all 0.15s ease'
     };
-  };
-
-  // Chart click handler
-  const handleChartClick = (item: any) => {
-    if (item.children && canDrillDeeper('continent')) {
-      onDrillDown(item);
-    } else if (item.children && !canDrillDeeper('continent')) {
-      const upgradeMsg = getUpgradeMessage('countries');
-      alert(upgradeMsg);
-    }
   };
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload;
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg max-w-sm">
           <p className="font-semibold text-gray-900">{item.name}</p>
           <p className="text-sm text-gray-600">
-            <span className="font-medium">{item.count.toLocaleString()}</span> visitors
+            <span className="font-medium">{item.count?.toLocaleString() || 0}</span> visitors
           </p>
           <p className="text-sm text-orange-600 font-medium">
-            {item.percentage.toFixed(1)}%
+            {(item.percentage || 0).toFixed(1)}%
           </p>
           {item.children && canDrillDeeper('continent') && (
-            <p className="text-xs text-stone-400 mt-1">Click to explore</p>
+            <p className="text-xs text-stone-400 mt-1 border-t border-stone-100 pt-1">👆 Click to explore</p>
           )}
           {item.children && !canDrillDeeper('continent') && (
             <p className="text-xs text-amber-500 mt-1">🔒 Upgrade to explore</p>
@@ -184,24 +236,10 @@ export function VisitorOriginMap({
     return null;
   };
 
-  // Color scale legend items
-  const colorScaleLegend = [
-    { color: '#fef3c7', label: 'Low (0-20%)' },
-    { color: '#fde68a', label: 'Low-Mid (20-40%)' },
-    { color: '#fcd34d', label: 'Medium (40-60%)' },
-    { color: '#f59e0b', label: 'High (60-80%)' },
-    { color: '#d97706', label: 'Very High (80-100%)' }
-  ];
+  // ============================================================
+  // LOADING STATE
+  // ============================================================
 
-  // Prepare data with color for charts
-  const enhancedData = useMemo(() => {
-    return data.map(item => ({
-      ...item,
-      color: getCountryColor(item.name)
-    }));
-  }, [data, maxCount]);
-
-  // Loading state
   if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -215,7 +253,10 @@ export function VisitorOriginMap({
     );
   }
 
-  // Empty state
+  // ============================================================
+  // EMPTY STATE
+  // ============================================================
+
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -231,6 +272,37 @@ export function VisitorOriginMap({
       </div>
     );
   }
+
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
+
+  const enhancedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      color: getCountryColor(item.name)
+    }));
+  }, [data, maxCount]);
+
+  // ✅ FIX: Generate map projection and paths
+  const projection = useMemo(() => {
+    return geoMercator()
+      .fitSize([800, 450], { type: 'Sphere' })
+      .translate([400, 225]);
+  }, []);
+
+  const pathGenerator = useMemo(() => {
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // Color scale legend
+  const colorScaleLegend = [
+    { color: '#fef3c7', label: 'Low (0-20%)' },
+    { color: '#fde68a', label: 'Low-Mid (20-40%)' },
+    { color: '#fcd34d', label: 'Medium (40-60%)' },
+    { color: '#f59e0b', label: 'High (60-80%)' },
+    { color: '#d97706', label: 'Very High (80-100%)' }
+  ];
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -296,45 +368,48 @@ export function VisitorOriginMap({
       <div ref={containerRef} className="p-6">
         {viewType === 'map' ? (
           <div className="relative w-full h-[450px] bg-slate-50 rounded-xl overflow-hidden">
+            {/* ✅ FIX: Render actual country paths */}
             <svg
               ref={svgRef}
               viewBox="0 0 800 450"
               preserveAspectRatio="xMidYMid meet"
               className="w-full h-full"
             >
-              <g transform="scale(0.85) translate(70, 30)">
-                {geoData?.features?.map((feature: any, index: number) => {
-                  const countryName = feature.properties?.name;
-                  if (!countryName) return null;
-                  
-                  const style = getCountryStyle(countryName);
-                  
-                  // Generate path for this country
-                  // In production, you'd use geoPath() to generate the actual path
-                  // This is a placeholder - the actual path would be generated from the GeoJSON
-                  const path = geoPath()
-                    .projection(geoMercator().fitSize([800, 450], feature))
-                    (feature);
-                  
-                  return (
-                    <path
-                      key={index}
-                      d={path || `M ${10 + Math.random() * 780} ${10 + Math.random() * 430}`}
-                      fill={style.fill}
-                      stroke={style.stroke}
-                      strokeWidth={style.strokeWidth}
-                      opacity={style.opacity}
-                      style={{ 
-                        cursor: style.cursor,
-                        transition: style.transition
-                      }}
-                      onMouseEnter={(e) => handleMouseEnter(e, countryName)}
-                      onMouseLeave={handleMouseLeave}
-                      onClick={() => handleClick(countryName)}
-                    />
-                  );
-                })}
-              </g>
+              {geoData?.features?.map((feature: CountryFeature, index: number) => {
+                const countryName = feature.properties?.name;
+                if (!countryName) return null;
+                
+                const style = getCountryStyle(countryName);
+                
+                // ✅ Generate actual country path using d3-geo
+                let path = '';
+                try {
+                  path = pathGenerator(feature as any) || '';
+                } catch (e) {
+                  console.warn(`Could not generate path for ${countryName}:`, e);
+                  return null;
+                }
+                
+                if (!path) return null;
+                
+                return (
+                  <path
+                    key={index}
+                    d={path}
+                    fill={style.fill}
+                    stroke={style.stroke}
+                    strokeWidth={style.strokeWidth}
+                    opacity={style.opacity}
+                    style={{ 
+                      cursor: style.cursor,
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => handleMouseEnter(e, countryName)}
+                    onMouseLeave={handleMouseLeave}
+                    onClick={() => handleClick(countryName)}
+                  />
+                );
+              })}
             </svg>
 
             {/* Map Legend */}
@@ -370,9 +445,9 @@ export function VisitorOriginMap({
               >
                 <p className="font-semibold text-stone-900 text-sm">{tooltip.data.name}</p>
                 <p className="text-sm text-stone-600">
-                  {tooltip.data.count.toLocaleString()} visitors
+                  {tooltip.data.count?.toLocaleString() || 0} visitors
                   <span className="ml-2 text-orange-500">
-                    ({tooltip.data.percentage.toFixed(1)}%)
+                    ({tooltip.data.percentage?.toFixed(1) || 0}%)
                   </span>
                 </p>
                 {tooltip.data.children && tooltip.data.children.length > 0 && (
@@ -404,7 +479,7 @@ export function VisitorOriginMap({
                 cursor="pointer"
                 label={{ 
                   position: 'right', 
-                  formatter: (value: number) => value.toLocaleString(),
+                  formatter: (value: number) => value?.toLocaleString() || 0,
                   fontSize: 11
                 }}
               >
@@ -473,7 +548,7 @@ export function VisitorOriginMap({
           <div className="flex items-center gap-6 text-sm">
             <span className="text-stone-500">
               Total: <span className="font-semibold text-stone-900">
-                {data.reduce((sum, d) => sum + d.count, 0).toLocaleString()}
+                {data.reduce((sum, d) => sum + (d.count || 0), 0).toLocaleString()}
               </span> visitors
             </span>
             <span className="text-stone-500">
