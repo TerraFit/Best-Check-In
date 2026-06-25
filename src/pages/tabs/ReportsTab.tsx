@@ -66,6 +66,10 @@ export function ReportsTab(props: ReportsTabProps) {
       setDrillPath(drillPath.slice(0, -1));
     } else if (drillLevel === 'country') {
       setDrillLevel('continent');
+    } else if (drillLevel === 'region') {
+      setDrillLevel('country');
+    } else if (drillLevel === 'city') {
+      setDrillLevel('region');
     }
   };
 
