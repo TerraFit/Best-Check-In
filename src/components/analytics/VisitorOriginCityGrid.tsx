@@ -170,4 +170,30 @@ export function VisitorOriginCityGrid({
                 </div>
 
                 {/* Percentage distribution */}
-                <div
+                <div className="w-14 text-left">
+                  <span className="text-[11px] font-bold text-stone-400 font-mono">
+                    {city.percentage.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Tooltip hint showing checked-in guests */}
+              {isHovered && (
+                <div className="absolute left-1/2 -top-10 transform -translate-x-1/2 bg-stone-900 text-white px-3 py-1.5 rounded-lg shadow-xl text-[11px] font-medium border border-stone-800 z-10 whitespace-nowrap pointer-events-none">
+                  📍 <strong className="text-orange-400">{city.name}</strong> has <strong className="font-mono text-white">{city.count}</strong> visitors ({city.percentage.toFixed(1)}% of province)
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer Metrics */}
+      <div className="mt-8 pt-4 border-t border-stone-200/60 max-w-2xl mx-auto flex items-center justify-between text-xs text-stone-400 font-mono">
+        <span>TOTAL_CHECKINS: <strong className="text-stone-700 font-bold">{total}</strong></span>
+        <span>CITIES_FOUND: <strong className="text-stone-700 font-bold">{cityList.length}</strong></span>
+        <span className="truncate max-w-[160px]">LEADER: <strong className="text-orange-600 font-bold font-sans">{cityList[0]?.name || 'N/A'}</strong></span>
+      </div>
+    </div>
+  );
+}
