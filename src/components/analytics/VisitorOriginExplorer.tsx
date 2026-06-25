@@ -1,4 +1,13 @@
 // src/components/analytics/VisitorOriginExplorer.tsx
+console.log('🔍 Checking imports:', {
+  VisitorOriginWorldMap: typeof VisitorOriginWorldMap,
+  VisitorOriginContinentMap: typeof VisitorOriginContinentMap,
+  VisitorOriginCountryMap: typeof VisitorOriginCountryMap,
+  VisitorOriginRegionMap: typeof VisitorOriginRegionMap,
+  VisitorOriginCityGrid: typeof VisitorOriginCityGrid,
+  UpgradePromptModal: typeof UpgradePromptModal,
+});
+
 // ISOLATED VERSION - No child components, just simple UI
 import { useState, useMemo } from 'react';
 
