@@ -1,9 +1,11 @@
 // src/components/analytics/VisitorOriginExplorer.tsx
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useState, useMemo } from 'react';
 
-// ✅ IMPORTANT: These must match the exports in each file
+// ✅ IMPORTANT: Check these imports match the exports in each file
+// If files use "export function Xxx" - use named imports (with braces)
+// If files use "export default Xxx" - use default imports (no braces)
 
-// Option 1: If files use named exports (export function Xxx)
+// Try named imports first (most common in AI Studio)
 import { VisitorOriginWorldMap } from './VisitorOriginWorldMap';
 import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
 import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
@@ -11,15 +13,17 @@ import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
 import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
 import { UpgradePromptModal } from './UpgradePromptModal';
 
-// Option 2: If files use default exports (export default Xxx)
-// import VisitorOriginWorldMap from './VisitorOriginWorldMap';
-// import VisitorOriginContinentMap from './VisitorOriginContinentMap';
-// import VisitorOriginCountryMap from './VisitorOriginCountryMap';
-// import VisitorOriginRegionMap from './VisitorOriginRegionMap';
-// import VisitorOriginCityGrid from './VisitorOriginCityGrid';
-// import UpgradePromptModal from './UpgradePromptModal';
+// ✅ DEBUG: Log what was imported
+console.log('🔍 VisitorOriginExplorer - Imports:', {
+  VisitorOriginWorldMap: !!VisitorOriginWorldMap,
+  VisitorOriginContinentMap: !!VisitorOriginContinentMap,
+  VisitorOriginCountryMap: !!VisitorOriginCountryMap,
+  VisitorOriginRegionMap: !!VisitorOriginRegionMap,
+  VisitorOriginCityGrid: !!VisitorOriginCityGrid,
+  UpgradePromptModal: !!UpgradePromptModal,
+});
 
-// ✅ Inline SVG icons (no lucide-react dependency)
+// ✅ SVG Icons (inline - no external dependencies)
 const Globe2Icon = ({ size = 22, className = '' }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10" />
@@ -80,14 +84,12 @@ export function VisitorOriginExplorer({
   title = 'Visitor Origin Explorer',
   subtitle = 'Click the orange bubbles to drill down from world to cities'
 }: VisitorOriginExplorerProps) {
-  // ✅ DEBUG: Log what we received
-  console.log('🔍 VisitorOriginExplorer - Received props:', {
-    data,
-    simpleData,
+  // ✅ DEBUG: Log props
+  console.log('🔍 VisitorOriginExplorer - Props:', {
+    data: !!data,
+    simpleData: Object.keys(simpleData).length,
     limits,
     isLoading,
-    hasData: !!data,
-    dataType: typeof data,
   });
 
   // ✅ SAFE: Ensure data is always an object with defaults
@@ -145,12 +147,9 @@ export function VisitorOriginExplorer({
   const [modalTargetTier, setModalTargetTier] = useState<SubscriptionTier>('growth');
   const [modalFeatureName, setModalFeatureName] = useState<string>('');
 
-  // ✅ DEBUG: Log component state
+  // ✅ DEBUG: Log state
   console.log('🔍 VisitorOriginExplorer - State:', {
     currentLevel,
-    selectedContinent,
-    selectedCountry,
-    selectedRegion,
     totalVisitors,
     continentDataLength: continentData.length,
   });
@@ -268,20 +267,31 @@ export function VisitorOriginExplorer({
     );
   }
 
-  // ✅ Render the appropriate view - with debug
-  const renderView = () => {
-    console.log('🔍 VisitorOriginExplorer - Rendering level:', currentLevel);
-    console.log('🔍 VisitorOriginExplorer - Components available:', {
-      WorldMap: !!VisitorOriginWorldMap,
-      ContinentMap: !!VisitorOriginContinentMap,
-      CountryMap: !!VisitorOriginCountryMap,
-      RegionMap: !!VisitorOriginRegionMap,
-      CityGrid: !!VisitorOriginCityGrid,
-    });
+  // ✅ CHECK: Make sure all components are defined before rendering
+  // If any component is undefined, show a fallback
+  const missingComponents = [];
+  if (!VisitorOriginWorldMap) missingComponents.push('VisitorOriginWorldMap');
+  if (!VisitorOriginContinentMap) missingComponents.push('VisitorOriginContinentMap');
+  if (!VisitorOriginCountryMap) missingComponents.push('VisitorOriginCountryMap');
+  if (!VisitorOriginRegionMap) missingComponents.push('VisitorOriginRegionMap');
+  if (!VisitorOriginCityGrid) missingComponents.push('VisitorOriginCityGrid');
 
+  if (missingComponents.length > 0) {
+    console.error('❌ Missing components:', missingComponents);
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden p-12 text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h3 className="text-lg font-semibold text-stone-900 mb-2">Component Loading Issue</h3>
+        <p className="text-stone-500 text-sm">Missing components: {missingComponents.join(', ')}</p>
+        <p className="text-xs text-stone-400 mt-4">Please check import/export statements in these files.</p>
+      </div>
+    );
+  }
+
+  // ✅ Render the appropriate view
+  const renderView = () => {
     switch (currentLevel) {
       case 'world':
-        console.log('✅ Rendering WorldMap');
         return (
           <VisitorOriginWorldMap
             totalVisitors={totalVisitors}
@@ -291,7 +301,6 @@ export function VisitorOriginExplorer({
         );
 
       case 'continents':
-        console.log('✅ Rendering ContinentMap');
         return (
           <VisitorOriginContinentMap
             data={continentData}
@@ -302,7 +311,6 @@ export function VisitorOriginExplorer({
         );
 
       case 'countries':
-        console.log('✅ Rendering CountryMap');
         return (
           <VisitorOriginCountryMap
             data={filteredCountryData}
@@ -315,7 +323,6 @@ export function VisitorOriginExplorer({
         );
 
       case 'regions':
-        console.log('✅ Rendering RegionMap');
         return (
           <VisitorOriginRegionMap
             data={filteredRegionData}
@@ -328,7 +335,6 @@ export function VisitorOriginExplorer({
         );
 
       case 'cities':
-        console.log('✅ Rendering CityGrid');
         return (
           <VisitorOriginCityGrid
             data={filteredCityData}
@@ -343,30 +349,6 @@ export function VisitorOriginExplorer({
         return null;
     }
   };
-
-  // ✅ If any component is undefined, show fallback
-  const componentMissing = !VisitorOriginWorldMap || !VisitorOriginContinentMap || 
-                           !VisitorOriginCountryMap || !VisitorOriginRegionMap || 
-                           !VisitorOriginCityGrid;
-
-  if (componentMissing) {
-    console.error('❌ One or more map components are undefined:', {
-      VisitorOriginWorldMap: !!VisitorOriginWorldMap,
-      VisitorOriginContinentMap: !!VisitorOriginContinentMap,
-      VisitorOriginCountryMap: !!VisitorOriginCountryMap,
-      VisitorOriginRegionMap: !!VisitorOriginRegionMap,
-      VisitorOriginCityGrid: !!VisitorOriginCityGrid,
-    });
-
-    return (
-      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden p-12 text-center">
-        <div className="text-4xl mb-4">⚠️</div>
-        <h3 className="text-lg font-semibold text-stone-900 mb-2">Component Loading Issue</h3>
-        <p className="text-stone-500 text-sm">One or more map components failed to load.</p>
-        <p className="text-xs text-stone-400 mt-4">Please check the console for details.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden transition-all duration-300">
