@@ -1,6 +1,5 @@
 // src/pages/tabs/ReportsTab.tsx
 import { useMemo } from 'react';
-import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
@@ -8,6 +7,40 @@ import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart'
 import { UpgradePreview } from '../../components/analytics/UpgradePreview';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
+
+// ✅ Try to import the new explorer, fallback to old map if not available
+let VisitorOriginExplorer: any = null;
+let VisitorOriginMap: any = null;
+
+try {
+  // Try to load the new explorer
+  const explorer = require('../../components/analytics/VisitorOriginExplorer');
+  VisitorOriginExplorer = explorer.VisitorOriginExplorer || explorer.default;
+  console.log('✅ VisitorOriginExplorer loaded successfully');
+} catch (e) {
+  console.log('ℹ️ VisitorOriginExplorer not found, using fallback');
+}
+
+try {
+  // Try to load the old map as fallback
+  const map = require('../../components/analytics/VisitorOriginMap');
+  VisitorOriginMap = map.VisitorOriginMap || map.default;
+  console.log('✅ VisitorOriginMap loaded as fallback');
+} catch (e) {
+  console.log('⚠️ VisitorOriginMap also not found');
+}
+
+// If neither is available, create a placeholder
+if (!VisitorOriginExplorer && !VisitorOriginMap) {
+  console.warn('⚠️ No map component available, using placeholder');
+  VisitorOriginMap = ({ data, drillLevel, limits, onDrillDown, onDrillUp, canDrillDeeper, getUpgradeMessage, isLoading }: any) => (
+    <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+      <div className="text-4xl mb-4">🌍</div>
+      <h3 className="text-lg font-semibold text-stone-900 mb-2">Visitor Origin Map</h3>
+      <p className="text-stone-500 text-sm">Loading map component...</p>
+    </div>
+  );
+}
 
 interface ReportsTabProps {
   bookings: any[];
@@ -45,10 +78,7 @@ export function ReportsTab(props: ReportsTabProps) {
     isLoading
   } = useAnalytics(props.bookings || [], tier);
   
-  // Debug: Log what limits we got
   console.log('📊 ReportsTab - limits:', limits);
-
-  const totalRevenue = (props.bookings || []).reduce((sum, b) => sum + (b.total_amount || 0), 0);
 
   // Handle drill down
   const handleDrillDown = (item: any) => {
@@ -73,14 +103,125 @@ export function ReportsTab(props: ReportsTabProps) {
     }
   };
 
-  // ✅ FIX: Prepare data for the VisitorOriginExplorer with proper fallback
-  const explorerData = useMemo(() => {
-    // ✅ CRITICAL: Check if bookings exists and is an array
-    if (!props.bookings || !Array.isArray(props.bookings) || props.bookings.length === 0) {
-      return [];
-    }
+  // ✅ Prepare data for the map - same as before (working)
+  const mapData = useMemo(() => {
+    const bookings = props.bookings || [];
+    if (!bookings || bookings.length === 0) return [];
     
-    return props.bookings.map((b: any) => ({
+    // Aggregate by continent from guest_country
+    const continentMap: Record<string, { name: string; count: number; children: any[] }> = {};
+    
+    bookings.forEach((b: any) => {
+      const country = b.guest_country || b.country;
+      if (!country) return;
+      
+      // Simple continent mapping
+      const countryToContinent: Record<string, string> = {
+        'South Africa': 'Africa',
+        'Namibia': 'Africa',
+        'Botswana': 'Africa',
+        'Zimbabwe': 'Africa',
+        'Mozambique': 'Africa',
+        'Lesotho': 'Africa',
+        'Eswatini': 'Africa',
+        'Zambia': 'Africa',
+        'Angola': 'Africa',
+        'Malawi': 'Africa',
+        'Tanzania': 'Africa',
+        'Kenya': 'Africa',
+        'Nigeria': 'Africa',
+        'Ghana': 'Africa',
+        'Egypt': 'Africa',
+        'Morocco': 'Africa',
+        'Tunisia': 'Africa',
+        'Algeria': 'Africa',
+        'Mauritius': 'Africa',
+        'Seychelles': 'Africa',
+        'Germany': 'Europe',
+        'France': 'Europe',
+        'United Kingdom': 'Europe',
+        'Italy': 'Europe',
+        'Spain': 'Europe',
+        'Netherlands': 'Europe',
+        'Switzerland': 'Europe',
+        'Austria': 'Europe',
+        'Belgium': 'Europe',
+        'Portugal': 'Europe',
+        'Sweden': 'Europe',
+        'Norway': 'Europe',
+        'Denmark': 'Europe',
+        'Finland': 'Europe',
+        'Greece': 'Europe',
+        'Ireland': 'Europe',
+        'Poland': 'Europe',
+        'Czech Republic': 'Europe',
+        'Hungary': 'Europe',
+        'Romania': 'Europe',
+        'Bulgaria': 'Europe',
+        'Croatia': 'Europe',
+        'Russia': 'Europe',
+        'Ukraine': 'Europe',
+        'United States': 'North America',
+        'United States of America': 'North America',
+        'Canada': 'North America',
+        'Mexico': 'North America',
+        'Brazil': 'South America',
+        'Argentina': 'South America',
+        'Chile': 'South America',
+        'Colombia': 'South America',
+        'Peru': 'South America',
+        'Venezuela': 'South America',
+        'China': 'Asia',
+        'India': 'Asia',
+        'Japan': 'Asia',
+        'South Korea': 'Asia',
+        'Singapore': 'Asia',
+        'Malaysia': 'Asia',
+        'Indonesia': 'Asia',
+        'Thailand': 'Asia',
+        'Vietnam': 'Asia',
+        'Philippines': 'Asia',
+        'Saudi Arabia': 'Asia',
+        'United Arab Emirates': 'Asia',
+        'Israel': 'Asia',
+        'Turkey': 'Asia',
+        'Australia': 'Oceania',
+        'New Zealand': 'Oceania',
+        'Fiji': 'Oceania',
+      };
+      
+      const continent = countryToContinent[country] || 'Other';
+      
+      if (!continentMap[continent]) {
+        continentMap[continent] = { name: continent, count: 0, children: [] };
+      }
+      continentMap[continent].count += 1;
+      continentMap[continent].children.push({
+        name: country,
+        count: 1,
+        percentage: 0
+      });
+    });
+    
+    const total = Object.values(continentMap).reduce((sum, c) => sum + c.count, 0) || 1;
+    
+    return Object.values(continentMap).map(c => ({
+      name: c.name,
+      count: c.count,
+      percentage: (c.count / total) * 100,
+      children: c.children.map((child: any) => ({
+        ...child,
+        percentage: (child.count / c.count) * 100
+      }))
+    })).sort((a, b) => b.count - a.count);
+  }, [props.bookings]);
+
+  // ✅ Prepare data for the new explorer (if available)
+  const explorerData = useMemo(() => {
+    const bookings = props.bookings || [];
+    if (!bookings || bookings.length === 0) return [];
+    
+    return bookings.map((b: any) => ({
       id: b.id || `booking-${Math.random()}`,
       timestamp: b.created_at || b.check_in_date || new Date().toISOString(),
       continent: getContinentFromCountry(b.guest_country || b.country),
@@ -93,92 +234,44 @@ export function ReportsTab(props: ReportsTabProps) {
     }));
   }, [props.bookings]);
 
-  // Helper: Map country to continent
   function getContinentFromCountry(country: string): string {
     if (!country) return 'Other';
-    
     const map: Record<string, string> = {
-      // Africa
-      'South Africa': 'Africa',
-      'Namibia': 'Africa',
-      'Botswana': 'Africa',
-      'Zimbabwe': 'Africa',
-      'Mozambique': 'Africa',
-      'Lesotho': 'Africa',
-      'Eswatini': 'Africa',
-      'Zambia': 'Africa',
-      'Angola': 'Africa',
-      'Malawi': 'Africa',
-      'Tanzania': 'Africa',
-      'Kenya': 'Africa',
-      'Nigeria': 'Africa',
-      'Ghana': 'Africa',
-      'Egypt': 'Africa',
-      'Morocco': 'Africa',
-      'Tunisia': 'Africa',
-      'Algeria': 'Africa',
-      'Mauritius': 'Africa',
-      'Seychelles': 'Africa',
-      // Europe
-      'Germany': 'Europe',
-      'France': 'Europe',
-      'United Kingdom': 'Europe',
-      'Italy': 'Europe',
-      'Spain': 'Europe',
-      'Netherlands': 'Europe',
-      'Switzerland': 'Europe',
-      'Austria': 'Europe',
-      'Belgium': 'Europe',
-      'Portugal': 'Europe',
-      'Sweden': 'Europe',
-      'Norway': 'Europe',
-      'Denmark': 'Europe',
-      'Finland': 'Europe',
-      'Greece': 'Europe',
-      'Ireland': 'Europe',
-      'Poland': 'Europe',
-      'Czech Republic': 'Europe',
-      'Hungary': 'Europe',
-      'Romania': 'Europe',
-      'Bulgaria': 'Europe',
-      'Croatia': 'Europe',
-      'Russia': 'Europe',
-      'Ukraine': 'Europe',
-      // North America
-      'United States': 'North America',
-      'United States of America': 'North America',
-      'Canada': 'North America',
-      'Mexico': 'North America',
-      // South America
-      'Brazil': 'South America',
-      'Argentina': 'South America',
-      'Chile': 'South America',
-      'Colombia': 'South America',
-      'Peru': 'South America',
-      'Venezuela': 'South America',
-      // Asia
-      'China': 'Asia',
-      'India': 'Asia',
-      'Japan': 'Asia',
-      'South Korea': 'Asia',
-      'Singapore': 'Asia',
-      'Malaysia': 'Asia',
-      'Indonesia': 'Asia',
-      'Thailand': 'Asia',
-      'Vietnam': 'Asia',
-      'Philippines': 'Asia',
-      'Saudi Arabia': 'Asia',
-      'United Arab Emirates': 'Asia',
-      'Israel': 'Asia',
-      'Turkey': 'Asia',
-      // Oceania
-      'Australia': 'Oceania',
-      'New Zealand': 'Oceania',
-      'Fiji': 'Oceania',
+      'South Africa': 'Africa', 'Namibia': 'Africa', 'Botswana': 'Africa',
+      'Zimbabwe': 'Africa', 'Mozambique': 'Africa', 'Lesotho': 'Africa',
+      'Eswatini': 'Africa', 'Zambia': 'Africa', 'Angola': 'Africa',
+      'Malawi': 'Africa', 'Tanzania': 'Africa', 'Kenya': 'Africa',
+      'Nigeria': 'Africa', 'Ghana': 'Africa', 'Egypt': 'Africa',
+      'Morocco': 'Africa', 'Tunisia': 'Africa', 'Algeria': 'Africa',
+      'Mauritius': 'Africa', 'Seychelles': 'Africa',
+      'Germany': 'Europe', 'France': 'Europe', 'United Kingdom': 'Europe',
+      'Italy': 'Europe', 'Spain': 'Europe', 'Netherlands': 'Europe',
+      'Switzerland': 'Europe', 'Austria': 'Europe', 'Belgium': 'Europe',
+      'Portugal': 'Europe', 'Sweden': 'Europe', 'Norway': 'Europe',
+      'Denmark': 'Europe', 'Finland': 'Europe', 'Greece': 'Europe',
+      'Ireland': 'Europe', 'Poland': 'Europe', 'Czech Republic': 'Europe',
+      'Hungary': 'Europe', 'Romania': 'Europe', 'Bulgaria': 'Europe',
+      'Croatia': 'Europe', 'Russia': 'Europe', 'Ukraine': 'Europe',
+      'United States': 'North America', 'United States of America': 'North America',
+      'Canada': 'North America', 'Mexico': 'North America',
+      'Brazil': 'South America', 'Argentina': 'South America',
+      'Chile': 'South America', 'Colombia': 'South America',
+      'Peru': 'South America', 'Venezuela': 'South America',
+      'China': 'Asia', 'India': 'Asia', 'Japan': 'Asia',
+      'South Korea': 'Asia', 'Singapore': 'Asia', 'Malaysia': 'Asia',
+      'Indonesia': 'Asia', 'Thailand': 'Asia', 'Vietnam': 'Asia',
+      'Philippines': 'Asia', 'Saudi Arabia': 'Asia',
+      'United Arab Emirates': 'Asia', 'Israel': 'Asia', 'Turkey': 'Asia',
+      'Australia': 'Oceania', 'New Zealand': 'Oceania', 'Fiji': 'Oceania',
     };
-    
     return map[country] || 'Other';
   }
+
+  // ✅ Choose which map component to use
+  const MapComponent = VisitorOriginExplorer || VisitorOriginMap || (() => null);
+  const useExplorer = !!VisitorOriginExplorer;
+
+  console.log(`📊 Using ${useExplorer ? 'VisitorOriginExplorer' : 'VisitorOriginMap'} component`);
 
   // Get the display name for the current tier
   const tierDisplayNames: Record<string, string> = {
@@ -259,19 +352,16 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Visitor Origin Explorer - Full Progressive Drill-Down */}
-      <VisitorOriginExplorer
-        data={explorerData}
-        limits={{
-          canViewCountries: limits.canViewCountries,
-          canViewRegions: limits.canViewRegions,
-          canViewCities: limits.canViewCities,
-          maxDrillLevel: limits.maxDrillLevel,
-          subscriptionTier: tier,
-        }}
+      {/* 🌍 Map Component - Uses new explorer if available, otherwise falls back to old map */}
+      <MapComponent
+        data={useExplorer ? explorerData : mapData}
+        drillLevel={drillLevel}
+        limits={limits}
+        onDrillDown={handleDrillDown}
+        onDrillUp={handleDrillUp}
+        canDrillDeeper={canDrillDeeper}
+        getUpgradeMessage={getUpgradeMessage}
         isLoading={isLoading || (props.bookings || []).length === 0}
-        title="Visitor Origin Explorer"
-        subtitle="Click the orange bubbles to drill down from world to cities"
       />
 
       {/* 📊 Supporting Analytics - Guest Origins & Referral Sources */}
