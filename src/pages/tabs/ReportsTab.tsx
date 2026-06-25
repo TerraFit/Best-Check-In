@@ -1,4 +1,5 @@
-// src/pages/tabs/ReportsTab.tsx
+// src/pages/tabs/ReportsTab.tsx - SIMPLIFIED VERSION
+
 import { useMemo, lazy, Suspense } from 'react';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
@@ -8,93 +9,30 @@ import { UpgradePreview } from '../../components/analytics/UpgradePreview';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
 
-// ✅ Fallback Map Component (always works)
-function FallbackMap({ data, drillLevel, limits, onDrillDown, onDrillUp, canDrillDeeper, getUpgradeMessage, isLoading }: any) {
-  const totalVisitors = data?.reduce((sum: number, d: any) => sum + d.count, 0) || 0;
-  
-  if (isLoading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-        <p className="text-stone-500">Loading visitor data...</p>
-      </div>
-    );
-  }
-
-  if (totalVisitors === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center">
-        <div className="text-4xl mb-4">🌍</div>
-        <h3 className="text-lg font-semibold text-stone-900 mb-2">No Visitor Data Available</h3>
-        <p className="text-stone-500 text-sm">As guests check in, their origin data will appear here.</p>
-      </div>
-    );
-  }
-
-  // Simple working map view
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
-            <span className="text-2xl">🌍</span>
-            Visitor Origin Explorer
-          </h3>
-          <p className="text-xs text-stone-400">Showing {data?.length || 0} regions with {totalVisitors} total visitors</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-stone-400">Plan:</span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium capitalize bg-green-100 text-green-700">
-            {limits?.subscriptionTier || 'starter'}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {data?.slice(0, 8).map((item: any, index: number) => (
-            <div 
-              key={item.name || index}
-              className="bg-stone-50 rounded-lg p-4 text-center border border-stone-200 hover:border-orange-300 transition-colors cursor-pointer"
-              onClick={() => onDrillDown && onDrillDown(item)}
-            >
-              <div className="text-2xl mb-1">
-                {item.name === 'Africa' && '🌍'}
-                {item.name === 'Europe' && '🌍'}
-                {item.name === 'North America' && '🌍'}
-                {item.name === 'South America' && '🌍'}
-                {item.name === 'Asia' && '🌍'}
-                {item.name === 'Oceania' && '🌍'}
-                {!['Africa','Europe','North America','South America','Asia','Oceania'].includes(item.name) && '📍'}
-              </div>
-              <p className="font-semibold text-stone-800 text-sm truncate">{item.name}</p>
-              <p className="text-2xl font-bold text-orange-500">{item.count}</p>
-              <p className="text-xs text-stone-400">{item.percentage?.toFixed(1)}%</p>
-              {item.children && item.children.length > 0 && (
-                <p className="text-[10px] text-stone-400 mt-1">👆 Click to explore</p>
-              )}
-            </div>
-          ))}
-        </div>
-        {data?.length > 8 && (
-          <p className="text-center text-sm text-stone-400 mt-4">+{data.length - 8} more regions</p>
-        )}
-      </div>
-
-      <div className="bg-stone-50 px-6 py-3 border-t border-stone-100 flex justify-between text-xs text-stone-400">
-        <span>Total: {totalVisitors.toLocaleString()} visitors</span>
-        <span>Regions: {data?.length || 0}</span>
-        <span>Powered by FastCheckin</span>
-      </div>
-    </div>
-  );
-}
-
-// ✅ Lazy load the new explorer (if available)
+// ✅ Lazy load the explorer with error handling
 const ExplorerMap = lazy(() => 
   import('../../components/analytics/VisitorOriginExplorer')
-    .then(module => ({ default: module.VisitorOriginExplorer || module.default || FallbackMap }))
-    .catch(() => ({ default: FallbackMap }))
+    .then(module => {
+      // Log success
+      console.log('✅ VisitorOriginExplorer loaded successfully');
+      return { default: module.VisitorOriginExplorer || module.default };
+    })
+    .catch((err) => {
+      console.error('❌ Failed to load VisitorOriginExplorer:', err);
+      // Return a fallback component
+      return { 
+        default: ({ data, isLoading }: any) => (
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+            <div className="text-4xl mb-4">🌍</div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">Visitor Origin Map</h3>
+            <p className="text-stone-500 text-sm">
+              {isLoading ? 'Loading...' : `${data?.length || 0} regions with ${data?.reduce((s: number, d: any) => s + d.count, 0) || 0} visitors`}
+            </p>
+            <p className="text-xs text-stone-400 mt-2">FastCheckin Analytics</p>
+          </div>
+        )
+      };
+    })
 );
 
 interface ReportsTabProps {
@@ -118,7 +56,6 @@ interface ReportsTabProps {
 
 export function ReportsTab(props: ReportsTabProps) {
   const tier = props.subscriptionTier || 'starter';
-  console.log('📊 ReportsTab - subscriptionTier received:', tier);
   
   const {
     analyticsData,
@@ -131,8 +68,6 @@ export function ReportsTab(props: ReportsTabProps) {
     getUpgradeMessage,
     isLoading
   } = useAnalytics(props.bookings || [], tier);
-  
-  console.log('📊 ReportsTab - limits:', limits);
 
   // Handle drill down
   const handleDrillDown = (item: any) => {
@@ -157,69 +92,7 @@ export function ReportsTab(props: ReportsTabProps) {
     }
   };
 
-  // Prepare data for the map
-  const mapData = useMemo(() => {
-    const bookings = props.bookings || [];
-    if (!bookings || bookings.length === 0) return [];
-    
-    const continentMap: Record<string, { name: string; count: number; children: any[] }> = {};
-    
-    bookings.forEach((b: any) => {
-      const country = b.guest_country || b.country;
-      if (!country) return;
-      
-      const countryToContinent: Record<string, string> = {
-        'South Africa': 'Africa', 'Namibia': 'Africa', 'Botswana': 'Africa',
-        'Zimbabwe': 'Africa', 'Mozambique': 'Africa', 'Lesotho': 'Africa',
-        'Eswatini': 'Africa', 'Zambia': 'Africa', 'Angola': 'Africa',
-        'Malawi': 'Africa', 'Tanzania': 'Africa', 'Kenya': 'Africa',
-        'Nigeria': 'Africa', 'Ghana': 'Africa', 'Egypt': 'Africa',
-        'Morocco': 'Africa', 'Tunisia': 'Africa', 'Algeria': 'Africa',
-        'Mauritius': 'Africa', 'Seychelles': 'Africa',
-        'Germany': 'Europe', 'France': 'Europe', 'United Kingdom': 'Europe',
-        'Italy': 'Europe', 'Spain': 'Europe', 'Netherlands': 'Europe',
-        'Switzerland': 'Europe', 'Austria': 'Europe', 'Belgium': 'Europe',
-        'Portugal': 'Europe', 'Sweden': 'Europe', 'Norway': 'Europe',
-        'Denmark': 'Europe', 'Finland': 'Europe', 'Greece': 'Europe',
-        'Ireland': 'Europe', 'Poland': 'Europe', 'Czech Republic': 'Europe',
-        'Hungary': 'Europe', 'Romania': 'Europe', 'Bulgaria': 'Europe',
-        'Croatia': 'Europe', 'Russia': 'Europe', 'Ukraine': 'Europe',
-        'United States': 'North America', 'United States of America': 'North America',
-        'Canada': 'North America', 'Mexico': 'North America',
-        'Brazil': 'South America', 'Argentina': 'South America',
-        'Chile': 'South America', 'Colombia': 'South America',
-        'Peru': 'South America', 'Venezuela': 'South America',
-        'China': 'Asia', 'India': 'Asia', 'Japan': 'Asia',
-        'South Korea': 'Asia', 'Singapore': 'Asia', 'Malaysia': 'Asia',
-        'Indonesia': 'Asia', 'Thailand': 'Asia', 'Vietnam': 'Asia',
-        'Philippines': 'Asia', 'Saudi Arabia': 'Asia',
-        'United Arab Emirates': 'Asia', 'Israel': 'Asia', 'Turkey': 'Asia',
-        'Australia': 'Oceania', 'New Zealand': 'Oceania', 'Fiji': 'Oceania',
-      };
-      
-      const continent = countryToContinent[country] || 'Other';
-      
-      if (!continentMap[continent]) {
-        continentMap[continent] = { name: continent, count: 0, children: [] };
-      }
-      continentMap[continent].count += 1;
-      continentMap[continent].children.push({ name: country, count: 1, percentage: 0 });
-    });
-    
-    const total = Object.values(continentMap).reduce((sum, c) => sum + c.count, 0) || 1;
-    
-    return Object.values(continentMap).map(c => ({
-      name: c.name,
-      count: c.count,
-      percentage: (c.count / total) * 100,
-      children: c.children.map((child: any) => ({
-        ...child,
-        percentage: (child.count / c.count) * 100
-      }))
-    })).sort((a, b) => b.count - a.count);
-  }, [props.bookings]);
-
-  // Prepare explorer data
+  // ✅ Prepare explorer data from bookings
   const explorerData = useMemo(() => {
     const bookings = props.bookings || [];
     if (!bookings || bookings.length === 0) return [];
@@ -280,6 +153,15 @@ export function ReportsTab(props: ReportsTabProps) {
     'growth': 'bg-blue-100 text-blue-700',
     'pro': 'bg-purple-100 text-purple-700',
     'business': 'bg-amber-100 text-amber-700'
+  };
+
+  // ✅ Build limits object for the explorer
+  const explorerLimits = {
+    canViewCountries: limits.canViewCountries || false,
+    canViewRegions: limits.canViewRegions || false,
+    canViewCities: limits.canViewCities || false,
+    maxDrillLevel: (limits.maxDrillLevel || 'world') as 'world' | 'continents' | 'countries' | 'regions' | 'cities',
+    subscriptionTier: tier,
   };
 
   return (
@@ -346,7 +228,7 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Map Component - Lazy loaded with fallback */}
+      {/* 🌍 Visitor Origin Explorer */}
       <Suspense fallback={
         <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -355,12 +237,7 @@ export function ReportsTab(props: ReportsTabProps) {
       }>
         <ExplorerMap
           data={explorerData}
-          drillLevel={drillLevel}
-          limits={limits}
-          onDrillDown={handleDrillDown}
-          onDrillUp={handleDrillUp}
-          canDrillDeeper={canDrillDeeper}
-          getUpgradeMessage={getUpgradeMessage}
+          limits={explorerLimits}
           isLoading={isLoading || (props.bookings || []).length === 0}
         />
       </Suspense>
