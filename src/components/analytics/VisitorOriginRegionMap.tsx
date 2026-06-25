@@ -1,7 +1,29 @@
 // src/components/analytics/VisitorOriginRegionMap.tsx
 import { useState, useMemo } from 'react';
-import { RegionData } from '../../types';
-import { Compass, Users, MapPin } from 'lucide-react';
+
+// ✅ Inline SVG icons (no lucide-react dependency)
+const CompassIcon = ({ size = 12, className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+  </svg>
+);
+
+const UsersIcon = ({ size = 12, className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const MapPinIcon = ({ size = 48, className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
 
 interface VisitorOriginRegionMapProps {
   data: any[];
@@ -152,7 +174,6 @@ export function VisitorOriginRegionMap({
     return regionList.map((region, idx) => {
       let coords = coordsPool[region.name];
       
-      // Fallback: arrange them in an orbital pattern if coordinates are missing
       if (!coords) {
         const total = regionList.length;
         const angle = (idx / total) * 2 * Math.PI;
@@ -192,7 +213,7 @@ export function VisitorOriginRegionMap({
   if (regionList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
-        <MapPin size={48} className="text-stone-300 mb-3" />
+        <MapPinIcon size={48} className="text-stone-300 mb-3" />
         <h3 className="text-base font-bold text-stone-700">No regional details available</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No region records matched for {countryName}. Try adjusting filters or selecting another country.
@@ -392,7 +413,7 @@ export function VisitorOriginRegionMap({
       {/* Region list overlay panel */}
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
         <div className="flex items-center gap-1.5 mb-2">
-          <Compass size={12} className="text-orange-500" />
+          <CompassIcon size={12} className="text-orange-500" />
           <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Regions</h4>
         </div>
         <div className="space-y-1">
@@ -417,3 +438,5 @@ export function VisitorOriginRegionMap({
     </div>
   );
 }
+
+export default VisitorOriginRegionMap;
