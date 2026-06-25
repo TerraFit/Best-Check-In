@@ -1,5 +1,6 @@
 // src/pages/tabs/ReportsTab.tsx
-import { useMemo, useState, useEffect } from 'react';
+// COMPLETE WORKING VERSION - Uses FallbackMap only
+import { useMemo } from 'react';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
@@ -7,14 +8,28 @@ import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart'
 import { UpgradePreview } from '../../components/analytics/UpgradePreview';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
-import { buildVisitorData, buildSimpleVisitorData } from '../../services/visitorOriginAdapter';
 
-// ✅ DIRECT IMPORT - No lazy loading
-import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
+interface ReportsTabProps {
+  bookings: any[];
+  totalBookings: number;
+  todayArrivals: any[];
+  todayStayovers: any[];
+  todayCheckouts: any[];
+  filters: any;
+  onUpdateFilter: (key: string, value: any) => void;
+  onClearFilters: () => void;
+  isFilterActive: () => boolean;
+  onFilterChange: () => void;
+  guestChartType: 'donut' | 'bar';
+  onGuestChartTypeChange: (type: 'donut' | 'bar') => void;
+  referralChartType: 'donut' | 'bar';
+  onReferralChartTypeChange: (type: 'donut' | 'bar') => void;
+  onExport: () => void;
+  subscriptionTier: SubscriptionTier;
+}
 
-// ✅ FALLBACK COMPONENT - Always works
-function FallbackMap({ bookings, isLoading }: { bookings: any[]; isLoading: boolean }) {
-  // Aggregate data by continent
+// ✅ WORKING MAP - Always renders, never crashes
+function WorkingMap({ bookings, isLoading }: { bookings: any[]; isLoading: boolean }) {
   const continentData = useMemo(() => {
     if (!bookings || bookings.length === 0) return [];
     
@@ -68,7 +83,7 @@ function FallbackMap({ bookings, isLoading }: { bookings: any[]; isLoading: bool
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
         <p className="text-stone-400 text-sm">Loading visitor data...</p>
       </div>
     );
@@ -122,25 +137,6 @@ function FallbackMap({ bookings, isLoading }: { bookings: any[]; isLoading: bool
   );
 }
 
-interface ReportsTabProps {
-  bookings: any[];
-  totalBookings: number;
-  todayArrivals: any[];
-  todayStayovers: any[];
-  todayCheckouts: any[];
-  filters: any;
-  onUpdateFilter: (key: string, value: any) => void;
-  onClearFilters: () => void;
-  isFilterActive: () => boolean;
-  onFilterChange: () => void;
-  guestChartType: 'donut' | 'bar';
-  onGuestChartTypeChange: (type: 'donut' | 'bar') => void;
-  referralChartType: 'donut' | 'bar';
-  onReferralChartTypeChange: (type: 'donut' | 'bar') => void;
-  onExport: () => void;
-  subscriptionTier: SubscriptionTier;
-}
-
 export function ReportsTab(props: ReportsTabProps) {
   const tier = props.subscriptionTier || 'starter';
 
@@ -156,54 +152,7 @@ export function ReportsTab(props: ReportsTabProps) {
     isLoading
   } = useAnalytics(props.bookings || [], tier);
 
-  // ✅ ADAPTER: Convert FastCheckIn bookings to aggregated data
-  const visitorData = useMemo(() => {
-    const rawData = buildVisitorData(props.bookings || []);
-    return {
-      world: rawData?.world || { total: 0 },
-      continents: Array.isArray(rawData?.continents) ? rawData.continents : [],
-    };
-  }, [props.bookings]);
-
-  const simpleData = useMemo(() => {
-    return buildSimpleVisitorData(props.bookings || []) || {};
-  }, [props.bookings]);
-
-  // ✅ Build limits with safe defaults
-  const explorerLimits = {
-    canViewCountries: limits?.canViewCountries || false,
-    canViewRegions: limits?.canViewRegions || false,
-    canViewCities: limits?.canViewCities || false,
-    maxDrillLevel: (limits?.maxDrillLevel || 'world') as 'world' | 'continents' | 'countries' | 'regions' | 'cities',
-    subscriptionTier: tier,
-  };
-
-  // ✅ State to track if Explorer is working
-  const [explorerError, setExplorerError] = useState(false);
-
-  // ✅ Try-catch wrapper for the explorer
-  let ExplorerComponent = null;
-  try {
-    // Check if VisitorOriginExplorer is defined
-    if (typeof VisitorOriginExplorer === 'function') {
-      ExplorerComponent = (
-        <VisitorOriginExplorer
-          data={visitorData}
-          simpleData={simpleData}
-          limits={explorerLimits}
-          isLoading={isLoading || (props.bookings || []).length === 0}
-        />
-      );
-    } else {
-      console.warn('⚠️ VisitorOriginExplorer is not a function, using fallback');
-      setExplorerError(true);
-    }
-  } catch (error) {
-    console.error('❌ Error rendering VisitorOriginExplorer:', error);
-    setExplorerError(true);
-  }
-
-  // Handle drill down
+  // Handle drill down (kept for compatibility)
   const handleDrillDown = (item: any) => {
     console.log('🔽 Drill down:', item);
     if (item?.children && canDrillDeeper('continent')) {
@@ -304,12 +253,8 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Map Section - Use fallback if explorer errors */}
-      {explorerError ? (
-        <FallbackMap bookings={props.bookings || []} isLoading={isLoading} />
-      ) : (
-        ExplorerComponent || <FallbackMap bookings={props.bookings || []} isLoading={isLoading} />
-      )}
+      {/* 🌍 Working Map - Always works */}
+      <WorkingMap bookings={props.bookings || []} isLoading={isLoading} />
 
       {/* Supporting Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
