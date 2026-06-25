@@ -9,31 +9,79 @@ import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
 import { buildVisitorData, buildSimpleVisitorData } from '../../services/visitorOriginAdapter';
 
-// ✅ Lazy load the VisitorOriginExplorer with error boundary
+// ✅ FIXED: Proper lazy loading with fallback
 const VisitorOriginExplorer = lazy(() =>
   import('../../components/analytics/VisitorOriginExplorer')
     .then((module) => {
-      console.log('✅ VisitorOriginExplorer loaded successfully');
-      return { default: module.VisitorOriginExplorer || module.default };
+      console.log('✅ VisitorOriginExplorer module loaded:', Object.keys(module));
+      // Try to get the component from named export or default export
+      const Component = module.VisitorOriginExplorer || module.default;
+      if (!Component) {
+        console.error('❌ No component found in module:', module);
+        // Return a fallback component
+        return {
+          default: ({ data, isLoading }: any) => {
+            const total = data?.world?.total || 0;
+            const continents = data?.continents || [];
+            if (isLoading) {
+              return (
+                <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
+                  <p className="text-stone-400 text-sm">Loading visitor data...</p>
+                </div>
+              );
+            }
+            if (total === 0 && continents.length === 0) {
+              return (
+                <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+                  <div className="text-3xl mb-3">🌍</div>
+                  <p className="text-stone-500 text-sm">No visitor data available yet</p>
+                  <p className="text-xs text-stone-400 mt-1">As guests check in, their origin data will appear here</p>
+                </div>
+              );
+            }
+            return (
+              <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
+                  <span className="text-sm font-medium text-stone-700">🌍 Visitor Origins</span>
+                  <span className="text-xs text-stone-400">{total} total visitors</span>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {continents.slice(0, 8).map((item: any) => (
+                      <div key={item.name} className="bg-stone-50 rounded-lg p-3 text-center border border-stone-200">
+                        <div className="text-2xl mb-1">🌍</div>
+                        <div className="text-sm font-medium text-stone-800 truncate">{item.name}</div>
+                        <div className="text-xl font-bold text-orange-500">{item.count}</div>
+                        <div className="text-xs text-stone-400">{item.percentage?.toFixed(1) || 0}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
+                  Powered by FastCheckin
+                </div>
+              </div>
+            );
+          },
+        };
+      }
+      return { default: Component };
     })
     .catch((err) => {
       console.error('❌ Failed to load VisitorOriginExplorer:', err);
-      // ✅ Fallback component that always works
       return {
         default: ({ data, isLoading }: any) => {
-          // Safely extract data with fallbacks
           const total = data?.world?.total || 0;
           const continents = data?.continents || [];
-          
           if (isLoading) {
             return (
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
                 <p className="text-stone-400 text-sm">Loading visitor data...</p>
               </div>
             );
           }
-          
           if (total === 0 && continents.length === 0) {
             return (
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
@@ -43,7 +91,6 @@ const VisitorOriginExplorer = lazy(() =>
               </div>
             );
           }
-          
           return (
             <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
               <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
@@ -61,9 +108,6 @@ const VisitorOriginExplorer = lazy(() =>
                     </div>
                   ))}
                 </div>
-                {continents.length > 8 && (
-                  <p className="text-center text-xs text-stone-400 mt-3">+{continents.length - 8} more regions</p>
-                )}
               </div>
               <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
                 Powered by FastCheckin
@@ -95,11 +139,8 @@ interface ReportsTabProps {
 }
 
 export function ReportsTab(props: ReportsTabProps) {
-  // ✅ Determine tier with fallback
   const tier = props.subscriptionTier || 'starter';
-  console.log('📊 ReportsTab - subscriptionTier received:', tier);
-  
-  // ✅ Use analytics hook with fallback
+
   const {
     analyticsData,
     drillLevel,
@@ -112,29 +153,18 @@ export function ReportsTab(props: ReportsTabProps) {
     isLoading
   } = useAnalytics(props.bookings || [], tier);
 
-  // ✅ ADAPTER: Convert FastCheckIn bookings to aggregated data (with safe defaults)
+  // ✅ ADAPTER: Convert FastCheckIn bookings to aggregated data
   const visitorData = useMemo(() => {
     const rawData = buildVisitorData(props.bookings || []);
-    // ✅ Ensure safe defaults
     return {
       world: rawData?.world || { total: 0 },
       continents: Array.isArray(rawData?.continents) ? rawData.continents : [],
     };
   }, [props.bookings]);
 
-  // ✅ SIMPLE AGGREGATED DATA: For fallback
   const simpleData = useMemo(() => {
-    const rawData = buildSimpleVisitorData(props.bookings || []);
-    return rawData || {};
+    return buildSimpleVisitorData(props.bookings || []) || {};
   }, [props.bookings]);
-
-  // ✅ DEBUG: Log what we're passing to the explorer
-  console.log('🔍 ReportsTab - visitorData:', {
-    world: visitorData.world,
-    continentsCount: visitorData.continents?.length || 0,
-    sampleContinent: visitorData.continents?.[0],
-  });
-  console.log('🔍 ReportsTab - simpleData:', simpleData);
 
   // ✅ Build limits with safe defaults
   const explorerLimits = {
@@ -145,7 +175,7 @@ export function ReportsTab(props: ReportsTabProps) {
     subscriptionTier: tier,
   };
 
-  // Handle drill down (for compatibility with existing code)
+  // Handle drill down
   const handleDrillDown = (item: any) => {
     console.log('🔽 Drill down:', item);
     if (item?.children && canDrillDeeper('continent')) {
@@ -184,7 +214,7 @@ export function ReportsTab(props: ReportsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* ✅ Plan Tier Indicator */}
+      {/* Plan Tier Indicator */}
       <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Analytics & Reports</h2>
@@ -246,11 +276,11 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Visitor Origin Explorer - Loaded with Adapter Data */}
+      {/* 🌍 Visitor Origin Explorer */}
       <Suspense
         fallback={
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
             <p className="text-stone-400 text-sm">Loading Visitor Origin Explorer...</p>
           </div>
         }
