@@ -1,8 +1,9 @@
-// src/components/analytics/VisitorOriginMap.tsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
+// Existing imports in VisitorOriginMap.tsx
+import { VisitorOriginWorldMap } from './VisitorOriginWorldMap';
 import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
 import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
-import { UpgradePromptModal } from './UpgradePromptModal';
+import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
+import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
 
 interface VisitorOriginMapProps {
   data: any[];
