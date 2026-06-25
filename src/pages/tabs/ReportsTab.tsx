@@ -9,7 +9,7 @@ import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
 import { buildVisitorData, buildSimpleVisitorData } from '../../services/visitorOriginAdapter';
 
-// ✅ Lazy load the VisitorOriginExplorer (keeps it isolated)
+// ✅ Lazy load the VisitorOriginExplorer with error boundary
 const VisitorOriginExplorer = lazy(() =>
   import('../../components/analytics/VisitorOriginExplorer')
     .then((module) => {
@@ -18,10 +18,13 @@ const VisitorOriginExplorer = lazy(() =>
     })
     .catch((err) => {
       console.error('❌ Failed to load VisitorOriginExplorer:', err);
-      // Return a fallback component that always works
+      // ✅ Fallback component that always works
       return {
         default: ({ data, isLoading }: any) => {
+          // Safely extract data with fallbacks
           const total = data?.world?.total || 0;
+          const continents = data?.continents || [];
+          
           if (isLoading) {
             return (
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
@@ -30,7 +33,8 @@ const VisitorOriginExplorer = lazy(() =>
               </div>
             );
           }
-          if (total === 0) {
+          
+          if (total === 0 && continents.length === 0) {
             return (
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
                 <div className="text-3xl mb-3">🌍</div>
@@ -39,6 +43,7 @@ const VisitorOriginExplorer = lazy(() =>
               </div>
             );
           }
+          
           return (
             <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
               <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
@@ -47,7 +52,7 @@ const VisitorOriginExplorer = lazy(() =>
               </div>
               <div className="p-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {data.continents?.slice(0, 8).map((item: any) => (
+                  {continents.slice(0, 8).map((item: any) => (
                     <div key={item.name} className="bg-stone-50 rounded-lg p-3 text-center border border-stone-200">
                       <div className="text-2xl mb-1">🌍</div>
                       <div className="text-sm font-medium text-stone-800 truncate">{item.name}</div>
@@ -56,6 +61,9 @@ const VisitorOriginExplorer = lazy(() =>
                     </div>
                   ))}
                 </div>
+                {continents.length > 8 && (
+                  <p className="text-center text-xs text-stone-400 mt-3">+{continents.length - 8} more regions</p>
+                )}
               </div>
               <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
                 Powered by FastCheckin
@@ -87,8 +95,11 @@ interface ReportsTabProps {
 }
 
 export function ReportsTab(props: ReportsTabProps) {
+  // ✅ Determine tier with fallback
   const tier = props.subscriptionTier || 'starter';
-
+  console.log('📊 ReportsTab - subscriptionTier received:', tier);
+  
+  // ✅ Use analytics hook with fallback
   const {
     analyticsData,
     drillLevel,
@@ -101,20 +112,43 @@ export function ReportsTab(props: ReportsTabProps) {
     isLoading
   } = useAnalytics(props.bookings || [], tier);
 
-  // ✅ ADAPTER: Convert FastCheckIn bookings to aggregated data
+  // ✅ ADAPTER: Convert FastCheckIn bookings to aggregated data (with safe defaults)
   const visitorData = useMemo(() => {
-    return buildVisitorData(props.bookings || []);
+    const rawData = buildVisitorData(props.bookings || []);
+    // ✅ Ensure safe defaults
+    return {
+      world: rawData?.world || { total: 0 },
+      continents: Array.isArray(rawData?.continents) ? rawData.continents : [],
+    };
   }, [props.bookings]);
 
-  // ✅ SIMPLE AGGREGATED DATA: For the continent view (fallback)
+  // ✅ SIMPLE AGGREGATED DATA: For fallback
   const simpleData = useMemo(() => {
-    return buildSimpleVisitorData(props.bookings || []);
+    const rawData = buildSimpleVisitorData(props.bookings || []);
+    return rawData || {};
   }, [props.bookings]);
+
+  // ✅ DEBUG: Log what we're passing to the explorer
+  console.log('🔍 ReportsTab - visitorData:', {
+    world: visitorData.world,
+    continentsCount: visitorData.continents?.length || 0,
+    sampleContinent: visitorData.continents?.[0],
+  });
+  console.log('🔍 ReportsTab - simpleData:', simpleData);
+
+  // ✅ Build limits with safe defaults
+  const explorerLimits = {
+    canViewCountries: limits?.canViewCountries || false,
+    canViewRegions: limits?.canViewRegions || false,
+    canViewCities: limits?.canViewCities || false,
+    maxDrillLevel: (limits?.maxDrillLevel || 'world') as 'world' | 'continents' | 'countries' | 'regions' | 'cities',
+    subscriptionTier: tier,
+  };
 
   // Handle drill down (for compatibility with existing code)
   const handleDrillDown = (item: any) => {
     console.log('🔽 Drill down:', item);
-    if (item.children && canDrillDeeper('continent')) {
+    if (item?.children && canDrillDeeper('continent')) {
       setDrillLevel('continent');
       setDrillPath([...drillPath, item.name]);
     }
@@ -146,15 +180,6 @@ export function ReportsTab(props: ReportsTabProps) {
     'growth': 'bg-blue-100 text-blue-700',
     'pro': 'bg-purple-100 text-purple-700',
     'business': 'bg-amber-100 text-amber-700'
-  };
-
-  // ✅ Build limits object for the explorer
-  const explorerLimits = {
-    canViewCountries: limits.canViewCountries || false,
-    canViewRegions: limits.canViewRegions || false,
-    canViewCities: limits.canViewCities || false,
-    maxDrillLevel: (limits.maxDrillLevel || 'world') as 'world' | 'continents' | 'countries' | 'regions' | 'cities',
-    subscriptionTier: tier,
   };
 
   return (
@@ -197,27 +222,27 @@ export function ReportsTab(props: ReportsTabProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Guests</p>
-          <p className="text-xl font-bold text-gray-900">{analyticsData.summary.totalGuests.toLocaleString()}</p>
+          <p className="text-xl font-bold text-gray-900">{analyticsData?.summary?.totalGuests?.toLocaleString() || 0}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Check-ins</p>
-          <p className="text-xl font-bold text-gray-900">{analyticsData.summary.totalBookings.toLocaleString()}</p>
+          <p className="text-xl font-bold text-gray-900">{analyticsData?.summary?.totalBookings?.toLocaleString() || 0}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Occupancy</p>
-          <p className="text-xl font-bold text-gray-900">{analyticsData.summary.occupancyRate}%</p>
+          <p className="text-xl font-bold text-gray-900">{analyticsData?.summary?.occupancyRate || 0}%</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Stay</p>
-          <p className="text-xl font-bold text-gray-900">{analyticsData.summary.averageStay.toFixed(1)} nights</p>
+          <p className="text-xl font-bold text-gray-900">{analyticsData?.summary?.averageStay?.toFixed(1) || 0} nights</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Revenue</p>
-          <p className="text-xl font-bold text-gray-900">R{analyticsData.summary.totalRevenue.toLocaleString()}</p>
+          <p className="text-xl font-bold text-gray-900">R{(analyticsData?.summary?.totalRevenue || 0).toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Countries</p>
-          <p className="text-xl font-bold text-gray-900">{analyticsData.summary.uniqueCountries}</p>
+          <p className="text-xl font-bold text-gray-900">{analyticsData?.summary?.uniqueCountries || 0}</p>
         </div>
       </div>
 
@@ -240,7 +265,7 @@ export function ReportsTab(props: ReportsTabProps) {
 
       {/* Supporting Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {limits.canViewCountries ? (
+        {limits?.canViewCountries ? (
           <GuestOriginsChart
             bookings={props.bookings || []}
             chartType={props.guestChartType}
@@ -254,7 +279,7 @@ export function ReportsTab(props: ReportsTabProps) {
           />
         )}
 
-        {limits.canViewCountries ? (
+        {limits?.canViewCountries ? (
           <ReferralSourcesChart
             bookings={props.bookings || []}
             chartType={props.referralChartType}
@@ -270,11 +295,11 @@ export function ReportsTab(props: ReportsTabProps) {
       </div>
 
       {/* Travel Patterns */}
-      {limits.canViewTravelPatterns ? (
+      {limits?.canViewTravelPatterns ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <TravelPatternsCard
-            arrivingFrom={analyticsData.arrivingFrom}
-            goingTo={analyticsData.goingTo}
+            arrivingFrom={analyticsData?.arrivingFrom || []}
+            goingTo={analyticsData?.goingTo || []}
             isLoading={(props.bookings || []).length === 0}
             title="Guest Travel Patterns"
           />
