@@ -1,6 +1,22 @@
+// src/components/analytics/VisitorOriginContinentMap.tsx
 import { useState, useMemo } from 'react';
 import { ContinentData } from '../../types';
-import { Compass, HelpCircle } from 'lucide-react';
+
+// ✅ Inline SVG icons (no lucide-react dependency)
+const CompassIcon = ({ size = 12, className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+  </svg>
+);
+
+const HelpCircleIcon = ({ size = 12, className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
 
 interface VisitorOriginContinentMapProps {
   data: ContinentData[];
@@ -43,7 +59,7 @@ export function VisitorOriginContinentMap({
     return (
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4" />
           <p className="text-stone-400 text-sm font-medium">Loading continent analytics...</p>
         </div>
       </div>
@@ -247,7 +263,7 @@ export function VisitorOriginContinentMap({
       {/* Static list overlay sidebar for reference */}
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[220px]">
         <div className="flex items-center gap-1 mb-2">
-          <Compass size={12} className="text-orange-500" />
+          <CompassIcon size={12} className="text-orange-500" />
           <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Continents</h4>
         </div>
         <div className="space-y-1.5">
