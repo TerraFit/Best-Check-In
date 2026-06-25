@@ -43,12 +43,12 @@ export function ReportsTab(props: ReportsTabProps) {
     canDrillDeeper,
     getUpgradeMessage,
     isLoading
-  } = useAnalytics(props.bookings, tier);
+  } = useAnalytics(props.bookings || [], tier);
   
   // Debug: Log what limits we got
   console.log('📊 ReportsTab - limits:', limits);
 
-  const totalRevenue = props.bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+  const totalRevenue = (props.bookings || []).reduce((sum, b) => sum + (b.total_amount || 0), 0);
 
   // Handle drill down
   const handleDrillDown = (item: any) => {
@@ -73,12 +73,15 @@ export function ReportsTab(props: ReportsTabProps) {
     }
   };
 
-  // Prepare data for the VisitorOriginExplorer
+  // ✅ FIX: Prepare data for the VisitorOriginExplorer with proper fallback
   const explorerData = useMemo(() => {
-    if (!props.bookings || props.bookings.length === 0) return [];
+    // ✅ CRITICAL: Check if bookings exists and is an array
+    if (!props.bookings || !Array.isArray(props.bookings) || props.bookings.length === 0) {
+      return [];
+    }
     
     return props.bookings.map((b: any) => ({
-      id: b.id,
+      id: b.id || `booking-${Math.random()}`,
       timestamp: b.created_at || b.check_in_date || new Date().toISOString(),
       continent: getContinentFromCountry(b.guest_country || b.country),
       country: b.guest_country || b.country || 'Unknown',
@@ -266,7 +269,7 @@ export function ReportsTab(props: ReportsTabProps) {
           maxDrillLevel: limits.maxDrillLevel,
           subscriptionTier: tier,
         }}
-        isLoading={isLoading || props.bookings.length === 0}
+        isLoading={isLoading || (props.bookings || []).length === 0}
         title="Visitor Origin Explorer"
         subtitle="Click the orange bubbles to drill down from world to cities"
       />
@@ -275,7 +278,7 @@ export function ReportsTab(props: ReportsTabProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {limits.canViewCountries ? (
           <GuestOriginsChart
-            bookings={props.bookings}
+            bookings={props.bookings || []}
             chartType={props.guestChartType}
             onChartTypeChange={props.onGuestChartTypeChange}
           />
@@ -296,7 +299,7 @@ export function ReportsTab(props: ReportsTabProps) {
 
         {limits.canViewCountries ? (
           <ReferralSourcesChart
-            bookings={props.bookings}
+            bookings={props.bookings || []}
             chartType={props.referralChartType}
             onChartTypeChange={props.onReferralChartTypeChange}
           />
@@ -322,10 +325,10 @@ export function ReportsTab(props: ReportsTabProps) {
           <TravelPatternsCard
             arrivingFrom={analyticsData.arrivingFrom}
             goingTo={analyticsData.goingTo}
-            isLoading={props.bookings.length === 0}
+            isLoading={(props.bookings || []).length === 0}
             title="Guest Travel Patterns"
           />
-          <LengthOfStayChart bookings={props.bookings} />
+          <LengthOfStayChart bookings={props.bookings || []} />
         </div>
       ) : (
         <UpgradePreview
