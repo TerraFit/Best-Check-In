@@ -1,5 +1,5 @@
 // src/pages/tabs/ReportsTab.tsx
-import { useMemo, lazy, Suspense } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
@@ -9,115 +9,118 @@ import { useAnalytics } from '../../hooks/useAnalytics';
 import { SubscriptionTier } from '../../types/analytics';
 import { buildVisitorData, buildSimpleVisitorData } from '../../services/visitorOriginAdapter';
 
-// ✅ FIXED: Proper lazy loading with fallback
-const VisitorOriginExplorer = lazy(() =>
-  import('../../components/analytics/VisitorOriginExplorer')
-    .then((module) => {
-      console.log('✅ VisitorOriginExplorer module loaded:', Object.keys(module));
-      // Try to get the component from named export or default export
-      const Component = module.VisitorOriginExplorer || module.default;
-      if (!Component) {
-        console.error('❌ No component found in module:', module);
-        // Return a fallback component
-        return {
-          default: ({ data, isLoading }: any) => {
-            const total = data?.world?.total || 0;
-            const continents = data?.continents || [];
-            if (isLoading) {
-              return (
-                <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
-                  <p className="text-stone-400 text-sm">Loading visitor data...</p>
-                </div>
-              );
-            }
-            if (total === 0 && continents.length === 0) {
-              return (
-                <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-                  <div className="text-3xl mb-3">🌍</div>
-                  <p className="text-stone-500 text-sm">No visitor data available yet</p>
-                  <p className="text-xs text-stone-400 mt-1">As guests check in, their origin data will appear here</p>
-                </div>
-              );
-            }
-            return (
-              <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-                <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
-                  <span className="text-sm font-medium text-stone-700">🌍 Visitor Origins</span>
-                  <span className="text-xs text-stone-400">{total} total visitors</span>
-                </div>
-                <div className="p-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {continents.slice(0, 8).map((item: any) => (
-                      <div key={item.name} className="bg-stone-50 rounded-lg p-3 text-center border border-stone-200">
-                        <div className="text-2xl mb-1">🌍</div>
-                        <div className="text-sm font-medium text-stone-800 truncate">{item.name}</div>
-                        <div className="text-xl font-bold text-orange-500">{item.count}</div>
-                        <div className="text-xs text-stone-400">{item.percentage?.toFixed(1) || 0}%</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
-                  Powered by FastCheckin
-                </div>
-              </div>
-            );
-          },
-        };
+// ✅ DIRECT IMPORT - No lazy loading
+import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
+
+// ✅ FALLBACK COMPONENT - Always works
+function FallbackMap({ bookings, isLoading }: { bookings: any[]; isLoading: boolean }) {
+  // Aggregate data by continent
+  const continentData = useMemo(() => {
+    if (!bookings || bookings.length === 0) return [];
+    
+    const countryToContinent: Record<string, string> = {
+      'South Africa': 'Africa', 'Namibia': 'Africa', 'Botswana': 'Africa',
+      'Zimbabwe': 'Africa', 'Mozambique': 'Africa', 'Lesotho': 'Africa',
+      'Eswatini': 'Africa', 'Zambia': 'Africa', 'Angola': 'Africa',
+      'Malawi': 'Africa', 'Tanzania': 'Africa', 'Kenya': 'Africa',
+      'Nigeria': 'Africa', 'Ghana': 'Africa', 'Egypt': 'Africa',
+      'Morocco': 'Africa', 'Tunisia': 'Africa', 'Algeria': 'Africa',
+      'Mauritius': 'Africa', 'Seychelles': 'Africa',
+      'Germany': 'Europe', 'France': 'Europe', 'United Kingdom': 'Europe',
+      'Italy': 'Europe', 'Spain': 'Europe', 'Netherlands': 'Europe',
+      'Switzerland': 'Europe', 'Austria': 'Europe', 'Belgium': 'Europe',
+      'Portugal': 'Europe', 'Sweden': 'Europe', 'Norway': 'Europe',
+      'Denmark': 'Europe', 'Finland': 'Europe', 'Greece': 'Europe',
+      'Ireland': 'Europe', 'Poland': 'Europe', 'Czech Republic': 'Europe',
+      'Hungary': 'Europe', 'Romania': 'Europe', 'Bulgaria': 'Europe',
+      'Croatia': 'Europe', 'Russia': 'Europe', 'Ukraine': 'Europe',
+      'United States': 'North America', 'United States of America': 'North America',
+      'Canada': 'North America', 'Mexico': 'North America',
+      'Brazil': 'South America', 'Argentina': 'South America',
+      'Chile': 'South America', 'Colombia': 'South America',
+      'Peru': 'South America', 'Venezuela': 'South America',
+      'China': 'Asia', 'India': 'Asia', 'Japan': 'Asia',
+      'South Korea': 'Asia', 'Singapore': 'Asia', 'Malaysia': 'Asia',
+      'Indonesia': 'Asia', 'Thailand': 'Asia', 'Vietnam': 'Asia',
+      'Philippines': 'Asia', 'Saudi Arabia': 'Asia',
+      'United Arab Emirates': 'Asia', 'Israel': 'Asia', 'Turkey': 'Asia',
+      'Australia': 'Oceania', 'New Zealand': 'Oceania', 'Fiji': 'Oceania',
+    };
+    
+    const continentMap: Record<string, number> = {};
+    bookings.forEach((b: any) => {
+      const country = b.guest_country || b.country;
+      if (country) {
+        const continent = countryToContinent[country] || 'Other';
+        continentMap[continent] = (continentMap[continent] || 0) + 1;
       }
-      return { default: Component };
-    })
-    .catch((err) => {
-      console.error('❌ Failed to load VisitorOriginExplorer:', err);
-      return {
-        default: ({ data, isLoading }: any) => {
-          const total = data?.world?.total || 0;
-          const continents = data?.continents || [];
-          if (isLoading) {
-            return (
-              <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
-                <p className="text-stone-400 text-sm">Loading visitor data...</p>
+    });
+    
+    const total = Object.values(continentMap).reduce((sum, c) => sum + c, 0) || 1;
+    
+    return Object.entries(continentMap).map(([name, count]) => ({
+      name,
+      count,
+      percentage: ((count / total) * 100).toFixed(1),
+    })).sort((a, b) => b.count - a.count);
+  }, [bookings]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+        <p className="text-stone-400 text-sm">Loading visitor data...</p>
+      </div>
+    );
+  }
+
+  if (continentData.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+        <div className="text-3xl mb-3">🌍</div>
+        <p className="text-stone-500 text-sm">No visitor data available yet</p>
+        <p className="text-xs text-stone-400 mt-1">As guests check in, their origin data will appear here</p>
+      </div>
+    );
+  }
+
+  const totalVisitors = continentData.reduce((sum, d) => sum + d.count, 0);
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+      <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
+        <div>
+          <span className="text-sm font-medium text-stone-700">🌍 Visitor Origins</span>
+          <span className="text-xs text-stone-400 ml-2">{totalVisitors} total visitors</span>
+        </div>
+        <span className="text-xs text-stone-400">{continentData.length} regions</span>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {continentData.map((item) => (
+            <div key={item.name} className="bg-stone-50 rounded-lg p-3 text-center border border-stone-200 hover:border-orange-300 transition-colors">
+              <div className="text-2xl mb-1">
+                {item.name === 'Africa' && '🌍'}
+                {item.name === 'Europe' && '🌍'}
+                {item.name === 'North America' && '🌍'}
+                {item.name === 'South America' && '🌍'}
+                {item.name === 'Asia' && '🌍'}
+                {item.name === 'Oceania' && '🌍'}
+                {!['Africa','Europe','North America','South America','Asia','Oceania'].includes(item.name) && '📍'}
               </div>
-            );
-          }
-          if (total === 0 && continents.length === 0) {
-            return (
-              <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-                <div className="text-3xl mb-3">🌍</div>
-                <p className="text-stone-500 text-sm">No visitor data available yet</p>
-                <p className="text-xs text-stone-400 mt-1">As guests check in, their origin data will appear here</p>
-              </div>
-            );
-          }
-          return (
-            <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-              <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
-                <span className="text-sm font-medium text-stone-700">🌍 Visitor Origins</span>
-                <span className="text-xs text-stone-400">{total} total visitors</span>
-              </div>
-              <div className="p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {continents.slice(0, 8).map((item: any) => (
-                    <div key={item.name} className="bg-stone-50 rounded-lg p-3 text-center border border-stone-200">
-                      <div className="text-2xl mb-1">🌍</div>
-                      <div className="text-sm font-medium text-stone-800 truncate">{item.name}</div>
-                      <div className="text-xl font-bold text-orange-500">{item.count}</div>
-                      <div className="text-xs text-stone-400">{item.percentage?.toFixed(1) || 0}%</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
-                Powered by FastCheckin
-              </div>
+              <div className="text-sm font-medium text-stone-800 truncate">{item.name}</div>
+              <div className="text-xl font-bold text-orange-500">{item.count}</div>
+              <div className="text-xs text-stone-400">{item.percentage}%</div>
             </div>
-          );
-        },
-      };
-    })
-);
+          ))}
+        </div>
+      </div>
+      <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 text-center text-xs text-stone-400">
+        Powered by FastCheckin
+      </div>
+    </div>
+  );
+}
 
 interface ReportsTabProps {
   bookings: any[];
@@ -174,6 +177,31 @@ export function ReportsTab(props: ReportsTabProps) {
     maxDrillLevel: (limits?.maxDrillLevel || 'world') as 'world' | 'continents' | 'countries' | 'regions' | 'cities',
     subscriptionTier: tier,
   };
+
+  // ✅ State to track if Explorer is working
+  const [explorerError, setExplorerError] = useState(false);
+
+  // ✅ Try-catch wrapper for the explorer
+  let ExplorerComponent = null;
+  try {
+    // Check if VisitorOriginExplorer is defined
+    if (typeof VisitorOriginExplorer === 'function') {
+      ExplorerComponent = (
+        <VisitorOriginExplorer
+          data={visitorData}
+          simpleData={simpleData}
+          limits={explorerLimits}
+          isLoading={isLoading || (props.bookings || []).length === 0}
+        />
+      );
+    } else {
+      console.warn('⚠️ VisitorOriginExplorer is not a function, using fallback');
+      setExplorerError(true);
+    }
+  } catch (error) {
+    console.error('❌ Error rendering VisitorOriginExplorer:', error);
+    setExplorerError(true);
+  }
 
   // Handle drill down
   const handleDrillDown = (item: any) => {
@@ -276,22 +304,12 @@ export function ReportsTab(props: ReportsTabProps) {
         </div>
       </div>
 
-      {/* 🌍 Visitor Origin Explorer */}
-      <Suspense
-        fallback={
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3" />
-            <p className="text-stone-400 text-sm">Loading Visitor Origin Explorer...</p>
-          </div>
-        }
-      >
-        <VisitorOriginExplorer
-          data={visitorData}
-          simpleData={simpleData}
-          limits={explorerLimits}
-          isLoading={isLoading || (props.bookings || []).length === 0}
-        />
-      </Suspense>
+      {/* 🌍 Map Section - Use fallback if explorer errors */}
+      {explorerError ? (
+        <FallbackMap bookings={props.bookings || []} isLoading={isLoading} />
+      ) : (
+        ExplorerComponent || <FallbackMap bookings={props.bookings || []} isLoading={isLoading} />
+      )}
 
       {/* Supporting Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
