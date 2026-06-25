@@ -1,440 +1,519 @@
-// src/components/analytics/VisitorOriginRegionMap.tsx
-import { useState, useMemo } from 'react';
+// src/components/analytics/VisitorOriginExplorer.tsx
+import { useState, useMemo, lazy, Suspense } from 'react';
 
-// SVG Icons
-const CompassIcon = ({ size = 12, className = '' }) => (
+// ✅ IMPORTANT: These must match the exports in each file
+
+// Option 1: If files use named exports (export function Xxx)
+import { VisitorOriginWorldMap } from './VisitorOriginWorldMap';
+import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
+import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
+import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
+import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
+import { UpgradePromptModal } from './UpgradePromptModal';
+
+// Option 2: If files use default exports (export default Xxx)
+// import VisitorOriginWorldMap from './VisitorOriginWorldMap';
+// import VisitorOriginContinentMap from './VisitorOriginContinentMap';
+// import VisitorOriginCountryMap from './VisitorOriginCountryMap';
+// import VisitorOriginRegionMap from './VisitorOriginRegionMap';
+// import VisitorOriginCityGrid from './VisitorOriginCityGrid';
+// import UpgradePromptModal from './UpgradePromptModal';
+
+// ✅ Inline SVG icons (no lucide-react dependency)
+const Globe2Icon = ({ size = 22, className = '' }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10" />
-    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </svg>
 );
 
-const UsersIcon = ({ size = 12, className = '' }) => (
+const LayersIcon = ({ size = 16, className = '' }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
   </svg>
 );
 
-const MapPinIcon = ({ size = 48, className = '' }) => (
+const ZapIcon = ({ size = 12, className = '' }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-    <circle cx="12" cy="10" r="3" />
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   </svg>
 );
 
-interface VisitorOriginRegionMapProps {
-  data: any[];
-  countryName: string;
-  onRegionClick: (region: string) => void;
-  onBack: () => void;
-  isLoading: boolean;
-  geoData?: any;
+export type DrillLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
+export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business';
+
+export interface ExplorerLimits {
+  canViewCountries: boolean;
+  canViewRegions: boolean;
+  canViewCities: boolean;
+  maxDrillLevel: DrillLevel;
+  subscriptionTier: SubscriptionTier;
 }
 
-// Predefined relative coordinates for provinces/states/regions within specific countries
-const REGION_COORDS: Record<string, Record<string, { x: number; y: number }>> = {
-  'South Africa': {
-    'Western Cape': { x: 300, y: 310 },
-    'Gauteng': { x: 480, y: 160 },
-    'KwaZulu-Natal': { x: 540, y: 240 },
-    'Eastern Cape': { x: 410, y: 330 },
-    'Mpumalanga': { x: 540, y: 140 },
-    'Free State': { x: 430, y: 230 },
-    'Limpopo': { x: 480, y: 100 },
-    'North West': { x: 390, y: 190 },
-    'Northern Cape': { x: 290, y: 220 },
-  },
-  'Germany': {
-    'Bavaria': { x: 480, y: 290 },
-    'Berlin': { x: 510, y: 140 },
-    'Hesse': { x: 350, y: 210 },
-    'North Rhine-Westphalia': { x: 300, y: 180 },
-    'Baden-Württemberg': { x: 400, y: 280 },
-    'Lower Saxony': { x: 400, y: 160 },
-  },
-  'United States': {
-    'California': { x: 260, y: 240 },
-    'New York': { x: 550, y: 160 },
-    'Texas': { x: 420, y: 320 },
-    'Florida': { x: 520, y: 350 },
-    'Illinois': { x: 450, y: 220 },
-    'Pennsylvania': { x: 520, y: 200 },
-    'Ohio': { x: 490, y: 210 },
-    'Georgia': { x: 500, y: 300 },
-    'North Carolina': { x: 530, y: 270 },
-    'Michigan': { x: 470, y: 180 },
-  },
-  'United Kingdom': {
-    'Greater London': { x: 410, y: 280 },
-    'Scotland': { x: 380, y: 130 },
-    'Wales': { x: 350, y: 240 },
-    'Northern Ireland': { x: 310, y: 170 },
-    'South East England': { x: 430, y: 290 },
-    'South West England': { x: 360, y: 300 },
-    'East of England': { x: 460, y: 260 },
-  },
-  'France': {
-    'Île-de-France': { x: 380, y: 180 },
-    'Provence-Alpes-Côte d\'Azur': { x: 450, y: 300 },
-    'Auvergne-Rhône-Alpes': { x: 390, y: 240 },
-    'Nouvelle-Aquitaine': { x: 330, y: 270 },
-    'Occitanie': { x: 380, y: 300 },
-    'Hauts-de-France': { x: 370, y: 140 },
-    'Grand Est': { x: 410, y: 170 },
-  },
-  'Canada': {
-    'Ontario': { x: 470, y: 180 },
-    'British Columbia': { x: 220, y: 160 },
-    'Quebec': { x: 530, y: 140 },
-    'Alberta': { x: 280, y: 140 },
-    'Nova Scotia': { x: 580, y: 190 },
-    'Manitoba': { x: 380, y: 140 },
-  },
-  'Australia': {
-    'New South Wales': { x: 540, y: 280 },
-    'Victoria': { x: 510, y: 340 },
-    'Queensland': { x: 580, y: 220 },
-    'Western Australia': { x: 340, y: 300 },
-    'South Australia': { x: 430, y: 330 },
-    'Tasmania': { x: 520, y: 390 },
-  },
-  'Brazil': {
-    'São Paulo': { x: 440, y: 250 },
-    'Rio de Janeiro': { x: 490, y: 250 },
-    'Minas Gerais': { x: 460, y: 220 },
-    'Bahia': { x: 470, y: 180 },
-    'Paraná': { x: 420, y: 280 },
-    'Rio Grande do Sul': { x: 410, y: 330 },
-  },
-  'India': {
-    'Maharashtra': { x: 480, y: 240 },
-    'Delhi': { x: 450, y: 140 },
-    'Karnataka': { x: 460, y: 280 },
-    'Tamil Nadu': { x: 500, y: 290 },
-    'Gujarat': { x: 430, y: 220 },
-    'Uttar Pradesh': { x: 470, y: 160 },
-  },
-  'China': {
-    'Guangdong': { x: 550, y: 240 },
-    'Shanghai': { x: 580, y: 200 },
-    'Beijing': { x: 540, y: 120 },
-    'Sichuan': { x: 480, y: 170 },
-    'Zhejiang': { x: 580, y: 190 },
-    'Jiangsu': { x: 570, y: 180 },
-  },
+export interface VisitorOriginExplorerProps {
+  data?: any;
+  simpleData?: Record<string, number>;
+  limits?: ExplorerLimits;
+  onTierChange?: (tier: SubscriptionTier) => void;
+  isLoading?: boolean;
+  title?: string;
+  subtitle?: string;
+}
+
+const DEFAULT_LIMITS: ExplorerLimits = {
+  canViewCountries: false,
+  canViewRegions: false,
+  canViewCities: false,
+  maxDrillLevel: 'world',
+  subscriptionTier: 'starter',
 };
 
-export function VisitorOriginRegionMap({
+export function VisitorOriginExplorer({
   data,
-  countryName,
-  onRegionClick,
-  onBack,
-  isLoading
-}: VisitorOriginRegionMapProps) {
-  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+  simpleData = {},
+  limits = DEFAULT_LIMITS,
+  onTierChange,
+  isLoading = false,
+  title = 'Visitor Origin Explorer',
+  subtitle = 'Click the orange bubbles to drill down from world to cities'
+}: VisitorOriginExplorerProps) {
+  // ✅ DEBUG: Log what we received
+  console.log('🔍 VisitorOriginExplorer - Received props:', {
+    data,
+    simpleData,
+    limits,
+    isLoading,
+    hasData: !!data,
+    dataType: typeof data,
+  });
 
-  // Group filtered records to count visitors per region
-  const regionList = useMemo(() => {
-    if (!data || data.length === 0) return [];
-    
-    const regionMap: Record<string, number> = {};
-    data.forEach(item => {
-      const region = item.region || item.state || item.province || item.guest_province;
-      if (region) {
-        regionMap[region] = (regionMap[region] || 0) + (item.count || 1);
-      }
-    });
+  // ✅ SAFE: Ensure data is always an object with defaults
+  const safeData = useMemo(() => {
+    if (!data || typeof data !== 'object') {
+      return { world: { total: 0 }, continents: [] };
+    }
+    return {
+      world: data.world || { total: 0 },
+      continents: Array.isArray(data.continents) ? data.continents : [],
+    };
+  }, [data]);
 
-    const total = Object.values(regionMap).reduce((sum, r) => sum + r, 0) || 1;
+  // ✅ SAFE: Ensure simpleData is always an object
+  const safeSimpleData = useMemo(() => {
+    return simpleData && typeof simpleData === 'object' ? simpleData : {};
+  }, [simpleData]);
 
-    return Object.entries(regionMap).map(([name, count]) => ({
+  // ✅ SAFE: Get total visitors with multiple fallbacks
+  const totalVisitors = useMemo(() => {
+    if (safeData.world?.total !== undefined && safeData.world.total > 0) {
+      return safeData.world.total;
+    }
+    const simpleTotal = Object.values(safeSimpleData).reduce((sum, val) => sum + val, 0);
+    if (simpleTotal > 0) {
+      return simpleTotal;
+    }
+    return 0;
+  }, [safeData, safeSimpleData]);
+
+  // ✅ SAFE: Get continent data with multiple fallbacks
+  const continentData = useMemo(() => {
+    if (safeData.continents && safeData.continents.length > 0) {
+      return safeData.continents;
+    }
+    const total = Object.values(safeSimpleData).reduce((sum, val) => sum + val, 0) || 1;
+    return Object.entries(safeSimpleData).map(([name, count]) => ({
       name,
       count,
       percentage: (count / total) * 100,
-      country: countryName
-    })).sort((a, b) => b.count - a.count);
-  }, [data, countryName]);
+      children: [],
+    }));
+  }, [safeData, safeSimpleData]);
 
-  const maxCount = useMemo(() => {
-    if (regionList.length === 0) return 1;
-    return Math.max(...regionList.map(r => r.count), 1);
-  }, [regionList]);
+  const safeLimits = limits || DEFAULT_LIMITS;
 
-  const countryTotal = useMemo(() => {
-    return regionList.reduce((sum, r) => sum + r.count, 0);
-  }, [regionList]);
+  // Navigation states
+  const [currentLevel, setCurrentLevel] = useState<DrillLevel>('world');
+  const [selectedContinent, setSelectedContinent] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
-  // Compute bubble positions with fallback
-  const positionedRegions = useMemo(() => {
-    const coordsPool = REGION_COORDS[countryName] || {};
-    
-    return regionList.map((region, idx) => {
-      let coords = coordsPool[region.name];
-      
-      if (!coords) {
-        const total = regionList.length;
-        const angle = (idx / total) * 2 * Math.PI;
-        const radius = 120;
-        coords = {
-          x: 400 + Math.cos(angle) * radius,
-          y: 225 + Math.sin(angle) * radius
-        };
-      }
-      
-      return {
-        ...region,
-        x: coords.x,
-        y: coords.y
-      };
-    });
-  }, [regionList, countryName]);
+  // Upgrade Modal triggers
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [modalTargetTier, setModalTargetTier] = useState<SubscriptionTier>('growth');
+  const [modalFeatureName, setModalFeatureName] = useState<string>('');
 
-  const getBubbleRadius = (count: number): number => {
-    const minRadius = 24;
-    const maxRadius = 52;
-    const ratio = count / maxCount;
-    return minRadius + (maxRadius - minRadius) * Math.pow(ratio, 0.5);
+  // ✅ DEBUG: Log component state
+  console.log('🔍 VisitorOriginExplorer - State:', {
+    currentLevel,
+    selectedContinent,
+    selectedCountry,
+    selectedRegion,
+    totalVisitors,
+    continentDataLength: continentData.length,
+  });
+
+  // Drill level navigation controls
+  const handleWorldExplore = () => {
+    setCurrentLevel('continents');
   };
 
+  const handleContinentClick = (continent: string) => {
+    if (safeLimits.canViewCountries) {
+      setSelectedContinent(continent);
+      setCurrentLevel('countries');
+    } else {
+      setModalTargetTier('growth');
+      setModalFeatureName('Country-Level Distribution');
+      setShowUpgradeModal(true);
+    }
+  };
+
+  const handleCountryClick = (country: string) => {
+    if (safeLimits.canViewRegions) {
+      setSelectedCountry(country);
+      setCurrentLevel('regions');
+    } else {
+      setModalTargetTier('pro');
+      setModalFeatureName('State, Province, & Region Analytics');
+      setShowUpgradeModal(true);
+    }
+  };
+
+  const handleRegionClick = (region: string) => {
+    if (safeLimits.canViewCities) {
+      setSelectedRegion(region);
+      setCurrentLevel('cities');
+    } else {
+      setModalTargetTier('business');
+      setModalFeatureName('Fine City & Suburb Grid Details');
+      setShowUpgradeModal(true);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentLevel === 'continents') {
+      setCurrentLevel('world');
+    } else if (currentLevel === 'countries') {
+      setCurrentLevel('continents');
+      setSelectedContinent(null);
+    } else if (currentLevel === 'regions') {
+      setCurrentLevel('countries');
+      setSelectedCountry(null);
+    } else if (currentLevel === 'cities') {
+      setCurrentLevel('regions');
+      setSelectedRegion(null);
+    }
+  };
+
+  const handleUpgradeAction = () => {
+    setShowUpgradeModal(false);
+    if (onTierChange) {
+      onTierChange(modalTargetTier);
+    }
+  };
+
+  // ✅ SAFE: Filter records with fallbacks
+  const filteredCountryData = useMemo(() => {
+    if (!selectedContinent) return [];
+    const continent = safeData.continents?.find((c: any) => c.name === selectedContinent);
+    return continent?.children || [];
+  }, [safeData, selectedContinent]);
+
+  const filteredRegionData = useMemo(() => {
+    if (!selectedCountry) return [];
+    for (const continent of (safeData.continents || [])) {
+      const country = continent.children?.find((c: any) => c.name === selectedCountry);
+      if (country?.children) {
+        return country.children;
+      }
+    }
+    return [];
+  }, [safeData, selectedCountry]);
+
+  const filteredCityData = useMemo(() => {
+    if (!selectedRegion) return [];
+    for (const continent of (safeData.continents || [])) {
+      for (const country of (continent.children || [])) {
+        const region = country.children?.find((r: any) => r.name === selectedRegion);
+        if (region?.children) {
+          return region.children;
+        }
+      }
+    }
+    return [];
+  }, [safeData, selectedRegion]);
+
+  // ✅ Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading regions within {countryName}...</p>
-        </div>
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden p-12 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
+        <p className="text-stone-500">Loading visitor data...</p>
       </div>
     );
   }
 
-  if (regionList.length === 0) {
+  // ✅ Empty state
+  if (totalVisitors === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
-        <MapPinIcon size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">No regional details available</h3>
-        <p className="text-stone-400 text-xs mt-1 max-w-sm">
-          No region records matched for {countryName}. Try adjusting filters or selecting another country.
-        </p>
-        <button
-          onClick={onBack}
-          className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
-        >
-          ← Back to Countries
-        </button>
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden p-12 text-center">
+        <div className="text-5xl mb-4">🌍</div>
+        <h3 className="text-lg font-semibold text-stone-900 mb-2">No Visitor Data Available</h3>
+        <p className="text-stone-500 text-sm">As guests check in, their origin data will appear here.</p>
+        <p className="text-xs text-stone-400 mt-4">Powered by FastCheckin</p>
+      </div>
+    );
+  }
+
+  // ✅ Render the appropriate view - with debug
+  const renderView = () => {
+    console.log('🔍 VisitorOriginExplorer - Rendering level:', currentLevel);
+    console.log('🔍 VisitorOriginExplorer - Components available:', {
+      WorldMap: !!VisitorOriginWorldMap,
+      ContinentMap: !!VisitorOriginContinentMap,
+      CountryMap: !!VisitorOriginCountryMap,
+      RegionMap: !!VisitorOriginRegionMap,
+      CityGrid: !!VisitorOriginCityGrid,
+    });
+
+    switch (currentLevel) {
+      case 'world':
+        console.log('✅ Rendering WorldMap');
+        return (
+          <VisitorOriginWorldMap
+            totalVisitors={totalVisitors}
+            onExplore={handleWorldExplore}
+            isLoading={false}
+          />
+        );
+
+      case 'continents':
+        console.log('✅ Rendering ContinentMap');
+        return (
+          <VisitorOriginContinentMap
+            data={continentData}
+            onContinentClick={handleContinentClick}
+            onBack={handleBack}
+            isLoading={false}
+          />
+        );
+
+      case 'countries':
+        console.log('✅ Rendering CountryMap');
+        return (
+          <VisitorOriginCountryMap
+            data={filteredCountryData}
+            continentName={selectedContinent || ''}
+            onCountryClick={handleCountryClick}
+            onBack={handleBack}
+            isLoading={false}
+            geoData={null}
+          />
+        );
+
+      case 'regions':
+        console.log('✅ Rendering RegionMap');
+        return (
+          <VisitorOriginRegionMap
+            data={filteredRegionData}
+            countryName={selectedCountry || ''}
+            onRegionClick={handleRegionClick}
+            onBack={handleBack}
+            isLoading={false}
+            geoData={null}
+          />
+        );
+
+      case 'cities':
+        console.log('✅ Rendering CityGrid');
+        return (
+          <VisitorOriginCityGrid
+            data={filteredCityData}
+            regionName={selectedRegion || ''}
+            onBack={handleBack}
+            isLoading={false}
+          />
+        );
+
+      default:
+        console.error('❌ Unknown level:', currentLevel);
+        return null;
+    }
+  };
+
+  // ✅ If any component is undefined, show fallback
+  const componentMissing = !VisitorOriginWorldMap || !VisitorOriginContinentMap || 
+                           !VisitorOriginCountryMap || !VisitorOriginRegionMap || 
+                           !VisitorOriginCityGrid;
+
+  if (componentMissing) {
+    console.error('❌ One or more map components are undefined:', {
+      VisitorOriginWorldMap: !!VisitorOriginWorldMap,
+      VisitorOriginContinentMap: !!VisitorOriginContinentMap,
+      VisitorOriginCountryMap: !!VisitorOriginCountryMap,
+      VisitorOriginRegionMap: !!VisitorOriginRegionMap,
+      VisitorOriginCityGrid: !!VisitorOriginCityGrid,
+    });
+
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden p-12 text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h3 className="text-lg font-semibold text-stone-900 mb-2">Component Loading Issue</h3>
+        <p className="text-stone-500 text-sm">One or more map components failed to load.</p>
+        <p className="text-xs text-stone-400 mt-4">Please check the console for details.</p>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 overflow-hidden">
-      {/* Top action header */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
-        >
-          ← Back to Countries
-        </button>
-      </div>
-
-      <div className="absolute top-4 right-4 z-10 bg-stone-900/90 text-white px-3 py-1.5 rounded-lg text-xs font-mono shadow-md border border-stone-800">
-        REGION_LEVEL: <span className="text-orange-400 font-bold">REGIONS ({countryName.toUpperCase()})</span>
-      </div>
-
-      <svg
-        viewBox="0 0 800 450"
-        preserveAspectRatio="xMidYMid meet"
-        className="w-full h-full"
-      >
-        {/* Subtle grids */}
-        <g opacity="0.02" stroke="#78716c" strokeWidth={1}>
-          <line x1="0" y1="225" x2="800" y2="225" />
-          <line x1="400" y1="0" x2="400" y2="450" />
-        </g>
-
-        {/* Orbit track */}
-        <circle cx="400" cy="225" r="130" fill="none" stroke="#f97316" strokeWidth={1.2} strokeDasharray="4 8" opacity="0.08" />
-
-        {/* Dynamic province / state bubbles */}
-        {positionedRegions.map((region) => {
-          const radius = getBubbleRadius(region.count);
-          const isHovered = hoveredRegion === region.name;
-
-          return (
-            <g
-              key={region.name}
-              onClick={() => onRegionClick(region.name)}
-              onMouseEnter={() => setHoveredRegion(region.name)}
-              onMouseLeave={() => setHoveredRegion(null)}
-              className="cursor-pointer"
-            >
-              {/* Pulsating outer rim */}
-              <circle
-                cx={region.x}
-                cy={region.y}
-                r={radius + (isHovered ? 12 : 6)}
-                fill="none"
-                stroke="#f97316"
-                strokeWidth={1}
-                opacity={isHovered ? 0.35 : 0.08}
-                className="transition-all duration-300"
-              />
-
-              {/* Link line to core hub */}
-              <line
-                x1="400"
-                y1="225"
-                x2={region.x}
-                y2={region.y}
-                stroke="#f97316"
-                strokeWidth={isHovered ? 1.5 : 0.6}
-                opacity={isHovered ? 0.3 : 0.05}
-                strokeDasharray={isHovered ? "none" : "2 2"}
-              />
-
-              {/* Core Orange Bubble */}
-              <circle
-                cx={region.x}
-                cy={region.y}
-                r={radius}
-                fill="#f97316"
-                opacity={isHovered ? 1 : 0.9}
-                className="transition-all duration-300"
-                style={{
-                  filter: isHovered 
-                    ? 'drop-shadow(0 6px 14px rgba(249, 115, 22, 0.35))' 
-                    : 'drop-shadow(0 2px 5px rgba(249, 115, 22, 0.15))'
-                }}
-              />
-
-              {/* Gloss highlight */}
-              <ellipse
-                cx={region.x - radius * 0.2}
-                cy={region.y - radius * 0.25}
-                rx={radius * 0.28}
-                ry={radius * 0.18}
-                fill="white"
-                opacity={isHovered ? 0.25 : 0.15}
-                className="transition-all duration-300"
-              />
-
-              {/* Count text */}
-              <text
-                x={region.x}
-                y={region.y + 4}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="font-extrabold fill-white font-sans text-[11px]"
-                style={{
-                  fontSize: `${Math.max(10, radius * 0.45)}px`,
-                  fontWeight: 800,
-                  pointerEvents: 'none'
-                }}
-              >
-                {region.count}
-              </text>
-
-              {/* Label */}
-              <text
-                x={region.x}
-                y={region.y + radius + 15}
-                textAnchor="middle"
-                className="font-semibold fill-stone-700 select-none"
-                style={{ fontSize: '11px', transition: 'all 0.3s' }}
-              >
-                {region.name}
-              </text>
-
-              {/* Percentage */}
-              <text
-                x={region.x}
-                y={region.y + radius + 27}
-                textAnchor="middle"
-                className="fill-stone-400 font-mono select-none"
-                style={{ fontSize: '9px', transition: 'all 0.3s' }}
-              >
-                {region.percentage.toFixed(1)}%
-              </text>
-
-              {/* CTA prompt */}
-              {isHovered && (
-                <g>
-                  <rect
-                    x={region.x - 60}
-                    y={region.y - radius - 30}
-                    width={120}
-                    height={20}
-                    rx={5}
-                    fill="#1c1917"
-                  />
-                  <text
-                    x={region.x}
-                    y={region.y - radius - 17}
-                    textAnchor="middle"
-                    className="fill-white font-sans font-medium"
-                    style={{ fontSize: '9px' }}
-                  >
-                    👉 City Grid Breakdown
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Central Core Hub representing the country */}
-        <g opacity="0.95">
-          <circle cx="400" cy="225" r="32" fill="#1c1917" />
-          <circle cx="400" cy="225" r="30" fill="none" stroke="#f97316" strokeWidth={1} />
-          <text
-            x="400"
-            y="222"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="fill-orange-400 font-bold font-sans text-[9px] tracking-wide"
-          >
-            {countryName.toUpperCase().slice(0, 5)}
-          </text>
-          <text
-            x="400"
-            y="234"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="fill-white/80 font-mono font-bold text-[8px]"
-          >
-            {countryTotal}
-          </text>
-        </g>
-      </svg>
-
-      {/* Region list overlay panel */}
-      <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
-        <div className="flex items-center gap-1.5 mb-2">
-          <CompassIcon size={12} className="text-orange-500" />
-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Regions</h4>
-        </div>
-        <div className="space-y-1">
-          {regionList.slice(0, 4).map((region) => (
-            <div key={region.name} className="flex items-center justify-between text-xs font-semibold">
-              <span className="text-stone-600 truncate mr-2">{region.name}</span>
-              <span className="text-stone-900 font-extrabold">{region.count}</span>
+    <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden transition-all duration-300">
+      {/* Top Brand & Level Header */}
+      <div className="px-6 py-5 border-b border-stone-100 bg-stone-50/50 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#f97316] rounded-2xl text-white shadow-md shadow-orange-500/20">
+            <Globe2Icon size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-extrabold text-stone-900 tracking-tight">
+                {title}
+              </h3>
+              <span className="text-[10px] bg-orange-100 text-orange-600 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                FastCheckin
+              </span>
             </div>
-          ))}
-          {regionList.length > 4 && (
-            <p className="text-[9px] text-stone-400 pt-1 border-t border-stone-100">
-              +{regionList.length - 4} other regions
+            <p className="text-xs text-stone-400 mt-0.5">
+              {currentLevel === 'world' && '🌍 World Dashboard — Click bubble to explore'}
+              {currentLevel === 'continents' && '🌍 Continents level — Select a continent to zoom'}
+              {currentLevel === 'countries' && `📍 Countries in ${selectedContinent} — Drill country`}
+              {currentLevel === 'regions' && `🗺️ Provinces & States in ${selectedCountry} — Select a region`}
+              {currentLevel === 'cities' && `🏙️ Suburb grid inside ${selectedRegion} — Deepest analytics`}
             </p>
-          )}
+          </div>
+        </div>
+
+        {/* Tier status indicator */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider font-mono">Plan:</span>
+          <div className="flex gap-1">
+            {(['starter', 'growth', 'pro', 'business'] as SubscriptionTier[]).map((tier) => (
+              <button
+                key={tier}
+                onClick={() => onTierChange && onTierChange(tier)}
+                className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg border transition-all ${
+                  safeLimits.subscriptionTier === tier
+                    ? 'bg-[#f97316] text-white border-[#f97316] shadow-md shadow-orange-500/10'
+                    : 'bg-white hover:bg-stone-50 text-stone-500 border-stone-200'
+                }`}
+              >
+                {tier}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200">
-        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">Country Total</span>
-        <span className="text-sm font-extrabold text-stone-900">{countryTotal.toLocaleString()}</span>
+      {/* Breadcrumb Navigation */}
+      <div className="bg-stone-100/40 px-6 py-2 border-b border-stone-100 flex items-center gap-2 text-xs font-mono text-stone-400">
+        <span
+          className={currentLevel === 'world' ? 'text-[#f97316] font-bold' : 'cursor-pointer hover:text-stone-600'}
+          onClick={() => {
+            setCurrentLevel('world');
+            setSelectedContinent(null);
+            setSelectedCountry(null);
+            setSelectedRegion(null);
+          }}
+        >
+          World
+        </span>
+
+        {selectedContinent && (
+          <>
+            <span>/</span>
+            <span
+              className={currentLevel === 'countries' ? 'text-[#f97316] font-bold' : 'cursor-pointer hover:text-stone-600'}
+              onClick={() => {
+                setCurrentLevel('countries');
+                setSelectedCountry(null);
+                setSelectedRegion(null);
+              }}
+            >
+              {selectedContinent}
+            </span>
+          </>
+        )}
+
+        {selectedCountry && (
+          <>
+            <span>/</span>
+            <span
+              className={currentLevel === 'regions' ? 'text-[#f97316] font-bold' : 'cursor-pointer hover:text-stone-600'}
+              onClick={() => {
+                setCurrentLevel('regions');
+                setSelectedRegion(null);
+              }}
+            >
+              {selectedCountry}
+            </span>
+          </>
+        )}
+
+        {selectedRegion && (
+          <>
+            <span>/</span>
+            <span className="text-[#f97316] font-bold">{selectedRegion}</span>
+          </>
+        )}
       </div>
+
+      {/* Main Map Viewer Layer */}
+      <div className="p-6">
+        {renderView()}
+      </div>
+
+      {/* Plan lock banners below the explorer */}
+      <div className="bg-stone-50 px-6 py-4 border-t border-stone-200/80 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <LayersIcon size={16} className="text-[#f97316]" />
+          <span className="text-xs text-stone-600 font-medium">
+            Currently displaying data depths using a <strong className="capitalize text-stone-900">{safeLimits.subscriptionTier}</strong> subscription.
+          </span>
+        </div>
+        {safeLimits.subscriptionTier !== 'business' && (
+          <button
+            onClick={() => {
+              const target = safeLimits.subscriptionTier === 'starter' ? 'growth' :
+                           safeLimits.subscriptionTier === 'growth' ? 'pro' : 'business';
+              setModalTargetTier(target);
+              setModalFeatureName(target === 'growth' ? 'Country Distribution' :
+                                 target === 'pro' ? 'Region Distribution' : 'City Grid Breakdown');
+              setShowUpgradeModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#f97316] to-amber-500 hover:from-[#ea580c] hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/10"
+          >
+            <ZapIcon size={12} className="fill-white" /> Upgrade Plan
+          </button>
+        )}
+      </div>
+
+      {/* Upgrade Modal */}
+      <UpgradePromptModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentTier={safeLimits.subscriptionTier}
+        targetTier={modalTargetTier}
+        featureName={modalFeatureName}
+        onUpgrade={handleUpgradeAction}
+        onCompare={() => {
+          setShowUpgradeModal(false);
+          window.location.href = '/business/billing';
+        }}
+      />
     </div>
   );
 }
+
+export default VisitorOriginExplorer;
