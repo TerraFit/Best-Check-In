@@ -1,29 +1,6 @@
-// src/components/analytics/VisitorOriginRegionMap.tsx
 import { useState, useMemo } from 'react';
-
-// ✅ Inline SVG icons (no lucide-react dependency)
-const CompassIcon = ({ size = 12, className = '' }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="12" r="10" />
-    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-  </svg>
-);
-
-const UsersIcon = ({ size = 12, className = '' }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
-
-const MapPinIcon = ({ size = 48, className = '' }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
+import { RegionData } from '../../types';
+import { Compass, Users, MapPin } from 'lucide-react';
 
 interface VisitorOriginRegionMapProps {
   data: any[];
@@ -43,88 +20,25 @@ const REGION_COORDS: Record<string, Record<string, { x: number; y: number }>> = 
     'Eastern Cape': { x: 410, y: 330 },
     'Mpumalanga': { x: 540, y: 140 },
     'Free State': { x: 430, y: 230 },
-    'Limpopo': { x: 480, y: 100 },
-    'North West': { x: 390, y: 190 },
-    'Northern Cape': { x: 290, y: 220 },
   },
   'Germany': {
     'Bavaria': { x: 480, y: 290 },
     'Berlin': { x: 510, y: 140 },
     'Hesse': { x: 350, y: 210 },
-    'North Rhine-Westphalia': { x: 300, y: 180 },
-    'Baden-Württemberg': { x: 400, y: 280 },
-    'Lower Saxony': { x: 400, y: 160 },
   },
   'United States': {
     'California': { x: 260, y: 240 },
     'New York': { x: 550, y: 160 },
     'Texas': { x: 420, y: 320 },
-    'Florida': { x: 520, y: 350 },
-    'Illinois': { x: 450, y: 220 },
-    'Pennsylvania': { x: 520, y: 200 },
-    'Ohio': { x: 490, y: 210 },
-    'Georgia': { x: 500, y: 300 },
-    'North Carolina': { x: 530, y: 270 },
-    'Michigan': { x: 470, y: 180 },
   },
   'United Kingdom': {
     'Greater London': { x: 410, y: 280 },
     'Scotland': { x: 380, y: 130 },
-    'Wales': { x: 350, y: 240 },
-    'Northern Ireland': { x: 310, y: 170 },
-    'South East England': { x: 430, y: 290 },
-    'South West England': { x: 360, y: 300 },
-    'East of England': { x: 460, y: 260 },
   },
   'France': {
     'Île-de-France': { x: 380, y: 180 },
     'Provence-Alpes-Côte d\'Azur': { x: 450, y: 300 },
-    'Auvergne-Rhône-Alpes': { x: 390, y: 240 },
-    'Nouvelle-Aquitaine': { x: 330, y: 270 },
-    'Occitanie': { x: 380, y: 300 },
-    'Hauts-de-France': { x: 370, y: 140 },
-    'Grand Est': { x: 410, y: 170 },
-  },
-  'Canada': {
-    'Ontario': { x: 470, y: 180 },
-    'British Columbia': { x: 220, y: 160 },
-    'Quebec': { x: 530, y: 140 },
-    'Alberta': { x: 280, y: 140 },
-    'Nova Scotia': { x: 580, y: 190 },
-    'Manitoba': { x: 380, y: 140 },
-  },
-  'Australia': {
-    'New South Wales': { x: 540, y: 280 },
-    'Victoria': { x: 510, y: 340 },
-    'Queensland': { x: 580, y: 220 },
-    'Western Australia': { x: 340, y: 300 },
-    'South Australia': { x: 430, y: 330 },
-    'Tasmania': { x: 520, y: 390 },
-  },
-  'Brazil': {
-    'São Paulo': { x: 440, y: 250 },
-    'Rio de Janeiro': { x: 490, y: 250 },
-    'Minas Gerais': { x: 460, y: 220 },
-    'Bahia': { x: 470, y: 180 },
-    'Paraná': { x: 420, y: 280 },
-    'Rio Grande do Sul': { x: 410, y: 330 },
-  },
-  'India': {
-    'Maharashtra': { x: 480, y: 240 },
-    'Delhi': { x: 450, y: 140 },
-    'Karnataka': { x: 460, y: 280 },
-    'Tamil Nadu': { x: 500, y: 290 },
-    'Gujarat': { x: 430, y: 220 },
-    'Uttar Pradesh': { x: 470, y: 160 },
-  },
-  'China': {
-    'Guangdong': { x: 550, y: 240 },
-    'Shanghai': { x: 580, y: 200 },
-    'Beijing': { x: 540, y: 120 },
-    'Sichuan': { x: 480, y: 170 },
-    'Zhejiang': { x: 580, y: 190 },
-    'Jiangsu': { x: 570, y: 180 },
-  },
+  }
 };
 
 export function VisitorOriginRegionMap({
@@ -142,7 +56,7 @@ export function VisitorOriginRegionMap({
     
     const regionMap: Record<string, number> = {};
     data.forEach(item => {
-      const region = item.region || item.state || item.province || item.guest_province;
+      const region = item.region || item.state || item.province;
       if (region) {
         regionMap[region] = (regionMap[region] || 0) + (item.count || 1);
       }
@@ -174,6 +88,7 @@ export function VisitorOriginRegionMap({
     return regionList.map((region, idx) => {
       let coords = coordsPool[region.name];
       
+      // Fallback: arrange them in an orbital pattern if coordinates are missing
       if (!coords) {
         const total = regionList.length;
         const angle = (idx / total) * 2 * Math.PI;
@@ -203,7 +118,7 @@ export function VisitorOriginRegionMap({
     return (
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-stone-400 text-sm font-medium">Loading regions within {countryName}...</p>
         </div>
       </div>
@@ -213,7 +128,7 @@ export function VisitorOriginRegionMap({
   if (regionList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
-        <MapPinIcon size={48} className="text-stone-300 mb-3" />
+        <MapPin size={48} className="text-stone-300 mb-3" />
         <h3 className="text-base font-bold text-stone-700">No regional details available</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No region records matched for {countryName}. Try adjusting filters or selecting another country.
@@ -413,7 +328,7 @@ export function VisitorOriginRegionMap({
       {/* Region list overlay panel */}
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
         <div className="flex items-center gap-1.5 mb-2">
-          <CompassIcon size={12} className="text-orange-500" />
+          <Compass size={12} className="text-orange-500" />
           <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Regions</h4>
         </div>
         <div className="space-y-1">
@@ -438,5 +353,3 @@ export function VisitorOriginRegionMap({
     </div>
   );
 }
-
-export default VisitorOriginRegionMap;
