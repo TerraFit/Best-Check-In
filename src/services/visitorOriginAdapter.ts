@@ -6,8 +6,8 @@
  * Transforms FastCheckIn's raw booking records into the aggregated
  * data structure that the VisitorOriginExplorer component expects.
  * 
- * The explorer was designed with pre-aggregated data from AI Studio.
- * This adapter bridges the gap between raw records and aggregated data.
+ * This adapter bridges the gap between raw records and aggregated data,
+ * providing both hierarchical and flat data structures for visualization.
  */
 
 // ============================================================
@@ -52,6 +52,27 @@ export interface SimpleVisitorData {
   [continent: string]: number;
 }
 
+/**
+ * VisitorRecord - The format expected by VisitorOriginExplorer
+ */
+export interface VisitorRecord {
+  id: string;
+  timestamp: string;
+  continent: string;
+  country: string;
+  region: string;
+  city: string;
+  checkInMethod: 'QR Code' | 'Direct Link' | 'Reception Desk' | 'Kiosk';
+  guestType: 'First-time' | 'Returning' | 'VIP';
+  _meta?: {
+    bookingId?: string;
+    settlementMethod?: string;
+    referralSource?: string;
+    totalAmount?: number;
+    guests?: number;
+  };
+}
+
 // ============================================================
 // COUNTRY → CONTINENT MAPPING
 // ============================================================
@@ -78,15 +99,17 @@ const COUNTRY_TO_CONTINENT: Record<string, string> = {
   'Algeria': 'Africa',
   'Mauritius': 'Africa',
   'Seychelles': 'Africa',
-  'Congo': 'Africa',
-  'Ethiopia': 'Africa',
-  'Uganda': 'Africa',
   'Rwanda': 'Africa',
+  'Uganda': 'Africa',
+  'Ethiopia': 'Africa',
+  'Congo': 'Africa',
   'Sudan': 'Africa',
+  
   // Europe
   'Germany': 'Europe',
   'France': 'Europe',
   'United Kingdom': 'Europe',
+  'UK': 'Europe',
   'Italy': 'Europe',
   'Spain': 'Europe',
   'Netherlands': 'Europe',
@@ -101,18 +124,22 @@ const COUNTRY_TO_CONTINENT: Record<string, string> = {
   'Greece': 'Europe',
   'Ireland': 'Europe',
   'Poland': 'Europe',
+  'Russia': 'Europe',
+  'Turkey': 'Europe',
   'Czech Republic': 'Europe',
   'Hungary': 'Europe',
   'Romania': 'Europe',
   'Bulgaria': 'Europe',
   'Croatia': 'Europe',
-  'Russia': 'Europe',
   'Ukraine': 'Europe',
+  
   // North America
   'United States': 'North America',
+  'USA': 'North America',
   'United States of America': 'North America',
   'Canada': 'North America',
   'Mexico': 'North America',
+  
   // South America
   'Brazil': 'South America',
   'Argentina': 'South America',
@@ -120,6 +147,7 @@ const COUNTRY_TO_CONTINENT: Record<string, string> = {
   'Colombia': 'South America',
   'Peru': 'South America',
   'Venezuela': 'South America',
+  
   // Asia
   'China': 'Asia',
   'India': 'Asia',
@@ -131,22 +159,185 @@ const COUNTRY_TO_CONTINENT: Record<string, string> = {
   'Thailand': 'Asia',
   'Vietnam': 'Asia',
   'Philippines': 'Asia',
+  'UAE': 'Asia',
   'Saudi Arabia': 'Asia',
-  'United Arab Emirates': 'Asia',
   'Israel': 'Asia',
-  'Turkey': 'Asia',
   'Pakistan': 'Asia',
   'Bangladesh': 'Asia',
+  
   // Oceania
   'Australia': 'Oceania',
   'New Zealand': 'Oceania',
   'Fiji': 'Oceania',
+  
   // Other
   'Other': 'Other',
 };
 
 // ============================================================
-// MAIN ADAPTER FUNCTIONS
+// CORE ADAPTER FUNCTIONS (Required by ReportsTab)
+// ============================================================
+
+/**
+ * Maps a country name to its continent
+ * 
+ * @param country - Country name
+ * @returns Continent name
+ * 
+ * @example
+ * mapCountryToContinent('South Africa') // 'Africa'
+ * mapCountryToContinent('Germany') // 'Europe'
+ */
+export function mapCountryToContinent(country: string): string {
+  if (!country) return 'Unknown';
+  return COUNTRY_TO_CONTINENT[country] || 'Unknown';
+}
+
+/**
+ * Transforms Booking records to VisitorRecord format
+ * Compatible with VisitorOriginExplorer component
+ * 
+ * @param bookings - Array of raw booking records
+ * @returns Array of VisitorRecord objects
+ * 
+ * @example
+ * const visitors = transformBookingsToVisitorOrigins(bookings);
+ * // [{ id: '123', continent: 'Africa', country: 'South Africa', ... }]
+ */
+export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecord[] {
+  if (!bookings || !Array.isArray(bookings)) {
+    return [];
+  }
+
+  return bookings.map((booking, index) => {
+    // 1. Resolve country name
+    const country = booking.guest_country || booking.country || 'Unknown';
+    
+    // 2. Map country to continent automatically
+    const continent = mapCountryToContinent(country);
+
+    // 3. Resolve province/state/region
+    const region = booking.guest_province || booking.province || 'Unknown';
+
+    // 4. Resolve city/suburb
+    const city = booking.guest_city || booking.city || 'Unknown';
+
+    // 5. Determine check-in method based on available data
+    let checkInMethod: VisitorRecord['checkInMethod'] = 'Reception Desk';
+    
+    // Check various possible sources for check-in method
+    if (booking.check_in_method === 'QR Code' || booking.checkInMethod === 'QR Code') {
+      checkInMethod = 'QR Code';
+    } else if (booking.source === 'live_checkin') {
+      checkInMethod = 'QR Code';
+    } else if (booking.settlementMethod === 'Card' || booking.settlement_method === 'Card') {
+      checkInMethod = 'Kiosk';
+    } else if (
+      booking.settlementMethod?.includes('EFT') || 
+      booking.settlement_method?.includes('EFT')
+    ) {
+      checkInMethod = 'Direct Link';
+    } else if (booking.booking_source === 'Direct Link' || booking.referral_source === 'Direct Link') {
+      checkInMethod = 'Direct Link';
+    }
+
+    // 6. Determine guest type
+    let guestType: VisitorRecord['guestType'] = 'First-time';
+    
+    if (booking.guest_type === 'VIP' || booking.guestType === 'VIP') {
+      guestType = 'VIP';
+    } else if (
+      booking.referralSource === 'Word of mouth' || 
+      booking.referral_source === 'Word of mouth' ||
+      booking.booking_source === 'Booking.com' ||
+      booking.referral_source === 'Booking.com'
+    ) {
+      guestType = 'Returning';
+    } else if (booking.guest_type === 'Returning' || booking.guestType === 'Returning') {
+      guestType = 'Returning';
+    }
+
+    // 7. Use timestamp from booking
+    const timestamp = booking.timestamp || booking.created_at || booking.check_in_date || new Date().toISOString();
+
+    return {
+      id: booking.id || `booking-${Date.now()}-${index}`,
+      timestamp,
+      continent,
+      country,
+      region,
+      city,
+      checkInMethod,
+      guestType,
+      // Additional metadata for debugging/analytics
+      _meta: {
+        bookingId: booking.id,
+        settlementMethod: booking.settlementMethod || booking.settlement_method,
+        referralSource: booking.referralSource || booking.referral_source,
+        totalAmount: booking.totalAmount || booking.total_amount,
+        guests: booking.guests || booking.adults || 1,
+      }
+    };
+  });
+}
+
+/**
+ * Combined function: Fetch raw Supabase bookings and transform to VisitorRecords
+ * This is the main function you'll use in ReportsTab for live data
+ * 
+ * @param rawBookings - Array of raw booking records from Supabase
+ * @returns Array of VisitorRecord objects
+ * 
+ * @example
+ * const visitors = fetchAndTransformBookings(supabaseData);
+ */
+export function fetchAndTransformBookings(rawBookings: any[]): VisitorRecord[] {
+  if (!rawBookings || !Array.isArray(rawBookings)) {
+    return [];
+  }
+
+  // Transform raw Supabase snake_case data to camelCase Booking-like objects
+  const bookings = rawBookings.map((raw: any) => ({
+    id: raw.id || raw.booking_id,
+    guestName: raw.guest_name || raw.guestName || '',
+    guest_first_name: raw.guest_first_name || raw.guestFirstName || '',
+    guest_last_name: raw.guest_last_name || raw.guestLastName || '',
+    email: raw.guest_email || raw.email || '',
+    phone: raw.guest_phone || raw.phone || '',
+    country: raw.guest_country || raw.country || '',
+    city: raw.guest_city || raw.city || '',
+    province: raw.guest_province || raw.province || '',
+    passportOrId: raw.passport_or_id || raw.passportOrId || raw.guest_id_number || '',
+    nextDestination: raw.next_destination || raw.nextDestination || '',
+    checkInDate: raw.check_in_date || raw.checkInDate || '',
+    checkOutDate: raw.check_out_date || raw.checkOutDate || '',
+    nights: raw.nights || 0,
+    settlementMethod: raw.settlement_method || raw.settlementMethod || 'Cash',
+    referralSource: raw.referral_source || raw.referralSource || 'Google',
+    guests: raw.guests || 1,
+    adults: raw.adults || 1,
+    kids: raw.kids || 0,
+    roomType: raw.room_type || raw.roomType || 'Lodge Room',
+    totalAmount: raw.total_amount || raw.totalAmount || 0,
+    status: raw.status || 'Confirmed',
+    year: raw.year || new Date().getFullYear(),
+    month: raw.month || new Date().toLocaleString('default', { month: 'short' }),
+    popiaMarketingConsent: raw.popia_marketing_consent || raw.popiaMarketingConsent || false,
+    timestamp: raw.timestamp || raw.created_at || new Date().toISOString(),
+    tenantId: raw.tenant_id || raw.tenantId,
+    source: raw.source || 'csv_import',
+    season: raw.season || 'Mid',
+    guest_type: raw.guest_type || raw.guestType,
+    check_in_method: raw.check_in_method || raw.checkInMethod,
+    booking_source: raw.booking_source || raw.bookingSource,
+  }));
+
+  // Then transform to VisitorRecords
+  return transformBookingsToVisitorOrigins(bookings);
+}
+
+// ============================================================
+// HIERARCHICAL DATA BUILDERS
 // ============================================================
 
 /**
@@ -508,12 +699,20 @@ export function getTotalVisitors(bookings: any[]): number {
 // ============================================================
 
 export default {
+  // Core adapter functions (required by ReportsTab)
+  mapCountryToContinent,
+  transformBookingsToVisitorOrigins,
+  fetchAndTransformBookings,
+  
+  // Hierarchical data builders
   buildVisitorData,
   buildSimpleVisitorData,
   buildContinentData,
   buildCountryData,
   buildRegionData,
   buildCityData,
+  
+  // Helpers
   getContinent,
   getUniqueCountries,
   getUniqueContinents,
