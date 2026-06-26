@@ -1,6 +1,5 @@
-// src/components/analytics/VisitorOriginCityGrid.tsx
 import { useState, useMemo } from 'react';
-import { AwardIcon, CompassIcon, HelpCircleIcon, ArrowLeftIcon, Building2Icon } from './icons';
+import { Award, Compass, HelpCircle, ArrowLeft, Building2 } from 'lucide-react';
 
 interface CityData {
   name: string;
@@ -29,7 +28,7 @@ export function VisitorOriginCityGrid({
     
     const cityMap: Record<string, number> = {};
     data.forEach(item => {
-      const city = item.city || item.town || item.guest_city;
+      const city = item.city || item.town;
       if (city) {
         cityMap[city] = (cityMap[city] || 0) + (item.count || 1);
       }
@@ -68,7 +67,7 @@ export function VisitorOriginCityGrid({
     return (
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-stone-400 text-sm font-medium">Loading city breakdown...</p>
         </div>
       </div>
@@ -78,7 +77,7 @@ export function VisitorOriginCityGrid({
   if (cityList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
-        <Building2Icon size={48} className="text-stone-300 mb-3" />
+        <Building2 size={48} className="text-stone-300 mb-3" />
         <h3 className="text-base font-bold text-stone-700">No city details loaded</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No city records were linked to {regionName} in this dataset.
@@ -101,7 +100,7 @@ export function VisitorOriginCityGrid({
           onClick={onBack}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
         >
-          <ArrowLeftIcon size={14} /> Back to Regions
+          <ArrowLeft size={14} /> Back to Regions
         </button>
         
         <div className="bg-stone-900 text-white px-3 py-1 rounded-lg text-xs font-mono shadow-md">
@@ -112,7 +111,7 @@ export function VisitorOriginCityGrid({
       {/* Title */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center p-2 bg-orange-100 rounded-xl text-orange-600 mb-2">
-          <Building2Icon size={20} />
+          <Building2 size={20} />
         </div>
         <h3 className="text-lg font-bold text-stone-900 tracking-tight">
           Cities in {regionName}
@@ -141,7 +140,7 @@ export function VisitorOriginCityGrid({
                 <div className="w-8 flex items-center justify-center">
                   {index < 3 ? (
                     <div className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-600">
-                      <AwardIcon size={12} className="stroke-[3]" />
+                      <Award size={12} className="stroke-[3]" />
                     </div>
                   ) : (
                     <span className="text-xs font-bold text-stone-400 font-mono">
