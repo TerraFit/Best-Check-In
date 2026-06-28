@@ -17,9 +17,9 @@ import {
 } from 'lucide-react';
 
 // ============================================================
-// 📦 MOCK DATA - MATCHES ORIGINAL WORKING FORMAT
+// 📦 DEMO DATA (Formerly Mock Data)
 // ============================================================
-const MOCK_BOOKINGS: Booking[] = [
+const DEMO_BOOKINGS: Booking[] = [
   { 
     id: '101', guestName: 'John Doe', email: 'john@example.com', phone: '+27 82 123 4567',
     country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
@@ -138,15 +138,15 @@ const MOCK_BOOKINGS: Booking[] = [
 // 📊 REPORTS TAB COMPONENT
 // ============================================================
 
-// ✅ 1. Parent props for real integration
 interface ReportsTabProps {
   initialBookings?: Booking[];
   onDataChange?: (bookings: Booking[]) => void;
   initialTier?: SubscriptionTier;
+  supabaseClient?: any; // Optional: Pass supabase client from parent
 }
 
 interface DataSourceState {
-  type: 'mock' | 'live';
+  type: 'live' | 'demo';  // ✅ Changed from 'mock' to 'demo'
   bookings: Booking[];
   isLoading: boolean;
   error: string | null;
@@ -160,8 +160,9 @@ const TIER_LABELS: Record<SubscriptionTier, string> = {
   business: 'Business'
 };
 
-// ✅ 2. Custom hook for analytics (optional - for future use)
-// This can be extended to fetch real analytics data
+// ============================================================
+// 📊 ANALYTICS HOOK
+// ============================================================
 const useAnalytics = (bookings: Booking[], tier: SubscriptionTier) => {
   const analyticsData = useMemo(() => {
     const total = bookings.length;
@@ -250,7 +251,8 @@ const useAnalytics = (bookings: Booking[], tier: SubscriptionTier) => {
 export function ReportsTab({ 
   initialBookings, 
   onDataChange,
-  initialTier = 'pro'
+  initialTier = 'pro',
+  supabaseClient: supabaseClientProp
 }: ReportsTabProps = {}) {
   // ============================================================
   // STATE MANAGEMENT
@@ -259,13 +261,34 @@ export function ReportsTab({
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
   const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
   
+  // ✅ START WITH LIVE (but fallback to demo if no initialBookings)
   const [dataSource, setDataSource] = useState<DataSourceState>({
-    type: 'mock',
-    bookings: initialBookings || MOCK_BOOKINGS,
-    isLoading: false,
+    type: 'live',
+    bookings: initialBookings || [],  // Start empty, will fetch live
+    isLoading: true,  // Start loading
     error: null,
-    lastUpdated: new Date()
+    lastUpdated: null
   });
+
+  // ============================================================
+  // 🔄 AUTO-FETCH LIVE DATA ON MOUNT
+  // ============================================================
+  useEffect(() => {
+    // If initialBookings provided, use them
+    if (initialBookings && initialBookings.length > 0) {
+      setDataSource({
+        type: 'live',
+        bookings: initialBookings,
+        isLoading: false,
+        error: null,
+        lastUpdated: new Date()
+      });
+      return;
+    }
+    
+    // Otherwise fetch live data
+    fetchLiveBookings();
+  }, []); // Run once on mount
 
   // ============================================================
   // 🔄 CALLBACK WHEN DATA CHANGES
@@ -283,10 +306,18 @@ export function ReportsTab({
     setDataSource(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      // 🔥 REPLACE WITH YOUR ACTUAL SUPABASE CLIENT
-      const supabase = (window as any).supabase;
+      // Try to get supabase client from prop, window, or import
+      let supabase = supabaseClientProp || (window as any).supabase;
+      
+      // If not found, try to import it
       if (!supabase) {
-        throw new Error('Supabase client not found. Please initialize Supabase.');
+        try {
+          const { supabase: importedSupabase } = await import('../../lib/supabase');
+          supabase = importedSupabase;
+          (window as any).supabase = supabase;
+        } catch (importError) {
+          throw new Error('Supabase client not found. Please initialize Supabase or switch to Demo Mode.');
+        }
       }
       
       const { data, error } = await supabase
@@ -297,12 +328,12 @@ export function ReportsTab({
       if (error) throw error;
       
       if (!data || data.length === 0) {
-        // If no live data, fall back to mock data
+        // No live data - show demo with info
         setDataSource({
-          type: 'mock',
-          bookings: MOCK_BOOKINGS,
+          type: 'demo',
+          bookings: DEMO_BOOKINGS,
           isLoading: false,
-          error: 'No live data found. Using mock data.',
+          error: 'No live bookings found. Showing demo data.',
           lastUpdated: new Date()
         });
         return;
@@ -352,54 +383,53 @@ export function ReportsTab({
       
     } catch (err) {
       console.error('Failed to fetch live bookings:', err);
-      // Fall back to mock data on error
+      // ✅ Fallback to demo data
       setDataSource({
-        type: 'mock',
-        bookings: MOCK_BOOKINGS,
+        type: 'demo',
+        bookings: DEMO_BOOKINGS,
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Failed to load live data. Using mock data.',
+        error: `Live data unavailable: ${err instanceof Error ? err.message : 'Unknown error'}. Using demo data.`,
         lastUpdated: new Date()
       });
     }
-  }, []);
+  }, [supabaseClientProp]);
 
   // ============================================================
   // 🔄 SWITCH DATA SOURCE
   // ============================================================
-  const switchToMockData = useCallback(() => {
+  const switchToDemoMode = useCallback(() => {
     setDataSource({
-      type: 'mock',
-      bookings: initialBookings || MOCK_BOOKINGS,
+      type: 'demo',
+      bookings: DEMO_BOOKINGS,
       isLoading: false,
       error: null,
       lastUpdated: new Date()
     });
-  }, [initialBookings]);
+  }, []);
 
   const switchToLiveData = useCallback(async () => {
     await fetchLiveBookings();
   }, [fetchLiveBookings]);
 
   // ============================================================
-  // ✅ 3. MEMOIZED TRANSFORMED DATA
+  // 📊 MEMOIZED TRANSFORMED DATA
   // ============================================================
   const adaptedVisitors = useMemo(() => {
     return transformBookingsToVisitorOrigins(dataSource.bookings);
   }, [dataSource.bookings]);
 
   // ============================================================
-  // ✅ 2. USE ANALYTICS HOOK
+  // 📊 USE ANALYTICS HOOK
   // ============================================================
   const { analyticsData, limits } = useAnalytics(dataSource.bookings, activeTier);
 
   // ============================================================
-  // 📈 TRAVEL PATTERNS DATA - SEPARATE SOURCES
+  // 📈 TRAVEL PATTERNS DATA
   // ============================================================
   const travelData = useMemo(() => {
     const bookings = dataSource.bookings;
     const total = bookings.length || 1;
     
-    // ✅ Arriving From (where guests came from)
     const arrivingMap = new Map<string, { count: number; country: string }>();
     bookings.forEach(b => {
       const location = b.arriving_from || b.nextDestination || 'Unknown';
@@ -410,7 +440,6 @@ export function ReportsTab({
       arrivingMap.get(location)!.count++;
     });
     
-    // ✅ Going To (where guests are going next)
     const goingMap = new Map<string, { count: number; country: string }>();
     bookings.forEach(b => {
       const location = b.next_destination || b.nextDestination || 'Unknown';
@@ -457,7 +486,6 @@ export function ReportsTab({
     
     const uniqueCountries = countryMap.size;
     
-    // Count QR code scans (assuming guests with QR code check-in)
     const qrCount = dataSource.bookings.filter(b => 
       b.settlementMethod?.toLowerCase().includes('qr') || 
       b.source?.toLowerCase().includes('qr')
@@ -485,24 +513,27 @@ export function ReportsTab({
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
+            {/* ✅ Demo Mode Button - Dark Yellow */}
             <button
-              onClick={switchToMockData}
+              onClick={switchToDemoMode}
               className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
-                dataSource.type === 'mock'
-                  ? 'bg-orange-50 text-orange-700 border-orange-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                dataSource.type === 'demo'
+                  ? 'bg-yellow-700 text-white border-yellow-800'  // Dark Yellow when active
+                  : 'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200'  // Light Yellow when inactive
               }`}
             >
               <Database size={12} className="inline mr-1" />
-              Mock
+              Demo Mode
             </button>
+            
+            {/* ✅ Live Button - Green */}
             <button
               onClick={switchToLiveData}
               disabled={dataSource.isLoading}
               className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
                 dataSource.type === 'live'
-                  ? 'bg-green-50 text-green-700 border-green-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                  ? 'bg-green-600 text-white border-green-700'  // Dark Green when active
+                  : 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200'  // Light Green when inactive
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {dataSource.isLoading ? (
@@ -514,7 +545,7 @@ export function ReportsTab({
             </button>
           </div>
           {dataSource.error && (
-            <span className="text-xs text-red-600 flex items-center gap-1">
+            <span className="text-xs text-amber-600 flex items-center gap-1">
               <AlertCircle size={12} />
               {dataSource.error}
             </span>
@@ -532,7 +563,10 @@ export function ReportsTab({
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Check-Ins</p>
           <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          {analyticsData.totalBookings > 0 && (
+          {dataSource.type === 'demo' && (
+            <p className="text-xs text-yellow-600 mt-1">Demo Mode</p>
+          )}
+          {analyticsData.totalBookings > 0 && dataSource.type === 'live' && (
             <p className="text-xs text-green-600 mt-1">
               {analyticsData.totalBookings} total bookings
             </p>
@@ -541,7 +575,7 @@ export function ReportsTab({
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Unique Countries</p>
           <p className="text-2xl font-bold text-gray-900">{stats.countryCount}</p>
-          {analyticsData.uniqueCountries > 0 && (
+          {analyticsData.uniqueCountries > 0 && dataSource.type === 'live' && (
             <p className="text-xs text-green-600 mt-1">
               {analyticsData.uniqueCountries} countries
             </p>
@@ -556,7 +590,7 @@ export function ReportsTab({
           <p className="text-2xl font-bold text-gray-900">
             R{dataSource.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
           </p>
-          {analyticsData.totalRevenue > 0 && (
+          {analyticsData.totalRevenue > 0 && dataSource.type === 'live' && (
             <p className="text-xs text-green-600 mt-1">
               Avg: R{(analyticsData.totalRevenue / analyticsData.totalBookings || 0).toFixed(0)}
             </p>
@@ -575,6 +609,11 @@ export function ReportsTab({
             <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium capitalize">
               {TIER_LABELS[activeTier]}
             </span>
+            {dataSource.type === 'demo' && (
+              <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
+                Demo
+              </span>
+            )}
           </div>
         </div>
         <VisitorOriginExplorer
