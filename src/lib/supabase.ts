@@ -5,10 +5,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // ENVIRONMENT VARIABLES
 // ============================================================
 
-// ✅ Supports both VITE_ prefixed (local dev) and unprefixed (Netlify)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || '';
+// ✅ Use SUPABASE_URL (not VITE_) to avoid exposing secrets in browser bundle
+// ✅ VITE_SUPABASE_ANON_KEY is safe to expose (publishable key)
+const supabaseUrl = import.meta.env.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || '';
-const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.SUPABASE_SERVICE_KEY || '';
+const serviceKey = import.meta.env.SUPABASE_SERVICE_KEY || '';
 
 // ============================================================
 // DEBUG LOG (remove after confirming)
@@ -29,7 +30,7 @@ if (!supabaseUrl) {
 }
 
 if (!supabaseKey) {
-  console.warn('⚠️ SUPABASE_ANON_KEY is not set. Supabase client will not work.');
+  console.warn('⚠️ VITE_SUPABASE_ANON_KEY is not set. Supabase client will not work.');
 }
 
 // ============================================================
