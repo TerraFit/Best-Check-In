@@ -353,3 +353,5 @@ export function VisitorOriginRegionMap({
     </div>
   );
 }
+
+export default VisitorOriginRegionMap;
