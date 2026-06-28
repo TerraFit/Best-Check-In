@@ -45,7 +45,7 @@ interface TouchedFields {
   arrivalDate: boolean;
   nights: boolean;
   referral: boolean;
-  arrivingFrom: boolean;      // ✅ NEW
+  arrivingFrom: boolean;
   nextDestination: boolean;
   settlement: boolean;
   idPhoto: boolean;
@@ -88,7 +88,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     arrivalDate: false,
     nights: false,
     referral: false,
-    arrivingFrom: false,        // ✅ NEW
+    arrivingFrom: false,
     nextDestination: false,
     settlement: false,
     idPhoto: false,
@@ -108,7 +108,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     country: '',
     city: '',
     province: '',
-    arrivingFrom: '',           // ✅ NEW
+    arrivingFrom: '',
     nextDestination: '',
     settlement: '',
     arrivalDate: new Date().toISOString().split('T')[0],
@@ -168,7 +168,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     if (!formData.country) errors.push(t('checkin_country'));
     if (!formData.province) errors.push(regionTypeLabel);
     if (!formData.city.trim()) errors.push(t('checkin_city'));
-    if (!formData.arrivingFrom.trim()) errors.push('Arriving From');    // ✅ NEW
+    if (!formData.arrivingFrom.trim()) errors.push('Arriving From');
     if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
     if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
     if (!formData.referral) errors.push(t('checkin_referral'));
@@ -216,7 +216,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         case 'country': return !!formData.country;
         case 'province': return !!formData.province;
         case 'city': return !!formData.city.trim();
-        case 'arrivingFrom': return !!formData.arrivingFrom.trim();    // ✅ NEW
+        case 'arrivingFrom': return !!formData.arrivingFrom.trim();
         case 'arrivalDate': return !!formData.arrivalDate;
         case 'nights': return formData.nights >= 1;
         case 'referral': return !!formData.referral;
@@ -793,7 +793,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           guest_province: formData.province,
           guest_city: formData.city,
           guest_country: formData.country,
-          arriving_from: formData.arrivingFrom,               // ✅ NEW
+          arriving_from: formData.arrivingFrom,
           next_destination: formData.nextDestination,
           booking_source: formData.referral,
           referral_source: formData.referral,
@@ -840,7 +840,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           city: formData.city,
           province: formData.province,
           passportOrId: formData.passportOrId,
-          arrivingFrom: formData.arrivingFrom,              // ✅ NEW
+          arrivingFrom: formData.arrivingFrom,
           nextDestination: formData.nextDestination,
           checkInDate: formattedCheckInDate,
           checkOutDate: formattedCheckOutDate,
@@ -1075,7 +1075,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                   country: '',
                   city: '',
                   province: '',
-                  arrivingFrom: '',           // ✅ NEW
+                  arrivingFrom: '',
                   nextDestination: '',
                   settlement: '',
                   arrivalDate: new Date().toISOString().split('T')[0],
@@ -1373,7 +1373,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="city" message={t('error_city_required')} />
                   </div>
 
-                  {/* ✅ NEW: Arriving From - Where the guest traveled from */}
+                  {/* ✅ UPDATED: Arriving From - Where did you sleep last night? */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       Arriving From <span className="text-red-500">*</span>
@@ -1381,14 +1381,16 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <input 
                       required 
                       type="text" 
-                      placeholder="e.g., Johannesburg, Cape Town, Gaborone..."
+                      placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
                       className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('arrivingFrom', !!formData.arrivingFrom.trim())}`}
                       value={formData.arrivingFrom} 
                       onFocus={() => markTouched('arrivingFrom')}
                       onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
                     />
-                    <p className="text-xs text-stone-400">Where did you travel from to reach us?</p>
-                    <ErrorMessage field="arrivingFrom" message="Arriving from location is required" />
+                    <p className="text-xs text-stone-400">
+                      🏨 Tell us the last city/town where you stayed before arriving here
+                    </p>
+                    <ErrorMessage field="arrivingFrom" message="Please tell us your last location before arriving" />
                   </div>
 
                   {/* Stay Details */}
