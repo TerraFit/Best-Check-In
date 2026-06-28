@@ -196,3 +196,5 @@ export function VisitorOriginCityGrid({
     </div>
   );
 }
+
+export default VisitorOriginCityGrid;
