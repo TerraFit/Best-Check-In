@@ -365,3 +365,5 @@ export function VisitorOriginCountryMap({
     </div>
   );
 }
+
+export default VisitorOriginCountryMap;
