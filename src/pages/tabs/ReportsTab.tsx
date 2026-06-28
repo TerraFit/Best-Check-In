@@ -1,15 +1,15 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
+// src/pages/tabs/ReportsTab.tsx
+// ✅ COMPLETE VERSION - All charts restored, implementation notes removed
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { 
   transformBookingsToVisitorOrigins, 
-  fetchAndTransformBookings,
   mapCountryToContinent 
 } from '../../services/visitorOriginAdapter';
+import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
+import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
+import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
+import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
 import { SubscriptionTier, SubscriptionLimits, Booking } from '../../types';
 import { 
   BarChart3, 
@@ -17,22 +17,17 @@ import {
   Globe2, 
   QrCode, 
   Users, 
-  Database,
   Sparkles,
-  Info,
   RefreshCw,
-  Download,
+  Database,
   Cloud,
-  Database as DatabaseIcon,
   AlertCircle
 } from 'lucide-react';
 
 // ============================================================
-// 📦 MOCK DATA - For demonstration and package comparison
-// These are real Booking objects matching the Best-Check-In schema
+// 📦 MOCK DATA
 // ============================================================
 const MOCK_BOOKINGS: Booking[] = [
-  // South Africa - Western Cape
   { 
     id: '101', guestName: 'John Doe', email: 'john@example.com', phone: '+27 82 123 4567',
     country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
@@ -90,7 +85,7 @@ const MOCK_BOOKINGS: Booking[] = [
     country: 'Germany', city: 'Munich', province: 'Bavaria',
     passportOrId: 'DE567890', nextDestination: 'Berlin',
     checkInDate: '2026-06-23', checkOutDate: '2026-06-26', nights: 3,
-    settlementMethod: 'Instant EFT (RSA resident only)', referralSource: 'Google',
+    settlementMethod: 'Instant EFT', referralSource: 'Google',
     guests: 1, adults: 1, kids: 0, roomType: 'Suite',
     totalAmount: 3800, status: 'Checked-In',
     year: 2026, month: 'Jun',
@@ -150,7 +145,6 @@ interface DataSourceState {
   lastUpdated: Date | null;
 }
 
-// Tier labels for display
 const TIER_LABELS: Record<SubscriptionTier, string> = {
   starter: 'Starter',
   growth: 'Growth',
@@ -162,7 +156,6 @@ interface StatsSummary {
   total: number;
   countryCount: number;
   qrPercentage: string;
-  checkInMethodBreakdown: Record<string, number>;
   topCountries: Array<{ country: string; count: number }>;
 }
 
@@ -171,6 +164,9 @@ export function ReportsTab() {
   // STATE MANAGEMENT
   // ============================================================
   const [activeTier, setActiveTier] = useState<SubscriptionTier>('pro');
+  const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
+  const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
+  
   const [dataSource, setDataSource] = useState<DataSourceState>({
     type: 'mock',
     bookings: MOCK_BOOKINGS,
@@ -180,15 +176,14 @@ export function ReportsTab() {
   });
 
   // ============================================================
-  // 🔄 REAL API CALL FUNCTION - Supabase get-business-bookings
+  // 🔄 FETCH LIVE DATA
   // ============================================================
   const fetchLiveBookings = useCallback(async () => {
     setDataSource(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      // 🔥 ACTUAL SUPABASE INTEGRATION
-      // Replace this with your actual Supabase client call
-      const supabase = (window as any).supabase; // Your Supabase client
+      // 🔥 REPLACE WITH YOUR ACTUAL SUPABASE CLIENT
+      const supabase = (window as any).supabase;
       const { data, error } = await supabase
         .from('business_bookings')
         .select('*')
@@ -196,7 +191,6 @@ export function ReportsTab() {
 
       if (error) throw error;
       
-      // Transform raw Supabase data to Booking objects
       const bookings = data.map((raw: any) => ({
         id: raw.id || raw.booking_id,
         guestName: raw.guest_name || raw.guestName || '',
@@ -246,7 +240,7 @@ export function ReportsTab() {
   }, []);
 
   // ============================================================
-  // 🔄 SWITCH BETWEEN MOCK AND LIVE DATA
+  // 🔄 SWITCH DATA SOURCE
   // ============================================================
   const switchToMockData = useCallback(() => {
     setDataSource({
@@ -263,7 +257,7 @@ export function ReportsTab() {
   }, [fetchLiveBookings]);
 
   // ============================================================
-  // 📊 TRANSFORM BOOKINGS TO VISITOR RECORDS
+  // 📊 TRANSFORM DATA
   // ============================================================
   const adaptedVisitors = useMemo(() => {
     return transformBookingsToVisitorOrigins(dataSource.bookings);
@@ -296,22 +290,12 @@ export function ReportsTab() {
     const total = adaptedVisitors.length;
     
     if (total === 0) {
-      return { 
-        total: 0, 
-        countryCount: 0, 
-        qrPercentage: '0%',
-        checkInMethodBreakdown: {},
-        topCountries: []
-      };
+      return { total: 0, countryCount: 0, qrPercentage: '0%', topCountries: [] };
     }
 
     const countryMap = new Map<string, number>();
-    const methodMap = new Map<string, number>();
-    
     adaptedVisitors.forEach(v => {
       countryMap.set(v.country, (countryMap.get(v.country) || 0) + 1);
-      const method = v.checkInMethod || 'Unknown';
-      methodMap.set(method, (methodMap.get(method) || 0) + 1);
     });
 
     const uniqueCountries = countryMap.size;
@@ -323,107 +307,57 @@ export function ReportsTab() {
       .slice(0, 3)
       .map(([country, count]) => ({ country, count }));
 
-    return {
-      total,
-      countryCount: uniqueCountries,
-      qrPercentage,
-      checkInMethodBreakdown: Object.fromEntries(methodMap),
-      topCountries
-    };
+    return { total, countryCount: uniqueCountries, qrPercentage, topCountries };
   }, [adaptedVisitors]);
-
-  // ============================================================
-  // ⏰ AUTO-LOAD LIVE DATA ON MOUNT (Optional - comment out if not needed)
-  // ============================================================
-  useEffect(() => {
-    // Optionally load live data on component mount
-    // fetchLiveBookings();
-  }, []);
 
   // ============================================================
   // 🎨 RENDER
   // ============================================================
   return (
-    <div className="space-y-8" id="reports-tab-container">
+    <div className="space-y-6">
       {/* ============================================================
           📊 DATA SOURCE SELECTOR
           ============================================================ */}
-      <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent p-6 rounded-3xl border border-orange-200/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-1 bg-orange-100 text-orange-600 rounded-lg">
-              <BarChart3 size={16} />
-            </span>
-            <span className="text-xs font-mono font-extrabold uppercase text-orange-600 tracking-wider">
-              Best-Check-In Integration Module
-            </span>
-          </div>
-          <h2 className="text-xl font-extrabold text-stone-900 tracking-tight">
-            FastCheckin Visitor Explorer
-          </h2>
-          <p className="text-sm text-stone-500">
-            Compare package features with mock data or connect to your live Supabase database.
-          </p>
+      <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Analytics & Reports</h2>
+          <p className="text-sm text-gray-500">Understand your guest demographics and booking patterns</p>
         </div>
-
-        {/* Data Source Controls */}
-        <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <button
               onClick={switchToMockData}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono font-bold rounded-xl border transition-all ${
+              className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
                 dataSource.type === 'mock'
-                  ? 'bg-orange-50 text-orange-700 border-orange-300 shadow-sm'
+                  ? 'bg-orange-50 text-orange-700 border-orange-300'
                   : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
               }`}
             >
-              <Database size={12} />
-              Mock Data (Demo)
+              <Database size={12} className="inline mr-1" />
+              Mock
             </button>
-            
             <button
               onClick={switchToLiveData}
               disabled={dataSource.isLoading}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono font-bold rounded-xl border transition-all ${
+              className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
                 dataSource.type === 'live'
-                  ? 'bg-green-50 text-green-700 border-green-300 shadow-sm'
+                  ? 'bg-green-50 text-green-700 border-green-300'
                   : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {dataSource.isLoading ? (
-                <RefreshCw size={12} className="animate-spin" />
+                <RefreshCw size={12} className="animate-spin inline mr-1" />
               ) : (
-                <Cloud size={12} />
+                <Cloud size={12} className="inline mr-1" />
               )}
-              Live Data (Supabase)
+              Live
             </button>
           </div>
-          
-          {/* Status Badge */}
-          {dataSource.type === 'live' && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-mono font-bold rounded-xl border border-green-200">
-              <span className="h-2 w-2 rounded-full bg-green-500 inline-block animate-ping"></span>
-              <span>Live: Connected</span>
-              {dataSource.lastUpdated && (
-                <span className="text-green-500/70">
-                  • Updated {dataSource.lastUpdated.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-          )}
-          
-          {dataSource.type === 'mock' && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-600 text-xs font-mono font-bold rounded-xl border border-orange-200">
-              <DatabaseIcon size={12} />
-              <span>Demo: Using sample data</span>
-            </div>
-          )}
-          
           {dataSource.error && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 text-xs font-mono font-bold rounded-xl border border-red-200">
+            <span className="text-xs text-red-600 flex items-center gap-1">
               <AlertCircle size={12} />
-              <span>Error: {dataSource.error}</span>
-            </div>
+              {dataSource.error}
+            </span>
           )}
         </div>
       </div>
@@ -431,99 +365,51 @@ export function ReportsTab() {
       {/* ============================================================
           📊 STATS CARDS
           ============================================================ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="reports-stats-row">
-        <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm flex items-center justify-between transition-all hover:shadow-md hover:border-stone-300">
-          <div className="space-y-1.5">
-            <span className="text-xs font-extrabold text-stone-400 uppercase tracking-wider block">Total Check-Ins</span>
-            <span className="text-3xl font-black text-stone-900 tracking-tight block">
-              {statsSummary.total}
-            </span>
-            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-              <TrendingUp size={12} /> 
-              {dataSource.type === 'live' ? 'Live records' : 'Demo records'}
-            </span>
-          </div>
-          <div className="p-4 bg-orange-50 rounded-2xl text-orange-500">
-            <Users size={24} />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Check-Ins</p>
+          <p className="text-2xl font-bold text-gray-900">{statsSummary.total}</p>
+          <p className="text-[10px] text-stone-400">{dataSource.type === 'live' ? 'Live' : 'Demo'} records</p>
         </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm flex items-center justify-between transition-all hover:shadow-md hover:border-stone-300">
-          <div className="space-y-1.5">
-            <span className="text-xs font-extrabold text-stone-400 uppercase tracking-wider block">Unique Countries</span>
-            <span className="text-3xl font-black text-stone-900 tracking-tight block">
-              {statsSummary.countryCount}
-            </span>
-            <span className="text-[10px] text-stone-400 font-mono block">
-              {statsSummary.topCountries.length > 0 && (
-                <>
-                  Top: {statsSummary.topCountries.map((c, i) => 
-                    `${c.country} (${c.count})${i < statsSummary.topCountries.length - 1 ? ', ' : ''}`
-                  )}
-                </>
-              )}
-            </span>
-          </div>
-          <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-500">
-            <Globe2 size={24} />
-          </div>
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Unique Countries</p>
+          <p className="text-2xl font-bold text-gray-900">{statsSummary.countryCount}</p>
+          {statsSummary.topCountries.length > 0 && (
+            <p className="text-[10px] text-stone-400 truncate">
+              Top: {statsSummary.topCountries.map(c => `${c.country} (${c.count})`).join(', ')}
+            </p>
+          )}
         </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm flex items-center justify-between transition-all hover:shadow-md hover:border-stone-300">
-          <div className="space-y-1.5">
-            <span className="text-xs font-extrabold text-stone-400 uppercase tracking-wider block">QR Code Scan</span>
-            <span className="text-3xl font-black text-stone-900 tracking-tight block">
-              {statsSummary.qrPercentage}
-            </span>
-            <span className="text-[10px] text-purple-600 font-bold block">Convenient check-in channel</span>
-          </div>
-          <div className="p-4 bg-purple-50 rounded-2xl text-purple-500">
-            <QrCode size={24} />
-          </div>
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">QR Code Scan</p>
+          <p className="text-2xl font-bold text-gray-900">{statsSummary.qrPercentage}</p>
+          <p className="text-[10px] text-stone-400">Touchless check-in</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Revenue</p>
+          <p className="text-2xl font-bold text-gray-900">
+            R{dataSource.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
+          </p>
+          <p className="text-[10px] text-stone-400">Total bookings value</p>
         </div>
       </div>
 
       {/* ============================================================
           🗺️ VISITOR ORIGIN EXPLORER
           ============================================================ */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider flex items-center gap-2">
-              <Sparkles size={14} className="text-orange-500 animate-pulse" />
-              Interactive Map Engine
-            </h3>
-            {dataSource.lastUpdated && (
-              <span className="text-xs text-stone-400 font-mono">
-                {dataSource.type === 'live' ? 'Live' : 'Demo'} data • Updated: {dataSource.lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            {dataSource.type === 'live' && (
-              <button
-                onClick={fetchLiveBookings}
-                disabled={dataSource.isLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 rounded-xl border border-green-200 text-xs font-bold text-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw size={14} className={dataSource.isLoading ? 'animate-spin' : ''} />
-                {dataSource.isLoading ? 'Loading...' : 'Refresh'}
-              </button>
-            )}
-            
-            <div className="flex items-center gap-2 bg-stone-100 px-3 py-1 rounded-xl border border-stone-200 text-xs">
-              <span className="font-bold text-stone-500">Plan View:</span>
-              <select
-                value={activeTier}
-                onChange={(e) => setActiveTier(e.target.value as SubscriptionTier)}
-                className="font-extrabold uppercase text-orange-600 bg-transparent border-none focus:ring-0 cursor-pointer"
-              >
-                {Object.entries(TIER_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider flex items-center gap-2">
+            <Sparkles size={14} className="text-orange-500" />
+            Interactive Map Engine
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-stone-400">
+              {dataSource.type === 'live' ? 'Live' : 'Demo'} data
+            </span>
+            <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium capitalize">
+              {TIER_LABELS[activeTier]}
+            </span>
           </div>
         </div>
 
@@ -536,64 +422,46 @@ export function ReportsTab() {
       </div>
 
       {/* ============================================================
-          📝 INTEGRATION GUIDE
+          📊 GUEST ORIGINS & REFERRAL SOURCES
           ============================================================ */}
-      <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
-        <h3 className="text-base font-extrabold text-stone-950 tracking-tight">
-          How to connect to your Supabase database
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-          {/* Mock Data Section */}
-          <div className="space-y-2 p-4 bg-orange-50 rounded-2xl border border-orange-200">
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-xs">📦</span>
-              <h5 className="text-xs font-bold text-stone-900">Mock Data (Demo)</h5>
-            </div>
-            <p className="text-[11px] text-stone-600 leading-relaxed">
-              Pre-loaded sample data based on the <strong>Booking</strong> interface allows you to explore all features and compare package capabilities immediately.
-            </p>
-            <div className="mt-2 text-[10px] font-mono text-orange-600 bg-orange-100/50 px-2 py-1 rounded">
-              {statsSummary.total} records • {statsSummary.countryCount} countries
-            </div>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GuestOriginsChart
+          bookings={dataSource.bookings}
+          chartType={guestChartType}
+          onChartTypeChange={setGuestChartType}
+        />
 
-          {/* Live Data Section */}
-          <div className="space-y-2 p-4 bg-green-50 rounded-2xl border border-green-200">
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">🔌</span>
-              <h5 className="text-xs font-bold text-stone-900">Live Supabase Integration</h5>
-            </div>
-            <p className="text-[11px] text-stone-600 leading-relaxed">
-              Click <strong>"Live Data"</strong> to fetch real records from your <code className="bg-green-200 px-1 py-0.5 rounded font-mono text-[10px]">business_bookings</code> table via the Supabase client.
-            </p>
-            <div className="mt-2 text-[10px] font-mono text-green-700 bg-green-100/50 px-2 py-1 rounded">
-              {dataSource.type === 'live' ? `✅ Connected • ${statsSummary.total} records` : '⏳ Click to connect'}
-            </div>
-          </div>
-        </div>
+        <ReferralSourcesChart
+          bookings={dataSource.bookings}
+          chartType={referralChartType}
+          onChartTypeChange={setReferralChartType}
+        />
+      </div>
 
-        {/* Implementation Notes */}
-        <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
-          <div className="flex items-center gap-2">
-            <Info size={14} className="text-stone-400" />
-            <span className="text-xs font-bold text-stone-600">Implementation Notes</span>
-          </div>
-          <ul className="text-[11px] text-stone-500 leading-relaxed space-y-1 list-disc list-inside">
-            <li>
-              <strong>Mock Data:</strong> Perfect for demos, package comparisons, and UI testing. No database setup required.
-            </li>
-            <li>
-              <strong>Live Data:</strong> Replace the <code className="bg-stone-200 px-1 py-0.5 rounded font-mono text-[10px]">supabase.from('business_bookings')</code> call with your actual Supabase client configuration.
-            </li>
-            <li>
-              <strong>Adapter:</strong> The <code className="bg-stone-200 px-1 py-0.5 rounded font-mono text-[10px]">transformBookingsToVisitorOrigins</code> function handles the transformation from <code className="bg-stone-200 px-1 py-0.5 rounded font-mono text-[10px]">Booking</code> to <code className="bg-stone-200 px-1 py-0.5 rounded font-mono text-[10px]">VisitorRecord</code>.
-            </li>
-            <li>
-              <strong>Country Mapping:</strong> The <code className="bg-stone-200 px-1 py-0.5 rounded font-mono text-[10px]">mapCountryToContinent</code> function automatically determines continents from country names.
-            </li>
-          </ul>
-        </div>
+      {/* ============================================================
+          🧳 TRAVEL PATTERNS & LENGTH OF STAY
+          ============================================================ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TravelPatternsCard
+          arrivingFrom={dataSource.bookings.map(b => ({
+            location: b.arriving_from || b.nextDestination || 'Unknown',
+            country: b.country || 'Unknown',
+            count: 1,
+            percentage: 0,
+            isCorrection: false,
+          }))}
+          goingTo={dataSource.bookings.map(b => ({
+            location: b.next_destination || b.nextDestination || 'Unknown',
+            country: b.country || 'Unknown',
+            count: 1,
+            percentage: 0,
+            isCorrection: false,
+          }))}
+          isLoading={dataSource.isLoading}
+          title="Guest Travel Patterns"
+        />
+
+        <LengthOfStayChart bookings={dataSource.bookings} />
       </div>
     </div>
   );
