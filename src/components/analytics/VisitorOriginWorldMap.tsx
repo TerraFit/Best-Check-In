@@ -215,3 +215,5 @@ export function VisitorOriginWorldMap({
     </div>
   );
 }
+
+export default VisitorOriginWorldMap;
