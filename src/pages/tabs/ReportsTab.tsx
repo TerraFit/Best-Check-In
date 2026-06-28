@@ -1,6 +1,6 @@
 // src/pages/tabs/ReportsTab.tsx
 // ✅ FINAL VERSION - Demo/Live toggle, Mock data for demo, Live by default
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { 
   transformBookingsToVisitorOrigins, 
@@ -180,30 +180,44 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
   }, [activeBookings]);
 
   // ============================================================
-  // 📈 TRAVEL PATTERNS DATA
+  // 📈 TRAVEL PATTERNS DATA - WITH PROPER FIELD MAPPING
   // ============================================================
   const travelData = useMemo(() => {
     const data = activeBookings || [];
     const total = data.length || 1;
     
+    console.log('🔍 Travel Data - Sample booking:', data[0]);
+    console.log('🔍 Travel Data - All arriving_from:', data.map(b => b.arriving_from));
+    console.log('🔍 Travel Data - All next_destination:', data.map(b => b.next_destination));
+    
+    // ✅ Arriving From - use arriving_from field
     const arrivingMap = new Map<string, { count: number; country: string }>();
     data.forEach(b => {
-      const location = b.arriving_from || b.nextDestination || 'Unknown';
+      // Try multiple field names
+      const location = b.arriving_from || (b as any).arrivingFrom || b.guest_city || b.country || 'Unknown';
       const country = b.country || 'Unknown';
-      if (!arrivingMap.has(location)) {
-        arrivingMap.set(location, { count: 0, country });
+      
+      if (location && location !== 'Unknown') {
+        if (!arrivingMap.has(location)) {
+          arrivingMap.set(location, { count: 0, country });
+        }
+        arrivingMap.get(location)!.count++;
       }
-      arrivingMap.get(location)!.count++;
     });
     
+    // ✅ Going To - use next_destination field
     const goingMap = new Map<string, { count: number; country: string }>();
     data.forEach(b => {
-      const location = b.next_destination || b.nextDestination || 'Unknown';
+      // Try multiple field names
+      const location = b.next_destination || (b as any).nextDestination || b.guest_city || b.country || 'Unknown';
       const country = b.country || 'Unknown';
-      if (!goingMap.has(location)) {
-        goingMap.set(location, { count: 0, country });
+      
+      if (location && location !== 'Unknown') {
+        if (!goingMap.has(location)) {
+          goingMap.set(location, { count: 0, country });
+        }
+        goingMap.get(location)!.count++;
       }
-      goingMap.get(location)!.count++;
     });
     
     const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
@@ -221,6 +235,9 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       percentage: (data.count / total) * 100,
       isCorrection: false,
     })).sort((a, b) => b.count - a.count);
+    
+    console.log('📊 Travel Data - Arriving From:', arrivingFrom);
+    console.log('📊 Travel Data - Going To:', goingTo);
     
     return { arrivingFrom, goingTo };
   }, [activeBookings]);
@@ -264,6 +281,15 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       .map(([country, count]) => ({ country, count }));
     return { total, countryCount: uniqueCountries, qrPercentage, topCountries };
   }, [adaptedVisitors]);
+
+  // ============================================================
+  // 🔍 DEBUG - Log what's being passed to charts
+  // ============================================================
+  useEffect(() => {
+    console.log('📊 ReportsTab - Active Bookings:', activeBookings);
+    console.log('📊 ReportsTab - Active Bookings count:', activeBookings?.length);
+    console.log('📊 ReportsTab - First booking:', activeBookings?.[0]);
+  }, [activeBookings]);
 
   // ============================================================
   // 🎨 RENDER
@@ -372,12 +398,12 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       {/* Guest Origins & Referral Sources */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GuestOriginsChart
-          bookings={activeBookings}
+          bookings={activeBookings || []}
           chartType={guestChartType}
           onChartTypeChange={setGuestChartType}
         />
         <ReferralSourcesChart
-          bookings={activeBookings}
+          bookings={activeBookings || []}
           chartType={referralChartType}
           onChartTypeChange={setReferralChartType}
         />
@@ -391,7 +417,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           isLoading={false}
           title="Guest Travel Patterns"
         />
-        <LengthOfStayChart bookings={activeBookings} />
+        <LengthOfStayChart bookings={activeBookings || []} />
       </div>
     </div>
   );
