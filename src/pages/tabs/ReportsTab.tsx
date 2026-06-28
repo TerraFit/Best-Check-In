@@ -23,13 +23,17 @@ import {
 // ============================================================
 // 📦 MOCK DATA - For demo/testing only
 // ============================================================
+// src/pages/tabs/ReportsTab.tsx - Updated MOCK_BOOKINGS
+
 const MOCK_BOOKINGS: Booking[] = [
   { 
     id: '101', guestName: 'John Doe', email: 'john@example.com', phone: '+27 82 123 4567',
+    guest_country: 'South Africa', guest_city: 'Cape Town', guest_province: 'Western Cape',
     country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
     passportOrId: 'SA123456', nextDestination: 'Stellenbosch',
     checkInDate: '2026-06-25', checkOutDate: '2026-06-28', nights: 3,
     settlementMethod: 'Card', referralSource: 'Booking.com',
+    booking_source: 'Booking.com',
     guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
     totalAmount: 4500, status: 'Checked-In',
     year: 2026, month: 'Jun',
@@ -40,101 +44,115 @@ const MOCK_BOOKINGS: Booking[] = [
   },
   { 
     id: '102', guestName: 'Jane Smith', email: 'jane@example.com', phone: '+27 83 456 7890',
-    country: 'South Africa', city: 'Stellenbosch', province: 'Western Cape',
-    passportOrId: 'SA234567', nextDestination: 'Cape Town',
+    guest_country: 'South Africa', guest_city: 'Cape Town', guest_province: 'Western Cape',
+    country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
+    passportOrId: 'SA234567', nextDestination: 'Stellenbosch',
     checkInDate: '2026-06-25', checkOutDate: '2026-06-27', nights: 2,
     settlementMethod: 'Instant EFT', referralSource: 'Google',
+    booking_source: 'Google',
     guests: 1, adults: 1, kids: 0, roomType: 'Suite',
     totalAmount: 3200, status: 'Checked-In',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-25T11:15:00Z',
     tenantId: 'tenant-1', source: 'csv_import', season: 'High',
-    arriving_from: 'Cape Town', next_destination: 'Cape Town'
+    arriving_from: 'Cape Town', next_destination: 'Stellenbosch'
   },
   { 
     id: '103', guestName: 'Robert Johnson', email: 'robert@example.com', phone: '+27 72 789 0123',
+    guest_country: 'South Africa', guest_city: 'Johannesburg', guest_province: 'Gauteng',
     country: 'South Africa', city: 'Johannesburg', province: 'Gauteng',
-    passportOrId: 'SA345678', nextDestination: 'Pretoria',
+    passportOrId: 'SA345678', nextDestination: 'Cape Town',
     checkInDate: '2026-06-25', checkOutDate: '2026-06-30', nights: 5,
     settlementMethod: 'Cash', referralSource: 'Word of mouth',
+    booking_source: 'Word of mouth',
     guests: 4, adults: 2, kids: 2, roomType: 'Luxury Safari Tent',
     totalAmount: 8750, status: 'Confirmed',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-25T12:00:00Z',
     tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Pretoria', next_destination: 'Pretoria'
+    arriving_from: 'Pretoria', next_destination: 'Cape Town'
   },
   { 
     id: '104', guestName: 'Maria Garcia', email: 'maria@example.com', phone: '+34 612 345 678',
+    guest_country: 'Spain', guest_city: 'Barcelona', guest_province: 'Catalonia',
     country: 'Spain', city: 'Barcelona', province: 'Catalonia',
-    passportOrId: 'ES789012', nextDestination: 'Madrid',
+    passportOrId: 'ES789012', nextDestination: 'Valencia',
     checkInDate: '2026-06-24', checkOutDate: '2026-06-27', nights: 3,
     settlementMethod: 'Card', referralSource: 'Booking.com',
+    booking_source: 'Booking.com',
     guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
     totalAmount: 5400, status: 'Checked-In',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-24T09:45:00Z',
     tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Madrid', next_destination: 'Madrid'
+    arriving_from: 'Madrid', next_destination: 'Valencia'
   },
   { 
     id: '105', guestName: 'Hans Mueller', email: 'hans@example.com', phone: '+49 171 234 5678',
+    guest_country: 'Germany', guest_city: 'Munich', guest_province: 'Bavaria',
     country: 'Germany', city: 'Munich', province: 'Bavaria',
-    passportOrId: 'DE567890', nextDestination: 'Berlin',
+    passportOrId: 'DE567890', nextDestination: 'Frankfurt',
     checkInDate: '2026-06-23', checkOutDate: '2026-06-26', nights: 3,
     settlementMethod: 'Instant EFT', referralSource: 'Google',
+    booking_source: 'Google',
     guests: 1, adults: 1, kids: 0, roomType: 'Suite',
     totalAmount: 3800, status: 'Checked-In',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-23T16:10:00Z',
     tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Berlin', next_destination: 'Berlin'
+    arriving_from: 'Berlin', next_destination: 'Frankfurt'
   },
   { 
     id: '106', guestName: 'Emma Watson', email: 'emma@example.com', phone: '+44 7700 900123',
+    guest_country: 'United Kingdom', guest_city: 'London', guest_province: 'Greater London',
     country: 'United Kingdom', city: 'London', province: 'Greater London',
-    passportOrId: 'GB901234', nextDestination: 'Manchester',
+    passportOrId: 'GB901234', nextDestination: 'Birmingham',
     checkInDate: '2026-06-22', checkOutDate: '2026-06-25', nights: 3,
     settlementMethod: 'Card', referralSource: 'Booking.com',
+    booking_source: 'Booking.com',
     guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
     totalAmount: 6200, status: 'Completed',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-22T08:15:00Z',
     tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Manchester', next_destination: 'Manchester'
+    arriving_from: 'Manchester', next_destination: 'Birmingham'
   },
   { 
     id: '107', guestName: 'Liam O\'Brien', email: 'liam@example.com', phone: '+1 415 555 0123',
+    guest_country: 'United States', guest_city: 'San Francisco', guest_province: 'California',
     country: 'United States', city: 'San Francisco', province: 'California',
-    passportOrId: 'US345678', nextDestination: 'Los Angeles',
+    passportOrId: 'US345678', nextDestination: 'San Diego',
     checkInDate: '2026-06-21', checkOutDate: '2026-06-24', nights: 3,
     settlementMethod: 'Card', referralSource: 'Facebook / Instagram',
+    booking_source: 'Facebook / Instagram',
     guests: 2, adults: 2, kids: 0, roomType: 'Luxury Safari Tent',
     totalAmount: 7500, status: 'Completed',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-21T19:40:00Z',
     tenantId: 'tenant-1', source: 'csv_import', season: 'High',
-    arriving_from: 'Los Angeles', next_destination: 'Los Angeles'
+    arriving_from: 'Los Angeles', next_destination: 'San Diego'
   },
   { 
     id: '108', guestName: 'Yuki Tanaka', email: 'yuki@example.com', phone: '+81 80 1234 5678',
+    guest_country: 'Japan', guest_city: 'Tokyo', guest_province: 'Tokyo',
     country: 'Japan', city: 'Tokyo', province: 'Tokyo',
-    passportOrId: 'JP567890', nextDestination: 'Osaka',
+    passportOrId: 'JP567890', nextDestination: 'Nagoya',
     checkInDate: '2026-06-20', checkOutDate: '2026-06-23', nights: 3,
     settlementMethod: 'Instant EFT', referralSource: 'Google',
+    booking_source: 'Google',
     guests: 1, adults: 1, kids: 0, roomType: 'Lodge Room',
     totalAmount: 4800, status: 'Completed',
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-20T07:30:00Z',
     tenantId: 'tenant-1', source: 'live_checkin', season: 'Mid',
-    arriving_from: 'Osaka', next_destination: 'Osaka'
+    arriving_from: 'Osaka', next_destination: 'Nagoya'
   },
 ];
 
@@ -179,68 +197,63 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
     return transformBookingsToVisitorOrigins(activeBookings || []);
   }, [activeBookings]);
 
-  // ============================================================
-  // 📈 TRAVEL PATTERNS DATA - WITH PROPER FIELD MAPPING
-  // ============================================================
-  const travelData = useMemo(() => {
-    const data = activeBookings || [];
-    const total = data.length || 1;
+// ============================================================
+// 📈 TRAVEL PATTERNS DATA - WITH PROPER COUNTRY FIELD
+// ============================================================
+const travelData = useMemo(() => {
+  const data = activeBookings || [];
+  const total = data.length || 1;
+  
+  // ✅ Arriving From - use arriving_from field with country
+  const arrivingMap = new Map<string, { count: number; country: string }>();
+  data.forEach(b => {
+    const location = b.arriving_from || b.guest_city || b.city || b.country || 'Unknown';
+    const country = b.guest_country || b.country || 'Unknown';
     
-    console.log('🔍 Travel Data - Sample booking:', data[0]);
-    console.log('🔍 Travel Data - All arriving_from:', data.map(b => b.arriving_from));
-    console.log('🔍 Travel Data - All next_destination:', data.map(b => b.next_destination));
-    
-    // ✅ Arriving From - use arriving_from field
-    const arrivingMap = new Map<string, { count: number; country: string }>();
-    data.forEach(b => {
-      // Try multiple field names
-      const location = b.arriving_from || (b as any).arrivingFrom || b.guest_city || b.country || 'Unknown';
-      const country = b.country || 'Unknown';
-      
-      if (location && location !== 'Unknown') {
-        if (!arrivingMap.has(location)) {
-          arrivingMap.set(location, { count: 0, country });
-        }
-        arrivingMap.get(location)!.count++;
+    if (location && location !== 'Unknown') {
+      if (!arrivingMap.has(location)) {
+        arrivingMap.set(location, { count: 0, country });
       }
-    });
+      arrivingMap.get(location)!.count++;
+    }
+  });
+  
+  // ✅ Going To - use next_destination field with country
+  const goingMap = new Map<string, { count: number; country: string }>();
+  data.forEach(b => {
+    const location = b.next_destination || b.guest_city || b.city || b.country || 'Unknown';
+    const country = b.guest_country || b.country || 'Unknown';
     
-    // ✅ Going To - use next_destination field
-    const goingMap = new Map<string, { count: number; country: string }>();
-    data.forEach(b => {
-      // Try multiple field names
-      const location = b.next_destination || (b as any).nextDestination || b.guest_city || b.country || 'Unknown';
-      const country = b.country || 'Unknown';
-      
-      if (location && location !== 'Unknown') {
-        if (!goingMap.has(location)) {
-          goingMap.set(location, { count: 0, country });
-        }
-        goingMap.get(location)!.count++;
+    if (location && location !== 'Unknown') {
+      if (!goingMap.has(location)) {
+        goingMap.set(location, { count: 0, country });
       }
-    });
-    
-    const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
-      location,
-      country: data.country,
-      count: data.count,
-      percentage: (data.count / total) * 100,
-      isCorrection: false,
-    })).sort((a, b) => b.count - a.count);
-    
-    const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
-      location,
-      country: data.country,
-      count: data.count,
-      percentage: (data.count / total) * 100,
-      isCorrection: false,
-    })).sort((a, b) => b.count - a.count);
-    
-    console.log('📊 Travel Data - Arriving From:', arrivingFrom);
-    console.log('📊 Travel Data - Going To:', goingTo);
-    
-    return { arrivingFrom, goingTo };
-  }, [activeBookings]);
+      goingMap.get(location)!.count++;
+    }
+  });
+  
+  const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
+    location,
+    country: data.country,
+    count: data.count,
+    percentage: (data.count / total) * 100,
+    isCorrection: false,
+  })).sort((a, b) => b.count - a.count);
+  
+  const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
+    location,
+    country: data.country,
+    count: data.count,
+    percentage: (data.count / total) * 100,
+    isCorrection: false,
+  })).sort((a, b) => b.count - a.count);
+  
+  // ✅ Debug logs
+  console.log('📊 Travel Data - Arriving From:', arrivingFrom.map(d => `${d.location} (${d.country})`));
+  console.log('📊 Travel Data - Going To:', goingTo.map(d => `${d.location} (${d.country})`));
+  
+  return { arrivingFrom, goingTo };
+}, [activeBookings]);
 
   // ============================================================
   // 🎯 TIER LIMITS
