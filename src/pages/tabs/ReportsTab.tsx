@@ -1,10 +1,9 @@
 // src/pages/tabs/ReportsTab.tsx
-// ✅ COMPLETE VERSION - All charts restored, implementation notes removed
+// ✅ UPDATED - Default to Live data, Mock as optional toggle
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { 
   transformBookingsToVisitorOrigins, 
-  mapCountryToContinent 
 } from '../../services/visitorOriginAdapter';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
@@ -12,7 +11,6 @@ import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCar
 import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
 import { SubscriptionTier, SubscriptionLimits, Booking } from '../../types';
 import { 
-  BarChart3, 
   TrendingUp, 
   Globe2, 
   QrCode, 
@@ -25,7 +23,7 @@ import {
 } from 'lucide-react';
 
 // ============================================================
-// 📦 MOCK DATA
+// 📦 MOCK DATA - For demo/testing only
 // ============================================================
 const MOCK_BOOKINGS: Booking[] = [
   { 
@@ -39,7 +37,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-25T10:30:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
+    arriving_from: 'Johannesburg', next_destination: 'Stellenbosch'
   },
   { 
     id: '102', guestName: 'Jane Smith', email: 'jane@example.com', phone: '+27 83 456 7890',
@@ -52,7 +51,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-25T11:15:00Z',
-    tenantId: 'tenant-1', source: 'csv_import', season: 'High'
+    tenantId: 'tenant-1', source: 'csv_import', season: 'High',
+    arriving_from: 'Cape Town', next_destination: 'Cape Town'
   },
   { 
     id: '103', guestName: 'Robert Johnson', email: 'robert@example.com', phone: '+27 72 789 0123',
@@ -65,7 +65,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-25T12:00:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
+    arriving_from: 'Pretoria', next_destination: 'Pretoria'
   },
   { 
     id: '104', guestName: 'Maria Garcia', email: 'maria@example.com', phone: '+34 612 345 678',
@@ -78,7 +79,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-24T09:45:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
+    arriving_from: 'Madrid', next_destination: 'Madrid'
   },
   { 
     id: '105', guestName: 'Hans Mueller', email: 'hans@example.com', phone: '+49 171 234 5678',
@@ -91,7 +93,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-23T16:10:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
+    arriving_from: 'Berlin', next_destination: 'Berlin'
   },
   { 
     id: '106', guestName: 'Emma Watson', email: 'emma@example.com', phone: '+44 7700 900123',
@@ -104,7 +107,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-22T08:15:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
+    arriving_from: 'Manchester', next_destination: 'Manchester'
   },
   { 
     id: '107', guestName: 'Liam O\'Brien', email: 'liam@example.com', phone: '+1 415 555 0123',
@@ -117,7 +121,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: true,
     timestamp: '2026-06-21T19:40:00Z',
-    tenantId: 'tenant-1', source: 'csv_import', season: 'High'
+    tenantId: 'tenant-1', source: 'csv_import', season: 'High',
+    arriving_from: 'Los Angeles', next_destination: 'Los Angeles'
   },
   { 
     id: '108', guestName: 'Yuki Tanaka', email: 'yuki@example.com', phone: '+81 80 1234 5678',
@@ -130,7 +135,8 @@ const MOCK_BOOKINGS: Booking[] = [
     year: 2026, month: 'Jun',
     popiaMarketingConsent: false,
     timestamp: '2026-06-20T07:30:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'Mid'
+    tenantId: 'tenant-1', source: 'live_checkin', season: 'Mid',
+    arriving_from: 'Osaka', next_destination: 'Osaka'
   },
 ];
 
@@ -152,13 +158,6 @@ const TIER_LABELS: Record<SubscriptionTier, string> = {
   business: 'Business'
 };
 
-interface StatsSummary {
-  total: number;
-  countryCount: number;
-  qrPercentage: string;
-  topCountries: Array<{ country: string; count: number }>;
-}
-
 export function ReportsTab() {
   // ============================================================
   // STATE MANAGEMENT
@@ -167,16 +166,17 @@ export function ReportsTab() {
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
   const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
   
+  // ✅ DEFAULT TO LIVE DATA
   const [dataSource, setDataSource] = useState<DataSourceState>({
-    type: 'mock',
-    bookings: MOCK_BOOKINGS,
-    isLoading: false,
+    type: 'live',  // ← Changed from 'mock' to 'live'
+    bookings: [],  // ← Start with empty array
+    isLoading: true,  // ← Show loading state
     error: null,
-    lastUpdated: new Date()
+    lastUpdated: null
   });
 
   // ============================================================
-  // 🔄 FETCH LIVE DATA
+  // 🔄 FETCH LIVE DATA ON MOUNT
   // ============================================================
   const fetchLiveBookings = useCallback(async () => {
     setDataSource(prev => ({ ...prev, isLoading: true, error: null }));
@@ -219,6 +219,8 @@ export function ReportsTab() {
         tenantId: raw.tenant_id || raw.tenantId,
         source: raw.source || 'csv_import',
         season: raw.season || 'Mid',
+        arriving_from: raw.arriving_from || raw.arrivingFrom || '',
+        next_destination: raw.next_destination || raw.nextDestination || '',
       }));
       
       setDataSource({
@@ -231,13 +233,23 @@ export function ReportsTab() {
       
     } catch (err) {
       console.error('Failed to fetch live bookings:', err);
-      setDataSource(prev => ({
-        ...prev,
+      // ⚠️ If live data fails, fall back to mock data
+      setDataSource({
+        type: 'mock',
+        bookings: MOCK_BOOKINGS,
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Failed to load live data'
-      }));
+        error: err instanceof Error ? err.message : 'Failed to load live data - using mock data',
+        lastUpdated: new Date()
+      });
     }
   }, []);
+
+  // ============================================================
+  // 🔄 LOAD DATA ON MOUNT
+  // ============================================================
+  useEffect(() => {
+    fetchLiveBookings();
+  }, [fetchLiveBookings]);
 
   // ============================================================
   // 🔄 SWITCH DATA SOURCE
@@ -264,6 +276,52 @@ export function ReportsTab() {
   }, [dataSource.bookings]);
 
   // ============================================================
+  // 📈 TRAVEL PATTERNS DATA
+  // ============================================================
+  const travelData = useMemo(() => {
+    const bookings = dataSource.bookings;
+    const total = bookings.length || 1;
+    
+    const arrivingMap = new Map<string, { count: number; country: string }>();
+    bookings.forEach(b => {
+      const location = b.arriving_from || b.nextDestination || 'Unknown';
+      const country = b.country || 'Unknown';
+      if (!arrivingMap.has(location)) {
+        arrivingMap.set(location, { count: 0, country });
+      }
+      arrivingMap.get(location)!.count++;
+    });
+    
+    const goingMap = new Map<string, { count: number; country: string }>();
+    bookings.forEach(b => {
+      const location = b.next_destination || b.nextDestination || 'Unknown';
+      const country = b.country || 'Unknown';
+      if (!goingMap.has(location)) {
+        goingMap.set(location, { count: 0, country });
+      }
+      goingMap.get(location)!.count++;
+    });
+    
+    const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
+      location,
+      country: data.country,
+      count: data.count,
+      percentage: (data.count / total) * 100,
+      isCorrection: false,
+    })).sort((a, b) => b.count - a.count);
+    
+    const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
+      location,
+      country: data.country,
+      count: data.count,
+      percentage: (data.count / total) * 100,
+      isCorrection: false,
+    })).sort((a, b) => b.count - a.count);
+    
+    return { arrivingFrom, goingTo };
+  }, [dataSource.bookings]);
+
+  // ============================================================
   // 🎯 TIER LIMITS
   // ============================================================
   const limits: SubscriptionLimits = useMemo(() => {
@@ -286,27 +344,20 @@ export function ReportsTab() {
   // ============================================================
   // 📈 STATISTICS
   // ============================================================
-  const statsSummary: StatsSummary = useMemo(() => {
+  const stats = useMemo(() => {
     const total = adaptedVisitors.length;
-    
     if (total === 0) {
       return { total: 0, countryCount: 0, qrPercentage: '0%', topCountries: [] };
     }
-
     const countryMap = new Map<string, number>();
-    adaptedVisitors.forEach(v => {
-      countryMap.set(v.country, (countryMap.get(v.country) || 0) + 1);
-    });
-
+    adaptedVisitors.forEach(v => countryMap.set(v.country, (countryMap.get(v.country) || 0) + 1));
     const uniqueCountries = countryMap.size;
     const qrCount = adaptedVisitors.filter(v => v.checkInMethod === 'QR Code').length;
     const qrPercentage = ((qrCount / total) * 100).toFixed(0) + '%';
-
     const topCountries = Array.from(countryMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([country, count]) => ({ country, count }));
-
     return { total, countryCount: uniqueCountries, qrPercentage, topCountries };
   }, [adaptedVisitors]);
 
@@ -315,9 +366,7 @@ export function ReportsTab() {
   // ============================================================
   return (
     <div className="space-y-6">
-      {/* ============================================================
-          📊 DATA SOURCE SELECTOR
-          ============================================================ */}
+      {/* Data Source Selector */}
       <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Analytics & Reports</h2>
@@ -334,7 +383,7 @@ export function ReportsTab() {
               }`}
             >
               <Database size={12} className="inline mr-1" />
-              Mock
+              Demo
             </button>
             <button
               onClick={switchToLiveData}
@@ -354,35 +403,38 @@ export function ReportsTab() {
             </button>
           </div>
           {dataSource.error && (
-            <span className="text-xs text-red-600 flex items-center gap-1">
+            <span className="text-xs text-amber-600 flex items-center gap-1">
               <AlertCircle size={12} />
               {dataSource.error}
+            </span>
+          )}
+          {dataSource.type === 'live' && dataSource.lastUpdated && (
+            <span className="text-xs text-stone-400">
+              Updated: {dataSource.lastUpdated.toLocaleTimeString()}
             </span>
           )}
         </div>
       </div>
 
-      {/* ============================================================
-          📊 STATS CARDS
-          ============================================================ */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Check-Ins</p>
-          <p className="text-2xl font-bold text-gray-900">{statsSummary.total}</p>
-          <p className="text-[10px] text-stone-400">{dataSource.type === 'live' ? 'Live' : 'Demo'} records</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          <p className="text-[10px] text-stone-400">{dataSource.type === 'live' ? 'Live' : 'Demo'} data</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Unique Countries</p>
-          <p className="text-2xl font-bold text-gray-900">{statsSummary.countryCount}</p>
-          {statsSummary.topCountries.length > 0 && (
+          <p className="text-2xl font-bold text-gray-900">{stats.countryCount}</p>
+          {stats.topCountries.length > 0 && (
             <p className="text-[10px] text-stone-400 truncate">
-              Top: {statsSummary.topCountries.map(c => `${c.country} (${c.count})`).join(', ')}
+              {stats.topCountries.map(c => `${c.country} (${c.count})`).join(', ')}
             </p>
           )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">QR Code Scan</p>
-          <p className="text-2xl font-bold text-gray-900">{statsSummary.qrPercentage}</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.qrPercentage}</p>
           <p className="text-[10px] text-stone-400">Touchless check-in</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
@@ -394,9 +446,7 @@ export function ReportsTab() {
         </div>
       </div>
 
-      {/* ============================================================
-          🗺️ VISITOR ORIGIN EXPLORER
-          ============================================================ */}
+      {/* Visitor Origin Explorer */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider flex items-center gap-2">
@@ -404,15 +454,11 @@ export function ReportsTab() {
             Interactive Map Engine
           </h3>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-stone-400">
-              {dataSource.type === 'live' ? 'Live' : 'Demo'} data
-            </span>
             <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium capitalize">
               {TIER_LABELS[activeTier]}
             </span>
           </div>
         </div>
-
         <VisitorOriginExplorer
           data={adaptedVisitors}
           limits={limits}
@@ -421,16 +467,13 @@ export function ReportsTab() {
         />
       </div>
 
-      {/* ============================================================
-          📊 GUEST ORIGINS & REFERRAL SOURCES
-          ============================================================ */}
+      {/* Guest Origins & Referral Sources */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GuestOriginsChart
           bookings={dataSource.bookings}
           chartType={guestChartType}
           onChartTypeChange={setGuestChartType}
         />
-
         <ReferralSourcesChart
           bookings={dataSource.bookings}
           chartType={referralChartType}
@@ -438,29 +481,14 @@ export function ReportsTab() {
         />
       </div>
 
-      {/* ============================================================
-          🧳 TRAVEL PATTERNS & LENGTH OF STAY
-          ============================================================ */}
+      {/* Travel Patterns & Length of Stay */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TravelPatternsCard
-          arrivingFrom={dataSource.bookings.map(b => ({
-            location: b.arriving_from || b.nextDestination || 'Unknown',
-            country: b.country || 'Unknown',
-            count: 1,
-            percentage: 0,
-            isCorrection: false,
-          }))}
-          goingTo={dataSource.bookings.map(b => ({
-            location: b.next_destination || b.nextDestination || 'Unknown',
-            country: b.country || 'Unknown',
-            count: 1,
-            percentage: 0,
-            isCorrection: false,
-          }))}
+          arrivingFrom={travelData.arrivingFrom}
+          goingTo={travelData.goingTo}
           isLoading={dataSource.isLoading}
           title="Guest Travel Patterns"
         />
-
         <LengthOfStayChart bookings={dataSource.bookings} />
       </div>
     </div>
