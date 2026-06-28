@@ -1,3 +1,4 @@
+// src/components/analytics/VisitorOriginExplorer.tsx
 import { useState, useMemo } from 'react';
 import { VisitorOriginWorldMap } from './VisitorOriginWorldMap';
 import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
@@ -36,7 +37,7 @@ export function VisitorOriginExplorer({
 
   // Extract total visitor count safely
   const totalVisitors = useMemo(() => {
-    return data.length;
+    return data?.length || 0;
   }, [data]);
 
   // Aggregate continent distribution
@@ -117,7 +118,6 @@ export function VisitorOriginExplorer({
   const handleUpgradeAction = () => {
     setShowUpgradeModal(false);
     if (onTierChange) {
-      // Simulate tier upgrade
       onTierChange(modalTargetTier);
     }
   };
@@ -125,17 +125,17 @@ export function VisitorOriginExplorer({
   // Filter records based on our active drill layers
   const filteredCountryData = useMemo(() => {
     if (!selectedContinent) return [];
-    return data.filter(d => d.continent.toLowerCase() === selectedContinent.toLowerCase());
+    return data.filter(d => d.continent?.toLowerCase() === selectedContinent.toLowerCase());
   }, [data, selectedContinent]);
 
   const filteredRegionData = useMemo(() => {
     if (!selectedCountry) return [];
-    return data.filter(d => d.country.toLowerCase() === selectedCountry.toLowerCase());
+    return data.filter(d => d.country?.toLowerCase() === selectedCountry.toLowerCase());
   }, [data, selectedCountry]);
 
   const filteredCityData = useMemo(() => {
     if (!selectedRegion) return [];
-    return data.filter(d => d.region.toLowerCase() === selectedRegion.toLowerCase());
+    return data.filter(d => d.region?.toLowerCase() === selectedRegion.toLowerCase());
   }, [data, selectedRegion]);
 
   return (
@@ -167,7 +167,7 @@ export function VisitorOriginExplorer({
 
         {/* Tier status indicator with inline override buttons */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider font-mono">Demo Plan:</span>
+          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider font-mono">Plan:</span>
           <div className="flex gap-1">
             {(['starter', 'growth', 'pro', 'business'] as SubscriptionTier[]).map((tier) => (
               <button
@@ -278,7 +278,7 @@ export function VisitorOriginExplorer({
         <div className="flex items-center gap-2.5">
           <Layers size={16} className="text-orange-500" />
           <span className="text-xs text-stone-600 font-medium">
-            Currently displaying data depths using a simulated <strong className="capitalize text-stone-900">{limits.subscriptionTier}</strong> subscription limits.
+            Currently displaying data depths using a <strong className="capitalize text-stone-900">{limits.subscriptionTier}</strong> subscription.
           </span>
         </div>
         {limits.subscriptionTier !== 'business' && (
@@ -312,3 +312,6 @@ export function VisitorOriginExplorer({
     </div>
   );
 }
+
+// ✅ CRITICAL FIX: Add default export for lazy loading
+export default VisitorOriginExplorer;
