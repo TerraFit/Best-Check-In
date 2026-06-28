@@ -5,20 +5,31 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // ENVIRONMENT VARIABLES
 // ============================================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+// ✅ Supports both VITE_ prefixed (local dev) and unprefixed (Netlify)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || '';
+const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.SUPABASE_SERVICE_KEY || '';
+
+// ============================================================
+// DEBUG LOG (remove after confirming)
+// ============================================================
+
+console.log('🔍 Supabase Config:', {
+  url: supabaseUrl ? '✅ Set' : '❌ Missing',
+  key: supabaseKey ? '✅ Set' : '❌ Missing',
+  serviceKey: serviceKey ? '✅ Set' : '❌ Missing',
+});
 
 // ============================================================
 // VALIDATION
 // ============================================================
 
 if (!supabaseUrl) {
-  console.warn('⚠️ VITE_SUPABASE_URL is not set. Supabase client will not work.');
+  console.warn('⚠️ SUPABASE_URL is not set. Supabase client will not work.');
 }
 
 if (!supabaseKey) {
-  console.warn('⚠️ VITE_SUPABASE_ANON_KEY is not set. Supabase client will not work.');
+  console.warn('⚠️ SUPABASE_ANON_KEY is not set. Supabase client will not work.');
 }
 
 // ============================================================
@@ -56,7 +67,7 @@ if (supabase) {
  * Check if Supabase is configured
  */
 export const isSupabaseConfigured = (): boolean => {
-  return !!supabaseUrl && !!supabaseKey;
+  return !!supabaseUrl && !!supabaseKey && !!supabase;
 };
 
 /**
