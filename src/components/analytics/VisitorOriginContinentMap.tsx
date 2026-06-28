@@ -276,3 +276,5 @@ export function VisitorOriginContinentMap({
     </div>
   );
 }
+
+export default VisitorOriginContinentMap;
