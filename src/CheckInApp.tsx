@@ -53,6 +53,76 @@ interface TouchedFields {
   acceptLegal: boolean;
 }
 
+// ✅ Helper to clean location strings
+const cleanLocation = (value: string): string => {
+  if (!value) return '';
+  
+  // Common corrections for South African cities and towns
+  const corrections: Record<string, string> = {
+    'cpt': 'Cape Town',
+    'jhb': 'Johannesburg',
+    'dbn': 'Durban',
+    'pe': 'Gqeberha',
+    'port elizabeth': 'Gqeberha',
+    'p.e.': 'Gqeberha',
+    'george': 'George',
+    'hermanus': 'Hermanus',
+    'stellenbosch': 'Stellenbosch',
+    'franschhoek': 'Franschhoek',
+    'paarl': 'Paarl',
+    'pretoria': 'Pretoria',
+    'centurion': 'Centurion',
+    'midrand': 'Midrand',
+    'sandton': 'Sandton',
+    'umhlanga': 'Umhlanga',
+    'ballito': 'Ballito',
+    'knysna': 'Knysna',
+    'plettenberg': 'Plettenberg Bay',
+    'plettenberg bay': 'Plettenberg Bay',
+    'mossel bay': 'Mossel Bay',
+    'oudtshoorn': 'Oudtshoorn',
+    'gqeberha': 'Gqeberha',
+    'somerset west': 'Somerset West',
+    'gordons bay': "Gordon's Bay",
+    'gordon\'s bay': "Gordon's Bay",
+    'betty\'s bay': "Betty's Bay",
+    'betty bay': "Betty's Bay",
+    'strand': 'Strand',
+    'somerset': 'Somerset West',
+    'parl': 'Paarl',
+    'j-bay': 'Jeffreys Bay',
+    'jbay': 'Jeffreys Bay',
+    'jeffery\'s bay': 'Jeffreys Bay',
+    'jefferys bay': 'Jeffreys Bay',
+    'plett': 'Plettenberg Bay',
+    'p-town': 'Pretoria',
+    'ct': 'Cape Town',
+    'durbs': 'Durban',
+    'stellies': 'Stellenbosch',
+    'franshhoek': 'Franschhoek',
+  };
+  
+  let cleaned = value.trim().replace(/\s+/g, ' ');
+  
+  // Check for known corrections (case insensitive)
+  const lower = cleaned.toLowerCase();
+  for (const [key, correction] of Object.entries(corrections)) {
+    if (lower === key || lower.includes(key)) {
+      cleaned = correction;
+      break;
+    }
+  }
+  
+  // Capitalize first letter of each word (smart capitalization)
+  cleaned = cleaned.replace(/\b\w/g, (char, index) => {
+    // Don't capitalize after a period or apostrophe
+    if (index > 0 && (cleaned[index - 1] === '.' || cleaned[index - 1] === "'")) return char;
+    return char.toUpperCase();
+  });
+  
+  return cleaned;
+};
+
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
   const { t, language } = useTranslation();
   
@@ -1373,7 +1443,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="city" message={t('error_city_required')} />
                   </div>
 
-                  {/* ✅ UPDATED: Arriving From - Where did you sleep last night? */}
+                  {/* ✅ UPDATED: Arriving From with auto-correct */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       Arriving From <span className="text-red-500">*</span>
@@ -1382,10 +1452,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       required 
                       type="text" 
                       placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
-                      className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('arrivingFrom', !!formData.arrivingFrom.trim())}`}
+                      className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors uppercase ${getErrorClass('arrivingFrom', !!formData.arrivingFrom.trim())}`}
                       value={formData.arrivingFrom} 
                       onFocus={() => markTouched('arrivingFrom')}
-                      onChange={e => setFormData({...formData, arrivingFrom: e.target.value})} 
+                      onChange={e => {
+                        const cleaned = cleanLocation(e.target.value);
+                        setFormData({...formData, arrivingFrom: cleaned});
+                      }} 
                     />
                     <p className="text-xs text-stone-400">
                       🏨 Tell us the last city/town where you stayed before arriving here
@@ -1456,7 +1529,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="referral" message={t('error_referral_required')} />
                   </div>
 
-                  {/* Next Destination - Existing field */}
+                  {/* ✅ UPDATED: Next Destination with auto-correct */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       {t('checkin_next_destination')} <span className="text-red-500">*</span>
@@ -1465,10 +1538,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       required 
                       type="text" 
                       placeholder={t('checkin_next_destination_placeholder')}
-                      className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
+                      className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors uppercase ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
                       value={formData.nextDestination} 
                       onFocus={() => markTouched('nextDestination')}
-                      onChange={e => setFormData({...formData, nextDestination: e.target.value})} 
+                      onChange={e => {
+                        const cleaned = cleanLocation(e.target.value);
+                        setFormData({...formData, nextDestination: cleaned});
+                      }} 
                     />
                     <ErrorMessage field="nextDestination" message={t('error_next_destination_required')} />
                   </div>
