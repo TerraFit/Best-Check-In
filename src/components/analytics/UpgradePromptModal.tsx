@@ -184,3 +184,5 @@ export function UpgradePromptModal({
     </div>
   );
 }
+
+export default UpgradePromptModal;
