@@ -446,29 +446,28 @@ export function ReportsTab() {
       </div>
 
       {/* Guest Origins & Referral Sources */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GuestOriginsChart
-          bookings={dataSource.bookings}
-          chartType={guestChartType}
-          onChartTypeChange={setGuestChartType}
-        />
-        <ReferralSourcesChart
-          bookings={dataSource.bookings}
-          chartType={referralChartType}
-          onChartTypeChange={setReferralChartType}
-        />
-      </div>
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <GuestOriginsChart
+    bookings={props.bookings || []}
+    chartType={guestChartType}
+    onChartTypeChange={setGuestChartType}
+  />
+  <ReferralSourcesChart
+    bookings={props.bookings || []}
+    chartType={referralChartType}
+    onChartTypeChange={setReferralChartType}
+  />
+</div>
 
-      {/* Travel Patterns & Length of Stay */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <TravelPatternsCard
-          arrivingFrom={travelData.arrivingFrom}
-          goingTo={travelData.goingTo}
-          isLoading={dataSource.isLoading}
-          title="Guest Travel Patterns"
-        />
-        <LengthOfStayChart bookings={dataSource.bookings} />
-      </div>
-    </div>
+{/* Travel Patterns & Length of Stay */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <TravelPatternsCard
+    arrivingFrom={travelData.arrivingFrom}
+    goingTo={travelData.goingTo}
+    isLoading={dataSource.isLoading}
+    title="Guest Travel Patterns"
+  />
+  <LengthOfStayChart bookings={props.bookings || []} />
+</div>
   );
 }
