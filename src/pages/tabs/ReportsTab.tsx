@@ -203,6 +203,8 @@ export function ReportsTab() {
         nights: raw.nights || 0,
         settlementMethod: raw.settlement_method || raw.settlementMethod || 'Cash',
         referralSource: raw.referral_source || raw.referralSource || 'Google',
+        booking_source: raw.booking_source || '',     // ← For ReferralSourcesChart
+        referral_source: raw.referral_source || '',   // ← For ReferralSourcesChart
         guests: raw.guests || 1,
         adults: raw.adults || 1,
         kids: raw.kids || 0,
