@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { 
   transformBookingsToVisitorOrigins, 
@@ -137,6 +137,14 @@ const MOCK_BOOKINGS: Booking[] = [
 // ============================================================
 // 📊 REPORTS TAB COMPONENT
 // ============================================================
+
+// ✅ 1. Parent props for real integration
+interface ReportsTabProps {
+  initialBookings?: Booking[];
+  onDataChange?: (bookings: Booking[]) => void;
+  initialTier?: SubscriptionTier;
+}
+
 interface DataSourceState {
   type: 'mock' | 'live';
   bookings: Booking[];
@@ -152,21 +160,121 @@ const TIER_LABELS: Record<SubscriptionTier, string> = {
   business: 'Business'
 };
 
-export function ReportsTab() {
+// ✅ 2. Custom hook for analytics (optional - for future use)
+// This can be extended to fetch real analytics data
+const useAnalytics = (bookings: Booking[], tier: SubscriptionTier) => {
+  const analyticsData = useMemo(() => {
+    const total = bookings.length;
+    if (total === 0) {
+      return {
+        totalBookings: 0,
+        uniqueCountries: 0,
+        averageNights: 0,
+        totalRevenue: 0,
+        topCountries: [],
+        referralSources: [],
+        monthlyTrends: []
+      };
+    }
+
+    const countryMap = new Map<string, number>();
+    const referralMap = new Map<string, number>();
+    const monthlyMap = new Map<string, number>();
+    let totalNights = 0;
+    let totalRevenue = 0;
+
+    bookings.forEach(b => {
+      const country = b.country || 'Unknown';
+      countryMap.set(country, (countryMap.get(country) || 0) + 1);
+      
+      const referral = b.referralSource || b.referral_source || 'Unknown';
+      referralMap.set(referral, (referralMap.get(referral) || 0) + 1);
+      
+      const month = b.month || new Date(b.checkInDate || '').toLocaleString('default', { month: 'short' });
+      if (month) {
+        monthlyMap.set(month, (monthlyMap.get(month) || 0) + 1);
+      }
+      
+      totalNights += b.nights || 0;
+      totalRevenue += b.totalAmount || 0;
+    });
+
+    const topCountries = Array.from(countryMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([country, count]) => ({ country, count }));
+
+    const referralSources = Array.from(referralMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([source, count]) => ({ source, count }));
+
+    const monthlyTrends = Array.from(monthlyMap.entries())
+      .sort((a, b) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months.indexOf(a[0]) - months.indexOf(b[0]);
+      })
+      .map(([month, count]) => ({ month, count }));
+
+    return {
+      totalBookings: total,
+      uniqueCountries: countryMap.size,
+      averageNights: totalNights / total,
+      totalRevenue,
+      topCountries,
+      referralSources,
+      monthlyTrends
+    };
+  }, [bookings]);
+
+  const limits: SubscriptionLimits = useMemo(() => {
+    const maxDrillLevelMap: Record<SubscriptionTier, SubscriptionLimits['maxDrillLevel']> = {
+      starter: 'continents',
+      growth: 'countries',
+      pro: 'regions',
+      business: 'cities'
+    };
+
+    return {
+      subscriptionTier: tier,
+      canViewCountries: tier !== 'starter',
+      canViewRegions: ['pro', 'business'].includes(tier),
+      canViewCities: tier === 'business',
+      maxDrillLevel: maxDrillLevelMap[tier],
+    };
+  }, [tier]);
+
+  return { analyticsData, limits };
+};
+
+export function ReportsTab({ 
+  initialBookings, 
+  onDataChange,
+  initialTier = 'pro'
+}: ReportsTabProps = {}) {
   // ============================================================
   // STATE MANAGEMENT
   // ============================================================
-  const [activeTier, setActiveTier] = useState<SubscriptionTier>('pro');
+  const [activeTier, setActiveTier] = useState<SubscriptionTier>(initialTier);
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
   const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
   
   const [dataSource, setDataSource] = useState<DataSourceState>({
     type: 'mock',
-    bookings: MOCK_BOOKINGS,
+    bookings: initialBookings || MOCK_BOOKINGS,
     isLoading: false,
     error: null,
     lastUpdated: new Date()
   });
+
+  // ============================================================
+  // 🔄 CALLBACK WHEN DATA CHANGES
+  // ============================================================
+  useEffect(() => {
+    if (onDataChange && dataSource.bookings.length > 0) {
+      onDataChange(dataSource.bookings);
+    }
+  }, [dataSource.bookings, onDataChange]);
 
   // ============================================================
   // 🔄 FETCH LIVE DATA
@@ -177,12 +285,28 @@ export function ReportsTab() {
     try {
       // 🔥 REPLACE WITH YOUR ACTUAL SUPABASE CLIENT
       const supabase = (window as any).supabase;
+      if (!supabase) {
+        throw new Error('Supabase client not found. Please initialize Supabase.');
+      }
+      
       const { data, error } = await supabase
         .from('business_bookings')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        // If no live data, fall back to mock data
+        setDataSource({
+          type: 'mock',
+          bookings: MOCK_BOOKINGS,
+          isLoading: false,
+          error: 'No live data found. Using mock data.',
+          lastUpdated: new Date()
+        });
+        return;
+      }
       
       const bookings = data.map((raw: any) => ({
         id: raw.id || raw.booking_id,
@@ -228,11 +352,14 @@ export function ReportsTab() {
       
     } catch (err) {
       console.error('Failed to fetch live bookings:', err);
-      setDataSource(prev => ({
-        ...prev,
+      // Fall back to mock data on error
+      setDataSource({
+        type: 'mock',
+        bookings: MOCK_BOOKINGS,
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Failed to load live data'
-      }));
+        error: err instanceof Error ? err.message : 'Failed to load live data. Using mock data.',
+        lastUpdated: new Date()
+      });
     }
   }, []);
 
@@ -242,23 +369,28 @@ export function ReportsTab() {
   const switchToMockData = useCallback(() => {
     setDataSource({
       type: 'mock',
-      bookings: MOCK_BOOKINGS,
+      bookings: initialBookings || MOCK_BOOKINGS,
       isLoading: false,
       error: null,
       lastUpdated: new Date()
     });
-  }, []);
+  }, [initialBookings]);
 
   const switchToLiveData = useCallback(async () => {
     await fetchLiveBookings();
   }, [fetchLiveBookings]);
 
   // ============================================================
-  // 📊 TRANSFORM DATA
+  // ✅ 3. MEMOIZED TRANSFORMED DATA
   // ============================================================
   const adaptedVisitors = useMemo(() => {
     return transformBookingsToVisitorOrigins(dataSource.bookings);
   }, [dataSource.bookings]);
+
+  // ============================================================
+  // ✅ 2. USE ANALYTICS HOOK
+  // ============================================================
+  const { analyticsData, limits } = useAnalytics(dataSource.bookings, activeTier);
 
   // ============================================================
   // 📈 TRAVEL PATTERNS DATA - SEPARATE SOURCES
@@ -309,26 +441,6 @@ export function ReportsTab() {
   }, [dataSource.bookings]);
 
   // ============================================================
-  // 🎯 TIER LIMITS
-  // ============================================================
-  const limits: SubscriptionLimits = useMemo(() => {
-    const maxDrillLevelMap: Record<SubscriptionTier, SubscriptionLimits['maxDrillLevel']> = {
-      starter: 'continents',
-      growth: 'countries',
-      pro: 'regions',
-      business: 'cities'
-    };
-
-    return {
-      subscriptionTier: activeTier,
-      canViewCountries: activeTier !== 'starter',
-      canViewRegions: ['pro', 'business'].includes(activeTier),
-      canViewCities: activeTier === 'business',
-      maxDrillLevel: maxDrillLevelMap[activeTier],
-    };
-  }, [activeTier]);
-
-  // ============================================================
   // 📈 STATISTICS
   // ============================================================
   const stats = useMemo(() => {
@@ -344,7 +456,6 @@ export function ReportsTab() {
     });
     
     const uniqueCountries = countryMap.size;
-    const totalRevenue = dataSource.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
     
     // Count QR code scans (assuming guests with QR code check-in)
     const qrCount = dataSource.bookings.filter(b => 
@@ -408,6 +519,11 @@ export function ReportsTab() {
               {dataSource.error}
             </span>
           )}
+          {dataSource.lastUpdated && (
+            <span className="text-xs text-stone-400">
+              Updated: {dataSource.lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
         </div>
       </div>
 
@@ -416,10 +532,20 @@ export function ReportsTab() {
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Check-Ins</p>
           <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          {analyticsData.totalBookings > 0 && (
+            <p className="text-xs text-green-600 mt-1">
+              {analyticsData.totalBookings} total bookings
+            </p>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">Unique Countries</p>
           <p className="text-2xl font-bold text-gray-900">{stats.countryCount}</p>
+          {analyticsData.uniqueCountries > 0 && (
+            <p className="text-xs text-green-600 mt-1">
+              {analyticsData.uniqueCountries} countries
+            </p>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">QR Code Scan</p>
@@ -430,6 +556,11 @@ export function ReportsTab() {
           <p className="text-2xl font-bold text-gray-900">
             R{dataSource.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
           </p>
+          {analyticsData.totalRevenue > 0 && (
+            <p className="text-xs text-green-600 mt-1">
+              Avg: R{(analyticsData.totalRevenue / analyticsData.totalBookings || 0).toFixed(0)}
+            </p>
+          )}
         </div>
       </div>
 
