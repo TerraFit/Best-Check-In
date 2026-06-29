@@ -71,5 +71,55 @@ export const handler = async (event) => {
     // Generate CSV or XLSX
     let contentType;
     let fileData;
+    let filename;
 
-    if (format
+    if (format === 'csv') {
+      contentType = 'text/csv';
+      const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
+      const rows = contacts.map(c => [
+        `"${c.firstName}"`,
+        `"${c.lastName}"`,
+        `"${c.email}"`,
+        `"${c.phone}"`,
+        `"${c.country}"`
+      ]);
+      fileData = [headers, ...rows].map(row => row.join(',')).join('\n');
+      filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      // XLSX format - using simple CSV for now, but you can add xlsx library
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      // Simple fallback to CSV if xlsx not installed
+      const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
+      const rows = contacts.map(c => [
+        `"${c.firstName}"`,
+        `"${c.lastName}"`,
+        `"${c.email}"`,
+        `"${c.phone}"`,
+        `"${c.country}"`
+      ]);
+      fileData = [headers, ...rows].map(row => row.join(',')).join('\n');
+      filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
+    }
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...headers,
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`
+      },
+      body: fileData
+    };
+
+  } catch (error) {
+    console.error('Export error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Export failed', 
+        details: error.message 
+      })
+    };
+  }
+};
