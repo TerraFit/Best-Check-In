@@ -72,20 +72,17 @@ export const handler = async (event) => {
     // Calculate offset for pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // Select fields (exclude large base64 fields)
-    const selectFields = 'id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_id_number,check_in_date,check_out_date,nights,adults,children,total_amount,status,guest_province,guest_city,guest_country,booking_source,referral_source,marketing_consent,created_at,updated_at';
+    // ✅ FIX: Add arriving_from and next_destination to select fields
+    const selectFields = 'id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_id_number,check_in_date,check_out_date,nights,adults,children,total_amount,status,guest_province,guest_city,guest_country,booking_source,referral_source,marketing_consent,arriving_from,next_destination,created_at,updated_at';
     
     // Build the base URL
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
-    // CRITICAL FIX: Apply date filters correctly
+    // Apply date filters
     if (startDate && endDate) {
-      // Both start and end dates provided (custom range)
       url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
       console.log(`📅 Custom date range: ${startDate} to ${endDate}`);
     } else if (startDate && !endDate) {
-      // Only start date provided (preset like "Last 7 days", "Last 30 days", etc.)
-      // Use gte (greater than or equal to) for start date
       url += `&check_in_date=gte.${startDate}`;
       console.log(`📅 Start date filter: check_in_date >= ${startDate}`);
     } else {
@@ -110,10 +107,16 @@ export const handler = async (event) => {
     const bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // Get total count for pagination (respecting date filters)
+    // Debug log to verify fields
+    if (bookings.length > 0) {
+      console.log(`🔍 First booking fields:`, Object.keys(bookings[0]));
+      console.log(`🔍 arriving_from:`, bookings.map(b => b.arriving_from));
+      console.log(`🔍 next_destination:`, bookings.map(b => b.next_destination));
+    }
+
+    // Get total count for pagination
     let countUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=id`;
     
-    // Apply SAME date filters to count query
     if (startDate && endDate) {
       countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
     } else if (startDate && !endDate) {
@@ -134,12 +137,7 @@ export const handler = async (event) => {
 
     console.log(`📊 Total bookings matching filter: ${totalBookings}, Total pages: ${totalPages}`);
 
-    // DEBUG: Log first few bookings to verify date filtering
-    if (bookings.length > 0) {
-      console.log(`🔍 Sample booking dates:`, bookings.slice(0, 5).map(b => b.check_in_date));
-    }
-
-    // Calculate today's activity (for dashboard overview)
+    // Calculate today's activity
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
