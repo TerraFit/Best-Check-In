@@ -1,5 +1,5 @@
 // src/pages/tabs/CheckinsTab.tsx
-// ✅ ORANGE for OFF, GREEN for ON - Clear visual state distinction
+// ✅ MARKETING CONSENTS TOGGLE - Moved left next to label, soft 3D styling
 
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
@@ -124,102 +124,97 @@ export function CheckinsTab(props: CheckinsTabProps) {
       />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {/* ✅ ORANGE OFF / GREEN ON TOGGLE */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          {/* Main Pill Container */}
+        {/* ✅ MARKETING CONSENTS TOGGLE - Left aligned, soft 3D */}
+        <div className="px-6 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div 
-            className="flex items-center rounded-full px-6 py-3"
+            className="flex items-center gap-4 rounded-full px-4 py-2"
             style={{
-              backgroundColor: '#F3F3F3',
-              border: '2px solid #7A7A7A',
-              minHeight: '72px',
+              backgroundColor: '#F5F5F5',
+              border: '1px solid #E5E7EB',
+              minHeight: '52px',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
             }}
           >
-            {/* Left Side - Label */}
+            {/* ✅ Label + Toggle - Grouped together on the left */}
             <div className="flex items-center gap-3 flex-shrink-0">
-              <Mail size={28} className="text-[#4A4A4A]" strokeWidth={1.5} />
+              <Mail size={20} className="text-[#4A4A4A]" strokeWidth={1.5} />
               <span 
                 className="font-bold text-[#4A4A4A] whitespace-nowrap"
                 style={{
-                  fontSize: 'clamp(16px, 1.4vw, 24px)',
+                  fontSize: 'clamp(13px, 1.1vw, 18px)',
                   fontWeight: 700,
                   fontFamily: 'sans-serif',
                 }}
               >
                 Marketing Consents
               </span>
-            </div>
 
-            {/* Spacer */}
-            <div className="flex-1 min-w-[32px]" />
-
-            {/* ✅ Segmented Switch - ORANGE when OFF, GREEN when ON */}
-            <div 
-              className="relative flex items-center rounded-full cursor-pointer transition-all duration-300 flex-shrink-0"
-              style={{
-                width: '180px',
-                height: '44px',
-                backgroundColor: showMarketingConsentOnly ? '#BDBDBD' : '#BDBDBD',
-                borderRadius: '999px',
-                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
-              }}
-              onClick={() => handleToggle(!showMarketingConsentOnly)}
-            >
-              {/* ✅ Active Segment - ORANGE for OFF, GREEN for ON */}
+              {/* ✅ Segmented Switch - Next to label, soft 3D */}
               <div 
-                className="absolute top-0 bottom-0 rounded-full transition-all duration-300 ease-in-out"
+                className="relative flex items-center rounded-full cursor-pointer transition-all duration-300 flex-shrink-0"
                 style={{
-                  width: showMarketingConsentOnly ? 'calc(50% + 6px)' : 'calc(50% - 6px)',
-                  left: showMarketingConsentOnly ? 'calc(50% - 6px)' : '0',
-                  // ✅ ORANGE when OFF, GREEN when ON
-                  backgroundColor: showMarketingConsentOnly ? '#00FF00' : '#FF7A00',
+                  width: '140px',
+                  height: '34px',
+                  backgroundColor: '#E8E8E8',
                   borderRadius: '999px',
-                  boxShadow: showMarketingConsentOnly 
-                    ? '0 2px 10px rgba(0, 255, 0, 0.25), inset 0 1px 2px rgba(255,255,255,0.3)'
-                    : '0 2px 10px rgba(255, 122, 0, 0.25), inset 0 1px 2px rgba(255,255,255,0.3)',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.02)',
+                  border: '1px solid #E5E7EB',
                 }}
-              />
-
-              {/* OFF Label - Left side */}
-              <span 
-                className={`absolute left-4 text-sm font-bold transition-colors duration-300 z-10 ${
-                  !showMarketingConsentOnly ? 'text-white' : 'text-black/40'
-                }`}
-                style={{
-                  fontSize: 'clamp(11px, 0.8vw, 14px)',
-                  fontWeight: 700,
-                }}
+                onClick={() => handleToggle(!showMarketingConsentOnly)}
               >
-                OFF
-              </span>
+                {/* Active Segment - ORANGE for OFF, GREEN for ON */}
+                <div 
+                  className="absolute top-[2px] bottom-[2px] rounded-full transition-all duration-300 ease-in-out"
+                  style={{
+                    width: showMarketingConsentOnly ? 'calc(50% + 4px)' : 'calc(50% - 4px)',
+                    left: showMarketingConsentOnly ? 'calc(50% - 4px)' : '2px',
+                    backgroundColor: showMarketingConsentOnly ? '#22c55e' : '#f97316',
+                    borderRadius: '999px',
+                    boxShadow: showMarketingConsentOnly 
+                      ? '0 2px 8px rgba(34, 197, 94, 0.2), inset 0 1px 2px rgba(255,255,255,0.4)'
+                      : '0 2px 8px rgba(249, 115, 22, 0.2), inset 0 1px 2px rgba(255,255,255,0.4)',
+                  }}
+                />
 
-              {/* ON Label - Right side */}
-              <span 
-                className={`absolute right-4 text-sm font-bold transition-colors duration-300 z-10 ${
-                  showMarketingConsentOnly ? 'text-white' : 'text-black/40'
-                }`}
-                style={{
-                  fontSize: 'clamp(11px, 0.8vw, 14px)',
-                  fontWeight: 700,
-                }}
-              >
-                ON
-              </span>
+                {/* OFF Label - Left side */}
+                <span 
+                  className={`absolute left-3 text-xs font-bold transition-colors duration-300 z-10 ${
+                    !showMarketingConsentOnly ? 'text-white' : 'text-black/40'
+                  }`}
+                  style={{
+                    fontSize: 'clamp(9px, 0.6vw, 12px)',
+                    fontWeight: 700,
+                  }}
+                >
+                  OFF
+                </span>
+
+                {/* ON Label - Right side */}
+                <span 
+                  className={`absolute right-3 text-xs font-bold transition-colors duration-300 z-10 ${
+                    showMarketingConsentOnly ? 'text-white' : 'text-black/40'
+                  }`}
+                  style={{
+                    fontSize: 'clamp(9px, 0.6vw, 12px)',
+                    fontWeight: 700,
+                  }}
+                >
+                  ON
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Status indicator */}
-          <div className="flex justify-end mt-2">
-            {showMarketingConsentOnly && (
-              <span className="text-xs text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200 font-medium">
-                ✉️ {displayBookings.length} consented
+            {/* Right side - Count */}
+            <div className="flex-1 flex justify-end items-center gap-3">
+              <span className="text-xs text-gray-400">
+                {displayTotal.toLocaleString()} total
               </span>
-            )}
-            {!showMarketingConsentOnly && (
-              <span className="text-xs text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 font-medium">
-                Showing all check-ins
-              </span>
-            )}
+              {showMarketingConsentOnly && (
+                <span className="text-xs text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200 font-medium">
+                  ✉️ {displayBookings.length} consented
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
