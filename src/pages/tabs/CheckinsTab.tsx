@@ -1,6 +1,9 @@
-// src/pages/tabs/CheckinsTab.tsx - CORRECT VERSION (Container only)
-
+// src/pages/tabs/CheckinsTab.tsx - FULL VERSION WITH EXPORT FUNCTIONALITY
+import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
+import MarketingExportModal from '../../components/export/MarketingExportModal';
+import OfficialRegisterExportModal from '../../components/export/OfficialRegisterExportModal';
+import { Download, Shield, Users } from 'lucide-react';
 
 interface CheckinsTabProps {
   bookings: any[];
@@ -20,14 +23,53 @@ interface CheckinsTabProps {
   uniqueCountries: string[];
   getStatusBadge: (status: string) => string;
   isLoading: boolean;
+  businessId: string;
+  businessName: string;
 }
 
 export function CheckinsTab(props: CheckinsTabProps) {
+  const [showMarketingExport, setShowMarketingExport] = useState(false);
+  const [showOfficialExport, setShowOfficialExport] = useState(false);
+  
   const startRange = props.filteredBookings.length > 0 ? (props.currentPage - 1) * props.pageSize + 1 : 0;
   const endRange = Math.min(props.currentPage * props.pageSize, props.totalBookings);
 
   return (
     <div className="space-y-6">
+      {/* Export Buttons Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-sm border border-stone-200 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-stone-400" />
+          <span className="text-sm font-medium text-stone-600">
+            {props.totalBookings.toLocaleString()} check-ins
+          </span>
+          {props.filters && (
+            <span className="text-xs text-stone-400">
+              (showing {props.filteredBookings.length})
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {/* Marketing Export */}
+          <button
+            onClick={() => setShowMarketingExport(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+          >
+            <Download size={14} />
+            Marketing Contacts
+          </button>
+          
+          {/* Official Register Export */}
+          <button
+            onClick={() => setShowOfficialExport(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+          >
+            <Shield size={14} />
+            Official Register
+          </button>
+        </div>
+      </div>
+
       <FiltersBar
         filters={props.filters}
         updateFilter={props.onUpdateFilter}
@@ -156,6 +198,25 @@ export function CheckinsTab(props: CheckinsTabProps) {
           </div>
         </div>
       </div>
+
+      {/* Export Modals */}
+      <MarketingExportModal
+        isOpen={showMarketingExport}
+        onClose={() => setShowMarketingExport(false)}
+        businessId={props.businessId}
+        defaultFilters={{
+          marketingConsent: 'subscribed',
+          dateFrom: props.filters?.startDate,
+          dateTo: props.filters?.endDate
+        }}
+      />
+
+      <OfficialRegisterExportModal
+        isOpen={showOfficialExport}
+        onClose={() => setShowOfficialExport(false)}
+        businessId={props.businessId}
+        businessName={props.businessName}
+      />
     </div>
   );
 }
