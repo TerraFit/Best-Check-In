@@ -1,4 +1,6 @@
 // src/i18n/languageService.ts
+// ✅ COMPLETE REWRITE - All languages, custom order
+
 import type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
 import enTranslations from './translations/en.json';
 import afTranslations from './translations/af.json';
@@ -29,26 +31,28 @@ const translationMap: Record<SupportedLanguage, Translation> = {
   it: itTranslations as Translation
 };
 
-// Language options for selector
+// ✅ LANGUAGE OPTIONS - Custom order: English, Afrikaans, German, French, Italian, Portuguese, Spanish, Dutch, Russian, Arabic, Chinese, Hebrew
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
+  // Primary languages (in your specified order)
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
   { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' },
   { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
-  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  // Remaining languages
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
   { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' }
 ];
 
 // Storage key for user preference
 const LANGUAGE_STORAGE_KEY = 'fastcheckin_preferred_language';
 
-// Current language state (singleton for non-React contexts)
+// Current language state
 let currentLanguage: SupportedLanguage = 'en';
 let languageChangeCallbacks: Set<(lang: SupportedLanguage) => void> = new Set();
 let isInitialized = false;
@@ -57,19 +61,22 @@ let isInitialized = false;
 export const detectBrowserLanguage = (): SupportedLanguage => {
   const browserLang = navigator.language.split('-')[0].toLowerCase();
   
-  if (browserLang === 'af') return 'af';
-  if (browserLang === 'de') return 'de';
-  if (browserLang === 'fr') return 'fr';
-  if (browserLang === 'nl') return 'nl';
-  if (browserLang === 'pt') return 'pt';
-  if (browserLang === 'es') return 'es';
-  if (browserLang === 'ru') return 'ru';
-  if (browserLang === 'zh') return 'zh';
-  if (browserLang === 'ar') return 'ar';
-  if (browserLang === 'he') return 'he';
-  if (browserLang === 'it') return 'it';
+  // Map browser language to supported language
+  const languageMap: Record<string, SupportedLanguage> = {
+    'af': 'af',
+    'de': 'de',
+    'fr': 'fr',
+    'nl': 'nl',
+    'pt': 'pt',
+    'es': 'es',
+    'ru': 'ru',
+    'zh': 'zh',
+    'ar': 'ar',
+    'he': 'he',
+    'it': 'it'
+  };
   
-  return 'en';
+  return languageMap[browserLang] || 'en';
 };
 
 // Load saved language preference
@@ -122,7 +129,7 @@ export const getCurrentLanguage = (): SupportedLanguage => {
   return currentLanguage;
 };
 
-// Subscribe to language changes (for React components)
+// Subscribe to language changes
 export const onLanguageChange = (callback: (lang: SupportedLanguage) => void): () => void => {
   languageChangeCallbacks.add(callback);
   return () => languageChangeCallbacks.delete(callback);
@@ -185,7 +192,7 @@ export const t = (key: keyof TranslationKeys, params?: Record<string, string | n
   return text;
 };
 
-// Get full translation object (for components that need nested access)
+// Get full translation object
 export const getTranslations = (): Translation => {
   return translationMap[currentLanguage] || translationMap.en;
 };
