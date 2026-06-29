@@ -1,9 +1,11 @@
-// src/pages/tabs/CheckinsTab.tsx - FULL VERSION WITH EXPORT FUNCTIONALITY
+// src/pages/tabs/CheckinsTab.tsx
+// ✅ FULL VERSION WITH MARKETING CONSENT TOGGLE
+
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
 import MarketingExportModal from '../../components/export/MarketingExportModal';
 import OfficialRegisterExportModal from '../../components/export/OfficialRegisterExportModal';
-import { Download, Shield, Users } from 'lucide-react';
+import { Download, Shield, Users, Mail } from 'lucide-react';
 
 interface CheckinsTabProps {
   bookings: any[];
@@ -30,25 +32,55 @@ interface CheckinsTabProps {
 export function CheckinsTab(props: CheckinsTabProps) {
   const [showMarketingExport, setShowMarketingExport] = useState(false);
   const [showOfficialExport, setShowOfficialExport] = useState(false);
+  const [showMarketingConsentOnly, setShowMarketingConsentOnly] = useState(false);
   
-  const startRange = props.filteredBookings.length > 0 ? (props.currentPage - 1) * props.pageSize + 1 : 0;
-  const endRange = Math.min(props.currentPage * props.pageSize, props.totalBookings);
+  // Filter bookings by marketing consent when toggle is on
+  const displayBookings = showMarketingConsentOnly
+    ? props.filteredBookings.filter(b => b.marketing_consent === true)
+    : props.filteredBookings;
+
+  const displayTotal = showMarketingConsentOnly
+    ? displayBookings.length
+    : props.totalBookings;
+
+  const displayPages = showMarketingConsentOnly
+    ? Math.ceil(displayBookings.length / props.pageSize)
+    : props.totalPages;
+
+  const startRange = displayBookings.length > 0 ? (props.currentPage - 1) * props.pageSize + 1 : 0;
+  const endRange = Math.min(props.currentPage * props.pageSize, displayTotal);
 
   return (
     <div className="space-y-6">
-      {/* Export Buttons Bar */}
+      {/* Export Buttons Bar with Marketing Consent Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-sm border border-stone-200 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Users size={18} className="text-stone-400" />
-          <span className="text-sm font-medium text-stone-600">
-            {props.totalBookings.toLocaleString()} check-ins
-          </span>
-          {props.filters && (
-            <span className="text-xs text-stone-400">
-              (showing {props.filteredBookings.length})
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-stone-400" />
+            <span className="text-sm font-medium text-stone-600">
+              {displayTotal.toLocaleString()} check-ins
             </span>
-          )}
+            {props.filters && (
+              <span className="text-xs text-stone-400">
+                (showing {displayBookings.length})
+              </span>
+            )}
+          </div>
+          
+          {/* ✅ Marketing Consent Toggle */}
+          <button
+            onClick={() => setShowMarketingConsentOnly(!showMarketingConsentOnly)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showMarketingConsentOnly
+                ? 'bg-green-100 text-green-700 border border-green-300'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+          >
+            <Mail size={14} />
+            {showMarketingConsentOnly ? '✅ Marketing Consents' : 'All Check-ins'}
+          </button>
         </div>
+        
         <div className="flex gap-2">
           {/* Marketing Export */}
           <button
@@ -82,49 +114,58 @@ export function CheckinsTab(props: CheckinsTabProps) {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">All Check-ins</h3>
+          <h3 className="text-lg font-semibold text-gray-900">
+            {showMarketingConsentOnly ? 'Marketing Consents' : 'All Check-ins'}
+            {showMarketingConsentOnly && (
+              <span className="ml-2 text-sm font-normal text-green-600">
+                ({displayBookings.length} guests with marketing consent)
+              </span>
+            )}
+          </h3>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
-              Total: <span className="font-semibold text-gray-900">{props.totalBookings.toLocaleString()}</span> check-ins
+              Total: <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span> check-ins
             </span>
             <PageSizeSelector pageSize={props.pageSize} onPageSizeChange={props.onPageSizeChange} />
           </div>
         </div>
 
-        {props.filteredBookings.length === 0 && props.bookings.length === 0 ? (
+        {displayBookings.length === 0 && props.bookings.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-400">Loading bookings...</p>
           </div>
-        ) : props.filteredBookings.length === 0 && props.bookings.length > 0 ? (
+        ) : displayBookings.length === 0 && props.bookings.length > 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400">No check-ins match your filters</p>
+            <p className="text-gray-400">
+              {showMarketingConsentOnly 
+                ? 'No guests with marketing consent match your filters'
+                : 'No check-ins match your filters'}
+            </p>
             <button onClick={props.onClearFilters} className="mt-2 text-sm text-orange-600 hover:text-orange-700">
               Clear all filters
             </button>
           </div>
         ) : (
           <CheckinsTable
-            bookings={props.filteredBookings}
+            bookings={displayBookings}
             loading={props.isLoading}
             getStatusBadge={props.getStatusBadge}
           />
         )}
 
-        {/* Enhanced Pagination Footer */}
+        {/* Pagination Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            {/* Left side - Range info */}
             <div className="text-sm text-gray-600">
               Showing{' '}
               <span className="font-medium text-gray-900">{startRange}</span>
               {' '}to{' '}
               <span className="font-medium text-gray-900">{endRange}</span>
               {' '}of{' '}
-              <span className="font-semibold text-gray-900">{props.totalBookings.toLocaleString()}</span>
+              <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span>
               {' '}check-ins
             </div>
 
-            {/* Right side - Pagination controls */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <button
@@ -152,12 +193,12 @@ export function CheckinsTab(props: CheckinsTabProps) {
                   Page{' '}
                   <span className="font-medium text-gray-900">{props.currentPage}</span>
                   {' '}of{' '}
-                  <span className="font-medium text-gray-900">{props.totalPages}</span>
+                  <span className="font-medium text-gray-900">{displayPages}</span>
                 </span>
                 
                 <button
-                  onClick={() => props.onPageChange(Math.min(props.totalPages, props.currentPage + 1))}
-                  disabled={props.currentPage === props.totalPages}
+                  onClick={() => props.onPageChange(Math.min(displayPages, props.currentPage + 1))}
+                  disabled={props.currentPage === displayPages}
                   className="p-1.5 rounded-md text-gray-500 hover:text-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Next page"
                 >
@@ -166,8 +207,8 @@ export function CheckinsTab(props: CheckinsTabProps) {
                   </svg>
                 </button>
                 <button
-                  onClick={() => props.onPageChange(props.totalPages)}
-                  disabled={props.currentPage === props.totalPages}
+                  onClick={() => props.onPageChange(displayPages)}
+                  disabled={props.currentPage === displayPages}
                   className="p-1.5 rounded-md text-gray-500 hover:text-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Last page"
                 >
@@ -177,17 +218,16 @@ export function CheckinsTab(props: CheckinsTabProps) {
                 </button>
               </div>
 
-              {/* Go to page input */}
               <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300">
                 <span className="text-sm text-gray-500">Go to:</span>
                 <input
                   type="number"
                   min={1}
-                  max={props.totalPages}
+                  max={displayPages}
                   value={props.currentPage}
                   onChange={(e) => {
                     const page = parseInt(e.target.value);
-                    if (!isNaN(page) && page >= 1 && page <= props.totalPages) {
+                    if (!isNaN(page) && page >= 1 && page <= displayPages) {
                       props.onPageChange(page);
                     }
                   }}
@@ -205,7 +245,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
         onClose={() => setShowMarketingExport(false)}
         businessId={props.businessId}
         defaultFilters={{
-          marketingConsent: 'subscribed',
+          marketingConsent: showMarketingConsentOnly ? 'subscribed' : 'all',
           dateFrom: props.filters?.startDate,
           dateTo: props.filters?.endDate
         }}
