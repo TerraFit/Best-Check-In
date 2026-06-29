@@ -1,8 +1,10 @@
 // src/components/export/OfficialRegisterExportModal.tsx
+// ✅ FULL VERSION WITH CANCEL BUTTON AT EVERY STEP
+
 import { useState } from 'react';
 import { ExportService } from '../../services/exportService';
 import { OfficialExportRequest } from '../../types/export';
-import { X, Download, Shield, AlertTriangle, Lock } from 'lucide-react';
+import { X, Download, Shield, AlertTriangle, Lock, ArrowLeft } from 'lucide-react';
 
 interface OfficialRegisterExportModalProps {
   isOpen: boolean;
@@ -30,7 +32,6 @@ export default function OfficialRegisterExportModal({
     dateFrom: '',
     dateTo: ''
   });
-  const [format, setFormat] = useState<'csv' | 'xlsx' | 'pdf'>('xlsx');
   const [password, setPassword] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -57,9 +58,9 @@ export default function OfficialRegisterExportModal({
         businessId,
         request,
         { password, acceptTerms },
-        format
+        'pdf' // Always PDF
       );
-      const filename = ExportService.getOfficialFilename(businessName, format);
+      const filename = ExportService.getOfficialFilename(businessName, 'pdf');
       ExportService.downloadBlob(blob, filename);
       onExportComplete?.();
       onClose();
@@ -97,12 +98,21 @@ export default function OfficialRegisterExportModal({
         </p>
       </div>
 
-      <button
-        onClick={() => setStep('details')}
-        className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-      >
-        Continue →
-      </button>
+      {/* ✅ Cancel and Continue buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={onClose}
+          className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => setStep('details')}
+          className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+        >
+          Continue →
+        </button>
+      </div>
     </div>
   );
 
@@ -226,34 +236,29 @@ export default function OfficialRegisterExportModal({
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Export Format
-          </label>
-          <div className="flex gap-3">
-            {['csv', 'xlsx', 'pdf'].map((fmt) => (
-              <button
-                key={fmt}
-                onClick={() => setFormat(fmt as any)}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                  format === fmt
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {fmt.toUpperCase()}
-              </button>
-            ))}
-          </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-700 flex items-center gap-2">
+            <span className="text-lg">📄</span>
+            Export format: <strong>PDF</strong> (with professional watermark)
+          </p>
         </div>
       </div>
 
-      <button
-        onClick={() => setStep('authorize')}
-        className="w-full mt-6 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-      >
-        Continue to Authorization →
-      </button>
+      {/* ✅ Cancel and Continue buttons */}
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={onClose}
+          className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => setStep('authorize')}
+          className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+        >
+          Continue to Authorization →
+        </button>
+      </div>
     </div>
   );
 
@@ -330,7 +335,7 @@ export default function OfficialRegisterExportModal({
               </>
             )}
             <span>Format:</span>
-            <span className="font-medium uppercase">{format}</span>
+            <span className="font-medium uppercase">PDF (Watermarked)</span>
           </div>
         </div>
       </div>
@@ -341,12 +346,13 @@ export default function OfficialRegisterExportModal({
         </div>
       )}
 
+      {/* ✅ Cancel and Export buttons */}
       <div className="mt-6 flex gap-3">
         <button
-          onClick={() => setStep('details')}
+          onClick={onClose}
           className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          Back
+          Cancel
         </button>
         <button
           onClick={handleExport}
@@ -358,7 +364,7 @@ export default function OfficialRegisterExportModal({
           ) : (
             <>
               <Download size={16} />
-              Export Sensitive Data
+              Export Sensitive Data (PDF)
             </>
           )}
         </button>
