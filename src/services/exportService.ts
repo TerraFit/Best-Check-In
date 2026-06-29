@@ -14,7 +14,10 @@ export class ExportService {
   ): Promise<Blob> {
     const response = await fetch(`${API_BASE}/export-marketing-contacts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('fastcheckin_token')}`
+      },
       body: JSON.stringify({ businessId, filters, format })
     });
 
@@ -37,7 +40,10 @@ export class ExportService {
   ): Promise<Blob> {
     const response = await fetch(`${API_BASE}/export-official-register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('fastcheckin_token')}`
+      },
       body: JSON.stringify({ businessId, request, authorization, format })
     });
 
@@ -53,15 +59,21 @@ export class ExportService {
    * Get export audit logs (SuperAdmin only)
    */
   static async getExportAuditLogs(
-    filters?: { businessId?: string; userId?: string; dateFrom?: string; dateTo?: string }
-  ): Promise<SensitiveExportAudit[]> {
+    filters?: { businessId?: string; userId?: string; dateFrom?: string; dateTo?: string; limit?: number; offset?: number }
+  ): Promise<{ data: SensitiveExportAudit[]; total: number }> {
     const params = new URLSearchParams();
     if (filters?.businessId) params.append('businessId', filters.businessId);
     if (filters?.userId) params.append('userId', filters.userId);
     if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
     if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.offset) params.append('offset', filters.offset.toString());
 
-    const response = await fetch(`${API_BASE}/get-export-audit-logs?${params.toString()}`);
+    const response = await fetch(`${API_BASE}/get-export-audit-logs?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('fastcheckin_token')}`
+      }
+    });
     
     if (!response.ok) {
       const error = await response.json();
@@ -99,6 +111,7 @@ export class ExportService {
   static getOfficialFilename(businessName: string, format: 'csv' | 'xlsx' | 'pdf'): string {
     const date = new Date().toISOString().split('T')[0];
     const slug = businessName.toLowerCase().replace(/\s+/g, '-');
-    return `official-register-${slug}-${date}.${format === 'csv' ? 'csv' : format === 'xlsx' ? 'xlsx' : 'pdf'}`;
+    const ext = format === 'csv' ? 'csv' : format === 'xlsx' ? 'xlsx' : 'pdf';
+    return `official-register-${slug}-${date}.${ext}`;
   }
 }
