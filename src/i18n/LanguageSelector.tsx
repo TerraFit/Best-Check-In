@@ -1,5 +1,5 @@
 // src/i18n/LanguageSelector.tsx
-// ✅ COMPLETE REWRITE - All languages, custom order, no overlap
+// ✅ Compact header variant - positioned below logout
 
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from './useTranslation';
@@ -62,9 +62,8 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     setShowDetectionToast(false);
   };
 
-  // ✅ CUSTOM ORDER: English, Afrikaans, German, French, Italian, Portuguese, Spanish, Dutch, Russian, Arabic, Chinese, Hebrew
+  // ✅ CUSTOM ORDER
   const sortedLanguages: LanguageOption[] = [
-    // Primary languages (in your specified order)
     { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
     { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' },
     { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
@@ -74,19 +73,18 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
     { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
     { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
-    // Remaining languages
     { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
     { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
     { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
   ];
 
-  // ✅ HEADER VARIANT - Top-right, compact, no overlap
+  // ✅ HEADER VARIANT - Compact, for below logout position
   if (variant === 'header') {
     return (
       <>
-        {/* Language Detection Toast - Positioned below the language selector */}
+        {/* Language Detection Toast */}
         {showDetectionToast && detectedLanguage && (
-          <div className="fixed top-14 right-4 z-[60] animate-slide-in-right max-w-[280px]">
+          <div className="fixed top-[88px] right-4 z-[60] animate-slide-in-right max-w-[280px]">
             <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3">
               <p className="text-xs text-gray-700">
                 {t('language_detected_message', { 
@@ -111,17 +109,17 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
           </div>
         )}
 
-        {/* Header Language Selector - Top-right, compact */}
+        {/* Header Language Selector - Compact */}
         <div ref={dropdownRef} className={`relative ${className}`}>
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
             aria-label={t('language_selector_title')}
           >
-            <span className="text-base">{currentOption?.flag}</span>
-            <span className="hidden sm:inline text-xs font-medium">{currentOption?.name}</span>
+            <span className="text-sm">{currentOption?.flag}</span>
+            <span className="hidden sm:inline text-[10px] font-medium">{currentOption?.name}</span>
             <svg 
-              className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              className={`w-2.5 h-2.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -131,7 +129,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
           </button>
 
           {isOpen && (
-            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[300px] overflow-y-auto">
+            <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[280px] overflow-y-auto">
               {sortedLanguages.map(option => (
                 <button
                   key={option.code}
@@ -140,7 +138,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
                     language === option.code ? 'bg-orange-50 text-orange-600' : 'text-gray-700'
                   }`}
                 >
-                  <span className="text-base">{option.flag}</span>
+                  <span className="text-sm">{option.flag}</span>
                   <span className="text-xs truncate">{option.nativeName}</span>
                   {language === option.code && (
                     <svg className="w-3 h-3 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,7 +154,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     );
   }
 
-  // ✅ FOOTER VARIANT - Bottom placement
+  // FOOTER VARIANT
   if (variant === 'footer') {
     return (
       <>
@@ -204,7 +202,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
           </button>
 
           {isOpen && (
-            <div className="absolute bottom-full left-0 mb-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[300px] overflow-y-auto">
+            <div className="absolute bottom-full left-0 mb-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[280px] overflow-y-auto">
               {sortedLanguages.map(option => (
                 <button
                   key={option.code}
@@ -213,7 +211,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
                     language === option.code ? 'bg-orange-50 text-orange-600' : 'text-gray-700'
                   }`}
                 >
-                  <span className="text-base">{option.flag}</span>
+                  <span className="text-sm">{option.flag}</span>
                   <span className="text-xs truncate">{option.nativeName}</span>
                 </button>
               ))}
@@ -224,7 +222,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     );
   }
 
-  // ✅ DROPDOWN VARIANT - Default fallback
+  // DROPDOWN VARIANT
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       <button
