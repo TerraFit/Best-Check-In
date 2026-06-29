@@ -1,5 +1,5 @@
 // src/pages/tabs/CheckinsTab.tsx
-// ✅ FULL VERSION WITH MARKETING CONSENT TOGGLE
+// ✅ SLIDER/SWITCH DESIGN - Clean and intuitive
 
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
@@ -50,39 +50,28 @@ export function CheckinsTab(props: CheckinsTabProps) {
   const startRange = displayBookings.length > 0 ? (props.currentPage - 1) * props.pageSize + 1 : 0;
   const endRange = Math.min(props.currentPage * props.pageSize, displayTotal);
 
+  // Toggle handler - resets to page 1
+  const handleToggle = (showConsentOnly: boolean) => {
+    setShowMarketingConsentOnly(showConsentOnly);
+    props.onPageChange(1);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Export Buttons Bar with Marketing Consent Toggle */}
+      {/* Export Buttons Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-sm border border-stone-200 px-4 py-3">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Users size={18} className="text-stone-400" />
-            <span className="text-sm font-medium text-stone-600">
-              {displayTotal.toLocaleString()} check-ins
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-stone-400" />
+          <span className="text-sm font-medium text-stone-600">
+            {displayTotal.toLocaleString()} check-ins
+          </span>
+          {showMarketingConsentOnly && (
+            <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
+              ✉️ Marketing Consents Only
             </span>
-            {props.filters && (
-              <span className="text-xs text-stone-400">
-                (showing {displayBookings.length})
-              </span>
-            )}
-          </div>
-          
-          {/* ✅ Marketing Consent Toggle */}
-          <button
-            onClick={() => setShowMarketingConsentOnly(!showMarketingConsentOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              showMarketingConsentOnly
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-            }`}
-          >
-            <Mail size={14} />
-            {showMarketingConsentOnly ? '✅ Marketing Consents' : 'All Check-ins'}
-          </button>
+          )}
         </div>
-        
         <div className="flex gap-2">
-          {/* Marketing Export */}
           <button
             onClick={() => setShowMarketingExport(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
@@ -90,8 +79,6 @@ export function CheckinsTab(props: CheckinsTabProps) {
             <Download size={14} />
             Marketing Contacts
           </button>
-          
-          {/* Official Register Export */}
           <button
             onClick={() => setShowOfficialExport(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
@@ -113,20 +100,75 @@ export function CheckinsTab(props: CheckinsTabProps) {
       />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {showMarketingConsentOnly ? 'Marketing Consents' : 'All Check-ins'}
-            {showMarketingConsentOnly && (
-              <span className="ml-2 text-sm font-normal text-green-600">
-                ({displayBookings.length} guests with marketing consent)
+        {/* ✅ SLIDER/SWITCH HEADER */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Left: View toggle */}
+            <div className="flex items-center gap-6">
+              <span className="text-sm font-medium text-gray-500">View:</span>
+              
+              {/* Toggle Container */}
+              <div className="relative flex items-center bg-gray-100 rounded-full p-1 shadow-inner">
+                {/* Sliding Background - Green when active, Gray when inactive */}
+                <div 
+                  className={`absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-in-out ${
+                    showMarketingConsentOnly 
+                      ? 'left-1/2 w-1/2 bg-green-500 shadow-md shadow-green-200' 
+                      : 'left-1 w-1/2 bg-white shadow-md'
+                  }`}
+                />
+                
+                {/* All Check-ins Button */}
+                <button
+                  onClick={() => handleToggle(false)}
+                  className={`relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 ${
+                    !showMarketingConsentOnly
+                      ? 'text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Users size={14} />
+                    All Check-ins
+                  </span>
+                </button>
+                
+                {/* Marketing Consents Button */}
+                <button
+                  onClick={() => handleToggle(true)}
+                  className={`relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 ${
+                    showMarketingConsentOnly
+                      ? 'text-white'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Mail size={14} />
+                    Marketing Consents
+                    {showMarketingConsentOnly && displayBookings.length > 0 && (
+                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {displayBookings.length}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </div>
+              
+              {/* Active filter indicator */}
+              {showMarketingConsentOnly && (
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                  ✉️ {displayBookings.length} consented
+                </span>
+              )}
+            </div>
+
+            {/* Right: Count and Page Size */}
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-500">
+                Total: <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span>
               </span>
-            )}
-          </h3>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              Total: <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span> check-ins
-            </span>
-            <PageSizeSelector pageSize={props.pageSize} onPageSizeChange={props.onPageSizeChange} />
+              <PageSizeSelector pageSize={props.pageSize} onPageSizeChange={props.onPageSizeChange} />
+            </div>
           </div>
         </div>
 
