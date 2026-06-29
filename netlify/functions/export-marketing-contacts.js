@@ -32,17 +32,19 @@ export const handler = async (event) => {
     // Build query
     let query = supabase
       .from('bookings')
-      .select('guest_first_name, guest_last_name, guest_email, guest_phone, guest_country, marketing_consent, marketing_email_confirmed, marketing_unsubscribed_at, created_at')
-      .eq('business_id', businessId)
-      .eq('marketing_consent', true);
+      .select('guest_first_name, guest_last_name, guest_email, guest_phone, guest_country, marketing_consent, created_at')
+      .eq('business_id', businessId);
 
-    // Apply filters
+    // Apply marketing consent filter
     if (filters?.marketingConsent === 'subscribed') {
-      query = query.eq('marketing_email_confirmed', true).is('marketing_unsubscribed_at', null);
-    } else if (filters?.marketingConsent === 'consent_given') {
-      query = query.eq('marketing_email_confirmed', false);
-    } else if (filters?.marketingConsent === 'unsubscribed') {
-      query = query.not('marketing_unsubscribed_at', 'is', null);
+      query = query.eq('marketing_consent', true);
+    } else if (filters?.marketingConsent === 'no_consent') {
+      query = query.eq('marketing_consent', false);
+    } else if (filters?.marketingConsent === 'all') {
+      // No filter - show all
+    } else {
+      // Default: only show consented
+      query = query.eq('marketing_consent', true);
     }
 
     if (filters?.dateFrom) {
@@ -60,7 +62,7 @@ export const handler = async (event) => {
     if (error) throw error;
 
     // Transform data
-    const contacts = data.map(row => ({
+    const contacts = (data || []).map(row => ({
       firstName: row.guest_first_name || '',
       lastName: row.guest_last_name || '',
       email: row.guest_email || '',
@@ -68,47 +70,27 @@ export const handler = async (event) => {
       country: row.guest_country || ''
     }));
 
-    // Generate CSV or XLSX
-    let contentType;
-    let fileData;
-    let filename;
-
-    if (format === 'csv') {
-      contentType = 'text/csv';
-      const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
-      const rows = contacts.map(c => [
-        `"${c.firstName}"`,
-        `"${c.lastName}"`,
-        `"${c.email}"`,
-        `"${c.phone}"`,
-        `"${c.country}"`
-      ]);
-      fileData = [headers, ...rows].map(row => row.join(',')).join('\n');
-      filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
-    } else {
-      // XLSX format - using simple CSV for now, but you can add xlsx library
-      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      // Simple fallback to CSV if xlsx not installed
-      const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
-      const rows = contacts.map(c => [
-        `"${c.firstName}"`,
-        `"${c.lastName}"`,
-        `"${c.email}"`,
-        `"${c.phone}"`,
-        `"${c.country}"`
-      ]);
-      fileData = [headers, ...rows].map(row => row.join(',')).join('\n');
-      filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
-    }
+    // Generate CSV
+    const headersRow = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
+    const rows = contacts.map(c => [
+      `"${c.firstName.replace(/"/g, '""')}"`,
+      `"${c.lastName.replace(/"/g, '""')}"`,
+      `"${c.email.replace(/"/g, '""')}"`,
+      `"${c.phone.replace(/"/g, '""')}"`,
+      `"${c.country.replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headersRow.join(','), ...rows.map(row => row.join(','))].join('\n');
+    
+    const filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
 
     return {
       statusCode: 200,
       headers: {
         ...headers,
-        'Content-Type': contentType,
+        'Content-Type': 'text/csv',
         'Content-Disposition': `attachment; filename="${filename}"`
       },
-      body: fileData
+      body: csvContent
     };
 
   } catch (error) {
