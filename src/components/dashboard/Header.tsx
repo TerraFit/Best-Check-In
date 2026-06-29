@@ -1,5 +1,5 @@
 // src/components/dashboard/Header.tsx
-// ✅ Clean header - Language selector is separate, no overlap
+// ✅ Clean header - Language selector is separate
 
 import { useState } from 'react';
 import QRCodeModal from '../QRCodeModal';
@@ -61,7 +61,7 @@ export function Header({ business, refreshing, onRefresh, onLogout, onShowQRModa
               </div>
             </div>
             
-            {/* Right: Actions - Language selector is separate in App.tsx */}
+            {/* Right: Actions */}
             <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
               {/* QR Code Button */}
               <button
