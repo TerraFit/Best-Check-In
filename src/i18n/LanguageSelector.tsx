@@ -1,5 +1,5 @@
 // src/i18n/LanguageSelector.tsx
-// ✅ TOP-RIGHT POSITION - No overlap, mobile-friendly
+// ✅ COMPLETE REWRITE - All languages, custom order, no overlap
 
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from './useTranslation';
@@ -62,13 +62,31 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     setShowDetectionToast(false);
   };
 
+  // ✅ CUSTOM ORDER: English, Afrikaans, German, French, Italian, Portuguese, Spanish, Dutch, Russian, Arabic, Chinese, Hebrew
+  const sortedLanguages: LanguageOption[] = [
+    // Primary languages (in your specified order)
+    { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
+    { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' },
+    { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+    { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+    { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+    { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+    { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+    { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
+    { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+    // Remaining languages
+    { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+    { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+    { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
+  ];
+
   // ✅ HEADER VARIANT - Top-right, compact, no overlap
   if (variant === 'header') {
     return (
       <>
-        {/* Language Detection Toast - Top-right but below header */}
+        {/* Language Detection Toast - Positioned below the language selector */}
         {showDetectionToast && detectedLanguage && (
-          <div className="fixed top-20 right-4 z-50 animate-slide-in-right max-w-[280px]">
+          <div className="fixed top-14 right-4 z-[60] animate-slide-in-right max-w-[280px]">
             <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3">
               <p className="text-xs text-gray-700">
                 {t('language_detected_message', { 
@@ -113,8 +131,8 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
           </button>
 
           {isOpen && (
-            <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 max-h-[300px] overflow-y-auto">
-              {LANGUAGE_OPTIONS.map(option => (
+            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[300px] overflow-y-auto">
+              {sortedLanguages.map(option => (
                 <button
                   key={option.code}
                   onClick={() => handleLanguageChange(option.code)}
@@ -138,12 +156,12 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     );
   }
 
-  // FOOTER VARIANT - For bottom placement if needed
+  // ✅ FOOTER VARIANT - Bottom placement
   if (variant === 'footer') {
     return (
       <>
         {showDetectionToast && detectedLanguage && (
-          <div className="fixed bottom-20 left-4 z-50 animate-slide-in-right max-w-[280px]">
+          <div className="fixed bottom-20 left-4 z-[60] animate-slide-in-right max-w-[280px]">
             <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3">
               <p className="text-xs text-gray-700">
                 {t('language_detected_message', { 
@@ -186,8 +204,8 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
           </button>
 
           {isOpen && (
-            <div className="absolute bottom-full left-0 mb-1 w-36 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 max-h-[300px] overflow-y-auto">
-              {LANGUAGE_OPTIONS.map(option => (
+            <div className="absolute bottom-full left-0 mb-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] max-h-[300px] overflow-y-auto">
+              {sortedLanguages.map(option => (
                 <button
                   key={option.code}
                   onClick={() => handleLanguageChange(option.code)}
@@ -206,7 +224,7 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
     );
   }
 
-  // DROPDOWN VARIANT - For other uses
+  // ✅ DROPDOWN VARIANT - Default fallback
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       <button
@@ -226,8 +244,8 @@ export default function LanguageSelector({ variant = 'header', className = '' }:
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50">
-          {LANGUAGE_OPTIONS.map(option => (
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60]">
+          {sortedLanguages.map(option => (
             <button
               key={option.code}
               onClick={() => handleLanguageChange(option.code)}
