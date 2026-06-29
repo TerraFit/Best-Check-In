@@ -1,6 +1,9 @@
 // netlify/functions/export-official-register.js
+// PDF ONLY - Professional watermark, no CSV or XLSX
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 export const handler = async (event) => {
   const headers = {
@@ -24,21 +27,24 @@ export const handler = async (event) => {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    const { businessId, request, authorization, format } = JSON.parse(event.body);
+    const { businessId, request, authorization } = JSON.parse(event.body);
 
     if (!businessId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
     }
 
-    // Validate authorization
+    // ✅ STEP 1: Validate authorization - Password verification is MANDATORY
     if (!authorization?.password || !authorization?.acceptTerms) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Authorization required' }) };
+      return { statusCode: 401, headers, body: JSON.stringify({ 
+        error: 'Authorization required',
+        details: 'Password and terms acceptance are required for sensitive data export'
+      })};
     }
 
-    // Get business details
+    // ✅ STEP 2: Get business details
     const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('id, trading_name, email')
+      .select('id, trading_name, email, password_hash')
       .eq('id', businessId)
       .single();
 
@@ -46,27 +52,34 @@ export const handler = async (event) => {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
     }
 
-    // Verify password (in production, use bcrypt compare)
-    // This is simplified - you should verify against stored password hash
-    // For now, we'll assume the password check happens client-side or via token
-
-    // Get user info from JWT (simplified)
-    const authHeader = event.headers.authorization;
+    // ✅ STEP 3: Verify password against stored hash (MANDATORY)
+    let userRole = 'owner';
     let userId = 'unknown';
     let userName = 'Unknown User';
-    
+
+    const authHeader = event.headers.authorization;
     if (authHeader) {
       try {
         const token = authHeader.replace('Bearer ', '');
         const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
         userId = decoded.sub || 'unknown';
         userName = decoded.user_metadata?.name || decoded.user_metadata?.business_name || 'Unknown User';
+        userRole = decoded.user_metadata?.role || 'owner';
       } catch (e) {
-        // If token verification fails, use fallback
+        console.warn('Could not verify JWT:', e.message);
       }
     }
 
-    // Build query
+    // ✅ STEP 4: Verify password (bcrypt comparison) - MANDATORY
+    const isPasswordValid = await bcrypt.compare(authorization.password, business.password_hash);
+    if (!isPasswordValid) {
+      return { statusCode: 401, headers, body: JSON.stringify({ 
+        error: 'Invalid password',
+        details: 'The password you entered is incorrect. Please try again.'
+      })};
+    }
+
+    // ✅ STEP 5: Build query
     let query = supabase
       .from('bookings')
       .select('*')
@@ -83,8 +96,8 @@ export const handler = async (event) => {
 
     if (error) throw error;
 
-    // Transform data for export
-    const exportData = bookings.map(b => ({
+    // ✅ STEP 6: Transform data for export
+    const exportData = (bookings || []).map(b => ({
       'Full Name': b.guest_name || '',
       'First Name': b.guest_first_name || '',
       'Last Name': b.guest_last_name || '',
@@ -104,47 +117,25 @@ export const handler = async (event) => {
       'Created At': b.created_at || ''
     }));
 
-    // Generate file
-    let contentType;
-    let fileData;
-    let filename;
-    const date = new Date().toISOString().split('T')[0];
-    const slug = business.trading_name.toLowerCase().replace(/\s+/g, '-');
+    // ✅ STEP 7: Generate PDF
+    const pdfContent = generatePDF(exportData, business, request, userName);
+    const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
 
-    if (format === 'csv') {
-      contentType = 'text/csv';
-      const headers = Object.keys(exportData[0] || {});
-      const rows = exportData.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`));
-      fileData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-      filename = `official-register-${slug}-${date}.csv`;
-    } else if (format === 'pdf') {
-      // For PDF, we'll generate a simple HTML version
-      contentType = 'text/html';
-      fileData = generatePDFHTML(exportData, business, request, userName);
-      filename = `official-register-${slug}-${date}.html`;
-    } else {
-      // XLSX - use CSV as fallback
-      contentType = 'text/csv';
-      const headers = Object.keys(exportData[0] || {});
-      const rows = exportData.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`));
-      fileData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-      filename = `official-register-${slug}-${date}.csv`;
-    }
-
-    // Create audit record
-    const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
+    // ✅ STEP 8: Create audit record
+    const fileHash = crypto.createHash('sha256').update(pdfContent).digest('hex');
     const auditRecord = {
       business_id: businessId,
       business_name: business.trading_name,
       exported_by_user_id: userId,
       exported_by_name: userName,
-      exported_by_role: 'owner',
+      exported_by_role: userRole,
       exported_at: new Date().toISOString(),
       reason: request?.reason || 'other',
       authority_name: request?.authorityName || null,
       officer_name: request?.officerName || null,
       case_number: request?.caseNumber || null,
       reference_number: request?.referenceNumber || null,
+      notes: request?.notes || null,
       row_count: exportData.length,
       file_hash: fileHash,
       ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
@@ -162,10 +153,10 @@ export const handler = async (event) => {
       statusCode: 200,
       headers: {
         ...headers,
-        'Content-Type': contentType,
+        'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`
       },
-      body: fileData
+      body: pdfContent
     };
 
   } catch (error) {
@@ -181,8 +172,21 @@ export const handler = async (event) => {
   }
 };
 
-function generatePDFHTML(data, business, request, userName) {
+// ============================================================
+// ✅ PROFESSIONAL PDF GENERATION WITH WATERMARK
+// ============================================================
+function generatePDF(data, business, request, userName) {
   const date = new Date().toISOString().split('T')[0];
+  const exportTime = new Date().toLocaleString();
+  const reasonLabels = {
+    police: 'Police Request',
+    immigration: 'Immigration Request',
+    court_order: 'Court Order',
+    insurance: 'Insurance',
+    internal_audit: 'Internal Audit',
+    other: 'Other'
+  };
+
   return `
 <!DOCTYPE html>
 <html>
@@ -190,70 +194,265 @@ function generatePDFHTML(data, business, request, userName) {
   <meta charset="UTF-8">
   <title>Official Guest Register - ${business.trading_name}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    h1 { color: #333; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; }
-    .header { margin-bottom: 30px; }
-    .watermark { 
-      background: #fef3c7; 
-      border: 1px solid #f59e0b; 
-      padding: 15px; 
-      margin: 20px 0;
-      border-radius: 8px;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Helvetica', Arial, sans-serif; 
+      padding: 40px;
+      font-size: 10px;
+      color: #1a1a1a;
+      background: white;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { background: #f3f4f6; text-align: left; padding: 8px; border: 1px solid #d1d5db; }
-    td { padding: 8px; border: 1px solid #d1d5db; }
-    .footer { margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-    .warning { color: #dc2626; font-weight: bold; }
+    
+    /* ============================================================
+       WATERMARK - Background watermark on every page
+       ============================================================ */
+    .watermark-bg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 80px;
+      font-weight: 900;
+      color: rgba(220, 38, 38, 0.06);
+      letter-spacing: 8px;
+      pointer-events: none;
+      z-index: 0;
+      text-transform: uppercase;
+      width: 100%;
+      text-align: center;
+    }
+    
+    .content {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* ============================================================
+       HEADER
+       ============================================================ */
+    .header { 
+      border-bottom: 3px solid #f59e0b; 
+      padding-bottom: 15px; 
+      margin-bottom: 20px;
+    }
+    .header h1 { 
+      font-size: 24px; 
+      color: #1a1a1a;
+      margin-bottom: 2px;
+    }
+    .header .subtitle { 
+      font-size: 13px; 
+      color: #6b7280;
+    }
+    .header .ref { 
+      font-size: 10px; 
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+    
+    /* ============================================================
+       WATERMARK BANNER - Top of page
+       ============================================================ */
+    .watermark-banner { 
+      background: #fef3c7; 
+      border-left: 6px solid #dc2626; 
+      padding: 12px 18px; 
+      margin: 15px 0 20px 0;
+      border-radius: 4px;
+    }
+    .watermark-banner .warning { 
+      color: #dc2626; 
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .watermark-banner .text { 
+      font-size: 11px; 
+      color: #92400e;
+      margin-top: 2px;
+    }
+    
+    /* ============================================================
+       METADATA
+       ============================================================ */
+    .metadata {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 3px 20px;
+      background: #f9fafb;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 10px;
+      border: 1px solid #e5e7eb;
+    }
+    .metadata .label { color: #6b7280; font-weight: 500; }
+    .metadata .value { font-weight: 600; color: #1a1a1a; }
+    
+    /* ============================================================
+       TABLE
+       ============================================================ */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 15px;
+      font-size: 8.5px;
+    }
+    th { 
+      background: #f3f4f6; 
+      text-align: left; 
+      padding: 6px 5px; 
+      border: 1px solid #d1d5db;
+      font-weight: 700;
+      white-space: nowrap;
+      color: #1a1a1a;
+    }
+    td { 
+      padding: 5px 5px; 
+      border: 1px solid #d1d5db;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 80px;
+      color: #1a1a1a;
+    }
+    tr:nth-child(even) { background: #fafafa; }
+    
+    /* ============================================================
+       FOOTER - Watermark warning at bottom
+       ============================================================ */
+    .footer { 
+      margin-top: 30px; 
+      padding-top: 15px;
+      border-top: 2px solid #dc2626;
+      font-size: 9px;
+      color: #6b7280;
+      text-align: center;
+    }
+    .footer .warning-text {
+      color: #dc2626;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .footer .case-info {
+      margin-top: 6px;
+      font-size: 9px;
+      color: #6b7280;
+    }
+    
+    /* ============================================================
+       PRINT STYLES
+       ============================================================ */
+    @media print {
+      body { padding: 20px; margin: 0; }
+      .no-print { display: none; }
+      .watermark-bg { 
+        color: rgba(220, 38, 38, 0.08); 
+        font-size: 100px;
+      }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+    }
+    
+    /* ============================================================
+       PAGE BREAK HANDLING
+       ============================================================ */
+    @page {
+      margin: 1.5cm 1cm;
+      size: A4 portrait;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Official Guest Register</h1>
-    <p><strong>Business:</strong> ${business.trading_name}</p>
-    <p><strong>Exported By:</strong> ${userName}</p>
-    <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-    <p><strong>Reason:</strong> ${request?.reason?.replace('_', ' ') || 'Not specified'}</p>
-    ${request?.caseNumber ? `<p><strong>Case Number:</strong> ${request.caseNumber}</p>` : ''}
-    ${request?.authorityName ? `<p><strong>Authority:</strong> ${request.authorityName}</p>` : ''}
-  </div>
+  <!-- ============================================================
+       BACKGROUND WATERMARK - Visible on every page
+       ============================================================ -->
+  <div class="watermark-bg">CONFIDENTIAL</div>
 
-  <div class="watermark">
-    <p class="warning">⚠️ This file contains personal information protected under POPIA.</p>
-    <p>Unauthorised disclosure may constitute an offence.</p>
-  </div>
+  <div class="content">
+    <!-- HEADER -->
+    <div class="header">
+      <h1>📋 Official Guest Register</h1>
+      <div class="subtitle">Statutory Guest Record — Immigration Act Section 40</div>
+      <div class="ref">Reference: FAST-${business.id.substring(0, 8).toUpperCase()}-${date.replace(/-/g, '')}</div>
+    </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Full Name</th>
-        <th>Nationality</th>
-        <th>ID/Passport</th>
-        <th>Check-in</th>
-        <th>Check-out</th>
-        <th>Arriving From</th>
-        <th>Going To</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${data.map(row => `
+    <!-- WATERMARK BANNER -->
+    <div class="watermark-banner">
+      <div class="warning">⚠️ CONFIDENTIAL — PROTECTED PERSONAL INFORMATION</div>
+      <div class="text">This document contains personal information protected under POPIA (Protection of Personal Information Act). Unauthorised disclosure may constitute an offence.</div>
+    </div>
+
+    <!-- METADATA -->
+    <div class="metadata">
+      <div><span class="label">Business:</span> <span class="value">${business.trading_name}</span></div>
+      <div><span class="label">Exported By:</span> <span class="value">${userName}</span></div>
+      <div><span class="label">Date:</span> <span class="value">${exportTime}</span></div>
+      <div><span class="label">Reason:</span> <span class="value">${reasonLabels[request?.reason] || request?.reason || 'Not specified'}</span></div>
+      ${request?.caseNumber ? `<div><span class="label">Case Number:</span> <span class="value">${request.caseNumber}</span></div>` : ''}
+      ${request?.authorityName ? `<div><span class="label">Authority:</span> <span class="value">${request.authorityName}</span></div>` : ''}
+      ${request?.officerName ? `<div><span class="label">Officer:</span> <span class="value">${request.officerName}</span></div>` : ''}
+      <div><span class="label">Records:</span> <span class="value">${data.length} guest records</span></div>
+      ${request?.referenceNumber ? `<div><span class="label">Reference:</span> <span class="value">${request.referenceNumber}</span></div>` : ''}
+    </div>
+
+    <!-- DATA TABLE -->
+    <table>
+      <thead>
         <tr>
-          <td>${row['Full Name']}</td>
-          <td>${row['Nationality']}</td>
-          <td>${row['ID Number']}</td>
-          <td>${row['Check-in Date']}</td>
-          <td>${row['Check-out Date']}</td>
-          <td>${row['Arriving From']}</td>
-          <td>${row['Going To']}</td>
+          <th>#</th>
+          <th>Full Name</th>
+          <th>Nationality</th>
+          <th>ID/Passport</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Check-in</th>
+          <th>Check-out</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Room</th>
         </tr>
-      `).join('')}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        ${data.map((row, index) => `
+          <tr>
+            <td style="text-align:center;">${index + 1}</td>
+            <td>${row['Full Name']}</td>
+            <td>${row['Nationality']}</td>
+            <td>${row['ID Number']}</td>
+            <td>${row['Email']}</td>
+            <td>${row['Phone']}</td>
+            <td>${row['Check-in Date']}</td>
+            <td>${row['Check-out Date']}</td>
+            <td>${row['Arriving From']}</td>
+            <td>${row['Going To']}</td>
+            <td>${row['Room Number']}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
 
-  <div class="footer">
-    <p>This export was generated on ${new Date().toLocaleString()} and contains ${data.length} guest records.</p>
-    <p>© ${new Date().getFullYear()} FastCheckin. All rights reserved.</p>
+    <!-- FOOTER WITH WATERMARK WARNING -->
+    <div class="footer">
+      <div class="warning-text">⚠️ CONFIDENTIAL — This file contains personal information protected under POPIA</div>
+      <div class="case-info">
+        Business: ${business.trading_name} • Exported: ${exportTime} • ${data.length} records • FastCheckin
+        ${request?.caseNumber ? `• Case: ${request.caseNumber}` : ''}
+      </div>
+      <div style="margin-top: 8px; font-size: 8px; color: #9ca3af;">
+        © ${new Date().getFullYear()} FastCheckin. All rights reserved. | www.fastcheckin.co.za
+      </div>
+    </div>
   </div>
+
+  <script>
+    // Auto-print when loaded (for PDF generation)
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    };
+  </script>
 </body>
 </html>
   `;
