@@ -1,5 +1,6 @@
 // src/pages/tabs/CheckinsTab.tsx
-// ✅ PREMIUM 3D EXPORT BUTTONS + 3D TOGGLE
+// ✅ EXACT MARKETING CONSENTS TOGGLE DESIGN
+// Large pill container with iOS-style segmented switch
 
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
@@ -58,7 +59,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* ✅ PREMIUM 3D EXPORT BUTTONS BAR */}
+      {/* Premium 3D Export Buttons Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white rounded-xl shadow-md border border-stone-200 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -77,7 +78,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
         </div>
         
         <div className="flex gap-3">
-          {/* ✅ 3D MARKETING EXPORT BUTTON */}
+          {/* 3D Marketing Export Button */}
           <button
             onClick={() => setShowMarketingExport(true)}
             className="relative group flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -87,18 +88,15 @@ export function CheckinsTab(props: CheckinsTabProps) {
               border: '2px solid rgba(255,255,255,0.2)'
             }}
           >
-            {/* Shine effect */}
             <span className="absolute inset-0 rounded-xl pointer-events-none" style={{
               background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2) 0%, transparent 60%)'
             }} />
             <Download size={16} className="relative z-10" />
             <span className="relative z-10">Marketing Contacts</span>
-            <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">
-              CSV
-            </span>
+            <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">CSV</span>
           </button>
           
-          {/* ✅ 3D OFFICIAL REGISTER EXPORT BUTTON */}
+          {/* 3D Official Register Export Button */}
           <button
             onClick={() => setShowOfficialExport(true)}
             className="relative group flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -108,15 +106,12 @@ export function CheckinsTab(props: CheckinsTabProps) {
               border: '2px solid rgba(255,255,255,0.2)'
             }}
           >
-            {/* Shine effect */}
             <span className="absolute inset-0 rounded-xl pointer-events-none" style={{
               background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2) 0%, transparent 60%)'
             }} />
             <Shield size={16} className="relative z-10" />
             <span className="relative z-10">Official Register</span>
-            <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">
-              PDF
-            </span>
+            <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">PDF</span>
           </button>
         </div>
       </div>
@@ -132,100 +127,95 @@ export function CheckinsTab(props: CheckinsTabProps) {
       />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {/* ✅ PREMIUM 3D TOGGLE HEADER */}
+        {/* ✅ EXACT MARKETING CONSENTS TOGGLE - LARGE PILL DESIGN */}
         <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Left: View toggle with labels */}
-            <div className="flex items-center gap-6">
-              {/* Labels above toggle */}
-              <div className="flex items-center gap-8">
-                <span className={`text-sm font-semibold transition-colors duration-300 ${
-                  !showMarketingConsentOnly ? 'text-gray-900' : 'text-gray-400'
-                }`}>
-                  <Users size={16} className="inline mr-1.5" />
-                  All Check-ins
-                </span>
-                <span className={`text-sm font-semibold transition-colors duration-300 ${
-                  showMarketingConsentOnly ? 'text-gray-900' : 'text-gray-400'
-                }`}>
-                  <Mail size={16} className="inline mr-1.5" />
-                  Marketing Consents
-                </span>
-              </div>
-              
-              {/* ✅ 3D TOGGLE SWITCH */}
-              <div 
-                className="relative w-20 h-10 rounded-full cursor-pointer transition-all duration-300 shadow-lg"
+          {/* Main Pill Container */}
+          <div 
+            className="flex items-center justify-between w-full rounded-full px-10 py-6"
+            style={{
+              backgroundColor: '#F3F3F3',
+              border: '3px solid #7A7A7A',
+              minHeight: '220px',
+            }}
+          >
+            {/* Left Side - Label */}
+            <div className="flex items-center gap-4">
+              <Mail size={64} className="text-[#4A4A4A]" strokeWidth={1.5} />
+              <span 
+                className="font-bold text-[#4A4A4A]"
                 style={{
-                  background: showMarketingConsentOnly 
-                    ? 'linear-gradient(145deg, #22c55e, #16a34a)'
-                    : 'linear-gradient(145deg, #e5e7eb, #d1d5db)',
-                  boxShadow: showMarketingConsentOnly
-                    ? '0 4px 15px rgba(34, 197, 94, 0.4), inset 0 2px 4px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.1)'
-                    : '0 4px 10px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.05)',
-                  border: '2px solid rgba(255,255,255,0.3)'
+                  fontSize: 'clamp(32px, 4vw, 70px)',
+                  fontWeight: 700,
+                  fontFamily: 'sans-serif',
                 }}
-                onClick={() => handleToggle(!showMarketingConsentOnly)}
               >
-                {/* Inner glow effect */}
-                <div 
-                  className="absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    background: showMarketingConsentOnly
-                      ? 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3) 0%, transparent 70%)'
-                      : 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5) 0%, transparent 70%)'
-                  }}
-                />
-                
-                {/* Sliding knob with 3D effect */}
-                <div 
-                  className={`absolute top-1 w-8 h-8 rounded-full transition-all duration-300 ease-in-out shadow-lg flex items-center justify-center font-bold text-xs ${
-                    showMarketingConsentOnly 
-                      ? 'left-[calc(100%-2.25rem)] bg-white text-green-600' 
-                      : 'left-1 bg-white text-gray-500'
-                  }`}
-                  style={{
-                    boxShadow: showMarketingConsentOnly
-                      ? '0 2px 8px rgba(34, 197, 94, 0.3), inset 0 -2px 4px rgba(0,0,0,0.05)'
-                      : '0 2px 8px rgba(0,0,0,0.15), inset 0 -2px 4px rgba(0,0,0,0.05)',
-                    background: showMarketingConsentOnly
-                      ? 'linear-gradient(145deg, #ffffff, #f0fdf4)'
-                      : 'linear-gradient(145deg, #ffffff, #f3f4f6)'
-                  }}
-                >
-                  {showMarketingConsentOnly ? 'ON' : 'OFF'}
-                </div>
-                
-                {/* Status text on toggle */}
-                <div className="absolute inset-0 flex items-center justify-between px-3 pointer-events-none">
-                  <span className={`text-[10px] font-bold transition-opacity duration-300 ${
-                    !showMarketingConsentOnly ? 'text-gray-700 opacity-100' : 'text-white/30 opacity-0'
-                  }`}>
-                    OFF
-                  </span>
-                  <span className={`text-[10px] font-bold transition-opacity duration-300 ${
-                    showMarketingConsentOnly ? 'text-white opacity-100' : 'text-gray-400/30 opacity-0'
-                  }`}>
-                    ON
-                  </span>
-                </div>
-              </div>
-              
-              {/* Active filter indicator */}
-              {showMarketingConsentOnly && (
-                <span className="text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-200 font-medium">
-                  ✉️ {displayBookings.length} consented
-                </span>
-              )}
+                Marketing Consents
+              </span>
             </div>
 
-            {/* Right: Count and Page Size */}
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">
-                Total: <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span>
+            {/* Right Side - iOS Style Segmented Switch */}
+            <div 
+              className="relative flex items-center rounded-full cursor-pointer transition-all duration-300 flex-shrink-0"
+              style={{
+                width: '480px',
+                height: '125px',
+                backgroundColor: '#BDBDBD',
+                borderRadius: '999px',
+              }}
+              onClick={() => handleToggle(!showMarketingConsentOnly)}
+            >
+              {/* Green Active Segment - Slides to right when ON */}
+              <div 
+                className="absolute top-0 bottom-0 rounded-full transition-all duration-300 ease-in-out"
+                style={{
+                  width: showMarketingConsentOnly ? 'calc(50% + 8px)' : 'calc(50% - 8px)',
+                  left: showMarketingConsentOnly ? 'calc(50% - 8px)' : '0',
+                  backgroundColor: '#00FF00',
+                  borderRadius: '999px',
+                  boxShadow: '0 4px 20px rgba(0, 255, 0, 0.3), inset 0 2px 4px rgba(255,255,255,0.4)',
+                }}
+              />
+
+              {/* OFF Label - Left side */}
+              <span 
+                className={`absolute left-8 text-2xl font-bold transition-colors duration-300 z-10 ${
+                  !showMarketingConsentOnly ? 'text-black' : 'text-black/40'
+                }`}
+                style={{
+                  fontSize: 'clamp(20px, 2vw, 32px)',
+                  fontWeight: 700,
+                }}
+              >
+                OFF
               </span>
-              <PageSizeSelector pageSize={props.pageSize} onPageSizeChange={props.onPageSizeChange} />
+
+              {/* ON Label - Right side */}
+              <span 
+                className={`absolute right-8 text-2xl font-bold transition-colors duration-300 z-10 ${
+                  showMarketingConsentOnly ? 'text-white' : 'text-white/40'
+                }`}
+                style={{
+                  fontSize: 'clamp(20px, 2vw, 32px)',
+                  fontWeight: 700,
+                }}
+              >
+                ON
+              </span>
             </div>
+          </div>
+
+          {/* Status indicator below toggle */}
+          <div className="flex justify-end mt-3">
+            {showMarketingConsentOnly && (
+              <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200 font-medium">
+                ✉️ {displayBookings.length} guests with marketing consent
+              </span>
+            )}
+            {!showMarketingConsentOnly && (
+              <span className="text-sm text-gray-400">
+                Showing all check-ins
+              </span>
+            )}
           </div>
         </div>
 
