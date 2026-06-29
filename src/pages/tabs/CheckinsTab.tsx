@@ -1,5 +1,5 @@
 // src/pages/tabs/CheckinsTab.tsx
-// ✅ SLIDER/SWITCH DESIGN - Clean and intuitive
+// ✅ SLIDER/SWITCH - Green when active, Gray when inactive
 
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
@@ -100,7 +100,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
       />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {/* ✅ SLIDER/SWITCH HEADER */}
+        {/* ✅ SLIDER/SWITCH HEADER - Green when active */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left: View toggle */}
@@ -109,12 +109,16 @@ export function CheckinsTab(props: CheckinsTabProps) {
               
               {/* Toggle Container */}
               <div className="relative flex items-center bg-gray-100 rounded-full p-1 shadow-inner">
-                {/* Sliding Background - Green when active, Gray when inactive */}
+                {/* ✅ Sliding Background - GREEN when active */}
                 <div 
                   className={`absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-in-out ${
-                    showMarketingConsentOnly 
-                      ? 'left-1/2 w-1/2 bg-green-500 shadow-md shadow-green-200' 
-                      : 'left-1 w-1/2 bg-white shadow-md'
+                    // When "All Check-ins" is selected (showMarketingConsentOnly = false)
+                    // The slider is on the LEFT and is GREEN
+                    // When "Marketing Consents" is selected (showMarketingConsentOnly = true)
+                    // The slider is on the RIGHT and is GREEN
+                    !showMarketingConsentOnly 
+                      ? 'left-1 w-1/2 bg-green-500 shadow-md shadow-green-200' 
+                      : 'left-1/2 w-1/2 bg-green-500 shadow-md shadow-green-200'
                   }`}
                 />
                 
@@ -123,8 +127,8 @@ export function CheckinsTab(props: CheckinsTabProps) {
                   onClick={() => handleToggle(false)}
                   className={`relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 ${
                     !showMarketingConsentOnly
-                      ? 'text-gray-900'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'text-white' // Active = White text on green background
+                      : 'text-gray-500 hover:text-gray-700' // Inactive = Gray text
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
@@ -138,8 +142,8 @@ export function CheckinsTab(props: CheckinsTabProps) {
                   onClick={() => handleToggle(true)}
                   className={`relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 ${
                     showMarketingConsentOnly
-                      ? 'text-white'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'text-white' // Active = White text on green background
+                      : 'text-gray-500 hover:text-gray-700' // Inactive = Gray text
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
