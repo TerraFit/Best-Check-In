@@ -1,3 +1,6 @@
+// src/App.tsx
+// ✅ Language Selector at TOP-RIGHT, no overlap with header
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -55,9 +58,9 @@ function NotFoundPage() {
 function AppContent() {
   return (
     <>
-      {/* ✅ Global Language Selector - Fixed position */}
-      <div className="fixed top-4 right-4 z-50">
-        <LanguageSelector variant="header" />
+      {/* ✅ Language Selector - Top-right, compact, above everything */}
+      <div className="fixed top-3 right-3 z-50">
+        <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-lg px-2 py-1 border border-stone-200" />
       </div>
       
       <ScrollToTop />
@@ -70,7 +73,7 @@ function AppContent() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/set-password/:token" element={<SetPassword />} />
         
-        {/* ✅ Check-in Routes - Uses CheckInApp which handles everything */}
+        {/* Check-in Routes */}
         <Route path="/checkin" element={<CheckInApp />} />
         <Route path="/checkin/:businessId" element={<CheckInApp />} />
         
