@@ -1,5 +1,5 @@
 // src/App.tsx
-// ✅ Language Selector at TOP-RIGHT, no overlap with header
+// ✅ Language Selector positioned below logout button, same level as tabs
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
@@ -58,9 +58,9 @@ function NotFoundPage() {
 function AppContent() {
   return (
     <>
-      {/* ✅ Language Selector - Top-right, compact, above everything */}
-      <div className="fixed top-3 right-3 z-50">
-        <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-lg px-2 py-1 border border-stone-200" />
+      {/* ✅ Language Selector - Positioned below logout, same level as tabs */}
+      <div className="fixed top-[72px] right-4 z-30">
+        <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" />
       </div>
       
       <ScrollToTop />
