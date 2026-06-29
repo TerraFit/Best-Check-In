@@ -1,12 +1,11 @@
 // src/pages/tabs/CheckinsTab.tsx
-// ✅ EXACT MARKETING CONSENTS TOGGLE DESIGN
-// Large pill container with iOS-style segmented switch
+// ✅ ORANGE for OFF, GREEN for ON - Clear visual state distinction
 
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
 import MarketingExportModal from '../../components/export/MarketingExportModal';
 import OfficialRegisterExportModal from '../../components/export/OfficialRegisterExportModal';
-import { Download, Shield, Users, Mail, FileSpreadsheet, FileText } from 'lucide-react';
+import { Download, Shield, Users, Mail } from 'lucide-react';
 
 interface CheckinsTabProps {
   bookings: any[];
@@ -78,7 +77,6 @@ export function CheckinsTab(props: CheckinsTabProps) {
         </div>
         
         <div className="flex gap-3">
-          {/* 3D Marketing Export Button */}
           <button
             onClick={() => setShowMarketingExport(true)}
             className="relative group flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -96,7 +94,6 @@ export function CheckinsTab(props: CheckinsTabProps) {
             <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">CSV</span>
           </button>
           
-          {/* 3D Official Register Export Button */}
           <button
             onClick={() => setShowOfficialExport(true)}
             className="relative group flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -127,24 +124,24 @@ export function CheckinsTab(props: CheckinsTabProps) {
       />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {/* ✅ EXACT MARKETING CONSENTS TOGGLE - LARGE PILL DESIGN */}
-        <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        {/* ✅ ORANGE OFF / GREEN ON TOGGLE */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           {/* Main Pill Container */}
           <div 
-            className="flex items-center justify-between w-full rounded-full px-10 py-6"
+            className="flex items-center rounded-full px-6 py-3"
             style={{
               backgroundColor: '#F3F3F3',
-              border: '3px solid #7A7A7A',
-              minHeight: '220px',
+              border: '2px solid #7A7A7A',
+              minHeight: '72px',
             }}
           >
             {/* Left Side - Label */}
-            <div className="flex items-center gap-4">
-              <Mail size={64} className="text-[#4A4A4A]" strokeWidth={1.5} />
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <Mail size={28} className="text-[#4A4A4A]" strokeWidth={1.5} />
               <span 
-                className="font-bold text-[#4A4A4A]"
+                className="font-bold text-[#4A4A4A] whitespace-nowrap"
                 style={{
-                  fontSize: 'clamp(32px, 4vw, 70px)',
+                  fontSize: 'clamp(16px, 1.4vw, 24px)',
                   fontWeight: 700,
                   fontFamily: 'sans-serif',
                 }}
@@ -153,36 +150,43 @@ export function CheckinsTab(props: CheckinsTabProps) {
               </span>
             </div>
 
-            {/* Right Side - iOS Style Segmented Switch */}
+            {/* Spacer */}
+            <div className="flex-1 min-w-[32px]" />
+
+            {/* ✅ Segmented Switch - ORANGE when OFF, GREEN when ON */}
             <div 
               className="relative flex items-center rounded-full cursor-pointer transition-all duration-300 flex-shrink-0"
               style={{
-                width: '480px',
-                height: '125px',
-                backgroundColor: '#BDBDBD',
+                width: '180px',
+                height: '44px',
+                backgroundColor: showMarketingConsentOnly ? '#BDBDBD' : '#BDBDBD',
                 borderRadius: '999px',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
               }}
               onClick={() => handleToggle(!showMarketingConsentOnly)}
             >
-              {/* Green Active Segment - Slides to right when ON */}
+              {/* ✅ Active Segment - ORANGE for OFF, GREEN for ON */}
               <div 
                 className="absolute top-0 bottom-0 rounded-full transition-all duration-300 ease-in-out"
                 style={{
-                  width: showMarketingConsentOnly ? 'calc(50% + 8px)' : 'calc(50% - 8px)',
-                  left: showMarketingConsentOnly ? 'calc(50% - 8px)' : '0',
-                  backgroundColor: '#00FF00',
+                  width: showMarketingConsentOnly ? 'calc(50% + 6px)' : 'calc(50% - 6px)',
+                  left: showMarketingConsentOnly ? 'calc(50% - 6px)' : '0',
+                  // ✅ ORANGE when OFF, GREEN when ON
+                  backgroundColor: showMarketingConsentOnly ? '#00FF00' : '#FF7A00',
                   borderRadius: '999px',
-                  boxShadow: '0 4px 20px rgba(0, 255, 0, 0.3), inset 0 2px 4px rgba(255,255,255,0.4)',
+                  boxShadow: showMarketingConsentOnly 
+                    ? '0 2px 10px rgba(0, 255, 0, 0.25), inset 0 1px 2px rgba(255,255,255,0.3)'
+                    : '0 2px 10px rgba(255, 122, 0, 0.25), inset 0 1px 2px rgba(255,255,255,0.3)',
                 }}
               />
 
               {/* OFF Label - Left side */}
               <span 
-                className={`absolute left-8 text-2xl font-bold transition-colors duration-300 z-10 ${
-                  !showMarketingConsentOnly ? 'text-black' : 'text-black/40'
+                className={`absolute left-4 text-sm font-bold transition-colors duration-300 z-10 ${
+                  !showMarketingConsentOnly ? 'text-white' : 'text-black/40'
                 }`}
                 style={{
-                  fontSize: 'clamp(20px, 2vw, 32px)',
+                  fontSize: 'clamp(11px, 0.8vw, 14px)',
                   fontWeight: 700,
                 }}
               >
@@ -191,11 +195,11 @@ export function CheckinsTab(props: CheckinsTabProps) {
 
               {/* ON Label - Right side */}
               <span 
-                className={`absolute right-8 text-2xl font-bold transition-colors duration-300 z-10 ${
-                  showMarketingConsentOnly ? 'text-white' : 'text-white/40'
+                className={`absolute right-4 text-sm font-bold transition-colors duration-300 z-10 ${
+                  showMarketingConsentOnly ? 'text-white' : 'text-black/40'
                 }`}
                 style={{
-                  fontSize: 'clamp(20px, 2vw, 32px)',
+                  fontSize: 'clamp(11px, 0.8vw, 14px)',
                   fontWeight: 700,
                 }}
               >
@@ -204,15 +208,15 @@ export function CheckinsTab(props: CheckinsTabProps) {
             </div>
           </div>
 
-          {/* Status indicator below toggle */}
-          <div className="flex justify-end mt-3">
+          {/* Status indicator */}
+          <div className="flex justify-end mt-2">
             {showMarketingConsentOnly && (
-              <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200 font-medium">
-                ✉️ {displayBookings.length} guests with marketing consent
+              <span className="text-xs text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200 font-medium">
+                ✉️ {displayBookings.length} consented
               </span>
             )}
             {!showMarketingConsentOnly && (
-              <span className="text-sm text-gray-400">
+              <span className="text-xs text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 font-medium">
                 Showing all check-ins
               </span>
             )}
