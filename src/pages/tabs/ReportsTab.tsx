@@ -23,8 +23,6 @@ import {
 // ============================================================
 // 📦 MOCK DATA - For demo/testing only
 // ============================================================
-// src/pages/tabs/ReportsTab.tsx - Updated MOCK_BOOKINGS
-
 const MOCK_BOOKINGS: Booking[] = [
   { 
     id: '101', guestName: 'John Doe', email: 'john@example.com', phone: '+27 82 123 4567',
@@ -162,7 +160,6 @@ const MOCK_BOOKINGS: Booking[] = [
 interface ReportsTabProps {
   bookings: Booking[];
   totalBookings: number;
-  // ... other props from parent
 }
 
 const TIER_LABELS: Record<SubscriptionTier, string> = {
@@ -197,63 +194,66 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
     return transformBookingsToVisitorOrigins(activeBookings || []);
   }, [activeBookings]);
 
-// ============================================================
-// 📈 TRAVEL PATTERNS DATA - WITH PROPER COUNTRY FIELD
-// ============================================================
-const travelData = useMemo(() => {
-  const data = activeBookings || [];
-  const total = data.length || 1;
-  
-  // ✅ Arriving From - use arriving_from field with country
-  const arrivingMap = new Map<string, { count: number; country: string }>();
-  data.forEach(b => {
-    const location = b.arriving_from || b.guest_city || b.city || b.country || 'Unknown';
-    const country = b.guest_country || b.country || 'Unknown';
+  // ============================================================
+  // 📈 TRAVEL PATTERNS DATA - ONLY USE arriving_from AND next_destination
+  // ============================================================
+  const travelData = useMemo(() => {
+    const data = activeBookings || [];
+    const total = data.length || 1;
     
-    if (location && location !== 'Unknown') {
-      if (!arrivingMap.has(location)) {
-        arrivingMap.set(location, { count: 0, country });
+    // ✅ Arriving From - ONLY use arriving_from field (NO fallback to guest_city!)
+    const arrivingMap = new Map<string, { count: number; country: string }>();
+    data.forEach(b => {
+      const location = b.arriving_from;
+      const country = b.guest_country || b.country || 'Unknown';
+      
+      // Only add if arriving_from has a value
+      if (location && location.trim() !== '') {
+        if (!arrivingMap.has(location)) {
+          arrivingMap.set(location, { count: 0, country });
+        }
+        arrivingMap.get(location)!.count++;
       }
-      arrivingMap.get(location)!.count++;
-    }
-  });
-  
-  // ✅ Going To - use next_destination field with country
-  const goingMap = new Map<string, { count: number; country: string }>();
-  data.forEach(b => {
-    const location = b.next_destination || b.guest_city || b.city || b.country || 'Unknown';
-    const country = b.guest_country || b.country || 'Unknown';
+    });
     
-    if (location && location !== 'Unknown') {
-      if (!goingMap.has(location)) {
-        goingMap.set(location, { count: 0, country });
+    // ✅ Going To - ONLY use next_destination field (NO fallback to guest_city!)
+    const goingMap = new Map<string, { count: number; country: string }>();
+    data.forEach(b => {
+      const location = b.next_destination;
+      const country = b.guest_country || b.country || 'Unknown';
+      
+      // Only add if next_destination has a value
+      if (location && location.trim() !== '') {
+        if (!goingMap.has(location)) {
+          goingMap.set(location, { count: 0, country });
+        }
+        goingMap.get(location)!.count++;
       }
-      goingMap.get(location)!.count++;
-    }
-  });
-  
-  const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
-    location,
-    country: data.country,
-    count: data.count,
-    percentage: (data.count / total) * 100,
-    isCorrection: false,
-  })).sort((a, b) => b.count - a.count);
-  
-  const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
-    location,
-    country: data.country,
-    count: data.count,
-    percentage: (data.count / total) * 100,
-    isCorrection: false,
-  })).sort((a, b) => b.count - a.count);
-  
-  // ✅ Debug logs
-  console.log('📊 Travel Data - Arriving From:', arrivingFrom.map(d => `${d.location} (${d.country})`));
-  console.log('📊 Travel Data - Going To:', goingTo.map(d => `${d.location} (${d.country})`));
-  
-  return { arrivingFrom, goingTo };
-}, [activeBookings]);
+    });
+    
+    const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
+      location,
+      country: data.country,
+      count: data.count,
+      percentage: (data.count / total) * 100,
+      isCorrection: false,
+    })).sort((a, b) => b.count - a.count);
+    
+    const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
+      location,
+      country: data.country,
+      count: data.count,
+      percentage: (data.count / total) * 100,
+      isCorrection: false,
+    })).sort((a, b) => b.count - a.count);
+    
+    // ✅ Debug logs
+    console.log('📊 Travel Data - Arriving From (ONLY arriving_from):', arrivingFrom.map(d => `${d.location} (${d.country})`));
+    console.log('📊 Travel Data - Going To (ONLY next_destination):', goingTo.map(d => `${d.location} (${d.country})`));
+    console.log('📊 Are they different?', JSON.stringify(arrivingFrom) !== JSON.stringify(goingTo));
+    
+    return { arrivingFrom, goingTo };
+  }, [activeBookings]);
 
   // ============================================================
   // 🎯 TIER LIMITS
