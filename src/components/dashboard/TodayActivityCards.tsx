@@ -1,4 +1,4 @@
-// src/components/dashboard/TodayActivityCards.tsx
+import { useTranslation } from '../../i18n';
 
 interface Guest {
   id: string
@@ -13,6 +13,8 @@ interface TodayActivityCardsProps {
 }
 
 export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActivityCardsProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {/* Arrivals Card */}
@@ -22,12 +24,12 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Today's Arrivals
+            {t('dashboard_today_arrivals')}
           </h3>
         </div>
         <div className="p-4">
           {arrivals.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-4">No arrivals today</p>
+            <p className="text-gray-500 text-sm text-center py-4">{t('dashboard_no_arrivals')}</p>
           ) : (
             <div className="space-y-2">
               {arrivals.map(guest => (
@@ -50,12 +52,12 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
             </svg>
-            Current Stayovers
+            {t('dashboard_today_stayovers')}
           </h3>
         </div>
         <div className="p-4">
           {stayovers.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-4">No current stayovers</p>
+            <p className="text-gray-500 text-sm text-center py-4">{t('dashboard_no_stayovers')}</p>
           ) : (
             <div className="space-y-2">
               {stayovers.map(guest => (
@@ -78,12 +80,12 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Today's Check-outs
+            {t('dashboard_today_checkouts')}
           </h3>
         </div>
         <div className="p-4">
           {checkouts.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-4">No check-outs today</p>
+            <p className="text-gray-500 text-sm text-center py-4">{t('dashboard_no_checkouts')}</p>
           ) : (
             <div className="space-y-2">
               {checkouts.map(guest => (
@@ -99,5 +101,5 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
         </div>
       </div>
     </div>
-  )
+  );
 }
