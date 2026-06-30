@@ -1,8 +1,7 @@
-// src/pages/tabs/SettingsTab.tsx
-
 import { useState } from 'react';
 import { SettingsView, SettingsEditForm } from '../../components/dashboard';
 import ChangeRequestModal from '../../components/ChangeRequestModal';
+import { useTranslation } from '../../i18n';
 
 interface SettingsTabProps {
   business: any;
@@ -29,10 +28,11 @@ interface SettingsTabProps {
   onNewsletterDrawDateChange: (date: string) => void;
   onNewsletterShareTextChange: (text: string) => void;
   onSaveNewsletter: () => void;
-  onRefreshBusiness: () => void; // Added for refreshing after change request
+  onRefreshBusiness: () => void;
 }
 
 export function SettingsTab(props: SettingsTabProps) {
+  const { t } = useTranslation();
   const [changeRequestField, setChangeRequestField] = useState<{
     field: string;
     currentValue: string;
@@ -54,7 +54,7 @@ export function SettingsTab(props: SettingsTabProps) {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Settings</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('dashboard_settings')}</h3>
       
       {/* Business Profile Section */}
       {!props.editingProfile ? (
@@ -75,7 +75,7 @@ export function SettingsTab(props: SettingsTabProps) {
 
       {/* Newsletter Settings Section */}
       <div className="mt-8 pt-6 border-t border-gray-200">
-        <h4 className="text-md font-semibold text-gray-900 mb-4">Newsletter Settings</h4>
+        <h4 className="text-md font-semibold text-gray-900 mb-4">{t('settings_newsletter')}</h4>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <input
@@ -86,14 +86,14 @@ export function SettingsTab(props: SettingsTabProps) {
               className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
             />
             <label htmlFor="newsletterEnabled" className="text-sm font-medium text-gray-700">
-              Enable Newsletter Signup
+              {t('settings_newsletter_enable')}
             </label>
           </div>
 
           {props.newsletterEnabled && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Newsletter Title</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_title')}</label>
                 <input
                   type="text"
                   value={props.newsletterTitle}
@@ -102,7 +102,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prize Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_prize')}</label>
                 <input
                   type="text"
                   value={props.newsletterPrize}
@@ -111,7 +111,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Call to Action</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_cta')}</label>
                 <input
                   type="text"
                   value={props.newsletterCta}
@@ -120,7 +120,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_terms')}</label>
                 <input
                   type="text"
                   value={props.newsletterTerms}
@@ -129,7 +129,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Draw Date (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_draw_date')}</label>
                 <input
                   type="date"
                   value={props.newsletterDrawDate}
@@ -138,7 +138,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Share Text</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_newsletter_share_text')}</label>
                 <input
                   type="text"
                   value={props.newsletterShareText}
@@ -155,7 +155,7 @@ export function SettingsTab(props: SettingsTabProps) {
                     : 'bg-orange-500 hover:bg-orange-600'
                 }`}
               >
-                {props.savingNewsletter ? 'Saving...' : 'Save Newsletter Settings'}
+                {props.savingNewsletter ? t('common_processing') : t('settings_save_newsletter')}
               </button>
             </>
           )}
