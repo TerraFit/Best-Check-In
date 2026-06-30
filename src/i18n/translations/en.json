@@ -1,6 +1,3 @@
-// src/i18n/translations/en.json
-// ✅ Complete English translations
-
 {
   "common_welcome": "Welcome",
   "common_loading": "Loading...",
