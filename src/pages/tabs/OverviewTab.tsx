@@ -1,4 +1,3 @@
-// src/pages/tabs/OverviewTab.tsx
 import { BusinessInfoCard, TodayActivityCards, QuickActions } from '../../components/dashboard';
 
 interface OverviewTabProps {
