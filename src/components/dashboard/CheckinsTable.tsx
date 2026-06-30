@@ -1,4 +1,4 @@
-// src/components/dashboard/CheckinsTable.tsx - TABLE RENDERER ONLY
+import { useTranslation } from '../../i18n';
 
 interface Booking {
   id?: string
@@ -24,10 +24,12 @@ interface CheckinsTableProps {
 }
 
 export function CheckinsTable({ bookings, loading, getStatusBadge }: CheckinsTableProps) {
+  const { t } = useTranslation();
+
   if (loading) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400">Loading bookings...</p>
+        <p className="text-gray-400">{t('common_loading')}</p>
       </div>
     )
   }
@@ -35,7 +37,7 @@ export function CheckinsTable({ bookings, loading, getStatusBadge }: CheckinsTab
   if (bookings.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400">No check-ins match your filters</p>
+        <p className="text-gray-400">{t('checkin_no_results')}</p>
       </div>
     )
   }
@@ -45,15 +47,33 @@ export function CheckinsTable({ bookings, loading, getStatusBadge }: CheckinsTab
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nights</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral</th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_guest_name')}
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_contact')}
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_origin')}
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_id_number')}
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_check_in')}
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_nights')}
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_amount')}
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_referral')}
+            </th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {t('checkin_status')}
+            </th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -99,5 +119,5 @@ export function CheckinsTable({ bookings, loading, getStatusBadge }: CheckinsTab
         </tbody>
       </table>
     </div>
-  )
+  );
 }
