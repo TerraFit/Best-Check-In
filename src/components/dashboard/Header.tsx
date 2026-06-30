@@ -122,8 +122,6 @@ export function Header({ business, refreshing, onRefresh, onLogout, onShowQRModa
           onClose={() => setShowQRModal(false)}
         />
       )}
-
-      {/* ✅ DEBUG BADGE REMOVED */}
     </>
   );
 }
