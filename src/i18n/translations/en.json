@@ -1,131 +1,135 @@
-{
-  "common_welcome": "Welcome",
-  "common_loading": "Loading...",
-  "common_submit": "Submit",
-  "common_cancel": "Cancel",
-  "common_save": "Save",
-  "common_delete": "Delete",
-  "common_back": "Back",
-  "common_next": "Next",
-  "common_continue": "Continue",
-  "common_complete": "Complete",
-  "common_welcome_home": "Welcome Home",
-  "common_processing": "Processing...",
-  "common_back_to_details": "← Return to Details",
-  "common_open_camera": "Open Camera",
-  "common_capture": "Capture",
-  "common_upload_from_gallery": "Or upload from gallery",
-  "common_take_new_photo": "Take New Photo",
-  "common_powered_by": "Powered by",
-  "common_clear": "Clear",
-  "checkin_title": "Statutory Registration",
-  "checkin_personal_details": "Personal Registry",
-  "checkin_first_name": "First Name",
-  "checkin_last_name": "Surname",
-  "checkin_email": "Email Address",
-  "checkin_phone": "Mobile Phone",
-  "checkin_passport": "Passport / ID Number",
-  "checkin_country": "Country of Origin",
-  "checkin_province": "Province / State",
-  "checkin_city": "City / Town",
-  "checkin_arrival_date": "Arrival Date",
-  "checkin_nights": "Number of Nights",
-  "checkin_referral": "How did you hear about us?",
-  "checkin_arriving_from": "Arriving From",
-  "checkin_arriving_from_placeholder": "e.g., Johannesburg, Cape Town, Gaborone...",
-  "checkin_arriving_from_help": "Where did you travel from to reach us?",
-  "checkin_next_destination": "Next Destination",
-"checkin_next_destination_placeholder": "e.g., Johannesburg, Cape Town, Gaborone...",
-  "checkin_settlement": "Method of Settlement",
-  "checkin_indemnity": "Indemnity & Waiver",
-  "checkin_signature": "Digital Signature",
-  "checkin_id_photo": "ID Photo",
-  "checkin_complete_button": "Complete Registration",
-  "checkin_success_message": "Check-in Complete! 🎉",
-  "checkin_confirmation_sent": "A confirmation email has been sent to {email}",
-  "checkin_email_label": "Confirm your Email *",
-  "checkin_save_details": "Save my details for next time",
-  "checkin_save_details_sub": "Your information will be securely stored for faster check-ins",
-  "checkin_profile_loaded": "Your saved details have been loaded",
-  "checkin_profile_saved": "Your details have been saved for next time",
-  "checkin_popia_consent": "Get exclusive offers and updates from {businessName}. Unsubscribe anytime.",
-  "checkin_begin_button": "Begin Statutory Check-In",
-  "checkin_immigration_act": "Immigration Act Requirement (Section 40)",
-  "checkin_select_country": "Select Country",
-  "checkin_select_province": "Select Province",
-  "checkin_enter_province": "Enter your province",
-  "checkin_select_referral": "Select referral source",
-  "checkin_referral_word_of_mouth": "Word of mouth",
-  "checkin_referral_travel_agency": "Travel Agency",
-  "checkin_referral_research": "Research engine",
-  "checkin_select_settlement": "Select Settlement",
-  "checkin_continue_indemnity": "Continue to Indemnity",
-  "checkin_signature_instruction": "Sign with your finger or mouse",
-  "checkin_adults": "Adults (Sharing)",
-  "checkin_children": "Children (Under 16 sharing with adults)",
-  "error_required": "{field} is required",
-  "error_invalid_email": "Please enter a valid email address",
-  "error_passwords_mismatch": "Passwords do not match",
-  "error_min_length": "Must be at least {min} characters",
-  "error_photo_required": "ID photo is required",
-  "error_signature_required": "Digital signature is required",
-  "error_indemnity_required": "Please accept the indemnity terms",
-  "error_complete_fields": "Please complete all required fields:",
-  "error_all_required": "All fields marked with asterisk are required",
-  "error_first_name_required": "First name is required",
-  "error_last_name_required": "Last name is required",
-  "error_passport_required": "ID/Passport number is required",
-  "error_phone_required": "Mobile phone number is required",
-  "error_country_required": "Country of origin is required",
-  "error_city_required": "City/Town is required",
-  "error_arrival_date_required": "Arrival date is required",
-  "error_nights_required": "Number of nights is required",
-  "error_referral_required": "Please select how you heard about us",
-  "error_arriving_from_required": "Arriving from location is required",
-  "error_next_destination_required": "Next destination is required",
-  "error_settlement_required": "Please select payment method",
-  "error_is_required": "is required",
-  "error_complete_before_submit": "Please complete before submitting:",
-  "error_id_photo_required_alert": "Please take a photo of your ID/passport.",
-  "error_signature_required_alert": "Please provide your digital signature.",
-  "error_scroll_indemnity": "Please scroll to the bottom of the indemnity agreement to enable acceptance.",
-  "error_booking_failed": "Failed to save booking. Please try again.",
-  "error_unexpected": "An unexpected error occurred. Please try again.",
-  "error_email_failed": "Could not send confirmation email, but check-in is complete.",
-  "warning_duplicate_booking": "Note: This guest has already checked in today. Their record has been updated.",
-  "indemnity_warning": "⚠️ WARNING: This is a legally binding document that limits your legal rights.",
-  "indemnity_title": "Guest Acknowledgement of Inherent Risk, Waiver of Claims, and Indemnity Agreement",
-  "indemnity_accept": "I hereby certify that I have read and accepted the Terms and Conditions and the Waiver and Indemnity as displayed above.",
-  "indemnity_part_a": "PART A: WARNING AND NOTICE",
-  "indemnity_part_b": "PART B: ACKNOWLEDGEMENT OF INHERENT RISKS",
-  "indemnity_part_c": "PART C: WAIVER OF CLAIMS AND INDEMNITY",
-  "indemnity_part_d": "PART D: GUEST WARRANTIES AND GENERAL TERMS",
-  "indemnity_part_e": "PART E: DECLARATION AND SIGNATURE",
-  "indemnity_scroll_to_accept": "↓ Scroll to end of document to enable acceptance ↓",
-  "indemnity_scroll_bottom": "— End of Document —",
-  "success_checkin_complete": "Check-in Complete! 🎉",
-  "success_welcome": "Welcome to {businessName}",
-  "success_email_sent": "A confirmation email has been sent to {email}",
-  "success_next_steps": "What's next?",
-  "success_key_collection": "Please proceed to reception to collect your keys",
-  "success_new_guest_button": "Check in another guest",
-  "success_step_checkin_recorded": "Your check-in has been recorded",
-  "success_step_email_sent": "A confirmation email has been sent",
-  "success_step_keys": "Please proceed to reception to collect your keys",
-  "language_selector_title": "Language",
-  "language_english": "English",
-  "language_afrikaans": "Afrikaans",
-  "language_german": "Deutsch",
-  "language_french": "Français",
-  "language_dutch": "Nederlands",
-  "language_portuguese": "Português",
-  "language_spanish": "Español",
-  "language_russian": "Русский",
-  "language_chinese": "中文",
-  "language_arabic": "العربية",
-  "language_hebrew": "עברית",
-  "language_italian": "Italiano",
-  "language_detected_message": "We detected you prefer {language}. Would you like to switch?",
-  "language_switch_confirm": "Switch",
-  "language_stay": "Stay in English"
+// src/components/dashboard/Header.tsx
+// ✅ Clean header - Language selector is separate
+
+import { useState } from 'react';
+import QRCodeModal from '../QRCodeModal';
+import { useTranslation } from '../../i18n'; // ✅ FIXED: Added 'from'
+
+interface HeaderProps {
+  business: {
+    id?: string;
+    trading_name?: string;
+    slogan?: string;
+    logo_url?: string;
+    phone?: string;
+  } | null;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onLogout: () => void;
+  onShowQRModal?: () => void;
+}
+
+export function Header({ business, refreshing, onRefresh, onLogout, onShowQRModal }: HeaderProps) {
+  const [showQRModal, setShowQRModal] = useState(false);
+  const { t, language } = useTranslation();
+
+  const handleQRClick = () => {
+    if (onShowQRModal) {
+      onShowQRModal();
+    } else {
+      setShowQRModal(true);
+    }
+  };
+
+  return (
+    <>
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Left: Logo + Business Name */}
+            <div className="flex items-center space-x-4 min-w-0">
+              {business?.logo_url ? (
+                <img 
+                  src={business.logo_url} 
+                  alt={business.trading_name} 
+                  className="h-10 w-auto rounded-lg object-contain flex-shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-orange-600 font-bold text-lg">
+                    {business?.trading_name?.charAt(0) || 'B'}
+                  </span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 truncate">
+                  {business?.trading_name || 'Business Dashboard'}
+                </h1>
+                {business?.slogan && (
+                  <p className="text-xs text-gray-500 italic truncate hidden sm:block">
+                    {business.slogan}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            {/* Right: Actions */}
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+              {/* QR Code Button */}
+              <button
+                onClick={handleQRClick}
+                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                </svg>
+                <span className="hidden xs:inline">QR Code</span>
+                <span className="inline xs:hidden">QR</span>
+              </button>
+
+              {/* Refresh Button */}
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                className="p-2 text-gray-500 hover:text-orange-500 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                title="Refresh data"
+              >
+                <svg className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+
+              {/* Print Button */}
+              <button
+                onClick={() => window.print()}
+                className="p-2 text-gray-500 hover:text-orange-500 rounded-lg hover:bg-gray-100 transition-colors hidden sm:block"
+                title="Print"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+              </button>
+
+              {/* Logout Button */}
+              <button
+                onClick={onLogout}
+                className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* QR Code Modal */}
+      {showQRModal && business?.id && (
+        <QRCodeModal
+          businessId={business.id}
+          businessName={business.trading_name || ''}
+          businessLogo={business.logo_url}
+          businessPhone={business.phone}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
+
+      {/* ✅ Temporary debug - remove after testing */}
+      <div className="fixed top-[72px] right-[180px] z-30 bg-amber-100 text-stone-800 px-3 py-1 rounded text-xs font-mono shadow-md border border-amber-200">
+        🌐 {language} | {t('common_welcome')}
+      </div>
+    </>
+  );
 }
