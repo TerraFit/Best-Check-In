@@ -1,5 +1,5 @@
-// netlify/functions/export-marketing-contacts.js
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';  // ← Add this import
 
 export const handler = async (event) => {
   const headers = {
@@ -18,9 +18,17 @@ export const handler = async (event) => {
   }
 
   try {
+    // ⭐ FIX: Create Supabase client with WebSocket transport
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: {
+          params: {
+            transport: WebSocket  // ← This is the key fix
+          }
+        }
+      }
     );
 
     const { businessId, filters, format } = JSON.parse(event.body);
