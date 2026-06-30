@@ -1,4 +1,4 @@
-// src/components/dashboard/QuickActions.tsx
+import { useTranslation } from '../../i18n';
 
 interface QuickActionsProps {
   businessId: string
@@ -7,13 +7,11 @@ interface QuickActionsProps {
 }
 
 export function QuickActions({ businessId, onShowQRModal, onShowImportModal }: QuickActionsProps) {
-  const getBusinessId = () => {
-    return businessId
-  }
+  const { t } = useTranslation();
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('dashboard_quick_actions')}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
           onClick={() => window.location.href = `/checkin/${businessId}`}
@@ -25,8 +23,8 @@ export function QuickActions({ businessId, onShowQRModal, onShowImportModal }: Q
             </svg>
           </div>
           <div>
-            <p className="font-medium text-gray-900">New Check-in</p>
-            <p className="text-xs text-gray-500">Quick check-in for arriving guests</p>
+            <p className="font-medium text-gray-900">{t('dashboard_new_checkin')}</p>
+            <p className="text-xs text-gray-500">{t('dashboard_new_checkin_desc')}</p>
           </div>
         </button>
         <button
@@ -39,8 +37,8 @@ export function QuickActions({ businessId, onShowQRModal, onShowImportModal }: Q
             </svg>
           </div>
           <div>
-            <p className="font-medium text-gray-900">QR Code</p>
-            <p className="text-xs text-gray-500">Display check-in QR code</p>
+            <p className="font-medium text-gray-900">{t('dashboard_qr_code')}</p>
+            <p className="text-xs text-gray-500">{t('dashboard_qr_code_desc')}</p>
           </div>
         </button>
         <button
@@ -53,11 +51,11 @@ export function QuickActions({ businessId, onShowQRModal, onShowImportModal }: Q
             </svg>
           </div>
           <div>
-            <p className="font-medium text-gray-900">Import Data</p>
-            <p className="text-xs text-gray-500">Upload Excel/CSV files</p>
+            <p className="font-medium text-gray-900">{t('dashboard_import_data')}</p>
+            <p className="text-xs text-gray-500">{t('dashboard_import_data_desc')}</p>
           </div>
         </button>
       </div>
     </div>
-  )
+  );
 }
