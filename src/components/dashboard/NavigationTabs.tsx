@@ -1,4 +1,4 @@
-// src/components/dashboard/NavigationTabs.tsx
+import { useTranslation } from '../../i18n';
 
 interface Tab {
   id: string
@@ -12,6 +12,8 @@ interface NavigationTabsProps {
 }
 
 export function NavigationTabs({ tabs, activeTab, onTabChange }: NavigationTabsProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -28,11 +30,15 @@ export function NavigationTabs({ tabs, activeTab, onTabChange }: NavigationTabsP
                 }
               `}
             >
-              {tab.name}
+              {tab.id === 'overview' && t('dashboard_overview')}
+              {tab.id === 'checkins' && t('dashboard_checkins')}
+              {tab.id === 'reports' && t('dashboard_reports')}
+              {tab.id === 'settings' && t('dashboard_settings')}
+              {!['overview', 'checkins', 'reports', 'settings'].includes(tab.id) && tab.name}
             </button>
           ))}
         </nav>
       </div>
     </div>
-  )
+  );
 }
