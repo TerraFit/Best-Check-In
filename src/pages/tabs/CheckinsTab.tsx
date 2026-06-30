@@ -1,11 +1,9 @@
-// src/pages/tabs/CheckinsTab.tsx
-// ✅ MARKETING CONSENTS TOGGLE - Moved left next to label, soft 3D styling
-
 import { useState } from 'react';
 import { FiltersBar, CheckinsTable, PageSizeSelector } from '../../components/dashboard';
 import MarketingExportModal from '../../components/export/MarketingExportModal';
 import OfficialRegisterExportModal from '../../components/export/OfficialRegisterExportModal';
 import { Download, Shield, Users, Mail } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 interface CheckinsTabProps {
   bookings: any[];
@@ -30,6 +28,7 @@ interface CheckinsTabProps {
 }
 
 export function CheckinsTab(props: CheckinsTabProps) {
+  const { t } = useTranslation();
   const [showMarketingExport, setShowMarketingExport] = useState(false);
   const [showOfficialExport, setShowOfficialExport] = useState(false);
   const [showMarketingConsentOnly, setShowMarketingConsentOnly] = useState(false);
@@ -66,11 +65,11 @@ export function CheckinsTab(props: CheckinsTabProps) {
               <Users size={18} className="text-stone-600" />
             </div>
             <span className="text-sm font-semibold text-stone-700">
-              {displayTotal.toLocaleString()} check-ins
+              {displayTotal.toLocaleString()} {t('dashboard_total_checkins')}
             </span>
             {showMarketingConsentOnly && (
               <span className="text-xs text-green-600 font-medium bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
-                ✉️ Marketing Consents Only
+                ✉️ {t('marketing_consents_only')}
               </span>
             )}
           </div>
@@ -90,7 +89,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
               background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2) 0%, transparent 60%)'
             }} />
             <Download size={16} className="relative z-10" />
-            <span className="relative z-10">Marketing Contacts</span>
+            <span className="relative z-10">{t('export_marketing_title')}</span>
             <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">CSV</span>
           </button>
           
@@ -107,7 +106,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
               background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2) 0%, transparent 60%)'
             }} />
             <Shield size={16} className="relative z-10" />
-            <span className="relative z-10">Official Register</span>
+            <span className="relative z-10">{t('export_official_title')}</span>
             <span className="relative z-10 text-xs bg-white/20 px-2 py-0.5 rounded-full">PDF</span>
           </button>
         </div>
@@ -135,7 +134,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
               boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
             }}
           >
-            {/* ✅ Label + Toggle - Grouped together on the left */}
+            {/* Label + Toggle - Grouped together on the left */}
             <div className="flex items-center gap-3 flex-shrink-0">
               <Mail size={20} className="text-[#4A4A4A]" strokeWidth={1.5} />
               <span 
@@ -146,10 +145,10 @@ export function CheckinsTab(props: CheckinsTabProps) {
                   fontFamily: 'sans-serif',
                 }}
               >
-                Marketing Consents
+                {t('marketing_consents')}
               </span>
 
-              {/* ✅ Segmented Switch - Next to label, soft 3D */}
+              {/* Segmented Switch - Next to label, soft 3D */}
               <div 
                 className="relative flex items-center rounded-full cursor-pointer transition-all duration-300 flex-shrink-0"
                 style={{
@@ -186,7 +185,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
                     fontWeight: 700,
                   }}
                 >
-                  OFF
+                  {t('marketing_consents_toggle_off')}
                 </span>
 
                 {/* ON Label - Right side */}
@@ -199,7 +198,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
                     fontWeight: 700,
                   }}
                 >
-                  ON
+                  {t('marketing_consents_toggle_on')}
                 </span>
               </div>
             </div>
@@ -207,11 +206,11 @@ export function CheckinsTab(props: CheckinsTabProps) {
             {/* Right side - Count */}
             <div className="flex-1 flex justify-end items-center gap-3">
               <span className="text-xs text-gray-400">
-                {displayTotal.toLocaleString()} total
+                {displayTotal.toLocaleString()} {t('marketing_consents_total')}
               </span>
               {showMarketingConsentOnly && (
                 <span className="text-xs text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200 font-medium">
-                  ✉️ {displayBookings.length} consented
+                  ✉️ {displayBookings.length} {t('marketing_consents_count')}
                 </span>
               )}
             </div>
@@ -220,17 +219,17 @@ export function CheckinsTab(props: CheckinsTabProps) {
 
         {displayBookings.length === 0 && props.bookings.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400">Loading bookings...</p>
+            <p className="text-gray-400">{t('common_loading')}</p>
           </div>
         ) : displayBookings.length === 0 && props.bookings.length > 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-400">
               {showMarketingConsentOnly 
-                ? 'No guests with marketing consent match your filters'
-                : 'No check-ins match your filters'}
+                ? t('marketing_consents_no_results')
+                : t('checkin_no_results')}
             </p>
             <button onClick={props.onClearFilters} className="mt-2 text-sm text-orange-600 hover:text-orange-700">
-              Clear all filters
+              {t('filters_clear')}
             </button>
           </div>
         ) : (
@@ -245,13 +244,13 @@ export function CheckinsTab(props: CheckinsTabProps) {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-gray-600">
-              Showing{' '}
+              {t('filters_showing')}{' '}
               <span className="font-medium text-gray-900">{startRange}</span>
-              {' '}to{' '}
+              {' '}{t('filters_to')}{' '}
               <span className="font-medium text-gray-900">{endRange}</span>
-              {' '}of{' '}
+              {' '}{t('filters_of')}{' '}
               <span className="font-semibold text-gray-900">{displayTotal.toLocaleString()}</span>
-              {' '}check-ins
+              {' '}{t('dashboard_total_checkins')}
             </div>
 
             <div className="flex items-center gap-3">
@@ -278,9 +277,9 @@ export function CheckinsTab(props: CheckinsTabProps) {
                 </button>
                 
                 <span className="text-sm text-gray-700 mx-2">
-                  Page{' '}
+                  {t('filters_page')}{' '}
                   <span className="font-medium text-gray-900">{props.currentPage}</span>
-                  {' '}of{' '}
+                  {' '}{t('filters_of')}{' '}
                   <span className="font-medium text-gray-900">{displayPages}</span>
                 </span>
                 
@@ -307,7 +306,7 @@ export function CheckinsTab(props: CheckinsTabProps) {
               </div>
 
               <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300">
-                <span className="text-sm text-gray-500">Go to:</span>
+                <span className="text-sm text-gray-500">{t('filters_go_to')}:</span>
                 <input
                   type="number"
                   min={1}
