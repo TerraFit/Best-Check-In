@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import WebSocket from 'ws';  // ← Add this import
 
 export const handler = async (event) => {
   const headers = {
@@ -18,20 +17,16 @@ export const handler = async (event) => {
   }
 
   try {
-    // ⭐ FIX: Create Supabase client with WebSocket transport
+    // ✅ DISABLE REALTIME - This works without ws
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
       {
-        realtime: {
-          params: {
-            transport: WebSocket  // ← This is the key fix
-          }
-        }
+        realtime: { enabled: false }  // ← This is the fix
       }
     );
 
-    const { businessId, filters, format } = JSON.parse(event.body);
+    const { businessId, filters } = JSON.parse(event.body);
 
     if (!businessId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
@@ -51,7 +46,6 @@ export const handler = async (event) => {
     } else if (filters?.marketingConsent === 'all') {
       // No filter - show all
     } else {
-      // Default: only show consented
       query = query.eq('marketing_consent', true);
     }
 
