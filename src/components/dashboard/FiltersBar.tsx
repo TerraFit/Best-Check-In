@@ -1,4 +1,4 @@
-// src/components/dashboard/FiltersBar.tsx
+import { useTranslation } from '../../i18n';
 
 interface FiltersBarProps {
   filters: {
@@ -28,6 +28,8 @@ export function FiltersBar({
   uniqueCities,
   uniqueCountries
 }: FiltersBarProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex flex-wrap gap-4 items-center">
@@ -44,16 +46,16 @@ export function FiltersBar({
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           >
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-            <option value="90days">Last 90 days</option>
-            <option value="12months">Last 12 months</option>
-            <option value="all">All time</option>
+            <option value="7days">7 {t('filters_days')}</option>
+            <option value="30days">30 {t('filters_days')}</option>
+            <option value="90days">90 {t('filters_days')}</option>
+            <option value="12months">12 {t('filters_months')}</option>
+            <option value="all">{t('filters_all_time')}</option>
           </select>
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">From:</span>
+          <span className="text-sm text-gray-500">{t('filters_from')}:</span>
           <input
             type="date"
             value={filters.startDate}
@@ -66,7 +68,7 @@ export function FiltersBar({
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">To:</span>
+          <span className="text-sm text-gray-500">{t('filters_to')}:</span>
           <input
             type="date"
             value={filters.endDate}
@@ -85,7 +87,7 @@ export function FiltersBar({
             </svg>
             <input
               type="text"
-              placeholder="Search by name, email, or phone..."
+              placeholder={t('filters_search')}
               value={filters.searchTerm}
               onChange={(e) => updateFilter('searchTerm', e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
@@ -100,10 +102,10 @@ export function FiltersBar({
           onChange={(e) => updateFilter('statusFilter', e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
-          <option value="">All Statuses</option>
-          <option value="checked_in">Checked In</option>
-          <option value="completed">Completed</option>
-          <option value="confirmed">Confirmed</option>
+          <option value="">{t('filters_all_statuses')}</option>
+          <option value="checked_in">{t('filters_status_checked_in')}</option>
+          <option value="completed">{t('filters_status_completed')}</option>
+          <option value="confirmed">{t('filters_status_confirmed')}</option>
         </select>
         
         <select
@@ -111,7 +113,7 @@ export function FiltersBar({
           onChange={(e) => updateFilter('provinceFilter', e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
-          <option value="">All Provinces</option>
+          <option value="">{t('filters_all_provinces')}</option>
           {uniqueProvinces.map(p => (
             <option key={p} value={p}>{p}</option>
           ))}
@@ -122,7 +124,7 @@ export function FiltersBar({
           onChange={(e) => updateFilter('cityFilter', e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
-          <option value="">All Cities</option>
+          <option value="">{t('filters_all_cities')}</option>
           {uniqueCities.map(c => (
             <option key={c} value={c}>{c}</option>
           ))}
@@ -133,7 +135,7 @@ export function FiltersBar({
           onChange={(e) => updateFilter('countryFilter', e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
-          <option value="">All Countries</option>
+          <option value="">{t('filters_all_countries')}</option>
           {uniqueCountries.map(c => (
             <option key={c} value={c}>{c}</option>
           ))}
@@ -144,10 +146,10 @@ export function FiltersBar({
             onClick={clearCurrentFilters}
             className="text-sm text-orange-600 hover:text-orange-700"
           >
-            Clear all filters
+            {t('filters_clear')}
           </button>
         )}
       </div>
     </div>
-  )
+  );
 }
