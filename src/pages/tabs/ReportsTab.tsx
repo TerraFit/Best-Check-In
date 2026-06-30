@@ -1,5 +1,3 @@
-// src/pages/tabs/ReportsTab.tsx
-// ✅ FINAL VERSION - Demo/Live toggle, Mock data for demo, Live by default
 import { useState, useMemo, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
 import { 
@@ -19,6 +17,7 @@ import {
   Database,
   Cloud
 } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 // ============================================================
 // 📦 MOCK DATA - For demo/testing only
@@ -170,6 +169,8 @@ const TIER_LABELS: Record<SubscriptionTier, string> = {
 };
 
 export function ReportsTab({ bookings }: ReportsTabProps) {
+  const { t } = useTranslation();
+  
   // ============================================================
   // STATE MANAGEMENT
   // ============================================================
@@ -201,13 +202,11 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
     const data = activeBookings || [];
     const total = data.length || 1;
     
-    // ✅ Arriving From - ONLY use arriving_from field (NO fallback to guest_city!)
     const arrivingMap = new Map<string, { count: number; country: string }>();
     data.forEach(b => {
       const location = b.arriving_from;
       const country = b.guest_country || b.country || 'Unknown';
       
-      // Only add if arriving_from has a value
       if (location && location.trim() !== '') {
         if (!arrivingMap.has(location)) {
           arrivingMap.set(location, { count: 0, country });
@@ -216,13 +215,11 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       }
     });
     
-    // ✅ Going To - ONLY use next_destination field (NO fallback to guest_city!)
     const goingMap = new Map<string, { count: number; country: string }>();
     data.forEach(b => {
       const location = b.next_destination;
       const country = b.guest_country || b.country || 'Unknown';
       
-      // Only add if next_destination has a value
       if (location && location.trim() !== '') {
         if (!goingMap.has(location)) {
           goingMap.set(location, { count: 0, country });
@@ -246,11 +243,6 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       percentage: (data.count / total) * 100,
       isCorrection: false,
     })).sort((a, b) => b.count - a.count);
-    
-    // ✅ Debug logs
-    console.log('📊 Travel Data - Arriving From (ONLY arriving_from):', arrivingFrom.map(d => `${d.location} (${d.country})`));
-    console.log('📊 Travel Data - Going To (ONLY next_destination):', goingTo.map(d => `${d.location} (${d.country})`));
-    console.log('📊 Are they different?', JSON.stringify(arrivingFrom) !== JSON.stringify(goingTo));
     
     return { arrivingFrom, goingTo };
   }, [activeBookings]);
@@ -296,15 +288,6 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
   }, [adaptedVisitors]);
 
   // ============================================================
-  // 🔍 DEBUG - Log what's being passed to charts
-  // ============================================================
-  useEffect(() => {
-    console.log('📊 ReportsTab - Active Bookings:', activeBookings);
-    console.log('📊 ReportsTab - Active Bookings count:', activeBookings?.length);
-    console.log('📊 ReportsTab - First booking:', activeBookings?.[0]);
-  }, [activeBookings]);
-
-  // ============================================================
   // 🎨 RENDER
   // ============================================================
   return (
@@ -312,8 +295,8 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       {/* Header with Data Source Toggle - Live by Default */}
       <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Analytics & Reports</h2>
-          <p className="text-sm text-gray-500">Understand your guest demographics and booking patterns</p>
+          <h2 className="text-lg font-semibold text-gray-900">{t('dashboard_reports')}</h2>
+          <p className="text-sm text-gray-500">{t('reports_description')}</p>
         </div>
         <div className="flex items-center gap-3">
           {/* Data Source Toggle */}
@@ -327,7 +310,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
               }`}
             >
               <Cloud size={12} className="inline mr-1" />
-              Live
+              {t('reports_live')}
             </button>
             <button
               onClick={() => setUseMockData(true)}
@@ -338,15 +321,15 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
               }`}
             >
               <Database size={12} className="inline mr-1" />
-              Demo
+              {t('reports_demo')}
             </button>
           </div>
           <span className="text-xs text-stone-400">
-            {activeBookings?.length || 0} bookings
+            {activeBookings?.length || 0} {t('dashboard_total_checkins')}
           </span>
           {useMockData && (
             <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded-full">
-              DEMO
+              {t('reports_demo')}
             </span>
           )}
         </div>
@@ -355,12 +338,12 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Check-Ins</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('dashboard_total_checkins')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          <p className="text-[10px] text-stone-400">{useMockData ? 'Demo' : 'Live'} data</p>
+          <p className="text-[10px] text-stone-400">{useMockData ? t('reports_demo') : t('reports_live')} {t('reports_data')}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Unique Countries</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_unique_countries')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.countryCount}</p>
           {stats.topCountries.length > 0 && (
             <p className="text-[10px] text-stone-400 truncate">
@@ -369,16 +352,16 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">QR Code Scan</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_qr_adoption')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.qrPercentage}</p>
-          <p className="text-[10px] text-stone-400">Touchless check-in</p>
+          <p className="text-[10px] text-stone-400">{t('reports_touchless_checkin')}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Revenue</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_revenue')}</p>
           <p className="text-2xl font-bold text-gray-900">
             R{activeBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
           </p>
-          <p className="text-[10px] text-stone-400">Total bookings value</p>
+          <p className="text-[10px] text-stone-400">{t('reports_total_booking_value')}</p>
         </div>
       </div>
 
@@ -387,7 +370,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider flex items-center gap-2">
             <Sparkles size={14} className="text-orange-500" />
-            Interactive Map Engine
+            {t('reports_interactive_map')}
           </h3>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium capitalize">
@@ -395,7 +378,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
             </span>
             {useMockData && (
               <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded">
-                DEMO
+                {t('reports_demo')}
               </span>
             )}
           </div>
@@ -428,7 +411,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           arrivingFrom={travelData.arrivingFrom}
           goingTo={travelData.goingTo}
           isLoading={false}
-          title="Guest Travel Patterns"
+          title={t('reports_travel_patterns')}
         />
         <LengthOfStayChart bookings={activeBookings || []} />
       </div>
