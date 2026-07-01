@@ -1,5 +1,5 @@
 // src/components/export/MarketingExportModal.tsx
-// ✅ FIXED: Includes businessId in request
+// ✅ Uses dynamic businessId from props (passed from parent component)
 
 import { useState } from 'react';
 import { X, Download, FileSpreadsheet } from 'lucide-react';
@@ -7,7 +7,8 @@ import { X, Download, FileSpreadsheet } from 'lucide-react';
 interface MarketingExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  businessId: string;
+  businessId: string;  // ← Passed dynamically from parent
+  businessName?: string;  // ← Optional for display
   defaultFilters?: {
     marketingConsent?: string;
     dateFrom?: string;
@@ -19,7 +20,8 @@ interface MarketingExportModalProps {
 export default function MarketingExportModal({
   isOpen,
   onClose,
-  businessId,
+  businessId,  // ← Dynamic from parent (authenticated business)
+  businessName,
   defaultFilters = {}
 }: MarketingExportModalProps) {
   const [filters, setFilters] = useState({
@@ -37,30 +39,38 @@ export default function MarketingExportModal({
     setError(null);
 
     try {
-      // ✅ FIX: Include businessId in the request body
+      // ✅ Use the dynamic businessId from props
+      console.log('📤 Exporting for business:', businessId, businessName || '');
+      console.log('📤 Filters:', filters);
+      console.log('📤 Format:', format);
+
+      const requestBody = {
+        businessId: businessId,  // ← Dynamic from authenticated session
+        filters: filters,
+        format: format
+      };
+      
+      console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
+
       const response = await fetch('/.netlify/functions/export-marketing-contacts-v2', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          businessId: businessId,  // ← CRITICAL: This was missing!
-          filters: filters,
-          format: format
-        })
+        body: JSON.stringify(requestBody)
       });
+
+      console.log('📥 Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Export error:', errorText);
-        throw new Error(`Export failed: ${response.status}`);
+        console.error('❌ Export error response:', errorText);
+        throw new Error(`Export failed: ${response.status} - ${errorText}`);
       }
 
-      // Get the CSV blob
       const blob = await response.blob();
       const filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
       
-      // Download the file
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -72,6 +82,7 @@ export default function MarketingExportModal({
 
       onClose();
     } catch (err) {
+      console.error('❌ Export error:', err);
       setError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setLoading(false);
@@ -92,6 +103,12 @@ export default function MarketingExportModal({
               <X size={20} />
             </button>
           </div>
+
+          {businessName && (
+            <p className="text-sm text-gray-600 mb-2">
+              Business: <span className="font-semibold">{businessName}</span>
+            </p>
+          )}
 
           <p className="text-sm text-gray-600 mb-6">
             Export guests who have consented to receive marketing communications.
