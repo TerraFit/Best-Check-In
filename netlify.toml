@@ -1,5 +1,5 @@
 [build]
-  command = "npm install --legacy-peer-deps && npm run build"
+  command = "npm install && npm run build"
   publish = "dist"
 
 [build.environment]
@@ -9,6 +9,14 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# ⚡ Force rebuild of marketing-export.v2 function
+[functions."marketing-export.v2"]
+  memory = 1024
+  timeout = 30
+  node_bundler = "esbuild"
+  included_files = ["netlify/functions/**/*.js"]
+
+# Keep other functions with their settings
 [functions."*"]
   node_bundler = "esbuild"
   external_node_modules = [
@@ -19,8 +27,7 @@
     "qrcode",
     "uuid",
     "stripe",
-    "xlsx",
-    "ws"
+    "xlsx"
   ]
 
 [functions."check-payment-status"]
