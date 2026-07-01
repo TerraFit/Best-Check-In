@@ -1,5 +1,5 @@
 // src/components/export/MarketingExportModal.tsx
-// ✅ UPDATED to use marketing-export.v2
+// ✅ FIXED: Includes businessId in request
 
 import { useState } from 'react';
 import { X, Download, FileSpreadsheet } from 'lucide-react';
@@ -37,22 +37,23 @@ export default function MarketingExportModal({
     setError(null);
 
     try {
-      // ✅ UPDATED: Use the new marketing-export.v2 function
+      // ✅ FIX: Include businessId in the request body
       const response = await fetch('/.netlify/functions/export-marketing-contacts-v2', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          businessId, 
-          filters, 
-          format 
+          businessId: businessId,  // ← CRITICAL: This was missing!
+          filters: filters,
+          format: format
         })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Export failed');
+        const errorText = await response.text();
+        console.error('❌ Export error:', errorText);
+        throw new Error(`Export failed: ${response.status}`);
       }
 
       // Get the CSV blob
