@@ -38,7 +38,7 @@ export default function MarketingExportModal({
 
     try {
       // ✅ UPDATED: Use the new marketing-export.v2 function
-      const response = await fetch('/.netlify/functions/marketing-export.v2', {
+      const response = await fetch('/.netlify/functions/export-marketing-contacts-v2', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
