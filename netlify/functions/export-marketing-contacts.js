@@ -1,3 +1,7 @@
+// netlify/functions/marketing-export.js
+// ⚡ DEPLOYMENT_VERSION: 2026-07-01 - Force rebuild with Realtime disabled
+// This function exports marketing contacts with POPIA compliance
+
 import { createClient } from '@supabase/supabase-js';
 
 export const handler = async (event) => {
@@ -8,31 +12,40 @@ export const handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    };
   }
 
   try {
-    // ✅ DISABLE REALTIME - This works without ws
+    // ✅ CRITICAL FIX: Disable Realtime completely to avoid WebSocket issues
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
       {
-        realtime: { enabled: false }  // ← This is the fix
+        realtime: { enabled: false }  // ← This prevents the WebSocket error
       }
     );
 
-    const { businessId, filters } = JSON.parse(event.body);
+    const { businessId, filters, format } = JSON.parse(event.body);
 
     if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
+      return { 
+        statusCode: 400, 
+        headers, 
+        body: JSON.stringify({ error: 'Business ID required' }) 
+      };
     }
 
-    // Build query
+    // Build the Supabase query
     let query = supabase
       .from('bookings')
       .select('guest_first_name, guest_last_name, guest_email, guest_phone, guest_country, marketing_consent, created_at')
@@ -46,9 +59,11 @@ export const handler = async (event) => {
     } else if (filters?.marketingConsent === 'all') {
       // No filter - show all
     } else {
+      // Default: only show consented
       query = query.eq('marketing_consent', true);
     }
 
+    // Apply date filters
     if (filters?.dateFrom) {
       query = query.gte('created_at', filters.dateFrom);
     }
@@ -59,11 +74,12 @@ export const handler = async (event) => {
       query = query.eq('guest_country', filters.country);
     }
 
+    // Execute the query
     const { data, error } = await query;
 
     if (error) throw error;
 
-    // Transform data
+    // Transform data for export
     const contacts = (data || []).map(row => ({
       firstName: row.guest_first_name || '',
       lastName: row.guest_last_name || '',
@@ -72,7 +88,7 @@ export const handler = async (event) => {
       country: row.guest_country || ''
     }));
 
-    // Generate CSV
+    // Generate CSV content
     const headersRow = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
     const rows = contacts.map(c => [
       `"${c.firstName.replace(/"/g, '""')}"`,
@@ -85,6 +101,7 @@ export const handler = async (event) => {
     
     const filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
 
+    // Return CSV file
     return {
       statusCode: 200,
       headers: {
