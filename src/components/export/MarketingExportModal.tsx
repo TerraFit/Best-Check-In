@@ -1,14 +1,19 @@
 // src/components/export/MarketingExportModal.tsx
+// ✅ UPDATED to use marketing-export.v2
+
 import { useState } from 'react';
-import { ExportService } from '../../services/exportService';
-import { MarketingExportFilters } from '../../types/export';
-import { X, Download, Filter, FileSpreadsheet } from 'lucide-react';
+import { X, Download, FileSpreadsheet } from 'lucide-react';
 
 interface MarketingExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   businessId: string;
-  defaultFilters?: Partial<MarketingExportFilters>;
+  defaultFilters?: {
+    marketingConsent?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    country?: string;
+  };
 }
 
 export default function MarketingExportModal({
@@ -17,7 +22,7 @@ export default function MarketingExportModal({
   businessId,
   defaultFilters = {}
 }: MarketingExportModalProps) {
-  const [filters, setFilters] = useState<MarketingExportFilters>({
+  const [filters, setFilters] = useState({
     marketingConsent: 'subscribed',
     ...defaultFilters
   });
@@ -32,9 +37,38 @@ export default function MarketingExportModal({
     setError(null);
 
     try {
-      const blob = await ExportService.exportMarketingContacts(businessId, filters, format);
-      const filename = ExportService.getMarketingFilename(format);
-      ExportService.downloadBlob(blob, filename);
+      // ✅ UPDATED: Use the new marketing-export.v2 function
+      const response = await fetch('/.netlify/functions/marketing-export.v2', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          businessId, 
+          filters, 
+          format 
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Export failed');
+      }
+
+      // Get the CSV blob
+      const blob = await response.blob();
+      const filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Download the file
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed');
@@ -71,7 +105,7 @@ export default function MarketingExportModal({
               </label>
               <select
                 value={filters.marketingConsent}
-                onChange={(e) => setFilters({ ...filters, marketingConsent: e.target.value as any })}
+                onChange={(e) => setFilters({ ...filters, marketingConsent: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
               >
                 <option value="all">All Guests</option>
