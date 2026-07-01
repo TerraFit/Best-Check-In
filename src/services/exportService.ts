@@ -46,7 +46,7 @@ export class ExportService {
     format: 'csv' | 'xlsx'
   ): Promise<Blob> {
     // ✅ UPDATED: Using marketing-export.v2 (no WebSocket dependency)
-    const response = await fetch(`${API_BASE}/marketing-export.v2`, {
+    const response = await fetch(`${API_BASE}/export-marketing-contacts-v2`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json'
