@@ -1,8 +1,13 @@
 // netlify/functions/export-marketing-contacts-v2.js
-// ✅ Using ws package for WebSocket support on Node.js 20
+// ✅ With debug logging to verify deployment
 
 import { createClient } from '@supabase/supabase-js';
-import WebSocket from 'ws';  // ← CRITICAL: Import ws
+import WebSocket from 'ws';
+
+console.log('🚀 EXPORT FUNCTION VERSION: WS FIX DEPLOYED v2');
+console.log('📦 WebSocket type:', typeof WebSocket);
+console.log('📦 WebSocket value:', WebSocket ? WebSocket.toString().substring(0, 50) : 'undefined');
+console.log('🔧 Node version:', process.version);
 
 export const handler = async (event) => {
   const headers = {
@@ -25,16 +30,19 @@ export const handler = async (event) => {
   }
 
   try {
-    // ✅ CRITICAL FIX: Provide WebSocket transport
+    console.log('🔧 Creating Supabase client with ws transport...');
+    
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
       {
         realtime: {
-          transport: WebSocket  // ← This is the key fix
+          transport: WebSocket
         }
       }
     );
+
+    console.log('✅ Supabase client created');
 
     const { businessId, filters, format } = JSON.parse(event.body);
 
@@ -105,7 +113,7 @@ export const handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Export error:', error);
+    console.error('❌ Export error:', error);
     return {
       statusCode: 500,
       headers,
