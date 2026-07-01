@@ -1,8 +1,8 @@
-// netlify/functions/marketing-export.js
-// ⚡ DEPLOYMENT_VERSION: 2026-07-01 - Force rebuild with Realtime disabled
-// This function exports marketing contacts with POPIA compliance
+// netlify/functions/export-marketing-contacts-v2.js
+// ✅ Using ws package for WebSocket support on Node.js 20
 
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';  // ← CRITICAL: Import ws
 
 export const handler = async (event) => {
   const headers = {
@@ -12,7 +12,6 @@ export const handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
@@ -26,12 +25,14 @@ export const handler = async (event) => {
   }
 
   try {
-    // ✅ CRITICAL FIX: Disable Realtime completely to avoid WebSocket issues
+    // ✅ CRITICAL FIX: Provide WebSocket transport
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
       {
-        realtime: { enabled: false }  // ← This prevents the WebSocket error
+        realtime: {
+          transport: WebSocket  // ← This is the key fix
+        }
       }
     );
 
@@ -51,19 +52,14 @@ export const handler = async (event) => {
       .select('guest_first_name, guest_last_name, guest_email, guest_phone, guest_country, marketing_consent, created_at')
       .eq('business_id', businessId);
 
-    // Apply marketing consent filter
     if (filters?.marketingConsent === 'subscribed') {
       query = query.eq('marketing_consent', true);
     } else if (filters?.marketingConsent === 'no_consent') {
       query = query.eq('marketing_consent', false);
-    } else if (filters?.marketingConsent === 'all') {
-      // No filter - show all
-    } else {
-      // Default: only show consented
+    } else if (filters?.marketingConsent !== 'all') {
       query = query.eq('marketing_consent', true);
     }
 
-    // Apply date filters
     if (filters?.dateFrom) {
       query = query.gte('created_at', filters.dateFrom);
     }
@@ -74,12 +70,10 @@ export const handler = async (event) => {
       query = query.eq('guest_country', filters.country);
     }
 
-    // Execute the query
     const { data, error } = await query;
 
     if (error) throw error;
 
-    // Transform data for export
     const contacts = (data || []).map(row => ({
       firstName: row.guest_first_name || '',
       lastName: row.guest_last_name || '',
@@ -88,7 +82,6 @@ export const handler = async (event) => {
       country: row.guest_country || ''
     }));
 
-    // Generate CSV content
     const headersRow = ['First Name', 'Last Name', 'Email', 'Phone', 'Country'];
     const rows = contacts.map(c => [
       `"${c.firstName.replace(/"/g, '""')}"`,
@@ -101,7 +94,6 @@ export const handler = async (event) => {
     
     const filename = `marketing-contacts-${new Date().toISOString().split('T')[0]}.csv`;
 
-    // Return CSV file
     return {
       statusCode: 200,
       headers: {
