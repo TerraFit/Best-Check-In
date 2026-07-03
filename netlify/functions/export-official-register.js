@@ -1,5 +1,5 @@
 // netlify/functions/export-official-register.js
-// ✅ Returns HTML with automatic print-to-PDF dialog
+// ✅ Returns downloadable HTML file that can be printed to PDF
 
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
@@ -125,11 +125,11 @@ export const handler = async (event) => {
       'Created At': b.created_at || ''
     }));
 
-    // ✅ STEP 7: Generate HTML content with auto-print
-    const htmlContent = generateHTMLWithPrint(exportData, business, request, userName);
+    // ✅ STEP 7: Generate HTML content
+    const htmlContent = generateHTML(exportData, business, request, userName);
     const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
 
-    // ✅ STEP 8: Create audit record (using hash of the HTML content)
+    // ✅ STEP 8: Create audit record
     const fileHash = crypto.createHash('sha256').update(htmlContent).digest('hex');
     const auditRecord = {
       business_id: businessId,
@@ -157,13 +157,13 @@ export const handler = async (event) => {
       .from('sensitive_export_audit')
       .insert(auditRecord);
 
-    // ✅ STEP 9: Return HTML with auto-print
+    // ✅ STEP 9: Return HTML as a downloadable file
     return {
       statusCode: 200,
       headers: {
         ...headers,
         'Content-Type': 'text/html',
-        'Content-Disposition': `inline; filename="${filename}"`
+        'Content-Disposition': `attachment; filename="${filename}"`  // ← attachment triggers download
       },
       body: htmlContent
     };
@@ -182,9 +182,9 @@ export const handler = async (event) => {
 };
 
 // ============================================================
-// ✅ HTML GENERATION WITH AUTO-PRINT
+// ✅ HTML GENERATION
 // ============================================================
-function generateHTMLWithPrint(data, business, request, userName) {
+function generateHTML(data, business, request, userName) {
   const date = new Date().toISOString().split('T')[0];
   const exportTime = new Date().toLocaleString();
   const reasonLabels = {
@@ -330,7 +330,6 @@ function generateHTMLWithPrint(data, business, request, userName) {
       color: #6b7280;
     }
     
-    /* Print styles */
     @media print {
       body { padding: 20px; margin: 0; }
       .watermark-bg { 
@@ -340,7 +339,6 @@ function generateHTMLWithPrint(data, business, request, userName) {
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; page-break-after: auto; }
       thead { display: table-header-group; }
-      .no-print { display: none; }
     }
     
     @page {
@@ -350,36 +348,20 @@ function generateHTMLWithPrint(data, business, request, userName) {
   </style>
 </head>
 <body>
-  <!-- Print Instructions -->
-  <div class="no-print" style="text-align:center; padding:20px; background:#f0f0f0; margin-bottom:20px; border-radius:8px;">
-    <p style="font-size:16px; font-weight:bold;">📄 To save as PDF:</p>
-    <p style="font-size:14px;">Press <strong>Cmd + P</strong> (Mac) or <strong>Ctrl + P</strong> (Windows)</p>
-    <p style="font-size:14px;">Then select <strong>"Save as PDF"</strong></p>
-    <button onclick="window.print()" style="margin-top:10px; padding:10px 30px; background:#f59e0b; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
-      🖨️ Print / Save as PDF
-    </button>
-  </div>
-
-  <!-- ============================================================
-       BACKGROUND WATERMARK - Visible on every page
-       ============================================================ -->
   <div class="watermark-bg">CONFIDENTIAL</div>
 
   <div class="content">
-    <!-- HEADER -->
     <div class="header">
       <h1>📋 Official Guest Register</h1>
       <div class="subtitle">Statutory Guest Record — Immigration Act Section 40</div>
       <div class="ref">Reference: FAST-${business.id.substring(0, 8).toUpperCase()}-${date.replace(/-/g, '')}</div>
     </div>
 
-    <!-- WATERMARK BANNER -->
     <div class="watermark-banner">
       <div class="warning">⚠️ CONFIDENTIAL — PROTECTED PERSONAL INFORMATION</div>
       <div class="text">This document contains personal information protected under POPIA. Unauthorised disclosure may constitute an offence.</div>
     </div>
 
-    <!-- METADATA -->
     <div class="metadata">
       <div><span class="label">Business:</span> <span class="value">${business.trading_name}</span></div>
       <div><span class="label">Exported By:</span> <span class="value">${userName}</span></div>
@@ -392,7 +374,6 @@ function generateHTMLWithPrint(data, business, request, userName) {
       ${request?.referenceNumber ? `<div><span class="label">Reference:</span> <span class="value">${request.referenceNumber}</span></div>` : ''}
     </div>
 
-    <!-- DATA TABLE -->
     <table>
       <thead>
         <tr>
@@ -428,7 +409,6 @@ function generateHTMLWithPrint(data, business, request, userName) {
       </tbody>
     </table>
 
-    <!-- FOOTER WITH WATERMARK WARNING -->
     <div class="footer">
       <div class="warning-text">⚠️ CONFIDENTIAL — This file contains personal information protected under POPIA</div>
       <div class="case-info">
@@ -440,15 +420,6 @@ function generateHTMLWithPrint(data, business, request, userName) {
       </div>
     </div>
   </div>
-
-  <script>
-    // Auto-open print dialog when page loads
-    window.onload = function() {
-      setTimeout(function() {
-        window.print();
-      }, 1000);
-    };
-  </script>
 </body>
 </html>
   `;
