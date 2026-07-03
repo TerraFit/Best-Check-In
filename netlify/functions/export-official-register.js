@@ -1,6 +1,9 @@
 // netlify/functions/export-official-register.js
 // PDF ONLY - Professional watermark, no CSV or XLSX
+// ✅ FIXED: Added WebSocket transport for Supabase client
+
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';  // ← CRITICAL: Add this import
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -22,9 +25,15 @@ export const handler = async (event) => {
   }
 
   try {
+    // ✅ FIX: Create Supabase client with WebSocket transport
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: {
+          transport: WebSocket  // ← This is the key fix
+        }
+      }
     );
 
     const { businessId, request, authorization } = JSON.parse(event.body);
