@@ -335,27 +335,29 @@ export default function BusinessDashboard() {
         )}
 
         {/* Check-ins Tab */}
-        {activeTab === 'checkins' && (
-          <CheckinsTab
-            bookings={bookings}
-            filteredBookings={filteredCheckinsBookings}
-            totalBookings={displayTotalBookings}
-            currentPage={currentPage}
-            totalPages={displayTotalPages}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-            filters={currentFilters}
-            onUpdateFilter={updateFilter}
-            onClearFilters={clearCurrentFilters}
-            isFilterActive={isFilterActive}
-            uniqueProvinces={uniqueProvinces}
-            uniqueCities={uniqueCities}
-            uniqueCountries={uniqueCountries}
-            getStatusBadge={getStatusBadge}
-            isLoading={bookings.length === 0}
-          />
-        )}
+{activeTab === 'checkins' && (
+  <CheckinsTab
+    bookings={bookings}
+    filteredBookings={filteredCheckinsBookings}
+    totalBookings={displayTotalBookings}
+    currentPage={currentPage}
+    totalPages={displayTotalPages}
+    pageSize={pageSize}
+    onPageChange={setCurrentPage}
+    onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+    filters={currentFilters}
+    onUpdateFilter={updateFilter}
+    onClearFilters={clearCurrentFilters}
+    isFilterActive={isFilterActive}
+    uniqueProvinces={uniqueProvinces}
+    uniqueCities={uniqueCities}
+    uniqueCountries={uniqueCountries}
+    getStatusBadge={getStatusBadge}
+    isLoading={bookings.length === 0}
+    businessId={business?.id || getBusinessId() || ''}
+    businessName={business?.trading_name || ''}
+  />
+)}
 
         {/* Reports Tab - Premium Analytics */}
         {activeTab === 'reports' && (
