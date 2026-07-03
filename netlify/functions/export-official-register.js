@@ -1,12 +1,12 @@
 // netlify/functions/export-official-register.js
-// ✅ FIXED: Actually generates a real PDF file
+// ✅ Generates REAL PDF using puppeteer-core
 
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pdf from 'html-pdf';  // ← Add this
+import puppeteer from 'puppeteer-core';
 
 export const handler = async (event) => {
   const headers = {
@@ -25,7 +25,7 @@ export const handler = async (event) => {
   }
 
   try {
-    // ✅ FIX: Create Supabase client with WebSocket transport
+    // ✅ Create Supabase client with WebSocket transport
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
@@ -42,48 +42,163 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
     }
 
-    // ... (Step 1-6: Same as before - validation, fetching data, etc.)
+    // ✅ STEP 1: Validate authorization
+    if (!authorization?.password || !authorization?.acceptTerms) {
+      return { statusCode: 401, headers, body: JSON.stringify({ 
+        error: 'Authorization required',
+        details: 'Password and terms acceptance are required for sensitive data export'
+      })};
+    }
 
-    // ⚡ SKIP: Instead of returning HTML directly, generate a real PDF
+    // ✅ STEP 2: Get business details
+    const { data: business, error: businessError } = await supabase
+      .from('businesses')
+      .select('id, trading_name, email, password_hash')
+      .eq('id', businessId)
+      .single();
+
+    if (businessError || !business) {
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
+    }
+
+    // ✅ STEP 3: Verify JWT
+    let userRole = 'owner';
+    let userId = 'unknown';
+    let userName = 'Unknown User';
+
+    const authHeader = event.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+        userId = decoded.sub || 'unknown';
+        userName = decoded.user_metadata?.name || decoded.user_metadata?.business_name || 'Unknown User';
+        userRole = decoded.user_metadata?.role || 'owner';
+      } catch (e) {
+        console.warn('Could not verify JWT:', e.message);
+      }
+    }
+
+    // ✅ STEP 4: Verify password
+    const isPasswordValid = await bcrypt.compare(authorization.password, business.password_hash);
+    if (!isPasswordValid) {
+      return { statusCode: 401, headers, body: JSON.stringify({ 
+        error: 'Invalid password',
+        details: 'The password you entered is incorrect. Please try again.'
+      })};
+    }
+
+    // ✅ STEP 5: Build query
+    let query = supabase
+      .from('bookings')
+      .select('*')
+      .eq('business_id', businessId);
+
+    if (request?.dateFrom) {
+      query = query.gte('check_in_date', request.dateFrom);
+    }
+    if (request?.dateTo) {
+      query = query.lte('check_in_date', request.dateTo);
+    }
+
+    const { data: bookings, error } = await query;
+
+    if (error) throw error;
+
+    // ✅ STEP 6: Transform data for export
+    const exportData = (bookings || []).map(b => ({
+      'Full Name': b.guest_name || '',
+      'First Name': b.guest_first_name || '',
+      'Last Name': b.guest_last_name || '',
+      'Nationality': b.guest_country || '',
+      'ID Number': b.guest_id_number || '',
+      'Passport Number': b.guest_id_number || '',
+      'Email': b.guest_email || '',
+      'Phone': b.guest_phone || '',
+      'Address': b.guest_city || '',
+      'Check-in Date': b.check_in_date || '',
+      'Check-out Date': b.check_out_date || '',
+      'Nights': b.nights || 0,
+      'Arriving From': b.arriving_from || '',
+      'Going To': b.next_destination || '',
+      'Room Number': b.room_number || '',
+      'Status': b.status || '',
+      'Created At': b.created_at || ''
+    }));
 
     // ✅ STEP 7: Generate HTML content
     const htmlContent = generateHTML(exportData, business, request, userName);
 
-    // ✅ STEP 8: Convert HTML to PDF
-    const pdfBuffer = await new Promise((resolve, reject) => {
-      pdf.create(htmlContent, {
+    // ✅ STEP 8: Convert HTML to PDF using puppeteer
+    const browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
         format: 'A4',
-        border: {
+        printBackground: true,
+        margin: {
           top: '1.5cm',
           bottom: '1.5cm',
           left: '1cm',
           right: '1cm'
-        },
-        printBackground: true,
-        zoomFactor: 1
-      }).toBuffer((err, buffer) => {
-        if (err) reject(err);
-        else resolve(buffer);
+        }
       });
-    });
 
-    const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      await browser.close();
 
-    // ✅ STEP 9: Create audit record
-    const fileHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
-    // ... (rest of audit record creation)
+      const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
 
-    // ✅ STEP 10: Return actual PDF
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': pdfBuffer.length
-      },
-      body: pdfBuffer.toString('base64'),
-      isBase64Encoded: true  // ← CRITICAL for binary data
-    };
+      // ✅ STEP 9: Create audit record
+      const fileHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+      const auditRecord = {
+        business_id: businessId,
+        business_name: business.trading_name,
+        exported_by_user_id: userId,
+        exported_by_name: userName,
+        exported_by_role: userRole,
+        exported_at: new Date().toISOString(),
+        reason: request?.reason || 'other',
+        authority_name: request?.authorityName || null,
+        officer_name: request?.officerName || null,
+        case_number: request?.caseNumber || null,
+        reference_number: request?.referenceNumber || null,
+        notes: request?.notes || null,
+        row_count: exportData.length,
+        file_hash: fileHash,
+        ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
+        user_agent: event.headers['user-agent'] || 'unknown',
+        emergency_access: false,
+        previous_hash: null,
+        current_hash: fileHash
+      };
+
+      await supabase
+        .from('sensitive_export_audit')
+        .insert(auditRecord);
+
+      // ✅ STEP 10: Return REAL PDF
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length': pdfBuffer.length
+        },
+        body: pdfBuffer.toString('base64'),
+        isBase64Encoded: true
+      };
+
+    } catch (puppeteerError) {
+      await browser.close();
+      throw puppeteerError;
+    }
 
   } catch (error) {
     console.error('Export error:', error);
@@ -99,7 +214,7 @@ export const handler = async (event) => {
 };
 
 // ============================================================
-// ✅ HTML GENERATION (Same as before, but now as a function)
+// ✅ HTML GENERATION FUNCTION
 // ============================================================
 function generateHTML(data, business, request, userName) {
   const date = new Date().toISOString().split('T')[0];
