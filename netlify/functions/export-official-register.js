@@ -1,5 +1,5 @@
 // netlify/functions/export-official-register.js
-// ✅ Returns downloadable HTML file that can be printed to PDF
+// ✅ Opens HTML in new tab with auto-print dialog
 
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
@@ -24,7 +24,6 @@ export const handler = async (event) => {
   }
 
   try {
-    // ✅ Create Supabase client with WebSocket transport
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
@@ -104,7 +103,7 @@ export const handler = async (event) => {
 
     if (error) throw error;
 
-    // ✅ STEP 6: Transform data for export
+    // ✅ STEP 6: Transform data
     const exportData = (bookings || []).map(b => ({
       'Full Name': b.guest_name || '',
       'First Name': b.guest_first_name || '',
@@ -125,8 +124,8 @@ export const handler = async (event) => {
       'Created At': b.created_at || ''
     }));
 
-    // ✅ STEP 7: Generate HTML content
-    const htmlContent = generateHTML(exportData, business, request, userName);
+    // ✅ STEP 7: Generate HTML with auto-print
+    const htmlContent = generateHTMLWithAutoPrint(exportData, business, request, userName);
     const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
 
     // ✅ STEP 8: Create audit record
@@ -157,13 +156,13 @@ export const handler = async (event) => {
       .from('sensitive_export_audit')
       .insert(auditRecord);
 
-    // ✅ STEP 9: Return HTML as a downloadable file
+    // ✅ STEP 9: Return HTML that opens in new tab with auto-print
     return {
       statusCode: 200,
       headers: {
         ...headers,
         'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="${filename}"`  // ← attachment triggers download
+        'Content-Disposition': `inline; filename="${filename}"`  // ← inline = opens in browser
       },
       body: htmlContent
     };
@@ -182,9 +181,9 @@ export const handler = async (event) => {
 };
 
 // ============================================================
-// ✅ HTML GENERATION
+// ✅ HTML GENERATION WITH AUTO-PRINT
 // ============================================================
-function generateHTML(data, business, request, userName) {
+function generateHTMLWithAutoPrint(data, business, request, userName) {
   const date = new Date().toISOString().split('T')[0];
   const exportTime = new Date().toLocaleString();
   const reasonLabels = {
@@ -420,6 +419,35 @@ function generateHTML(data, business, request, userName) {
       </div>
     </div>
   </div>
+
+  <script>
+    // Auto-open print dialog when page loads
+    (function() {
+      // Use multiple methods to ensure print dialog opens
+      function openPrint() {
+        try {
+          window.print();
+        } catch(e) {
+          console.log('Print dialog not available');
+        }
+      }
+      
+      // Try immediately
+      openPrint();
+      
+      // Try after a short delay
+      setTimeout(openPrint, 500);
+      
+      // Try after DOM is fully loaded
+      if (document.readyState === 'complete') {
+        openPrint();
+      } else {
+        window.addEventListener('load', function() {
+          setTimeout(openPrint, 1000);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
   `;
