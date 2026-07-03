@@ -72,7 +72,7 @@ export const handler = async (event) => {
       console.error('Restrictions fetch error:', restrictionsError);
     }
 
-    // ✅ Combine data
+    // ✅ Combine data - FIXED guests calculation
     const guestDetails = {
       id: booking.id,
       guest_name: booking.guest_name || '',
@@ -82,7 +82,7 @@ export const handler = async (event) => {
       guest_phone: booking.guest_phone || '',
       guest_country: booking.guest_country || '',
       arriving_from: booking.arriving_from || '',
-      guests: booking.adults || 0 + (booking.children || 0),
+      guests: (booking.adults || 0) + (booking.children || 0),  // ✅ FIXED
       adults: booking.adults || 0,
       children: booking.children || 0,
       check_in_date: booking.check_in_date,
