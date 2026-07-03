@@ -1,5 +1,5 @@
 // src/components/export/OfficialRegisterExportModal.tsx
-// ✅ FULL VERSION WITH CANCEL BUTTON AT EVERY STEP
+// ✅ Opens HTML in new tab with auto-print
 
 import { useState } from 'react';
 import { ExportService } from '../../services/exportService';
@@ -54,17 +54,55 @@ export default function OfficialRegisterExportModal({
     setError(null);
 
     try {
-      const blob = await ExportService.exportOfficialRegister(
-        businessId,
-        request,
-        { password, acceptTerms },
-        'pdf' // Always PDF
-      );
-      const filename = ExportService.getOfficialFilename(businessName, 'pdf');
-      ExportService.downloadBlob(blob, filename);
-      onExportComplete?.();
-      onClose();
+      // ✅ STEP 1: Call the function directly (not through ExportService)
+      const response = await fetch('/.netlify/functions/export-official-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          request,
+          authorization: { password, acceptTerms }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+
+      // ✅ STEP 2: Get the HTML content
+      const htmlContent = await response.text();
+
+      // ✅ STEP 3: Open in new tab
+      const newWindow = window.open('', '_blank');
+      
+      if (newWindow) {
+        // Write HTML to new window
+        newWindow.document.write(htmlContent);
+        newWindow.document.close();
+        
+        // Close the modal
+        onClose();
+        if (onExportComplete) onExportComplete();
+      } else {
+        // If popup is blocked, fallback to download
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `official-register-${businessName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('📄 Please allow popups for this site, or open the downloaded file in your browser.');
+        onClose();
+        if (onExportComplete) onExportComplete();
+      }
+
     } catch (err) {
+      console.error('❌ Export error:', err);
       setError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setLoading(false);
@@ -98,7 +136,6 @@ export default function OfficialRegisterExportModal({
         </p>
       </div>
 
-      {/* ✅ Cancel and Continue buttons */}
       <div className="flex gap-3">
         <button
           onClick={onClose}
@@ -239,12 +276,11 @@ export default function OfficialRegisterExportModal({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-sm text-blue-700 flex items-center gap-2">
             <span className="text-lg">📄</span>
-            Export format: <strong>PDF</strong> (with professional watermark)
+            Export format: <strong>HTML</strong> (opens with auto-print to PDF)
           </p>
         </div>
       </div>
 
-      {/* ✅ Cancel and Continue buttons */}
       <div className="flex gap-3 mt-6">
         <button
           onClick={onClose}
@@ -320,7 +356,6 @@ export default function OfficialRegisterExportModal({
           </label>
         </div>
 
-        {/* Export Summary */}
         <div className="bg-stone-50 rounded-lg p-3 text-sm">
           <p className="font-medium text-stone-700 mb-1">Export Summary:</p>
           <div className="grid grid-cols-2 gap-1 text-stone-600">
@@ -335,7 +370,7 @@ export default function OfficialRegisterExportModal({
               </>
             )}
             <span>Format:</span>
-            <span className="font-medium uppercase">PDF (Watermarked)</span>
+            <span className="font-medium uppercase">HTML (Printable PDF)</span>
           </div>
         </div>
       </div>
@@ -346,7 +381,6 @@ export default function OfficialRegisterExportModal({
         </div>
       )}
 
-      {/* ✅ Cancel and Export buttons */}
       <div className="mt-6 flex gap-3">
         <button
           onClick={onClose}
@@ -364,7 +398,7 @@ export default function OfficialRegisterExportModal({
           ) : (
             <>
               <Download size={16} />
-              Export Sensitive Data (PDF)
+              Open Register
             </>
           )}
         </button>
