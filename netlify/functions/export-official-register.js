@@ -1,12 +1,11 @@
 // netlify/functions/export-official-register.js
-// ✅ Generates REAL PDF using puppeteer-core
+// ✅ Returns HTML with automatic print-to-PDF dialog
 
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import puppeteer from 'puppeteer-core';
 
 export const handler = async (event) => {
   const headers = {
@@ -126,79 +125,48 @@ export const handler = async (event) => {
       'Created At': b.created_at || ''
     }));
 
-    // ✅ STEP 7: Generate HTML content
-    const htmlContent = generateHTML(exportData, business, request, userName);
+    // ✅ STEP 7: Generate HTML content with auto-print
+    const htmlContent = generateHTMLWithPrint(exportData, business, request, userName);
+    const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
 
-    // ✅ STEP 8: Convert HTML to PDF using puppeteer
-    const browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      headless: true
-    });
+    // ✅ STEP 8: Create audit record (using hash of the HTML content)
+    const fileHash = crypto.createHash('sha256').update(htmlContent).digest('hex');
+    const auditRecord = {
+      business_id: businessId,
+      business_name: business.trading_name,
+      exported_by_user_id: userId,
+      exported_by_name: userName,
+      exported_by_role: userRole,
+      exported_at: new Date().toISOString(),
+      reason: request?.reason || 'other',
+      authority_name: request?.authorityName || null,
+      officer_name: request?.officerName || null,
+      case_number: request?.caseNumber || null,
+      reference_number: request?.referenceNumber || null,
+      notes: request?.notes || null,
+      row_count: exportData.length,
+      file_hash: fileHash,
+      ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
+      user_agent: event.headers['user-agent'] || 'unknown',
+      emergency_access: false,
+      previous_hash: null,
+      current_hash: fileHash
+    };
 
-    try {
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '1.5cm',
-          bottom: '1.5cm',
-          left: '1cm',
-          right: '1cm'
-        }
-      });
+    await supabase
+      .from('sensitive_export_audit')
+      .insert(auditRecord);
 
-      await browser.close();
-
-      const filename = `official-register-${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
-
-      // ✅ STEP 9: Create audit record
-      const fileHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
-      const auditRecord = {
-        business_id: businessId,
-        business_name: business.trading_name,
-        exported_by_user_id: userId,
-        exported_by_name: userName,
-        exported_by_role: userRole,
-        exported_at: new Date().toISOString(),
-        reason: request?.reason || 'other',
-        authority_name: request?.authorityName || null,
-        officer_name: request?.officerName || null,
-        case_number: request?.caseNumber || null,
-        reference_number: request?.referenceNumber || null,
-        notes: request?.notes || null,
-        row_count: exportData.length,
-        file_hash: fileHash,
-        ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
-        user_agent: event.headers['user-agent'] || 'unknown',
-        emergency_access: false,
-        previous_hash: null,
-        current_hash: fileHash
-      };
-
-      await supabase
-        .from('sensitive_export_audit')
-        .insert(auditRecord);
-
-      // ✅ STEP 10: Return REAL PDF
-      return {
-        statusCode: 200,
-        headers: {
-          ...headers,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-          'Content-Length': pdfBuffer.length
-        },
-        body: pdfBuffer.toString('base64'),
-        isBase64Encoded: true
-      };
-
-    } catch (puppeteerError) {
-      await browser.close();
-      throw puppeteerError;
-    }
+    // ✅ STEP 9: Return HTML with auto-print
+    return {
+      statusCode: 200,
+      headers: {
+        ...headers,
+        'Content-Type': 'text/html',
+        'Content-Disposition': `inline; filename="${filename}"`
+      },
+      body: htmlContent
+    };
 
   } catch (error) {
     console.error('Export error:', error);
@@ -214,9 +182,9 @@ export const handler = async (event) => {
 };
 
 // ============================================================
-// ✅ HTML GENERATION FUNCTION
+// ✅ HTML GENERATION WITH AUTO-PRINT
 // ============================================================
-function generateHTML(data, business, request, userName) {
+function generateHTMLWithPrint(data, business, request, userName) {
   const date = new Date().toISOString().split('T')[0];
   const exportTime = new Date().toLocaleString();
   const reasonLabels = {
@@ -362,6 +330,19 @@ function generateHTML(data, business, request, userName) {
       color: #6b7280;
     }
     
+    /* Print styles */
+    @media print {
+      body { padding: 20px; margin: 0; }
+      .watermark-bg { 
+        color: rgba(220, 38, 38, 0.08); 
+        font-size: 100px;
+      }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+      .no-print { display: none; }
+    }
+    
     @page {
       margin: 1.5cm 1cm;
       size: A4 portrait;
@@ -369,20 +350,36 @@ function generateHTML(data, business, request, userName) {
   </style>
 </head>
 <body>
+  <!-- Print Instructions -->
+  <div class="no-print" style="text-align:center; padding:20px; background:#f0f0f0; margin-bottom:20px; border-radius:8px;">
+    <p style="font-size:16px; font-weight:bold;">📄 To save as PDF:</p>
+    <p style="font-size:14px;">Press <strong>Cmd + P</strong> (Mac) or <strong>Ctrl + P</strong> (Windows)</p>
+    <p style="font-size:14px;">Then select <strong>"Save as PDF"</strong></p>
+    <button onclick="window.print()" style="margin-top:10px; padding:10px 30px; background:#f59e0b; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+
+  <!-- ============================================================
+       BACKGROUND WATERMARK - Visible on every page
+       ============================================================ -->
   <div class="watermark-bg">CONFIDENTIAL</div>
 
   <div class="content">
+    <!-- HEADER -->
     <div class="header">
       <h1>📋 Official Guest Register</h1>
       <div class="subtitle">Statutory Guest Record — Immigration Act Section 40</div>
       <div class="ref">Reference: FAST-${business.id.substring(0, 8).toUpperCase()}-${date.replace(/-/g, '')}</div>
     </div>
 
+    <!-- WATERMARK BANNER -->
     <div class="watermark-banner">
       <div class="warning">⚠️ CONFIDENTIAL — PROTECTED PERSONAL INFORMATION</div>
       <div class="text">This document contains personal information protected under POPIA. Unauthorised disclosure may constitute an offence.</div>
     </div>
 
+    <!-- METADATA -->
     <div class="metadata">
       <div><span class="label">Business:</span> <span class="value">${business.trading_name}</span></div>
       <div><span class="label">Exported By:</span> <span class="value">${userName}</span></div>
@@ -395,6 +392,7 @@ function generateHTML(data, business, request, userName) {
       ${request?.referenceNumber ? `<div><span class="label">Reference:</span> <span class="value">${request.referenceNumber}</span></div>` : ''}
     </div>
 
+    <!-- DATA TABLE -->
     <table>
       <thead>
         <tr>
@@ -430,6 +428,7 @@ function generateHTML(data, business, request, userName) {
       </tbody>
     </table>
 
+    <!-- FOOTER WITH WATERMARK WARNING -->
     <div class="footer">
       <div class="warning-text">⚠️ CONFIDENTIAL — This file contains personal information protected under POPIA</div>
       <div class="case-info">
@@ -441,6 +440,15 @@ function generateHTML(data, business, request, userName) {
       </div>
     </div>
   </div>
+
+  <script>
+    // Auto-open print dialog when page loads
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 1000);
+    };
+  </script>
 </body>
 </html>
   `;
