@@ -3,10 +3,138 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { VisitorRecord } from '../types';
-import { Booking } from '../types'; // Assuming Booking is exported from types.ts
+// ============================================================
+// CORE BOOKING TYPE
+// ============================================================
 
-// Country to Continent Map for robust normalization
+export interface Booking {
+  id: string;
+  guestName: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  passportOrId?: string;
+  nextDestination?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  nights: number;
+  settlementMethod?: string;
+  referralSource?: string;
+  guests: number;
+  adults: number;
+  kids: number;
+  roomType?: string;
+  totalAmount: number;
+  status?: string;
+  year: number;
+  month: string;
+  popiaMarketingConsent?: boolean;
+  timestamp: string;
+  tenantId?: string;
+  source?: string;
+  season?: string;
+  signatureData?: string;
+  idPhotoData?: string;
+  arrivingFrom?: string;
+  booking_source?: string;
+  [key: string]: any;
+}
+
+// ============================================================
+// VISITOR ORIGIN TYPES
+// ============================================================
+
+export interface VisitorRecord {
+  id: string;
+  timestamp: string;
+  continent: string;
+  country: string;
+  region: string;
+  city: string;
+  checkInMethod: 'QR Code' | 'Direct Link' | 'Reception Desk' | 'Kiosk';
+  guestType: 'First-time' | 'Returning' | 'VIP';
+  _meta?: {
+    bookingId?: string;
+    settlementMethod?: string;
+    referralSource?: string;
+    totalAmount?: number;
+    guests?: number;
+  };
+}
+
+export interface ContinentData {
+  name: string;
+  count: number;
+  percentage: number;
+  children?: CountryData[];
+}
+
+export interface CountryData {
+  name: string;
+  count: number;
+  percentage: number;
+  children?: RegionData[];
+}
+
+export interface RegionData {
+  name: string;
+  count: number;
+  percentage: number;
+  children?: CityData[];
+}
+
+export interface CityData {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+// ============================================================
+// SUBSCRIPTION TYPES
+// ============================================================
+
+export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business';
+
+export interface SubscriptionLimits {
+  subscriptionTier: SubscriptionTier;
+  canViewCountries: boolean;
+  canViewRegions: boolean;
+  canViewCities: boolean;
+  maxDrillLevel: string;
+}
+
+// ============================================================
+// DASHBOARD / ANALYTICS TYPES
+// ============================================================
+
+export interface MonthlyData {
+  month: string;
+  year: number;
+  bookings: number;
+  revenue: number;
+  occupancyPercent?: number;
+  referralData?: Record<string, number>;
+}
+
+export interface SeasonStats {
+  season: 'High' | 'Low' | 'Mid';
+  bookings: number;
+  revenue: number;
+  occupancy: number;
+}
+
+export type ViewState = 'HOME' | 'CHECKIN' | 'ADMIN_DASHBOARD' | 'REPORTS' | 'IMPORT';
+
+export type SettlementMethod = 'Cash' | 'Card' | 'Instant EFT' | 'Instant EFT (RSA resident only)' | 'Part of a package';
+
+export type ReferralSource = 'Word of mouth' | 'Booking.com' | 'Google' | 'Facebook / Instagram' | 'Travel Agency' | 'LinkedIn' | 'YouTube' | 'Research engine' | 'TikTok';
+
+// ============================================================
+// COUNTRY TO CONTINENT MAPPING
+// ============================================================
+
 const COUNTRY_TO_CONTINENT: Record<string, string> = {
   // Africa
   'South Africa': 'Africa',
@@ -100,8 +228,7 @@ export function mapCountryToContinent(country: string): string {
 }
 
 /**
- * Transforms Best-Check-In Booking records to unified VisitorOrigin records
- * compatible with the VisitorOriginExplorer visualization.
+ * Transforms Booking records to VisitorRecord format
  */
 export function transformBookingsToVisitorOrigins(bookings: Booking[]): VisitorRecord[] {
   if (!bookings || !Array.isArray(bookings)) {
@@ -109,20 +236,11 @@ export function transformBookingsToVisitorOrigins(bookings: Booking[]): VisitorR
   }
 
   return bookings.map((booking) => {
-    // 1. Resolve country name (from Booking.country)
     const country = booking.country || 'Unknown';
-    
-    // 2. Map country to continent automatically
     const continent = mapCountryToContinent(country);
-
-    // 3. Resolve province/state/region (from Booking.province)
     const region = booking.province || 'Unknown';
-
-    // 4. Resolve city/suburb (from Booking.city)
     const city = booking.city || 'Unknown';
 
-    // 5. Determine check-in method based on settlement method or source
-    // Map settlement method to check-in method
     let checkInMethod: VisitorRecord['checkInMethod'] = 'Reception Desk';
     if (booking.settlementMethod === 'Instant EFT' || booking.settlementMethod === 'Instant EFT (RSA resident only)') {
       checkInMethod = 'Direct Link';
@@ -132,15 +250,11 @@ export function transformBookingsToVisitorOrigins(bookings: Booking[]): VisitorR
       checkInMethod = 'QR Code';
     }
 
-    // 6. Determine guest type based on booking history
     let guestType: VisitorRecord['guestType'] = 'First-time';
-    // If there's a way to check if this guest has booked before, use it
-    // For now, we'll use a simple heuristic based on referral source
     if (booking.referralSource === 'Word of mouth' || booking.referralSource === 'Booking.com') {
       guestType = 'Returning';
     }
 
-    // 7. Use timestamp from booking
     const timestamp = booking.timestamp || booking.checkInDate || new Date().toISOString();
 
     return {
@@ -152,7 +266,6 @@ export function transformBookingsToVisitorOrigins(bookings: Booking[]): VisitorR
       city,
       checkInMethod,
       guestType,
-      // Additional metadata for debugging/analytics
       _meta: {
         bookingId: booking.id,
         settlementMethod: booking.settlementMethod,
@@ -165,8 +278,7 @@ export function transformBookingsToVisitorOrigins(bookings: Booking[]): VisitorR
 }
 
 /**
- * Transforms raw Supabase query results (snake_case) to Booking format
- * Use this if you're fetching directly from Supabase
+ * Transforms raw Supabase query results to Booking format
  */
 export function transformRawSupabaseBooking(rawBooking: any): Booking {
   return {
@@ -201,12 +313,9 @@ export function transformRawSupabaseBooking(rawBooking: any): Booking {
 }
 
 /**
- * Combined function: Fetch raw Supabase bookings and transform to VisitorRecords
- * This is the main function you'll use in ReportsTab
+ * Combined function: Transform raw Supabase bookings to VisitorRecords
  */
 export function fetchAndTransformBookings(rawBookings: any[]): VisitorRecord[] {
-  // First transform raw Supabase data to Booking objects
   const bookings = rawBookings.map(transformRawSupabaseBooking);
-  // Then transform to VisitorRecords
   return transformBookingsToVisitorOrigins(bookings);
 }
