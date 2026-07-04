@@ -1,3 +1,4 @@
+// src/types/guest.ts
 export interface GuestDetails {
   id: string;
   guest_name: string;
@@ -7,6 +8,7 @@ export interface GuestDetails {
   guest_phone?: string;
   guest_country?: string;
   arriving_from?: string;
+  next_destination?: string; // ✅ ADD THIS FIELD
   guests?: number;
   adults?: number;
   children?: number;
