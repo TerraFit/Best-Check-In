@@ -77,22 +77,29 @@ export default function BusinessDashboard() {
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
   // ============================================================
-  // ✅ FIX: Determine subscription tier from business data
+  // LOAD NEWSLETTER SETTINGS FROM BUSINESS DATA
+  // ============================================================
+
+  useEffect(() => {
+    if (business) {
+      setNewsletterEnabled(business.newsletter_enabled ?? false);
+      setNewsletterTitle(business.newsletter_title || 'Win Your Next Stay With Us');
+      setNewsletterPrize(business.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne');
+      setNewsletterCta(business.newsletter_cta || 'Subscribe now, only takes 1 click.');
+      setNewsletterTerms(business.newsletter_terms || '*T&C\'s apply. Winner announced monthly.');
+      setNewsletterDrawDate(business.newsletter_draw_date || '');
+      setNewsletterShareText(business.newsletter_share_text || 'Want better odds? Share this with friends and family!');
+    }
+  }, [business]);
+
+  // ============================================================
+  // DETERMINE SUBSCRIPTION TIER
   // ============================================================
 
   const subscriptionTier = useMemo((): SubscriptionTier => {
-    // If business is not loaded yet, default to starter
     if (!business) return 'starter';
 
-    console.log('🏷️ Business data:', {
-      subscription_tier: business.subscription_tier,
-      current_plan: business.current_plan,
-      plan: business.plan,
-      total_rooms: business.total_rooms,
-      trading_name: business.trading_name
-    });
-
-    // 1. Check for explicit plan fields first
+    // 1. Check for explicit plan fields
     const planFields = [
       business.current_plan,
       business.plan,
@@ -103,37 +110,27 @@ export default function BusinessDashboard() {
       if (field) {
         const normalized = field.toLowerCase();
         if (['starter', 'growth', 'pro', 'business', 'enterprise'].includes(normalized)) {
-          console.log(`✅ Found plan from field: ${field} → ${normalized}`);
           return normalized as SubscriptionTier;
         }
       }
     }
 
-    // 2. Check subscription_tier (which might be 'monthly' or 'annual')
+    // 2. Check subscription_tier
     const tier = business.subscription_tier?.toLowerCase() || '';
     
-    // 3. If subscription_tier is a billing cycle, determine plan from total_rooms
     if (['monthly', 'annual', 'trial', 'complimentary'].includes(tier)) {
       const rooms = business.total_rooms || 0;
-      
-      // Map room count to plan
-      let plan: SubscriptionTier = 'starter';
-      if (rooms >= 16) plan = 'business';
-      else if (rooms >= 11) plan = 'pro';
-      else if (rooms >= 6) plan = 'growth';
-      else plan = 'starter';
-      
-      console.log(`🏠 ${rooms} rooms → ${plan} plan (billing: ${tier})`);
-      return plan;
+      if (rooms >= 16) return 'business';
+      if (rooms >= 11) return 'pro';
+      if (rooms >= 6) return 'growth';
+      return 'starter';
     }
 
-    // 4. If subscription_tier is already a valid plan name, use it
     if (['starter', 'growth', 'pro', 'business'].includes(tier)) {
-      console.log(`✅ Using subscription_tier: ${tier}`);
       return tier as SubscriptionTier;
     }
 
-    // 5. Fallback: determine from total_rooms
+    // 3. Fallback: determine from total_rooms
     const rooms = business.total_rooms || 0;
     if (rooms >= 16) return 'business';
     if (rooms >= 11) return 'pro';
@@ -208,13 +205,11 @@ export default function BusinessDashboard() {
       return;
     }
 
-    // Build headers dynamically based on available fields
     const firstRow = dataToExport[0] || {};
     const headers = [
       'Guest Name', 'Email', 'Phone', 'ID Number', 'Country',
       'Province', 'City', 'Check-in Date', 'Check-out Date',
       'Nights', 'Total Amount', 'Status', 'Referral Source',
-      // Include travel pattern fields if available
       ...(firstRow.arriving_from ? ['Arriving From'] : []),
       ...(firstRow.next_destination ? ['Next Destination'] : [])
     ];
@@ -236,7 +231,6 @@ export default function BusinessDashboard() {
         `"${(b.booking_source || b.referral_source || '').replace(/\.$/, '').trim()}"`
       ];
 
-      // Add travel fields if they exist
       if (b.arriving_from) baseRow.push(`"${b.arriving_from}"`);
       if (b.next_destination) baseRow.push(`"${b.next_destination}"`);
 
@@ -254,16 +248,109 @@ export default function BusinessDashboard() {
   }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business, activeTab]);
 
   // ============================================================
-  // BUSINESS PROFILE UPDATE FUNCTIONS
+  // SAVE BUSINESS PROFILE
   // ============================================================
 
   const saveBusinessProfile = useCallback(async () => {
-    // Implementation
-  }, []);
+    if (!business?.id) {
+      alert('Business ID not available');
+      return;
+    }
+
+    setSavingProfile(true);
+    
+    try {
+      const updateData = {
+        businessId: business.id,
+        total_rooms: parseInt(profileForm.total_rooms) || 0,
+        avg_price: parseFloat(profileForm.avg_price) || 0,
+        slogan: profileForm.slogan || '',
+        welcome_message: profileForm.welcome_message || '',
+        logo_url: profileForm.logo_url || business.logo_url || '',
+        hero_image_url: profileForm.hero_image_url || business.hero_image_url || '',
+      };
+
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
+
+      alert('✅ Profile updated successfully!');
+      setEditingProfile(false);
+      refreshData();
+      
+    } catch (error) {
+      console.error('❌ Error saving profile:', error);
+      alert('Failed to save profile. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [business, profileForm, setEditingProfile, refreshData, setSavingProfile]);
+
+  // ============================================================
+  // SAVE NEWSLETTER SETTINGS - ✅ FULLY IMPLEMENTED
+  // ============================================================
 
   const saveNewsletterSettings = useCallback(async () => {
-    // Implementation
-  }, []);
+    if (!business?.id) {
+      alert('Business ID not available');
+      return;
+    }
+
+    setSavingNewsletter(true);
+    
+    try {
+      const newsletterData = {
+        businessId: business.id,
+        newsletter_enabled: newsletterEnabled,
+        newsletter_title: newsletterTitle,
+        newsletter_prize: newsletterPrize,
+        newsletter_cta: newsletterCta,
+        newsletter_terms: newsletterTerms,
+        newsletter_draw_date: newsletterDrawDate || null,
+        newsletter_share_text: newsletterShareText
+      };
+
+      console.log('📝 Saving newsletter settings:', newsletterData);
+
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newsletterData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save newsletter settings');
+      }
+
+      alert('✅ Newsletter settings saved successfully!');
+      refreshData();
+      
+    } catch (error) {
+      console.error('❌ Error saving newsletter settings:', error);
+      alert('Failed to save newsletter settings. Please try again.');
+    } finally {
+      setSavingNewsletter(false);
+    }
+  }, [
+    business?.id,
+    newsletterEnabled,
+    newsletterTitle,
+    newsletterPrize,
+    newsletterCta,
+    newsletterTerms,
+    newsletterDrawDate,
+    newsletterShareText,
+    refreshData,
+    setSavingNewsletter
+  ]);
 
   // ============================================================
   // TABS CONFIGURATION
@@ -335,49 +422,35 @@ export default function BusinessDashboard() {
         )}
 
         {/* Check-ins Tab */}
-{activeTab === 'checkins' && (
-  <CheckinsTab
-    bookings={bookings}
-    filteredBookings={filteredCheckinsBookings}
-    totalBookings={displayTotalBookings}
-    currentPage={currentPage}
-    totalPages={displayTotalPages}
-    pageSize={pageSize}
-    onPageChange={setCurrentPage}
-    onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-    filters={currentFilters}
-    onUpdateFilter={updateFilter}
-    onClearFilters={clearCurrentFilters}
-    isFilterActive={isFilterActive}
-    uniqueProvinces={uniqueProvinces}
-    uniqueCities={uniqueCities}
-    uniqueCountries={uniqueCountries}
-    getStatusBadge={getStatusBadge}
-    isLoading={bookings.length === 0}
-    businessId={business?.id || getBusinessId() || ''}
-    businessName={business?.trading_name || ''}
-  />
-)}
-
-        {/* Reports Tab - Premium Analytics */}
-        {activeTab === 'reports' && (
-          <ReportsTab
+        {activeTab === 'checkins' && (
+          <CheckinsTab
             bookings={bookings}
+            filteredBookings={filteredCheckinsBookings}
             totalBookings={displayTotalBookings}
-            todayArrivals={todayArrivals}
-            todayStayovers={todayStayovers}
-            todayCheckouts={todayCheckouts}
+            currentPage={currentPage}
+            totalPages={displayTotalPages}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
             filters={currentFilters}
             onUpdateFilter={updateFilter}
             onClearFilters={clearCurrentFilters}
             isFilterActive={isFilterActive}
-            onFilterChange={() => setCurrentPage(1)}
-            guestChartType={guestChartType}
-            onGuestChartTypeChange={setGuestChartType}
-            referralChartType={referralChartType}
-            onReferralChartTypeChange={setReferralChartType}
-            onExport={exportToCSV}
-            subscriptionTier={subscriptionTier}
+            uniqueProvinces={uniqueProvinces}
+            uniqueCities={uniqueCities}
+            uniqueCountries={uniqueCountries}
+            getStatusBadge={getStatusBadge}
+            isLoading={bookings.length === 0}
+            businessId={business?.id || getBusinessId() || ''}
+            businessName={business?.trading_name || ''}
+          />
+        )}
+
+        {/* Reports Tab */}
+        {activeTab === 'reports' && (
+          <ReportsTab
+            bookings={bookings}
+            totalBookings={displayTotalBookings}
           />
         )}
 
