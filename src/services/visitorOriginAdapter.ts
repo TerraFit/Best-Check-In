@@ -5,73 +5,18 @@
  * 
  * Transforms FastCheckIn's raw booking records into the aggregated
  * data structure that the VisitorOriginExplorer component expects.
- * 
- * This adapter bridges the gap between raw records and aggregated data,
- * providing both hierarchical and flat data structures for visualization.
  */
 
-// ============================================================
-// TYPES
-// ============================================================
-
-export interface ContinentData {
-  name: string;
-  count: number;
-  percentage: number;
-  children?: CountryData[];
-}
-
-export interface CountryData {
-  name: string;
-  count: number;
-  percentage: number;
-  children?: RegionData[];
-}
-
-export interface RegionData {
-  name: string;
-  count: number;
-  percentage: number;
-  children?: CityData[];
-}
-
-export interface CityData {
-  name: string;
-  count: number;
-  percentage: number;
-}
-
-export interface VisitorData {
-  world: {
-    total: number;
-  };
-  continents: ContinentData[];
-}
-
-export interface SimpleVisitorData {
-  [continent: string]: number;
-}
-
-/**
- * VisitorRecord - The format expected by VisitorOriginExplorer
- */
-export interface VisitorRecord {
-  id: string;
-  timestamp: string;
-  continent: string;
-  country: string;
-  region: string;
-  city: string;
-  checkInMethod: 'QR Code' | 'Direct Link' | 'Reception Desk' | 'Kiosk';
-  guestType: 'First-time' | 'Returning' | 'VIP';
-  _meta?: {
-    bookingId?: string;
-    settlementMethod?: string;
-    referralSource?: string;
-    totalAmount?: number;
-    guests?: number;
-  };
-}
+import { 
+  Booking, 
+  VisitorRecord, 
+  ContinentData,
+  CountryData,
+  RegionData,
+  CityData,
+  VisitorData,
+  SimpleVisitorData
+} from '../types';
 
 // ============================================================
 // COUNTRY → CONTINENT MAPPING
@@ -175,18 +120,11 @@ const COUNTRY_TO_CONTINENT: Record<string, string> = {
 };
 
 // ============================================================
-// CORE ADAPTER FUNCTIONS (Required by ReportsTab)
+// CORE ADAPTER FUNCTIONS
 // ============================================================
 
 /**
  * Maps a country name to its continent
- * 
- * @param country - Country name
- * @returns Continent name
- * 
- * @example
- * mapCountryToContinent('South Africa') // 'Africa'
- * mapCountryToContinent('Germany') // 'Europe'
  */
 export function mapCountryToContinent(country: string): string {
   if (!country) return 'Unknown';
@@ -196,13 +134,6 @@ export function mapCountryToContinent(country: string): string {
 /**
  * Transforms Booking records to VisitorRecord format
  * Compatible with VisitorOriginExplorer component
- * 
- * @param bookings - Array of raw booking records
- * @returns Array of VisitorRecord objects
- * 
- * @example
- * const visitors = transformBookingsToVisitorOrigins(bookings);
- * // [{ id: '123', continent: 'Africa', country: 'South Africa', ... }]
  */
 export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecord[] {
   if (!bookings || !Array.isArray(bookings)) {
@@ -210,40 +141,25 @@ export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecor
   }
 
   return bookings.map((booking, index) => {
-    // 1. Resolve country name
     const country = booking.guest_country || booking.country || 'Unknown';
-    
-    // 2. Map country to continent automatically
     const continent = mapCountryToContinent(country);
-
-    // 3. Resolve province/state/region
     const region = booking.guest_province || booking.province || 'Unknown';
-
-    // 4. Resolve city/suburb
     const city = booking.guest_city || booking.city || 'Unknown';
 
-    // 5. Determine check-in method based on available data
     let checkInMethod: VisitorRecord['checkInMethod'] = 'Reception Desk';
-    
-    // Check various possible sources for check-in method
     if (booking.check_in_method === 'QR Code' || booking.checkInMethod === 'QR Code') {
       checkInMethod = 'QR Code';
     } else if (booking.source === 'live_checkin') {
       checkInMethod = 'QR Code';
     } else if (booking.settlementMethod === 'Card' || booking.settlement_method === 'Card') {
       checkInMethod = 'Kiosk';
-    } else if (
-      booking.settlementMethod?.includes('EFT') || 
-      booking.settlement_method?.includes('EFT')
-    ) {
+    } else if (booking.settlementMethod?.includes('EFT') || booking.settlement_method?.includes('EFT')) {
       checkInMethod = 'Direct Link';
     } else if (booking.booking_source === 'Direct Link' || booking.referral_source === 'Direct Link') {
       checkInMethod = 'Direct Link';
     }
 
-    // 6. Determine guest type
     let guestType: VisitorRecord['guestType'] = 'First-time';
-    
     if (booking.guest_type === 'VIP' || booking.guestType === 'VIP') {
       guestType = 'VIP';
     } else if (
@@ -257,7 +173,6 @@ export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecor
       guestType = 'Returning';
     }
 
-    // 7. Use timestamp from booking
     const timestamp = booking.timestamp || booking.created_at || booking.check_in_date || new Date().toISOString();
 
     return {
@@ -269,7 +184,6 @@ export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecor
       city,
       checkInMethod,
       guestType,
-      // Additional metadata for debugging/analytics
       _meta: {
         bookingId: booking.id,
         settlementMethod: booking.settlementMethod || booking.settlement_method,
@@ -282,21 +196,13 @@ export function transformBookingsToVisitorOrigins(bookings: any[]): VisitorRecor
 }
 
 /**
- * Combined function: Fetch raw Supabase bookings and transform to VisitorRecords
- * This is the main function you'll use in ReportsTab for live data
- * 
- * @param rawBookings - Array of raw booking records from Supabase
- * @returns Array of VisitorRecord objects
- * 
- * @example
- * const visitors = fetchAndTransformBookings(supabaseData);
+ * Combined function: Transform raw Supabase bookings to VisitorRecords
  */
 export function fetchAndTransformBookings(rawBookings: any[]): VisitorRecord[] {
   if (!rawBookings || !Array.isArray(rawBookings)) {
     return [];
   }
 
-  // Transform raw Supabase snake_case data to camelCase Booking-like objects
   const bookings = rawBookings.map((raw: any) => ({
     id: raw.id || raw.booking_id,
     guestName: raw.guest_name || raw.guestName || '',
@@ -332,7 +238,6 @@ export function fetchAndTransformBookings(rawBookings: any[]): VisitorRecord[] {
     booking_source: raw.booking_source || raw.bookingSource,
   }));
 
-  // Then transform to VisitorRecords
   return transformBookingsToVisitorOrigins(bookings);
 }
 
@@ -342,20 +247,6 @@ export function fetchAndTransformBookings(rawBookings: any[]): VisitorRecord[] {
 
 /**
  * Builds a complete hierarchical visitor data structure
- * suitable for the VisitorOriginExplorer component.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @returns Hierarchical data structure with continents → countries → regions → cities
- * 
- * @example
- * const data = buildVisitorData(bookings);
- * // {
- * //   world: { total: 506 },
- * //   continents: [
- * //     { name: 'Africa', count: 506, percentage: 50.3, children: [...] },
- * //     { name: 'Europe', count: 235, percentage: 23.4, children: [...] },
- * //   ]
- * // }
  */
 export function buildVisitorData(bookings: any[]): VisitorData {
   if (!bookings || bookings.length === 0) {
@@ -365,7 +256,6 @@ export function buildVisitorData(bookings: any[]): VisitorData {
     };
   }
 
-  // Step 1: Aggregate counts at each level
   const continentCounts: Record<string, number> = {};
   const countryCounts: Record<string, Record<string, number>> = {};
   const regionCounts: Record<string, Record<string, number>> = {};
@@ -377,23 +267,19 @@ export function buildVisitorData(bookings: any[]): VisitorData {
 
     const continent = getContinent(country);
 
-    // Continent aggregation
     continentCounts[continent] = (continentCounts[continent] || 0) + 1;
 
-    // Country aggregation (per continent)
     if (!countryCounts[continent]) {
       countryCounts[continent] = {};
     }
     countryCounts[continent][country] = (countryCounts[continent][country] || 0) + 1;
 
-    // Region/Province aggregation (per country)
     const region = booking.guest_province || booking.province || 'Unknown';
     if (!regionCounts[country]) {
       regionCounts[country] = {};
     }
     regionCounts[country][region] = (regionCounts[country][region] || 0) + 1;
 
-    // City aggregation (per region)
     const city = booking.guest_city || booking.city || 'Unknown';
     if (!cityCounts[region]) {
       cityCounts[region] = {};
@@ -403,7 +289,6 @@ export function buildVisitorData(bookings: any[]): VisitorData {
 
   const total = bookings.length;
 
-  // Step 2: Build the hierarchical structure
   const continents = Object.entries(continentCounts).map(([continentName, continentCount]) => {
     const countries = Object.entries(countryCounts[continentName] || {}).map(([countryName, countryCount]) => {
       const regions = Object.entries(regionCounts[countryName] || {}).map(([regionName, regionCount]) => {
@@ -444,15 +329,7 @@ export function buildVisitorData(bookings: any[]): VisitorData {
 }
 
 /**
- * Builds a simple key-value object of continent → visitor count.
- * This matches the simplest AI Studio data format.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @returns Object with continent names as keys and visitor counts as values
- * 
- * @example
- * const data = buildSimpleVisitorData(bookings);
- * // { Africa: 506, Europe: 235, Asia: 78 }
+ * Builds a simple key-value object of continent → visitor count
  */
 export function buildSimpleVisitorData(bookings: any[]): SimpleVisitorData {
   if (!bookings || bookings.length === 0) {
@@ -473,15 +350,7 @@ export function buildSimpleVisitorData(bookings: any[]): SimpleVisitorData {
 }
 
 /**
- * Builds visitor data by continent only (no hierarchy).
- * Useful for the World Map view.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @returns Array of continent data objects
- * 
- * @example
- * const data = buildContinentData(bookings);
- * // [{ name: 'Africa', count: 506, percentage: 50.3 }, ...]
+ * Builds visitor data by continent only (no hierarchy)
  */
 export function buildContinentData(bookings: any[]): ContinentData[] {
   if (!bookings || bookings.length === 0) {
@@ -510,16 +379,7 @@ export function buildContinentData(bookings: any[]): ContinentData[] {
 }
 
 /**
- * Builds country data for a specific continent.
- * Useful for the Country Map view.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @param continentName - The continent to filter by
- * @returns Array of country data objects
- * 
- * @example
- * const data = buildCountryData(bookings, 'Africa');
- * // [{ name: 'South Africa', count: 506, percentage: 100 }, ...]
+ * Builds country data for a specific continent
  */
 export function buildCountryData(bookings: any[], continentName: string): CountryData[] {
   if (!bookings || bookings.length === 0 || !continentName) {
@@ -549,16 +409,7 @@ export function buildCountryData(bookings: any[], continentName: string): Countr
 }
 
 /**
- * Builds region/province data for a specific country.
- * Useful for the Region Map view.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @param countryName - The country to filter by
- * @returns Array of region data objects
- * 
- * @example
- * const data = buildRegionData(bookings, 'South Africa');
- * // [{ name: 'Western Cape', count: 243, percentage: 48 }, ...]
+ * Builds region/province data for a specific country
  */
 export function buildRegionData(bookings: any[], countryName: string): RegionData[] {
   if (!bookings || bookings.length === 0 || !countryName) {
@@ -589,16 +440,7 @@ export function buildRegionData(bookings: any[], countryName: string): RegionDat
 }
 
 /**
- * Builds city data for a specific region/province.
- * Useful for the City Grid view.
- * 
- * @param bookings - Array of raw booking records from Supabase
- * @param regionName - The region to filter by
- * @returns Array of city data objects
- * 
- * @example
- * const data = buildCityData(bookings, 'Western Cape');
- * // [{ name: 'Cape Town', count: 115, percentage: 47.3 }, ...]
+ * Builds city data for a specific region/province
  */
 export function buildCityData(bookings: any[], regionName: string): CityData[] {
   if (!bookings || bookings.length === 0 || !regionName) {
@@ -633,11 +475,7 @@ export function buildCityData(bookings: any[], regionName: string): CityData[] {
 // ============================================================
 
 /**
- * Get the continent for a given country.
- * If the country is not found, returns 'Other'.
- * 
- * @param country - Country name
- * @returns Continent name
+ * Get the continent for a given country
  */
 export function getContinent(country: string): string {
   if (!country) return 'Other';
@@ -645,10 +483,7 @@ export function getContinent(country: string): string {
 }
 
 /**
- * Get all unique countries from bookings.
- * 
- * @param bookings - Array of raw booking records
- * @returns Array of unique country names
+ * Get all unique countries from bookings
  */
 export function getUniqueCountries(bookings: any[]): string[] {
   if (!bookings || bookings.length === 0) return [];
@@ -665,10 +500,7 @@ export function getUniqueCountries(bookings: any[]): string[] {
 }
 
 /**
- * Get all unique continents from bookings.
- * 
- * @param bookings - Array of raw booking records
- * @returns Array of unique continent names
+ * Get all unique continents from bookings
  */
 export function getUniqueContinents(bookings: any[]): string[] {
   if (!bookings || bookings.length === 0) return [];
@@ -685,36 +517,8 @@ export function getUniqueContinents(bookings: any[]): string[] {
 }
 
 /**
- * Get the total visitor count for the world.
- * 
- * @param bookings - Array of raw booking records
- * @returns Total number of visitors
+ * Get the total visitor count for the world
  */
 export function getTotalVisitors(bookings: any[]): number {
   return bookings?.length || 0;
 }
-
-// ============================================================
-// DEFAULT EXPORT
-// ============================================================
-
-export default {
-  // Core adapter functions (required by ReportsTab)
-  mapCountryToContinent,
-  transformBookingsToVisitorOrigins,
-  fetchAndTransformBookings,
-  
-  // Hierarchical data builders
-  buildVisitorData,
-  buildSimpleVisitorData,
-  buildContinentData,
-  buildCountryData,
-  buildRegionData,
-  buildCityData,
-  
-  // Helpers
-  getContinent,
-  getUniqueCountries,
-  getUniqueContinents,
-  getTotalVisitors,
-};
