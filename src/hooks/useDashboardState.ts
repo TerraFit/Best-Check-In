@@ -25,7 +25,7 @@ export function useDashboardState() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false); // ✅ ADD THIS
   
   // Chart type states
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
@@ -128,7 +128,7 @@ export function useDashboardState() {
     editingProfile, setEditingProfile,
     uploadingLogo, setUploadingLogo,
     uploadingHero, setUploadingHero,
-    savingProfile, setSavingProfile,
+    savingProfile, setSavingProfile, // ✅ ADD THIS
     
     // Email/Phone editing
     editingEmail, setEditingEmail,
