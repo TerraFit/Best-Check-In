@@ -1,8 +1,8 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ Full Guest Details Modal with Food Restrictions
+// ✅ Full Guest Details Modal with Food Restrictions + Next Destination
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Phone, Mail, Globe, User, Calendar, Users, MapPin, Utensils } from 'lucide-react';
+import { X, Phone, Mail, Globe, User, Calendar, Users, MapPin, Utensils, ArrowRight } from 'lucide-react';
 import { useGuestDetails } from '../../hooks/useGuestDetails';
 import { FoodRestrictions } from '../../types/guest';
 
@@ -59,6 +59,7 @@ export default function GuestDetailsModal({
   // Load guest details when modal opens
   useEffect(() => {
     if (isOpen && bookingId) {
+      console.log('🔍 Fetching guest details for booking:', bookingId);
       fetchGuestDetails(bookingId);
     }
   }, [isOpen, bookingId, fetchGuestDetails]);
@@ -80,7 +81,7 @@ export default function GuestDetailsModal({
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [isOpen, handleClose]);
+  }, [isOpen]);
 
   // Handle close with unsaved changes check
   const handleClose = useCallback(() => {
@@ -112,7 +113,6 @@ export default function GuestDetailsModal({
   const handleRestrictionChange = useCallback((key: keyof FoodRestrictions, value: boolean) => {
     setRestrictions(prev => {
       const newRestrictions = { ...prev, [key]: value };
-      // If 'other' is unchecked, clear other_text
       if (key === 'other' && value === false) {
         newRestrictions.other_text = '';
       }
@@ -247,6 +247,15 @@ export default function GuestDetailsModal({
                       <div>
                         <p className="text-xs text-gray-500">Arriving From</p>
                         <p className="text-sm font-medium">{guestDetails.arriving_from || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    {/* ✅ Next Destination - ADDED */}
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                      <ArrowRight size={16} className="text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Next Destination</p>
+                        <p className="text-sm font-medium">{guestDetails.next_destination || 'N/A'}</p>
                       </div>
                     </div>
 
