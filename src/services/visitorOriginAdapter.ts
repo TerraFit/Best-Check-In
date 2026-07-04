@@ -522,3 +522,23 @@ export function getUniqueContinents(bookings: any[]): string[] {
 export function getTotalVisitors(bookings: any[]): number {
   return bookings?.length || 0;
 }
+
+// ============================================================
+// DEFAULT EXPORT
+// ============================================================
+
+export default {
+  mapCountryToContinent,
+  transformBookingsToVisitorOrigins,
+  fetchAndTransformBookings,
+  buildVisitorData,
+  buildSimpleVisitorData,
+  buildContinentData,
+  buildCountryData,
+  buildRegionData,
+  buildCityData,
+  getContinent,
+  getUniqueCountries,
+  getUniqueContinents,
+  getTotalVisitors,
+};
