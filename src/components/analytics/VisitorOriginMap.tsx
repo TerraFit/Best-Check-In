@@ -1,17 +1,25 @@
-// Existing imports in VisitorOriginMap.tsx
+// src/components/analytics/VisitorOriginMap.tsx
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { VisitorOriginWorldMap } from './VisitorOriginWorldMap';
 import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
 import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
 import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
 import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
+import { UpgradePromptModal } from './UpgradePromptModal';
 
-interface VisitorOriginMapProps {
+// ============================================================
+// TYPES
+// ============================================================
+
+export type DrillLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
+
+export interface VisitorOriginMapProps {
   data: any[];
-  drillLevel: string;
+  drillLevel: DrillLevel;
   limits: {
     canViewCountries: boolean;
     maxDrillLevel: string;
-    subscriptionTier?: string; // ← Add this
+    subscriptionTier?: string;
     [key: string]: any;
   };
   onDrillDown: (item: any) => void;
@@ -20,6 +28,10 @@ interface VisitorOriginMapProps {
   getUpgradeMessage: (feature: string) => string;
   isLoading: boolean;
 }
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export function VisitorOriginMap({
   data,
@@ -31,15 +43,17 @@ export function VisitorOriginMap({
   getUpgradeMessage,
   isLoading
 }: VisitorOriginMapProps) {
+  // State
   const [selectedContinent, setSelectedContinent] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [modalTarget, setModalTarget] = useState<string>('growth');
   const [modalFeature, setModalFeature] = useState<string>('continents');
   const [geoData, setGeoData] = useState<any>(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
-  const [view, setView] = useState<'continents' | 'countries'>('continents');
+  const [view, setView] = useState<'continents' | 'countries' | 'regions' | 'cities'>('continents');
 
-  // Debug: Log what we're receiving
+  // Debug
   console.log('🔍 VisitorOriginMap props:', { 
     dataLength: data?.length, 
     drillLevel, 
@@ -67,9 +81,8 @@ export function VisitorOriginMap({
     loadGeoData();
   }, []);
 
-  // ✅ FIX: Determine current tier from limits
+  // Determine current tier from limits
   const currentTier = useMemo(() => {
-    // If limits has subscriptionTier, use it directly
     if (limits?.subscriptionTier) {
       const tier = limits.subscriptionTier.toLowerCase();
       if (['starter', 'growth', 'pro', 'business'].includes(tier)) {
@@ -77,13 +90,12 @@ export function VisitorOriginMap({
       }
     }
     
-    // Otherwise detect from maxDrillLevel
     const level = limits?.maxDrillLevel || 'world';
     const tierMap: Record<string, string> = {
       'world': 'starter',
-      'continent': 'growth',
-      'country': 'pro',
-      'city': 'business'
+      'continents': 'growth',
+      'countries': 'pro',
+      'cities': 'business'
     };
     return tierMap[level] || 'starter';
   }, [limits]);
@@ -97,13 +109,10 @@ export function VisitorOriginMap({
     const continentMap: Record<string, { count: number; name: string }> = {};
     
     data.forEach((item: any) => {
-      // Try to determine continent from country
       let continent = item.continent || 'Other';
       
-      // If no continent, try to infer from country
       if (!item.continent && item.guest_country) {
         const country = item.guest_country;
-        // Simple continent mapping for common countries
         const countryToContinent: Record<string, string> = {
           'South Africa': 'Africa',
           'Namibia': 'Africa',
@@ -154,14 +163,13 @@ export function VisitorOriginMap({
     })).sort((a, b) => b.count - a.count);
   }, [data]);
 
+  // Handlers
   const handleContinentClick = (continentName: string) => {
     console.log('🖱️ Continent clicked:', continentName);
     
-    // Check if user can drill down to countries
     if (limits?.canViewCountries && canDrillDeeper('continent')) {
       setSelectedContinent(continentName);
       setView('countries');
-      // Find the continent data and drill down
       const continentItem = data.find(d => 
         d.continent === continentName || 
         d.name === continentName
@@ -170,7 +178,6 @@ export function VisitorOriginMap({
         onDrillDown(continentItem);
       }
     } else {
-      // Show upgrade modal
       setModalTarget('growth');
       setModalFeature('countries within continents');
       setShowUpgradeModal(true);
@@ -180,8 +187,9 @@ export function VisitorOriginMap({
   const handleCountryClick = (countryName: string) => {
     console.log('🖱️ Country clicked:', countryName);
     
-    // Check if user can drill down to regions
     if (canDrillDeeper('country')) {
+      setSelectedCountry(countryName);
+      setView('regions');
       const countryItem = data.find(d => d.guest_country === countryName || d.name === countryName);
       if (countryItem) {
         onDrillDown(countryItem);
@@ -193,10 +201,37 @@ export function VisitorOriginMap({
     }
   };
 
+  const handleRegionClick = (regionName: string) => {
+    console.log('🖱️ Region clicked:', regionName);
+    
+    if (canDrillDeeper('region')) {
+      setView('cities');
+      const regionItem = data.find(d => d.region === regionName || d.province === regionName);
+      if (regionItem) {
+        onDrillDown(regionItem);
+      }
+    } else {
+      setModalTarget('business');
+      setModalFeature('city and suburb details');
+      setShowUpgradeModal(true);
+    }
+  };
+
   const handleBack = () => {
-    setView('continents');
-    setSelectedContinent(null);
-    onDrillUp();
+    if (view === 'countries') {
+      setView('continents');
+      setSelectedContinent(null);
+      onDrillUp();
+    } else if (view === 'regions') {
+      setView('countries');
+      setSelectedCountry(null);
+      onDrillUp();
+    } else if (view === 'cities') {
+      setView('regions');
+      onDrillUp();
+    } else {
+      onDrillUp();
+    }
   };
 
   const handleUpgrade = () => {
@@ -207,7 +242,7 @@ export function VisitorOriginMap({
     window.location.href = '/business/billing?tab=compare';
   };
 
-  // If no data, show empty state
+  // Empty state
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -230,6 +265,7 @@ export function VisitorOriginMap({
     );
   }
 
+  // Loading state
   if (isLoading || loadingGeo) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
@@ -246,6 +282,24 @@ export function VisitorOriginMap({
   const continentDataResult = continentData();
   console.log('📊 Continent data:', continentDataResult);
 
+  // Get filtered data for current view
+  const filteredData = useMemo(() => {
+    if (view === 'continents') return data;
+    if (view === 'countries' && selectedContinent) {
+      return data.filter(d => 
+        d.continent === selectedContinent || 
+        d.name === selectedContinent
+      );
+    }
+    if (view === 'regions' && selectedCountry) {
+      return data.filter(d => 
+        d.country === selectedCountry || 
+        d.guest_country === selectedCountry
+      );
+    }
+    return data;
+  }, [data, view, selectedContinent, selectedCountry]);
+
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden">
       {/* Header */}
@@ -258,6 +312,8 @@ export function VisitorOriginMap({
           <p className="text-xs text-stone-400">
             {view === 'continents' && '🌍 Hover for details • Click continents to explore'}
             {view === 'countries' && `🌍 ${selectedContinent} — Click countries to explore further`}
+            {view === 'regions' && `📍 ${selectedCountry} — Click regions for city breakdown`}
+            {view === 'cities' && `🏙️ City-level view`}
           </p>
         </div>
 
@@ -272,35 +328,61 @@ export function VisitorOriginMap({
           }`}>
             {currentTier}
           </span>
-          {currentTier === 'starter' && (
-            <span className="text-[10px] text-amber-500 ml-1">
-              ↑ Upgrade to explore more
-            </span>
+          {currentTier !== 'business' && (
+            <button
+              onClick={() => {
+                const target = currentTier === 'starter' ? 'growth' : currentTier === 'growth' ? 'pro' : 'business';
+                setModalTarget(target);
+                setModalFeature(target === 'growth' ? 'country-level data' : target === 'pro' ? 'region-level data' : 'city-level data');
+                setShowUpgradeModal(true);
+              }}
+              className="text-[10px] text-amber-500 hover:text-amber-600 underline ml-1"
+            >
+              ↑ Upgrade
+            </button>
           )}
         </div>
       </div>
 
       {/* Map Content */}
       <div className="p-6">
-        {view === 'continents' ? (
+        {view === 'continents' && (
           <VisitorOriginContinentMap
             data={continentDataResult}
             onContinentClick={handleContinentClick}
-            onContinentHover={() => {}}
+            onBack={onDrillUp}
             isLoading={isLoading || continentDataResult.length === 0}
           />
-        ) : (
+        )}
+
+        {view === 'countries' && (
           <VisitorOriginCountryMap
-            data={data.filter(d => 
-              d.continent === selectedContinent || 
-              d.name === selectedContinent
-            )}
+            data={filteredData}
             continentName={selectedContinent || ''}
             onCountryClick={handleCountryClick}
-            onCountryHover={() => {}}
             onBack={handleBack}
             isLoading={isLoading}
             geoData={geoData}
+          />
+        )}
+
+        {view === 'regions' && (
+          <VisitorOriginRegionMap
+            data={filteredData}
+            countryName={selectedCountry || ''}
+            onRegionClick={handleRegionClick}
+            onBack={handleBack}
+            isLoading={isLoading}
+            geoData={geoData}
+          />
+        )}
+
+        {view === 'cities' && (
+          <VisitorOriginCityGrid
+            data={filteredData}
+            regionName={selectedCountry || ''}
+            onBack={handleBack}
+            isLoading={isLoading}
           />
         )}
       </div>
@@ -309,7 +391,7 @@ export function VisitorOriginMap({
       <UpgradePromptModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        currentTier={currentTier}
+        currentTier={currentTier as any}
         targetTier={modalTarget}
         featureName={modalFeature}
         onUpgrade={handleUpgrade}
@@ -318,3 +400,5 @@ export function VisitorOriginMap({
     </div>
   );
 }
+
+export default VisitorOriginMap;
