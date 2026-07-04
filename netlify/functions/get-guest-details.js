@@ -1,5 +1,5 @@
 // netlify/functions/get-guest-details.js
-// ✅ Fetches guest details including food restrictions
+// ✅ Fetches guest details including food restrictions AND next_destination
 
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
@@ -45,7 +45,7 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Fetch booking details
+    // ✅ Fetch booking details - INCLUDING next_destination
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select('*')
@@ -72,7 +72,7 @@ export const handler = async (event) => {
       console.error('Restrictions fetch error:', restrictionsError);
     }
 
-    // ✅ Combine data - FIXED guests calculation
+    // ✅ Combine data - INCLUDING next_destination
     const guestDetails = {
       id: booking.id,
       guest_name: booking.guest_name || '',
@@ -82,7 +82,8 @@ export const handler = async (event) => {
       guest_phone: booking.guest_phone || '',
       guest_country: booking.guest_country || '',
       arriving_from: booking.arriving_from || '',
-      guests: (booking.adults || 0) + (booking.children || 0),  // ✅ FIXED
+      next_destination: booking.next_destination || '', // ✅ ADDED
+      guests: (booking.adults || 0) + (booking.children || 0),
       adults: booking.adults || 0,
       children: booking.children || 0,
       check_in_date: booking.check_in_date,
@@ -104,6 +105,13 @@ export const handler = async (event) => {
         other_text: ''
       }
     };
+
+    console.log('✅ Guest details fetched:', {
+      id: guestDetails.id,
+      guest_name: guestDetails.guest_name,
+      arriving_from: guestDetails.arriving_from,
+      next_destination: guestDetails.next_destination
+    });
 
     return {
       statusCode: 200,
