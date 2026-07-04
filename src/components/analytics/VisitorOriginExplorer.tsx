@@ -8,7 +8,7 @@ import { UpgradePromptModal } from './UpgradePromptModal';
 import { SubscriptionTier, SubscriptionLimits } from '../../types';
 import { Globe2, Layers, Zap } from 'lucide-react';
 
-// 🔍 RUNTIME IMPORT DEBUGGER: Check child components to instantly catch React Error #306
+// 🔍 RUNTIME IMPORT DEBUGGER
 console.log('✅ VisitorOriginExplorer loaded successfully');
 console.log('🔍 Child Imports Check:', {
   VisitorOriginWorldMap: typeof VisitorOriginWorldMap !== 'undefined' ? typeof VisitorOriginWorldMap : 'UNDEFINED',
@@ -68,7 +68,7 @@ export function VisitorOriginExplorer({
       name,
       count,
       percentage: (count / total) * 100,
-    })).sort((a, b) => b.count - a.count);
+    })).sort((first, second) => second.count - first.count);
   }, [data]);
 
   // Drill level navigation controls with tier permission checks
@@ -128,7 +128,6 @@ export function VisitorOriginExplorer({
   const handleUpgradeAction = () => {
     setShowUpgradeModal(false);
     if (onTierChange) {
-      // Simulate tier upgrade
       onTierChange(modalTargetTier);
     }
   };
@@ -136,17 +135,17 @@ export function VisitorOriginExplorer({
   // Filter records based on our active drill layers
   const filteredCountryData = useMemo(() => {
     if (!selectedContinent) return [];
-    return data.filter(d => d.continent.toLowerCase() === selectedContinent.toLowerCase());
+    return data.filter((item) => item.continent.toLowerCase() === selectedContinent.toLowerCase());
   }, [data, selectedContinent]);
 
   const filteredRegionData = useMemo(() => {
     if (!selectedCountry) return [];
-    return data.filter(d => d.country.toLowerCase() === selectedCountry.toLowerCase());
+    return data.filter((item) => item.country.toLowerCase() === selectedCountry.toLowerCase());
   }, [data, selectedCountry]);
 
   const filteredCityData = useMemo(() => {
     if (!selectedRegion) return [];
-    return data.filter(d => d.region.toLowerCase() === selectedRegion.toLowerCase());
+    return data.filter((item) => item.region.toLowerCase() === selectedRegion.toLowerCase());
   }, [data, selectedRegion]);
 
   return (
