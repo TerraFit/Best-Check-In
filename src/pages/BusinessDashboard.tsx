@@ -24,7 +24,8 @@ export default function BusinessDashboard() {
     showQRModal, setShowQRModal,
     showImportModal, setShowImportModal,
     editingProfile, setEditingProfile,
-    savingProfile,
+    savingProfile,        // ✅ Already here
+    setSavingProfile,     // ✅ ADD THIS LINE
     editingEmail, setEditingEmail,
     editingPhone, setEditingPhone,
     newEmail, setNewEmail,
