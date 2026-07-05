@@ -27,13 +27,11 @@ export function OverviewTab({
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ✅ Handle guest card click
   const handleGuestClick = (bookingId: string) => {
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
   };
 
-  // ✅ Wrap guest cards with click handler
   const wrapGuestCards = (guests: any[]) => {
     return guests.map((guest: any) => ({
       ...guest,
@@ -57,7 +55,6 @@ export function OverviewTab({
         />
       </div>
 
-      {/* ✅ Guest Details Modal */}
       <GuestDetailsModal
         isOpen={isModalOpen}
         bookingId={selectedBookingId}
