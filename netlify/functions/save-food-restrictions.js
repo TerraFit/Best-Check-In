@@ -1,6 +1,7 @@
 // netlify/functions/save-food-restrictions.js
+// ✅ Using REST API - No Supabase client dependency
 
-export const handler = async function(event) {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -13,22 +14,22 @@ export const handler = async function(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
     };
   }
 
   try {
     const body = JSON.parse(event.body);
-    const { booking_id, ...restrictionData } = body;
+    const { bookingId, restrictions } = body;
 
-    if (!booking_id) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Booking ID required' })
+    if (!bookingId) {
+      return { 
+        statusCode: 400, 
+        headers, 
+        body: JSON.stringify({ error: 'Booking ID required' }) 
       };
     }
 
@@ -43,9 +44,9 @@ export const handler = async function(event) {
       };
     }
 
-    // Check if restrictions already exist
+    // Check if restrictions exist
     const checkResponse = await fetch(
-      `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${booking_id}&select=id`,
+      `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -55,13 +56,13 @@ export const handler = async function(event) {
       }
     );
 
-    const existing = await checkResponse.json();
-    const existingId = existing[0]?.id;
+    const existingData = await checkResponse.json();
+    const existingId = existingData[0]?.id;
 
     let result;
 
     if (existingId) {
-      // Update existing
+      // Update
       const updateResponse = await fetch(
         `${supabaseUrl}/rest/v1/booking_food_restrictions?id=eq.${existingId}`,
         {
@@ -73,22 +74,20 @@ export const handler = async function(event) {
             'Prefer': 'return=representation'
           },
           body: JSON.stringify({
-            ...restrictionData,
+            ...restrictions,
             updated_at: new Date().toISOString()
           })
         }
       );
 
       if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        console.error('Update error:', errorText);
-        throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
+        throw new Error(`HTTP ${updateResponse.status}`);
       }
 
       const updateData = await updateResponse.json();
       result = updateData[0];
     } else {
-      // Insert new
+      // Insert
       const insertResponse = await fetch(
         `${supabaseUrl}/rest/v1/booking_food_restrictions`,
         {
@@ -100,8 +99,8 @@ export const handler = async function(event) {
             'Prefer': 'return=representation'
           },
           body: JSON.stringify([{
-            booking_id,
-            ...restrictionData,
+            booking_id: bookingId,
+            ...restrictions,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }])
@@ -109,9 +108,7 @@ export const handler = async function(event) {
       );
 
       if (!insertResponse.ok) {
-        const errorText = await insertResponse.text();
-        console.error('Insert error:', errorText);
-        throw new Error(`HTTP ${insertResponse.status}: ${errorText}`);
+        throw new Error(`HTTP ${insertResponse.status}`);
       }
 
       const insertData = await insertResponse.json();
@@ -123,7 +120,7 @@ export const handler = async function(event) {
       headers,
       body: JSON.stringify({
         success: true,
-        data: result,
+        restrictions: result,
         message: 'Food restrictions saved successfully'
       })
     };
