@@ -2,7 +2,6 @@
 // ✅ Fetches guest details including food restrictions AND next_destination
 
 import { createClient } from '@supabase/supabase-js';
-import WebSocket from 'ws';
 
 export const handler = async (event) => {
   const headers = {
@@ -27,15 +26,10 @@ export const handler = async (event) => {
   try {
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      {
-        realtime: {
-          transport: WebSocket
-        }
-      }
+      process.env.SUPABASE_SERVICE_KEY
     );
 
-    const { bookingId, businessId } = event.queryStringParameters || {};
+    const { bookingId } = event.queryStringParameters || {};
 
     if (!bookingId) {
       return { 
@@ -45,7 +39,7 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Fetch booking details - INCLUDING next_destination
+    // Fetch booking details - INCLUDING next_destination
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select('*')
@@ -61,7 +55,7 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Fetch food restrictions
+    // Fetch food restrictions
     const { data: restrictions, error: restrictionsError } = await supabase
       .from('booking_food_restrictions')
       .select('*')
@@ -72,7 +66,7 @@ export const handler = async (event) => {
       console.error('Restrictions fetch error:', restrictionsError);
     }
 
-    // ✅ Combine data - INCLUDING next_destination
+    // Combine data - INCLUDING next_destination
     const guestDetails = {
       id: booking.id,
       guest_name: booking.guest_name || '',
@@ -82,7 +76,7 @@ export const handler = async (event) => {
       guest_phone: booking.guest_phone || '',
       guest_country: booking.guest_country || '',
       arriving_from: booking.arriving_from || '',
-      next_destination: booking.next_destination || '', // ✅ ADDED
+      next_destination: booking.next_destination || '',
       guests: (booking.adults || 0) + (booking.children || 0),
       adults: booking.adults || 0,
       children: booking.children || 0,
