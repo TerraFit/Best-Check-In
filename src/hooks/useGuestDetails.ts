@@ -1,3 +1,5 @@
+// src/hooks/useGuestDetails.ts
+
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions } from '../types/guest';
 
@@ -7,25 +9,35 @@ export function useGuestDetails() {
   const [guestDetails, setGuestDetails] = useState<GuestDetails | null>(null);
 
   const fetchGuestDetails = useCallback(async (bookingId: string) => {
+    if (!bookingId) {
+      setError('No booking ID provided');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
+      console.log('🔍 Fetching guest details for:', bookingId);
+      
       const response = await fetch(
         `/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`
       );
 
+      console.log('📡 Response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch guest details');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('✅ Guest details received:', data);
       setGuestDetails(data);
-      return data;
     } catch (err) {
+      console.error('❌ Error fetching guest details:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch guest details');
-      throw err;
+      // Don't throw - let the UI handle the error state
     } finally {
       setLoading(false);
     }
@@ -35,38 +47,46 @@ export function useGuestDetails() {
     bookingId: string,
     restrictions: FoodRestrictions
   ) => {
+    if (!bookingId) {
+      throw new Error('No booking ID provided');
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/.netlify/functions/update-food-restrictions', {
+      const response = await fetch('/.netlify/functions/save-food-restrictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId, restrictions })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update restrictions');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
       
-      if (guestDetails) {
-        setGuestDetails({
-          ...guestDetails,
-          food_restrictions: result.restrictions
+      if (result.success && result.restrictions) {
+        setGuestDetails(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            food_restrictions: result.restrictions
+          };
         });
       }
 
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update restrictions');
+      console.error('❌ Error saving restrictions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save restrictions');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [guestDetails]);
+  }, []);
 
   const resetGuestDetails = useCallback(() => {
     setGuestDetails(null);
