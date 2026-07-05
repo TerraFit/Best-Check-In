@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ Complete Guest Details Modal - All fields properly displayed
+// ✅ Full Guest Details Modal with Food Restrictions + Next Destination
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -10,20 +10,12 @@ import {
 import { useGuestDetails } from '../../hooks/useGuestDetails';
 import { FoodRestrictions } from '../../types/guest';
 
-// ============================================================
-// TYPES
-// ============================================================
-
 interface GuestDetailsModalProps {
   isOpen: boolean;
   bookingId: string | null;
   onClose: () => void;
   businessId?: string;
 }
-
-// ============================================================
-// CONSTANTS
-// ============================================================
 
 const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   vegetarian: false,
@@ -56,10 +48,6 @@ const DIETARY_OPTIONS = [
   { key: 'other', label: 'Other' }
 ];
 
-// ============================================================
-// HELPER: Format Date
-// ============================================================
-
 const formatDate = (dateStr?: string): string => {
   if (!dateStr) return 'N/A';
   try {
@@ -73,34 +61,23 @@ const formatDate = (dateStr?: string): string => {
   }
 };
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-
 export default function GuestDetailsModal({
   isOpen,
   bookingId,
   onClose,
   businessId
 }: GuestDetailsModalProps) {
-  // Hooks
   const { guestDetails, loading, fetchGuestDetails, updateFoodRestrictions } = useGuestDetails();
   
-  // State
   const [restrictions, setRestrictions] = useState<FoodRestrictions>(DEFAULT_RESTRICTIONS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // ============================================================
-  // EFFECTS
-  // ============================================================
-
   // Load guest details when modal opens
   useEffect(() => {
     if (isOpen && bookingId) {
-      console.log('🔍 Fetching guest details for booking:', bookingId);
       fetchGuestDetails(bookingId);
     }
   }, [isOpen, bookingId, fetchGuestDetails]);
@@ -124,10 +101,6 @@ export default function GuestDetailsModal({
     return () => document.removeEventListener('keydown', handleEsc);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  // ============================================================
-  // HANDLERS
-  // ============================================================
 
   const handleClose = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -181,7 +154,6 @@ export default function GuestDetailsModal({
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
       
-      // Auto-dismiss success after 2 seconds
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
@@ -191,10 +163,6 @@ export default function GuestDetailsModal({
       setSaving(false);
     }
   }, [bookingId, restrictions, updateFoodRestrictions]);
-
-  // ============================================================
-  // RENDER
-  // ============================================================
 
   if (!isOpen) return null;
 
@@ -211,9 +179,7 @@ export default function GuestDetailsModal({
       >
         <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-fade-in">
           
-          {/* ============================================================
-              HEADER
-              ============================================================ */}
+          {/* HEADER */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-100 rounded-xl">
@@ -239,12 +205,9 @@ export default function GuestDetailsModal({
             </button>
           </div>
 
-          {/* ============================================================
-              BODY
-              ============================================================ */}
+          {/* BODY */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
             
-            {/* Loading State */}
             {loading && (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
@@ -254,7 +217,6 @@ export default function GuestDetailsModal({
               </div>
             )}
 
-            {/* Not Found State */}
             {!loading && !guestDetails && (
               <div className="text-center py-16">
                 <User size={48} className="mx-auto mb-4 text-gray-300" />
@@ -263,13 +225,10 @@ export default function GuestDetailsModal({
               </div>
             )}
 
-            {/* Guest Details */}
             {!loading && guestDetails && (
               <div className="space-y-8">
                 
-                {/* ============================================================
-                    SECTION 1: GUEST INFORMATION
-                    ============================================================ */}
+                {/* SECTION 1: GUEST INFORMATION */}
                 <section>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="h-px flex-1 bg-gray-200"></span>
@@ -338,9 +297,7 @@ export default function GuestDetailsModal({
                   </div>
                 </section>
 
-                {/* ============================================================
-                    SECTION 2: TRAVEL DETAILS
-                    ============================================================ */}
+                {/* SECTION 2: TRAVEL DETAILS */}
                 <section>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="h-px flex-1 bg-gray-200"></span>
@@ -373,9 +330,7 @@ export default function GuestDetailsModal({
                   </div>
                 </section>
 
-                {/* ============================================================
-                    SECTION 3: STAY DETAILS
-                    ============================================================ */}
+                {/* SECTION 3: STAY DETAILS */}
                 <section>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="h-px flex-1 bg-gray-200"></span>
@@ -422,9 +377,7 @@ export default function GuestDetailsModal({
                   </div>
                 </section>
 
-                {/* ============================================================
-                    SECTION 4: FOOD RESTRICTIONS
-                    ============================================================ */}
+                {/* SECTION 4: FOOD RESTRICTIONS */}
                 <section>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -437,14 +390,12 @@ export default function GuestDetailsModal({
                     </h3>
                     
                     <div className="flex items-center gap-2">
-                      {/* Save Status */}
                       {saveSuccess && (
                         <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                           <Check size={14} /> Saved
                         </span>
                       )}
                       
-                      {/* Save Button */}
                       <button
                         onClick={handleSave}
                         disabled={!hasUnsavedChanges || saving}
@@ -510,7 +461,6 @@ export default function GuestDetailsModal({
                     </div>
                   )}
 
-                  {/* No restrictions message */}
                   {!Object.values(restrictions).some(val => val === true) && (
                     <p className="text-sm text-gray-400 italic mt-2 text-center">
                       No dietary restrictions recorded
@@ -518,9 +468,7 @@ export default function GuestDetailsModal({
                   )}
                 </section>
 
-                {/* ============================================================
-                    SECTION 5: METADATA
-                    ============================================================ */}
+                {/* SECTION 5: METADATA */}
                 <section className="pt-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-100 pt-4">
                     <span className="flex items-center gap-1">
@@ -537,9 +485,7 @@ export default function GuestDetailsModal({
             )}
           </div>
 
-          {/* ============================================================
-              FOOTER
-              ============================================================ */}
+          {/* FOOTER */}
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end flex-shrink-0">
             <button
               onClick={handleClose}
@@ -551,9 +497,7 @@ export default function GuestDetailsModal({
         </div>
       </div>
 
-      {/* ============================================================
-          UNSAVED CHANGES WARNING MODAL
-          ============================================================ */}
+      {/* UNSAVED CHANGES WARNING MODAL */}
       {showUnsavedWarning && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-scale-in">
