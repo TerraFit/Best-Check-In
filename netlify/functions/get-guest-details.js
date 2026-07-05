@@ -1,5 +1,5 @@
 // netlify/functions/get-guest-details.js
-// ✅ Fetches guest details including food restrictions AND next_destination
+// ✅ FIXED - Removed Realtime dependency
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -24,11 +24,6 @@ export const handler = async (event) => {
   }
 
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-
     const { bookingId } = event.queryStringParameters || {};
 
     if (!bookingId) {
@@ -39,15 +34,44 @@ export const handler = async (event) => {
       };
     }
 
-    // Fetch booking details - INCLUDING next_destination
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .single();
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (bookingError) {
-      console.error('Booking fetch error:', bookingError);
+    if (!supabaseUrl || !supabaseKey) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    // ✅ SIMPLE FETCH - Using REST API directly (no Realtime)
+    // Fetch booking details
+    const bookingResponse = await fetch(
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    if (!bookingResponse.ok) {
+      const errorText = await bookingResponse.text();
+      console.error('Booking fetch error:', errorText);
+      return { 
+        statusCode: 404, 
+        headers, 
+        body: JSON.stringify({ error: 'Booking not found' }) 
+      };
+    }
+
+    const bookingData = await bookingResponse.json();
+    const booking = bookingData[0];
+
+    if (!booking) {
       return { 
         statusCode: 404, 
         headers, 
@@ -56,17 +80,30 @@ export const handler = async (event) => {
     }
 
     // Fetch food restrictions
-    const { data: restrictions, error: restrictionsError } = await supabase
-      .from('booking_food_restrictions')
-      .select('*')
-      .eq('booking_id', bookingId)
-      .maybeSingle();
+    let restrictions = null;
+    try {
+      const restrictionsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Accept': 'application/json'
+          }
+        }
+      );
 
-    if (restrictionsError && restrictionsError.code !== 'PGRST116') {
-      console.error('Restrictions fetch error:', restrictionsError);
+      if (restrictionsResponse.ok) {
+        const restrictionsData = await restrictionsResponse.json();
+        if (restrictionsData && restrictionsData.length > 0) {
+          restrictions = restrictionsData[0];
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch food restrictions:', err.message);
     }
 
-    // Combine data - INCLUDING next_destination
+    // Combine data
     const guestDetails = {
       id: booking.id,
       guest_name: booking.guest_name || '',
