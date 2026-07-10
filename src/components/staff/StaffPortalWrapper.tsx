@@ -100,7 +100,7 @@ export function StaffPortalWrapper({
         >
           📈 Business Overview
         </button>
-
+// Trigger redeploy - Staff Portal
         <button
           onClick={() => setActiveTab('guests')}
           className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
