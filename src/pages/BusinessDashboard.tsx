@@ -361,6 +361,7 @@ export default function BusinessDashboard() {
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
     { id: 'reports', name: 'Reports' },
+    { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
 
