@@ -1,8 +1,8 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// Full implementation extracted from AI Studio prototype
+// Full implementation with "Copy Link" button added
 
 import React, { useState } from 'react';
-import { Plus, X, Trash2, Edit, UserPlus, Mail, Phone } from 'lucide-react';
+import { Plus, X, Trash2 } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -34,6 +34,7 @@ export function EmployeeManagementTab({
   const [showAddForm, setShowAddForm] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
   const handleAddEmployee = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +103,32 @@ export function EmployeeManagementTab({
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
     
     window.open(waUrl, '_blank');
+  };
+
+  // ============================================================
+  // ✅ NEW: Copy Link function
+  // ============================================================
+  const handleCopyLink = (emp: Employee) => {
+    const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
+    
+    // Create the full message (same as WhatsApp but without the phone number)
+    const message = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(message).then(() => {
+      setCopySuccess(emp.id);
+      setTimeout(() => setCopySuccess(null), 3000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = message;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopySuccess(emp.id);
+      setTimeout(() => setCopySuccess(null), 3000);
+    });
   };
 
   return (
@@ -220,20 +247,29 @@ export function EmployeeManagementTab({
                       {emp.last_login ? new Date(emp.last_login).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex justify-center items-center gap-2">
+                      <div className="flex justify-center items-center gap-1.5 flex-wrap">
                         {/* WhatsApp Invite Share button */}
                         <button
                           onClick={() => handleShareOverview(emp)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-lg text-[10px] font-bold uppercase transition-all"
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase transition-all"
                           title="Share onboarding activation link over WhatsApp"
                         >
-                          📱 Share Invite Link
+                          📱 Share
+                        </button>
+
+                        {/* ✅ NEW: Copy Link button */}
+                        <button
+                          onClick={() => handleCopyLink(emp)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase transition-all"
+                          title="Copy activation link to clipboard"
+                        >
+                          {copySuccess === emp.id ? '✅ Copied!' : '📋 Copy Link'}
                         </button>
 
                         {/* Disable/Enable Button */}
                         <button
                           onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${
+                          className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase border transition-all ${
                             emp.status === 'Disabled'
                               ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
                               : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
