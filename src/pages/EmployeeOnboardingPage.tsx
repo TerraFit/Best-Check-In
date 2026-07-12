@@ -1,5 +1,5 @@
 // src/pages/EmployeeOnboardingPage.tsx
-// Employee Onboarding Page - Password setup after invitation
+// Employee Onboarding Page - Redirects to Employee Login
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -22,7 +22,6 @@ interface Employee {
   updated_at: string;
 }
 
-// ✅ REMOVED "export default" from here
 function EmployeeOnboardingPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
@@ -36,10 +35,8 @@ function EmployeeOnboardingPage() {
   const [activated, setActivated] = useState(false);
   const [businessName, setBusinessName] = useState('');
   
-  // PWA Prompt Support State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
-  // Fetch employee details from token
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
@@ -80,7 +77,6 @@ function EmployeeOnboardingPage() {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, [token]);
 
-  // Password strength calculations
   const passwordStrength = useMemo(() => {
     if (!password) return { score: 0, label: '', color: 'bg-stone-200' };
     let score = 0;
@@ -147,7 +143,7 @@ function EmployeeOnboardingPage() {
           <h2 className="text-2xl font-serif font-black text-stone-900">Invitation Invalid</h2>
           <p className="text-stone-500 text-sm leading-relaxed">{error}</p>
           <button
-            onClick={() => navigate('/employee/login')}
+            onClick={() => navigate('/business/login')}
             className="w-full bg-stone-900 text-white font-bold py-3 rounded-xl hover:bg-stone-950 transition-all text-xs uppercase"
           >
             Go to Login Page
@@ -171,6 +167,7 @@ function EmployeeOnboardingPage() {
             </p>
           </div>
 
+          {/* Guide to Add to Home Screen (PWA) */}
           <div className="border-t border-b border-stone-100 py-6 space-y-4 text-left">
             <h3 className="text-xs font-bold uppercase tracking-widest text-stone-400 text-center">
               Add FastCheckIn to your Home Screen
@@ -209,11 +206,19 @@ function EmployeeOnboardingPage() {
             )}
           </div>
 
+          {/* ✅ CHANGED: Redirect to Employee Login instead of Business Login */}
+          <button
+            onClick={() => navigate('/employee/login')}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider"
+          >
+            🚀 Launch Employee Dashboard →
+          </button>
+          
           <button
             onClick={() => navigate('/business/login')}
-            className="w-full bg-stone-900 text-white font-bold py-4 rounded-xl hover:bg-stone-950 transition-all text-xs uppercase tracking-wider"
+            className="w-full mt-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold py-3 rounded-xl transition-all text-xs uppercase tracking-wider"
           >
-            Launch Employee Dashboard →
+            ← Back to Business Login
           </button>
         </div>
       </div>
@@ -323,5 +328,4 @@ function EmployeeOnboardingPage() {
   );
 }
 
-// ✅ ONLY ONE export default at the end
 export default EmployeeOnboardingPage;
