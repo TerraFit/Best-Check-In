@@ -147,7 +147,7 @@ function EmployeeOnboardingPage() {
           <h2 className="text-2xl font-serif font-black text-stone-900">Invitation Invalid</h2>
           <p className="text-stone-500 text-sm leading-relaxed">{error}</p>
           <button
-            onClick={() => navigate('/business/login')}
+            onClick={() => navigate('/employee/login')}
             className="w-full bg-stone-900 text-white font-bold py-3 rounded-xl hover:bg-stone-950 transition-all text-xs uppercase"
           >
             Go to Login Page
