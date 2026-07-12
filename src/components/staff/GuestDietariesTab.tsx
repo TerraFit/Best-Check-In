@@ -1,5 +1,5 @@
 // src/components/staff/GuestDietariesTab.tsx
-// Full implementation extracted from AI Studio prototype
+// UPDATED: Only shows checked-in and stayover guests
 
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, X, Utensils, Info } from 'lucide-react';
@@ -78,16 +78,33 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
   const [otherText, setOtherText] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
 
-  // Filter list to show active checked-in guests first
+  // ============================================================
+  // ✅ UPDATED: Only checked-in and stayover guests
+  // ============================================================
   const filteredGuests = useMemo(() => {
-    return bookings.filter(b => {
+    // Filter to ONLY checked-in and stayover guests
+    const activeGuests = bookings.filter(b => {
+      const isCheckedIn = b.status === 'checked_in' || b.status === 'Checked-In';
+      const isStayover = b.status === 'stayover' || b.status === 'Stayover';
+      
+      // Exclude completed, cancelled, or future bookings
+      if (b.status === 'completed' || b.status === 'Completed' || 
+          b.status === 'cancelled' || b.status === 'Cancelled' ||
+          b.status === 'confirmed' || b.status === 'Confirmed') {
+        return false;
+      }
+      
+      return isCheckedIn || isStayover;
+    });
+    
+    // Then apply search filter
+    return activeGuests.filter(b => {
       const nameMatch = b.guest_name?.toLowerCase().includes(searchTerm.toLowerCase());
       const emailMatch = b.guest_email?.toLowerCase().includes(searchTerm.toLowerCase());
       return nameMatch || emailMatch;
     });
   }, [bookings, searchTerm]);
 
-  // Open individual guest editor
   const handleOpenGuest = (guest: Booking) => {
     setSelectedGuest(guest);
     setLocalRestrictions({ ...guest.food_restrictions });
@@ -108,7 +125,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
   const handleSave = () => {
     if (!selectedGuest || !localRestrictions) return;
 
-    // Build the string representation for audit trail
     const previousActive = Object.entries(selectedGuest.food_restrictions)
       .filter(([key, value]) => value === true && key !== 'other_text')
       .map(([key]) => key.replace(/_/g, ' '))
@@ -124,7 +140,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
       other_text: localRestrictions.other ? otherText : ''
     };
 
-    // Create secure audit log if changes were made
     let auditLog: any | undefined;
     if (previousActive !== newActive || (selectedGuest.food_restrictions?.other_text || '') !== otherText) {
       auditLog = {
@@ -150,13 +165,18 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
-      {/* Left panel - Checked-in Guests List */}
+      {/* Left panel - Active Guests List */}
       <div className="lg:col-span-1 bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-sm flex flex-col h-[600px]">
         <div className="p-4 border-b border-stone-100 bg-stone-50/50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+              Active Guests ({filteredGuests.length})
+            </span>
+          </div>
           <div className="relative">
             <input
               type="text"
-              placeholder="Search checked-in guests..."
+              placeholder="Search active guests..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-stone-200 rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-amber-500 outline-none"
@@ -167,7 +187,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
         <div className="flex-grow overflow-y-auto divide-y divide-stone-100">
           {filteredGuests.length === 0 ? (
             <div className="p-8 text-center text-xs text-stone-400">
-              No matching checked-in guests found.
+              No active checked-in guests found.
             </div>
           ) : (
             filteredGuests.map(guest => {
@@ -186,7 +206,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                   <div className="min-w-0">
                     <p className="font-bold text-xs text-stone-900 truncate">{guest.guest_name}</p>
                     <p className="text-[10px] text-stone-400 mt-0.5 truncate">
-                      {guest.guest_province || 'Suite'} • {guest.nights || 1} nights
+                      Check-in: {guest.check_in_date} • {guest.nights || 1} nights
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -213,7 +233,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
         {selectedGuest && localRestrictions ? (
           <div className="p-6 md:p-8 flex-grow flex flex-col justify-between">
             <div className="space-y-6">
-              {/* Header profile */}
               <div className="flex justify-between items-start border-b border-stone-100 pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-stone-950 font-serif leading-none">
@@ -231,32 +250,30 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                 </button>
               </div>
 
-              {/* READ ONLY FIELDS - STRICT COMPLIANCE BLOCK */}
               <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 text-stone-500 font-bold text-[10px] uppercase tracking-wider">
-                  <Info size={12} className="text-amber-500" /> Protected Identity Records (Read-Only)
+                  <Info size={12} className="text-amber-500" /> Guest Information (Read-Only)
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-1">
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Email Address</span>
-                    <span className="font-semibold text-stone-700 truncate block">{selectedGuest.guest_email || 'N/A'}</span>
+                    <span className="text-stone-400 text-[10px] block">Guest Name</span>
+                    <span className="font-semibold text-stone-700 block">{selectedGuest.guest_name}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Mobile Contact</span>
-                    <span className="font-semibold text-stone-700 block">{selectedGuest.guest_phone || 'N/A'}</span>
+                    <span className="text-stone-400 text-[10px] block">Room</span>
+                    <span className="font-semibold text-stone-700 block">{selectedGuest.guest_province || 'N/A'}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Passport / ID</span>
-                    <span className="font-mono font-semibold text-stone-700 block">{selectedGuest.passport_or_id || 'N/A'}</span>
+                    <span className="text-stone-400 text-[10px] block">Check-in</span>
+                    <span className="font-semibold text-stone-700 block">{selectedGuest.check_in_date}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Origin Country</span>
-                    <span className="font-semibold text-stone-700 block">{selectedGuest.guest_country}</span>
+                    <span className="text-stone-400 text-[10px] block">Check-out</span>
+                    <span className="font-semibold text-stone-700 block">{selectedGuest.check_out_date || 'N/A'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Selectable Chip Grid */}
               <div className="space-y-3">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-stone-400">
                   Select Associated Restrictions
@@ -280,7 +297,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                     );
                   })}
 
-                  {/* Other optional restriction button */}
                   <button
                     type="button"
                     onClick={() => handleToggleRestriction('other')}
@@ -295,7 +311,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                 </div>
               </div>
 
-              {/* Custom Other text field */}
               {localRestrictions.other && (
                 <div className="space-y-1 animate-fade-in">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
@@ -312,7 +327,6 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
               )}
             </div>
 
-            {/* Bottom save bar */}
             <div className="pt-6 border-t border-stone-100 flex items-center justify-between mt-8">
               {successMsg ? (
                 <span className="text-emerald-600 text-xs font-bold flex items-center gap-1.5 animate-bounce">
@@ -338,7 +352,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
             <Utensils size={48} className="text-stone-200 mb-3" />
             <h3 className="text-sm font-bold text-stone-800">Select a Guest to Edit</h3>
             <p className="text-[11px] text-stone-400 mt-1 max-w-xs">
-              Click any guest on the left sidebar to view their profile, existing food restrictions, and to commit updates directly.
+              Click any active guest on the left sidebar to view their profile, existing food restrictions, and to commit updates directly.
             </p>
           </div>
         )}
