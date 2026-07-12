@@ -148,14 +148,13 @@ export default function EmployeeLogin() {
             </Link>
           </div>
 
-          <div className="mt-4 text-center">
+          <div className="mt-2 text-center">
             <Link to="/" className="text-xs text-stone-400 hover:text-stone-500 transition-colors">
               Return to Home
             </Link>
           </div>
 
-          {/* Demo credentials hint */}
-          <div className="mt-8 pt-6 border-t border-stone-100">
+          <div className="mt-6 pt-6 border-t border-stone-100">
             <p className="text-[10px] text-stone-400 text-center">
               Demo Employee: +27 82 555 1234 / password123
             </p>
