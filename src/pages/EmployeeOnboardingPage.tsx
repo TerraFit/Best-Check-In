@@ -153,6 +153,9 @@ function EmployeeOnboardingPage() {
     );
   }
 
+  // ============================================================
+  // ✅ SUCCESS PAGE - Redirects to Employee Login
+  // ============================================================
   if (activated && employee) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
@@ -206,7 +209,7 @@ function EmployeeOnboardingPage() {
             )}
           </div>
 
-          {/* ✅ CHANGED: Redirect to Employee Login instead of Business Login */}
+          {/* ✅ CORRECT: Redirect to Employee Login */}
           <button
             onClick={() => navigate('/employee/login')}
             className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider"
@@ -214,6 +217,7 @@ function EmployeeOnboardingPage() {
             🚀 Launch Employee Dashboard →
           </button>
           
+          {/* Optional: Back to Business Login as secondary option */}
           <button
             onClick={() => navigate('/business/login')}
             className="w-full mt-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold py-3 rounded-xl transition-all text-xs uppercase tracking-wider"
