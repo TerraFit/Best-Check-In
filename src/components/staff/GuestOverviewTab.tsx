@@ -4,9 +4,9 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, UserPlus, QrCode, Phone, Mail, 
-  Calendar, Clock, ChevronRight, Utensils,
-  Bed, UserCheck, UserX
+  Users, UserPlus, QrCode, Phone, 
+  Calendar, ChevronRight, Utensils,
+  Bed, UserCheck, UserX, Printer
 } from 'lucide-react';
 
 // Import the Guest Details Modal
@@ -205,9 +205,7 @@ export function GuestOverviewTab({
             className="flex items-center gap-3 p-4 border border-stone-200 rounded-2xl hover:bg-stone-50 hover:border-stone-300 transition-all text-left"
           >
             <div className="p-2 bg-stone-500 rounded-xl text-white">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
+              <Printer size={18} />
             </div>
             <div>
               <p className="font-medium text-sm text-stone-900">Print</p>
