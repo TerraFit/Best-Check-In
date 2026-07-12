@@ -1,12 +1,12 @@
 // src/components/staff/StaffPortalWrapper.tsx
-// Extracted from AI Studio prototype - PortalDashboardView function
+// UPDATED: Role-based tab rendering with 4 tabs for owners, 2 for employees
 
 import React, { useState, useEffect } from 'react';
 import { BusinessOverviewTab } from './BusinessOverviewTab';
+import { GuestOverviewTab } from './GuestOverviewTab';
 import { GuestDietariesTab } from './GuestDietariesTab';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
 import { AuditTrailTab } from './AuditTrailTab';
-import { ResortSettingsTab } from './ResortSettingsTab';
 import { QrCode } from 'lucide-react';
 
 interface StaffPortalWrapperProps {
@@ -28,6 +28,9 @@ interface StaffPortalWrapperProps {
   bookings: any[];
   employees: any[];
   auditLogs: any[];
+  todayArrivals: any[];
+  todayStayovers: any[];
+  todayCheckouts: any[];
   onUpdateBookings: (bookings: any[]) => void;
   onUpdateEmployees: (employees: any[]) => void;
   onAddAuditLog: (log: any) => void;
@@ -41,22 +44,24 @@ export function StaffPortalWrapper({
   bookings,
   employees,
   auditLogs,
+  todayArrivals,
+  todayStayovers,
+  todayCheckouts,
   onUpdateBookings,
   onUpdateEmployees,
   onAddAuditLog,
   onUpdateBusiness,
   onShowQrModal,
 }: StaffPortalWrapperProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'guests' | 'employees' | 'audit' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'guestoverview' | 'guests' | 'employees' | 'audit'>('overview');
   
-  // Check if user is Employee (restricted access)
   const isEmployee = session.user.role === 'EmployeeOverview';
-  
+
   // Force reset to permitted tab if Employee attempts to access blocked tabs
   useEffect(() => {
-    if (isEmployee && !['overview', 'guests'].includes(activeTab)) {
-      setActiveTab('overview');
-      alert('Access Denied. Your role restricts access to Business Overview & Guest Food Restrictions only.');
+    if (isEmployee && !['guestoverview', 'guests'].includes(activeTab)) {
+      setActiveTab('guestoverview');
+      alert('Access Denied. Your role restricts access to Guest Overview & Guest Dietaries only.');
     }
   }, [activeTab, isEmployee]);
 
@@ -88,33 +93,62 @@ export function StaffPortalWrapper({
         </div>
       </div>
 
-      {/* Tabs Menu Indicator Bar */}
+      {/* Tabs Menu - Different tabs based on role */}
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'overview'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          📈 Business Overview
-        </button>
-// Trigger redeploy - Staff Portal
-        <button
-          onClick={() => setActiveTab('guests')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'guests'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          🥑 Guest Dietaries / Restrictions
-        </button>
-
-        {/* RESTRICTED MENU BUTTONS - Hidden from Employees */}
-        {!isEmployee && (
+        {isEmployee ? (
+          // ============================================================
+          // EMPLOYEE TABS (Only 2)
+          // ============================================================
           <>
+            <button
+              onClick={() => setActiveTab('guestoverview')}
+              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+                activeTab === 'guestoverview'
+                  ? 'border-amber-500 text-stone-950'
+                  : 'border-transparent text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              🏨 Guest Overview
+            </button>
+
+            <button
+              onClick={() => setActiveTab('guests')}
+              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+                activeTab === 'guests'
+                  ? 'border-amber-500 text-stone-950'
+                  : 'border-transparent text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              🥑 Guest Dietaries / Restrictions
+            </button>
+          </>
+        ) : (
+          // ============================================================
+          // OWNER TABS (All tabs EXCEPT Resort Settings)
+          // ============================================================
+          <>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+                activeTab === 'overview'
+                  ? 'border-amber-500 text-stone-950'
+                  : 'border-transparent text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              📈 Business Overview
+            </button>
+
+            <button
+              onClick={() => setActiveTab('guests')}
+              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+                activeTab === 'guests'
+                  ? 'border-amber-500 text-stone-950'
+                  : 'border-transparent text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              🥑 Guest Dietaries / Restrictions
+            </button>
+
             <button
               onClick={() => setActiveTab('employees')}
               className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
@@ -136,54 +170,76 @@ export function StaffPortalWrapper({
             >
               📋 Platform Audit Trail
             </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'settings'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              ⚙️ Resort Settings
-            </button>
           </>
         )}
       </div>
 
-      {/* Render active module */}
-      {activeTab === 'overview' && (
-        <BusinessOverviewTab bookings={bookings} totalRooms={business.total_rooms} />
-      )}
+      {/* Render active module based on role */}
+      {isEmployee ? (
+        // ============================================================
+        // EMPLOYEE VIEW
+        // ============================================================
+        <>
+          {activeTab === 'guestoverview' && (
+            <GuestOverviewTab
+              bookings={bookings}
+              todayArrivals={todayArrivals}
+              todayStayovers={todayStayovers}
+              todayCheckouts={todayCheckouts}
+              businessId={business.id}
+              onShowQRModal={onShowQrModal}
+            />
+          )}
 
-      {activeTab === 'guests' && (
-        <GuestDietariesTab
-          bookings={bookings}
-          session={session}
-          onSaveDietary={(guestId, updatedDietaries, log) => {
-            const updated = bookings.map(b => b.id === guestId ? { ...b, food_restrictions: updatedDietaries, updated_at: new Date().toISOString() } : b);
-            onUpdateBookings(updated);
-            if (log) {
-              onAddAuditLog(log);
-            }
-          }}
-        />
-      )}
+          {activeTab === 'guests' && (
+            <GuestDietariesTab
+              bookings={bookings}
+              session={session}
+              onSaveDietary={(guestId, updatedDietaries, log) => {
+                const updated = bookings.map(b => b.id === guestId ? { ...b, food_restrictions: updatedDietaries, updated_at: new Date().toISOString() } : b);
+                onUpdateBookings(updated);
+                if (log) {
+                  onAddAuditLog(log);
+                }
+              }}
+            />
+          )}
+        </>
+      ) : (
+        // ============================================================
+        // OWNER VIEW
+        // ============================================================
+        <>
+          {activeTab === 'overview' && (
+            <BusinessOverviewTab bookings={bookings} totalRooms={business.total_rooms} />
+          )}
 
-      {activeTab === 'employees' && !isEmployee && (
-        <EmployeeManagementTab
-          employees={employees}
-          businessName={business.trading_name}
-          onUpdateEmployees={onUpdateEmployees}
-        />
-      )}
+          {activeTab === 'guests' && (
+            <GuestDietariesTab
+              bookings={bookings}
+              session={session}
+              onSaveDietary={(guestId, updatedDietaries, log) => {
+                const updated = bookings.map(b => b.id === guestId ? { ...b, food_restrictions: updatedDietaries, updated_at: new Date().toISOString() } : b);
+                onUpdateBookings(updated);
+                if (log) {
+                  onAddAuditLog(log);
+                }
+              }}
+            />
+          )}
 
-      {activeTab === 'audit' && !isEmployee && (
-        <AuditTrailTab auditLogs={auditLogs} />
-      )}
+          {activeTab === 'employees' && (
+            <EmployeeManagementTab
+              employees={employees}
+              businessName={business.trading_name}
+              onUpdateEmployees={onUpdateEmployees}
+            />
+          )}
 
-      {activeTab === 'settings' && !isEmployee && (
-        <ResortSettingsTab business={business} onUpdateBusiness={onUpdateBusiness} />
+          {activeTab === 'audit' && (
+            <AuditTrailTab auditLogs={auditLogs} />
+          )}
+        </>
       )}
     </div>
   );
