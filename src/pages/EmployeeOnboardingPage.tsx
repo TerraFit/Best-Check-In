@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, LockKeyhole, CheckCircle, ShieldAlert, Smartphone } from 'lucide-react';
-import { Logo } from '../components/Logo';
+import Logo from '../components/Logo';
 
 interface Employee {
   id: string;
