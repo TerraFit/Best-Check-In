@@ -1,3 +1,5 @@
+// src/pages/BusinessLogin.tsx
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
@@ -39,7 +41,6 @@ export default function BusinessLogin() {
       if (response.ok && data.success && data.token) {
         console.log('✅ Token received:', data.token.substring(0, 50) + '...');
         
-        // ✅ STORE TOKEN DIRECTLY - SIMPLE AND GUARANTEED
         const authData = {
           type: 'business',
           token: data.token,
@@ -53,7 +54,6 @@ export default function BusinessLogin() {
           }
         };
         
-        // Store in multiple places to ensure it's found
         localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         localStorage.setItem('business', JSON.stringify({
@@ -67,7 +67,6 @@ export default function BusinessLogin() {
         console.log('✅ Token stored in localStorage');
         console.log('🔑 Verification:', localStorage.getItem('fastcheckin_auth'));
         
-        // Redirect to dashboard
         if (data.business.status === 'pending') {
           window.location.href = '/business/pending';
         } else {
@@ -303,7 +302,14 @@ export default function BusinessLogin() {
             </p>
           </div>
           
+          {/* ✅ ADD EMPLOYEE LOGIN LINK */}
           <div className="mt-4 text-center">
+            <Link to="/employee/login" className="text-xs text-stone-500 hover:text-amber-600 transition-colors">
+              👤 Employee Login
+            </Link>
+          </div>
+
+          <div className="mt-2 text-center">
             <Link to="/super-admin-login" className="text-xs text-gray-400 hover:text-gray-500">
               Super Admin Login
             </Link>
