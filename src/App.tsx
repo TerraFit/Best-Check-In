@@ -25,6 +25,11 @@ import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
 import { LanguageSelector } from './i18n';
 
+// ============================================================
+// ✅ NEW IMPORT: Employee Onboarding Page
+// ============================================================
+import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
+
 // Unauthorized Page Component
 function UnauthorizedPage() {
   return (
@@ -82,6 +87,11 @@ function AppContent() {
         
         {/* Newsletter Subscription */}
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
+        
+        {/* ============================================================
+            ✅ NEW: Employee Onboarding Route
+            ============================================================ */}
+        <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
         
         {/* Auth Routes */}
         <Route path="/business/login" element={<BusinessLogin />} />
