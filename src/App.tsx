@@ -24,11 +24,7 @@ import NewsletterSubscribe from './pages/NewsletterSubscribe';
 import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
 import { LanguageSelector } from './i18n';
-
-// ============================================================
-// ✅ NEW IMPORT: Employee Onboarding Page
-// ============================================================
-import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
+import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';  // ✅ ADDED
 
 // Unauthorized Page Component
 function UnauthorizedPage() {
@@ -89,7 +85,7 @@ function AppContent() {
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
         
         {/* ============================================================
-            ✅ NEW: Employee Onboarding Route
+            ✅ Employee Onboarding Route
             ============================================================ */}
         <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
         
