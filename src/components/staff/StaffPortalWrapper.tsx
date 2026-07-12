@@ -1,5 +1,5 @@
 // src/components/staff/StaffPortalWrapper.tsx
-// UPDATED: Role-based tab rendering with 4 tabs for owners, 2 for employees
+// FINAL VERSION - No Resort Settings, 4 tabs for owners, 2 for employees
 
 import React, { useState, useEffect } from 'react';
 import { BusinessOverviewTab } from './BusinessOverviewTab';
@@ -53,6 +53,7 @@ export function StaffPortalWrapper({
   onUpdateBusiness,
   onShowQrModal,
 }: StaffPortalWrapperProps) {
+  // Only 4 tabs for owners, 2 for employees
   const [activeTab, setActiveTab] = useState<'overview' | 'guestoverview' | 'guests' | 'employees' | 'audit'>('overview');
   
   const isEmployee = session.user.role === 'EmployeeOverview';
@@ -61,7 +62,6 @@ export function StaffPortalWrapper({
   useEffect(() => {
     if (isEmployee && !['guestoverview', 'guests'].includes(activeTab)) {
       setActiveTab('guestoverview');
-      alert('Access Denied. Your role restricts access to Guest Overview & Guest Dietaries only.');
     }
   }, [activeTab, isEmployee]);
 
@@ -93,11 +93,13 @@ export function StaffPortalWrapper({
         </div>
       </div>
 
-      {/* Tabs Menu - Different tabs based on role */}
+      {/* ============================================================
+          TABS - Different based on role
+          ============================================================ */}
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
         {isEmployee ? (
           // ============================================================
-          // EMPLOYEE TABS (Only 2)
+          // EMPLOYEE: 2 TABS
           // ============================================================
           <>
             <button
@@ -124,7 +126,7 @@ export function StaffPortalWrapper({
           </>
         ) : (
           // ============================================================
-          // OWNER TABS (All tabs EXCEPT Resort Settings)
+          // OWNER: 4 TABS (NO Resort Settings)
           // ============================================================
           <>
             <button
@@ -174,7 +176,9 @@ export function StaffPortalWrapper({
         )}
       </div>
 
-      {/* Render active module based on role */}
+      {/* ============================================================
+          RENDER ACTIVE TAB
+          ============================================================ */}
       {isEmployee ? (
         // ============================================================
         // EMPLOYEE VIEW
