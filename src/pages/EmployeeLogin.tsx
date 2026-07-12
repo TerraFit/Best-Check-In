@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Logo } from '../components/Logo';
+import Logo from '../components/Logo';
 import { Phone, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function EmployeeLogin() {
