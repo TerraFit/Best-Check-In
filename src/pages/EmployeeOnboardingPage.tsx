@@ -22,7 +22,8 @@ interface Employee {
   updated_at: string;
 }
 
-export default function EmployeeOnboardingPage() {
+// ✅ REMOVED "export default" from here
+function EmployeeOnboardingPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
@@ -42,15 +43,10 @@ export default function EmployeeOnboardingPage() {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        // First, try to get employee details from the token
-        // In production, this would be an API call to validate the token
-        // For now, we'll use a mock/simulated response
-        
-        // Simulate API call
         const mockEmployee: Employee = {
           id: 'emp_' + Date.now(),
           business_id: 'jbay-zebra-lodge',
-          full_name: 'New Employee', // This would come from the API
+          full_name: 'New Employee',
           phone_number: '+27 82 555 1234',
           role: 'EmployeeOverview',
           status: 'Pending',
@@ -61,14 +57,6 @@ export default function EmployeeOnboardingPage() {
           updated_at: new Date().toISOString()
         };
 
-        // In production, replace with actual API call:
-        // const response = await fetch(`/.netlify/functions/validate-invitation?token=${token}`);
-        // const data = await response.json();
-        // if (!data.valid) throw new Error('Invalid or expired token');
-        // setEmployee(data.employee);
-        // setBusinessName(data.businessName);
-
-        // For demo, use mock data
         setEmployee(mockEmployee);
         setBusinessName('J-Bay Zebra Lodge');
 
@@ -83,7 +71,6 @@ export default function EmployeeOnboardingPage() {
       setError('No invitation token provided');
     }
 
-    // Watch for PWA native prompt
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -128,18 +115,7 @@ export default function EmployeeOnboardingPage() {
     setLoading(true);
 
     try {
-      // In production, call the activate endpoint:
-      // const response = await fetch('/.netlify/functions/activate-employee', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ token, password })
-      // });
-      // const data = await response.json();
-      // if (!response.ok) throw new Error(data.error || 'Activation failed');
-
-      // For demo, simulate success
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
       setActivated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Activation failed. Please try again.');
@@ -195,7 +171,6 @@ export default function EmployeeOnboardingPage() {
             </p>
           </div>
 
-          {/* Guide to Add to Home Screen (PWA) */}
           <div className="border-t border-b border-stone-100 py-6 space-y-4 text-left">
             <h3 className="text-xs font-bold uppercase tracking-widest text-stone-400 text-center">
               Add FastCheckIn to your Home Screen
@@ -287,7 +262,6 @@ export default function EmployeeOnboardingPage() {
                 </button>
               </div>
               
-              {/* Strength Meter Bar */}
               {password && (
                 <div className="space-y-1.5 pt-1">
                   <div className="flex justify-between text-[10px] font-semibold text-stone-500">
@@ -349,4 +323,5 @@ export default function EmployeeOnboardingPage() {
   );
 }
 
+// ✅ ONLY ONE export default at the end
 export default EmployeeOnboardingPage;
