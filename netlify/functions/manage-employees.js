@@ -1,5 +1,5 @@
 // netlify/functions/manage-employees.js
-// CRUD operations for employees
+// CRUD operations for employees - FIXED
 
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_utils.js';
@@ -16,13 +16,16 @@ export const handler = async function(event) {
     return { statusCode: 204, headers, body: '' };
   }
 
+  // ✅ FIXED: Disable Realtime
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SERVICE_KEY,
+    {
+      realtime: { enabled: false }
+    }
   );
 
   try {
-    // Verify authentication
     const authUser = verifyAuth(event.headers.authorization);
     
     if (!authUser) {
@@ -33,7 +36,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Get businessId from query params
     const { businessId } = event.queryStringParameters || {};
 
     if (!businessId) {
@@ -44,7 +46,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Check if user has access to this business
     if (authUser.role !== 'super_admin' && authUser.business_id !== businessId) {
       return {
         statusCode: 403,
@@ -53,9 +54,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // GET - List all employees
-    // ============================================================
     if (event.httpMethod === 'GET') {
       const { data, error } = await supabase
         .from('employees')
@@ -72,9 +71,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // POST - Create new employee
-    // ============================================================
     if (event.httpMethod === 'POST') {
       const { full_name, phone_number, role = 'EmployeeOverview' } = JSON.parse(event.body);
       
@@ -86,7 +83,6 @@ export const handler = async function(event) {
         };
       }
 
-      // Check if employee already exists
       const { data: existing, error: checkError } = await supabase
         .from('employees')
         .select('id')
@@ -104,8 +100,7 @@ export const handler = async function(event) {
         };
       }
 
-      // Generate invitation token (7-day expiry)
-      const invitationToken = `FCINV_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 7);
 
@@ -137,9 +132,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // PUT - Update employee
-    // ============================================================
     if (event.httpMethod === 'PUT') {
       const { id, status, role, full_name, phone_number } = JSON.parse(event.body);
       
@@ -174,9 +167,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // DELETE - Remove employee
-    // ============================================================
     if (event.httpMethod === 'DELETE') {
       const { id } = JSON.parse(event.body);
       
