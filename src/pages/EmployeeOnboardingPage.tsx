@@ -154,7 +154,7 @@ function EmployeeOnboardingPage() {
   }
 
   // ============================================================
-  // ✅ SUCCESS PAGE - Redirects to Employee Login
+  // ✅ SUCCESS PAGE - Redirects to Employee Login (FIXED)
   // ============================================================
   if (activated && employee) {
     return (
@@ -209,7 +209,7 @@ function EmployeeOnboardingPage() {
             )}
           </div>
 
-          {/* ✅ CORRECT: Redirect to Employee Login */}
+          {/* ✅ CORRECT: Redirect to Employee Login (FIXED) */}
           <button
             onClick={() => navigate('/employee/login')}
             className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider"
