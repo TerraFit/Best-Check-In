@@ -1,5 +1,5 @@
 // netlify/functions/activate-employee.js
-// Employee onboarding activation
+// Employee onboarding activation - FIXED
 
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
@@ -24,11 +24,6 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   try {
     const { token, password } = JSON.parse(event.body);
 
@@ -40,7 +35,6 @@ export const handler = async function(event) {
       };
     }
 
-    // Validate password strength
     if (password.length < 8) {
       return {
         statusCode: 400,
@@ -48,6 +42,15 @@ export const handler = async function(event) {
         body: JSON.stringify({ error: 'Password must be at least 8 characters' })
       };
     }
+
+    // ✅ FIXED: Disable Realtime
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { enabled: false }
+      }
+    );
 
     // Find the employee by invitation token
     const { data: employee, error: findError } = await supabase
