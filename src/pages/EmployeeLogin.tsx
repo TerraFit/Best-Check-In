@@ -50,7 +50,8 @@ export default function EmployeeLogin() {
         localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         
-        window.location.href = '/business/dashboard';
+        // ✅ FIXED: Redirect to Staff Portal tab
+        window.location.href = '/business/dashboard?tab=staff';
       } else {
         setError(data.error || 'Invalid phone number or password');
       }
