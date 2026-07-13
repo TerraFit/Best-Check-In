@@ -1,3 +1,4 @@
+// netlify/functions/_utils.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 
@@ -32,18 +33,21 @@ export const headers = {
 };
 
 // ============================================================
-// SUPABASE CLIENT (Service Role - Bypasses RLS)
+// SUPABASE CLIENT - ✅ FIXED: Disable Realtime
 // ============================================================
 
 export const getSupabase = (): SupabaseClient => {
     return createClient(
         process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_KEY!
+        process.env.SUPABASE_SERVICE_KEY!,
+        {
+            realtime: { enabled: false }  // ← ✅ CRITICAL FIX
+        }
     );
 };
 
 // ============================================================
-// JWT VERIFICATION (COMPLETE - Not a placeholder)
+// JWT VERIFICATION
 // ============================================================
 
 export const verifyAuth = (authHeader: string | undefined): AuthUser => {
@@ -51,7 +55,6 @@ export const verifyAuth = (authHeader: string | undefined): AuthUser => {
         throw new Error('UNAUTHORIZED: No authorization token provided');
     }
     
-    // Extract token from "Bearer <token>"
     const token = authHeader.startsWith('Bearer ') 
         ? authHeader.substring(7) 
         : authHeader.split(' ')[1];
@@ -60,7 +63,6 @@ export const verifyAuth = (authHeader: string | undefined): AuthUser => {
         throw new Error('UNAUTHORIZED: Invalid token format');
     }
 
-    // Verify JWT_SECRET exists
     if (!process.env.SUPABASE_JWT_SECRET) {
         console.error('❌ SUPABASE_JWT_SECRET not configured');
         throw new Error('SERVER_ERROR: Authentication not configured');
@@ -69,7 +71,6 @@ export const verifyAuth = (authHeader: string | undefined): AuthUser => {
     try {
         const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET) as any;
         
-        // Validate token has required fields
         if (!decoded.user_metadata?.business_id) {
             throw new Error('FORBIDDEN: Token missing business ID');
         }
@@ -129,11 +130,8 @@ export const validateBusinessOwnership = async (
     businessId: string,
     authUser: AuthUser
 ): Promise<boolean> => {
-    // Super admins can access any business
     if (authUser.role === 'super_admin') {
         return true;
     }
-    
-    // Business users can only access their own business
     return authUser.business_id === businessId;
 };
