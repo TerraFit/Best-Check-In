@@ -122,12 +122,17 @@ export const handler = async function(event) {
       })
     };
 
-  } catch (error) {
-    console.error('❌ Employee login error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message || 'Internal server error' })
-    };
-  }
-};
+ } catch (error) {
+  console.error('❌ Employee login error:', error);
+  console.error('❌ Stack:', error.stack);
+
+  return {
+    statusCode: 500,
+    headers,
+    body: JSON.stringify({
+      error: error.message || 'Internal server error',
+      name: error.name,
+      stack: error.stack
+    })
+  };
+}
