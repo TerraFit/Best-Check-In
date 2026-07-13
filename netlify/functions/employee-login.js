@@ -1,6 +1,4 @@
 // netlify/functions/employee-login.js
-// Employee login with phone number - FIXED
-
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -27,19 +25,19 @@ export const handler = async function(event) {
 
   try {
     const { phone, password } = JSON.parse(event.body);
-    
-    // ✅ FIXED: Disable Realtime
+
+    // ✅ SAME FIX as other functions: Disable Realtime completely
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY,
       {
-        realtime: { enabled: false }
+        realtime: { enabled: false }  // ← This avoids WebSocket entirely
       }
     );
 
     // Clean phone number
     const cleanPhone = phone.replace(/\s+/g, '').trim();
-    
+
     // Find employee by phone number
     const { data: employee, error } = await supabase
       .from('employees')
@@ -99,7 +97,7 @@ export const handler = async function(event) {
           business_id: employee.business_id,
           full_name: employee.full_name,
           phone_number: employee.phone_number,
-          role: 'EmployeeOverview'
+          role: employee.role || 'EmployeeOverview'
         }
       },
       process.env.SUPABASE_JWT_SECRET,
@@ -125,7 +123,7 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('Employee login error:', error);
+    console.error('❌ Employee login error:', error);
     return {
       statusCode: 500,
       headers,
