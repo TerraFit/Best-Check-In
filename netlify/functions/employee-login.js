@@ -1,5 +1,5 @@
 // netlify/functions/employee-login.js
-// Employee login with phone number
+// Employee login with phone number - FIXED
 
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
@@ -28,9 +28,13 @@ export const handler = async function(event) {
   try {
     const { phone, password } = JSON.parse(event.body);
     
+    // ✅ FIXED: Disable Realtime
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: { enabled: false }
+      }
     );
 
     // Clean phone number
