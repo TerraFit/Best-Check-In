@@ -1,24 +1,15 @@
 // netlify/functions/manage-employees.js
-// DEBUG VERSION - Minimal to find the crash
+// Using CommonJS (require) instead of ES Modules (import)
 
-import jwt from 'jsonwebtoken';
+const jwt = require('jsonwebtoken');
 
-export const handler = async function(event) {
-  // ✅ Simple response to test if function works at all
-  return {
-    statusCode: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    },
-    body: JSON.stringify({ 
-      success: true, 
-      message: 'Function is working!',
-      method: event.httpMethod,
-      hasAuth: !!event.headers.authorization
-    })
+exports.handler = async function(event) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   };
-};
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
@@ -37,7 +28,7 @@ export const handler = async function(event) {
   }
 
   try {
-    // ✅ Authenticate using JWT (matches business-login pattern)
+    // ✅ Authenticate using JWT
     const authHeader = event.headers.authorization;
     if (!authHeader) {
       return {
@@ -59,9 +50,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // GET - List all employees
-    // ============================================================
     if (event.httpMethod === 'GET') {
       const response = await fetch(
         `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&select=*&order=created_at.desc`,
@@ -91,9 +80,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // POST - Create new employee
-    // ============================================================
     if (event.httpMethod === 'POST') {
       const body = JSON.parse(event.body);
       const { full_name, phone_number, role = 'EmployeeOverview' } = body;
@@ -186,9 +173,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // PUT - Update employee
-    // ============================================================
     if (event.httpMethod === 'PUT') {
       const { id, status, role, full_name, phone_number } = JSON.parse(event.body);
 
@@ -238,9 +223,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ============================================================
     // DELETE - Remove employee
-    // ============================================================
     if (event.httpMethod === 'DELETE') {
       const { id } = JSON.parse(event.body);
 
