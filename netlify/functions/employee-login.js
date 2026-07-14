@@ -1,5 +1,6 @@
 // netlify/functions/employee-login.js
-import { createClient } from '@supabase/supabase-js';
+// Refactored to match production REST API pattern
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -25,27 +26,33 @@ export const handler = async function(event) {
 
   try {
     const { phone, password } = JSON.parse(event.body);
+    
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    // ✅ SAME FIX as other functions: Disable Realtime completely
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
+    // ✅ Clean phone number
+    const cleanPhone = phone.replace(/\s+/g, '').trim();
+    
+    // ✅ Find employee by phone number (REST API)
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(cleanPhone)}&select=*`,
       {
-        realtime: { enabled: false }  // ← This avoids WebSocket entirely
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
       }
     );
 
-    // Clean phone number
-    const cleanPhone = phone.replace(/\s+/g, '').trim();
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Supabase error: ${error}`);
+    }
 
-    // Find employee by phone number
-    const { data: employee, error } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('phone_number', cleanPhone)
-      .single();
+    const employees = await response.json();
+    const employee = employees[0];
 
-    if (error || !employee) {
+    if (!employee) {
       return {
         statusCode: 401,
         headers,
@@ -71,7 +78,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Verify password
+    // ✅ Verify password
     const validPassword = await bcrypt.compare(password, employee.password_hash);
     if (!validPassword) {
       return {
@@ -81,13 +88,21 @@ export const handler = async function(event) {
       };
     }
 
-    // Update last login
-    await supabase
-      .from('employees')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', employee.id);
+    // ✅ Update last login (REST API)
+    await fetch(
+      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ last_login: new Date().toISOString() })
+      }
+    );
 
-    // Generate token
+    // ✅ Generate token (matches production format)
     const token = jwt.sign(
       {
         sub: employee.id,
@@ -97,7 +112,7 @@ export const handler = async function(event) {
           business_id: employee.business_id,
           full_name: employee.full_name,
           phone_number: employee.phone_number,
-          role: employee.role || 'EmployeeOverview'
+          role: 'EmployeeOverview'
         }
       },
       process.env.SUPABASE_JWT_SECRET,
@@ -122,17 +137,12 @@ export const handler = async function(event) {
       })
     };
 
- } catch (error) {
-  console.error('❌ Employee login error:', error);
-  console.error('❌ Stack:', error.stack);
-
-  return {
-    statusCode: 500,
-    headers,
-    body: JSON.stringify({
-      error: error.message || 'Internal server error',
-      name: error.name,
-      stack: error.stack
-    })
-  };
-}
+  } catch (error) {
+    console.error('Employee login error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
+    };
+  }
+};
