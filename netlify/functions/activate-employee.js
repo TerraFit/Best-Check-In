@@ -1,5 +1,5 @@
 // netlify/functions/activate-employee.js
-// Refactored to match production REST API pattern
+// REST API ONLY - No Supabase client, no WebSocket issues
 
 import bcrypt from 'bcryptjs';
 
@@ -23,6 +23,18 @@ export const handler = async function(event) {
     };
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase credentials');
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' })
+    };
+  }
+
   try {
     const { token, password } = JSON.parse(event.body);
 
@@ -42,9 +54,6 @@ export const handler = async function(event) {
       };
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
     // ✅ Find employee by invitation token (REST API)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
@@ -58,7 +67,12 @@ export const handler = async function(event) {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Supabase error: ${error}`);
+      console.error('Supabase find error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to find employee' })
+      };
     }
 
     const employees = await response.json();
@@ -72,7 +86,7 @@ export const handler = async function(event) {
       };
     }
 
-    // Check expiry
+    // ✅ Check expiry
     if (new Date() > new Date(employee.invitation_expiry)) {
       return {
         statusCode: 400,
@@ -115,7 +129,12 @@ export const handler = async function(event) {
 
     if (!updateResponse.ok) {
       const error = await updateResponse.text();
-      throw new Error(`Supabase update error: ${error}`);
+      console.error('Supabase update error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to activate employee' })
+      };
     }
 
     const updatedData = await updateResponse.json();
