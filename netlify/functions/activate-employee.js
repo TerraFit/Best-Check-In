@@ -1,9 +1,9 @@
 // netlify/functions/activate-employee.js
-// REST API ONLY - No Supabase client, no WebSocket issues
+// Using CommonJS (require)
 
-import bcrypt from 'bcryptjs';
+const bcrypt = require('bcryptjs');
 
-export const handler = async function(event) {
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -54,7 +54,6 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Find employee by invitation token (REST API)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
       {
@@ -86,7 +85,6 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Check expiry
     if (new Date() > new Date(employee.invitation_expiry)) {
       return {
         statusCode: 400,
@@ -103,11 +101,9 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // ✅ Activate employee (REST API)
     const updateResponse = await fetch(
       `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
       {
