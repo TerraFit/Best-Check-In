@@ -1,15 +1,24 @@
 // netlify/functions/manage-employees.js
-// REST API ONLY - No Supabase client, no WebSocket issues
+// DEBUG VERSION - Minimal to find the crash
 
 import jwt from 'jsonwebtoken';
 
 export const handler = async function(event) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+  // ✅ Simple response to test if function works at all
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    },
+    body: JSON.stringify({ 
+      success: true, 
+      message: 'Function is working!',
+      method: event.httpMethod,
+      hasAuth: !!event.headers.authorization
+    })
   };
+};
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
