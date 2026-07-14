@@ -1,7 +1,6 @@
 // netlify/functions/activate-employee.js
-// Employee onboarding activation - FIXED
+// Refactored to match production REST API pattern
 
-import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 
 export const handler = async function(event) {
@@ -43,25 +42,29 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ FIXED: Disable Realtime
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    // ✅ Find employee by invitation token (REST API)
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
       {
-        realtime: { enabled: false }
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
       }
     );
 
-    // Find the employee by invitation token
-    const { data: employee, error: findError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('invitation_token', token)
-      .eq('status', 'Pending')
-      .gte('invitation_expiry', new Date().toISOString())
-      .single();
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Supabase error: ${error}`);
+    }
 
-    if (findError || !employee) {
+    const employees = await response.json();
+    const employee = employees[0];
+
+    if (!employee) {
       return {
         statusCode: 404,
         headers,
@@ -69,24 +72,54 @@ export const handler = async function(event) {
       };
     }
 
-    // Hash password
+    // Check expiry
+    if (new Date() > new Date(employee.invitation_expiry)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invitation token has expired' })
+      };
+    }
+
+    if (employee.status !== 'Pending') {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Account already activated' })
+      };
+    }
+
+    // ✅ Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Activate employee
-    const { data, error: updateError } = await supabase
-      .from('employees')
-      .update({
-        password_hash: passwordHash,
-        status: 'Active',
-        activated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', employee.id)
-      .select()
-      .single();
+    // ✅ Activate employee (REST API)
+    const updateResponse = await fetch(
+      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          password_hash: passwordHash,
+          status: 'Active',
+          activated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+      }
+    );
 
-    if (updateError) throw updateError;
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text();
+      throw new Error(`Supabase update error: ${error}`);
+    }
+
+    const updatedData = await updateResponse.json();
+    const activatedEmployee = updatedData[0];
 
     return {
       statusCode: 200,
@@ -95,10 +128,10 @@ export const handler = async function(event) {
         success: true,
         message: 'Account activated successfully',
         employee: {
-          id: data.id,
-          full_name: data.full_name,
-          phone_number: data.phone_number,
-          role: data.role
+          id: activatedEmployee.id,
+          full_name: activatedEmployee.full_name,
+          phone_number: activatedEmployee.phone_number,
+          role: activatedEmployee.role
         }
       })
     };
