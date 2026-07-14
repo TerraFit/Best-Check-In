@@ -1,10 +1,10 @@
 // netlify/functions/employee-login.js
-// REST API ONLY - No Supabase client, no WebSocket issues
+// Using CommonJS (require)
 
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-export const handler = async function(event) {
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -40,7 +40,6 @@ export const handler = async function(event) {
     const { phone, password } = JSON.parse(event.body);
     const cleanPhone = phone.replace(/\s+/g, '').trim();
 
-    // ✅ Find employee by phone number (REST API)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(cleanPhone)}&select=*`,
       {
@@ -72,7 +71,6 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Check status
     if (employee.status === 'Disabled') {
       return {
         statusCode: 401,
@@ -91,7 +89,6 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Verify password
     if (!employee.password_hash) {
       return {
         statusCode: 401,
@@ -111,7 +108,7 @@ export const handler = async function(event) {
       };
     }
 
-    // ✅ Update last login (REST API)
+    // Update last login
     await fetch(
       `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
       {
@@ -125,7 +122,6 @@ export const handler = async function(event) {
       }
     );
 
-    // ✅ Generate JWT token (matches production format)
     const token = jwt.sign(
       {
         sub: employee.id,
