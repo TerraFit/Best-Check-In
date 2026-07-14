@@ -1,8 +1,7 @@
 // netlify/functions/manage-employees.js
-// CRUD operations for employees - FIXED
+// REST API ONLY - No Supabase client, no WebSocket issues
 
-import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from './_utils.js';
+import jwt from 'jsonwebtoken';
 
 export const handler = async function(event) {
   const headers = {
@@ -16,54 +15,66 @@ export const handler = async function(event) {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // ✅ FIXED: Disable Realtime
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
-    {
-      realtime: { enabled: false }
-    }
-  );
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase credentials');
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' })
+    };
+  }
 
   try {
-    const authUser = verifyAuth(event.headers.authorization);
-    
-    if (!authUser) {
+    // ✅ Authenticate using JWT (matches business-login pattern)
+    const authHeader = event.headers.authorization;
+    if (!authHeader) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'Authentication required' })
+        body: JSON.stringify({ error: 'No authorization token provided' })
       };
     }
 
-    const { businessId } = event.queryStringParameters || {};
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    const businessId = decoded.user_metadata?.business_id;
 
     if (!businessId) {
       return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID required' })
-      };
-    }
-
-    if (authUser.role !== 'super_admin' && authUser.business_id !== businessId) {
-      return {
         statusCode: 403,
         headers,
-        body: JSON.stringify({ error: 'Access denied' })
+        body: JSON.stringify({ error: 'Token missing business ID' })
       };
     }
 
+    // ============================================================
     // GET - List all employees
+    // ============================================================
     if (event.httpMethod === 'GET') {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('business_id', businessId)
-        .order('created_at', { ascending: false });
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&select=*&order=created_at.desc`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
 
-      if (error) throw error;
-      
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Supabase GET error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to fetch employees' })
+        };
+      }
+
+      const data = await response.json();
       return {
         statusCode: 200,
         headers,
@@ -71,10 +82,13 @@ export const handler = async function(event) {
       };
     }
 
+    // ============================================================
     // POST - Create new employee
+    // ============================================================
     if (event.httpMethod === 'POST') {
-      const { full_name, phone_number, role = 'EmployeeOverview' } = JSON.parse(event.body);
-      
+      const body = JSON.parse(event.body);
+      const { full_name, phone_number, role = 'EmployeeOverview' } = body;
+
       if (!full_name || !phone_number) {
         return {
           statusCode: 400,
@@ -83,16 +97,29 @@ export const handler = async function(event) {
         };
       }
 
-      const { data: existing, error: checkError } = await supabase
-        .from('employees')
-        .select('id')
-        .eq('business_id', businessId)
-        .eq('phone_number', phone_number)
-        .maybeSingle();
+      // Check if employee already exists
+      const checkResponse = await fetch(
+        `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&phone_number=eq.${encodeURIComponent(phone_number)}&select=id`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
 
-      if (checkError) throw checkError;
+      if (!checkResponse.ok) {
+        const error = await checkResponse.text();
+        console.error('Supabase check error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to check existing employee' })
+        };
+      }
 
-      if (existing) {
+      const existing = await checkResponse.json();
+      if (existing && existing.length > 0) {
         return {
           statusCode: 400,
           headers,
@@ -100,13 +127,21 @@ export const handler = async function(event) {
         };
       }
 
+      // Generate invitation token
       const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 7);
 
-      const { data, error } = await supabase
-        .from('employees')
-        .insert([{
+      // Insert new employee
+      const insertResponse = await fetch(`${supabaseUrl}/rest/v1/employees`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify([{
           business_id: businessId,
           full_name,
           phone_number,
@@ -116,26 +151,38 @@ export const handler = async function(event) {
           invitation_expiry: expiryDate.toISOString(),
           invited_at: new Date().toISOString()
         }])
-        .select()
-        .single();
+      });
 
-      if (error) throw error;
+      if (!insertResponse.ok) {
+        const error = await insertResponse.text();
+        console.error('Supabase insert error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: `Failed to create employee: ${error}` })
+        };
+      }
+
+      const data = await insertResponse.json();
+      const newEmployee = data[0];
 
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ 
-          success: true, 
-          data,
+        body: JSON.stringify({
+          success: true,
+          data: newEmployee,
           message: 'Employee created successfully'
         })
       };
     }
 
+    // ============================================================
     // PUT - Update employee
+    // ============================================================
     if (event.httpMethod === 'PUT') {
       const { id, status, role, full_name, phone_number } = JSON.parse(event.body);
-      
+
       if (!id) {
         return {
           statusCode: 400,
@@ -150,27 +197,44 @@ export const handler = async function(event) {
       if (full_name) updateData.full_name = full_name;
       if (phone_number) updateData.phone_number = phone_number;
 
-      const { data, error } = await supabase
-        .from('employees')
-        .update(updateData)
-        .eq('id', id)
-        .eq('business_id', businessId)
-        .select()
-        .single();
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/employees?id=eq.${id}&business_id=eq.${businessId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(updateData)
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Supabase update error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to update employee' })
+        };
+      }
 
+      const data = await response.json();
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ success: true, data })
+        body: JSON.stringify({ success: true, data: data[0] })
       };
     }
 
+    // ============================================================
     // DELETE - Remove employee
+    // ============================================================
     if (event.httpMethod === 'DELETE') {
       const { id } = JSON.parse(event.body);
-      
+
       if (!id) {
         return {
           statusCode: 400,
@@ -179,13 +243,26 @@ export const handler = async function(event) {
         };
       }
 
-      const { error } = await supabase
-        .from('employees')
-        .delete()
-        .eq('id', id)
-        .eq('business_id', businessId);
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/employees?id=eq.${id}&business_id=eq.${businessId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Supabase delete error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to delete employee' })
+        };
+      }
 
       return {
         statusCode: 200,
@@ -205,7 +282,7 @@ export const handler = async function(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
     };
   }
 };
