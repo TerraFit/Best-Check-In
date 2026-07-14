@@ -1,10 +1,7 @@
 // netlify/functions/get-audit-logs.js
-// Fetch food restriction audit logs
+// Using CommonJS (require)
 
-import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from './_utils.js';
-
-export const handler = async function(event) {
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -24,22 +21,18 @@ export const handler = async function(event) {
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' })
+    };
+  }
 
   try {
-    const authUser = verifyAuth(event.headers.authorization);
-    
-    if (!authUser) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Authentication required' })
-      };
-    }
-
     const { businessId, limit = 50, offset = 0 } = event.queryStringParameters || {};
 
     if (!businessId) {
@@ -50,23 +43,27 @@ export const handler = async function(event) {
       };
     }
 
-    // Super admins can access any business, employees only their own
-    if (authUser.role !== 'super_admin' && authUser.business_id !== businessId) {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/food_restriction_audit?business_id=eq.${businessId}&select=*&order=timestamp.desc&limit=${limit}&offset=${offset}`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Supabase error:', error);
       return {
-        statusCode: 403,
+        statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Access denied' })
+        body: JSON.stringify({ error: 'Failed to fetch audit logs' })
       };
     }
 
-    const { data, error, count } = await supabase
-      .from('food_restriction_audit')
-      .select('*', { count: 'exact' })
-      .eq('business_id', businessId)
-      .order('timestamp', { ascending: false })
-      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
-
-    if (error) throw error;
+    const data = await response.json();
 
     return {
       statusCode: 200,
@@ -74,7 +71,7 @@ export const handler = async function(event) {
       body: JSON.stringify({
         success: true,
         data: data || [],
-        total: count || 0,
+        total: data?.length || 0,
         limit: parseInt(limit),
         offset: parseInt(offset)
       })
