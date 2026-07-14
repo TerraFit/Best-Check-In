@@ -1,5 +1,5 @@
 // netlify/functions/employee-login.js
-// Refactored to match production REST API pattern
+// REST API ONLY - No Supabase client, no WebSocket issues
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -24,15 +24,22 @@ export const handler = async function(event) {
     };
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase credentials');
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' })
+    };
+  }
+
   try {
     const { phone, password } = JSON.parse(event.body);
-    
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    // ✅ Clean phone number
     const cleanPhone = phone.replace(/\s+/g, '').trim();
-    
+
     // ✅ Find employee by phone number (REST API)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(cleanPhone)}&select=*`,
@@ -46,7 +53,12 @@ export const handler = async function(event) {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Supabase error: ${error}`);
+      console.error('Supabase find error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to find employee' })
+      };
     }
 
     const employees = await response.json();
@@ -60,6 +72,7 @@ export const handler = async function(event) {
       };
     }
 
+    // ✅ Check status
     if (employee.status === 'Disabled') {
       return {
         statusCode: 401,
@@ -79,6 +92,16 @@ export const handler = async function(event) {
     }
 
     // ✅ Verify password
+    if (!employee.password_hash) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Account not fully set up. Please use the invitation link sent to you.' 
+        })
+      };
+    }
+
     const validPassword = await bcrypt.compare(password, employee.password_hash);
     if (!validPassword) {
       return {
@@ -102,7 +125,7 @@ export const handler = async function(event) {
       }
     );
 
-    // ✅ Generate token (matches production format)
+    // ✅ Generate JWT token (matches production format)
     const token = jwt.sign(
       {
         sub: employee.id,
