@@ -1,243 +1,110 @@
-// netlify/functions/manage-employees.js
-// Refactored to use REST API pattern (matches production)
+// netlify/functions/business-login.js
+// ✅ CORRECT VERSION - For business owner login
 
-export const handler = async function(event) {
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  if (event.httpMethod !== 'POST') {
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method not allowed' }) 
+    };
+  }
 
   try {
-    // ✅ Use REST API directly (proven pattern)
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
+    const { email, password, rememberMe = false } = JSON.parse(event.body);
+    
+    // Fetch business using REST
+    const url = `${process.env.SUPABASE_URL}/rest/v1/businesses?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': process.env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`
+      }
+    });
+    
+    const businesses = await response.json();
+    const business = businesses?.[0];
+
+    if (!business) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'No authorization token provided' })
+        body: JSON.stringify({ error: 'Invalid email or password' })
       };
     }
 
-    // ✅ Extract business_id from JWT (matches production)
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    const businessId = decoded.user_metadata?.business_id;
-    
-    if (!businessId) {
+    if (!business.password_hash) {
       return {
-        statusCode: 403,
+        statusCode: 401,
         headers,
-        body: JSON.stringify({ error: 'Token missing business ID' })
+        body: JSON.stringify({ error: 'Account not set up. Please check your email for setup link.' })
       };
     }
 
-    // GET - List all employees
-    if (event.httpMethod === 'GET') {
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&select=*&order=created_at.desc`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
+    const validPassword = await bcrypt.compare(password, business.password_hash);
+    if (!validPassword) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid email or password' })
+      };
+    }
+
+    const expiresIn = rememberMe ? '7d' : '1d';
+    const token = jwt.sign(
+      {
+        sub: business.id,
+        role: 'authenticated',
+        user_metadata: {
+          business_id: business.id,
+          business_name: business.trading_name,
+          email: business.email,
+          role: 'business'
         }
-      );
+      },
+      process.env.SUPABASE_JWT_SECRET,
+      { expiresIn }
+    );
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Supabase error: ${error}`);
-      }
-
-      const data = await response.json();
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, data: data || [] })
-      };
-    }
-
-    // POST - Create new employee
-    if (event.httpMethod === 'POST') {
-      const { full_name, phone_number, role = 'EmployeeOverview' } = JSON.parse(event.body);
-      
-      if (!full_name || !phone_number) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Full name and phone number are required' })
-        };
-      }
-
-      // ✅ Check if employee already exists (REST API)
-      const checkResponse = await fetch(
-        `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&phone_number=eq.${encodeURIComponent(phone_number)}&select=id`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
-        }
-      );
-      const existing = await checkResponse.json();
-
-      if (existing && existing.length > 0) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Employee with this phone number already exists' })
-        };
-      }
-
-      // ✅ Generate invitation token
-      const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 7);
-
-      // ✅ Insert new employee (REST API)
-      const insertResponse = await fetch(`${supabaseUrl}/rest/v1/employees`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify([{
-          business_id: businessId,
-          full_name,
-          phone_number,
-          role,
-          status: 'Pending',
-          invitation_token: invitationToken,
-          invitation_expiry: expiryDate.toISOString(),
-          invited_at: new Date().toISOString()
-        }])
-      });
-
-      if (!insertResponse.ok) {
-        const error = await insertResponse.text();
-        throw new Error(`Supabase insert error: ${error}`);
-      }
-
-      const data = await insertResponse.json();
-      const newEmployee = data[0];
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          data: newEmployee,
-          message: 'Employee created successfully'
-        })
-      };
-    }
-
-    // PUT - Update employee
-    if (event.httpMethod === 'PUT') {
-      const { id, status, role, full_name, phone_number } = JSON.parse(event.body);
-      
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Employee ID required' })
-        };
-      }
-
-      const updateData = { updated_at: new Date().toISOString() };
-      if (status) updateData.status = status;
-      if (role) updateData.role = role;
-      if (full_name) updateData.full_name = full_name;
-      if (phone_number) updateData.phone_number = phone_number;
-
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/employees?id=eq.${id}&business_id=eq.${businessId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify(updateData)
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Supabase update error: ${error}`);
-      }
-
-      const data = await response.json();
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, data: data[0] })
-      };
-    }
-
-    // DELETE - Remove employee
-    if (event.httpMethod === 'DELETE') {
-      const { id } = JSON.parse(event.body);
-      
-      if (!id) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Employee ID required' })
-        };
-      }
-
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/employees?id=eq.${id}&business_id=eq.${businessId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Supabase delete error: ${error}`);
-      }
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, message: 'Employee deleted successfully' })
-      };
-    }
+    delete business.password_hash;
 
     return {
-      statusCode: 405,
+      statusCode: 200,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({
+        success: true,
+        token: token,
+        token_expiry: expiresIn,
+        business: {
+          id: business.id,
+          trading_name: business.trading_name,
+          email: business.email,
+          status: business.status,
+          setup_complete: business.setup_complete
+        },
+        message: 'Login successful'
+      })
     };
-
   } catch (error) {
-    console.error('Employee management error:', error);
+    console.error('Login error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        success: false, 
-        error: error.message || 'Internal server error' 
-      })
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
     };
   }
 };
