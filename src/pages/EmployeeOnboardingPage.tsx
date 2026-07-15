@@ -40,7 +40,6 @@ function EmployeeOnboardingPage() {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        // Try to fetch employee data using the token
         const response = await fetch(`/.netlify/functions/get-employee-by-token?token=${token}`);
         if (response.ok) {
           const data = await response.json();
@@ -51,7 +50,6 @@ function EmployeeOnboardingPage() {
           }
         }
         
-        // Fallback: use mock data if API fails
         const mockEmployee: Employee = {
           id: 'emp_' + Date.now(),
           business_id: 'jbay-zebra-lodge',
