@@ -1,176 +1,208 @@
-// src/pages/EmployeeLogin.tsx
-// Employee Login Page - Phone number only
+// netlify/functions/employee-login.js
+// ✅ FIXED: Better phone number handling and error logging
 
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import Logo from '../components/Logo';  // ✅ FIXED: default import
-import { Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-export default function EmployeeLogin() {
-  const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const cleanPhone = phone.replace(/\s+/g, '').trim();
-      
-      const response = await fetch('/.netlify/functions/employee-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          phone: cleanPhone, 
-          password 
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success && data.token) {
-        const authData = {
-          type: 'business',
-          token: data.token,
-          token_expiry: data.token_expiry || '1d',
-          user: {
-            id: data.employee.id,
-            phone: data.employee.phone_number,
-            name: data.employee.full_name,
-            businessId: data.employee.business_id,
-            role: 'EmployeeOverview'
-          }
-        };
-        
-        localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
-        localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
-        
-        window.location.href = '/business/dashboard?tab=staff';
-      } else {
-        setError(data.error || 'Invalid phone number or password');
-      }
-    } catch (err) {
-      console.error('❌ Login error:', err);
-      setError('An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+exports.handler = async function(event) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  return (
-    <div className="min-h-screen bg-stone-900 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-4">
-        <Logo size="lg" className="justify-center" />
-        <h2 className="text-3xl font-serif font-black tracking-tight text-white leading-none">
-          Employee Portal
-        </h2>
-        <p className="text-stone-400 text-sm">
-          Sign in with your phone number
-        </p>
-      </div>
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white rounded-[2rem] shadow-2xl p-8 border border-stone-200">
+  if (event.httpMethod !== 'POST') {
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method not allowed' }) 
+    };
+  }
 
-          {error && (
-            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-start gap-3">
-              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
-              <p className="text-xs text-red-800 font-medium">{error}</p>
-            </div>
-          )}
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono"
-                  placeholder="083 778 9487 or +27 83 778 9487"
-                />
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                Enter your phone number (local or international format)
-              </p>
-            </div>
+  console.log('🔵 employee-login called');
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-10 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+  try {
+    const { phone, password } = JSON.parse(event.body);
+    
+    // ✅ Clean phone number - remove ALL non-numeric characters except '+'
+    const cleanPhone = phone.replace(/[^\d+]/g, '').trim();
+    console.log('🔵 Cleaned phone:', cleanPhone);
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-stone-950 border-t-transparent" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-          </form>
+    // ✅ Try both formats: with and without spaces, with and without country code
+    const phoneVariants = [
+      cleanPhone,
+      cleanPhone.replace(/\s/g, ''),
+      cleanPhone.replace(/[^0-9]/g, ''),
+      cleanPhone.replace('+', '')
+    ];
 
-          <div className="mt-8 pt-6 border-t border-stone-100 space-y-3 text-center">
-            <Link 
-              to="/business/login" 
-              className="text-xs text-stone-500 hover:text-amber-600 transition-colors block"
-            >
-              ← Back to Business Login
-            </Link>
-            
-            <Link 
-              to="/" 
-              className="text-xs text-stone-400 hover:text-stone-500 transition-colors block"
-            >
-              Return to Home
-            </Link>
-          </div>
+    // ✅ Add local SA variants if number starts with 27 or +27
+    let localVariants = [];
+    for (const variant of phoneVariants) {
+      if (variant.startsWith('27')) {
+        localVariants.push('0' + variant.substring(2));
+      }
+      if (variant.startsWith('+27')) {
+        localVariants.push('0' + variant.substring(3));
+      }
+      if (variant.startsWith('0')) {
+        localVariants.push('27' + variant.substring(1));
+        localVariants.push('+27' + variant.substring(1));
+      }
+    }
+    
+    phoneVariants.push(...localVariants);
+    
+    // Remove duplicates
+    const uniqueVariants = [...new Set(phoneVariants)];
+    console.log('🔵 Phone variants:', uniqueVariants);
 
-          <div className="mt-4 pt-4 border-t border-stone-100">
-            <p className="text-[10px] text-stone-400 text-center">
-              <span className="block">💡 Demo Employee: 083 778 9487</span>
-              <span className="block text-[9px] text-stone-400 mt-0.5">
-                Password: the one you set during onboarding
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+    // ✅ Try each variant
+    let employee = null;
+    let foundVariant = null;
+
+    for (const variant of uniqueVariants) {
+      if (!variant) continue;
+      
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(variant)}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const employees = await response.json();
+        if (employees && employees.length > 0) {
+          employee = employees[0];
+          foundVariant = variant;
+          break;
+        }
+      }
+    }
+
+    console.log('🔵 Found employee with variant:', foundVariant);
+
+    if (!employee) {
+      console.log('❌ No employee found for phone:', cleanPhone);
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid phone number or password' })
+      };
+    }
+
+    console.log('🔵 Employee found:', employee.full_name);
+    console.log('🔵 Status:', employee.status);
+    console.log('🔵 Has password_hash:', !!employee.password_hash);
+    console.log('🔵 Password hash:', employee.password_hash ? employee.password_hash.substring(0, 20) + '...' : 'null');
+
+    if (employee.status === 'Disabled') {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Account has been disabled' })
+      };
+    }
+
+    if (employee.status === 'Pending') {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Account not activated. Please use the invitation link sent to you.' 
+        })
+      };
+    }
+
+    if (!employee.password_hash) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Account not fully set up. Please use the invitation link sent to you.' 
+        })
+      };
+    }
+
+    const validPassword = await bcrypt.compare(password, employee.password_hash);
+    console.log('🔵 Password valid:', validPassword);
+
+    if (!validPassword) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid phone number or password' })
+      };
+    }
+
+    // ✅ Update last login
+    await fetch(
+      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ last_login: new Date().toISOString() })
+      }
+    );
+
+    const token = jwt.sign(
+      {
+        sub: employee.id,
+        role: 'authenticated',
+        user_metadata: {
+          employee_id: employee.id,
+          business_id: employee.business_id,
+          full_name: employee.full_name,
+          phone_number: employee.phone_number,
+          role: 'EmployeeOverview'
+        }
+      },
+      process.env.SUPABASE_JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    console.log('✅ Login successful for employee:', employee.full_name);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        token: token,
+        token_expiry: '1d',
+        employee: {
+          id: employee.id,
+          full_name: employee.full_name,
+          phone_number: employee.phone_number,
+          business_id: employee.business_id,
+          role: employee.role,
+          status: employee.status
+        }
+      })
+    };
+
+  } catch (error) {
+    console.error('❌ Employee login error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message || 'Internal server error' })
+    };
+  }
+};
