@@ -1,5 +1,5 @@
 // src/pages/EmployeeOnboardingPage.tsx
-// Employee Onboarding Page - Redirects to Employee Login
+// ✅ FIXED: Calls activate-employee API
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -40,6 +40,18 @@ function EmployeeOnboardingPage() {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
+        // ✅ Try to fetch actual employee data using the token
+        const response = await fetch(`/.netlify/functions/get-employee-by-token?token=${token}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.employee) {
+            setEmployee(data.employee);
+            setBusinessName(data.businessName || 'J-Bay Zebra Lodge');
+            return;
+          }
+        }
+        
+        // Fallback: use mock data if API fails
         const mockEmployee: Employee = {
           id: 'emp_' + Date.now(),
           business_id: 'jbay-zebra-lodge',
@@ -94,6 +106,9 @@ function EmployeeOnboardingPage() {
     }
   }, [password]);
 
+  // ============================================================
+  // ✅ FIXED: Calls actual activate-employee API
+  // ============================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -111,10 +126,28 @@ function EmployeeOnboardingPage() {
     setLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setActivated(true);
+      console.log('🔵 Activating employee with token:', token);
+      
+      const response = await fetch('/.netlify/functions/activate-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          token: token,
+          password: password 
+        })
+      });
+
+      const data = await response.json();
+      console.log('🔵 Activation response:', data);
+
+      if (response.ok && data.success) {
+        setActivated(true);
+      } else {
+        setError(data.error || 'Activation failed. Please try again.');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Activation failed. Please try again.');
+      console.error('❌ Activation error:', err);
+      setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -153,9 +186,6 @@ function EmployeeOnboardingPage() {
     );
   }
 
-  // ============================================================
-  // ✅ SUCCESS PAGE - Redirects to Employee Login (FIXED)
-  // ============================================================
   if (activated && employee) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
@@ -170,7 +200,6 @@ function EmployeeOnboardingPage() {
             </p>
           </div>
 
-          {/* Guide to Add to Home Screen (PWA) */}
           <div className="border-t border-b border-stone-100 py-6 space-y-4 text-left">
             <h3 className="text-xs font-bold uppercase tracking-widest text-stone-400 text-center">
               Add FastCheckIn to your Home Screen
@@ -209,7 +238,6 @@ function EmployeeOnboardingPage() {
             )}
           </div>
 
-          {/* ✅ CORRECT: Redirect to Employee Login (FIXED) */}
           <button
             onClick={() => navigate('/employee/login')}
             className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider"
@@ -217,7 +245,6 @@ function EmployeeOnboardingPage() {
             🚀 Launch Employee Dashboard →
           </button>
           
-          {/* Optional: Back to Business Login as secondary option */}
           <button
             onClick={() => navigate('/business/login')}
             className="w-full mt-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold py-3 rounded-xl transition-all text-xs uppercase tracking-wider"
