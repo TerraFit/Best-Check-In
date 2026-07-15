@@ -1,5 +1,5 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// FIXED: Dynamic business_id from auth
+// FIXED: Dynamic business_id and correct token extraction
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
@@ -43,16 +43,18 @@ export function EmployeeManagementTab({
       return;
     }
 
-    // ✅ FIXED: Get business_id from auth
+    // ✅ Get business_id and token from auth
     let businessId = '';
+    let token = '';
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
       if (authStr) {
         const auth = JSON.parse(authStr);
         businessId = auth?.user?.businessId || '';
+        token = auth?.token || '';
       }
     } catch (err) {
-      console.error('Error getting business_id:', err);
+      console.error('Error getting auth:', err);
     }
 
     if (!businessId) {
@@ -60,7 +62,13 @@ export function EmployeeManagementTab({
       return;
     }
 
+    if (!token) {
+      alert('Session token not found. Please log in again.');
+      return;
+    }
+
     console.log('🔵 Using business_id:', businessId);
+    console.log('🔵 Token preview:', token.substring(0, 30) + '...');
 
     // Format phone number to international format cleanly
     let formattedPhone = phone.trim();
@@ -69,30 +77,28 @@ export function EmployeeManagementTab({
     }
 
     const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 7);
 
-    // ✅ FIXED: Use dynamic business_id
-    const newEmp: Employee = {
-      id: 'emp_' + Date.now(),
-      business_id: businessId,  // ✅ Dynamic from auth
+    const newEmp = {
+      business_id: businessId,
       full_name: fullName.trim(),
       phone_number: formattedPhone,
       role: 'EmployeeOverview',
       status: 'Pending',
       invitation_token: invitationToken,
-      invitation_expiry: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
-      invited_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      invitation_expiry: expiryDate.toISOString(),
+      invited_at: new Date().toISOString()
     };
 
     console.log('🔵 Sending employee data:', newEmp);
 
-    // ✅ Call the API
+    // ✅ Call the API with correct token
     fetch('/.netlify/functions/manage-employees', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('fastcheckin_auth')}`
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(newEmp)
     })
@@ -136,22 +142,16 @@ export function EmployeeManagementTab({
     }
   };
 
-  // WhatsApp Onboarding link sharing
   const handleShareOverview = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    
     const text = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
-    
     const cleanPhone = emp.phone_number.replace(/[^0-9+]/g, '').replace('+', '');
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
-    
     window.open(waUrl, '_blank');
   };
 
-  // Copy Link function
   const handleCopyLink = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    
     const message = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
     
     navigator.clipboard.writeText(message).then(() => {
@@ -286,7 +286,6 @@ export function EmployeeManagementTab({
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                        {/* WhatsApp Invite Share button */}
                         <button
                           onClick={() => handleShareOverview(emp)}
                           className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase transition-all"
@@ -295,7 +294,6 @@ export function EmployeeManagementTab({
                           📱 Share
                         </button>
 
-                        {/* Copy Link button */}
                         <button
                           onClick={() => handleCopyLink(emp)}
                           className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase transition-all"
@@ -304,7 +302,6 @@ export function EmployeeManagementTab({
                           {copySuccess === emp.id ? '✅ Copied!' : '📋 Copy Link'}
                         </button>
 
-                        {/* Disable/Enable Button */}
                         <button
                           onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
                           className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase border transition-all ${
@@ -316,7 +313,6 @@ export function EmployeeManagementTab({
                           {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
                         </button>
 
-                        {/* Delete Button */}
                         <button
                           onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
                           className="p-1.5 text-stone-400 hover:text-red-500 rounded-lg transition-colors border border-transparent hover:border-red-100"
