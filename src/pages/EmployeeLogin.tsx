@@ -6,7 +6,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
-export default function EmployeeLogin() {
+// ✅ NO export default here - just the function declaration
+function EmployeeLogin() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +51,6 @@ export default function EmployeeLogin() {
         localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         
-        // ✅ Redirect to Staff Portal
         window.location.href = '/business/dashboard?tab=staff';
       } else {
         setError(data.error || 'Invalid phone number or password');
@@ -176,4 +176,5 @@ export default function EmployeeLogin() {
   );
 }
 
-export default EmployeeLogin;  // ✅ IMPORTANT: This must be at the end
+// ✅ SINGLE export at the bottom - ONLY ONE
+export default EmployeeLogin;
