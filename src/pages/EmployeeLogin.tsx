@@ -1,10 +1,10 @@
 // src/pages/EmployeeLogin.tsx
-// Employee Login Page - Phone number only
+// Employee Login Page - Phone number only (supports local SA numbers)
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import Logo from '../components/Logo';
-import { Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { Logo } from '../components/Logo';
+import { Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function EmployeeLogin() {
   const navigate = useNavigate();
@@ -20,7 +20,9 @@ export default function EmployeeLogin() {
     setError('');
 
     try {
-      const cleanPhone = phone.replace(/\s+/g, '').trim();
+      // ✅ Keep the phone as entered (backend handles formatting)
+      const cleanPhone = phone.trim();
+      console.log('🔵 Sending phone:', cleanPhone);
       
       const response = await fetch('/.netlify/functions/employee-login', {
         method: 'POST',
@@ -50,7 +52,6 @@ export default function EmployeeLogin() {
         localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         
-        // ✅ FIXED: Redirect to Staff Portal tab
         window.location.href = '/business/dashboard?tab=staff';
       } else {
         setError(data.error || 'Invalid phone number or password');
@@ -78,14 +79,14 @@ export default function EmployeeLogin() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white rounded-[2rem] shadow-2xl p-8 border border-stone-200">
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-start gap-3">
-                <span className="text-red-500">⚠️</span>
-                <p className="text-xs text-red-800 font-medium">{error}</p>
-              </div>
-            )}
+          {error && (
+            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-start gap-3">
+              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+              <p className="text-xs text-red-800 font-medium">{error}</p>
+            </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
                 Phone Number
@@ -98,9 +99,12 @@ export default function EmployeeLogin() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono"
-                  placeholder="+27 82 555 1234"
+                  placeholder="083 778 9487 or +27 83 778 9487"
                 />
               </div>
+              <p className="text-[10px] text-stone-400 mt-1">
+                Enter your phone number (local or international format)
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -143,21 +147,28 @@ export default function EmployeeLogin() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <Link to="/business/login" className="text-xs text-stone-500 hover:text-amber-600 transition-colors">
+          <div className="mt-8 pt-6 border-t border-stone-100 space-y-3 text-center">
+            <Link 
+              to="/business/login" 
+              className="text-xs text-stone-500 hover:text-amber-600 transition-colors block"
+            >
               ← Back to Business Login
             </Link>
-          </div>
-
-          <div className="mt-2 text-center">
-            <Link to="/" className="text-xs text-stone-400 hover:text-stone-500 transition-colors">
+            
+            <Link 
+              to="/" 
+              className="text-xs text-stone-400 hover:text-stone-500 transition-colors block"
+            >
               Return to Home
             </Link>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-stone-100">
+          <div className="mt-4 pt-4 border-t border-stone-100">
             <p className="text-[10px] text-stone-400 text-center">
-              Demo Employee: +27 82 555 1234 / password123
+              <span className="block">💡 Demo Employee: 083 778 9487</span>
+              <span className="block text-[9px] text-stone-400 mt-0.5">
+                Password: the one you set during onboarding
+              </span>
             </p>
           </div>
         </div>
