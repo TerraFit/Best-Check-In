@@ -1,5 +1,5 @@
 // netlify/functions/employee-login.js
-// Using CommonJS (require)
+// FIXED: Handles both international and local SA phone numbers
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -27,49 +27,82 @@ exports.handler = async function(event) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing Supabase credentials');
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Server configuration error' })
-    };
-  }
+  console.log('🔵 employee-login called');
 
   try {
     const { phone, password } = JSON.parse(event.body);
-    const cleanPhone = phone.replace(/\s+/g, '').trim();
+    
+    // ✅ Clean phone number - keep only digits
+    const digitsOnly = phone.replace(/\D/g, '');
+    console.log('🔵 Digits only:', digitsOnly);
 
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(cleanPhone)}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      }
-    );
+    // ✅ Generate all possible formats for South African numbers
+    const phoneVariants = [
+      phone, // Original input
+      digitsOnly, // Just digits
+      `+27${digitsOnly}`, // International format with +
+      `27${digitsOnly}`, // International format without +
+    ];
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Supabase find error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to find employee' })
-      };
+    // ✅ If it's a local SA number (starts with 0), add the international variants
+    if (digitsOnly.startsWith('0')) {
+      const withoutLeadingZero = digitsOnly.substring(1);
+      phoneVariants.push(`+27${withoutLeadingZero}`);
+      phoneVariants.push(`27${withoutLeadingZero}`);
     }
 
-    const employees = await response.json();
-    const employee = employees[0];
+    // ✅ If it's already international (starts with 27), add the local variants
+    if (digitsOnly.startsWith('27')) {
+      const withoutCountryCode = digitsOnly.substring(2);
+      phoneVariants.push(`0${withoutCountryCode}`);
+      phoneVariants.push(`+27${withoutCountryCode}`);
+    }
+
+    // Remove duplicates
+    const uniqueVariants = [...new Set(phoneVariants)];
+    console.log('🔵 Phone variants:', uniqueVariants);
+
+    // ✅ Try each variant
+    let employee = null;
+    let foundVariant = null;
+
+    for (const variant of uniqueVariants) {
+      if (!variant) continue;
+      
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(variant)}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const employees = await response.json();
+        if (employees && employees.length > 0) {
+          employee = employees[0];
+          foundVariant = variant;
+          break;
+        }
+      }
+    }
+
+    console.log('🔵 Found employee with variant:', foundVariant);
 
     if (!employee) {
+      console.log('❌ No employee found for phone:', phone);
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ error: 'Invalid phone number or password' })
       };
     }
+
+    console.log('🔵 Employee found:', employee.full_name);
+    console.log('🔵 Status:', employee.status);
+    console.log('🔵 Has password_hash:', !!employee.password_hash);
 
     if (employee.status === 'Disabled') {
       return {
@@ -100,6 +133,8 @@ exports.handler = async function(event) {
     }
 
     const validPassword = await bcrypt.compare(password, employee.password_hash);
+    console.log('🔵 Password valid:', validPassword);
+
     if (!validPassword) {
       return {
         statusCode: 401,
@@ -108,7 +143,7 @@ exports.handler = async function(event) {
       };
     }
 
-    // Update last login
+    // ✅ Update last login
     await fetch(
       `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
       {
@@ -157,7 +192,7 @@ exports.handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('Employee login error:', error);
+    console.error('❌ Employee login error:', error);
     return {
       statusCode: 500,
       headers,
