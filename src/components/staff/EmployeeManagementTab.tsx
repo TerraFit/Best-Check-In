@@ -1,5 +1,5 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// Full implementation with "Copy Link" button added
+// FIXED: Dynamic business_id from auth
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
@@ -43,6 +43,25 @@ export function EmployeeManagementTab({
       return;
     }
 
+    // ✅ FIXED: Get business_id from auth
+    let businessId = '';
+    try {
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        businessId = auth?.user?.businessId || '';
+      }
+    } catch (err) {
+      console.error('Error getting business_id:', err);
+    }
+
+    if (!businessId) {
+      alert('Business ID not found. Please log in again.');
+      return;
+    }
+
+    console.log('🔵 Using business_id:', businessId);
+
     // Format phone number to international format cleanly
     let formattedPhone = phone.trim();
     if (formattedPhone.startsWith('0')) {
@@ -51,9 +70,10 @@ export function EmployeeManagementTab({
 
     const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
 
+    // ✅ FIXED: Use dynamic business_id
     const newEmp: Employee = {
       id: 'emp_' + Date.now(),
-      business_id: 'jbay-zebra-lodge', // Should come from context
+      business_id: businessId,  // ✅ Dynamic from auth
       full_name: fullName.trim(),
       phone_number: formattedPhone,
       role: 'EmployeeOverview',
@@ -65,15 +85,38 @@ export function EmployeeManagementTab({
       updated_at: new Date().toISOString()
     };
 
-    const updated = [newEmp, ...employees];
-    onUpdateEmployees(updated);
-    
-    // Clear form
-    setFullName('');
-    setPhone('');
-    setShowAddForm(false);
-    
-    alert(`🎉 Added Employee "${fullName}" successfully!`);
+    console.log('🔵 Sending employee data:', newEmp);
+
+    // ✅ Call the API
+    fetch('/.netlify/functions/manage-employees', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('fastcheckin_auth')}`
+      },
+      body: JSON.stringify(newEmp)
+    })
+    .then(response => {
+      console.log('🔵 Response status:', response.status);
+      return response.json();
+    })
+    .then(data => {
+      console.log('🔵 Response data:', data);
+      if (data.success) {
+        const updated = [data.data, ...employees];
+        onUpdateEmployees(updated);
+        setFullName('');
+        setPhone('');
+        setShowAddForm(false);
+        alert(`🎉 Added Employee "${fullName}" successfully!`);
+      } else {
+        alert(data.error || 'Failed to add employee');
+      }
+    })
+    .catch(error => {
+      console.error('❌ Error:', error);
+      alert('An error occurred. Please try again.');
+    });
   };
 
   const handleRemoveEmployee = (id: string, name: string) => {
@@ -105,21 +148,16 @@ export function EmployeeManagementTab({
     window.open(waUrl, '_blank');
   };
 
-  // ============================================================
-  // ✅ NEW: Copy Link function
-  // ============================================================
+  // Copy Link function
   const handleCopyLink = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
     
-    // Create the full message (same as WhatsApp but without the phone number)
     const message = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
     
-    // Copy to clipboard
     navigator.clipboard.writeText(message).then(() => {
       setCopySuccess(emp.id);
       setTimeout(() => setCopySuccess(null), 3000);
     }).catch(() => {
-      // Fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = message;
       document.body.appendChild(textarea);
@@ -257,7 +295,7 @@ export function EmployeeManagementTab({
                           📱 Share
                         </button>
 
-                        {/* ✅ NEW: Copy Link button */}
+                        {/* Copy Link button */}
                         <button
                           onClick={() => handleCopyLink(emp)}
                           className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase transition-all"
