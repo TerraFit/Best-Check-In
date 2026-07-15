@@ -40,7 +40,7 @@ function EmployeeOnboardingPage() {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        // ✅ Try to fetch actual employee data using the token
+        // Try to fetch employee data using the token
         const response = await fetch(`/.netlify/functions/get-employee-by-token?token=${token}`);
         if (response.ok) {
           const data = await response.json();
