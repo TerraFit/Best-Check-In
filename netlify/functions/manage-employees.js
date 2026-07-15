@@ -1,5 +1,5 @@
 // netlify/functions/manage-employees.js
-// INSTRUMENTED VERSION
+// FIXED: Better token handling
 
 const jwt = require('jsonwebtoken');
 
@@ -28,6 +28,7 @@ exports.handler = async function(event) {
   try {
     const authHeader = event.headers.authorization;
     console.log('🔵 Authorization header present:', !!authHeader);
+    console.log('🔵 Raw auth header (first 50 chars):', authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING');
 
     if (!authHeader) {
       return {
@@ -37,8 +38,35 @@ exports.handler = async function(event) {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    // ✅ Extract token and clean it
+    let token = authHeader.replace('Bearer ', '').trim();
+    console.log('🔵 Token length after cleanup:', token.length);
+    console.log('🔵 Token first 20 chars:', token.substring(0, 20));
+    console.log('🔵 Token last 20 chars:', token.substring(token.length - 20));
+
+    // ✅ Try to decode without verification first (for debugging)
+    try {
+      const decodedWithoutVerify = jwt.decode(token);
+      console.log('🔵 Decoded without verify:', decodedWithoutVerify ? JSON.stringify(decodedWithoutVerify, null, 2).substring(0, 200) : 'null');
+    } catch (decodeErr) {
+      console.log('🔵 Could not decode token:', decodeErr.message);
+    }
+
+    // ✅ Verify the token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+      console.log('✅ Token verified successfully');
+    } catch (verifyErr) {
+      console.error('❌ JWT verification failed:', verifyErr.message);
+      console.error('❌ Token preview:', token.substring(0, 50) + '...');
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token: ' + verifyErr.message })
+      };
+    }
+
     const businessId = decoded.user_metadata?.business_id;
 
     console.log('🔵 Decoded JWT:');
