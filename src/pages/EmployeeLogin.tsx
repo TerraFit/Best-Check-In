@@ -1,9 +1,9 @@
 // src/pages/EmployeeLogin.tsx
-// Employee Login Page - Phone number only (supports local SA numbers)
+// Employee Login Page - Phone number only
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Logo } from '../components/Logo';
+import Logo from '../components/Logo';  // ✅ FIXED: default import
 import { Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function EmployeeLogin() {
@@ -20,9 +20,7 @@ export default function EmployeeLogin() {
     setError('');
 
     try {
-      // ✅ Keep the phone as entered (backend handles formatting)
-      const cleanPhone = phone.trim();
-      console.log('🔵 Sending phone:', cleanPhone);
+      const cleanPhone = phone.replace(/\s+/g, '').trim();
       
       const response = await fetch('/.netlify/functions/employee-login', {
         method: 'POST',
