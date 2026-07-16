@@ -1,9 +1,9 @@
 // src/pages/EmployeeOnboardingPage.tsx
-// ✅ FIXED: Calls activate-employee API
+// ✅ Employee Onboarding - Complete with all features
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, LockKeyhole, CheckCircle, ShieldAlert, Smartphone } from 'lucide-react';
+import { Lock, Eye, EyeOff, LockKeyhole, CheckCircle, ShieldAlert, Smartphone, User, Calendar, Clock } from 'lucide-react';
 import Logo from '../components/Logo';
 
 interface Employee {
@@ -34,50 +34,51 @@ function EmployeeOnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [activated, setActivated] = useState(false);
   const [businessName, setBusinessName] = useState('');
+  const [isTokenValid, setIsTokenValid] = useState(true);
+  const [fetching, setFetching] = useState(true);
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  // ============================================================
+  // ✅ FETCH EMPLOYEE BY TOKEN
+  // ============================================================
   useEffect(() => {
     const fetchEmployee = async () => {
+      if (!token) {
+        setError('No invitation token provided');
+        setFetching(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`/.netlify/functions/get-employee-by-token?token=${token}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.employee) {
-            setEmployee(data.employee);
-            setBusinessName(data.businessName || 'J-Bay Zebra Lodge');
-            return;
-          }
+        console.log('🔍 Fetching employee for token:', token);
+        const response = await fetch(`/.netlify/functions/get-employee-by-token?token=${encodeURIComponent(token)}`);
+        const data = await response.json();
+        console.log('📡 Response:', data);
+
+        if (response.ok && data.success && data.employee) {
+          setEmployee(data.employee);
+          setBusinessName(data.businessName || 'J-Bay Zebra Lodge');
+          setIsTokenValid(true);
+        } else if (response.status === 404) {
+          setError('Invalid or expired invitation link. Please request a new one from your employer.');
+          setIsTokenValid(false);
+        } else {
+          setError(data.error || 'Failed to verify invitation. Please try again.');
+          setIsTokenValid(false);
         }
-        
-        const mockEmployee: Employee = {
-          id: 'emp_' + Date.now(),
-          business_id: 'jbay-zebra-lodge',
-          full_name: 'New Employee',
-          phone_number: '+27 82 555 1234',
-          role: 'EmployeeOverview',
-          status: 'Pending',
-          invitation_token: token || '',
-          invitation_expiry: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
-          invited_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-
-        setEmployee(mockEmployee);
-        setBusinessName('J-Bay Zebra Lodge');
-
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Invalid or expired invitation link');
+        console.error('❌ Error fetching employee:', err);
+        setError('Network error. Please check your connection and try again.');
+        setIsTokenValid(false);
+      } finally {
+        setFetching(false);
       }
     };
 
-    if (token) {
-      fetchEmployee();
-    } else {
-      setError('No invitation token provided');
-    }
+    fetchEmployee();
 
+    // PWA install prompt listener
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -87,6 +88,9 @@ function EmployeeOnboardingPage() {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, [token]);
 
+  // ============================================================
+  // ✅ PASSWORD STRENGTH CALCULATOR
+  // ============================================================
   const passwordStrength = useMemo(() => {
     if (!password) return { score: 0, label: '', color: 'bg-stone-200' };
     let score = 0;
@@ -105,7 +109,7 @@ function EmployeeOnboardingPage() {
   }, [password]);
 
   // ============================================================
-  // ✅ FIXED: Calls actual activate-employee API
+  // ✅ ACTIVATE EMPLOYEE - Calls activate-employee API
   // ============================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +144,9 @@ function EmployeeOnboardingPage() {
 
       if (response.ok && data.success) {
         setActivated(true);
+        if (data.employee) {
+          setEmployee(prev => prev ? { ...prev, ...data.employee } : data.employee);
+        }
       } else {
         setError(data.error || 'Activation failed. Please try again.');
       }
@@ -151,6 +158,9 @@ function EmployeeOnboardingPage() {
     }
   };
 
+  // ============================================================
+  // ✅ PWA INSTALL HANDLER
+  // ============================================================
   const triggerPWAInstall = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -164,7 +174,24 @@ function EmployeeOnboardingPage() {
     }
   };
 
-  if (error) {
+  // ============================================================
+  // ✅ LOADING STATE
+  // ============================================================
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
+          <p className="text-stone-400 text-sm">Verifying invitation...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // ✅ ERROR STATE
+  // ============================================================
+  if (error && !activated) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-[2rem] p-8 max-w-md w-full text-center space-y-6 shadow-2xl">
@@ -184,6 +211,9 @@ function EmployeeOnboardingPage() {
     );
   }
 
+  // ============================================================
+  // ✅ SUCCESS STATE (Activated)
+  // ============================================================
   if (activated && employee) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
@@ -196,6 +226,25 @@ function EmployeeOnboardingPage() {
             <p className="text-stone-500 text-sm">
               Welcome aboard, <strong>{employee.full_name}</strong>. You are now authorized to access the {businessName} Business Overview.
             </p>
+          </div>
+
+          <div className="bg-stone-50 rounded-xl p-4 grid grid-cols-2 gap-4 text-left text-xs">
+            <div>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">Employee</p>
+              <p className="font-semibold text-stone-800">{employee.full_name}</p>
+            </div>
+            <div>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">Phone</p>
+              <p className="font-mono text-stone-700">{employee.phone_number}</p>
+            </div>
+            <div>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">Role</p>
+              <p className="text-stone-700 capitalize">{employee.role || 'Employee'}</p>
+            </div>
+            <div>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">Status</p>
+              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">Active</span>
+            </div>
           </div>
 
           <div className="border-t border-b border-stone-100 py-6 space-y-4 text-left">
@@ -254,6 +303,9 @@ function EmployeeOnboardingPage() {
     );
   }
 
+  // ============================================================
+  // ✅ FORM STATE
+  // ============================================================
   return (
     <div className="min-h-screen bg-stone-900 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-4">
@@ -268,9 +320,42 @@ function EmployeeOnboardingPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white rounded-[2rem] shadow-2xl p-8 border border-stone-200 space-y-6">
-          <div className="bg-amber-50 p-4 rounded-xl text-xs text-amber-800 font-medium">
-            👋 Welcome <strong>{employee?.full_name || 'New Employee'}</strong>! Your employer has invited you to access the Business Overview.
+          
+          {/* Welcome Banner */}
+          <div className="bg-amber-50 p-4 rounded-xl text-xs text-amber-800 font-medium flex items-start gap-3">
+            <User size={16} className="shrink-0 mt-0.5 text-amber-600" />
+            <div>
+              <span className="font-bold">Welcome {employee?.full_name || 'New Employee'}</span>
+              <span className="block text-amber-700 font-normal mt-0.5">
+                Your employer has invited you to access the Business Overview portal.
+              </span>
+            </div>
           </div>
+
+          {/* Invitation Details */}
+          {employee && (
+            <div className="bg-stone-50 p-3 rounded-xl grid grid-cols-2 gap-2 text-[11px]">
+              <div>
+                <span className="text-stone-400">Phone</span>
+                <p className="font-mono text-stone-700">{employee.phone_number}</p>
+              </div>
+              <div>
+                <span className="text-stone-400">Invited</span>
+                <p className="text-stone-700 flex items-center gap-1">
+                  <Calendar size={12} />
+                  {new Date(employee.invited_at).toLocaleDateString('en-ZA')}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-stone-400">Expires</span>
+                <p className="text-stone-700 flex items-center gap-1">
+                  <Clock size={12} />
+                  {new Date(employee.invitation_expiry).toLocaleDateString('en-ZA')}
+                  <span className="text-[10px] text-stone-400 ml-2">(7 days from invite)</span>
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -351,6 +436,16 @@ function EmployeeOnboardingPage() {
               )}
             </button>
           </form>
+
+          {/* Back link */}
+          <div className="text-center pt-2">
+            <button
+              onClick={() => navigate('/business/login')}
+              className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
+            >
+              ← Back to Business Login
+            </button>
+          </div>
         </div>
       </div>
     </div>
