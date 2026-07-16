@@ -1,12 +1,11 @@
 // src/pages/EmployeeLogin.tsx
-// Employee Login Page - Phone number only
+// ✅ Employee Login Page - Phone number + password
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, AlertCircle, LogIn } from 'lucide-react';
 
-// ✅ NO export default here - just the function declaration
 function EmployeeLogin() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
@@ -21,37 +20,44 @@ function EmployeeLogin() {
     setError('');
 
     try {
+      // Clean phone number - remove spaces
       const cleanPhone = phone.replace(/\s+/g, '').trim();
+      
+      console.log('📱 Login attempt for phone:', cleanPhone);
       
       const response = await fetch('/.netlify/functions/employee-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          phone: cleanPhone, 
+          phone_number: cleanPhone,  // ✅ Correct field name
           password 
         })
       });
 
       const data = await response.json();
+      console.log('📡 Login response:', data);
 
       if (response.ok && data.success && data.token) {
+        // Store employee session
         const authData = {
-          type: 'business',
+          type: 'employee',
           token: data.token,
-          token_expiry: data.token_expiry || '1d',
+          token_expiry: data.token_expiry || '7d',
           user: {
             id: data.employee.id,
             phone: data.employee.phone_number,
             name: data.employee.full_name,
             businessId: data.employee.business_id,
-            role: 'EmployeeOverview'
+            role: data.employee.role || 'EmployeeOverview'
           }
         };
         
         localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
+        localStorage.setItem('fastcheckin_employee_auth', JSON.stringify(authData));
         
-        window.location.href = '/business/dashboard?tab=staff';
+        // Redirect to dashboard with employee flag
+        window.location.href = '/business/dashboard?employee=true';
       } else {
         setError(data.error || 'Invalid phone number or password');
       }
@@ -71,7 +77,7 @@ function EmployeeLogin() {
           Employee Portal
         </h2>
         <p className="text-stone-400 text-sm">
-          Sign in with your phone number
+          Sign in with your phone number and password
         </p>
       </div>
 
@@ -141,7 +147,9 @@ function EmployeeLogin() {
                   Signing in...
                 </>
               ) : (
-                'Sign In'
+                <>
+                  <LogIn size={16} /> Sign In
+                </>
               )}
             </button>
           </form>
@@ -176,5 +184,4 @@ function EmployeeLogin() {
   );
 }
 
-// ✅ SINGLE export at the bottom - ONLY ONE
 export default EmployeeLogin;
