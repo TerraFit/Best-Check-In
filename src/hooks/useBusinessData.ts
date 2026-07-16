@@ -1,109 +1,151 @@
 // src/hooks/useBusinessData.ts
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useAuth } from './useAuth'
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from './useAuth';
 
 interface Booking {
-  id?: string
-  guest_name?: string
-  guest_email?: string
-  guest_phone?: string
-  guest_country?: string
-  guest_province?: string
-  guest_city?: string
-  guest_id_number?: string
-  check_in_date?: string
-  check_out_date?: string
-  nights?: number
-  total_amount?: number
-  booking_source?: string
-  referral_source?: string
-  status?: string
-  business_id?: string
+  id?: string;
+  guest_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  guest_country?: string;
+  guest_province?: string;
+  guest_city?: string;
+  guest_id_number?: string;
+  check_in_date?: string;
+  check_out_date?: string;
+  nights?: number;
+  total_amount?: number;
+  booking_source?: string;
+  referral_source?: string;
+  status?: string;
+  business_id?: string;
+  arriving_from?: string;
+  next_destination?: string;
 }
 
 export function useBusinessData(activeTab: string, currentPage: number, pageSize: number, currentFilters: any) {
-  const { fetchWithAuth, getBusinessId } = useAuth()
+  const { fetchWithAuth, getBusinessId } = useAuth();
   
-  const [business, setBusiness] = useState<any>(null)
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [totalBookingsCount, setTotalBookingsCount] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [business, setBusiness] = useState<any>(null);
+  const [businessLoadError, setBusinessLoadError] = useState<boolean>(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [totalBookingsCount, setTotalBookingsCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   
-  const [todayArrivals, setTodayArrivals] = useState<Booking[]>([])
-  const [todayStayovers, setTodayStayovers] = useState<Booking[]>([])
-  const [todayCheckouts, setTodayCheckouts] = useState<Booking[]>([])
+  const [todayArrivals, setTodayArrivals] = useState<Booking[]>([]);
+  const [todayStayovers, setTodayStayovers] = useState<Booking[]>([]);
+  const [todayCheckouts, setTodayCheckouts] = useState<Booking[]>([]);
   
-  const [uniqueProvinces, setUniqueProvinces] = useState<string[]>([])
-  const [uniqueCities, setUniqueCities] = useState<string[]>([])
-  const [uniqueCountries, setUniqueCountries] = useState<string[]>([])
+  const [uniqueProvinces, setUniqueProvinces] = useState<string[]>([]);
+  const [uniqueCities, setUniqueCities] = useState<string[]>([]);
+  const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
   
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const isMountedRef = useRef(true)
-  const initialLoadDoneRef = useRef(false)
-  const lastFiltersRef = useRef<string>('')
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const initialLoadDoneRef = useRef(false);
+  const lastFiltersRef = useRef<string>('');
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      isMountedRef.current = false
+      isMountedRef.current = false;
       if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
+        abortControllerRef.current.abort();
       }
-    }
-  }, [])
+    };
+  }, []);
 
-  // Load Business Profile - runs only once
+  // ============================================================
+  // ✅ Load Business Profile with timeout
+  // ============================================================
   useEffect(() => {
     const loadBusinessProfile = async () => {
-      const businessId = getBusinessId()
+      const businessId = getBusinessId();
       if (!businessId) {
         if (isMountedRef.current) {
-          setLoading(false)
+          setLoading(false);
+          setBusinessLoadError(true);
         }
-        return
+        return;
       }
 
       try {
-        console.log('📡 Loading business profile...')
-        const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${businessId}`)
+        console.log('📡 Loading business profile...');
         
+        // ✅ Add timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.warn('⚠️ Business branding request timed out');
+          controller.abort();
+        }, 8000);
+
+        const res = await fetchWithAuth(
+          `/.netlify/functions/get-business-branding?id=${businessId}`,
+          { signal: controller.signal }
+        );
+        
+        clearTimeout(timeoutId);
+
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`)
+          if (res.status === 404) {
+            console.warn('⚠️ Business not found');
+            if (isMountedRef.current) {
+              setBusiness(null);
+              setBusinessLoadError(true);
+              setLoading(false);
+              initialLoadDoneRef.current = true;
+            }
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
         }
         
-        const data = await res.json()
-        const businessData = data.success && data.data ? data.data : data.id ? data : data
+        const data = await res.json();
+        const businessData = data.success && data.data ? data.data : data.id ? data : data;
         
         if (isMountedRef.current) {
-          setBusiness(businessData)
-          console.log('✅ Business profile loaded:', businessData?.trading_name)
+          setBusiness(businessData);
+          setBusinessLoadError(false);
+          console.log('✅ Business profile loaded:', businessData?.trading_name);
         }
-      } catch (err) {
-        console.error('❌ Failed to load business profile:', err)
-      } finally {
-        if (isMountedRef.current) {
-          setLoading(false)
-          initialLoadDoneRef.current = true
+      } catch (err: any) {
+        // ✅ Don't treat abort as fatal error
+        if (err.name === 'AbortError') {
+          console.warn('⚠️ Business branding request timed out');
+          if (isMountedRef.current) {
+            setBusiness(null);
+            setBusinessLoadError(true);
+            setLoading(false);
+            initialLoadDoneRef.current = true;
+          }
+        } else {
+          console.error('❌ Failed to load business profile:', err);
+          if (isMountedRef.current) {
+            setBusiness(null);
+            setBusinessLoadError(true);
+            setLoading(false);
+            initialLoadDoneRef.current = true;
+          }
         }
       }
-    }
+    };
 
     if (!initialLoadDoneRef.current) {
-      loadBusinessProfile()
+      loadBusinessProfile();
     }
-  }, [fetchWithAuth, getBusinessId])
+  }, [fetchWithAuth, getBusinessId]);
 
   // Load Bookings function
   const loadBookings = useCallback(async () => {
-    const businessId = getBusinessId()
+    const businessId = getBusinessId();
     if (!businessId || !business) {
-      return
+      return;
     }
 
     if (refreshing) {
-      return
+      return;
     }
 
     // Create a unique key for current filters to detect changes
@@ -119,150 +161,144 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       provinceFilter: currentFilters?.provinceFilter,
       cityFilter: currentFilters?.cityFilter,
       countryFilter: currentFilters?.countryFilter
-    })
+    });
 
     // Skip if same filters (prevent double calls)
     if (lastFiltersRef.current === filtersKey) {
-      return
+      return;
     }
-    lastFiltersRef.current = filtersKey
+    lastFiltersRef.current = filtersKey;
 
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
+      abortControllerRef.current.abort();
     }
 
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-    setRefreshing(true)
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setRefreshing(true);
 
     try {
-      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`
+      let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
       
       if (activeTab === 'reports') {
-        url += `&limit=10000&page=1`
+        url += `&limit=10000&page=1`;
       } else {
-        url += `&limit=${pageSize}&page=${currentPage}`
+        url += `&limit=${pageSize}&page=${currentPage}`;
       }
       
       if (activeTab === 'reports' || activeTab === 'checkins') {
         if (currentFilters?.startDate && currentFilters?.endDate) {
-          url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`
+          url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
         } else if (currentFilters?.dateRange && currentFilters.dateRange !== 'all') {
-          const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 }
+          const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
           if (days[currentFilters.dateRange]) {
-            const cutoffDate = new Date()
-            cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange])
-            url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days[currentFilters.dateRange]);
+            url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
           }
         }
       }
       
-      console.log('🔗 Fetching bookings:', url)
-      const res = await fetchWithAuth(url, { signal: controller.signal })
-      const result = await res.json()
+      console.log('🔗 Fetching bookings:', url);
+      const res = await fetchWithAuth(url, { signal: controller.signal });
+      const result = await res.json();
       
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current) return;
       
-      let rawBookings = []
+      let rawBookings = [];
       if (result.bookings && Array.isArray(result.bookings)) {
-        rawBookings = result.bookings
+        rawBookings = result.bookings;
       } else if (result.success && Array.isArray(result.data)) {
-        rawBookings = result.data
+        rawBookings = result.data;
       } else if (Array.isArray(result)) {
-        rawBookings = result
+        rawBookings = result;
       }
       
-      const validBookings = rawBookings.filter(b => b.business_id === businessId)
-      setBookings(validBookings)
+      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+      setBookings(validBookings);
       
       if (activeTab !== 'reports') {
-        setTotalBookingsCount(result.total_count || validBookings.length)
-        const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize)
-        setTotalPages(calculatedTotalPages)
+        setTotalBookingsCount(result.total_count || validBookings.length);
+        const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
+        setTotalPages(calculatedTotalPages);
       } else {
-        setTotalBookingsCount(validBookings.length)
-        setTotalPages(1)
+        setTotalBookingsCount(validBookings.length);
+        setTotalPages(1);
       }
       
-      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))]
-      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))]
-      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))]
+      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
+      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
+      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
       
-      setUniqueProvinces(provinces.sort())
-      setUniqueCities(cities.sort())
-      setUniqueCountries(countries.sort())
+      setUniqueProvinces(provinces.sort());
+      setUniqueCities(cities.sort());
+      setUniqueCountries(countries.sort());
       
       // ============================================================
-      // ✅ FIXED: Today's Activity Calculations
+      // ✅ Today's Activity Calculations
       // ============================================================
       
-      const todayStr = new Date().toISOString().split('T')[0]
-      const todayDate = new Date()
-      todayDate.setHours(0, 0, 0, 0)
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
       
       // Arrivals: checking in today
-      const arrivals = validBookings.filter(b => b.check_in_date === todayStr)
+      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
       
       // Checkouts: checking out today
-      const checkouts = validBookings.filter(b => b.check_out_date === todayStr)
+      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
       
-      // ✅ FIXED: Stayovers - checked in BEFORE today AND checking out AFTER today
+      // Stayovers - checked in BEFORE today AND checking out AFTER today
       const stayovers = validBookings.filter(b => {
-        if (!b.check_in_date) return false
+        if (!b.check_in_date) return false;
         
-        const checkInDate = new Date(b.check_in_date)
-        checkInDate.setHours(0, 0, 0, 0)
+        const checkInDate = new Date(b.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
         
-        // Must have checked in BEFORE today (not today, not future)
-        if (checkInDate.getTime() >= todayDate.getTime()) return false
+        if (checkInDate.getTime() >= todayDate.getTime()) return false;
+        if (!b.check_out_date) return true;
         
-        // If no check-out date, they're still staying (ongoing stay)
-        if (!b.check_out_date) return true
-        
-        const checkOutDate = new Date(b.check_out_date)
-        checkOutDate.setHours(0, 0, 0, 0)
-        
-        // Must check out AFTER today (strictly greater than today)
-        // If check-out date is today, they are NOT a stayover (they're in checkouts)
-        return checkOutDate > todayDate
-      })
+        const checkOutDate = new Date(b.check_out_date);
+        checkOutDate.setHours(0, 0, 0, 0);
+        return checkOutDate > todayDate;
+      });
       
-      setTodayArrivals(arrivals)
-      setTodayStayovers(stayovers)
-      setTodayCheckouts(checkouts)
+      setTodayArrivals(arrivals);
+      setTodayStayovers(stayovers);
+      setTodayCheckouts(checkouts);
       
-      console.log(`📦 Loaded ${validBookings.length} bookings`)
-      console.log(`📊 Today: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`)
+      console.log(`📦 Loaded ${validBookings.length} bookings`);
+      console.log(`📊 Today: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
       
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMountedRef.current) {
-        console.error('❌ Error loading bookings:', err)
+        console.error('❌ Error loading bookings:', err);
       }
     } finally {
       if (isMountedRef.current) {
-        setRefreshing(false)
+        setRefreshing(false);
       }
-      abortControllerRef.current = null
+      abortControllerRef.current = null;
     }
-  }, [activeTab, currentPage, pageSize, currentFilters, fetchWithAuth, getBusinessId, refreshing, business])
+  }, [activeTab, currentPage, pageSize, currentFilters, fetchWithAuth, getBusinessId, refreshing, business]);
 
   // Trigger bookings load ONLY when business is loaded AND dependencies change
   useEffect(() => {
     if (business && initialLoadDoneRef.current) {
-      loadBookings()
+      loadBookings();
     }
-  }, [business, currentPage, pageSize, activeTab, currentFilters?.dateRange, currentFilters?.startDate, currentFilters?.endDate, loadBookings])
+  }, [business, currentPage, pageSize, activeTab, currentFilters?.dateRange, currentFilters?.startDate, currentFilters?.endDate, loadBookings]);
 
   const refreshData = useCallback(() => {
     if (business) {
-      // Reset the filter cache to force a reload
-      lastFiltersRef.current = ''
-      loadBookings()
+      lastFiltersRef.current = '';
+      loadBookings();
     }
-  }, [loadBookings, business])
+  }, [loadBookings, business]);
 
   return {
     business,
+    businessLoadError,
     bookings,
     loading,
     refreshing,
@@ -275,5 +311,5 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     uniqueCities,
     uniqueCountries,
     refreshData
-  }
+  };
 }
