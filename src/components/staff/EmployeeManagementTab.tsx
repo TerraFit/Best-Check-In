@@ -1,5 +1,5 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// FIXED: Dynamic business_id and correct token extraction
+// ✅ FIXED: Delete and Disable now call the API
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
@@ -35,27 +35,48 @@ export function EmployeeManagementTab({
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleAddEmployee = (e: React.FormEvent) => {
+  // ✅ Helper to get auth token
+  const getAuthToken = (): string | null => {
+    try {
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        return auth?.token || null;
+      }
+    } catch (err) {
+      console.error('Error getting auth:', err);
+    }
+    return null;
+  };
+
+  // ✅ Helper to get business_id
+  const getBusinessId = (): string | null => {
+    try {
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        return auth?.user?.businessId || null;
+      }
+    } catch (err) {
+      console.error('Error getting business_id:', err);
+    }
+    return null;
+  };
+
+  // ============================================================
+  // ✅ ADD EMPLOYEE - Calls API
+  // ============================================================
+  const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !phone.trim()) {
       alert('Please fill out all fields');
       return;
     }
 
-    // ✅ Get business_id and token from auth
-    let businessId = '';
-    let token = '';
-    try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        businessId = auth?.user?.businessId || '';
-        token = auth?.token || '';
-      }
-    } catch (err) {
-      console.error('Error getting auth:', err);
-    }
+    const businessId = getBusinessId();
+    const token = getAuthToken();
 
     if (!businessId) {
       alert('Business ID not found. Please log in again.');
@@ -67,48 +88,45 @@ export function EmployeeManagementTab({
       return;
     }
 
-    console.log('🔵 Using business_id:', businessId);
-    console.log('🔵 Token preview:', token.substring(0, 30) + '...');
+    setLoading(true);
 
-    // Format phone number to international format cleanly
-    let formattedPhone = phone.trim();
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+27' + formattedPhone.substring(1);
-    }
+    try {
+      // Format phone number
+      let formattedPhone = phone.trim();
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+27' + formattedPhone.substring(1);
+      }
 
-    const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + 7);
+      const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7);
 
-    const newEmp = {
-      business_id: businessId,
-      full_name: fullName.trim(),
-      phone_number: formattedPhone,
-      role: 'EmployeeOverview',
-      status: 'Pending',
-      invitation_token: invitationToken,
-      invitation_expiry: expiryDate.toISOString(),
-      invited_at: new Date().toISOString()
-    };
+      const newEmp = {
+        business_id: businessId,
+        full_name: fullName.trim(),
+        phone_number: formattedPhone,
+        role: 'EmployeeOverview',
+        status: 'Pending',
+        invitation_token: invitationToken,
+        invitation_expiry: expiryDate.toISOString(),
+        invited_at: new Date().toISOString()
+      };
 
-    console.log('🔵 Sending employee data:', newEmp);
+      console.log('📝 Adding employee:', newEmp);
 
-    // ✅ Call the API with correct token
-    fetch('/.netlify/functions/manage-employees', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(newEmp)
-    })
-    .then(response => {
-      console.log('🔵 Response status:', response.status);
-      return response.json();
-    })
-    .then(data => {
-      console.log('🔵 Response data:', data);
-      if (data.success) {
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newEmp)
+      });
+
+      const data = await response.json();
+      console.log('📡 Add response:', data);
+
+      if (response.ok && data.success) {
         const updated = [data.data, ...employees];
         onUpdateEmployees(updated);
         setFullName('');
@@ -118,30 +136,117 @@ export function EmployeeManagementTab({
       } else {
         alert(data.error || 'Failed to add employee');
       }
-    })
-    .catch(error => {
-      console.error('❌ Error:', error);
+    } catch (error) {
+      console.error('❌ Add error:', error);
       alert('An error occurred. Please try again.');
-    });
-  };
-
-  const handleRemoveEmployee = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to permanently delete employee "${name}"?`)) {
-      const updated = employees.filter(e => e.id !== id);
-      onUpdateEmployees(updated);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleToggleDisable = (id: string, currentStatus: 'Active' | 'Pending' | 'Disabled', name: string) => {
+  // ============================================================
+  // ✅ DELETE EMPLOYEE - Calls API
+  // ============================================================
+  const handleRemoveEmployee = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently delete employee "${name}"?`)) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      alert('Session token not found. Please log in again.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log(`🗑️ Deleting employee: ${id} (${name})`);
+
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ employeeId: id })
+      });
+
+      const data = await response.json();
+      console.log('📡 Delete response:', data);
+
+      if (response.ok && data.success) {
+        const updated = employees.filter(e => e.id !== id);
+        onUpdateEmployees(updated);
+        alert(`✅ Employee "${name}" deleted successfully.`);
+      } else {
+        alert(data.error || 'Failed to delete employee.');
+      }
+    } catch (error) {
+      console.error('❌ Delete error:', error);
+      alert('An error occurred while deleting the employee.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ============================================================
+  // ✅ TOGGLE EMPLOYEE STATUS - Calls API
+  // ============================================================
+  const handleToggleDisable = async (id: string, currentStatus: 'Active' | 'Pending' | 'Disabled', name: string) => {
     const isCurrentlyDisabled = currentStatus === 'Disabled';
     const newStatus = isCurrentlyDisabled ? 'Active' : 'Disabled';
     
-    if (confirm(`Are you sure you want to ${isCurrentlyDisabled ? 'RE-ENABLE' : 'DISABLE'} employee "${name}"?`)) {
-      const updated = employees.map(e => e.id === id ? { ...e, status: newStatus, updated_at: new Date().toISOString() } : e);
-      onUpdateEmployees(updated as Employee[]);
+    if (!confirm(`Are you sure you want to ${isCurrentlyDisabled ? 'RE-ENABLE' : 'DISABLE'} employee "${name}"?`)) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      alert('Session token not found. Please log in again.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log(`🔄 ${newStatus} employee: ${id} (${name})`);
+
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          employeeId: id, 
+          status: newStatus 
+        })
+      });
+
+      const data = await response.json();
+      console.log('📡 Status toggle response:', data);
+
+      if (response.ok && data.success) {
+        const updated = employees.map(e => 
+          e.id === id ? { ...e, status: newStatus, updated_at: new Date().toISOString() } : e
+        );
+        onUpdateEmployees(updated);
+        alert(`✅ Employee "${name}" ${isCurrentlyDisabled ? 're-enabled' : 'disabled'} successfully.`);
+      } else {
+        alert(data.error || 'Failed to update employee status.');
+      }
+    } catch (error) {
+      console.error('❌ Status toggle error:', error);
+      alert('An error occurred while updating employee status.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ============================================================
+  // ✅ SHARE OVERVIEW - WhatsApp
+  // ============================================================
   const handleShareOverview = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
     const text = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
@@ -150,6 +255,9 @@ export function EmployeeManagementTab({
     window.open(waUrl, '_blank');
   };
 
+  // ============================================================
+  // ✅ COPY LINK - Clipboard
+  // ============================================================
   const handleCopyLink = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
     const message = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
@@ -236,9 +344,10 @@ export function EmployeeManagementTab({
 
           <button
             type="submit"
-            className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all"
+            disabled={loading}
+            className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all disabled:opacity-50"
           >
-            Create Invite & Register Employee
+            {loading ? 'Adding...' : 'Create Invite & Register Employee'}
           </button>
         </form>
       )}
@@ -309,6 +418,7 @@ export function EmployeeManagementTab({
                               ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
                               : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
                           }`}
+                          disabled={loading}
                         >
                           {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
                         </button>
@@ -316,6 +426,7 @@ export function EmployeeManagementTab({
                         <button
                           onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
                           className="p-1.5 text-stone-400 hover:text-red-500 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                          disabled={loading}
                         >
                           <Trash2 size={14} />
                         </button>
