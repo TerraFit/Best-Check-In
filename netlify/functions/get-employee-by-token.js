@@ -1,8 +1,5 @@
 // netlify/functions/get-employee-by-token.js
-// ✅ Fixed: Added WebSocket support for Node.js 20
-
-import { createClient } from '@supabase/supabase-js';
-import WebSocket from 'ws';  // ✅ ADD THIS
+// ✅ Using REST API directly - no WebSocket needed
 
 export const handler = async (event) => {
   const headers = {
@@ -40,34 +37,56 @@ export const handler = async (event) => {
 
     console.log('🔍 get-employee-by-token called with token:', token);
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
     // ============================================================
-    // ✅ FIX: Initialize Supabase with WebSocket transport
+    // ✅ Use REST API directly - NO WebSocket
     // ============================================================
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
       {
-        realtime: {
-          transport: WebSocket  // ✅ This is the fix!
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
         }
       }
     );
 
-    // Fetch employee by invitation token
-    const { data: employee, error } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('invitation_token', token)
-      .single();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Supabase REST error:', response.status, errorText);
+      return {
+        statusCode: response.status,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Database error',
+          details: errorText
+        })
+      };
+    }
 
-    if (error || !employee) {
-      console.error('❌ Employee not found:', error?.message || 'No employee with this token');
+    const employees = await response.json();
+    const employee = employees?.[0];
+
+    if (!employee) {
+      console.log('❌ No employee found with token:', token);
       return {
         statusCode: 404,
         headers,
         body: JSON.stringify({ 
           error: 'Invalid or expired invitation token',
-          details: error?.message || 'No employee found with this token'
+          details: 'No employee found with this token'
         })
       };
     }
@@ -105,11 +124,24 @@ export const handler = async (event) => {
     }
 
     // Get business name
-    const { data: business } = await supabase
-      .from('businesses')
-      .select('trading_name')
-      .eq('id', employee.business_id)
-      .single();
+    const businessResponse = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${employee.business_id}&select=trading_name`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    let businessName = 'J-Bay Zebra Lodge';
+    if (businessResponse.ok) {
+      const businesses = await businessResponse.json();
+      if (businesses?.[0]?.trading_name) {
+        businessName = businesses[0].trading_name;
+      }
+    }
 
     // Remove sensitive data before sending
     const { password_hash, ...safeEmployee } = employee;
@@ -122,7 +154,7 @@ export const handler = async (event) => {
       body: JSON.stringify({
         success: true,
         employee: safeEmployee,
-        businessName: business?.trading_name || 'J-Bay Zebra Lodge'
+        businessName: businessName
       })
     };
 
