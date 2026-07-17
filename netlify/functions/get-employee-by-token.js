@@ -1,7 +1,8 @@
 // netlify/functions/get-employee-by-token.js
-// ✅ Employee invitation verification function
+// ✅ Fixed: Added WebSocket support for Node.js 20
 
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';  // ✅ ADD THIS
 
 export const handler = async (event) => {
   const headers = {
@@ -39,10 +40,17 @@ export const handler = async (event) => {
 
     console.log('🔍 get-employee-by-token called with token:', token);
 
-    // Initialize Supabase client
+    // ============================================================
+    // ✅ FIX: Initialize Supabase with WebSocket transport
+    // ============================================================
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
+      {
+        realtime: {
+          transport: WebSocket  // ✅ This is the fix!
+        }
+      }
     );
 
     // Fetch employee by invitation token
