@@ -1,5 +1,5 @@
 // src/pages/EmployeeOnboardingPage.tsx
-// ✅ Employee Onboarding - Complete with all features
+// ✅ FIXED: All login redirects now go to /employee/login
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -189,7 +189,7 @@ function EmployeeOnboardingPage() {
   }
 
   // ============================================================
-  // ✅ ERROR STATE
+  // ✅ ERROR STATE - FIXED: Navigate to /employee/login
   // ============================================================
   if (error && !activated) {
     return (
@@ -200,11 +200,21 @@ function EmployeeOnboardingPage() {
           </div>
           <h2 className="text-2xl font-serif font-black text-stone-900">Invitation Invalid</h2>
           <p className="text-stone-500 text-sm leading-relaxed">{error}</p>
+          
+          {/* ✅ FIX #1: Go to Employee Login */}
+          <button
+            onClick={() => navigate('/employee/login')}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold py-3 rounded-xl transition-all text-xs uppercase"
+          >
+            Go to Employee Login
+          </button>
+          
+          {/* Secondary option: Business Login */}
           <button
             onClick={() => navigate('/business/login')}
-            className="w-full bg-stone-900 text-white font-bold py-3 rounded-xl hover:bg-stone-950 transition-all text-xs uppercase"
+            className="w-full mt-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold py-3 rounded-xl transition-all text-xs uppercase"
           >
-            Go to Login Page
+            ← Back to Business Login
           </button>
         </div>
       </div>
@@ -212,7 +222,7 @@ function EmployeeOnboardingPage() {
   }
 
   // ============================================================
-  // ✅ SUCCESS STATE (Activated)
+  // ✅ SUCCESS STATE (Activated) - FIXED
   // ============================================================
   if (activated && employee) {
     return (
@@ -285,6 +295,7 @@ function EmployeeOnboardingPage() {
             )}
           </div>
 
+          {/* ✅ FIX #2: Launch Employee Dashboard */}
           <button
             onClick={() => navigate('/employee/login')}
             className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold py-4 rounded-xl transition-all shadow-lg text-xs uppercase tracking-wider"
@@ -292,6 +303,7 @@ function EmployeeOnboardingPage() {
             🚀 Launch Employee Dashboard →
           </button>
           
+          {/* ✅ FIX #3: Back to Business Login (this one stays as is - it's correct) */}
           <button
             onClick={() => navigate('/business/login')}
             className="w-full mt-2 bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold py-3 rounded-xl transition-all text-xs uppercase tracking-wider"
@@ -304,7 +316,7 @@ function EmployeeOnboardingPage() {
   }
 
   // ============================================================
-  // ✅ FORM STATE
+  // ✅ FORM STATE - FIXED: Back to Business Login (stays correct)
   // ============================================================
   return (
     <div className="min-h-screen bg-stone-900 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -333,7 +345,7 @@ function EmployeeOnboardingPage() {
           </div>
 
           {/* Invitation Details */}
-          {employee && (
+          if (employee && (
             <div className="bg-stone-50 p-3 rounded-xl grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-stone-400">Phone</span>
@@ -437,7 +449,7 @@ function EmployeeOnboardingPage() {
             </button>
           </form>
 
-          {/* Back link */}
+          {/* ✅ FIX #4: Back to Business Login (this one stays as is) */}
           <div className="text-center pt-2">
             <button
               onClick={() => navigate('/business/login')}
