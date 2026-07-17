@@ -1,9 +1,7 @@
 // netlify/functions/activate-employee.js
-// ✅ Fixed: Added WebSocket support for Node.js 20
+// ✅ Using REST API directly - no WebSocket needed
 
-import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
-import WebSocket from 'ws';  // ✅ ADD THIS
 
 export const handler = async (event) => {
   const headers = {
@@ -46,28 +44,49 @@ export const handler = async (event) => {
       };
     }
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
     // ============================================================
-    // ✅ FIX: Initialize Supabase with WebSocket transport
+    // ✅ Use REST API - NO WebSocket
     // ============================================================
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
+
+    // 1. Get employee by token
+    const employeeResponse = await fetch(
+      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
       {
-        realtime: {
-          transport: WebSocket  // ✅ This is the fix!
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
         }
       }
     );
 
-    // Verify token and get employee
-    const { data: employee, error: fetchError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('invitation_token', token)
-      .single();
+    if (!employeeResponse.ok) {
+      const errorText = await employeeResponse.text();
+      console.error('❌ Employee fetch error:', errorText);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Database error' })
+      };
+    }
 
-    if (fetchError || !employee) {
-      console.error('❌ Employee fetch error:', fetchError);
+    const employees = await employeeResponse.json();
+    const employee = employees?.[0];
+
+    if (!employee) {
+      console.log('❌ No employee found with token:', token);
       return {
         statusCode: 404,
         headers,
@@ -98,31 +117,42 @@ export const handler = async (event) => {
       };
     }
 
-    // Hash password
+    // 2. Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Update employee
-    const { data: updated, error: updateError } = await supabase
-      .from('employees')
-      .update({
-        password_hash: passwordHash,
-        status: 'Active',
-        activated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', employee.id)
-      .select()
-      .single();
+    // 3. Update employee via REST PATCH
+    const updateResponse = await fetch(
+      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          password_hash: passwordHash,
+          status: 'Active',
+          activated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+      }
+    );
 
-    if (updateError) {
-      console.error('❌ Update error:', updateError);
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error('❌ Update error:', errorText);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Failed to activate account' })
       };
     }
+
+    const updatedEmployees = await updateResponse.json();
+    const updated = updatedEmployees?.[0];
 
     console.log('✅ Employee activated:', employee.full_name);
 
