@@ -20,7 +20,6 @@ function EmployeeLogin() {
     setError('');
 
     try {
-      // Clean phone number - remove spaces
       const cleanPhone = phone.replace(/\s+/g, '').trim();
       
       console.log('📱 Login attempt for phone:', cleanPhone);
@@ -29,7 +28,7 @@ function EmployeeLogin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          phone_number: cleanPhone,  // ✅ Correct field name
+          phone_number: cleanPhone,
           password 
         })
       });
@@ -38,26 +37,24 @@ function EmployeeLogin() {
       console.log('📡 Login response:', data);
 
       if (response.ok && data.success && data.token) {
-        // Store employee session
         const authData = {
-          type: 'employee',
+          type: 'employee' as const,
           token: data.token,
           token_expiry: data.token_expiry || '7d',
           user: {
             id: data.employee.id,
-            phone: data.employee.phone_number,
+            email: data.employee.phone_number,
             name: data.employee.full_name,
             businessId: data.employee.business_id,
             role: data.employee.role || 'EmployeeOverview'
           }
         };
         
-        localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
-        localStorage.setItem('fastcheckin_business_auth', JSON.stringify(authData));
         localStorage.setItem('fastcheckin_employee_auth', JSON.stringify(authData));
+        localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
         
-        // Redirect to dashboard with employee flag
-        window.location.href = '/business/dashboard?employee=true';
+        console.log('✅ Employee login successful, redirecting to dashboard');
+        window.location.href = '/employee/dashboard';
       } else {
         setError(data.error || 'Invalid phone number or password');
       }
