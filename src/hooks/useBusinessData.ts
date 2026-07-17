@@ -46,6 +46,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   const isMountedRef = useRef(true);
   const initialLoadDoneRef = useRef(false);
   const lastFiltersRef = useRef<string>('');
+  const loadingBusinessRef = useRef(false); // ✅ Prevent duplicate loads
 
   // Cleanup on unmount
   useEffect(() => {
@@ -58,18 +59,25 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   }, []);
 
   // ============================================================
-  // ✅ Load Business Profile with timeout
+  // ✅ Load Business Profile - FIXED infinite loop
   // ============================================================
   useEffect(() => {
+    // ✅ Prevent multiple simultaneous loads
+    if (loadingBusinessRef.current) return;
+    if (initialLoadDoneRef.current) return;
+
     const loadBusinessProfile = async () => {
       const businessId = getBusinessId();
       if (!businessId) {
         if (isMountedRef.current) {
           setLoading(false);
           setBusinessLoadError(true);
+          initialLoadDoneRef.current = true;
         }
         return;
       }
+
+      loadingBusinessRef.current = true;
 
       try {
         console.log('📡 Loading business profile...');
@@ -94,8 +102,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
             if (isMountedRef.current) {
               setBusiness(null);
               setBusinessLoadError(true);
-              setLoading(false);
-              initialLoadDoneRef.current = true;
             }
             return;
           }
@@ -111,33 +117,34 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
           console.log('✅ Business profile loaded:', businessData?.trading_name);
         }
       } catch (err: any) {
-        // ✅ Don't treat abort as fatal error
         if (err.name === 'AbortError') {
           console.warn('⚠️ Business branding request timed out');
           if (isMountedRef.current) {
             setBusiness(null);
             setBusinessLoadError(true);
-            setLoading(false);
-            initialLoadDoneRef.current = true;
           }
         } else {
           console.error('❌ Failed to load business profile:', err);
           if (isMountedRef.current) {
             setBusiness(null);
             setBusinessLoadError(true);
-            setLoading(false);
-            initialLoadDoneRef.current = true;
           }
         }
+      } finally {
+        if (isMountedRef.current) {
+          setLoading(false);
+          initialLoadDoneRef.current = true;
+        }
+        loadingBusinessRef.current = false;
       }
     };
 
-    if (!initialLoadDoneRef.current) {
-      loadBusinessProfile();
-    }
-  }, [fetchWithAuth, getBusinessId]);
+    loadBusinessProfile();
+  }, [fetchWithAuth, getBusinessId]); // ✅ Only depend on stable values
 
-  // Load Bookings function
+  // ============================================================
+  // ✅ Load Bookings - FIXED dependencies
+  // ============================================================
   const loadBookings = useCallback(async () => {
     const businessId = getBusinessId();
     if (!businessId || !business) {
@@ -148,7 +155,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       return;
     }
 
-    // Create a unique key for current filters to detect changes
+    // Create a unique key for current filters
     const filtersKey = JSON.stringify({
       activeTab,
       currentPage,
@@ -163,7 +170,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       countryFilter: currentFilters?.countryFilter
     });
 
-    // Skip if same filters (prevent double calls)
+    // Skip if same filters
     if (lastFiltersRef.current === filtersKey) {
       return;
     }
@@ -234,21 +241,14 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       setUniqueCities(cities.sort());
       setUniqueCountries(countries.sort());
       
-      // ============================================================
-      // ✅ Today's Activity Calculations
-      // ============================================================
-      
+      // Today's Activity Calculations
       const todayStr = new Date().toISOString().split('T')[0];
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
       
-      // Arrivals: checking in today
       const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-      
-      // Checkouts: checking out today
       const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
       
-      // Stayovers - checked in BEFORE today AND checking out AFTER today
       const stayovers = validBookings.filter(b => {
         if (!b.check_in_date) return false;
         
@@ -282,7 +282,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     }
   }, [activeTab, currentPage, pageSize, currentFilters, fetchWithAuth, getBusinessId, refreshing, business]);
 
-  // Trigger bookings load ONLY when business is loaded AND dependencies change
+  // ✅ Trigger bookings load ONLY when business is loaded
   useEffect(() => {
     if (business && initialLoadDoneRef.current) {
       loadBookings();
