@@ -1,5 +1,5 @@
 // src/App.tsx
-// ✅ Language Selector positioned below logout button, same level as tabs
+// ✅ Complete with Employee Dashboard route
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
@@ -25,9 +25,9 @@ import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
 import { LanguageSelector } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
-import EmployeeLogin from './pages/EmployeeLogin';  // ✅ ADD THIS
+import EmployeeLogin from './pages/EmployeeLogin';
+import EmployeeDashboard from './pages/EmployeeDashboard'; // ✅ ADD THIS
 
-// Unauthorized Page Component
 function UnauthorizedPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-900">
@@ -42,7 +42,6 @@ function UnauthorizedPage() {
   );
 }
 
-// Not Found Page Component
 function NotFoundPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-900">
@@ -60,7 +59,6 @@ function NotFoundPage() {
 function AppContent() {
   return (
     <>
-      {/* ✅ Language Selector - Positioned below logout, same level as tabs */}
       <div className="fixed top-[72px] right-4 z-30">
         <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" />
       </div>
@@ -86,14 +84,18 @@ function AppContent() {
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
         
         {/* ============================================================
-            ✅ Employee Onboarding Route
+            ✅ Employee Routes
             ============================================================ */}
         <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
-        
-        {/* ============================================================
-            ✅ Employee Login Route
-            ============================================================ */}
         <Route path="/employee/login" element={<EmployeeLogin />} />
+        <Route 
+          path="/employee/dashboard" 
+          element={
+            <ProtectedRoute requiredRole="employee">
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Auth Routes */}
         <Route path="/business/login" element={<BusinessLogin />} />
