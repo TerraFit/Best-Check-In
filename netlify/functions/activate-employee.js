@@ -1,9 +1,11 @@
 // netlify/functions/activate-employee.js
-// Using CommonJS (require)
+// ✅ Fixed: Added WebSocket support for Node.js 20
 
-const bcrypt = require('bcryptjs');
+import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
+import WebSocket from 'ws';  // ✅ ADD THIS
 
-exports.handler = async function(event) {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -19,30 +21,20 @@ exports.handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing Supabase credentials');
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Server configuration error' })
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
     const { token, password } = JSON.parse(event.body);
 
+    console.log('🔵 Activating employee with token:', token);
+
     if (!token || !password) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Token and password are required' })
+        body: JSON.stringify({ error: 'Token and password required' })
       };
     }
 
@@ -54,46 +46,51 @@ exports.handler = async function(event) {
       };
     }
 
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
+    // ============================================================
+    // ✅ FIX: Initialize Supabase with WebSocket transport
+    // ============================================================
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY,
       {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
+        realtime: {
+          transport: WebSocket  // ✅ This is the fix!
         }
       }
     );
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Supabase find error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to find employee' })
-      };
-    }
+    // Verify token and get employee
+    const { data: employee, error: fetchError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('invitation_token', token)
+      .single();
 
-    const employees = await response.json();
-    const employee = employees[0];
-
-    if (!employee) {
+    if (fetchError || !employee) {
+      console.error('❌ Employee fetch error:', fetchError);
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Invalid or expired invitation token' })
+        body: JSON.stringify({ error: 'Invalid invitation token' })
       };
     }
 
-    if (new Date() > new Date(employee.invitation_expiry)) {
+    console.log('✅ Employee found:', employee.full_name);
+
+    // Check expiry
+    const isExpired = new Date() > new Date(employee.invitation_expiry);
+    if (isExpired) {
+      console.log('❌ Token expired:', employee.invitation_expiry);
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Invitation token has expired' })
+        body: JSON.stringify({ error: 'Invitation link has expired' })
       };
     }
 
-    if (employee.status !== 'Pending') {
+    // Check if already active
+    if (employee.status === 'Active') {
+      console.log('❌ Account already activated');
       return {
         statusCode: 400,
         headers,
@@ -101,40 +98,33 @@ exports.handler = async function(event) {
       };
     }
 
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const updateResponse = await fetch(
-      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          password_hash: passwordHash,
-          status: 'Active',
-          activated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-      }
-    );
+    // Update employee
+    const { data: updated, error: updateError } = await supabase
+      .from('employees')
+      .update({
+        password_hash: passwordHash,
+        status: 'Active',
+        activated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', employee.id)
+      .select()
+      .single();
 
-    if (!updateResponse.ok) {
-      const error = await updateResponse.text();
-      console.error('Supabase update error:', error);
+    if (updateError) {
+      console.error('❌ Update error:', updateError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to activate employee' })
+        body: JSON.stringify({ error: 'Failed to activate account' })
       };
     }
 
-    const updatedData = await updateResponse.json();
-    const activatedEmployee = updatedData[0];
+    console.log('✅ Employee activated:', employee.full_name);
 
     return {
       statusCode: 200,
@@ -143,20 +133,23 @@ exports.handler = async function(event) {
         success: true,
         message: 'Account activated successfully',
         employee: {
-          id: activatedEmployee.id,
-          full_name: activatedEmployee.full_name,
-          phone_number: activatedEmployee.phone_number,
-          role: activatedEmployee.role
+          id: updated.id,
+          full_name: updated.full_name,
+          phone_number: updated.phone_number,
+          status: updated.status
         }
       })
     };
 
   } catch (error) {
-    console.error('Employee activation error:', error);
+    console.error('❌ Activation error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: 'Failed to activate account',
+        details: error.message 
+      })
     };
   }
 };
