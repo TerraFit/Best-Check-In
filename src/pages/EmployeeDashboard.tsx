@@ -1,5 +1,5 @@
 // src/pages/EmployeeDashboard.tsx
-// ✅ Employee Dashboard - Quick Actions at bottom of Guest Overview
+// ✅ CORRECTED: Stayovers logic - guests BETWEEN arrival and departure
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -153,21 +153,63 @@ export default function EmployeeDashboard() {
   };
 
   // ============================================================
-  // ✅ FILTER BOOKINGS
+  // ✅ DATE HELPERS
   // ============================================================
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
 
+  const parseDate = (dateStr: string | undefined): Date | null => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    d.setHours(0, 0, 0, 0);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // ============================================================
+  // ✅ FILTER BOOKINGS - CORRECT LOGIC
+  // ============================================================
+
+  // ARRIVALS: Checking in TODAY
   const todaysArrivals = useMemo(() => {
-    return bookings.filter(b => b.check_in_date === today && b.status !== 'checked_in');
-  }, [bookings, today]);
-
-  const activeBookings = useMemo(() => {
-    return bookings.filter(b => b.status === 'checked_in');
+    return bookings.filter(b => {
+      const checkIn = parseDate(b.check_in_date);
+      if (!checkIn) return false;
+      return checkIn.getTime() === today.getTime();
+    });
   }, [bookings]);
 
+  // ✅ STAYOVERS: Checked in BEFORE today AND checking out AFTER today
+  // OR: check_in_date < today AND check_out_date > today
+  const stayovers = useMemo(() => {
+    return bookings.filter(b => {
+      const checkIn = parseDate(b.check_in_date);
+      const checkOut = parseDate(b.check_out_date);
+      
+      if (!checkIn) return false;
+      
+      // Must be checked in
+      if (b.status !== 'checked_in') return false;
+      
+      // Must have checked in BEFORE today (not today)
+      if (checkIn.getTime() >= today.getTime()) return false;
+      
+      // If no check-out date, they're still staying (ongoing stay)
+      if (!checkOut) return true;
+      
+      // Check-out must be AFTER today (strictly greater than today)
+      return checkOut.getTime() > today.getTime();
+    });
+  }, [bookings]);
+
+  // CHECK-OUTS: Checking out TODAY
   const todaysCheckouts = useMemo(() => {
-    return bookings.filter(b => b.check_out_date === today);
-  }, [bookings, today]);
+    return bookings.filter(b => {
+      const checkOut = parseDate(b.check_out_date);
+      if (!checkOut) return false;
+      return checkOut.getTime() === today.getTime();
+    });
+  }, [bookings]);
 
   // ============================================================
   // ✅ CHECK IF GUEST HAS DIETARY RESTRICTIONS
@@ -175,6 +217,13 @@ export default function EmployeeDashboard() {
   const hasDietaryRestrictions = (guest: Booking): boolean => {
     const restrictions = guest.food_restrictions || {};
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+  };
+
+  // ============================================================
+  // ✅ GET GUEST LOCATION (province or city)
+  // ============================================================
+  const getGuestLocation = (guest: Booking): string => {
+    return guest.guest_province || guest.guest_city || '';
   };
 
   // ============================================================
@@ -261,7 +310,7 @@ export default function EmployeeDashboard() {
             {/* Guest Cards - 3 columns */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
-              {/* Arrivals Card */}
+              {/* Arrivals Card - Guests checking in TODAY */}
               <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-stone-100 bg-green-50/50 flex items-center gap-2">
                   <UserCheck size={16} className="text-green-600" />
@@ -278,8 +327,8 @@ export default function EmployeeDashboard() {
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          {guest.guest_city && (
-                            <p className="text-[10px] text-stone-400">{guest.guest_city}</p>
+                          {getGuestLocation(guest) && (
+                            <p className="text-[10px] text-stone-400">{getGuestLocation(guest)}</p>
                           )}
                         </div>
                         <span className="text-[10px] text-green-600 font-medium">Arriving</span>
@@ -289,20 +338,20 @@ export default function EmployeeDashboard() {
                 </div>
               </div>
 
-              {/* Stayovers Card */}
+              {/* Stayovers Card - Guests between check-in and check-out */}
               <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-stone-100 bg-blue-50/50 flex items-center gap-2">
                   <Bed size={16} className="text-blue-600" />
                   <h3 className="font-bold text-xs uppercase tracking-widest text-blue-700">Stayovers</h3>
                   <span className="ml-auto bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {activeBookings.length}
+                    {stayovers.length}
                   </span>
                 </div>
                 <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {activeBookings.length === 0 ? (
+                  {stayovers.length === 0 ? (
                     <p className="text-sm text-stone-400 text-center py-6">No current stayovers</p>
                   ) : (
-                    activeBookings.map(guest => (
+                    stayovers.map(guest => (
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="text-sm font-medium text-stone-900 truncate">{guest.guest_name}</p>
@@ -312,14 +361,19 @@ export default function EmployeeDashboard() {
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-blue-600 font-medium flex-shrink-0 ml-2">Staying</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {getGuestLocation(guest) && (
+                            <span className="text-[10px] text-stone-400 hidden sm:inline">{getGuestLocation(guest)}</span>
+                          )}
+                          <span className="text-[10px] text-blue-600 font-medium">Staying</span>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Check-outs Card */}
+              {/* Check-outs Card - Guests checking out TODAY */}
               <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-stone-100 bg-amber-50/50 flex items-center gap-2">
                   <UserX size={16} className="text-amber-600" />
@@ -336,8 +390,8 @@ export default function EmployeeDashboard() {
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          {guest.guest_city && (
-                            <p className="text-[10px] text-stone-400">{guest.guest_city}</p>
+                          {getGuestLocation(guest) && (
+                            <p className="text-[10px] text-stone-400">{getGuestLocation(guest)}</p>
                           )}
                         </div>
                         <span className="text-[10px] text-amber-600 font-medium">Departing</span>
@@ -400,7 +454,7 @@ export default function EmployeeDashboard() {
                   <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
                     <tr>
                       <th className="px-6 py-4">Guest Name</th>
-                      <th className="px-6 py-4">Room</th>
+                      <th className="px-6 py-4">Room / Location</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Dietary Restrictions</th>
                     </tr>
@@ -422,7 +476,7 @@ export default function EmployeeDashboard() {
                         return (
                           <tr key={guest.id} className="hover:bg-stone-50/50 transition-colors">
                             <td className="px-6 py-4 font-bold text-stone-900">{guest.guest_name}</td>
-                            <td className="px-6 py-4 text-stone-600">{guest.guest_city || 'N/A'}</td>
+                            <td className="px-6 py-4 text-stone-600">{getGuestLocation(guest) || 'N/A'}</td>
                             <td className="px-6 py-4">
                               <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
                                 guest.status === 'checked_in' ? 'bg-green-100 text-green-800' :
