@@ -1,4 +1,6 @@
 // src/CheckInApp.tsx
+// ✅ ADDED: Food Restrictions Step between Details and Indemnity
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { COUNTRIES, SETTLEMENT_METHODS } from './constants';
@@ -6,6 +8,7 @@ import { Booking } from './types';
 import { getRegionsForCountry, getRegionTypeLabel } from './services/countryRegionService';
 import { IndemnityText } from './components/IndemnityText';
 import { useTranslation } from './i18n';
+import { Utensils, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
 
 interface BusinessBranding {
   id: string;
@@ -53,11 +56,58 @@ interface TouchedFields {
   acceptLegal: boolean;
 }
 
-// ✅ Helper to clean location strings
+// ✅ Food Restrictions Type
+interface FoodRestrictions {
+  vegetarian: boolean;
+  vegan: boolean;
+  pescatarian: boolean;
+  halal: boolean;
+  kosher: boolean;
+  gluten_free: boolean;
+  lactose_free: boolean;
+  nut_allergy: boolean;
+  seafood_allergy: boolean;
+  diabetic: boolean;
+  no_pork: boolean;
+  other: boolean;
+  other_text: string;
+}
+
+const DEFAULT_RESTRICTIONS: FoodRestrictions = {
+  vegetarian: false,
+  vegan: false,
+  pescatarian: false,
+  halal: false,
+  kosher: false,
+  gluten_free: false,
+  lactose_free: false,
+  nut_allergy: false,
+  seafood_allergy: false,
+  diabetic: false,
+  no_pork: false,
+  other: false,
+  other_text: ''
+};
+
+// ✅ Dietary Options List
+const DIETARY_OPTIONS = [
+  { key: 'vegetarian', label: 'Vegetarian', icon: '🥬' },
+  { key: 'vegan', label: 'Vegan', icon: '🌱' },
+  { key: 'pescatarian', label: 'Pescatarian', icon: '🐟' },
+  { key: 'halal', label: 'Halal', icon: '☪️' },
+  { key: 'kosher', label: 'Kosher', icon: '✡️' },
+  { key: 'gluten_free', label: 'Gluten-Free', icon: '🌾' },
+  { key: 'lactose_free', label: 'Lactose-Free', icon: '🥛' },
+  { key: 'nut_allergy', label: 'Nut Allergy', icon: '🥜' },
+  { key: 'seafood_allergy', label: 'Seafood Allergy', icon: '🦐' },
+  { key: 'diabetic', label: 'Diabetic', icon: '💉' },
+  { key: 'no_pork', label: 'No Pork', icon: '🐷' },
+];
+
+// Helper to clean location strings
 const cleanLocation = (value: string): string => {
   if (!value) return '';
   
-  // Common corrections for South African cities and towns
   const corrections: Record<string, string> = {
     'cpt': 'Cape Town',
     'jhb': 'Johannesburg',
@@ -103,8 +153,6 @@ const cleanLocation = (value: string): string => {
   };
   
   let cleaned = value.trim().replace(/\s+/g, ' ');
-  
-  // Check for known corrections (case insensitive)
   const lower = cleaned.toLowerCase();
   for (const [key, correction] of Object.entries(corrections)) {
     if (lower === key || lower.includes(key)) {
@@ -113,9 +161,7 @@ const cleanLocation = (value: string): string => {
     }
   }
   
-  // Capitalize first letter of each word (smart capitalization)
   cleaned = cleaned.replace(/\b\w/g, (char, index) => {
-    // Don't capitalize after a period or apostrophe
     if (index > 0 && (cleaned[index - 1] === '.' || cleaned[index - 1] === "'")) return char;
     return char.toUpperCase();
   });
@@ -126,7 +172,7 @@ const cleanLocation = (value: string): string => {
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propBusinessId }) => {
   const { t, language } = useTranslation();
   
-  console.log('✅ FASTCHECKIN FORM V10.0 - WITH PROPER ERROR HANDLING');
+  console.log('✅ FASTCHECKIN FORM V11.0 - WITH FOOD RESTRICTIONS');
 
   const { businessId: urlBusinessId } = useParams<{ businessId: string }>();
   const businessId = propBusinessId || urlBusinessId;
@@ -167,6 +213,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   });
   
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  
+  // ✅ Food Restrictions State
+  const [foodRestrictions, setFoodRestrictions] = useState<FoodRestrictions>(DEFAULT_RESTRICTIONS);
+  const [hasDietaryRestrictions, setHasDietaryRestrictions] = useState<boolean | null>(null);
+  const [showRestrictionsPanel, setShowRestrictionsPanel] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -212,7 +263,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   }, [notification]);
 
-  // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setTimeout(() => {
@@ -657,7 +707,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
   };
 
   useEffect(() => { 
-    if (step === 3) {
+    if (step === 4) {
       setTimeout(() => {
         if (canvasRef.current) initSignaturePad(canvasRef.current);
       }, 500);
@@ -760,6 +810,54 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
     }
   };
 
+  // ============================================================
+  // ✅ HANDLE FOOD RESTRICTIONS TOGGLE
+  // ============================================================
+  const handleRestrictionToggle = (key: keyof FoodRestrictions) => {
+    setFoodRestrictions(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleOtherTextChange = (text: string) => {
+    setFoodRestrictions(prev => ({
+      ...prev,
+      other_text: text
+    }));
+  };
+
+  const handleDietaryContinue = () => {
+    if (hasDietaryRestrictions === null) {
+      alert('Please select whether you have any dietary restrictions.');
+      return;
+    }
+    
+    if (hasDietaryRestrictions === false) {
+      // No restrictions - skip straight to indemnity
+      setStep(4);
+      return;
+    }
+    
+    // Has restrictions - show the restrictions panel
+    setShowRestrictionsPanel(true);
+  };
+
+  const handleRestrictionsSave = () => {
+    // Check if any restrictions are selected
+    const hasSelected = Object.entries(foodRestrictions).some(
+      ([key, val]) => val === true && key !== 'other_text'
+    );
+    
+    if (!hasSelected && !foodRestrictions.other_text) {
+      alert('Please select at least one dietary restriction or specify "Other".');
+      return;
+    }
+    
+    setShowRestrictionsPanel(false);
+    setStep(4);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -796,13 +894,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
         return;
       }
-      console.log('🔵 Validation passed, moving to step 3');
+      console.log('🔵 Validation passed, moving to step 3 (Dietary)');
       setStep(3);
       return;
     }
     
-    if (step === 3) {
-      console.log('🔵 Step 3: Validating indemnity and submitting');
+    if (step === 4) {
+      console.log('🔵 Step 4: Validating indemnity and submitting');
       const errors = validateStep3();
       if (errors.length > 0) {
         console.log('🔵 Indemnity validation errors:', errors);
@@ -868,6 +966,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           booking_source: formData.referral,
           referral_source: formData.referral,
           marketing_consent: formData.popiaConsent,
+          // ✅ Add food restrictions
+          food_restrictions: foodRestrictions,
           created_at: new Date().toISOString(),
           source: 'live_checkin'
         };
@@ -931,6 +1031,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           timestamp: new Date().toISOString(),
           tenantId: businessId || 'default',
           source: 'live_checkin',
+          // ✅ Add food restrictions to the booking object
+          food_restrictions: foodRestrictions
         };
 
         console.log('✅ Check-in complete! Calling onComplete...');
@@ -951,7 +1053,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           saveGuestProfile().catch(e => console.warn('Profile save error:', e));
         }
 
-        setStep(4);
+        setStep(5);
         setLoading(false);
         return;
 
@@ -1074,10 +1176,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           </div>
         )}
 
-        {/* Progress Steps - Hide on success screen */}
-        {step !== 4 && (
+        {/* Progress Steps - Updated for 5 steps */}
+        {step !== 5 && (
           <div className="flex justify-center mb-8 items-center space-x-2">
-            {[1, 2, 3].map(s => (
+            {[1, 2, 3, 4].map(s => (
               <React.Fragment key={s}>
                 <div 
                   className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all ${
@@ -1089,9 +1191,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 >
                   {s}
                 </div>
-                {s < 3 && (
+                {s < 4 && (
                   <div 
-                    className={`w-16 h-0.5 transition-all ${
+                    className={`w-12 h-0.5 transition-all ${
                       step > s ? 'bg-stone-900' : 'bg-stone-200'
                     }`}
                     style={step > s ? { backgroundColor: secondaryColor } : {}}
@@ -1102,8 +1204,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
           </div>
         )}
 
-        {/* Success Screen - Step 4 */}
-        {step === 4 && (
+        {/* Success Screen - Step 5 */}
+        {step === 5 && (
           <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 p-10 md:p-16 text-center animate-fade-in flex flex-col items-center justify-center min-h-[700px]">
             <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1162,6 +1264,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 });
                 setHasScrolledToBottom(false);
                 setSubmitAttempted(false);
+                setHasDietaryRestrictions(null);
+                setFoodRestrictions(DEFAULT_RESTRICTIONS);
+                setShowRestrictionsPanel(false);
               }}
               className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider"
             >
@@ -1171,7 +1276,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
         )}
 
         {/* Main Form - Hide on success screen */}
-        {step !== 4 && (
+        {step !== 5 && (
           <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
             
             {/* Step 1 - Email Entry */}
@@ -1443,7 +1548,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="city" message={t('error_city_required')} />
                   </div>
 
-                  {/* ✅ UPDATED: Arriving From with auto-correct */}
+                  {/* Arriving From */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       Arriving From <span className="text-red-500">*</span>
@@ -1529,7 +1634,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     <ErrorMessage field="referral" message={t('error_referral_required')} />
                   </div>
 
-                  {/* ✅ UPDATED: Next Destination with auto-correct */}
+                  {/* Next Destination */}
                   <div className="space-y-1 group col-span-full">
                     <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
                       {t('checkin_next_destination')} <span className="text-red-500">*</span>
@@ -1575,14 +1680,180 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                     className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
                     style={{ backgroundColor: secondaryColor }}
                   >
-                    {t('checkin_continue_indemnity')}
+                    Continue to Dietary Options →
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Step 3 - Indemnity & Signature */}
+            {/* ============================================================
+                Step 3 - Dietary Restrictions (NEW)
+                ============================================================ */}
             {step === 3 && (
+              <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
+                <div className="text-center mb-8">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Utensils size={32} className="text-amber-600" />
+                  </div>
+                  <h2 className="text-3xl font-serif font-bold text-stone-900">Dietary Requirements</h2>
+                  <p className="text-stone-500 text-sm mt-2">
+                    Do you have any special dietary requirements or food restrictions?
+                  </p>
+                </div>
+
+                {!showRestrictionsPanel ? (
+                  // ✅ Initial Question: YES / NO
+                  <div className="flex-grow flex flex-col items-center justify-center gap-6 max-w-md mx-auto w-full">
+                    <div className="grid grid-cols-2 gap-4 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setHasDietaryRestrictions(false)}
+                        className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
+                          hasDietaryRestrictions === false
+                            ? 'border-green-500 bg-green-50 shadow-md'
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                          <Check size={24} className="text-green-600" />
+                        </div>
+                        <span className="font-bold text-stone-800">No</span>
+                        <span className="text-xs text-stone-400">No dietary restrictions</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setHasDietaryRestrictions(true)}
+                        className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
+                          hasDietaryRestrictions === true
+                            ? 'border-amber-500 bg-amber-50 shadow-md'
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                          <Utensils size={24} className="text-amber-600" />
+                        </div>
+                        <span className="font-bold text-stone-800">Yes</span>
+                        <span className="text-xs text-stone-400">I have restrictions</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDietaryContinue}
+                      className="mt-6 px-12 py-4 bg-amber-600 text-white rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider"
+                    >
+                      Continue
+                    </button>
+
+                    {hasDietaryRestrictions !== null && (
+                      <p className="text-xs text-stone-400 mt-2">
+                        {hasDietaryRestrictions === false 
+                          ? '✓ No restrictions selected. Proceed to indemnity.' 
+                          : '✓ Please select your restrictions below.'}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  // ✅ Restrictions Selection Panel
+                  <div className="flex-grow overflow-y-auto">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {DIETARY_OPTIONS.map(option => {
+                        const isSelected = foodRestrictions[option.key as keyof FoodRestrictions] as boolean;
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => handleRestrictionToggle(option.key as keyof FoodRestrictions)}
+                            className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                              isSelected
+                                ? 'border-amber-500 bg-amber-50 shadow-md'
+                                : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                            }`}
+                          >
+                            <span className="text-2xl">{option.icon}</span>
+                            <span className="text-xs font-medium text-center">{option.label}</span>
+                            {isSelected && (
+                              <span className="text-[10px] text-amber-600 font-bold">✓ Selected</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Other input */}
+                    <div className="mt-6">
+                      <label className="flex items-center gap-3 text-sm font-medium text-stone-700">
+                        <input
+                          type="checkbox"
+                          checked={foodRestrictions.other}
+                          onChange={() => handleRestrictionToggle('other')}
+                          className="w-4 h-4 rounded border-stone-300 text-amber-500 focus:ring-amber-500"
+                        />
+                        Other (please specify)
+                      </label>
+                      {foodRestrictions.other && (
+                        <input
+                          type="text"
+                          value={foodRestrictions.other_text}
+                          onChange={(e) => handleOtherTextChange(e.target.value)}
+                          placeholder="Please specify your dietary requirement..."
+                          className="mt-2 w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-sm"
+                        />
+                      )}
+                    </div>
+
+                    {/* Selected summary */}
+                    <div className="mt-6 p-4 bg-stone-50 rounded-xl border border-stone-200">
+                      <p className="text-xs font-medium text-stone-500">Selected restrictions:</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {Object.entries(foodRestrictions)
+                          .filter(([key, val]) => val === true && key !== 'other_text')
+                          .map(([key]) => {
+                            const label = DIETARY_OPTIONS.find(o => o.key === key)?.label || key;
+                            return (
+                              <span key={key} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-medium">
+                                {label}
+                              </span>
+                            );
+                          })}
+                        {foodRestrictions.other && foodRestrictions.other_text && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-[10px] font-medium">
+                            Other: {foodRestrictions.other_text}
+                          </span>
+                        )}
+                        {!Object.entries(foodRestrictions).some(([key, val]) => val === true && key !== 'other_text') && !foodRestrictions.other_text && (
+                          <span className="text-xs text-stone-400 italic">No restrictions selected</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-8 flex justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowRestrictionsPanel(false);
+                          setHasDietaryRestrictions(null);
+                        }}
+                        className="px-6 py-3 border border-stone-200 rounded-xl text-stone-600 font-medium hover:bg-stone-50 transition-colors"
+                      >
+                        ← Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRestrictionsSave}
+                        className="px-8 py-3 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 transition-all shadow-md"
+                      >
+                        Save & Continue →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 4 - Indemnity & Signature (was Step 3) */}
+            {step === 4 && (
               <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
                 <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">{t('checkin_indemnity')}</h2>
                 
@@ -1611,7 +1882,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                       onScroll={handleIndemnityScroll}
                       className="p-10 text-[12px] leading-relaxed text-stone-700 max-h-[500px] overflow-y-auto custom-scrollbar select-none"
                     >
-                      {/* Indemnity Text Component - Already translated via props */}
+                      {/* Indemnity Text Component */}
                       <IndemnityText 
                         businessName={branding?.trading_name || 'our establishment'} 
                         showWarning={true}
@@ -1818,7 +2089,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
                 </div>
 
                 <div className="mt-8 flex justify-between pt-6 border-t border-stone-100 items-center">
-                  <button type="button" onClick={() => setStep(2)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">{t('common_back_to_details')}</button>
+                  <button type="button" onClick={() => setStep(3)} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">{t('common_back_to_details')}</button>
                   <button 
                     type="submit" 
                     disabled={loading || !hasScrolledToBottom}
@@ -1834,7 +2105,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, businessId: propB
       </div>
 
       {/* Powered by FastCheckin Footer - Hide on success screen */}
-      {step !== 4 && (
+      {step !== 5 && (
         <div className="text-center py-6 border-t border-stone-200 mt-8">
           <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
             <span>{t('common_powered_by')}</span>
