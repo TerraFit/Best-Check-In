@@ -1,4 +1,7 @@
-import jwt from 'jsonwebtoken';
+// netlify/functions/get-business-bookings.js
+// ✅ FIXED: CommonJS + food restrictions join
+
+const jwt = require('jsonwebtoken');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -11,7 +14,7 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
   if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
 
@@ -58,7 +61,6 @@ export const handler = async (event) => {
 
     console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
     console.log(`📊 Limit: ${limit}, Page: ${page}`);
-    console.log(`📅 StartDate: ${startDate}, EndDate: ${endDate}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -68,28 +70,28 @@ export const handler = async (event) => {
     }
 
     const BOOKINGS_TABLE = 'bookings';
-    
-    // Calculate offset for pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ FIX: Add arriving_from and next_destination to select fields
-    const selectFields = 'id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_id_number,check_in_date,check_out_date,nights,adults,children,total_amount,status,guest_province,guest_city,guest_country,booking_source,referral_source,marketing_consent,arriving_from,next_destination,created_at,updated_at';
+    // ✅ Include all fields needed
+    const selectFields = `
+      id,business_id,guest_name,guest_first_name,guest_last_name,
+      guest_email,guest_phone,guest_id_number,
+      check_in_date,check_out_date,nights,adults,children,total_amount,
+      status,guest_province,guest_city,guest_country,
+      booking_source,referral_source,marketing_consent,
+      arriving_from,next_destination,created_at,updated_at
+    `;
     
     // Build the base URL
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
-    // Apply date filters
     if (startDate && endDate) {
       url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-      console.log(`📅 Custom date range: ${startDate} to ${endDate}`);
     } else if (startDate && !endDate) {
       url += `&check_in_date=gte.${startDate}`;
-      console.log(`📅 Start date filter: check_in_date >= ${startDate}`);
-    } else {
-      console.log(`📅 No date filters applied - showing all bookings`);
     }
     
-    console.log(`🔗 FINAL SUPABASE URL: ${url}`);
+    console.log(`🔗 Fetching bookings: ${url}`);
 
     const response = await fetch(url, {
       headers: {
@@ -107,23 +109,55 @@ export const handler = async (event) => {
     const bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // Debug log to verify fields
+    // ============================================================
+    // ✅ FIX: Fetch food restrictions for each booking
+    // ============================================================
     if (bookings.length > 0) {
-      console.log(`🔍 First booking fields:`, Object.keys(bookings[0]));
-      console.log(`🔍 arriving_from:`, bookings.map(b => b.arriving_from));
-      console.log(`🔍 next_destination:`, bookings.map(b => b.next_destination));
+      // Get all booking IDs
+      const bookingIds = bookings.map(b => `'${b.id}'`).join(',');
+      
+      console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
+      
+      // Fetch all food restrictions for these bookings
+      const restrictionsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIds})&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
+
+      if (restrictionsResponse.ok) {
+        const restrictionsData = await restrictionsResponse.json();
+        console.log(`✅ Food restrictions fetched: ${restrictionsData.length}`);
+        
+        // Create a map of booking_id -> restrictions
+        const restrictionsMap = {};
+        restrictionsData.forEach(r => {
+          restrictionsMap[r.booking_id] = r;
+        });
+        
+        // Attach food_restrictions to each booking
+        bookings.forEach(booking => {
+          booking.food_restrictions = restrictionsMap[booking.id] || null;
+        });
+      } else {
+        console.warn('⚠️ Could not fetch food restrictions');
+        bookings.forEach(booking => {
+          booking.food_restrictions = null;
+        });
+      }
     }
 
     // Get total count for pagination
     let countUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=id`;
-    
     if (startDate && endDate) {
       countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
     } else if (startDate && !endDate) {
       countUrl += `&check_in_date=gte.${startDate}`;
     }
-    
-    console.log(`🔗 Count URL: ${countUrl}`);
     
     const countResponse = await fetch(countUrl, {
       headers: {
@@ -134,8 +168,6 @@ export const handler = async (event) => {
     const totalCountData = await countResponse.json();
     const totalBookings = totalCountData.length;
     const totalPages = Math.ceil(totalBookings / parseInt(limit));
-
-    console.log(`📊 Total bookings matching filter: ${totalBookings}, Total pages: ${totalPages}`);
 
     // Calculate today's activity
     const today = new Date();
