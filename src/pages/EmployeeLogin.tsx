@@ -1,5 +1,5 @@
 // src/pages/EmployeeLogin.tsx
-// ✅ Employee Login Page - Phone number + password
+// ✅ SIMPLIFIED: National phone numbers only
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -14,16 +14,31 @@ function EmployeeLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // ✅ Format phone number as user types - remove spaces and special characters
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only allow digits
+    const digitsOnly = e.target.value.replace(/\D/g, '');
+    setPhone(digitsOnly);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
+    // ✅ Phone is already digits only from the input
+    const cleanPhone = phone.trim();
+    
+    // Validate phone length
+    if (cleanPhone.length < 9) {
+      setError('Please enter a valid phone number (at least 9 digits)');
+      setLoading(false);
+      return;
+    }
+
+    console.log('📱 Login attempt for phone:', cleanPhone);
+    
     try {
-      const cleanPhone = phone.replace(/\s+/g, '').trim();
-      
-      console.log('📱 Login attempt for phone:', cleanPhone);
-      
       const response = await fetch('/.netlify/functions/employee-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,7 +89,7 @@ function EmployeeLogin() {
           Employee Portal
         </h2>
         <p className="text-stone-400 text-sm">
-          Sign in with your phone number and password
+          Sign in with your phone number
         </p>
       </div>
 
@@ -96,16 +111,19 @@ function EmployeeLogin() {
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
                 <input
-                  type="tel"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono"
-                  placeholder="083 778 9487 or +27 83 778 9487"
+                  onChange={handlePhoneChange}
+                  className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono tracking-widest"
+                  placeholder="0837789487"
+                  maxLength={10}
                 />
               </div>
               <p className="text-[10px] text-stone-400 mt-1">
-                Enter your phone number (local or international format)
+                Enter your phone number without spaces or international codes
               </p>
             </div>
 
@@ -169,7 +187,7 @@ function EmployeeLogin() {
 
           <div className="mt-4 pt-4 border-t border-stone-100">
             <p className="text-[10px] text-stone-400 text-center">
-              <span className="block">💡 Demo Employee: 083 778 9487</span>
+              <span className="block">💡 Demo Employee: 0837789487</span>
               <span className="block text-[9px] text-stone-400 mt-0.5">
                 Password: the one you set during onboarding
               </span>
