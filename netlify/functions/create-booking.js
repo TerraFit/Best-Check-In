@@ -1,7 +1,5 @@
 // netlify/functions/create-booking.js
-// ✅ CORRECTED: CommonJS format with field validation
-
-const { createClient } = require('@supabase/supabase-js');
+// ✅ CommonJS version - WORKS ON NETLIFY
 
 exports.handler = async (event) => {
   console.log(`📊 create-booking called at ${new Date().toISOString()}`);
@@ -120,7 +118,6 @@ exports.handler = async (event) => {
       const errorText = await response.text();
       console.error('❌ Insert error:', response.status, errorText);
       
-      // Check for duplicate violation
       if (errorText.includes('23505')) {
         return {
           statusCode: 200,
