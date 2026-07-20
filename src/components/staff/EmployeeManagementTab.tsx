@@ -1,5 +1,5 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// ✅ FIXED: Delete and Disable now call the API
+// ✅ SIMPLIFIED: Phone numbers as digits only (no international formatting)
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
@@ -91,10 +91,14 @@ export function EmployeeManagementTab({
     setLoading(true);
 
     try {
-      // Format phone number
-      let formattedPhone = phone.trim();
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '+27' + formattedPhone.substring(1);
+      // ✅ SIMPLIFIED: Remove all non-digit characters
+      const cleanPhone = phone.replace(/\D/g, '');
+      console.log('📱 Cleaned phone:', cleanPhone);
+
+      if (cleanPhone.length < 9) {
+        alert('Please enter a valid phone number (at least 9 digits)');
+        setLoading(false);
+        return;
       }
 
       const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -104,7 +108,7 @@ export function EmployeeManagementTab({
       const newEmp = {
         business_id: businessId,
         full_name: fullName.trim(),
-        phone_number: formattedPhone,
+        phone_number: cleanPhone, // ✅ Store as digits only
         role: 'EmployeeOverview',
         status: 'Pending',
         invitation_token: invitationToken,
@@ -169,7 +173,7 @@ export function EmployeeManagementTab({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ employeeId: id })
+        body: JSON.stringify({ id: id })
       });
 
       const data = await response.json();
@@ -219,7 +223,7 @@ export function EmployeeManagementTab({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          employeeId: id, 
+          id: id, 
           status: newStatus 
         })
       });
@@ -250,8 +254,8 @@ export function EmployeeManagementTab({
   const handleShareOverview = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
     const text = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
-    const cleanPhone = emp.phone_number.replace(/[^0-9+]/g, '').replace('+', '');
-    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    const cleanPhone = emp.phone_number.replace(/\D/g, '');
+    const waUrl = `https://wa.me/27${cleanPhone}?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
   };
 
@@ -332,13 +336,21 @@ export function EmployeeManagementTab({
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Mobile Number</label>
               <input
-                type="tel"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                placeholder="+27 82 555 1234"
+                onChange={e => {
+                  // ✅ Only allow digits
+                  const digitsOnly = e.target.value.replace(/\D/g, '');
+                  setPhone(digitsOnly);
+                }}
+                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500 font-mono tracking-widest"
+                placeholder="0837789487"
+                maxLength={10}
               />
+              <p className="text-[10px] text-stone-400 mt-1">Enter phone number without spaces or international codes</p>
             </div>
           </div>
 
