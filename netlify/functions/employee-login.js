@@ -1,14 +1,14 @@
 // netlify/functions/employee-login.js
-// FIXED: Handles both international and local SA phone numbers
+// ✅ SIMPLIFIED: National phone numbers only (no international formatting)
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-exports.handler = async function(event) {
+exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
@@ -17,82 +17,151 @@ exports.handler = async function(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method not allowed' }) 
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-  console.log('🔵 employee-login called');
-
   try {
-    const { phone, password } = JSON.parse(event.body);
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON body:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+
+    console.log('📥 Request body:', JSON.stringify(body, null, 2));
     
-    // ✅ Clean phone number - keep only digits
-    const digitsOnly = phone.replace(/\D/g, '');
-    console.log('🔵 Digits only:', digitsOnly);
+    // ✅ Get phone number - support both field names
+    let phone = body.phone_number || body.phone;
+    const password = body.password;
 
-    // ✅ Generate all possible formats for South African numbers
-    const phoneVariants = [
-      phone, // Original input
-      digitsOnly, // Just digits
-      `+27${digitsOnly}`, // International format with +
-      `27${digitsOnly}`, // International format without +
-    ];
+    console.log('📱 Raw phone input:', phone);
 
-    // ✅ If it's a local SA number (starts with 0), add the international variants
-    if (digitsOnly.startsWith('0')) {
-      const withoutLeadingZero = digitsOnly.substring(1);
-      phoneVariants.push(`+27${withoutLeadingZero}`);
-      phoneVariants.push(`27${withoutLeadingZero}`);
+    if (!phone) {
+      console.error('❌ No phone number provided');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Phone number is required' })
+      };
     }
 
-    // ✅ If it's already international (starts with 27), add the local variants
-    if (digitsOnly.startsWith('27')) {
-      const withoutCountryCode = digitsOnly.substring(2);
-      phoneVariants.push(`0${withoutCountryCode}`);
-      phoneVariants.push(`+27${withoutCountryCode}`);
+    if (!password) {
+      console.error('❌ No password provided');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Password is required' })
+      };
     }
 
-    // Remove duplicates
-    const uniqueVariants = [...new Set(phoneVariants)];
-    console.log('🔵 Phone variants:', uniqueVariants);
+    // ============================================================
+    // ✅ SIMPLIFIED: Remove spaces and special characters
+    // Only keep digits (0-9)
+    // ============================================================
+    const cleanPhone = phone.replace(/\D/g, '');
+    console.log('📱 Cleaned phone (digits only):', cleanPhone);
 
-    // ✅ Try each variant
-    let employee = null;
-    let foundVariant = null;
+    if (cleanPhone.length < 9) {
+      console.error('❌ Phone number too short:', cleanPhone.length);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Phone number must be at least 9 digits' 
+        })
+      };
+    }
 
-    for (const variant of uniqueVariants) {
-      if (!variant) continue;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    // ============================================================
+    // ✅ Store and compare phone numbers as clean digits only
+    // ============================================================
+
+    // 1. Try exact match on clean phone number
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/employees?phone_number=eq.${cleanPhone}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.error('❌ Supabase error:', response.status);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Database error' })
+      };
+    }
+
+    let employees = await response.json();
+    let employee = employees?.[0];
+
+    // 2. If not found, try cleaning all phone numbers in the database
+    if (!employee) {
+      console.log('🔍 No exact match, checking all employees...');
       
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/employees?phone_number=eq.${encodeURIComponent(variant)}&select=*`,
+      const allResponse = await fetch(
+        `${supabaseUrl}/rest/v1/employees?select=*`,
         {
           headers: {
             'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
           }
         }
       );
 
-      if (response.ok) {
-        const employees = await response.json();
-        if (employees && employees.length > 0) {
-          employee = employees[0];
-          foundVariant = variant;
-          break;
-        }
+      if (!allResponse.ok) {
+        console.error('❌ Supabase error:', allResponse.status);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Database error' })
+        };
+      }
+
+      const allEmployees = await allResponse.json();
+      
+      // Find employee by cleaning their stored phone number
+      employee = allEmployees?.find(emp => {
+        const cleanedDbPhone = (emp.phone_number || '').replace(/\D/g, '');
+        return cleanedDbPhone === cleanPhone;
+      });
+
+      if (employee) {
+        console.log('✅ Found employee via cleaned match:', employee.full_name);
+        console.log('📱 Stored phone:', employee.phone_number);
+        console.log('📱 Cleaned match:', cleanPhone);
       }
     }
 
-    console.log('🔵 Found employee with variant:', foundVariant);
-
     if (!employee) {
-      console.log('❌ No employee found for phone:', phone);
+      console.log('❌ No employee found for phone:', cleanPhone);
       return {
         statusCode: 401,
         headers,
@@ -100,42 +169,44 @@ exports.handler = async function(event) {
       };
     }
 
-    console.log('🔵 Employee found:', employee.full_name);
-    console.log('🔵 Status:', employee.status);
-    console.log('🔵 Has password_hash:', !!employee.password_hash);
+    console.log('✅ Employee found:', employee.full_name);
+    console.log('📱 Phone:', employee.phone_number);
+    console.log('📊 Status:', employee.status);
 
+    // Check if employee is active
     if (employee.status === 'Disabled') {
       return {
-        statusCode: 401,
+        statusCode: 403,
         headers,
-        body: JSON.stringify({ error: 'Account has been disabled' })
+        body: JSON.stringify({ error: 'Account has been disabled. Please contact your administrator.' })
       };
     }
 
     if (employee.status === 'Pending') {
       return {
-        statusCode: 401,
+        statusCode: 403,
         headers,
         body: JSON.stringify({ 
-          error: 'Account not activated. Please use the invitation link sent to you.' 
+          error: 'Account not yet activated. Please use the invitation link sent to you.' 
         })
       };
     }
 
+    // Verify password
     if (!employee.password_hash) {
+      console.error('❌ No password hash found for employee:', employee.full_name);
       return {
-        statusCode: 401,
+        statusCode: 403,
         headers,
         body: JSON.stringify({ 
-          error: 'Account not fully set up. Please use the invitation link sent to you.' 
+          error: 'Account not properly set up. Please contact your administrator.' 
         })
       };
     }
 
     const validPassword = await bcrypt.compare(password, employee.password_hash);
-    console.log('🔵 Password valid:', validPassword);
-
     if (!validPassword) {
+      console.log('❌ Invalid password for employee:', employee.full_name);
       return {
         statusCode: 401,
         headers,
@@ -143,35 +214,25 @@ exports.handler = async function(event) {
       };
     }
 
-    // ✅ Update last login
-    await fetch(
-      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ last_login: new Date().toISOString() })
-      }
-    );
-
+    // Generate JWT token
+    const tokenExpiry = '7d';
     const token = jwt.sign(
       {
         sub: employee.id,
-        role: 'authenticated',
+        role: 'employee',
         user_metadata: {
           employee_id: employee.id,
           business_id: employee.business_id,
           full_name: employee.full_name,
           phone_number: employee.phone_number,
-          role: 'EmployeeOverview'
+          role: employee.role
         }
       },
       process.env.SUPABASE_JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: tokenExpiry }
     );
+
+    console.log('✅ Employee login successful:', employee.full_name);
 
     return {
       statusCode: 200,
@@ -179,13 +240,13 @@ exports.handler = async function(event) {
       body: JSON.stringify({
         success: true,
         token: token,
-        token_expiry: '1d',
+        token_expiry: tokenExpiry,
         employee: {
           id: employee.id,
           full_name: employee.full_name,
           phone_number: employee.phone_number,
-          business_id: employee.business_id,
           role: employee.role,
+          business_id: employee.business_id,
           status: employee.status
         }
       })
@@ -193,10 +254,14 @@ exports.handler = async function(event) {
 
   } catch (error) {
     console.error('❌ Employee login error:', error);
+    console.error('❌ Error stack:', error.stack);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Internal server error' })
+      body: JSON.stringify({ 
+        error: 'Login failed',
+        details: error.message 
+      })
     };
   }
 };
