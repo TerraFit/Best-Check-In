@@ -1,9 +1,14 @@
 // src/pages/EmployeeDashboard.tsx
-// ✅ Employee Dashboard - Restricted view for staff
+// ✅ Simplified Employee Dashboard - 3 stat cards only
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Utensils, Calendar, Clock, User, Phone, Mail, Globe, MapPin } from 'lucide-react';
+import { 
+  LogOut, Users, Utensils, Calendar, Clock, 
+  User, Phone, Mail, Globe, MapPin, 
+  ChevronRight, AlertCircle, CheckCircle, 
+  Bed, ArrowRight, UserCheck, UserX
+} from 'lucide-react';
 import Logo from '../components/Logo';
 
 interface Booking {
@@ -145,28 +150,34 @@ export default function EmployeeDashboard() {
   // ============================================================
   // ✅ FILTER BOOKINGS
   // ============================================================
-  const todayBookings = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return bookings.filter(b => b.check_in_date === today);
-  }, [bookings]);
+  const today = new Date().toISOString().split('T')[0];
+
+  const todaysArrivals = useMemo(() => {
+    return bookings.filter(b => b.check_in_date === today && b.status !== 'checked_in');
+  }, [bookings, today]);
 
   const activeBookings = useMemo(() => {
     return bookings.filter(b => b.status === 'checked_in');
   }, [bookings]);
 
-  const bookingsWithDietaries = useMemo(() => {
-    return bookings.filter(b => {
-      const restrictions = b.food_restrictions || {};
-      return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
-    });
-  }, [bookings]);
+  const todaysCheckouts = useMemo(() => {
+    return bookings.filter(b => b.check_out_date === today);
+  }, [bookings, today]);
+
+  // ============================================================
+  // ✅ CHECK IF GUEST HAS DIETARY RESTRICTIONS
+  // ============================================================
+  const hasDietaryRestrictions = (guest: Booking): boolean => {
+    const restrictions = guest.food_restrictions || {};
+    return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+  };
 
   // ============================================================
   // ✅ LOADING STATE
   // ============================================================
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
           <p className="text-stone-400 text-sm">Loading employee dashboard...</p>
@@ -188,7 +199,9 @@ export default function EmployeeDashboard() {
               <Logo size="sm" />
               <div>
                 <h1 className="text-sm font-bold text-stone-900">{businessName || 'Employee Portal'}</h1>
-                <p className="text-[10px] text-stone-400">👤 {employee?.full_name || 'Staff'}</p>
+                <p className="text-[10px] text-stone-400 flex items-center gap-1">
+                  <User size={10} /> {employee?.full_name || 'Staff'}
+                </p>
               </div>
             </div>
 
@@ -239,102 +252,133 @@ export default function EmployeeDashboard() {
             ============================================================ */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            {/* Stats Cards */}
+            
+            {/* Stats Cards - Only 3 */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Today's Arrivals */}
               <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-green-100 rounded-xl">
-                    <Users size={18} className="text-green-600" />
+                    <UserCheck size={18} className="text-green-600" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Checked In</p>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Arrivals Today</p>
+                    <p className="text-2xl font-bold text-stone-900">{todaysArrivals.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Stayovers */}
+              <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-xl">
+                    <Bed size={18} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Stayovers</p>
                     <p className="text-2xl font-bold text-stone-900">{activeBookings.length}</p>
                   </div>
                 </div>
               </div>
 
+              {/* Check-outs Today */}
               <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-100 rounded-xl">
-                    <Calendar size={18} className="text-amber-600" />
+                    <UserX size={18} className="text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Arrivals Today</p>
-                    <p className="text-2xl font-bold text-stone-900">{todayBookings.length}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-xl">
-                    <Utensils size={18} className="text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Dietary Alerts</p>
-                    <p className="text-2xl font-bold text-stone-900">{bookingsWithDietaries.length}</p>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Check-outs Today</p>
+                    <p className="text-2xl font-bold text-stone-900">{todaysCheckouts.length}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Guest List */}
-            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-stone-100 bg-stone-50/50">
-                <h3 className="font-bold text-xs uppercase tracking-widest text-stone-400 flex items-center gap-2">
-                  <Users size={14} /> Currently Checked In Guests
-                </h3>
+            {/* Guest Cards - Arrivals, Stayovers, Check-outs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Arrivals Card */}
+              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-100 bg-green-50/50 flex items-center gap-2">
+                  <UserCheck size={16} className="text-green-600" />
+                  <h3 className="font-bold text-xs uppercase tracking-widest text-green-700">Arrivals</h3>
+                  <span className="ml-auto bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {todaysArrivals.length}
+                  </span>
+                </div>
+                <div className="p-4 max-h-56 overflow-y-auto">
+                  {todaysArrivals.length === 0 ? (
+                    <p className="text-sm text-stone-400 text-center py-6">No arrivals today</p>
+                  ) : (
+                    todaysArrivals.map(guest => (
+                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
+                          <p className="text-[10px] text-stone-400">{guest.guest_city || 'N/A'}</p>
+                        </div>
+                        <span className="text-[10px] text-green-600 font-medium">Arriving</span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
-                    <tr>
-                      <th className="px-6 py-4">Guest Name</th>
-                      <th className="px-6 py-4">Check-in</th>
-                      <th className="px-6 py-4">Check-out</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Dietary</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100 font-medium">
-                    {activeBookings.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-stone-400">
-                          No guests currently checked in
-                        </td>
-                      </tr>
-                    ) : (
-                      activeBookings.map(guest => {
-                        const restrictions = guest.food_restrictions || {};
-                        const hasRestrictions = Object.entries(restrictions).some(
-                          ([key, val]) => val === true && key !== 'other_text'
-                        );
-                        
-                        return (
-                          <tr key={guest.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="px-6 py-4 font-bold text-stone-900">{guest.guest_name}</td>
-                            <td className="px-6 py-4 text-stone-600">{guest.check_in_date || 'N/A'}</td>
-                            <td className="px-6 py-4 text-stone-600">{guest.check_out_date || 'N/A'}</td>
-                            <td className="px-6 py-4">
-                              <span className="px-2.5 py-1 rounded-full text-[9px] font-bold bg-green-100 text-green-800">
-                                Checked In
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              {hasRestrictions ? (
-                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-bold">
-                                  ⚠️ Yes
-                                </span>
-                              ) : (
-                                <span className="text-stone-400 text-[10px]">None</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+
+              {/* Stayovers Card */}
+              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-100 bg-blue-50/50 flex items-center gap-2">
+                  <Bed size={16} className="text-blue-600" />
+                  <h3 className="font-bold text-xs uppercase tracking-widest text-blue-700">Stayovers</h3>
+                  <span className="ml-auto bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {activeBookings.length}
+                  </span>
+                </div>
+                <div className="p-4 max-h-56 overflow-y-auto">
+                  {activeBookings.length === 0 ? (
+                    <p className="text-sm text-stone-400 text-center py-6">No current stayovers</p>
+                  ) : (
+                    activeBookings.map(guest => (
+                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
+                          {/* ✅ Dietary Alert Badge - Next to name */}
+                          {hasDietaryRestrictions(guest) && (
+                            <span className="text-[10px] text-amber-600 font-bold" title="Has dietary restrictions">
+                              ⚠️
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-blue-600 font-medium">Staying</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Check-outs Card */}
+              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-100 bg-amber-50/50 flex items-center gap-2">
+                  <UserX size={16} className="text-amber-600" />
+                  <h3 className="font-bold text-xs uppercase tracking-widest text-amber-700">Check-outs</h3>
+                  <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {todaysCheckouts.length}
+                  </span>
+                </div>
+                <div className="p-4 max-h-56 overflow-y-auto">
+                  {todaysCheckouts.length === 0 ? (
+                    <p className="text-sm text-stone-400 text-center py-6">No check-outs today</p>
+                  ) : (
+                    todaysCheckouts.map(guest => (
+                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
+                          <p className="text-[10px] text-stone-400">{guest.guest_city || 'N/A'}</p>
+                        </div>
+                        <span className="text-[10px] text-amber-600 font-medium">Departing</span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -346,10 +390,13 @@ export default function EmployeeDashboard() {
         {activeTab === 'dietaries' && (
           <div className="space-y-6 animate-fade-in">
             <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-stone-100 bg-amber-50/50">
+              <div className="px-6 py-4 border-b border-stone-100 bg-amber-50/50 flex items-center justify-between">
                 <h3 className="font-bold text-xs uppercase tracking-widest text-amber-700 flex items-center gap-2">
                   <Utensils size={14} /> Guest Dietary Requirements & Restrictions
                 </h3>
+                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {bookings.filter(b => hasDietaryRestrictions(b)).length} guests
+                </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -362,14 +409,14 @@ export default function EmployeeDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100 font-medium">
-                    {bookingsWithDietaries.length === 0 ? (
+                    {bookings.filter(b => hasDietaryRestrictions(b)).length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-stone-400">
                           No guests with dietary restrictions
                         </td>
                       </tr>
                     ) : (
-                      bookingsWithDietaries.map(guest => {
+                      bookings.filter(b => hasDietaryRestrictions(b)).map(guest => {
                         const restrictions = guest.food_restrictions || {};
                         const activeRestrictions = Object.entries(restrictions)
                           .filter(([key, val]) => val === true && key !== 'other_text')
@@ -390,14 +437,19 @@ export default function EmployeeDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-wrap gap-1">
-                                {activeRestrictions.map(r => (
+                                {activeRestrictions.slice(0, 3).map(r => (
                                   <span key={r} className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8px] font-bold">
                                     {r}
                                   </span>
                                 ))}
+                                {activeRestrictions.length > 3 && (
+                                  <span className="px-2 py-0.5 bg-stone-100 text-stone-600 rounded-full text-[8px] font-bold">
+                                    +{activeRestrictions.length - 3}
+                                  </span>
+                                )}
                                 {restrictions.other_text && (
                                   <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-[8px] font-bold" title={restrictions.other_text}>
-                                    Other: {restrictions.other_text}
+                                    Other
                                   </span>
                                 )}
                               </div>
