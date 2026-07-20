@@ -1,6 +1,5 @@
 // src/pages/EmployeeOnboardingPage.tsx
-// ✅ FIXED: All login redirects now go to /employee/login
-// ✅ FIXED: JSX syntax error
+// ✅ SIMPLIFIED: Phone numbers as digits only (no international formatting)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
