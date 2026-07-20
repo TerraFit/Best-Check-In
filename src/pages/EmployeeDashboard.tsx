@@ -1,5 +1,5 @@
 // src/pages/EmployeeDashboard.tsx
-// ✅ Simplified Employee Dashboard - 3 stat cards only
+// ✅ Employee Dashboard - Quick Actions at bottom of Guest Overview
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,9 +7,11 @@ import {
   LogOut, Users, Utensils, Calendar, Clock, 
   User, Phone, Mail, Globe, MapPin, 
   ChevronRight, AlertCircle, CheckCircle, 
-  Bed, ArrowRight, UserCheck, UserX
+  Bed, ArrowRight, UserCheck, UserX,
+  QrCode, PlusCircle
 } from 'lucide-react';
 import Logo from '../components/Logo';
+import QRCodeModal from '../components/QRCodeModal';
 
 interface Booking {
   id: string;
@@ -57,6 +59,8 @@ export default function EmployeeDashboard() {
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [businessName, setBusinessName] = useState('');
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   // ============================================================
   // ✅ GET EMPLOYEE DATA FROM SESSION
@@ -67,6 +71,7 @@ export default function EmployeeDashboard() {
       if (authStr) {
         const auth = JSON.parse(authStr);
         setEmployee(auth.user);
+        setBusinessId(auth.user?.businessId || null);
       }
     } catch (e) {
       console.error('Error getting employee data:', e);
@@ -89,15 +94,15 @@ export default function EmployeeDashboard() {
           return;
         }
 
-        const businessId = auth?.user?.businessId;
-        if (!businessId) {
+        const businessIdFromAuth = auth?.user?.businessId;
+        if (!businessIdFromAuth) {
           console.error('No business ID found');
           setLoading(false);
           return;
         }
 
         const response = await fetch(
-          `/.netlify/functions/get-business-bookings?businessId=${businessId}&limit=1000&page=1`,
+          `/.netlify/functions/get-business-bookings?businessId=${businessIdFromAuth}&limit=1000&page=1`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -112,7 +117,7 @@ export default function EmployeeDashboard() {
           
           // Get business name
           const bizResponse = await fetch(
-            `/.netlify/functions/get-business-branding?id=${businessId}`,
+            `/.netlify/functions/get-business-branding?id=${businessIdFromAuth}`,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -248,54 +253,12 @@ export default function EmployeeDashboard() {
         </div>
 
         {/* ============================================================
-            TAB: OVERVIEW
+            TAB: OVERVIEW - Guest Cards + Quick Actions at bottom
             ============================================================ */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
             
-            {/* Stats Cards - Only 3 */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Today's Arrivals */}
-              <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-xl">
-                    <UserCheck size={18} className="text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Arrivals Today</p>
-                    <p className="text-2xl font-bold text-stone-900">{todaysArrivals.length}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Current Stayovers */}
-              <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-xl">
-                    <Bed size={18} className="text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Stayovers</p>
-                    <p className="text-2xl font-bold text-stone-900">{activeBookings.length}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Check-outs Today */}
-              <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 rounded-xl">
-                    <UserX size={18} className="text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Check-outs Today</p>
-                    <p className="text-2xl font-bold text-stone-900">{todaysCheckouts.length}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Guest Cards - Arrivals, Stayovers, Check-outs */}
+            {/* Guest Cards - 3 columns */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Arrivals Card */}
@@ -307,7 +270,7 @@ export default function EmployeeDashboard() {
                     {todaysArrivals.length}
                   </span>
                 </div>
-                <div className="p-4 max-h-56 overflow-y-auto">
+                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                   {todaysArrivals.length === 0 ? (
                     <p className="text-sm text-stone-400 text-center py-6">No arrivals today</p>
                   ) : (
@@ -315,7 +278,9 @@ export default function EmployeeDashboard() {
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          <p className="text-[10px] text-stone-400">{guest.guest_city || 'N/A'}</p>
+                          {guest.guest_city && (
+                            <p className="text-[10px] text-stone-400">{guest.guest_city}</p>
+                          )}
                         </div>
                         <span className="text-[10px] text-green-600 font-medium">Arriving</span>
                       </div>
@@ -333,22 +298,21 @@ export default function EmployeeDashboard() {
                     {activeBookings.length}
                   </span>
                 </div>
-                <div className="p-4 max-h-56 overflow-y-auto">
+                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                   {activeBookings.length === 0 ? (
                     <p className="text-sm text-stone-400 text-center py-6">No current stayovers</p>
                   ) : (
                     activeBookings.map(guest => (
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          {/* ✅ Dietary Alert Badge - Next to name */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-sm font-medium text-stone-900 truncate">{guest.guest_name}</p>
                           {hasDietaryRestrictions(guest) && (
-                            <span className="text-[10px] text-amber-600 font-bold" title="Has dietary restrictions">
+                            <span className="text-[10px] text-amber-600 font-bold flex-shrink-0" title="Has dietary restrictions">
                               ⚠️
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-blue-600 font-medium">Staying</span>
+                        <span className="text-[10px] text-blue-600 font-medium flex-shrink-0 ml-2">Staying</span>
                       </div>
                     ))
                   )}
@@ -364,7 +328,7 @@ export default function EmployeeDashboard() {
                     {todaysCheckouts.length}
                   </span>
                 </div>
-                <div className="p-4 max-h-56 overflow-y-auto">
+                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                   {todaysCheckouts.length === 0 ? (
                     <p className="text-sm text-stone-400 text-center py-6">No check-outs today</p>
                   ) : (
@@ -372,7 +336,9 @@ export default function EmployeeDashboard() {
                       <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          <p className="text-[10px] text-stone-400">{guest.guest_city || 'N/A'}</p>
+                          {guest.guest_city && (
+                            <p className="text-[10px] text-stone-400">{guest.guest_city}</p>
+                          )}
                         </div>
                         <span className="text-[10px] text-amber-600 font-medium">Departing</span>
                       </div>
@@ -380,6 +346,37 @@ export default function EmployeeDashboard() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* ============================================================
+                QUICK ACTIONS - At bottom of Guest Overview tab
+                ============================================================ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <button
+                onClick={() => window.location.href = `/checkin/${businessId}`}
+                className="flex items-center gap-4 p-4 bg-white border border-stone-200 rounded-2xl hover:shadow-md transition-all hover:border-amber-200 text-left"
+              >
+                <div className="p-3 bg-amber-500 rounded-xl flex-shrink-0">
+                  <PlusCircle size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-medium text-stone-900 text-sm">New Check-in</p>
+                  <p className="text-xs text-stone-400">Quick check-in for arriving guests</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowQRModal(true)}
+                className="flex items-center gap-4 p-4 bg-white border border-stone-200 rounded-2xl hover:shadow-md transition-all hover:border-blue-200 text-left"
+              >
+                <div className="p-3 bg-blue-500 rounded-xl flex-shrink-0">
+                  <QrCode size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-medium text-stone-900 text-sm">QR Code</p>
+                  <p className="text-xs text-stone-400">Display check-in QR code</p>
+                </div>
+              </button>
             </div>
           </div>
         )}
@@ -465,6 +462,15 @@ export default function EmployeeDashboard() {
           </div>
         )}
       </main>
+
+      {/* QR Code Modal */}
+      {showQRModal && businessId && (
+        <QRCodeModal
+          businessId={businessId}
+          businessName={businessName}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </div>
   );
 }
