@@ -1,5 +1,5 @@
 // netlify/functions/create-booking.js
-// ✅ CommonJS version - WORKS ON NETLIFY
+// ✅ COMPLETE REWRITE - CommonJS with food restrictions saving
 
 exports.handler = async (event) => {
   console.log(`📊 create-booking called at ${new Date().toISOString()}`);
@@ -47,7 +47,9 @@ exports.handler = async (event) => {
       };
     }
 
+    // ============================================================
     // Clean and prepare booking data
+    // ============================================================
     const cleanName = (name) => {
       if (!name) return '';
       const titlePattern = /^(Mr\.?|Mrs\.?|Ms\.?|Miss\.?|Dr\.?|Prof\.?|Rev\.?)\s+/i;
@@ -66,7 +68,7 @@ exports.handler = async (event) => {
 
     const fullName = `${firstName} ${lastName}`.trim();
 
-    // Start with core required fields
+    // Build booking data
     const bookingData = {
       business_id: body.business_id,
       guest_name: fullName || guestName,
@@ -101,7 +103,9 @@ exports.handler = async (event) => {
     console.log('💾 Inserting booking via REST...');
     console.log('📦 Fields being saved:', Object.keys(bookingData));
 
-    // REST API call
+    // ============================================================
+    // Save booking to bookings table
+    // ============================================================
     const response = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
       method: 'POST',
       headers: {
@@ -146,6 +150,99 @@ exports.handler = async (event) => {
     
     console.log('✅ Booking saved:', savedBooking?.id);
 
+    // ============================================================
+    // ✅ SAVE FOOD RESTRICTIONS to booking_food_restrictions table
+    // ============================================================
+    if (savedBooking?.id && body.food_restrictions) {
+      try {
+        const restrictions = body.food_restrictions;
+        console.log('🍽️ Saving food restrictions for booking:', savedBooking.id);
+        console.log('🍽️ Restrictions data:', JSON.stringify(restrictions, null, 2));
+        
+        // Build restrictions data
+        const restrictionsData = {
+          booking_id: savedBooking.id,
+          vegetarian: restrictions.vegetarian || false,
+          vegan: restrictions.vegan || false,
+          pescatarian: restrictions.pescatarian || false,
+          halal: restrictions.halal || false,
+          kosher: restrictions.kosher || false,
+          gluten_free: restrictions.gluten_free || false,
+          lactose_free: restrictions.lactose_free || false,
+          nut_allergy: restrictions.nut_allergy || false,
+          seafood_allergy: restrictions.seafood_allergy || false,
+          diabetic: restrictions.diabetic || false,
+          no_pork: restrictions.no_pork || false,
+          other: restrictions.other || false,
+          other_text: restrictions.other_text || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Check if restrictions already exist
+        const checkResponse = await fetch(
+          `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${savedBooking.id}&select=id`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            }
+          }
+        );
+        
+        const existingData = await checkResponse.json();
+        const hasExisting = existingData && existingData.length > 0;
+        
+        let restrictionsResponse;
+        
+        if (hasExisting) {
+          // Update existing restrictions
+          console.log('🔄 Updating existing food restrictions');
+          restrictionsResponse = await fetch(
+            `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${savedBooking.id}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(restrictionsData)
+            }
+          );
+        } else {
+          // Insert new restrictions
+          console.log('➕ Inserting new food restrictions');
+          restrictionsResponse = await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify([restrictionsData])
+          });
+        }
+
+        if (restrictionsResponse.ok) {
+          const restrictionsResult = await restrictionsResponse.json();
+          console.log('✅ Food restrictions saved successfully');
+        } else {
+          const errorText = await restrictionsResponse.text();
+          console.error('❌ Failed to save food restrictions:', errorText);
+        }
+      } catch (err) {
+        console.error('❌ Error saving food restrictions:', err);
+        // Don't fail the whole booking if restrictions fail
+      }
+    } else {
+      console.log('ℹ️ No food restrictions to save');
+    }
+
+    // ============================================================
+    // Return success response
+    // ============================================================
     return {
       statusCode: 200,
       headers,
