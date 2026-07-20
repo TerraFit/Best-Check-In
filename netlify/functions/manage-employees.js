@@ -1,5 +1,5 @@
 // netlify/functions/manage-employees.js
-// ✅ FIXED: Using CommonJS (require) instead of ES Modules (import)
+// ✅ SIMPLIFIED: Phone numbers as digits only (no international formatting)
 
 const jwt = require('jsonwebtoken');
 
@@ -28,7 +28,6 @@ exports.handler = async function(event) {
   try {
     const authHeader = event.headers.authorization;
     console.log('🔵 Authorization header present:', !!authHeader);
-    console.log('🔵 Raw auth header (first 50 chars):', authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING');
 
     if (!authHeader) {
       return {
@@ -38,28 +37,15 @@ exports.handler = async function(event) {
       };
     }
 
-    // ✅ Extract token and clean it
     let token = authHeader.replace('Bearer ', '').trim();
     console.log('🔵 Token length after cleanup:', token.length);
-    console.log('🔵 Token first 20 chars:', token.substring(0, 20));
-    console.log('🔵 Token last 20 chars:', token.substring(token.length - 20));
 
-    // ✅ Try to decode without verification first (for debugging)
-    try {
-      const decodedWithoutVerify = jwt.decode(token);
-      console.log('🔵 Decoded without verify:', decodedWithoutVerify ? JSON.stringify(decodedWithoutVerify, null, 2).substring(0, 200) : 'null');
-    } catch (decodeErr) {
-      console.log('🔵 Could not decode token:', decodeErr.message);
-    }
-
-    // ✅ Verify the token
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
       console.log('✅ Token verified successfully');
     } catch (verifyErr) {
       console.error('❌ JWT verification failed:', verifyErr.message);
-      console.error('❌ Token preview:', token.substring(0, 50) + '...');
       return {
         statusCode: 401,
         headers,
@@ -88,7 +74,6 @@ exports.handler = async function(event) {
     // ============================================================
     if (event.httpMethod === 'GET') {
       console.log('🔵 GET employees for business:', businessId);
-      console.log('🔵 Query URL:', `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&select=*&order=created_at.desc`);
 
       const response = await fetch(
         `${supabaseUrl}/rest/v1/employees?business_id=eq.${businessId}&select=*&order=created_at.desc`,
@@ -99,8 +84,6 @@ exports.handler = async function(event) {
           }
         }
       );
-
-      console.log('🔵 GET response status:', response.status);
 
       if (!response.ok) {
         const error = await response.text();
@@ -114,8 +97,6 @@ exports.handler = async function(event) {
 
       const data = await response.json();
       console.log('🔵 GET returned:', data.length, 'employees');
-      console.log('🔵 Employee IDs:', data.map(e => e.id));
-      console.log('🔵 Business IDs:', data.map(e => e.business_id));
 
       return {
         statusCode: 200,
@@ -129,7 +110,7 @@ exports.handler = async function(event) {
     // ============================================================
     if (event.httpMethod === 'POST') {
       const body = JSON.parse(event.body);
-      const { full_name, phone_number, role = 'EmployeeOverview' } = body;
+      let { full_name, phone_number, role = 'EmployeeOverview' } = body;
 
       console.log('🔵 POST employee:');
       console.log('🔵   - businessId from token:', businessId);
@@ -145,6 +126,18 @@ exports.handler = async function(event) {
         };
       }
 
+      // ✅ SIMPLIFIED: Clean phone number - only digits
+      const cleanPhone = phone_number.replace(/\D/g, '');
+      console.log('📱 Cleaned phone:', cleanPhone);
+
+      if (cleanPhone.length < 9) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Phone number must be at least 9 digits' })
+        };
+      }
+
       // Generate invitation token
       const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date();
@@ -153,7 +146,7 @@ exports.handler = async function(event) {
       const insertData = {
         business_id: businessId,
         full_name,
-        phone_number,
+        phone_number: cleanPhone, // ✅ Store as digits only
         role,
         status: 'Pending',
         invitation_token: invitationToken,
@@ -162,7 +155,6 @@ exports.handler = async function(event) {
       };
 
       console.log('🔵 Inserting data:', JSON.stringify(insertData, null, 2));
-      console.log('🔵 Insert URL:', `${supabaseUrl}/rest/v1/employees`);
 
       const insertResponse = await fetch(`${supabaseUrl}/rest/v1/employees`, {
         method: 'POST',
@@ -174,8 +166,6 @@ exports.handler = async function(event) {
         },
         body: JSON.stringify([insertData])
       });
-
-      console.log('🔵 Insert response status:', insertResponse.status);
 
       if (!insertResponse.ok) {
         const error = await insertResponse.text();
@@ -189,7 +179,6 @@ exports.handler = async function(event) {
 
       const data = await insertResponse.json();
       console.log('✅ Insert success!');
-      console.log('✅ Inserted employee:', JSON.stringify(data[0], null, 2));
 
       return {
         statusCode: 200,
@@ -225,7 +214,15 @@ exports.handler = async function(event) {
       if (status) updateData.status = status;
       if (role) updateData.role = role;
       if (full_name) updateData.full_name = full_name;
-      if (phone_number) updateData.phone_number = phone_number;
+      if (phone_number) {
+        // ✅ Clean phone if updating
+        const cleanPhone = phone_number.replace(/\D/g, '');
+        if (cleanPhone.length >= 9) {
+          updateData.phone_number = cleanPhone;
+        } else {
+          console.warn('⚠️ Phone number too short, skipping update');
+        }
+      }
 
       console.log('🔵 Update data:', JSON.stringify(updateData, null, 2));
 
@@ -309,9 +306,6 @@ exports.handler = async function(event) {
       };
     }
 
-    // ============================================================
-    // ✅ Method not allowed
-    // ============================================================
     console.log('❌ Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
