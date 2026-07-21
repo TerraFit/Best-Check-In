@@ -1,9 +1,11 @@
 // src/components/checkin/Step2_PersonalDetails.tsx
+// ✅ FIXED: Unterminated string literal
+
 import React from 'react';
 import { useTranslation } from '../../i18n';
 import { COUNTRIES, SETTLEMENT_METHODS } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
-import { cleanLocation, formatFullName } from '../../utils/checkinHelpers';
+import { cleanLocation } from '../../utils/checkinHelpers';
 
 interface Step2PersonalDetailsProps {
   formData: any;
@@ -64,10 +66,6 @@ export function Step2PersonalDetails({
       return;
     }
     onSubmit();
-  };
-
-  const handleBack = () => {
-    onBack();
   };
 
   return (
@@ -294,3 +292,54 @@ export function Step2PersonalDetails({
             <option value="TikTok">TikTok</option>
           </select>
           <ErrorMessage field="referral" message={t('error_referral_required')} />
+        </div>
+
+        {/* Next Destination */}
+        <div className="space-y-1 group col-span-full">
+          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+            {t('checkin_next_destination')} <span className="text-red-500">*</span>
+          </label>
+          <input 
+            required 
+            type="text" 
+            placeholder={t('checkin_next_destination_placeholder')}
+            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors uppercase ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
+            value={formData.nextDestination} 
+            onFocus={() => onTouched('nextDestination')}
+            onChange={e => onFormChange('nextDestination', cleanLocation(e.target.value))} 
+          />
+          <ErrorMessage field="nextDestination" message={t('error_next_destination_required')} />
+        </div>
+        
+        {/* Settlement Method */}
+        <div className="space-y-1 group col-span-full">
+          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
+            {t('checkin_settlement')} <span className="text-red-500">*</span>
+          </label>
+          <select 
+            required 
+            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('settlement', !!formData.settlement)}`}
+            value={formData.settlement} 
+            onFocus={() => onTouched('settlement')}
+            onChange={e => onFormChange('settlement', e.target.value)}
+          >
+            <option value="">{t('checkin_select_settlement')}</option>
+            {SETTLEMENT_METHODS.filter(m => formData.country === 'South Africa' || m !== 'Instant EFT (RSA resident only)').map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <ErrorMessage field="settlement" message={t('error_settlement_required')} />
+        </div>
+      </div>
+
+      <div className="mt-16 flex justify-between">
+        <button type="button" onClick={onBack} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">{t('common_back')}</button>
+        <button 
+          type="submit" 
+          className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
+          style={{ backgroundColor: secondaryColor }}
+        >
+          Continue to Dietary Options →
+        </button>
+      </div>
+    </form>
+  );
+}
