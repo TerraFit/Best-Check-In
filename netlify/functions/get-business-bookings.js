@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ COMPLETE REWRITE - With food restrictions properly joined
+// ✅ FIXED: Better error handling for food restrictions
 
 const jwt = require('jsonwebtoken');
 
@@ -107,63 +107,90 @@ exports.handler = async (event) => {
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
     // ============================================================
-    // ✅ FIX: Fetch food restrictions using the Supabase REST API
+    // ✅ SIMPLIFIED: Fetch food restrictions - no 'in' query issues
     // ============================================================
     if (bookings.length > 0) {
-      // Build a comma-separated list of booking IDs with quotes
-      // Format: 'id1','id2','id3'
-      const bookingIdList = bookings.map(b => `'${b.id}'`).join(',');
-      
       console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
-      console.log(`🔍 Booking IDs: ${bookingIdList}`);
       
-      // Fetch all food restrictions for these bookings
-      const restrictionsUrl = `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIdList})&select=*`;
-      console.log(`🔗 Restrictions URL: ${restrictionsUrl}`);
-      
-      const restrictionsResponse = await fetch(restrictionsUrl, {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      });
-
-      if (restrictionsResponse.ok) {
-        const restrictionsData = await restrictionsResponse.json();
-        console.log(`✅ Food restrictions fetched: ${restrictionsData.length}`);
-        
-        // Create a map of booking_id -> restrictions
-        const restrictionsMap = {};
-        restrictionsData.forEach(r => {
-          restrictionsMap[r.booking_id] = r;
-        });
-        
-        // Attach food_restrictions to each booking
-        bookings.forEach(booking => {
-          booking.food_restrictions = restrictionsMap[booking.id] || null;
-          if (booking.food_restrictions) {
-            const activeRestrictions = [];
-            if (booking.food_restrictions.vegetarian) activeRestrictions.push('Vegetarian');
-            if (booking.food_restrictions.vegan) activeRestrictions.push('Vegan');
-            if (booking.food_restrictions.pescatarian) activeRestrictions.push('Pescatarian');
-            if (booking.food_restrictions.halal) activeRestrictions.push('Halal');
-            if (booking.food_restrictions.kosher) activeRestrictions.push('Kosher');
-            if (booking.food_restrictions.gluten_free) activeRestrictions.push('Gluten-Free');
-            if (booking.food_restrictions.lactose_free) activeRestrictions.push('Lactose-Free');
-            if (booking.food_restrictions.nut_allergy) activeRestrictions.push('Nut Allergy');
-            if (booking.food_restrictions.seafood_allergy) activeRestrictions.push('Seafood Allergy');
-            if (booking.food_restrictions.diabetic) activeRestrictions.push('Diabetic');
-            if (booking.food_restrictions.no_pork) activeRestrictions.push('No Pork');
-            if (booking.food_restrictions.other && booking.food_restrictions.other_text) {
-              activeRestrictions.push(booking.food_restrictions.other_text);
-            } else if (booking.food_restrictions.other) {
-              activeRestrictions.push('Other');
+      try {
+        // First, check if the table exists by trying a simple query
+        const testResponse = await fetch(
+          `${supabaseUrl}/rest/v1/booking_food_restrictions?limit=1`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
             }
-            console.log(`🍽️ ${booking.guest_name}: ${activeRestrictions.join(', ') || 'None'}`);
           }
-        });
-      } else {
-        console.warn('⚠️ Could not fetch food restrictions');
+        );
+
+        if (!testResponse.ok) {
+          console.warn('⚠️ booking_food_restrictions table not found or inaccessible');
+          bookings.forEach(booking => {
+            booking.food_restrictions = null;
+          });
+        } else {
+          // Table exists - fetch all restrictions and filter in JavaScript
+          const restrictionsResponse = await fetch(
+            `${supabaseUrl}/rest/v1/booking_food_restrictions?select=*`,
+            {
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+              }
+            }
+          );
+
+          if (restrictionsResponse.ok) {
+            const allRestrictions = await restrictionsResponse.json();
+            console.log(`✅ Total food restrictions in DB: ${allRestrictions.length}`);
+            
+            // Create a set of booking IDs for O(1) lookup
+            const bookingIdSet = new Set(bookings.map(b => b.id));
+            
+            // Filter restrictions to only those matching our bookings
+            const matchingRestrictions = allRestrictions.filter(r => bookingIdSet.has(r.booking_id));
+            console.log(`✅ Matching food restrictions: ${matchingRestrictions.length}`);
+            
+            // Create a map of booking_id -> restrictions
+            const restrictionsMap = {};
+            matchingRestrictions.forEach(r => {
+              restrictionsMap[r.booking_id] = r;
+            });
+            
+            // Attach food_restrictions to each booking
+            bookings.forEach(booking => {
+              booking.food_restrictions = restrictionsMap[booking.id] || null;
+              if (booking.food_restrictions) {
+                const activeRestrictions = [];
+                if (booking.food_restrictions.vegetarian) activeRestrictions.push('Vegetarian');
+                if (booking.food_restrictions.vegan) activeRestrictions.push('Vegan');
+                if (booking.food_restrictions.pescatarian) activeRestrictions.push('Pescatarian');
+                if (booking.food_restrictions.halal) activeRestrictions.push('Halal');
+                if (booking.food_restrictions.kosher) activeRestrictions.push('Kosher');
+                if (booking.food_restrictions.gluten_free) activeRestrictions.push('Gluten-Free');
+                if (booking.food_restrictions.lactose_free) activeRestrictions.push('Lactose-Free');
+                if (booking.food_restrictions.nut_allergy) activeRestrictions.push('Nut Allergy');
+                if (booking.food_restrictions.seafood_allergy) activeRestrictions.push('Seafood Allergy');
+                if (booking.food_restrictions.diabetic) activeRestrictions.push('Diabetic');
+                if (booking.food_restrictions.no_pork) activeRestrictions.push('No Pork');
+                if (booking.food_restrictions.other && booking.food_restrictions.other_text) {
+                  activeRestrictions.push(booking.food_restrictions.other_text);
+                } else if (booking.food_restrictions.other) {
+                  activeRestrictions.push('Other');
+                }
+                console.log(`🍽️ ${booking.guest_name}: ${activeRestrictions.join(', ') || 'None'}`);
+              }
+            });
+          } else {
+            console.warn('⚠️ Could not fetch food restrictions');
+            bookings.forEach(booking => {
+              booking.food_restrictions = null;
+            });
+          }
+        }
+      } catch (err) {
+        console.error('❌ Error fetching food restrictions:', err.message);
         bookings.forEach(booking => {
           booking.food_restrictions = null;
         });
