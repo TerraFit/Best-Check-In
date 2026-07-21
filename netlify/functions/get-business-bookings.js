@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: CommonJS + food restrictions join
+// ✅ FIXED: Properly format booking IDs for Supabase 'in' query
 
 const jwt = require('jsonwebtoken');
 
@@ -72,7 +72,6 @@ exports.handler = async (event) => {
     const BOOKINGS_TABLE = 'bookings';
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ Include all fields needed
     const selectFields = `
       id,business_id,guest_name,guest_first_name,guest_last_name,
       guest_email,guest_phone,guest_id_number,
@@ -82,7 +81,6 @@ exports.handler = async (event) => {
       arriving_from,next_destination,created_at,updated_at
     `;
     
-    // Build the base URL
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
     if (startDate && endDate) {
@@ -113,10 +111,11 @@ exports.handler = async (event) => {
     // ✅ FIX: Fetch food restrictions for each booking
     // ============================================================
     if (bookings.length > 0) {
-      // Get all booking IDs
-      const bookingIds = bookings.map(b => `'${b.id}'`).join(',');
+      // ✅ FIX: Properly format booking IDs for Supabase 'in' query
+      const bookingIds = bookings.map(b => `"${b.id}"`).join(',');
       
       console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
+      console.log(`🔍 Booking IDs: ${bookingIds}`);
       
       // Fetch all food restrictions for these bookings
       const restrictionsResponse = await fetch(
@@ -142,6 +141,9 @@ exports.handler = async (event) => {
         // Attach food_restrictions to each booking
         bookings.forEach(booking => {
           booking.food_restrictions = restrictionsMap[booking.id] || null;
+          if (booking.food_restrictions) {
+            console.log(`🍽️ ${booking.guest_name} has restrictions:`, booking.food_restrictions);
+          }
         });
       } else {
         console.warn('⚠️ Could not fetch food restrictions');
