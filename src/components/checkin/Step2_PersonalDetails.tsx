@@ -293,4 +293,4 @@ export function Step2PersonalDetails({
             <option value="Research engine">{t('checkin_referral_research')}</option>
             <option value="TikTok">TikTok</option>
           </select>
-          <ErrorMessage field="referral" message={t('error
+          <ErrorMessage field="referral" message={t('error_referral_required')} />
