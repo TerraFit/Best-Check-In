@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: Properly format booking IDs for Supabase 'in' query
+// ✅ COMPLETE REWRITE - With food restrictions properly joined
 
 const jwt = require('jsonwebtoken');
 
@@ -49,7 +49,6 @@ exports.handler = async (event) => {
 
     const targetBusinessId = businessIdFromQuery || businessIdFromToken;
     
-    // Security check
     if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
       console.error(`❌ Security violation - business ID mismatch`);
       return createResponse(403, { success: false, error: 'Forbidden' });
@@ -108,25 +107,26 @@ exports.handler = async (event) => {
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
     // ============================================================
-    // ✅ FIX: Fetch food restrictions for each booking
+    // ✅ FIX: Fetch food restrictions using the Supabase REST API
     // ============================================================
     if (bookings.length > 0) {
-      // ✅ FIX: Properly format booking IDs for Supabase 'in' query
-      const bookingIds = bookings.map(b => `"${b.id}"`).join(',');
+      // Build a comma-separated list of booking IDs with quotes
+      // Format: 'id1','id2','id3'
+      const bookingIdList = bookings.map(b => `'${b.id}'`).join(',');
       
       console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
-      console.log(`🔍 Booking IDs: ${bookingIds}`);
+      console.log(`🔍 Booking IDs: ${bookingIdList}`);
       
       // Fetch all food restrictions for these bookings
-      const restrictionsResponse = await fetch(
-        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIds})&select=*`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
+      const restrictionsUrl = `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIdList})&select=*`;
+      console.log(`🔗 Restrictions URL: ${restrictionsUrl}`);
+      
+      const restrictionsResponse = await fetch(restrictionsUrl, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
         }
-      );
+      });
 
       if (restrictionsResponse.ok) {
         const restrictionsData = await restrictionsResponse.json();
@@ -142,7 +142,24 @@ exports.handler = async (event) => {
         bookings.forEach(booking => {
           booking.food_restrictions = restrictionsMap[booking.id] || null;
           if (booking.food_restrictions) {
-            console.log(`🍽️ ${booking.guest_name} has restrictions:`, booking.food_restrictions);
+            const activeRestrictions = [];
+            if (booking.food_restrictions.vegetarian) activeRestrictions.push('Vegetarian');
+            if (booking.food_restrictions.vegan) activeRestrictions.push('Vegan');
+            if (booking.food_restrictions.pescatarian) activeRestrictions.push('Pescatarian');
+            if (booking.food_restrictions.halal) activeRestrictions.push('Halal');
+            if (booking.food_restrictions.kosher) activeRestrictions.push('Kosher');
+            if (booking.food_restrictions.gluten_free) activeRestrictions.push('Gluten-Free');
+            if (booking.food_restrictions.lactose_free) activeRestrictions.push('Lactose-Free');
+            if (booking.food_restrictions.nut_allergy) activeRestrictions.push('Nut Allergy');
+            if (booking.food_restrictions.seafood_allergy) activeRestrictions.push('Seafood Allergy');
+            if (booking.food_restrictions.diabetic) activeRestrictions.push('Diabetic');
+            if (booking.food_restrictions.no_pork) activeRestrictions.push('No Pork');
+            if (booking.food_restrictions.other && booking.food_restrictions.other_text) {
+              activeRestrictions.push(booking.food_restrictions.other_text);
+            } else if (booking.food_restrictions.other) {
+              activeRestrictions.push('Other');
+            }
+            console.log(`🍽️ ${booking.guest_name}: ${activeRestrictions.join(', ') || 'None'}`);
           }
         });
       } else {
