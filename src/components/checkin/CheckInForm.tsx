@@ -12,6 +12,7 @@ import { Step5Success } from './Step5_Success';
 interface CheckInFormProps {
   onComplete: (booking: Booking, indemnityToken?: string) => void;
   businessId?: string;
+  resetOnMount?: boolean; // ✅ NEW: Reset form when mounted
 }
 
 // Error Message component for form validation
@@ -27,10 +28,10 @@ const ErrorMessage = ({ field, message }: { field: string; message: string }) =>
   );
 };
 
-export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInFormProps) {
+export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMount = false }: CheckInFormProps) {
   const { t } = useTranslation();
   
-  // Use the custom hook
+  // Use the custom hook with resetOnMount
   const {
     step,
     branding,
@@ -71,7 +72,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInF
     resetForm,
     updateFullName,
     getErrorClass,
-  } = useCheckIn({ businessId: propBusinessId || null, onComplete });
+  } = useCheckIn({ businessId: propBusinessId || null, onComplete, resetOnMount });
 
   // Refs for signature pad
   useEffect(() => {
