@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
+import { COUNTRIES } from '../../constants';  // ✅ IMPORT FROM CONSTANTS
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -30,15 +31,7 @@ export function Step2PersonalDetails({
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
-  const countries = [
-    { value: '', label: 'Select Country' },
-    { value: 'South Africa', label: 'South Africa' },
-    { value: 'Botswana', label: 'Botswana' },
-    { value: 'Namibia', label: 'Namibia' },
-    { value: 'Zimbabwe', label: 'Zimbabwe' },
-    { value: 'Mozambique', label: 'Mozambique' },
-    { value: 'Other', label: 'Other' },
-  ];
+  // ✅ REMOVED hardcoded countries array - using imported COUNTRIES from constants
 
   const provinces = [
     { value: '', label: 'Select Province' },
@@ -54,8 +47,9 @@ export function Step2PersonalDetails({
     { value: 'Other', label: 'Other' },
   ];
 
-  // ✅ UPDATED: Word of Mouth at top, no empty option
+  // ✅ COMBINED referral sources from both versions
   const referrals = [
+    { value: '', label: 'Select Referral Source' },
     { value: 'Word of Mouth', label: 'Word of Mouth' },
     { value: 'Booking.com', label: 'Booking.com' },
     { value: 'Airbnb', label: 'Airbnb' },
@@ -220,14 +214,16 @@ export function Step2PersonalDetails({
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Country *
               </label>
+              {/* ✅ FIXED: Using imported COUNTRIES from constants */}
               <select
                 value={formData.country || ''}
                 onChange={(e) => handleFieldChange('country', e.target.value)}
                 onBlur={() => onTouched('country')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('country', getValidation('country', formData.country))}`}
               >
-                {countries.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
+                <option value="">Select Country</option>
+                {COUNTRIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
               <ErrorMessage 
@@ -384,7 +380,7 @@ export function Step2PersonalDetails({
             </div>
           </div>
 
-          {/* Referral Source - UPDATED: Word of Mouth at top, no empty option */}
+          {/* Referral Source - COMBINED LIST */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Referral Source *
