@@ -240,6 +240,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInF
               onError={(errors) => alert(`${t('error_required_fields')}: ${errors.join(', ')}`)}
               getErrorClass={getErrorClass}
               ErrorMessage={ErrorMessage}
+              primaryColor={primaryColor}
               secondaryColor={secondaryColor}
             />
           )}
@@ -257,6 +258,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInF
               onContinue={handleDietaryContinue}
               onSave={handleRestrictionsSave}
               onBack={() => setStep(2)}
+              primaryColor={primaryColor}
             />
           )}
 
@@ -278,6 +280,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInF
               submitAttempted={submitAttempted}
               getErrorClass={getErrorClass}
               ErrorMessage={ErrorMessage}
+              primaryColor={primaryColor}
               onBack={() => {
                 if (hasDietaryRestrictions === true && showRestrictionsPanel) {
                   setShowRestrictionsPanel(false);
