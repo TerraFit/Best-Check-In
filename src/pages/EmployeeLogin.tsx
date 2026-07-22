@@ -1,5 +1,5 @@
 // src/pages/EmployeeLogin.tsx
-// ✅ SIMPLIFIED: National phone numbers only
+// ✅ FIXED: Handles phone number input properly
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -43,7 +43,7 @@ function EmployeeLogin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          phone_number: cleanPhone,
+          phone: cleanPhone,  // ✅ Send as 'phone' (the function handles both)
           password 
         })
       });
@@ -118,12 +118,15 @@ function EmployeeLogin() {
                   value={phone}
                   onChange={handlePhoneChange}
                   className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono tracking-widest"
-                  placeholder="0837789487"
+                  placeholder="e.g. 0837789487"
                   maxLength={10}
                 />
               </div>
               <p className="text-[10px] text-stone-400 mt-1">
-                Enter your phone number without spaces or international codes
+                Enter your phone number without spaces or country codes
+              </p>
+              <p className="text-[10px] text-amber-600 mt-1">
+                💡 Demo: Try 0837789487 (the employee listed above)
               </p>
             </div>
 
@@ -183,15 +186,6 @@ function EmployeeLogin() {
             >
               Return to Home
             </Link>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-stone-100">
-            <p className="text-[10px] text-stone-400 text-center">
-              <span className="block">💡 Demo Employee: 0837789487</span>
-              <span className="block text-[9px] text-stone-400 mt-0.5">
-                Password: the one you set during onboarding
-              </span>
-            </p>
           </div>
         </div>
       </div>
