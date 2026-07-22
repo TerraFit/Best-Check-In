@@ -209,26 +209,26 @@ export function CheckInForm({ onComplete, businessId: propBusinessId }: CheckInF
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
-          
-          {/* Step 1: Email Entry */}
-          {step === 1 && (
-            <Step1EmailEntry
-              email={formData.email}
-              onEmailChange={(email) => setFormData({ ...formData, email })}
-              saveDetails={formData.saveDetails}
-              onSaveDetailsChange={(saved) => setFormData({ ...formData, saveDetails: saved })}
-              popiaConsent={formData.popiaConsent}
-              onPopiaConsentChange={(consent) => setFormData({ ...formData, popiaConsent: consent })}
-              onSubmit={handleSubmit}
-              loading={loginLoading}
-              businessName={businessName}
-              businessSlogan={branding?.slogan}
-              businessLogo={branding?.logo_url}
-              heroImage={branding?.hero_image_url}
-              profileLoaded={profileLoaded}
-              profileSaveSuccess={profileSaveSuccess}
-            />
-          )}
+        
+{step === 1 && (
+  <Step1EmailEntry
+    email={formData.email}
+    onEmailChange={(email) => setFormData({ ...formData, email })}
+    saveDetails={formData.saveDetails}
+    onSaveDetailsChange={(saved) => setFormData({ ...formData, saveDetails: saved })}
+    popiaConsent={formData.popiaConsent}
+    onPopiaConsentChange={(consent) => setFormData({ ...formData, popiaConsent: consent })}
+    onSubmit={handleSubmit}
+    loading={loginLoading}
+    businessName={businessName}
+    businessSlogan={branding?.slogan}
+    businessLogo={branding?.logo_url}
+    heroImage={branding?.hero_image_url}
+    profileLoaded={profileLoaded}
+    profileSaveSuccess={profileSaveSuccess}
+    primaryColor={primaryColor} // ✅ PASS PRIMARY COLOR
+  />
+)}
 
           {/* Step 2: Personal Details */}
           {step === 2 && (
