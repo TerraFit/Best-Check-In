@@ -1,5 +1,5 @@
 // src/components/staff/GuestOverviewTab.tsx
-// Employee-focused guest overview with operational data
+// ✅ FIXED: Guest Details Modal with Food Restrictions
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ import {
   Bed, UserCheck, UserX, Printer
 } from 'lucide-react';
 
-// Import the Guest Details Modal
+// ✅ Import the Guest Details Modal
 import GuestDetailsModal from '../dashboard/GuestDetailsModal';
 
 interface GuestOverviewTabProps {
@@ -37,35 +37,44 @@ export function GuestOverviewTab({
 
   // ✅ Debug: Log when modal state changes
   useEffect(() => {
-    console.log('🔍 GuestOverviewTab: Modal state changed:', { isModalOpen, selectedBookingId });
-  }, [isModalOpen, selectedBookingId]);
+    console.log('🔍 GuestOverviewTab: Modal state:', { 
+      isModalOpen, 
+      selectedBookingId,
+      businessId 
+    });
+  }, [isModalOpen, selectedBookingId, businessId]);
 
   // Get all checked-in guests (for the list)
   const checkedInGuests = useMemo(() => {
-    return bookings.filter(b => 
-      b.status === 'checked_in' || b.status === 'Checked-In'
+    const checked = bookings.filter(b => 
+      b.status === 'checked_in' || b.status === 'Checked-In' || b.status === 'active'
     );
+    console.log('🔍 Checked-in guests:', checked.length);
+    return checked;
   }, [bookings]);
 
-  // ✅ Debug: Log when guests are available
-  useEffect(() => {
-    console.log('🔍 GuestOverviewTab: Checked-in guests:', checkedInGuests.length);
-    console.log('🔍 GuestOverviewTab: Today arrivals:', todayArrivals.length);
-    console.log('🔍 GuestOverviewTab: Today stayovers:', todayStayovers.length);
-    console.log('🔍 GuestOverviewTab: Today checkouts:', todayCheckouts.length);
-  }, [checkedInGuests, todayArrivals, todayStayovers, todayCheckouts]);
-
+  // ✅ Handle guest click - opens the modal
   const handleGuestClick = (bookingId: string) => {
     console.log('🖱️ Guest clicked, bookingId:', bookingId);
-    console.log('🖱️ businessId:', businessId);
+    console.log('🖱️ Business ID:', businessId);
+    
+    if (!bookingId) {
+      console.error('❌ No booking ID provided');
+      return;
+    }
+    
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
   };
 
+  // ✅ Handle modal close
   const handleModalClose = () => {
     console.log('❌ Closing modal');
     setIsModalOpen(false);
-    setSelectedBookingId(null);
+    // Clear the selected booking ID after a delay to prevent re-opening
+    setTimeout(() => {
+      setSelectedBookingId(null);
+    }, 300);
   };
 
   const handleNewCheckin = () => {
@@ -82,6 +91,18 @@ export function GuestOverviewTab({
   const hasDietaryRestrictions = (guest: any): boolean => {
     const restrictions = guest.food_restrictions || {};
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+  };
+
+  // ✅ Get dietary restrictions display text
+  const getDietaryDisplay = (guest: any): string => {
+    const restrictions = guest.food_restrictions || {};
+    const active = Object.entries(restrictions)
+      .filter(([key, val]) => val === true && key !== 'other_text')
+      .map(([key]) => key.replace('_', ' '));
+    
+    if (active.length === 0) return '';
+    if (active.length === 1) return active[0];
+    return `${active[0]} +${active.length - 1}`;
   };
 
   return (
@@ -266,6 +287,7 @@ export function GuestOverviewTab({
           ) : (
             checkedInGuests.map(guest => {
               const hasRestrictions = hasDietaryRestrictions(guest);
+              const dietaryDisplay = getDietaryDisplay(guest);
               
               return (
                 <div
@@ -291,16 +313,18 @@ export function GuestOverviewTab({
                   </div>
                   <div className="flex items-center gap-3">
                     {hasRestrictions && (
-                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" title={dietaryDisplay}>
                         <Utensils size={12} /> Dietary
                       </span>
                     )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      guest.status === 'checked_in' || guest.status === 'Checked-In'
+                      guest.status === 'checked_in' || guest.status === 'Checked-In' || guest.status === 'active'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-stone-100 text-stone-500'
                     }`}>
-                      {guest.status === 'checked_in' || guest.status === 'Checked-In' ? 'Checked In' : guest.status}
+                      {guest.status === 'checked_in' || guest.status === 'Checked-In' || guest.status === 'active' 
+                        ? 'Checked In' 
+                        : guest.status}
                     </span>
                     <ChevronRight size={16} className="text-stone-400" />
                   </div>
@@ -312,22 +336,15 @@ export function GuestOverviewTab({
       </div>
 
       {/* ============================================================
-          GUEST DETAILS MODAL - ✅ NOW WITH VISIBLE DEBUG
+          GUEST DETAILS MODAL - ✅ RENDERED CORRECTLY
           ============================================================ */}
-      <GuestDetailsModal
-        isOpen={isModalOpen}
-        bookingId={selectedBookingId}
-        onClose={handleModalClose}
-        businessId={businessId}
-      />
-
-      {/* ✅ DEBUG: Show modal state on screen (remove after testing) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-black/80 text-white text-xs p-3 rounded-lg z-50 font-mono max-w-xs">
-          <div>Modal Open: {isModalOpen ? '✅' : '❌'}</div>
-          <div>Booking ID: {selectedBookingId || 'null'}</div>
-          <div>Business ID: {businessId || 'null'}</div>
-        </div>
+      {isModalOpen && selectedBookingId && (
+        <GuestDetailsModal
+          isOpen={isModalOpen}
+          bookingId={selectedBookingId}
+          onClose={handleModalClose}
+          businessId={businessId}
+        />
       )}
     </div>
   );
