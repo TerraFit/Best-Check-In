@@ -9,7 +9,7 @@ import {
   BusinessBranding 
 } from '../types/checkin';
 import { Booking } from '../types';
-import { cleanLocation, formatFullName, parseFullName } from '../utils/checkinHelpers';
+import { formatFullName } from '../utils/checkinHelpers';
 
 interface UseCheckInProps {
   businessId: string | null;
@@ -19,8 +19,16 @@ interface UseCheckInProps {
 export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const { t } = useTranslation();
   
-  // State
-  const [step, setStep] = useState(1);
+  // Use useRef to track if this is the first render
+  const isInitialized = useRef(false);
+  
+  // State - using useRef to prevent re-initialization
+  const [step, setStep] = useState(() => {
+    // Try to restore from session storage
+    const savedStep = sessionStorage.getItem('checkin_step');
+    return savedStep ? parseInt(savedStep) : 1;
+  });
+  
   const [branding, setBranding] = useState<BusinessBranding | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingBranding, setLoadingBranding] = useState(!!businessId);
@@ -37,30 +45,40 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const [hasDietaryRestrictions, setHasDietaryRestrictions] = useState<boolean | null>(null);
   const [showRestrictionsPanel, setShowRestrictionsPanel] = useState(false);
   
-  // Form data
-  const [formData, setFormData] = useState<CheckInFormData>({
-    email: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
-    passportOrId: '',
-    country: '',
-    city: '',
-    province: '',
-    arrivingFrom: '',
-    nextDestination: '',
-    settlement: '',
-    arrivalDate: new Date().toISOString().split('T')[0],
-    departureDate: '',
-    nights: 1,
-    adults: 1,
-    kids: 0,
-    referral: '',
-    idPhoto: '',
-    signature: '',
-    acceptLegal: false,
-    popiaConsent: false,
-    saveDetails: false,
+  // Form data - restore from session storage if available
+  const [formData, setFormData] = useState<CheckInFormData>(() => {
+    const saved = sessionStorage.getItem('checkin_formData');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      email: '',
+      firstName: '',
+      lastName: '',
+      phone: '',
+      passportOrId: '',
+      country: '',
+      city: '',
+      province: '',
+      arrivingFrom: '',
+      nextDestination: '',
+      settlement: '',
+      arrivalDate: new Date().toISOString().split('T')[0],
+      departureDate: '',
+      nights: 1,
+      adults: 1,
+      kids: 0,
+      referral: '',
+      idPhoto: '',
+      signature: '',
+      acceptLegal: false,
+      popiaConsent: false,
+      saveDetails: false,
+    };
   });
 
   const [touched, setTouched] = useState<TouchedFields>({
@@ -89,6 +107,15 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Save state to session storage when it changes
+  useEffect(() => {
+    sessionStorage.setItem('checkin_step', String(step));
+  }, [step]);
+
+  useEffect(() => {
+    sessionStorage.setItem('checkin_formData', JSON.stringify(formData));
+  }, [formData]);
 
   // Log step changes for debugging
   useEffect(() => {
@@ -255,6 +282,7 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     e.preventDefault();
     e.stopPropagation();
     console.log('🔍 useCheckIn: handleSubmit called, current step:', step);
+    console.log('🔍 useCheckIn: formData', formData);
     
     if (loading) return;
 
@@ -450,6 +478,10 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
         food_restrictions: foodRestrictions
       };
 
+      // Clear session storage on success
+      sessionStorage.removeItem('checkin_step');
+      sessionStorage.removeItem('checkin_formData');
+      
       onComplete(newBooking, accessToken || undefined);
       setStep(5);
 
@@ -648,6 +680,9 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     setHasDietaryRestrictions(null);
     setFoodRestrictions(DEFAULT_RESTRICTIONS);
     setShowRestrictionsPanel(false);
+    // Clear session storage
+    sessionStorage.removeItem('checkin_step');
+    sessionStorage.removeItem('checkin_formData');
   };
 
   const getErrorClass = (field: keyof TouchedFields, validationPassed: boolean): string => {
