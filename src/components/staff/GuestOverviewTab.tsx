@@ -1,7 +1,7 @@
 // src/components/staff/GuestOverviewTab.tsx
 // Employee-focused guest overview with operational data
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, UserPlus, QrCode, Phone, 
@@ -35,6 +35,11 @@ export function GuestOverviewTab({
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // ✅ Debug: Log when modal state changes
+  useEffect(() => {
+    console.log('🔍 GuestOverviewTab: Modal state changed:', { isModalOpen, selectedBookingId });
+  }, [isModalOpen, selectedBookingId]);
+
   // Get all checked-in guests (for the list)
   const checkedInGuests = useMemo(() => {
     return bookings.filter(b => 
@@ -42,9 +47,25 @@ export function GuestOverviewTab({
     );
   }, [bookings]);
 
+  // ✅ Debug: Log when guests are available
+  useEffect(() => {
+    console.log('🔍 GuestOverviewTab: Checked-in guests:', checkedInGuests.length);
+    console.log('🔍 GuestOverviewTab: Today arrivals:', todayArrivals.length);
+    console.log('🔍 GuestOverviewTab: Today stayovers:', todayStayovers.length);
+    console.log('🔍 GuestOverviewTab: Today checkouts:', todayCheckouts.length);
+  }, [checkedInGuests, todayArrivals, todayStayovers, todayCheckouts]);
+
   const handleGuestClick = (bookingId: string) => {
+    console.log('🖱️ Guest clicked, bookingId:', bookingId);
+    console.log('🖱️ businessId:', businessId);
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    console.log('❌ Closing modal');
+    setIsModalOpen(false);
+    setSelectedBookingId(null);
   };
 
   const handleNewCheckin = () => {
@@ -55,6 +76,12 @@ export function GuestOverviewTab({
   const formatPhone = (phone: string) => {
     if (!phone) return 'N/A';
     return phone;
+  };
+
+  // ✅ Check if guest has dietary restrictions
+  const hasDietaryRestrictions = (guest: any): boolean => {
+    const restrictions = guest.food_restrictions || {};
+    return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
   return (
@@ -238,8 +265,7 @@ export function GuestOverviewTab({
             </div>
           ) : (
             checkedInGuests.map(guest => {
-              const hasRestrictions = guest.food_restrictions && 
-                Object.values(guest.food_restrictions).some(v => v === true);
+              const hasRestrictions = hasDietaryRestrictions(guest);
               
               return (
                 <div
@@ -286,17 +312,23 @@ export function GuestOverviewTab({
       </div>
 
       {/* ============================================================
-          GUEST DETAILS MODAL
+          GUEST DETAILS MODAL - ✅ NOW WITH VISIBLE DEBUG
           ============================================================ */}
       <GuestDetailsModal
         isOpen={isModalOpen}
         bookingId={selectedBookingId}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedBookingId(null);
-        }}
+        onClose={handleModalClose}
         businessId={businessId}
       />
+
+      {/* ✅ DEBUG: Show modal state on screen (remove after testing) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 left-4 bg-black/80 text-white text-xs p-3 rounded-lg z-50 font-mono max-w-xs">
+          <div>Modal Open: {isModalOpen ? '✅' : '❌'}</div>
+          <div>Booking ID: {selectedBookingId || 'null'}</div>
+          <div>Business ID: {businessId || 'null'}</div>
+        </div>
+      )}
     </div>
   );
 }
