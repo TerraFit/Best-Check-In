@@ -1,9 +1,5 @@
-// src/components/checkin/Step1_EmailEntry.tsx
-// ✅ FIXED: Button with proper styling
-
 import React from 'react';
 import { useTranslation } from '../../i18n';
-import { Logo } from '../Logo';
 
 interface Step1EmailEntryProps {
   email: string;
@@ -20,8 +16,7 @@ interface Step1EmailEntryProps {
   heroImage?: string;
   profileLoaded: boolean;
   profileSaveSuccess: boolean;
-  onProfileLoaded?: () => void;
-  primaryColor?: string;  // ✅ ADD THIS
+  primaryColor?: string;
 }
 
 export function Step1EmailEntry({
@@ -39,7 +34,7 @@ export function Step1EmailEntry({
   heroImage,
   profileLoaded,
   profileSaveSuccess,
-  primaryColor = '#f59e0b',  // ✅ DEFAULT COLOR
+  primaryColor = '#f59e0b',
 }: Step1EmailEntryProps) {
   const { t } = useTranslation();
 
@@ -67,6 +62,7 @@ export function Step1EmailEntry({
             className="w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 transition-colors text-xl font-serif"
             value={email}
             onChange={e => onEmailChange(e.target.value)}
+            placeholder="guest@example.com"
           />
           
           {profileLoaded && (
@@ -110,12 +106,13 @@ export function Step1EmailEntry({
         </div>
       </div>
       
+      {/* ✅ FastCheckin Orange Button with white text */}
       <button 
         type="button"
         onClick={onSubmit}
         disabled={loading}
         className="mt-16 text-white px-14 py-5 rounded-full font-bold hover:opacity-90 transition-all uppercase tracking-widest text-[10px] shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        style={{ backgroundColor: primaryColor }}  // ✅ FIXED: Using primaryColor
+        style={{ backgroundColor: primaryColor || '#f59e0b' }}
       >
         {loading ? (
           <>
