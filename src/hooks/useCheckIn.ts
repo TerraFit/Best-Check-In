@@ -19,12 +19,8 @@ interface UseCheckInProps {
 export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const { t } = useTranslation();
   
-  // Use useRef to track if this is the first render
-  const isInitialized = useRef(false);
-  
-  // State - using useRef to prevent re-initialization
+  // State
   const [step, setStep] = useState(() => {
-    // Try to restore from session storage
     const savedStep = sessionStorage.getItem('checkin_step');
     return savedStep ? parseInt(savedStep) : 1;
   });
@@ -45,12 +41,18 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const [hasDietaryRestrictions, setHasDietaryRestrictions] = useState<boolean | null>(null);
   const [showRestrictionsPanel, setShowRestrictionsPanel] = useState(false);
   
-  // Form data - restore from session storage if available
+  // Form data - with proper defaults
   const [formData, setFormData] = useState<CheckInFormData>(() => {
     const saved = sessionStorage.getItem('checkin_formData');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure country and province are properly set
+        return {
+          ...parsed,
+          country: parsed.country || '',
+          province: parsed.province || '',
+        };
       } catch {
         // ignore
       }
@@ -140,7 +142,7 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     }
   }, [businessId]);
 
-  // Load guest profile when email changes
+  // Load guest profile when email changes - FIXED for country/province
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -154,7 +156,10 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     if (!email || !email.includes('@')) return;
     
     try {
+      console.log('🔍 Loading guest profile for:', email);
       const result = await checkinService.getGuestProfile(email);
+      console.log('🔍 Guest profile result:', result);
+      
       if (result?.profile) {
         const profile = result.profile;
         let firstName = profile.first_name || '';
@@ -166,16 +171,32 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
           lastName = parts.slice(1).join(' ') || '';
         }
         
+        // FIXED: Properly set country and province with fallback values
+        const countryValue = profile.country || '';
+        const provinceValue = profile.province || '';
+        const cityValue = profile.city || '';
+        
+        console.log('🔍 Setting form data with:', {
+          firstName: firstName || formData.firstName,
+          lastName: lastName || formData.lastName,
+          phone: profile.phone || formData.phone,
+          passportOrId: profile.passport_or_id || formData.passportOrId,
+          country: countryValue,
+          province: provinceValue,
+          city: cityValue,
+        });
+        
         setFormData(prev => ({
           ...prev,
           firstName: firstName || prev.firstName,
           lastName: lastName || prev.lastName,
           phone: profile.phone || prev.phone,
           passportOrId: profile.passport_or_id || prev.passportOrId,
-          country: profile.country || prev.country,
-          city: profile.city || prev.city,
-          province: profile.province || prev.province,
+          country: countryValue || prev.country,
+          province: provinceValue || prev.province,
+          city: cityValue || prev.city,
         }));
+        
         setProfileLoaded(true);
         setTimeout(() => setProfileLoaded(false), 3000);
       }
@@ -322,7 +343,7 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
         return;
       }
       
-      // ✅ FIXED: Move to Step 3 (Dietary)
+      // Move to Step 3 (Dietary)
       console.log('🔍 useCheckIn: Moving from Step 2 to Step 3');
       setStep(3);
       return;
