@@ -1,5 +1,5 @@
 // netlify/functions/employee-login.js
-// ✅ SIMPLIFIED: National phone numbers only (no international formatting)
+// ✅ COMPLETE: Handles ALL phone number formats
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -64,22 +64,59 @@ exports.handler = async (event) => {
     }
 
     // ============================================================
-    // ✅ SIMPLIFIED: Remove spaces and special characters
-    // Only keep digits (0-9)
+    // ✅ GENERATE ALL POSSIBLE PHONE FORMATS FOR MATCHING
     // ============================================================
-    const cleanPhone = phone.replace(/\D/g, '');
-    console.log('📱 Cleaned phone (digits only):', cleanPhone);
+    
+    // Clean input: remove all non-digit characters
+    const cleanDigits = phone.replace(/\D/g, '');
+    console.log('📱 Cleaned digits:', cleanDigits);
 
-    if (cleanPhone.length < 9) {
-      console.error('❌ Phone number too short:', cleanPhone.length);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Phone number must be at least 9 digits' 
-        })
-      };
+    // Generate all possible variants
+    const variants = [];
+    
+    // 1. Input as-is (already cleaned)
+    variants.push(cleanDigits);
+    
+    // 2. If starts with 0, also try without 0 (international format without +)
+    if (cleanDigits.startsWith('0')) {
+      variants.push(cleanDigits.substring(1));
     }
+    
+    // 3. If doesn't start with 0, try with 0 (national format)
+    if (!cleanDigits.startsWith('0')) {
+      variants.push('0' + cleanDigits);
+    }
+    
+    // 4. If starts with 27, also try with 0 (for national format from international)
+    if (cleanDigits.startsWith('27')) {
+      const without27 = cleanDigits.substring(2);
+      variants.push(without27);
+      if (!without27.startsWith('0')) {
+        variants.push('0' + without27);
+      }
+    }
+    
+    // 5. If starts with 027, try without 027
+    if (cleanDigits.startsWith('027')) {
+      variants.push(cleanDigits.substring(3));
+    }
+    
+    // 6. Add +27 version
+    if (!cleanDigits.startsWith('27')) {
+      // Try to add +27
+      if (cleanDigits.length === 9) {
+        variants.push('27' + cleanDigits);
+        variants.push('+27' + cleanDigits);
+      } else if (cleanDigits.length === 10 && cleanDigits.startsWith('0')) {
+        const withoutZero = cleanDigits.substring(1);
+        variants.push('27' + withoutZero);
+        variants.push('+27' + withoutZero);
+      }
+    }
+    
+    // 7. Remove duplicates
+    const uniqueVariants = [...new Set(variants)];
+    console.log('📱 Phone variants to try:', uniqueVariants);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -94,12 +131,12 @@ exports.handler = async (event) => {
     }
 
     // ============================================================
-    // ✅ Store and compare phone numbers as clean digits only
+    // ✅ SEARCH FOR EMPLOYEE WITH ANY PHONE VARIANT
     // ============================================================
 
-    // 1. Try exact match on clean phone number
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/employees?phone_number=eq.${cleanPhone}&select=*`,
+    // Get all employees
+    const allResponse = await fetch(
+      `${supabaseUrl}/rest/v1/employees?select=*`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -109,8 +146,8 @@ exports.handler = async (event) => {
       }
     );
 
-    if (!response.ok) {
-      console.error('❌ Supabase error:', response.status);
+    if (!allResponse.ok) {
+      console.error('❌ Supabase error:', allResponse.status);
       return {
         statusCode: 500,
         headers,
@@ -118,50 +155,58 @@ exports.handler = async (event) => {
       };
     }
 
-    let employees = await response.json();
-    let employee = employees?.[0];
+    const allEmployees = await allResponse.json();
+    console.log(`📊 Found ${allEmployees?.length || 0} total employees`);
 
-    // 2. If not found, try cleaning all phone numbers in the database
-    if (!employee) {
-      console.log('🔍 No exact match, checking all employees...');
+    let employee = null;
+    let matchedVariant = null;
+
+    // Try each variant against stored phone numbers
+    for (const variant of uniqueVariants) {
+      // Clean the variant (just in case)
+      const cleanVariant = variant.replace(/\D/g, '');
       
-      const allResponse = await fetch(
-        `${supabaseUrl}/rest/v1/employees?select=*`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (!allResponse.ok) {
-        console.error('❌ Supabase error:', allResponse.status);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: 'Database error' })
-        };
-      }
-
-      const allEmployees = await allResponse.json();
+      console.log(`🔍 Trying variant: ${cleanVariant}`);
       
-      // Find employee by cleaning their stored phone number
+      // Try exact match on stored phone
       employee = allEmployees?.find(emp => {
-        const cleanedDbPhone = (emp.phone_number || '').replace(/\D/g, '');
-        return cleanedDbPhone === cleanPhone;
+        const storedPhone = emp.phone_number || '';
+        // Remove non-digits from stored phone
+        const storedClean = storedPhone.replace(/\D/g, '');
+        const matches = storedClean === cleanVariant;
+        if (matches) {
+          console.log(`✅ Match found: stored="${storedPhone}" vs variant="${cleanVariant}"`);
+        }
+        return matches;
       });
-
+      
       if (employee) {
-        console.log('✅ Found employee via cleaned match:', employee.full_name);
-        console.log('📱 Stored phone:', employee.phone_number);
-        console.log('📱 Cleaned match:', cleanPhone);
+        matchedVariant = cleanVariant;
+        break;
+      }
+    }
+
+    // If still not found, try contains match (for partial matches)
+    if (!employee) {
+      console.log('🔍 Trying partial match...');
+      
+      // Use the first variant (the most likely one)
+      const primaryVariant = uniqueVariants[0];
+      
+      employee = allEmployees?.find(emp => {
+        const storedPhone = emp.phone_number || '';
+        const storedClean = storedPhone.replace(/\D/g, '');
+        // Check if variant is contained in stored phone or vice versa
+        return storedClean.includes(primaryVariant) || primaryVariant.includes(storedClean);
+      });
+      
+      if (employee) {
+        console.log('✅ Found via partial match:', employee.full_name);
       }
     }
 
     if (!employee) {
-      console.log('❌ No employee found for phone:', cleanPhone);
+      console.log('❌ No employee found for phone variants:', uniqueVariants);
       return {
         statusCode: 401,
         headers,
@@ -170,7 +215,8 @@ exports.handler = async (event) => {
     }
 
     console.log('✅ Employee found:', employee.full_name);
-    console.log('📱 Phone:', employee.phone_number);
+    console.log('📱 Stored phone:', employee.phone_number);
+    console.log('📱 Matched variant:', matchedVariant);
     console.log('📊 Status:', employee.status);
 
     // Check if employee is active
