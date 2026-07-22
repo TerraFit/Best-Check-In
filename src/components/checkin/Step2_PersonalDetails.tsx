@@ -1,23 +1,17 @@
-// src/components/checkin/Step2_PersonalDetails.tsx
-// ✅ FIXED: Unterminated string literal
-
 import React from 'react';
-import { useTranslation } from '../../i18n';
-import { COUNTRIES, SETTLEMENT_METHODS } from '../../constants';
-import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
-import { cleanLocation } from '../../utils/checkinHelpers';
+import { CheckInFormData, TouchedFields } from '../../types/checkin';
 
 interface Step2PersonalDetailsProps {
-  formData: any;
+  formData: CheckInFormData;
   onFormChange: (field: string, value: any) => void;
-  touched: any;
-  onTouched: (field: string) => void;
+  touched: TouchedFields;
+  onTouched: (field: keyof TouchedFields) => void;
   submitAttempted: boolean;
   onBack: () => void;
-  onSubmit: () => void;
+  onSubmit: (e: React.FormEvent) => void;
   onError: (errors: string[]) => void;
-  getErrorClass: (field: string, isValid: boolean) => string;
-  ErrorMessage: React.FC<{ field: string; message: string }>;
+  getErrorClass: (field: keyof TouchedFields, validationPassed: boolean) => string;
+  ErrorMessage: any;
   secondaryColor?: string;
 }
 
@@ -29,317 +23,412 @@ export function Step2PersonalDetails({
   submitAttempted,
   onBack,
   onSubmit,
+  onError,
   getErrorClass,
   ErrorMessage,
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
-  const { t } = useTranslation();
+  const countries = [
+    { value: '', label: 'Select Country' },
+    { value: 'South Africa', label: 'South Africa' },
+    { value: 'Botswana', label: 'Botswana' },
+    { value: 'Namibia', label: 'Namibia' },
+    { value: 'Zimbabwe', label: 'Zimbabwe' },
+    { value: 'Mozambique', label: 'Mozambique' },
+    { value: 'Other', label: 'Other' },
+  ];
 
-  const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
-  const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Region';
+  const provinces = [
+    { value: '', label: 'Select Province' },
+    { value: 'Eastern Cape', label: 'Eastern Cape' },
+    { value: 'Free State', label: 'Free State' },
+    { value: 'Gauteng', label: 'Gauteng' },
+    { value: 'KwaZulu-Natal', label: 'KwaZulu-Natal' },
+    { value: 'Limpopo', label: 'Limpopo' },
+    { value: 'Mpumalanga', label: 'Mpumalanga' },
+    { value: 'Northern Cape', label: 'Northern Cape' },
+    { value: 'North West', label: 'North West' },
+    { value: 'Western Cape', label: 'Western Cape' },
+    { value: 'Other', label: 'Other' },
+  ];
 
-  const validateStep = (): string[] => {
-    const errors: string[] = [];
-    if (!formData.firstName.trim()) errors.push(t('checkin_first_name'));
-    if (!formData.lastName.trim()) errors.push(t('checkin_last_name'));
-    if (!formData.passportOrId.trim()) errors.push(t('checkin_passport'));
-    if (!formData.phone.trim()) errors.push(t('checkin_phone'));
-    if (!formData.country) errors.push(t('checkin_country'));
-    if (!formData.province) errors.push(regionTypeLabel);
-    if (!formData.city.trim()) errors.push(t('checkin_city'));
-    if (!formData.arrivingFrom.trim()) errors.push('Arriving From');
-    if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
-    if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
-    if (!formData.referral) errors.push(t('checkin_referral'));
-    if (!formData.nextDestination.trim()) errors.push(t('checkin_next_destination'));
-    if (!formData.settlement) errors.push(t('checkin_settlement'));
-    return errors;
-  };
+  const referrals = [
+    { value: '', label: 'Select Referral Source' },
+    { value: 'Booking.com', label: 'Booking.com' },
+    { value: 'Airbnb', label: 'Airbnb' },
+    { value: 'Agoda', label: 'Agoda' },
+    { value: 'Expedia', label: 'Expedia' },
+    { value: 'Google', label: 'Google' },
+    { value: 'Facebook', label: 'Facebook' },
+    { value: 'Instagram', label: 'Instagram' },
+    { value: 'Word of Mouth', label: 'Word of Mouth' },
+    { value: 'Walk-in', label: 'Walk-in' },
+    { value: 'Other', label: 'Other' },
+  ];
+
+  const settlements = [
+    { value: '', label: 'Select Settlement Method' },
+    { value: 'cash', label: 'Cash' },
+    { value: 'credit_card', label: 'Credit Card' },
+    { value: 'debit_card', label: 'Debit Card' },
+    { value: 'mobile_payment', label: 'Mobile Payment' },
+    { value: 'bank_transfer', label: 'Bank Transfer' },
+    { value: 'voucher', label: 'Voucher' },
+    { value: 'other', label: 'Other' },
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const errors = validateStep();
-    if (errors.length > 0) {
-      const fields = ['firstName', 'lastName', 'passportOrId', 'phone', 'country', 'province', 'city', 'arrivalDate', 'nights', 'referral', 'arrivingFrom', 'nextDestination', 'settlement'];
-      fields.forEach(f => onTouched(f));
-      onError(errors);
-      return;
+    e.stopPropagation();
+    console.log('Step2PersonalDetails: handleSubmit called');
+    console.log('Step2PersonalDetails: formData', formData);
+    onSubmit(e);
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    onFormChange(field, value);
+    if (field !== 'email') {
+      onTouched(field as keyof TouchedFields);
     }
-    onSubmit();
+  };
+
+  const getValidation = (field: keyof TouchedFields, value: any): boolean => {
+    if (field === 'firstName' || field === 'lastName' || field === 'city' || 
+        field === 'arrivingFrom' || field === 'nextDestination') {
+      return value && value.trim().length > 0;
+    }
+    if (field === 'phone') {
+      return value && value.trim().length >= 10;
+    }
+    if (field === 'passportOrId') {
+      return value && value.trim().length >= 3;
+    }
+    if (field === 'country' || field === 'province' || field === 'referral' || field === 'settlement') {
+      return value && value !== '';
+    }
+    if (field === 'arrivalDate') {
+      return value && value !== '';
+    }
+    if (field === 'nights') {
+      return value && value >= 1;
+    }
+    return true;
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-10 md:p-16 animate-fade-in flex-grow overflow-y-auto">
-      <div className="border-b border-stone-100 pb-8 mb-10">
-        <h2 className="text-3xl font-serif font-bold text-stone-900">{t('checkin_personal_details')}</h2>
-        <p className="text-stone-400 text-[10px] mt-2 uppercase tracking-[0.2em] font-bold">{t('checkin_immigration_act')}</p>
-        <p className="text-red-500 text-xs mt-2">* {t('error_all_required')}</p>
-      </div>
+    <div className="p-10 md:p-16 animate-fade-in">
+      <div className="max-w-3xl mx-auto">
+        <h2 className="text-2xl font-bold text-stone-900 mb-2">Personal Details</h2>
+        <p className="text-stone-500 mb-8">Please provide your personal information for check-in</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-        {/* First Name and Last Name */}
-        <div className="grid grid-cols-2 gap-6 col-span-full">
-          <div className="space-y-1 group">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-              {t('checkin_first_name')} <span className="text-red-500">*</span>
-            </label>
-            <input 
-              required 
-              type="text" 
-              className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('firstName', !!formData.firstName.trim())}`}
-              value={formData.firstName} 
-              onFocus={() => onTouched('firstName')}
-              onChange={e => onFormChange('firstName', e.target.value)} 
-            />
-            <ErrorMessage field="firstName" message={t('error_first_name_required')} />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Row: First Name + Last Name */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                First Name *
+              </label>
+              <input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => handleFieldChange('firstName', e.target.value)}
+                onBlur={() => onTouched('firstName')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('firstName', getValidation('firstName', formData.firstName))}`}
+                placeholder="John"
+              />
+              <ErrorMessage 
+                field="firstName" 
+                message={submitAttempted && touched.firstName && !getValidation('firstName', formData.firstName) ? 'First name is required' : ''} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Last Name *
+              </label>
+              <input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => handleFieldChange('lastName', e.target.value)}
+                onBlur={() => onTouched('lastName')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('lastName', getValidation('lastName', formData.lastName))}`}
+                placeholder="Doe"
+              />
+              <ErrorMessage 
+                field="lastName" 
+                message={submitAttempted && touched.lastName && !getValidation('lastName', formData.lastName) ? 'Last name is required' : ''} 
+              />
+            </div>
           </div>
-          
-          <div className="space-y-1 group">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-              {t('checkin_last_name')} <span className="text-red-500">*</span>
-            </label>
-            <input 
-              required 
-              type="text" 
-              className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('lastName', !!formData.lastName.trim())}`}
-              value={formData.lastName} 
-              onFocus={() => onTouched('lastName')}
-              onChange={e => onFormChange('lastName', e.target.value)} 
-            />
-            <ErrorMessage field="lastName" message={t('error_last_name_required')} />
+
+          {/* Row: Passport/ID + Phone */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Passport / ID Number *
+              </label>
+              <input
+                type="text"
+                value={formData.passportOrId}
+                onChange={(e) => handleFieldChange('passportOrId', e.target.value)}
+                onBlur={() => onTouched('passportOrId')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('passportOrId', getValidation('passportOrId', formData.passportOrId))}`}
+                placeholder="A1234567"
+              />
+              <ErrorMessage 
+                field="passportOrId" 
+                message={submitAttempted && touched.passportOrId && !getValidation('passportOrId', formData.passportOrId) ? 'Passport/ID is required' : ''} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Phone Number *
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => handleFieldChange('phone', e.target.value)}
+                onBlur={() => onTouched('phone')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('phone', getValidation('phone', formData.phone))}`}
+                placeholder="+27 82 123 4567"
+              />
+              <ErrorMessage 
+                field="phone" 
+                message={submitAttempted && touched.phone && !getValidation('phone', formData.phone) ? 'Valid phone number is required' : ''} 
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Passport/ID */}
-        <div className="space-y-1 group">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_passport')} <span className="text-red-500">*</span>
-          </label>
-          <input 
-            required 
-            type="text" 
-            className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-mono transition-colors ${getErrorClass('passportOrId', !!formData.passportOrId.trim())}`} 
-            value={formData.passportOrId} 
-            onFocus={() => onTouched('passportOrId')}
-            onChange={e => onFormChange('passportOrId', e.target.value)} 
-          />
-          <ErrorMessage field="passportOrId" message={t('error_passport_required')} />
-        </div>
-        
-        {/* Phone */}
-        <div className="space-y-1 group">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_phone')} <span className="text-red-500">*</span>
-          </label>
-          <input 
-            required 
-            type="tel" 
-            className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg transition-colors ${getErrorClass('phone', !!formData.phone.trim())}`} 
-            value={formData.phone} 
-            onFocus={() => onTouched('phone')}
-            onChange={e => onFormChange('phone', e.target.value)} 
-          />
-          <ErrorMessage field="phone" message={t('error_phone_required')} />
-        </div>
-        
-        {/* Country */}
-        <div className="space-y-1 group">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_country')} <span className="text-red-500">*</span>
-          </label>
-          <select 
-            required 
-            className={`w-full border-b py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('country', !!formData.country)}`}
-            value={formData.country} 
-            onFocus={() => onTouched('country')}
-            onChange={e => {
-              onFormChange('country', e.target.value);
-              onFormChange('province', '');
-            }}
-          >
-            <option value="">{t('checkin_select_country')}</option>
-            {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <ErrorMessage field="country" message={t('error_country_required')} />
-        </div>
+          {/* Row: Country + Province */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Country *
+              </label>
+              <select
+                value={formData.country}
+                onChange={(e) => handleFieldChange('country', e.target.value)}
+                onBlur={() => onTouched('country')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('country', getValidation('country', formData.country))}`}
+              >
+                {countries.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <ErrorMessage 
+                field="country" 
+                message={submitAttempted && touched.country && !getValidation('country', formData.country) ? 'Country is required' : ''} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Province *
+              </label>
+              <select
+                value={formData.province}
+                onChange={(e) => handleFieldChange('province', e.target.value)}
+                onBlur={() => onTouched('province')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
+              >
+                {provinces.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+              <ErrorMessage 
+                field="province" 
+                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? 'Province is required' : ''} 
+              />
+            </div>
+          </div>
 
-        {/* Province/Region */}
-        <div className={`space-y-1 group transition-all duration-300 ${formData.country ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {regionTypeLabel} <span className="text-red-500">*</span>
-          </label>
-          {availableRegions && availableRegions.length > 0 ? (
-            <select 
-              required 
-              className={`w-full border-b py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('province', !!formData.province)}`}
-              value={formData.province} 
-              onFocus={() => onTouched('province')}
-              onChange={e => onFormChange('province', e.target.value)}
-              disabled={!formData.country}
+          {/* City */}
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              City / Town *
+            </label>
+            <input
+              type="text"
+              value={formData.city}
+              onChange={(e) => handleFieldChange('city', e.target.value)}
+              onBlur={() => onTouched('city')}
+              className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('city', getValidation('city', formData.city))}`}
+              placeholder="Cape Town"
+            />
+            <ErrorMessage 
+              field="city" 
+              message={submitAttempted && touched.city && !getValidation('city', formData.city) ? 'City is required' : ''} 
+            />
+          </div>
+
+          {/* Arriving From + Next Destination */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Arriving From *
+              </label>
+              <input
+                type="text"
+                value={formData.arrivingFrom}
+                onChange={(e) => handleFieldChange('arrivingFrom', e.target.value)}
+                onBlur={() => onTouched('arrivingFrom')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
+                placeholder="Johannesburg"
+              />
+              <ErrorMessage 
+                field="arrivingFrom" 
+                message={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Arriving from is required' : ''} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Next Destination *
+              </label>
+              <input
+                type="text"
+                value={formData.nextDestination}
+                onChange={(e) => handleFieldChange('nextDestination', e.target.value)}
+                onBlur={() => onTouched('nextDestination')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
+                placeholder="Durban"
+              />
+              <ErrorMessage 
+                field="nextDestination" 
+                message={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Next destination is required' : ''} 
+              />
+            </div>
+          </div>
+
+          {/* Arrival Date + Nights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Arrival Date *
+              </label>
+              <input
+                type="date"
+                value={formData.arrivalDate}
+                onChange={(e) => handleFieldChange('arrivalDate', e.target.value)}
+                onBlur={() => onTouched('arrivalDate')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivalDate', getValidation('arrivalDate', formData.arrivalDate))}`}
+              />
+              <ErrorMessage 
+                field="arrivalDate" 
+                message={submitAttempted && touched.arrivalDate && !getValidation('arrivalDate', formData.arrivalDate) ? 'Arrival date is required' : ''} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Nights *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={formData.nights}
+                onChange={(e) => handleFieldChange('nights', parseInt(e.target.value) || 1)}
+                onBlur={() => onTouched('nights')}
+                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nights', getValidation('nights', formData.nights))}`}
+                placeholder="1"
+              />
+              <ErrorMessage 
+                field="nights" 
+                message={submitAttempted && touched.nights && !getValidation('nights', formData.nights) ? 'Nights must be at least 1' : ''} 
+              />
+            </div>
+          </div>
+
+          {/* Adults + Kids */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Adults
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={formData.adults}
+                onChange={(e) => handleFieldChange('adults', parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors"
+                placeholder="1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Kids
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                value={formData.kids}
+                onChange={(e) => handleFieldChange('kids', parseInt(e.target.value) || 0)}
+                className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors"
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          {/* Referral Source */}
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Referral Source *
+            </label>
+            <select
+              value={formData.referral}
+              onChange={(e) => handleFieldChange('referral', e.target.value)}
+              onBlur={() => onTouched('referral')}
+              className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('referral', getValidation('referral', formData.referral))}`}
             >
-              <option value="">{t('checkin_select_province')}</option>
-              {availableRegions.map(region => (
-                <option key={region} value={region}>{region}</option>
+              {referrals.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-          ) : (
-            <input 
-              required 
-              type="text" 
-              placeholder={`${t('checkin_enter_province')}`}
-              className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('province', !!formData.province)}`}
-              value={formData.province} 
-              onFocus={() => onTouched('province')}
-              onChange={e => onFormChange('province', e.target.value)} 
-              disabled={!formData.country}
+            <ErrorMessage 
+              field="referral" 
+              message={submitAttempted && touched.referral && !getValidation('referral', formData.referral) ? 'Referral source is required' : ''} 
             />
-          )}
-          <ErrorMessage field="province" message={`${regionTypeLabel} ${t('error_is_required')}`} />
-        </div>
-
-        {/* City */}
-        <div className="space-y-1 group">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_city')} <span className="text-red-500">*</span>
-          </label>
-          <input 
-            required 
-            type="text" 
-            className={`w-full border-b py-3 outline-none focus:border-stone-900 text-lg font-serif transition-colors ${getErrorClass('city', !!formData.city.trim())}`} 
-            value={formData.city} 
-            onFocus={() => onTouched('city')}
-            onChange={e => onFormChange('city', e.target.value)} 
-          />
-          <ErrorMessage field="city" message={t('error_city_required')} />
-        </div>
-
-        {/* Arriving From */}
-        <div className="space-y-1 group col-span-full">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            Arriving From <span className="text-red-500">*</span>
-          </label>
-          <input 
-            required 
-            type="text" 
-            placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
-            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors uppercase ${getErrorClass('arrivingFrom', !!formData.arrivingFrom.trim())}`}
-            value={formData.arrivingFrom} 
-            onFocus={() => onTouched('arrivingFrom')}
-            onChange={e => onFormChange('arrivingFrom', cleanLocation(e.target.value))} 
-          />
-          <p className="text-xs text-stone-400">🏨 Tell us the last city/town where you stayed before arriving here</p>
-          <ErrorMessage field="arrivingFrom" message="Please tell us your last location before arriving" />
-        </div>
-
-        {/* Stay Details */}
-        <div className="grid grid-cols-2 gap-8 col-span-full bg-stone-50 p-8 rounded-3xl border border-stone-200">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_adults')}</label>
-            <input required type="number" min="1" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.adults} onChange={e => onFormChange('adults', parseInt(e.target.value))} />
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_children')}</label>
-            <input required type="number" min="0" className="w-full bg-transparent border-b border-stone-300 py-2 font-bold" value={formData.kids} onChange={e => onFormChange('kids', parseInt(e.target.value))} />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_arrival_date')} <span className="text-red-500">*</span></label>
-            <input 
-              required 
-              type="date" 
-              className={`w-full bg-transparent border-b py-2 font-bold transition-colors ${getErrorClass('arrivalDate', !!formData.arrivalDate)}`}
-              value={formData.arrivalDate} 
-              onFocus={() => onTouched('arrivalDate')}
-              onChange={e => onFormChange('arrivalDate', e.target.value)} 
+
+          {/* Settlement Method */}
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Settlement Method *
+            </label>
+            <select
+              value={formData.settlement}
+              onChange={(e) => handleFieldChange('settlement', e.target.value)}
+              onBlur={() => onTouched('settlement')}
+              className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('settlement', getValidation('settlement', formData.settlement))}`}
+            >
+              {settlements.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <ErrorMessage 
+              field="settlement" 
+              message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? 'Settlement method is required' : ''} 
             />
-            <ErrorMessage field="arrivalDate" message={t('error_arrival_date_required')} />
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">{t('checkin_nights')} <span className="text-red-500">*</span></label>
-            <input 
-              required 
-              type="number" 
-              min="1" 
-              className={`w-full bg-transparent border-b py-2 font-bold transition-colors ${getErrorClass('nights', formData.nights >= 1)}`}
-              value={formData.nights} 
-              onFocus={() => onTouched('nights')}
-              onChange={e => onFormChange('nights', parseInt(e.target.value))} 
-            />
-            <ErrorMessage field="nights" message={t('error_nights_required')} />
+
+          {/* Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-stone-200">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
+            >
+              ← Back
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1"
+              style={{ backgroundColor: secondaryColor || '#1e1e1e' }}
+            >
+              Continue to Dietary Options →
+            </button>
           </div>
-        </div>
-
-        {/* Referral Source */}
-        <div className="space-y-1 group col-span-full">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_referral')} <span className="text-red-500">*</span>
-          </label>
-          <select 
-            required
-            value={formData.referral}
-            onFocus={() => onTouched('referral')}
-            onChange={e => onFormChange('referral', e.target.value)}
-            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('referral', !!formData.referral)}`}
-          >
-            <option value="">{t('checkin_select_referral')}</option>
-            <option value="Word of mouth">{t('checkin_referral_word_of_mouth')}</option>
-            <option value="Booking.com">Booking.com</option>
-            <option value="Google">Google</option>
-            <option value="Facebook / Instagram">Facebook / Instagram</option>
-            <option value="Travel Agency">{t('checkin_referral_travel_agency')}</option>
-            <option value="LinkedIn">LinkedIn</option>
-            <option value="YouTube">YouTube</option>
-            <option value="Research engine">{t('checkin_referral_research')}</option>
-            <option value="TikTok">TikTok</option>
-          </select>
-          <ErrorMessage field="referral" message={t('error_referral_required')} />
-        </div>
-
-        {/* Next Destination */}
-        <div className="space-y-1 group col-span-full">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_next_destination')} <span className="text-red-500">*</span>
-          </label>
-          <input 
-            required 
-            type="text" 
-            placeholder={t('checkin_next_destination_placeholder')}
-            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 text-lg italic transition-colors uppercase ${getErrorClass('nextDestination', !!formData.nextDestination.trim())}`}
-            value={formData.nextDestination} 
-            onFocus={() => onTouched('nextDestination')}
-            onChange={e => onFormChange('nextDestination', cleanLocation(e.target.value))} 
-          />
-          <ErrorMessage field="nextDestination" message={t('error_next_destination_required')} />
-        </div>
-        
-        {/* Settlement Method */}
-        <div className="space-y-1 group col-span-full">
-          <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest transition-colors group-focus-within:text-stone-900">
-            {t('checkin_settlement')} <span className="text-red-500">*</span>
-          </label>
-          <select 
-            required 
-            className={`w-full border-b border-stone-200 py-3 outline-none focus:border-stone-900 bg-transparent text-lg transition-colors ${getErrorClass('settlement', !!formData.settlement)}`}
-            value={formData.settlement} 
-            onFocus={() => onTouched('settlement')}
-            onChange={e => onFormChange('settlement', e.target.value)}
-          >
-            <option value="">{t('checkin_select_settlement')}</option>
-            {SETTLEMENT_METHODS.filter(m => formData.country === 'South Africa' || m !== 'Instant EFT (RSA resident only)').map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <ErrorMessage field="settlement" message={t('error_settlement_required')} />
-        </div>
+        </form>
       </div>
-
-      <div className="mt-16 flex justify-between">
-        <button type="button" onClick={onBack} className="text-stone-400 font-bold hover:text-stone-800 uppercase text-[10px] tracking-widest">{t('common_back')}</button>
-        <button 
-          type="submit" 
-          className="text-white px-12 py-5 rounded-full font-bold hover:opacity-90 transition-all shadow-xl text-[10px] uppercase tracking-widest"
-          style={{ backgroundColor: secondaryColor }}
-        >
-          Continue to Dietary Options →
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
