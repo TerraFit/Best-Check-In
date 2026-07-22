@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { Booking } from '../../types';
 import { useCheckIn } from '../../hooks/useCheckIn';
