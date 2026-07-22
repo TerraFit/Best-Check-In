@@ -12,6 +12,7 @@ interface Step2PersonalDetailsProps {
   onError: (errors: string[]) => void;
   getErrorClass: (field: keyof TouchedFields, validationPassed: boolean) => string;
   ErrorMessage: React.ComponentType<{ field: string; message: string }>;
+  primaryColor?: string;
   secondaryColor?: string;
 }
 
@@ -26,6 +27,7 @@ export function Step2PersonalDetails({
   onError,
   getErrorClass,
   ErrorMessage,
+  primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
   const countries = [
@@ -52,16 +54,20 @@ export function Step2PersonalDetails({
     { value: 'Other', label: 'Other' },
   ];
 
+  // ✅ UPDATED: Word of Mouth at top, no empty option
   const referrals = [
-    { value: '', label: 'Select Referral Source' },
+    { value: 'Word of Mouth', label: 'Word of Mouth' },
     { value: 'Booking.com', label: 'Booking.com' },
     { value: 'Airbnb', label: 'Airbnb' },
     { value: 'Agoda', label: 'Agoda' },
     { value: 'Expedia', label: 'Expedia' },
     { value: 'Google', label: 'Google' },
-    { value: 'Facebook', label: 'Facebook' },
-    { value: 'Instagram', label: 'Instagram' },
-    { value: 'Word of Mouth', label: 'Word of Mouth' },
+    { value: 'Facebook / Instagram', label: 'Facebook / Instagram' },
+    { value: 'Travel Agency', label: 'Travel Agency' },
+    { value: 'LinkedIn', label: 'LinkedIn' },
+    { value: 'YouTube', label: 'YouTube' },
+    { value: 'Research Engine', label: 'Research Engine' },
+    { value: 'TikTok', label: 'TikTok' },
     { value: 'Walk-in', label: 'Walk-in' },
     { value: 'Other', label: 'Other' },
   ];
@@ -86,6 +92,7 @@ export function Step2PersonalDetails({
   };
 
   const handleFieldChange = (field: string, value: any) => {
+    console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
     onFormChange(field, value);
     if (field !== 'email') {
       onTouched(field as keyof TouchedFields);
@@ -115,6 +122,15 @@ export function Step2PersonalDetails({
     return true;
   };
 
+  // Debug: Log formData changes
+  React.useEffect(() => {
+    console.log('🔍 Step2PersonalDetails: formData updated', {
+      country: formData.country,
+      province: formData.province,
+      city: formData.city,
+    });
+  }, [formData.country, formData.province, formData.city]);
+
   return (
     <div className="p-10 md:p-16 animate-fade-in">
       <div className="max-w-3xl mx-auto">
@@ -130,7 +146,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="text"
-                value={formData.firstName}
+                value={formData.firstName || ''}
                 onChange={(e) => handleFieldChange('firstName', e.target.value)}
                 onBlur={() => onTouched('firstName')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('firstName', getValidation('firstName', formData.firstName))}`}
@@ -147,7 +163,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="text"
-                value={formData.lastName}
+                value={formData.lastName || ''}
                 onChange={(e) => handleFieldChange('lastName', e.target.value)}
                 onBlur={() => onTouched('lastName')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('lastName', getValidation('lastName', formData.lastName))}`}
@@ -168,7 +184,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="text"
-                value={formData.passportOrId}
+                value={formData.passportOrId || ''}
                 onChange={(e) => handleFieldChange('passportOrId', e.target.value)}
                 onBlur={() => onTouched('passportOrId')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('passportOrId', getValidation('passportOrId', formData.passportOrId))}`}
@@ -185,7 +201,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="tel"
-                value={formData.phone}
+                value={formData.phone || ''}
                 onChange={(e) => handleFieldChange('phone', e.target.value)}
                 onBlur={() => onTouched('phone')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('phone', getValidation('phone', formData.phone))}`}
@@ -205,7 +221,7 @@ export function Step2PersonalDetails({
                 Country *
               </label>
               <select
-                value={formData.country}
+                value={formData.country || ''}
                 onChange={(e) => handleFieldChange('country', e.target.value)}
                 onBlur={() => onTouched('country')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('country', getValidation('country', formData.country))}`}
@@ -224,7 +240,7 @@ export function Step2PersonalDetails({
                 Province *
               </label>
               <select
-                value={formData.province}
+                value={formData.province || ''}
                 onChange={(e) => handleFieldChange('province', e.target.value)}
                 onBlur={() => onTouched('province')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
@@ -247,7 +263,7 @@ export function Step2PersonalDetails({
             </label>
             <input
               type="text"
-              value={formData.city}
+              value={formData.city || ''}
               onChange={(e) => handleFieldChange('city', e.target.value)}
               onBlur={() => onTouched('city')}
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('city', getValidation('city', formData.city))}`}
@@ -267,7 +283,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="text"
-                value={formData.arrivingFrom}
+                value={formData.arrivingFrom || ''}
                 onChange={(e) => handleFieldChange('arrivingFrom', e.target.value)}
                 onBlur={() => onTouched('arrivingFrom')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
@@ -284,7 +300,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="text"
-                value={formData.nextDestination}
+                value={formData.nextDestination || ''}
                 onChange={(e) => handleFieldChange('nextDestination', e.target.value)}
                 onBlur={() => onTouched('nextDestination')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
@@ -305,7 +321,7 @@ export function Step2PersonalDetails({
               </label>
               <input
                 type="date"
-                value={formData.arrivalDate}
+                value={formData.arrivalDate || ''}
                 onChange={(e) => handleFieldChange('arrivalDate', e.target.value)}
                 onBlur={() => onTouched('arrivalDate')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivalDate', getValidation('arrivalDate', formData.arrivalDate))}`}
@@ -323,7 +339,7 @@ export function Step2PersonalDetails({
                 type="number"
                 min="1"
                 max="365"
-                value={formData.nights}
+                value={formData.nights || 1}
                 onChange={(e) => handleFieldChange('nights', parseInt(e.target.value) || 1)}
                 onBlur={() => onTouched('nights')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nights', getValidation('nights', formData.nights))}`}
@@ -346,7 +362,7 @@ export function Step2PersonalDetails({
                 type="number"
                 min="1"
                 max="20"
-                value={formData.adults}
+                value={formData.adults || 1}
                 onChange={(e) => handleFieldChange('adults', parseInt(e.target.value) || 1)}
                 className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors"
                 placeholder="1"
@@ -360,7 +376,7 @@ export function Step2PersonalDetails({
                 type="number"
                 min="0"
                 max="10"
-                value={formData.kids}
+                value={formData.kids || 0}
                 onChange={(e) => handleFieldChange('kids', parseInt(e.target.value) || 0)}
                 className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors"
                 placeholder="0"
@@ -368,13 +384,13 @@ export function Step2PersonalDetails({
             </div>
           </div>
 
-          {/* Referral Source */}
+          {/* Referral Source - UPDATED: Word of Mouth at top, no empty option */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Referral Source *
             </label>
             <select
-              value={formData.referral}
+              value={formData.referral || ''}
               onChange={(e) => handleFieldChange('referral', e.target.value)}
               onBlur={() => onTouched('referral')}
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('referral', getValidation('referral', formData.referral))}`}
@@ -395,7 +411,7 @@ export function Step2PersonalDetails({
               Settlement Method *
             </label>
             <select
-              value={formData.settlement}
+              value={formData.settlement || ''}
               onChange={(e) => handleFieldChange('settlement', e.target.value)}
               onBlur={() => onTouched('settlement')}
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('settlement', getValidation('settlement', formData.settlement))}`}
@@ -410,7 +426,7 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* Buttons */}
+          {/* Buttons - FastCheckin Orange */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-stone-200">
             <button
               type="button"
@@ -422,7 +438,7 @@ export function Step2PersonalDetails({
             <button
               type="submit"
               className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
-              style={{ backgroundColor: secondaryColor || '#1e1e1e' }}
+              style={{ backgroundColor: primaryColor || '#f59e0b' }}
             >
               Continue to Dietary Options →
             </button>
