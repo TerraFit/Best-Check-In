@@ -1,6 +1,3 @@
-// src/App.tsx
-// ✅ Complete with Employee Dashboard route
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -26,7 +23,7 @@ import IndemnityView from './pages/IndemnityView';
 import { LanguageSelector } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
-import EmployeeDashboard from './pages/EmployeeDashboard'; // ✅ ADD THIS
+import EmployeeDashboard from './pages/EmployeeDashboard';
 
 function UnauthorizedPage() {
   return (
@@ -73,7 +70,7 @@ function AppContent() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/set-password/:token" element={<SetPassword />} />
         
-        {/* Check-in Routes */}
+        {/* ✅ Check-in Routes - ALWAYS start fresh */}
         <Route path="/checkin" element={<CheckInApp />} />
         <Route path="/checkin/:businessId" element={<CheckInApp />} />
         
