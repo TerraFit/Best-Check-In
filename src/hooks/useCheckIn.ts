@@ -14,13 +14,18 @@ import { formatFullName } from '../utils/checkinHelpers';
 interface UseCheckInProps {
   businessId: string | null;
   onComplete: (booking: Booking, token?: string) => void;
+  resetOnMount?: boolean; // ✅ NEW: Option to reset on mount
 }
 
-export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
+export function useCheckIn({ businessId, onComplete, resetOnMount = false }: UseCheckInProps) {
   const { t } = useTranslation();
   
   // State
   const [step, setStep] = useState(() => {
+    // ✅ If resetOnMount is true, always start at step 1
+    if (resetOnMount) {
+      return 1;
+    }
     const savedStep = sessionStorage.getItem('checkin_step');
     return savedStep ? parseInt(savedStep) : 1;
   });
@@ -43,11 +48,37 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   
   // Form data - with proper defaults
   const [formData, setFormData] = useState<CheckInFormData>(() => {
+    // ✅ If resetOnMount is true, use empty defaults
+    if (resetOnMount) {
+      return {
+        email: '',
+        firstName: '',
+        lastName: '',
+        phone: '',
+        passportOrId: '',
+        country: '',
+        city: '',
+        province: '',
+        arrivingFrom: '',
+        nextDestination: '',
+        settlement: '',
+        arrivalDate: new Date().toISOString().split('T')[0],
+        departureDate: '',
+        nights: 1,
+        adults: 1,
+        kids: 0,
+        referral: '',
+        idPhoto: '',
+        signature: '',
+        acceptLegal: false,
+        popiaConsent: false,
+        saveDetails: false,
+      };
+    }
     const saved = sessionStorage.getItem('checkin_formData');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Ensure country and province are properly set
         return {
           ...parsed,
           country: parsed.country || '',
@@ -83,6 +114,14 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     };
   });
 
+  // ✅ Clear session storage on mount if resetOnMount is true
+  useEffect(() => {
+    if (resetOnMount) {
+      sessionStorage.removeItem('checkin_step');
+      sessionStorage.removeItem('checkin_formData');
+    }
+  }, [resetOnMount]);
+
   const [touched, setTouched] = useState<TouchedFields>({
     firstName: false,
     lastName: false,
@@ -110,14 +149,18 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // Save state to session storage when it changes
+  // Save state to session storage when it changes (only if not resetting)
   useEffect(() => {
-    sessionStorage.setItem('checkin_step', String(step));
-  }, [step]);
+    if (!resetOnMount) {
+      sessionStorage.setItem('checkin_step', String(step));
+    }
+  }, [step, resetOnMount]);
 
   useEffect(() => {
-    sessionStorage.setItem('checkin_formData', JSON.stringify(formData));
-  }, [formData]);
+    if (!resetOnMount) {
+      sessionStorage.setItem('checkin_formData', JSON.stringify(formData));
+    }
+  }, [formData, resetOnMount]);
 
   // Log step changes for debugging
   useEffect(() => {
@@ -142,7 +185,7 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     }
   }, [businessId]);
 
-  // Load guest profile when email changes - FIXED for country/province
+  // Load guest profile when email changes
   useEffect(() => {
     const timer = setTimeout(() => {
       if (formData.email && formData.email.includes('@')) {
@@ -171,7 +214,6 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
           lastName = parts.slice(1).join(' ') || '';
         }
         
-        // FIXED: Properly set country and province with fallback values
         const countryValue = profile.country || '';
         const provinceValue = profile.province || '';
         const cityValue = profile.city || '';
