@@ -1,7 +1,8 @@
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
-import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';  // ✅ ADD THIS
+import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
+import { cleanLocation } from '../../services/locationIntelligenceService'; // ✅ ADD THIS
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -89,6 +90,11 @@ export function Step2PersonalDetails({
   };
 
   const handleFieldChange = (field: string, value: any) => {
+    // ✅ Apply cleanLocation to arrivingFrom and nextDestination
+    if (field === 'arrivingFrom' || field === 'nextDestination') {
+      value = cleanLocation(value);
+    }
+    
     console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
     onFormChange(field, value);
     if (field !== 'email') {
@@ -292,23 +298,30 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* Arriving From + Next Destination */}
+          {/* ✅ HYBRID: Arriving From + Next Destination (cleanLocation applied) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Arriving From *
               </label>
               <input
-                type="text"
-                value={formData.arrivingFrom || ''}
-                onChange={(e) => handleFieldChange('arrivingFrom', e.target.value)}
-                onBlur={() => onTouched('arrivingFrom')}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
-                placeholder="Johannesburg"
+                required 
+                type="text" 
+                placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
+                className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
+                value={formData.arrivingFrom} 
+                onFocus={() => onTouched('arrivingFrom')}
+                onChange={(e) => {
+                  const cleaned = cleanLocation(e.target.value);
+                  handleFieldChange('arrivingFrom', cleaned);
+                }}
               />
+              <p className="text-xs text-stone-400 mt-1">
+                🏨 Tell us the last city/town where you stayed before arriving here
+              </p>
               <ErrorMessage 
                 field="arrivingFrom" 
-                message={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Arriving from is required' : ''} 
+                message={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Please tell us your last location before arriving' : ''} 
               />
             </div>
             <div>
@@ -316,16 +329,23 @@ export function Step2PersonalDetails({
                 Next Destination *
               </label>
               <input
-                type="text"
-                value={formData.nextDestination || ''}
-                onChange={(e) => handleFieldChange('nextDestination', e.target.value)}
-                onBlur={() => onTouched('nextDestination')}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
-                placeholder="Durban"
+                required 
+                type="text" 
+                placeholder="Where are you heading after your stay? (e.g., Johannesburg, Cape Town, Gaborone)"
+                className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
+                value={formData.nextDestination} 
+                onFocus={() => onTouched('nextDestination')}
+                onChange={(e) => {
+                  const cleaned = cleanLocation(e.target.value);
+                  handleFieldChange('nextDestination', cleaned);
+                }}
               />
+              <p className="text-xs text-stone-400 mt-1">
+                🚗 Tell us where you're headed after your stay with us
+              </p>
               <ErrorMessage 
                 field="nextDestination" 
-                message={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Next destination is required' : ''} 
+                message={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Please tell us your next destination' : ''} 
               />
             </div>
           </div>
