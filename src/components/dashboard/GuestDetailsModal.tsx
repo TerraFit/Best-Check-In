@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ Full Guest Details Modal with Food Restrictions + Next Destination
+// ✅ Complete Guest Details Modal with Food Restrictions
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -74,17 +74,24 @@ export default function GuestDetailsModal({
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load guest details when modal opens
+  // ✅ Debug: Log when modal opens
   useEffect(() => {
+    console.log('🔍 GuestDetailsModal: isOpen changed to:', isOpen);
+    console.log('🔍 GuestDetailsModal: bookingId:', bookingId);
+    console.log('🔍 GuestDetailsModal: businessId:', businessId);
+    
     if (isOpen && bookingId) {
+      console.log('🔍 GuestDetailsModal: Fetching guest details for:', bookingId);
       fetchGuestDetails(bookingId);
     }
-  }, [isOpen, bookingId, fetchGuestDetails]);
+  }, [isOpen, bookingId, businessId, fetchGuestDetails]);
 
   // Initialize restrictions when guest details load
   useEffect(() => {
     if (guestDetails?.food_restrictions) {
+      console.log('🔍 GuestDetailsModal: Setting restrictions:', guestDetails.food_restrictions);
       setRestrictions(guestDetails.food_restrictions);
       setHasUnsavedChanges(false);
     }
@@ -135,36 +142,50 @@ export default function GuestDetailsModal({
     });
     setHasUnsavedChanges(true);
     setSaveSuccess(false);
+    setError(null);
   }, []);
 
   const handleOtherTextChange = useCallback((text: string) => {
     setRestrictions(prev => ({ ...prev, other_text: text }));
     setHasUnsavedChanges(true);
     setSaveSuccess(false);
+    setError(null);
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!bookingId) return;
+    if (!bookingId) {
+      console.error('❌ No booking ID to save');
+      return;
+    }
+    
+    console.log('💾 Saving restrictions for booking:', bookingId);
+    console.log('💾 Restrictions:', restrictions);
     
     setSaving(true);
     setSaveSuccess(false);
+    setError(null);
     
     try {
       await updateFoodRestrictions(bookingId, restrictions);
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
+      console.log('✅ Restrictions saved successfully');
       
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
-    } catch (error) {
-      console.error('Failed to save restrictions:', error);
+    } catch (err) {
+      console.error('❌ Failed to save restrictions:', err);
+      setError('Failed to save food restrictions. Please try again.');
     } finally {
       setSaving(false);
     }
   }, [bookingId, restrictions, updateFoodRestrictions]);
 
   if (!isOpen) return null;
+
+  // ✅ Debug: Log before rendering
+  console.log('🔍 GuestDetailsModal: Rendering modal, guestDetails:', guestDetails);
 
   return (
     <>
@@ -393,6 +414,12 @@ export default function GuestDetailsModal({
                       {saveSuccess && (
                         <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                           <Check size={14} /> Saved
+                        </span>
+                      )}
+                      
+                      {error && (
+                        <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+                          <AlertCircle size={14} /> Error
                         </span>
                       )}
                       
