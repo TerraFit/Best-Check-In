@@ -1,6 +1,3 @@
-// src/hooks/useCheckIn.ts
-// ✅ COMPLETE - All check-in logic
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
 import { checkinService } from '../services/checkinService';
@@ -92,6 +89,11 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Log step changes for debugging
+  useEffect(() => {
+    console.log('🔍 useCheckIn: step changed to', step);
+  }, [step]);
 
   // Load business branding
   useEffect(() => {
@@ -249,73 +251,81 @@ export function useCheckIn({ businessId, onComplete }: UseCheckInProps) {
     setStep(4);
   };
 
-  // src/hooks/useCheckIn.ts
-// ✅ FIXED handleSubmit function
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🔍 useCheckIn: handleSubmit called, current step:', step);
+    
+    if (loading) return;
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (loading) return;
-
-  // Step 1: Email
-  if (step === 1) {
-    setLoginLoading(true);
-    // Validate email
-    if (!formData.email || !formData.email.includes('@')) {
-      alert('Please enter a valid email address.');
-      setLoginLoading(false);
-      return;
-    }
-    setTimeout(() => {
-      setLoginLoading(false);
-      setStep(2); // ✅ Move to Step 2
-    }, 500);
-    return;
-  }
-
-  // Step 2: Personal Details
-  if (step === 2) {
-    const errors = validateStep2();
-    if (errors.length > 0) {
-      setSubmitAttempted(true);
-      const allFields: (keyof TouchedFields)[] = [
-        'firstName', 'lastName', 'passportOrId', 'phone', 'country',
-        'province', 'city', 'arrivalDate', 'nights', 'referral',
-        'arrivingFrom', 'nextDestination', 'settlement'
-      ];
-      allFields.forEach(field => markTouched(field));
-      alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
-      return;
-    }
-    // ✅ KEY FIX: Move to Step 3 (Dietary)
-    setStep(3);
-    return;
-  }
-
-  // Step 4: Indemnity & Submit
-  if (step === 4) {
-    const errors = validateStep3();
-    if (errors.length > 0) {
-      setSubmitAttempted(true);
-      if (!hasScrolledToBottom) {
-        alert(t('error_scroll_indemnity'));
-        indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Step 1: Email
+    if (step === 1) {
+      console.log('🔍 useCheckIn: Processing Step 1');
+      setLoginLoading(true);
+      // Validate email
+      if (!formData.email || !formData.email.includes('@')) {
+        alert('Please enter a valid email address.');
+        setLoginLoading(false);
         return;
       }
-      if (!formData.signature) {
-        alert(t('error_signature_required_alert'));
-        return;
-      }
-      if (!formData.idPhoto) {
-        alert(t('error_id_photo_required_alert'));
-        return;
-      }
-      alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
+      setTimeout(() => {
+        setLoginLoading(false);
+        console.log('🔍 useCheckIn: Moving from Step 1 to Step 2');
+        setStep(2);
+      }, 500);
       return;
     }
 
-    await submitBooking();
-  }
-};
+    // Step 2: Personal Details
+    if (step === 2) {
+      console.log('🔍 useCheckIn: Processing Step 2');
+      const errors = validateStep2();
+      console.log('🔍 useCheckIn: Step 2 validation errors:', errors);
+      
+      if (errors.length > 0) {
+        setSubmitAttempted(true);
+        const allFields: (keyof TouchedFields)[] = [
+          'firstName', 'lastName', 'passportOrId', 'phone', 'country',
+          'province', 'city', 'arrivalDate', 'nights', 'referral',
+          'arrivingFrom', 'nextDestination', 'settlement'
+        ];
+        allFields.forEach(field => markTouched(field));
+        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
+        return;
+      }
+      
+      // ✅ FIXED: Move to Step 3 (Dietary)
+      console.log('🔍 useCheckIn: Moving from Step 2 to Step 3');
+      setStep(3);
+      return;
+    }
+
+    // Step 4: Indemnity & Submit
+    if (step === 4) {
+      console.log('🔍 useCheckIn: Processing Step 4');
+      const errors = validateStep3();
+      if (errors.length > 0) {
+        setSubmitAttempted(true);
+        if (!hasScrolledToBottom) {
+          alert(t('error_scroll_indemnity'));
+          indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+        if (!formData.signature) {
+          alert(t('error_signature_required_alert'));
+          return;
+        }
+        if (!formData.idPhoto) {
+          alert(t('error_id_photo_required_alert'));
+          return;
+        }
+        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
+        return;
+      }
+
+      await submitBooking();
+    }
+  };
 
   const validateStep2 = (): string[] => {
     const errors: string[] = [];
