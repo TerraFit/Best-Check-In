@@ -1,6 +1,3 @@
-// src/CheckInApp.tsx
-// ✅ Simplified wrapper that just renders the refactored CheckInForm
-
 import React from 'react';
 import { CheckInForm } from './components/checkin/CheckInForm';
 import { Booking } from './types';
@@ -15,7 +12,8 @@ export default function CheckInApp({ onComplete, businessId }: CheckInAppProps) 
     <div className="min-h-screen bg-stone-50">
       <CheckInForm 
         onComplete={onComplete} 
-        businessId={businessId} 
+        businessId={businessId}
+        resetOnMount={true}  // ✅ ADD THIS - always start fresh
       />
     </div>
   );
