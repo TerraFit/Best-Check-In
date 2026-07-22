@@ -11,7 +11,7 @@ interface Step2PersonalDetailsProps {
   onSubmit: (e: React.FormEvent) => void;
   onError: (errors: string[]) => void;
   getErrorClass: (field: keyof TouchedFields, validationPassed: boolean) => string;
-  ErrorMessage: any;
+  ErrorMessage: React.ComponentType<{ field: string; message: string }>;
   secondaryColor?: string;
 }
 
@@ -80,8 +80,8 @@ export function Step2PersonalDetails({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Step2PersonalDetails: handleSubmit called');
-    console.log('Step2PersonalDetails: formData', formData);
+    console.log('🔍 Step2PersonalDetails: handleSubmit called');
+    console.log('🔍 Step2PersonalDetails: formData', formData);
     onSubmit(e);
   };
 
@@ -421,7 +421,7 @@ export function Step2PersonalDetails({
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1"
+              className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
               style={{ backgroundColor: secondaryColor || '#1e1e1e' }}
             >
               Continue to Dietary Options →
