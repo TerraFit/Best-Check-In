@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
-import { COUNTRIES } from '../../constants';  // ✅ IMPORT FROM CONSTANTS
+import { COUNTRIES } from '../../constants';
+import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';  // ✅ ADD THIS
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -31,23 +32,25 @@ export function Step2PersonalDetails({
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
-  // ✅ REMOVED hardcoded countries array - using imported COUNTRIES from constants
+  // ✅ DYNAMIC PROVINCES - based on selected country
+  const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
+  const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Province / State';
 
-  const provinces = [
-    { value: '', label: 'Select Province' },
-    { value: 'Eastern Cape', label: 'Eastern Cape' },
-    { value: 'Free State', label: 'Free State' },
-    { value: 'Gauteng', label: 'Gauteng' },
-    { value: 'KwaZulu-Natal', label: 'KwaZulu-Natal' },
-    { value: 'Limpopo', label: 'Limpopo' },
-    { value: 'Mpumalanga', label: 'Mpumalanga' },
-    { value: 'Northern Cape', label: 'Northern Cape' },
-    { value: 'North West', label: 'North West' },
-    { value: 'Western Cape', label: 'Western Cape' },
-    { value: 'Other', label: 'Other' },
-  ];
+  // ✅ FIXED: Build province options dynamically from country data
+  const provinceOptions = React.useMemo(() => {
+    if (availableRegions && availableRegions.length > 0) {
+      return [
+        { value: '', label: `Select ${regionTypeLabel}` },
+        ...availableRegions.map(region => ({ value: region, label: region }))
+      ];
+    }
+    // Fallback to manual entry if no regions defined
+    return [
+      { value: '', label: `Enter ${regionTypeLabel}` }
+    ];
+  }, [availableRegions, regionTypeLabel]);
 
-  // ✅ COMBINED referral sources from both versions
+  // ✅ COMBINED referral sources
   const referrals = [
     { value: '', label: 'Select Referral Source' },
     { value: 'Word of Mouth', label: 'Word of Mouth' },
@@ -122,8 +125,9 @@ export function Step2PersonalDetails({
       country: formData.country,
       province: formData.province,
       city: formData.city,
+      availableRegions: availableRegions?.length || 0,
     });
-  }, [formData.country, formData.province, formData.city]);
+  }, [formData.country, formData.province, formData.city, availableRegions]);
 
   return (
     <div className="p-10 md:p-16 animate-fade-in">
@@ -214,10 +218,13 @@ export function Step2PersonalDetails({
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Country *
               </label>
-              {/* ✅ FIXED: Using imported COUNTRIES from constants */}
               <select
                 value={formData.country || ''}
-                onChange={(e) => handleFieldChange('country', e.target.value)}
+                onChange={(e) => {
+                  handleFieldChange('country', e.target.value);
+                  // ✅ Reset province when country changes
+                  handleFieldChange('province', '');
+                }}
                 onBlur={() => onTouched('country')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('country', getValidation('country', formData.country))}`}
               >
@@ -233,21 +240,35 @@ export function Step2PersonalDetails({
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Province *
+                {regionTypeLabel} *
               </label>
-              <select
-                value={formData.province || ''}
-                onChange={(e) => handleFieldChange('province', e.target.value)}
-                onBlur={() => onTouched('province')}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
-              >
-                {provinces.map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
+              {/* ✅ DYNAMIC PROVINCE SELECT - uses data from countries.json */}
+              {availableRegions && availableRegions.length > 0 ? (
+                <select
+                  value={formData.province || ''}
+                  onChange={(e) => handleFieldChange('province', e.target.value)}
+                  onBlur={() => onTouched('province')}
+                  className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
+                  disabled={!formData.country}
+                >
+                  {provinceOptions.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.province || ''}
+                  onChange={(e) => handleFieldChange('province', e.target.value)}
+                  onBlur={() => onTouched('province')}
+                  placeholder={`Enter ${regionTypeLabel}`}
+                  className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
+                  disabled={!formData.country}
+                />
+              )}
               <ErrorMessage 
                 field="province" 
-                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? 'Province is required' : ''} 
+                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? `${regionTypeLabel} is required` : ''} 
               />
             </div>
           </div>
@@ -380,7 +401,7 @@ export function Step2PersonalDetails({
             </div>
           </div>
 
-          {/* Referral Source - COMBINED LIST */}
+          {/* Referral Source */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Referral Source *
