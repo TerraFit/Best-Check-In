@@ -63,6 +63,8 @@ export const handler = async (event) => {
       updated_at: new Date().toISOString()
     };
 
+    console.log('💾 Saving restrictions with carnivore:', restrictionData.carnivore);
+
     // Check if restrictions exist
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
@@ -97,11 +99,14 @@ export const handler = async (event) => {
       );
 
       if (!updateResponse.ok) {
-        throw new Error(`HTTP ${updateResponse.status}`);
+        const errorText = await updateResponse.text();
+        console.error('❌ Update error:', errorText);
+        throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
       }
 
       const updateData = await updateResponse.json();
       result = updateData[0];
+      console.log('✅ Updated restrictions:', result);
     } else {
       // Insert
       const insertResponse = await fetch(
@@ -123,11 +128,14 @@ export const handler = async (event) => {
       );
 
       if (!insertResponse.ok) {
-        throw new Error(`HTTP ${insertResponse.status}`);
+        const errorText = await insertResponse.text();
+        console.error('❌ Insert error:', errorText);
+        throw new Error(`HTTP ${insertResponse.status}: ${errorText}`);
       }
 
       const insertData = await insertResponse.json();
       result = insertData[0];
+      console.log('✅ Inserted restrictions:', result);
     }
 
     return {
@@ -141,11 +149,12 @@ export const handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Error saving food restrictions:', error);
+    console.error('❌ Error saving food restrictions:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
+        success: false,
         error: error.message || 'Failed to save food restrictions' 
       })
     };
