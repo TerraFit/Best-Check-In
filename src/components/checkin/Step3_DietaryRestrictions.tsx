@@ -1,4 +1,3 @@
-// src/components/checkin/Step3_DietaryRestrictions.tsx
 import React from 'react';
 import { Utensils, Check, X } from 'lucide-react';
 import { useTranslation } from '../../i18n';
@@ -45,9 +44,9 @@ export function Step3DietaryRestrictions({
 
   const handleSave = () => {
     const hasSelected = Object.entries(foodRestrictions).some(
-      ([key, val]) => val === true && key !== 'other_text'
+      ([key, val]) => val === true && key !== 'other_text' && key !== 'carnivore'
     );
-    if (!hasSelected && !foodRestrictions.other_text) {
+    if (!hasSelected && !foodRestrictions.other_text && !foodRestrictions.carnivore) {
       alert('Please select at least one dietary restriction or specify "Other".');
       return;
     }
@@ -64,14 +63,15 @@ export function Step3DietaryRestrictions({
   };
 
   const hasAnyRestrictions = Object.entries(foodRestrictions).some(
-    ([key, val]) => val === true && key !== 'other_text'
+    ([key, val]) => val === true && key !== 'other_text' && key !== 'carnivore'
   );
 
+  // ✅ Get selected labels with icons
   const selectedLabels = Object.entries(foodRestrictions)
     .filter(([key, val]) => val === true && key !== 'other_text')
     .map(([key]) => {
       const option = DIETARY_OPTIONS.find(o => o.key === key);
-      return option?.label || key;
+      return option ? `${option.icon} ${option.label}` : key;
     });
 
   return (
@@ -140,7 +140,7 @@ export function Step3DietaryRestrictions({
           )}
         </div>
       ) : (
-        // Restrictions Selection Panel
+        // ✅ Restrictions Selection Panel - Now includes Carnivore
         <div className="flex-grow overflow-y-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {DIETARY_OPTIONS.map(option => {
@@ -188,7 +188,7 @@ export function Step3DietaryRestrictions({
             )}
           </div>
 
-          {/* Selected summary */}
+          {/* ✅ Selected summary with icons */}
           <div className="mt-6 p-4 bg-stone-50 rounded-xl border border-stone-200">
             <p className="text-xs font-medium text-stone-500">Selected restrictions:</p>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -203,7 +203,13 @@ export function Step3DietaryRestrictions({
               )}
               {foodRestrictions.other && foodRestrictions.other_text && (
                 <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-[10px] font-medium">
-                  Other: {foodRestrictions.other_text}
+                  📝 Other: {foodRestrictions.other_text}
+                </span>
+              )}
+              {/* ✅ Show carnivore in summary */}
+              {foodRestrictions.carnivore && (
+                <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-[10px] font-medium">
+                  🥩 Carnivore
                 </span>
               )}
             </div>
