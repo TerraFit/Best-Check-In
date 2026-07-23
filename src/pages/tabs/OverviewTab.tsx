@@ -1,6 +1,3 @@
-// src/pages/tabs/OverviewTab.tsx
-// ✅ Updated with Guest Details Modal
-
 import { useState } from 'react';
 import { BusinessInfoCard, TodayActivityCards, QuickActions } from '../../components/dashboard';
 import GuestDetailsModal from '../../components/dashboard/GuestDetailsModal';
@@ -32,9 +29,10 @@ export function OverviewTab({
     setIsModalOpen(true);
   };
 
+  // ✅ Wrap guests with click handler and preserve all data including food_restrictions
   const wrapGuestCards = (guests: any[]) => {
     return guests.map((guest: any) => ({
-      ...guest,
+      ...guest,  // ✅ Preserve all guest data including food_restrictions
       onClick: () => handleGuestClick(guest.id)
     }));
   };
