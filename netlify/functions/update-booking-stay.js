@@ -48,9 +48,11 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Get current booking data for audit trail
+    // ============================================================
+    // ✅ 1. GET CURRENT BOOKING DATA FOR AUDIT LOG
+    // ============================================================
     const currentResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id,check_in_date,check_out_date,nights`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -67,30 +69,64 @@ export const handler = async (event) => {
     const currentData = await currentResponse.json();
     const currentBooking = currentData[0];
 
-    // Build update data
+    // ============================================================
+    // ✅ 2. BUILD UPDATE DATA AND TRACK CHANGES
+    // ============================================================
     const updateData = {
       updated_at: new Date().toISOString()
     };
 
     const changes = {};
 
-    if (check_in_date && check_in_date !== currentBooking?.check_in_date) {
-      updateData.check_in_date = check_in_date;
-      changes.check_in_date = { from: currentBooking?.check_in_date, to: check_in_date };
+    if (check_in_date !== undefined && check_in_date !== null) {
+      if (check_in_date !== currentBooking?.check_in_date) {
+        updateData.check_in_date = check_in_date;
+        changes.check_in_date = { 
+          from: currentBooking?.check_in_date || 'not set', 
+          to: check_in_date 
+        };
+      }
     }
-    if (check_out_date && check_out_date !== currentBooking?.check_out_date) {
-      updateData.check_out_date = check_out_date;
-      changes.check_out_date = { from: currentBooking?.check_out_date, to: check_out_date };
+
+    if (check_out_date !== undefined && check_out_date !== null) {
+      if (check_out_date !== currentBooking?.check_out_date) {
+        updateData.check_out_date = check_out_date;
+        changes.check_out_date = { 
+          from: currentBooking?.check_out_date || 'not set', 
+          to: check_out_date 
+        };
+      }
     }
-    if (nights !== undefined && nights !== null && nights !== currentBooking?.nights) {
-      updateData.nights = nights;
-      changes.nights = { from: currentBooking?.nights, to: nights };
+
+    if (nights !== undefined && nights !== null) {
+      const newNights = parseInt(nights);
+      const oldNights = parseInt(currentBooking?.nights) || 1;
+      if (newNights !== oldNights) {
+        updateData.nights = newNights;
+        changes.nights = { from: oldNights, to: newNights };
+      }
+    }
+
+    // If no changes, return early
+    if (Object.keys(changes).length === 0) {
+      console.log('ℹ️ No changes detected');
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          booking: currentBooking,
+          message: 'No changes needed'
+        })
+      };
     }
 
     console.log('📝 Update data:', updateData);
     console.log('📝 Changes:', changes);
 
-    // Update booking
+    // ============================================================
+    // ✅ 3. UPDATE BOOKING
+    // ============================================================
     const updateResponse = await fetch(
       `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
       {
@@ -116,58 +152,73 @@ export const handler = async (event) => {
 
     console.log('✅ Updated booking:', updatedBooking);
 
-    // ✅ Create audit log for stay changes
-    if (Object.keys(changes).length > 0) {
+    // ============================================================
+    // ✅ 4. CREATE AUDIT LOG
+    // ============================================================
+    try {
+      // Get user from auth header
+      const authHeader = event.headers.authorization || '';
+      let userId = 'unknown';
+      let userName = 'Unknown User';
+
       try {
-        // Get user from auth header
-        const authHeader = event.headers.authorization || '';
-        let userId = 'unknown';
-        let userName = 'Unknown User';
-
-        // Try to extract user info from token
-        try {
-          const token = authHeader.replace('Bearer ', '');
-          const jwt = require('jsonwebtoken');
-          const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-          userId = decoded.sub || 'unknown';
-          userName = decoded.user_metadata?.full_name || decoded.user_metadata?.name || 'Unknown User';
-        } catch (tokenError) {
-          console.warn('Could not extract user from token:', tokenError.message);
-        }
-
-        const auditLog = {
-          business_id: updatedBooking.business_id,
-          user_id: userId,
-          user_name: userName,
-          action: 'UPDATE_STAY_DETAILS',
-          details: changes,
-          description: `Updated stay details for guest ${updatedBooking.guest_name || 'Unknown'}`,
-          booking_id: bookingId,
-          ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
-          user_agent: event.headers['user-agent'] || 'unknown',
-          created_at: new Date().toISOString()
-        };
-
-        console.log('📝 Audit log:', auditLog);
-
-        await fetch(
-          `${supabaseUrl}/rest/v1/audit_logs`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify([auditLog])
-          }
-        );
-        console.log('✅ Audit log created for stay update');
-      } catch (auditError) {
-        console.warn('⚠️ Audit log error (non-critical):', auditError);
+        const token = authHeader.replace('Bearer ', '');
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+        userId = decoded.sub || 'unknown';
+        userName = decoded.user_metadata?.full_name || 
+                   decoded.user_metadata?.name || 
+                   decoded.user_metadata?.business_name ||
+                   'Unknown User';
+      } catch (tokenError) {
+        console.warn('Could not extract user from token:', tokenError.message);
       }
+
+      // Get guest name for description
+      const guestName = currentBooking?.guest_name || 'Unknown Guest';
+
+      const auditLog = {
+        business_id: updatedBooking.business_id,
+        user_id: userId,
+        user_name: userName,
+        action: 'UPDATE_STAY_DETAILS',
+        details: changes,
+        description: `Updated stay details for guest ${guestName}`,
+        booking_id: bookingId,
+        ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
+        user_agent: event.headers['user-agent'] || 'unknown',
+        created_at: new Date().toISOString()
+      };
+
+      console.log('📝 Audit log:', auditLog);
+
+      const auditResponse = await fetch(
+        `${supabaseUrl}/rest/v1/audit_logs`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify([auditLog])
+        }
+      );
+
+      if (auditResponse.ok) {
+        console.log('✅ Audit log created for stay update');
+      } else {
+        const auditError = await auditResponse.text();
+        console.warn('⚠️ Failed to create audit log:', auditError);
+      }
+    } catch (auditError) {
+      console.warn('⚠️ Audit log error (non-critical):', auditError);
+      // Don't fail the request if audit logging fails
     }
 
+    // ============================================================
+    // ✅ 5. RETURN SUCCESS RESPONSE
+    // ============================================================
     return {
       statusCode: 200,
       headers,
