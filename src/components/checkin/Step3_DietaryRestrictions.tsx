@@ -1,3 +1,6 @@
+// src/components/checkin/Step3DietaryRestrictions.tsx
+// ✅ RESTORED WITH EMOJIS - Only changed "Other (please specify)" to "Note / Comments"
+
 import React from 'react';
 import { FoodRestrictions } from '../../types/checkin';
 
@@ -15,18 +18,18 @@ interface Step3DietaryRestrictionsProps {
   primaryColor?: string;
 }
 
-// ✅ ORIGINAL RESTRICTION OPTIONS - includes Carnivore
+// ✅ ORIGINAL RESTRICTION OPTIONS WITH EMOJIS - includes Carnivore
 const dietaryOptions = [
-  { id: 'vegetarian', label: 'Vegetarian' },
-  { id: 'vegan', label: 'Vegan' },
-  { id: 'carnivore', label: 'Carnivore' },
-  { id: 'gluten_free', label: 'Gluten Free' },
-  { id: 'lactose_free', label: 'Lactose Free' },
-  { id: 'nut_allergy', label: 'Nut Allergy' },
-  { id: 'shellfish_allergy', label: 'Shellfish Allergy' },
-  { id: 'diabetic', label: 'Diabetic' },
-  { id: 'halal', label: 'Halal' },
-  { id: 'kosher', label: 'Kosher' },
+  { id: 'vegetarian', label: '🥬 Vegetarian' },
+  { id: 'vegan', label: '🌱 Vegan' },
+  { id: 'carnivore', label: '🥩 Carnivore' },
+  { id: 'gluten_free', label: '🌾 Gluten Free' },
+  { id: 'lactose_free', label: '🥛 Lactose Free' },
+  { id: 'nut_allergy', label: '🥜 Nut Allergy' },
+  { id: 'shellfish_allergy', label: '🦐 Shellfish Allergy' },
+  { id: 'diabetic', label: '💉 Diabetic' },
+  { id: 'halal', label: '☪️ Halal' },
+  { id: 'kosher', label: '✡️ Kosher' },
 ];
 
 export function Step3DietaryRestrictions({
@@ -78,7 +81,7 @@ export function Step3DietaryRestrictions({
                   : 'border-stone-200 hover:border-amber-300'
               }`}
             >
-              Yes
+              ✅ Yes
             </button>
             <button
               type="button"
@@ -89,7 +92,7 @@ export function Step3DietaryRestrictions({
                   : 'border-stone-200 hover:border-amber-300'
               }`}
             >
-              No
+              ❌ No
             </button>
           </div>
 
@@ -107,7 +110,7 @@ export function Step3DietaryRestrictions({
               className="flex-1 py-2.5 px-4 text-white rounded-lg transition-colors hover:opacity-90"
               style={{ backgroundColor: primaryColor }}
             >
-              Continue
+              Continue →
             </button>
           </div>
         </div>
@@ -119,7 +122,7 @@ export function Step3DietaryRestrictions({
               Select your dietary restrictions
             </h3>
             <p className="text-sm text-stone-500">
-              Choose all that apply to you.
+              Select all that apply, or add a note below
             </p>
           </div>
 
@@ -144,10 +147,10 @@ export function Step3DietaryRestrictions({
             ))}
           </div>
 
-          {/* ✅ ONLY CHANGE: "Other (please specify)" → "Note / Comments" */}
+          {/* ✅ ONLY CHANGE: "Other (please specify)" → "Note / Comments" with emoji */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Note / Comments
+              📝 Note / Comments
             </label>
             <input
               type="text"
@@ -175,7 +178,7 @@ export function Step3DietaryRestrictions({
               className="flex-1 py-2.5 px-4 text-white rounded-lg transition-colors hover:opacity-90"
               style={{ backgroundColor: primaryColor }}
             >
-              Save & Continue
+              Save and Continue →
             </button>
           </div>
         </div>
