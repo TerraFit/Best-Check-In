@@ -1,13 +1,29 @@
-// src/components/dashboard/TodayActivityCards.tsx
-// ✅ With clickable guest cards
-
 import { useTranslation } from '../../i18n';
 
 interface Guest {
   id: string
   guest_name: string
   guest_phone?: string
-  onClick?: () => void  // ✅ Add click handler
+  onClick?: () => void
+  food_restrictions?: {
+    vegetarian: boolean;
+    vegan: boolean;
+    halal: boolean;
+    kosher: boolean;
+    gluten_free: boolean;
+    dairy_free: boolean;
+    lactose_intolerant: boolean;
+    nut_allergy: boolean;
+    shellfish_allergy: boolean;
+    egg_allergy: boolean;
+    soy_allergy: boolean;
+    pork_free: boolean;
+    diabetic: boolean;
+    no_seafood: boolean;
+    carnivore?: boolean;
+    other: boolean;
+    other_text?: string;
+  };
 }
 
 interface TodayActivityCardsProps {
@@ -18,6 +34,12 @@ interface TodayActivityCardsProps {
 
 export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActivityCardsProps) {
   const { t } = useTranslation();
+
+  // ✅ Check if guest has dietary restrictions
+  const hasDietaryRestrictions = (guest: Guest): boolean => {
+    const restrictions = guest.food_restrictions || {};
+    return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+  };
 
   const renderGuestList = (guests: Guest[], title: string, bgColor: string, icon: JSX.Element) => (
     <div className={`bg-white rounded-lg shadow overflow-hidden border-l-4 ${bgColor}`}>
@@ -42,13 +64,21 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
                 className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => guest.onClick?.()}
               >
-                <div>
+                <div className="flex items-center gap-2">
                   <p className="font-medium text-gray-900">{guest.guest_name}</p>
-                  <p className="text-xs text-gray-500">{guest.guest_phone}</p>
+                  {/* ✅ WARNING ICON for guests with dietary restrictions */}
+                  {hasDietaryRestrictions(guest) && (
+                    <span className="text-amber-500 text-sm" title="Has dietary restrictions">
+                      ⚠️
+                    </span>
+                  )}
                 </div>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-gray-500">{guest.guest_phone}</p>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
               </div>
             ))}
           </div>
