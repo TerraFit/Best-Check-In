@@ -1,13 +1,6 @@
-// src/components/staff/StaffPortalWrapper.tsx
-// FINAL VERSION - No Resort Settings, 4 tabs for owners, 2 for employees
-
 import React, { useState, useEffect } from 'react';
-import { BusinessOverviewTab } from './BusinessOverviewTab';
-import { GuestOverviewTab } from './GuestOverviewTab';
-import { GuestDietariesTab } from './GuestDietariesTab';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
 import { AuditTrailTab } from './AuditTrailTab';
-import { QrCode } from 'lucide-react';
 
 interface StaffPortalWrapperProps {
   session: {
@@ -25,49 +18,55 @@ interface StaffPortalWrapperProps {
     total_rooms: number;
     logo_url?: string;
   };
-  bookings: any[];
   employees: any[];
   auditLogs: any[];
-  todayArrivals: any[];
-  todayStayovers: any[];
-  todayCheckouts: any[];
-  onUpdateBookings: (bookings: any[]) => void;
   onUpdateEmployees: (employees: any[]) => void;
   onAddAuditLog: (log: any) => void;
-  onUpdateBusiness: (business: any) => void;
-  onShowQrModal: () => void;
 }
 
 export function StaffPortalWrapper({
   session,
   business,
-  bookings,
   employees,
   auditLogs,
-  todayArrivals,
-  todayStayovers,
-  todayCheckouts,
-  onUpdateBookings,
   onUpdateEmployees,
   onAddAuditLog,
-  onUpdateBusiness,
-  onShowQrModal,
 }: StaffPortalWrapperProps) {
-  // Only 4 tabs for owners, 2 for employees
-  const [activeTab, setActiveTab] = useState<'overview' | 'guestoverview' | 'guests' | 'employees' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'employees' | 'audit'>('employees');
   
   const isEmployee = session.user.role === 'EmployeeOverview';
 
-  // Force reset to permitted tab if Employee attempts to access blocked tabs
+  // Employees should not see this tab at all (they use EmployeeDashboard)
+  // If an employee somehow gets here, redirect them away
   useEffect(() => {
-    if (isEmployee && !['guestoverview', 'guests'].includes(activeTab)) {
-      setActiveTab('guestoverview');
+    if (isEmployee) {
+      // Employees shouldn't be here - they have their own dashboard
+      console.warn('Employee attempting to access Staff Portal tab - redirecting');
     }
-  }, [activeTab, isEmployee]);
+  }, [isEmployee]);
+
+  // If employee, show nothing (they should use EmployeeDashboard)
+  if (isEmployee) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🔒</div>
+        <h3 className="text-lg font-semibold text-stone-700 mb-2">Access Restricted</h3>
+        <p className="text-stone-500 text-sm">
+          Employees should use the <strong>Employee Dashboard</strong> for guest management.
+        </p>
+        <button
+          onClick={() => window.location.href = '/employee/dashboard'}
+          className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+        >
+          Go to Employee Dashboard →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Brand Profile Hero Widget */}
+      {/* Brand Profile Hero Widget - Simplified */}
       <div className="bg-white p-6 rounded-3xl border border-stone-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center font-bold text-amber-500 font-serif text-3xl">
@@ -83,167 +82,56 @@ export function StaffPortalWrapper({
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={onShowQrModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-stone-900 hover:bg-stone-950 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
-          >
-            <QrCode size={14} /> Display Guest QR Code
-          </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-stone-400 bg-stone-100 px-3 py-1 rounded-full">
+            👑 Owner Access • Staff Management
+          </span>
         </div>
       </div>
 
       {/* ============================================================
-          TABS - Different based on role
+          TABS - Only Employee Management + Audit Trail
           ============================================================ */}
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
-        {isEmployee ? (
-          // ============================================================
-          // EMPLOYEE: 2 TABS
-          // ============================================================
-          <>
-            <button
-              onClick={() => setActiveTab('guestoverview')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'guestoverview'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              🏨 Guest Overview
-            </button>
+        <button
+          onClick={() => setActiveTab('employees')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'employees'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          🧑‍🍳 Employee Management
+        </button>
 
-            <button
-              onClick={() => setActiveTab('guests')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'guests'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              🥑 Guest Dietaries / Restrictions
-            </button>
-          </>
-        ) : (
-          // ============================================================
-          // OWNER: 4 TABS (NO Resort Settings)
-          // ============================================================
-          <>
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'overview'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              📈 Business Overview
-            </button>
-
-            <button
-              onClick={() => setActiveTab('guests')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'guests'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              🥑 Guest Dietaries / Restrictions
-            </button>
-
-            <button
-              onClick={() => setActiveTab('employees')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'employees'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              🧑‍🍳 Employee Management
-            </button>
-
-            <button
-              onClick={() => setActiveTab('audit')}
-              className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeTab === 'audit'
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              📋 Platform Audit Trail
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => setActiveTab('audit')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'audit'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          📋 Platform Audit Trail
+        </button>
       </div>
 
       {/* ============================================================
           RENDER ACTIVE TAB
           ============================================================ */}
-      {isEmployee ? (
-        // ============================================================
-        // EMPLOYEE VIEW
-        // ============================================================
-        <>
-          {activeTab === 'guestoverview' && (
-            <GuestOverviewTab
-              bookings={bookings}
-              todayArrivals={todayArrivals}
-              todayStayovers={todayStayovers}
-              todayCheckouts={todayCheckouts}
-              businessId={business.id}
-              onShowQRModal={onShowQrModal}
-            />
-          )}
+      {activeTab === 'employees' && (
+        <EmployeeManagementTab
+          employees={employees}
+          businessName={business.trading_name}
+          onUpdateEmployees={onUpdateEmployees}
+        />
+      )}
 
-          {activeTab === 'guests' && (
-            <GuestDietariesTab
-              bookings={bookings}
-              session={session}
-              onSaveDietary={(guestId, updatedDietaries, log) => {
-                const updated = bookings.map(b => b.id === guestId ? { ...b, food_restrictions: updatedDietaries, updated_at: new Date().toISOString() } : b);
-                onUpdateBookings(updated);
-                if (log) {
-                  onAddAuditLog(log);
-                }
-              }}
-            />
-          )}
-        </>
-      ) : (
-        // ============================================================
-        // OWNER VIEW
-        // ============================================================
-        <>
-          {activeTab === 'overview' && (
-            <BusinessOverviewTab bookings={bookings} totalRooms={business.total_rooms} />
-          )}
-
-          {activeTab === 'guests' && (
-            <GuestDietariesTab
-              bookings={bookings}
-              session={session}
-              onSaveDietary={(guestId, updatedDietaries, log) => {
-                const updated = bookings.map(b => b.id === guestId ? { ...b, food_restrictions: updatedDietaries, updated_at: new Date().toISOString() } : b);
-                onUpdateBookings(updated);
-                if (log) {
-                  onAddAuditLog(log);
-                }
-              }}
-            />
-          )}
-
-          {activeTab === 'employees' && (
-            <EmployeeManagementTab
-              employees={employees}
-              businessName={business.trading_name}
-              onUpdateEmployees={onUpdateEmployees}
-            />
-          )}
-
-          {activeTab === 'audit' && (
-            <AuditTrailTab auditLogs={auditLogs} />
-          )}
-        </>
+      {activeTab === 'audit' && (
+        <AuditTrailTab 
+          auditLogs={auditLogs}
+          businessId={business.id}
+        />
       )}
     </div>
   );
