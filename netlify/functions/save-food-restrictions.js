@@ -1,5 +1,5 @@
 // netlify/functions/save-food-restrictions.js
-// ✅ COMPLETE: All dietary options including carnivore
+// ✅ COMPLETE: All dietary options including carnivore with audit logging
 
 export const handler = async (event) => {
   const headers = {
@@ -47,7 +47,49 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Build restriction data with ALL fields including carnivore
+    // ============================================================
+    // ✅ 1. GET CURRENT BOOKING DATA FOR AUDIT LOG
+    // ============================================================
+    const currentBookingResponse = await fetch(
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    let currentBooking = null;
+    if (currentBookingResponse.ok) {
+      const bookingData = await currentBookingResponse.json();
+      currentBooking = bookingData[0];
+    }
+
+    // ============================================================
+    // ✅ 2. GET CURRENT RESTRICTIONS FOR AUDIT LOG
+    // ============================================================
+    const currentRestrictionsResponse = await fetch(
+      `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    let currentRestrictions = null;
+    if (currentRestrictionsResponse.ok) {
+      const restrictionsData = await currentRestrictionsResponse.json();
+      currentRestrictions = restrictionsData[0];
+    }
+
+    // ============================================================
+    // ✅ 3. BUILD RESTRICTION DATA
+    // ============================================================
     const restrictionData = {
       vegetarian: restrictions.vegetarian === true,
       vegan: restrictions.vegan === true,
@@ -60,15 +102,17 @@ export const handler = async (event) => {
       seafood_allergy: restrictions.seafood_allergy === true,
       diabetic: restrictions.diabetic === true,
       no_pork: restrictions.no_pork === true,
-      carnivore: restrictions.carnivore === true,  // ✅ NOW WORKS
+      carnivore: restrictions.carnivore === true,
       other: restrictions.other === true,
       other_text: restrictions.other_text || '',
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving data:', JSON.stringify(restrictionData, null, 2));
+    console.log('💾 Saving restriction data:', JSON.stringify(restrictionData, null, 2));
 
-    // Check if restrictions already exist
+    // ============================================================
+    // ✅ 4. CHECK IF RESTRICTIONS EXIST
+    // ============================================================
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
       {
@@ -81,12 +125,8 @@ export const handler = async (event) => {
     );
 
     if (!checkResponse.ok) {
-      console.error('❌ Check error:', await checkResponse.text());
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to check existing restrictions' })
-      };
+      console.error('❌ Check response error:', await checkResponse.text());
+      throw new Error(`Check failed: ${checkResponse.status}`);
     }
 
     const existingData = await checkResponse.json();
@@ -94,8 +134,11 @@ export const handler = async (event) => {
 
     let result;
 
+    // ============================================================
+    // ✅ 5. INSERT OR UPDATE
+    // ============================================================
     if (existingId) {
-      // ✅ UPDATE
+      // UPDATE
       console.log('📝 Updating existing restrictions for:', bookingId);
       
       const updateResponse = await fetch(
@@ -115,18 +158,14 @@ export const handler = async (event) => {
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text();
         console.error('❌ Update error:', errorText);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: `Update failed: ${errorText}` })
-        };
+        throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
       }
 
       const updateData = await updateResponse.json();
       result = updateData[0];
       console.log('✅ Updated restrictions:', result);
     } else {
-      // ✅ INSERT
+      // INSERT
       console.log('📝 Inserting new restrictions for:', bookingId);
       
       const insertResponse = await fetch(
@@ -150,11 +189,7 @@ export const handler = async (event) => {
       if (!insertResponse.ok) {
         const errorText = await insertResponse.text();
         console.error('❌ Insert error:', errorText);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: `Insert failed: ${errorText}` })
-        };
+        throw new Error(`HTTP ${insertResponse.status}: ${errorText}`);
       }
 
       const insertData = await insertResponse.json();
@@ -162,6 +197,101 @@ export const handler = async (event) => {
       console.log('✅ Inserted restrictions:', result);
     }
 
+    // ============================================================
+    // ✅ 6. CREATE AUDIT LOG WITH CHANGES
+    // ============================================================
+    try {
+      // Calculate what changed
+      const changes = {};
+      const fields = [
+        'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher',
+        'gluten_free', 'lactose_free', 'nut_allergy', 'seafood_allergy',
+        'diabetic', 'no_pork', 'carnivore', 'other'
+      ];
+
+      fields.forEach(field => {
+        const oldValue = currentRestrictions ? currentRestrictions[field] : false;
+        const newValue = restrictionData[field];
+        if (oldValue !== newValue) {
+          changes[field] = { from: oldValue, to: newValue };
+        }
+      });
+
+      // Check other_text changes
+      const oldOtherText = currentRestrictions?.other_text || '';
+      const newOtherText = restrictionData.other_text || '';
+      if (oldOtherText !== newOtherText) {
+        changes.other_text = { from: oldOtherText, to: newOtherText };
+      }
+
+      // Only create audit log if there were changes
+      if (Object.keys(changes).length > 0) {
+        // Get user from auth header
+        const authHeader = event.headers.authorization || '';
+        let userId = 'unknown';
+        let userName = 'Unknown User';
+
+        try {
+          const token = authHeader.replace('Bearer ', '');
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+          userId = decoded.sub || 'unknown';
+          userName = decoded.user_metadata?.full_name || 
+                     decoded.user_metadata?.name || 
+                     decoded.user_metadata?.business_name ||
+                     'Unknown User';
+        } catch (tokenError) {
+          console.warn('Could not extract user from token:', tokenError.message);
+        }
+
+        // Get guest name for description
+        const guestName = currentBooking?.guest_name || 'Unknown Guest';
+
+        const auditLog = {
+          business_id: currentBooking?.business_id || 'unknown',
+          user_id: userId,
+          user_name: userName,
+          action: 'UPDATE_FOOD_RESTRICTIONS',
+          details: changes,
+          description: `Updated food restrictions for guest ${guestName}`,
+          booking_id: bookingId,
+          ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
+          user_agent: event.headers['user-agent'] || 'unknown',
+          created_at: new Date().toISOString()
+        };
+
+        console.log('📝 Audit log:', auditLog);
+
+        const auditResponse = await fetch(
+          `${supabaseUrl}/rest/v1/audit_logs`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify([auditLog])
+          }
+        );
+
+        if (auditResponse.ok) {
+          console.log('✅ Audit log created for food restrictions update');
+        } else {
+          const auditError = await auditResponse.text();
+          console.warn('⚠️ Failed to create audit log:', auditError);
+        }
+      } else {
+        console.log('ℹ️ No changes detected, skipping audit log');
+      }
+    } catch (auditError) {
+      console.warn('⚠️ Audit log error (non-critical):', auditError);
+      // Don't fail the request if audit logging fails
+    }
+
+    // ============================================================
+    // ✅ 7. RETURN SUCCESS RESPONSE
+    // ============================================================
     return {
       statusCode: 200,
       headers,
