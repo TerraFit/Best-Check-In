@@ -1,3 +1,4 @@
+// src/types/guest.ts
 export interface GuestDetails {
   id: string;
   guest_name: string;
@@ -29,6 +30,7 @@ export interface FoodRestrictions {
   seafood_allergy: boolean;
   diabetic: boolean;
   no_pork: boolean;
+  carnivore: boolean;
   other: boolean;
   other_text?: string;
 }
