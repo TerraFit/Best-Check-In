@@ -12,10 +12,10 @@ import { Step5Success } from './Step5_Success';
 interface CheckInFormProps {
   onComplete: (booking: Booking, indemnityToken?: string) => void;
   businessId?: string;
-  resetOnMount?: boolean; // ✅ NEW: Reset form when mounted
+  resetOnMount?: boolean;
 }
 
-// Error Message component for form validation
+// Error Message component
 const ErrorMessage = ({ field, message }: { field: string; message: string }) => {
   if (!message) return null;
   return (
@@ -83,6 +83,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
     }
   }, [step, canvasRef, initSignaturePad]);
 
+  // ✅ DEBUG: Log step changes
+  useEffect(() => {
+    console.log('🔍 CheckInForm: Step changed to:', step);
+  }, [step]);
+
   // Loading state
   if (loadingBranding) {
     return (
@@ -105,7 +110,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
       <Step5Success
         businessName={businessName}
         email={formData.email}
-        onReset={resetForm}
+        onReset={() => {
+          resetForm();
+          setHasDietaryRestrictions(null);
+          setShowRestrictionsPanel(false);
+        }}
         guestName={updateFullName()}
       />
     );
@@ -256,9 +265,41 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
               onHasDietaryRestrictionsChange={setHasDietaryRestrictions}
               showRestrictionsPanel={showRestrictionsPanel}
               onShowRestrictionsPanelChange={setShowRestrictionsPanel}
-              onContinue={handleDietaryContinue}
-              onSave={handleRestrictionsSave}
-              onBack={() => setStep(2)}
+              onContinue={() => {
+                console.log('🔍 Step3: onContinue called');
+                if (hasDietaryRestrictions === null) {
+                  alert('Please select whether you have any dietary restrictions.');
+                  return;
+                }
+                if (hasDietaryRestrictions === false) {
+                  console.log('🔍 Step3: No restrictions, moving to Step 4');
+                  setStep(4);
+                  return;
+                }
+                console.log('🔍 Step3: Has restrictions, showing panel');
+                setShowRestrictionsPanel(true);
+              }}
+              onSave={() => {
+                console.log('🔍 Step3: onSave called');
+                const hasSelected = Object.entries(foodRestrictions).some(
+                  ([key, val]) => val === true && key !== 'other_text'
+                );
+                if (!hasSelected && !foodRestrictions.other_text) {
+                  alert('Please select at least one dietary restriction or add a note.');
+                  return;
+                }
+                console.log('🔍 Step3: Save successful, moving to Step 4');
+                setShowRestrictionsPanel(false);
+                setStep(4);
+              }}
+              onBack={() => {
+                console.log('🔍 Step3: onBack called');
+                if (showRestrictionsPanel) {
+                  setShowRestrictionsPanel(false);
+                } else {
+                  setStep(2);
+                }
+              }}
               primaryColor={primaryColor}
             />
           )}
@@ -283,12 +324,8 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
               ErrorMessage={ErrorMessage}
               primaryColor={primaryColor}
               onBack={() => {
-                if (hasDietaryRestrictions === true && showRestrictionsPanel) {
-                  setShowRestrictionsPanel(false);
-                  setStep(3);
-                } else {
-                  setStep(3);
-                }
+                console.log('🔍 Step4: onBack called');
+                setStep(3);
               }}
               onSubmit={handleSubmit}
             />
