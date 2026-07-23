@@ -1,5 +1,5 @@
 // src/components/staff/GuestOverviewTab.tsx
-// ✅ FIXED: Guest Details Modal - Unconditional rendering (same as Business Dashboard)
+// ✅ FIXED: Modal working + Other text display
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -63,15 +63,16 @@ export function GuestOverviewTab({
       return;
     }
     
+    // ✅ Set state and log
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
+    console.log('✅ Modal should now be open');
   };
 
   // ✅ Handle modal close
   const handleModalClose = () => {
     console.log('❌ Closing modal');
     setIsModalOpen(false);
-    // Clear the selected booking ID after a delay to prevent re-opening
     setTimeout(() => {
       setSelectedBookingId(null);
     }, 300);
@@ -93,16 +94,41 @@ export function GuestOverviewTab({
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
-  // ✅ Get dietary restrictions display text
+  // ✅ Get dietary restrictions display text - INCLUDING "Other" text
   const getDietaryDisplay = (guest: any): string => {
     const restrictions = guest.food_restrictions || {};
     const active = Object.entries(restrictions)
       .filter(([key, val]) => val === true && key !== 'other_text')
       .map(([key]) => key.replace('_', ' '));
     
+    // ✅ Include "Other" text if present
+    const otherText = restrictions.other_text ? ` (${restrictions.other_text})` : '';
+    
+    if (active.length === 0 && otherText) {
+      return `Other${otherText}`;
+    }
     if (active.length === 0) return '';
-    if (active.length === 1) return active[0];
-    return `${active[0]} +${active.length - 1}`;
+    if (active.length === 1) {
+      return `${active[0]}${otherText}`;
+    }
+    return `${active[0]} +${active.length - 1}${otherText}`;
+  };
+
+  // ✅ Get food restrictions for table display
+  const getActiveRestrictions = (guest: any): string[] => {
+    const restrictions = guest.food_restrictions || {};
+    const active = Object.entries(restrictions)
+      .filter(([key, val]) => val === true && key !== 'other_text')
+      .map(([key]) => key.replace('_', ' ').toUpperCase());
+    
+    // ✅ Include "Other" with text if present
+    if (restrictions.other_text) {
+      active.push(`OTHER (${restrictions.other_text})`);
+    } else if (restrictions.other) {
+      active.push('OTHER');
+    }
+    
+    return active;
   };
 
   return (
@@ -293,7 +319,10 @@ export function GuestOverviewTab({
                 return (
                   <div
                     key={guest.id}
-                    onClick={() => handleGuestClick(guest.id)}
+                    onClick={() => {
+                      console.log('👆 Clicked on guest card:', guest.id, guest.guest_name);
+                      handleGuestClick(guest.id);
+                    }}
                     className="px-6 py-4 hover:bg-stone-50/60 cursor-pointer transition-colors flex items-center justify-between"
                   >
                     <div className="flex items-center gap-4">
@@ -314,7 +343,10 @@ export function GuestOverviewTab({
                     </div>
                     <div className="flex items-center gap-3">
                       {hasRestrictions && (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" title={dietaryDisplay}>
+                        <span 
+                          className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 cursor-help" 
+                          title={dietaryDisplay}
+                        >
                           <Utensils size={12} /> Dietary
                         </span>
                       )}
@@ -335,18 +367,26 @@ export function GuestOverviewTab({
             )}
           </div>
         </div>
-      </div>
 
-      {/* ============================================================
-          GUEST DETAILS MODAL - ✅ UNCONDITIONAL RENDERING (FIXED)
-          Same as Business Dashboard - always in DOM, controlled by isOpen prop
-          ============================================================ */}
-      <GuestDetailsModal
-        isOpen={isModalOpen}
-        bookingId={selectedBookingId}
-        onClose={handleModalClose}
-        businessId={businessId}
-      />
+        {/* ============================================================
+            GUEST DETAILS MODAL - ✅ UNCONDITIONAL RENDERING
+            ============================================================ */}
+        <GuestDetailsModal
+          isOpen={isModalOpen}
+          bookingId={selectedBookingId}
+          onClose={handleModalClose}
+          businessId={businessId}
+        />
+
+        {/* ✅ DEBUG: Show modal state on screen (remove after testing) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed bottom-4 right-4 bg-black/80 text-white text-xs p-3 rounded-lg z-50 font-mono max-w-xs">
+            <div>Modal Open: {isModalOpen ? '✅' : '❌'}</div>
+            <div>Booking ID: {selectedBookingId || 'null'}</div>
+            <div>Business ID: {businessId || 'null'}</div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
