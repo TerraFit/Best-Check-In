@@ -1,10 +1,4 @@
-// netlify/functions/create-audit-log.js
-// Create a new audit log entry
-
-import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from './_utils.js';
-
-export const handler = async function(event) {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -17,32 +11,30 @@ export const handler = async function(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+    return { 
+      statusCode: 405, 
+      headers, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
     };
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   try {
-    const authUser = verifyAuth(event.headers.authorization);
-    
-    if (!authUser) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Authentication required' })
-      };
-    }
+    const body = JSON.parse(event.body);
+    const { 
+      business_id, 
+      user_id, 
+      user_name, 
+      action, 
+      details, 
+      description, 
+      booking_id,
+      ip_address,
+      user_agent
+    } = body;
 
-    const { business_id, employee_id, employee_name, guest_id, guest_name, previous_value, new_value } = JSON.parse(event.body);
+    console.log('📝 Creating audit log:', { action, user_name, booking_id });
 
-    if (!business_id || !employee_id || !guest_id) {
+    if (!business_id || !user_id || !action) {
       return {
         statusCode: 400,
         headers,
@@ -50,39 +42,80 @@ export const handler = async function(event) {
       };
     }
 
-    const { data, error } = await supabase
-      .from('food_restriction_audit')
-      .insert([{
-        business_id,
-        employee_id,
-        employee_name,
-        guest_id,
-        guest_name,
-        previous_value: previous_value || 'None',
-        new_value: new_value || 'None',
-        timestamp: new Date().toISOString()
-      }])
-      .select()
-      .single();
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (error) throw error;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    // Create audit log entry
+    const logEntry = {
+      business_id,
+      user_id,
+      user_name: user_name || 'Unknown User',
+      action,
+      details: details || {},
+      description: description || `${action} performed`,
+      booking_id: booking_id || null,
+      ip_address: ip_address || 'unknown',
+      user_agent: user_agent || 'unknown',
+      created_at: new Date().toISOString()
+    };
+
+    console.log('📝 Audit log entry:', logEntry);
+
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/audit_logs`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify([logEntry])
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Audit log error:', errorText);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to create audit log' })
+      };
+    }
+
+    const result = await response.json();
+    console.log('✅ Audit log created:', result[0]?.id);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        data,
+        log: result[0],
         message: 'Audit log created successfully'
       })
     };
 
   } catch (error) {
-    console.error('Error creating audit log:', error);
+    console.error('❌ Error creating audit log:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        success: false,
+        error: error.message || 'Failed to create audit log' 
+      })
     };
   }
 };
