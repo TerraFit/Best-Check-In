@@ -1,306 +1,211 @@
-// src/components/checkin/CheckInForm.tsx
-// ✅ With useEffect to detect re-mounts
+// src/components/checkin/Step3DietaryRestrictions.tsx
+// ✅ FIXED: Remove ALL references to setStep - use props only
 
-import React, { useEffect } from 'react';
-import { useTranslation } from '../../i18n';
-import { Booking } from '../../types';
-import { useCheckIn } from '../../hooks/useCheckIn';
-import { ProgressSteps } from './ProgressSteps';
-import { Step1EmailEntry } from './Step1_EmailEntry';
-import { Step2PersonalDetails } from './Step2_PersonalDetails';
-import { Step3DietaryRestrictions } from './Step3_DietaryRestrictions';
-import { Step4IndemnitySignature } from './Step4_IndemnitySignature';
-import { Step5Success } from './Step5_Success';
+import React from 'react';
+import { FoodRestrictions } from '../../types/checkin';
 
-interface CheckInFormProps {
-  onComplete: (booking: Booking, indemnityToken?: string) => void;
-  businessId?: string;
-  resetOnMount?: boolean;
+interface Step3DietaryRestrictionsProps {
+  foodRestrictions: FoodRestrictions;
+  onRestrictionToggle: (key: string) => void;
+  onOtherTextChange: (text: string) => void;
+  hasDietaryRestrictions: boolean | null;
+  onHasDietaryRestrictionsChange: (value: boolean) => void;
+  showRestrictionsPanel: boolean;
+  onShowRestrictionsPanelChange: (show: boolean) => void;
+  onContinue: () => void;
+  onSave: () => void;  // ✅ This is the callback - parent handles setStep
+  onBack: () => void;
+  primaryColor?: string;
 }
 
-const ErrorMessage = ({ field, message }: { field: string; message: string }) => {
-  if (!message) return null;
-  return (
-    <p className="text-red-500 text-xs mt-1 flex items-center gap-1 animate-fade-in">
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      {message}
-    </p>
-  );
-};
+const RESTRICTION_OPTIONS = [
+  { key: 'vegetarian', label: '🥬 Vegetarian' },
+  { key: 'vegan', label: '🌱 Vegan' },
+  { key: 'gluten_free', label: '🌾 Gluten Free' },
+  { key: 'lactose_free', label: '🥛 Lactose Free' },
+  { key: 'nut_allergy', label: '🥜 Nut Allergy' },
+  { key: 'shellfish_allergy', label: '🦐 Shellfish Allergy' },
+  { key: 'diabetic', label: '💉 Diabetic' },
+  { key: 'halal', label: '☪️ Halal' },
+  { key: 'kosher', label: '✡️ Kosher' },
+];
 
-export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMount = false }: CheckInFormProps) {
-  const { t } = useTranslation();
+export function Step3DietaryRestrictions({
+  foodRestrictions,
+  onRestrictionToggle,
+  onOtherTextChange,
+  hasDietaryRestrictions,
+  onHasDietaryRestrictionsChange,
+  showRestrictionsPanel,
+  onShowRestrictionsPanelChange,
+  onContinue,
+  onSave,  // ✅ This comes from parent
+  onBack,
+  primaryColor = '#f59e0b',
+}: Step3DietaryRestrictionsProps) {
   
-  // ✅ DEBUG: Log when component mounts/unmounts
-  useEffect(() => {
-    console.log('🔍 CheckInForm: Component MOUNTED with resetOnMount:', resetOnMount);
-    return () => {
-      console.log('🔍 CheckInForm: Component UNMOUNTED');
-    };
-  }, [resetOnMount]);
-
-  const {
-    step,
-    branding,
-    loading,
-    loadingBranding,
-    loginLoading,
-    submitAttempted,
-    hasScrolledToBottom,
-    profileLoaded,
-    profileSaveSuccess,
-    duplicateWarning,
-    notification,
-    formData,
-    setFormData,
-    touched,
-    markTouched,
-    foodRestrictions,
-    setFoodRestrictions,
-    hasDietaryRestrictions,
-    setHasDietaryRestrictions,
-    showRestrictionsPanel,
-    setShowRestrictionsPanel,
-    videoRef,
-    canvasRef,
-    indemnityRef,
-    isCameraActive,
-    cameraError,
-    startCamera,
-    capturePhoto,
-    stopCamera,
-    retakePhoto,
-    clearSignature,
-    initSignaturePad,
-    handleIndemnityScroll,
-    handleDietaryContinue,
-    handleRestrictionsSave,
-    handleSubmit,
-    resetForm,
-    updateFullName,
-    getErrorClass,
-  } = useCheckIn({ businessId: propBusinessId || null, onComplete, resetOnMount });
-
-  // Refs for signature pad
-  useEffect(() => {
-    if (step === 4 && canvasRef.current) {
-      setTimeout(() => {
-        if (canvasRef.current) initSignaturePad(canvasRef.current);
-      }, 500);
+  // ✅ FIX: This function ONLY calls onSave - NO setStep here!
+  const handleSave = () => {
+    console.log('🔍 Step3: handleSave called');
+    
+    const hasSelected = Object.entries(foodRestrictions).some(
+      ([key, val]) => val === true && key !== 'other_text'
+    );
+    
+    // Check if any restrictions are selected OR there's a note
+    if (!hasSelected && !foodRestrictions.other_text?.trim()) {
+      alert('Please select at least one dietary restriction or add a note.');
+      return;
     }
-  }, [step, canvasRef, initSignaturePad]);
+    
+    console.log('🔍 Step3: Validation passed, calling onSave');
+    // ✅ Only call the callback - parent handles state changes
+    onSave();
+  };
 
-  // ✅ DEBUG: Log step changes
-  useEffect(() => {
-    console.log('🔍 CheckInForm: Step changed to:', step);
-  }, [step]);
-
-  // Loading state
-  if (loadingBranding) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
-          <p className="text-stone-400">Loading check-in system...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const businessName = branding?.trading_name || 'our establishment';
-  const primaryColor = branding?.primary_color || '#f59e0b';
-  const secondaryColor = branding?.secondary_color || '#1e1e1e';
-
-  // Step 5: Success
-  if (step === 5) {
-    return (
-      <Step5Success
-        businessName={businessName}
-        email={formData.email}
-        onReset={() => {
-          resetForm();
-          setHasDietaryRestrictions(null);
-          setShowRestrictionsPanel(false);
-        }}
-        guestName={updateFullName()}
-      />
-    );
-  }
-
-  // Main form with steps
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Toast notifications */}
-      {duplicateWarning && (
-        <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
-          <div className="bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span>{duplicateWarning}</span>
-          </div>
-        </div>
-      )}
+    <div className="p-10 md:p-16 animate-fade-in">
+      <div className="max-w-3xl mx-auto">
+        <h2 className="text-2xl font-bold text-stone-900 mb-2">Dietary Preferences</h2>
+        <p className="text-stone-500 mb-8">Let us know about any dietary requirements</p>
 
-      {notification && (
-        <div className="fixed bottom-4 left-4 z-50 animate-fade-in">
-          <div className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
-            notification.type === 'success' ? 'bg-green-500 text-white' :
-            notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
-          }`}>
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
+        {!showRestrictionsPanel ? (
+          // Initial question: Do you have dietary restrictions?
+          <div className="space-y-8">
+            <div className="bg-stone-50 rounded-2xl p-6 border border-stone-200">
+              <p className="text-lg font-medium text-stone-800 mb-4">
+                Do you have any dietary restrictions?
+              </p>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('🔍 Step3: Selected YES');
+                    onHasDietaryRestrictionsChange(true);
+                  }}
+                  className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all font-medium ${
+                    hasDietaryRestrictions === true
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                  }`}
+                  style={hasDietaryRestrictions === true ? { borderColor: primaryColor } : {}}
+                >
+                  ✅ Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('🔍 Step3: Selected NO');
+                    onHasDietaryRestrictionsChange(false);
+                  }}
+                  className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all font-medium ${
+                    hasDietaryRestrictions === false
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                  }`}
+                  style={hasDietaryRestrictions === false ? { borderColor: primaryColor } : {}}
+                >
+                  ❌ No
+                </button>
+              </div>
+            </div>
 
-      <div className="max-w-5xl mx-auto py-10 px-4">
-        {/* Business Header */}
-        {branding && (
-          <div className="text-center mb-8">
-            {/* ... business header ... */}
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                onClick={onContinue}
+                className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
+                style={{ backgroundColor: primaryColor || '#f59e0b' }}
+              >
+                Continue →
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Restrictions panel
+          <div className="space-y-8">
+            <div className="bg-stone-50 rounded-2xl p-6 border border-stone-200">
+              <p className="text-lg font-medium text-stone-800 mb-4">
+                Select your dietary restrictions
+              </p>
+              <p className="text-sm text-stone-500 mb-6">
+                Select all that apply, or add a note below
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {RESTRICTION_OPTIONS.map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      foodRestrictions[key as keyof FoodRestrictions]
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                    }`}
+                    style={
+                      foodRestrictions[key as keyof FoodRestrictions]
+                        ? { borderColor: primaryColor }
+                        : {}
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!foodRestrictions[key as keyof FoodRestrictions]}
+                      onChange={() => onRestrictionToggle(key)}
+                      className="w-4 h-4 text-amber-500 rounded border-stone-300 focus:ring-amber-500"
+                    />
+                    <span className="text-sm font-medium text-stone-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* ✅ Updated: Note/Comments field with example text */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Note / Comments
+                </label>
+                <textarea
+                  rows={3}
+                  value={foodRestrictions.other_text || ''}
+                  onChange={(e) => onOtherTextChange(e.target.value)}
+                  placeholder="e.g., Mr. is a carnivore, Mrs. is lactose & gluten intolerant"
+                  className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"
+                />
+                <p className="text-xs text-stone-400 mt-1">
+                  📝 Add any specific dietary notes or comments here
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('🔍 Step3: Back button clicked');
+                  onBack();
+                }}
+                className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}  // ✅ Uses handleSave which calls onSave
+                className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
+                style={{ backgroundColor: primaryColor || '#f59e0b' }}
+              >
+                Save and Continue →
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Progress Steps */}
-        <ProgressSteps 
-          currentStep={step} 
-          totalSteps={4} 
-          primaryColor={primaryColor}
-          secondaryColor={secondaryColor}
-        />
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
-          
-          {/* Step 1: Email Entry */}
-          {step === 1 && (
-            <Step1EmailEntry
-              email={formData.email}
-              onEmailChange={(email) => setFormData({ ...formData, email })}
-              saveDetails={formData.saveDetails}
-              onSaveDetailsChange={(saved) => setFormData({ ...formData, saveDetails: saved })}
-              popiaConsent={formData.popiaConsent}
-              onPopiaConsentChange={(consent) => setFormData({ ...formData, popiaConsent: consent })}
-              onSubmit={handleSubmit}
-              loading={loginLoading}
-              businessName={businessName}
-              businessSlogan={branding?.slogan}
-              businessLogo={branding?.logo_url}
-              heroImage={branding?.hero_image_url}
-              profileLoaded={profileLoaded}
-              profileSaveSuccess={profileSaveSuccess}
-              primaryColor={primaryColor}
-            />
-          )}
-
-          {/* Step 2: Personal Details */}
-          {step === 2 && (
-            <Step2PersonalDetails
-              formData={formData}
-              onFormChange={(field, value) => setFormData({ ...formData, [field]: value })}
-              touched={touched}
-              onTouched={markTouched}
-              submitAttempted={submitAttempted}
-              onBack={() => setStep(1)}
-              onSubmit={handleSubmit}
-              onError={(errors) => alert(`${t('error_required_fields')}: ${errors.join(', ')}`)}
-              getErrorClass={getErrorClass}
-              ErrorMessage={ErrorMessage}
-              primaryColor={primaryColor}
-              secondaryColor={secondaryColor}
-            />
-          )}
-
-          {/* Step 3: Dietary Restrictions */}
-          {step === 3 && (
-            <Step3DietaryRestrictions
-              foodRestrictions={foodRestrictions}
-              onRestrictionToggle={(key) => setFoodRestrictions({ ...foodRestrictions, [key]: !foodRestrictions[key] })}
-              onOtherTextChange={(text) => setFoodRestrictions({ ...foodRestrictions, other_text: text })}
-              hasDietaryRestrictions={hasDietaryRestrictions}
-              onHasDietaryRestrictionsChange={setHasDietaryRestrictions}
-              showRestrictionsPanel={showRestrictionsPanel}
-              onShowRestrictionsPanelChange={setShowRestrictionsPanel}
-              onContinue={() => {
-                console.log('🔍 Step3: onContinue called');
-                if (hasDietaryRestrictions === null) {
-                  alert('Please select whether you have any dietary restrictions.');
-                  return;
-                }
-                if (hasDietaryRestrictions === false) {
-                  console.log('🔍 Step3: No restrictions, moving to Step 4');
-                  setStep(4);
-                  return;
-                }
-                console.log('🔍 Step3: Has restrictions, showing panel');
-                setShowRestrictionsPanel(true);
-              }}
-              onSave={() => {
-                console.log('🔍 Step3: onSave called');
-                const hasSelected = Object.entries(foodRestrictions).some(
-                  ([key, val]) => val === true && key !== 'other_text'
-                );
-                if (!hasSelected && !foodRestrictions.other_text) {
-                  alert('Please select at least one dietary restriction or add a note.');
-                  return;
-                }
-                console.log('🔍 Step3: Save successful, moving to Step 4');
-                setShowRestrictionsPanel(false);
-                setStep(4);
-              }}
-              onBack={() => {
-                console.log('🔍 Step3: onBack called');
-                if (showRestrictionsPanel) {
-                  setShowRestrictionsPanel(false);
-                } else {
-                  setStep(2);
-                }
-              }}
-              primaryColor={primaryColor}
-            />
-          )}
-
-          {/* Step 4: Indemnity & Signature */}
-          {step === 4 && (
-            <Step4IndemnitySignature
-              businessName={businessName}
-              guestName={updateFullName()}
-              passportOrId={formData.passportOrId}
-              idPhoto={formData.idPhoto}
-              onIdPhotoChange={(photo) => setFormData({ ...formData, idPhoto: photo || '' })}
-              signature={formData.signature}
-              onSignatureChange={(sig) => setFormData({ ...formData, signature: sig })}
-              acceptLegal={formData.acceptLegal}
-              onAcceptLegalChange={(accepted) => setFormData({ ...formData, acceptLegal: accepted })}
-              hasScrolledToBottom={hasScrolledToBottom}
-              onIndemnityScroll={handleIndemnityScroll}
-              loading={loading}
-              submitAttempted={submitAttempted}
-              getErrorClass={getErrorClass}
-              ErrorMessage={ErrorMessage}
-              primaryColor={primaryColor}
-              onBack={() => {
-                console.log('🔍 Step4: onBack called');
-                setStep(3);
-              }}
-              onSubmit={handleSubmit}
-            />
-          )}
-        </form>
       </div>
-
-      {/* Footer */}
-      {step !== 5 && (
-        <div className="text-center py-6 border-t border-stone-200 mt-8">
-          <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
-            <span>{t('common_powered_by')}</span>
-            <img src="/fastcheckin-logo.png" alt="FastCheckin" className="h-4 w-auto object-contain" />
-            <span>FastCheckin</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
