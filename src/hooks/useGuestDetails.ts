@@ -1,8 +1,8 @@
 // src/hooks/useGuestDetails.ts
-// ✅ Complete with debug logging
+// ✅ ADDED: Update stay details function
 
 import { useState, useCallback } from 'react';
-import { GuestDetails, FoodRestrictions } from '../types/guest';
+import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
 
 export function useGuestDetails() {
   const [loading, setLoading] = useState(false);
@@ -96,6 +96,61 @@ export function useGuestDetails() {
     }
   }, []);
 
+  // ✅ NEW: Update stay details (check-in, check-out, nights)
+  const updateStayDetails = useCallback(async (
+    bookingId: string,
+    data: StayUpdateData
+  ) => {
+    if (!bookingId) {
+      throw new Error('No booking ID provided');
+    }
+
+    console.log('📅 useGuestDetails: Updating stay details for:', bookingId);
+    console.log('📅 useGuestDetails: Data:', data);
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/.netlify/functions/update-booking-stay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, ...data })
+      });
+
+      console.log('📡 useGuestDetails: Update stay response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ useGuestDetails: Update stay error:', errorData);
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ useGuestDetails: Update stay result:', result);
+      
+      if (result.success && result.booking) {
+        setGuestDetails(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            check_in_date: result.booking.check_in_date || prev.check_in_date,
+            check_out_date: result.booking.check_out_date || prev.check_out_date,
+            nights: result.booking.nights || prev.nights,
+          };
+        });
+      }
+
+      return result;
+    } catch (err) {
+      console.error('❌ useGuestDetails: Error updating stay details:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update stay details');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const resetGuestDetails = useCallback(() => {
     console.log('🔄 useGuestDetails: Resetting guest details');
     setGuestDetails(null);
@@ -109,6 +164,7 @@ export function useGuestDetails() {
     error,
     fetchGuestDetails,
     updateFoodRestrictions,
+    updateStayDetails,  // ✅ NEW
     resetGuestDetails
   };
 }
