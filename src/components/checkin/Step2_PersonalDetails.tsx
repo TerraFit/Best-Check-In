@@ -1,8 +1,11 @@
+// src/components/checkin/Step2PersonalDetails.tsx
+// ✅ FIXED: Remove nested form, keep native submit flow
+
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
-import { cleanLocation } from '../../services/locationIntelligenceService'; // ✅ ADD THIS
+import { cleanLocation } from '../../services/locationIntelligenceService';
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -33,11 +36,9 @@ export function Step2PersonalDetails({
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
-  // ✅ DYNAMIC PROVINCES - based on selected country
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Province / State';
 
-  // ✅ FIXED: Build province options dynamically from country data
   const provinceOptions = React.useMemo(() => {
     if (availableRegions && availableRegions.length > 0) {
       return [
@@ -45,13 +46,11 @@ export function Step2PersonalDetails({
         ...availableRegions.map(region => ({ value: region, label: region }))
       ];
     }
-    // Fallback to manual entry if no regions defined
     return [
       { value: '', label: `Enter ${regionTypeLabel}` }
     ];
   }, [availableRegions, regionTypeLabel]);
 
-  // ✅ COMBINED referral sources
   const referrals = [
     { value: '', label: 'Select Referral Source' },
     { value: 'Word of Mouth', label: 'Word of Mouth' },
@@ -81,20 +80,10 @@ export function Step2PersonalDetails({
     { value: 'other', label: 'Other' },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('🔍 Step2PersonalDetails: handleSubmit called');
-    console.log('🔍 Step2PersonalDetails: formData', formData);
-    onSubmit(e);
-  };
-
   const handleFieldChange = (field: string, value: any) => {
-    // ✅ Apply cleanLocation to arrivingFrom and nextDestination
     if (field === 'arrivingFrom' || field === 'nextDestination') {
       value = cleanLocation(value);
     }
-    
     console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
     onFormChange(field, value);
     if (field !== 'email') {
@@ -125,23 +114,14 @@ export function Step2PersonalDetails({
     return true;
   };
 
-  // Debug: Log formData changes
-  React.useEffect(() => {
-    console.log('🔍 Step2PersonalDetails: formData updated', {
-      country: formData.country,
-      province: formData.province,
-      city: formData.city,
-      availableRegions: availableRegions?.length || 0,
-    });
-  }, [formData.country, formData.province, formData.city, availableRegions]);
-
   return (
     <div className="p-10 md:p-16 animate-fade-in">
       <div className="max-w-3xl mx-auto">
         <h2 className="text-2xl font-bold text-stone-900 mb-2">Personal Details</h2>
         <p className="text-stone-500 mb-8">Please provide your personal information for check-in</p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* ✅ REMOVED <form> - using div instead, button is type="submit" to trigger parent form */}
+        <div className="space-y-6">
           {/* Row: First Name + Last Name */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -228,7 +208,6 @@ export function Step2PersonalDetails({
                 value={formData.country || ''}
                 onChange={(e) => {
                   handleFieldChange('country', e.target.value);
-                  // ✅ Reset province when country changes
                   handleFieldChange('province', '');
                 }}
                 onBlur={() => onTouched('country')}
@@ -248,7 +227,6 @@ export function Step2PersonalDetails({
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 {regionTypeLabel} *
               </label>
-              {/* ✅ DYNAMIC PROVINCE SELECT - uses data from countries.json */}
               {availableRegions && availableRegions.length > 0 ? (
                 <select
                   value={formData.province || ''}
@@ -298,14 +276,13 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* ✅ HYBRID: Arriving From + Next Destination (cleanLocation applied) */}
+          {/* Arriving From + Next Destination */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Arriving From *
               </label>
               <input
-                required 
                 type="text" 
                 placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
                 className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
@@ -329,7 +306,6 @@ export function Step2PersonalDetails({
                 Next Destination *
               </label>
               <input
-                required 
                 type="text" 
                 placeholder="Where are you heading after your stay? (e.g., Johannesburg, Cape Town, Gaborone)"
                 className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
@@ -463,7 +439,7 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* Buttons - FastCheckin Orange */}
+          {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-stone-200">
             <button
               type="button"
@@ -473,14 +449,14 @@ export function Step2PersonalDetails({
               ← Back
             </button>
             <button
-              type="submit"
+              type="submit"  // ✅ Native submit - triggers parent form
               className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
               style={{ backgroundColor: primaryColor || '#f59e0b' }}
             >
               Continue to Dietary Options →
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
