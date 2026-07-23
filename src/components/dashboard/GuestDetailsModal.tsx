@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ Complete Guest Details Modal with Food Restrictions
+// ✅ ADDED: Carnivore option with steak icon + food icons for all options
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -29,23 +29,42 @@ const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   seafood_allergy: false,
   diabetic: false,
   no_pork: false,
+  carnivore: false,  // ✅ NEW
   other: false,
   other_text: ''
 };
 
+// ✅ Food icons mapping
+const FOOD_ICONS: Record<string, string> = {
+  vegetarian: '🥬',
+  vegan: '🌱',
+  pescatarian: '🐟',
+  halal: '☪️',
+  kosher: '✡️',
+  gluten_free: '🌾',
+  lactose_free: '🥛',
+  nut_allergy: '🥜',
+  seafood_allergy: '🦐',
+  diabetic: '🍬',
+  no_pork: '🐖',
+  carnivore: '🥩',  // ✅ NEW: Steak icon
+  other: '📝'
+};
+
 const DIETARY_OPTIONS = [
-  { key: 'vegetarian', label: 'Vegetarian' },
-  { key: 'vegan', label: 'Vegan' },
-  { key: 'pescatarian', label: 'Pescatarian' },
-  { key: 'halal', label: 'Halal' },
-  { key: 'kosher', label: 'Kosher' },
-  { key: 'gluten_free', label: 'Gluten-Free' },
-  { key: 'lactose_free', label: 'Lactose-Free' },
-  { key: 'nut_allergy', label: 'Nut Allergy' },
-  { key: 'seafood_allergy', label: 'Seafood Allergy' },
-  { key: 'diabetic', label: 'Diabetic' },
-  { key: 'no_pork', label: 'No Pork' },
-  { key: 'other', label: 'Other' }
+  { key: 'vegetarian', label: 'Vegetarian', icon: '🥬' },
+  { key: 'vegan', label: 'Vegan', icon: '🌱' },
+  { key: 'pescatarian', label: 'Pescatarian', icon: '🐟' },
+  { key: 'halal', label: 'Halal', icon: '☪️' },
+  { key: 'kosher', label: 'Kosher', icon: '✡️' },
+  { key: 'gluten_free', label: 'Gluten-Free', icon: '🌾' },
+  { key: 'lactose_free', label: 'Lactose-Free', icon: '🥛' },
+  { key: 'nut_allergy', label: 'Nut Allergy', icon: '🥜' },
+  { key: 'seafood_allergy', label: 'Seafood Allergy', icon: '🦐' },
+  { key: 'diabetic', label: 'Diabetic', icon: '🍬' },
+  { key: 'no_pork', label: 'No Pork', icon: '🐖' },
+  { key: 'carnivore', label: 'Carnivore', icon: '🥩' },  // ✅ NEW
+  { key: 'other', label: 'Other', icon: '📝' }
 ];
 
 const formatDate = (dateStr?: string): string => {
@@ -184,8 +203,22 @@ export default function GuestDetailsModal({
 
   if (!isOpen) return null;
 
-  // ✅ Debug: Log before rendering
-  console.log('🔍 GuestDetailsModal: Rendering modal, guestDetails:', guestDetails);
+  // ✅ Get active restrictions with icons for display
+  const getActiveRestrictionsWithIcons = (): string[] => {
+    const active: string[] = [];
+    DIETARY_OPTIONS.forEach(({ key, icon }) => {
+      if (key === 'other') {
+        if (restrictions.other && restrictions.other_text) {
+          active.push(`📝 OTHER (${restrictions.other_text})`);
+        } else if (restrictions.other) {
+          active.push('📝 OTHER');
+        }
+      } else if (restrictions[key as keyof FoodRestrictions] === true) {
+        active.push(`${icon} ${key.replace('_', ' ').toUpperCase()}`);
+      }
+    });
+    return active;
+  };
 
   return (
     <>
@@ -258,7 +291,6 @@ export default function GuestDetailsModal({
                   </h3>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Full Name */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <User size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -268,17 +300,12 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Phone */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Phone size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400">Phone</p>
                         {guestDetails.guest_phone ? (
-                          <a 
-                            href={`tel:${guestDetails.guest_phone}`}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
-                          >
+                          <a href={`tel:${guestDetails.guest_phone}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block">
                             {guestDetails.guest_phone}
                           </a>
                         ) : (
@@ -286,17 +313,12 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
-
-                    {/* Email */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Mail size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400">Email</p>
                         {guestDetails.guest_email ? (
-                          <a 
-                            href={`mailto:${guestDetails.guest_email}`}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
-                          >
+                          <a href={`mailto:${guestDetails.guest_email}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block">
                             {guestDetails.guest_email}
                           </a>
                         ) : (
@@ -304,8 +326,6 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
-
-                    {/* Country */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Globe size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -325,9 +345,7 @@ export default function GuestDetailsModal({
                     <span>Travel Details</span>
                     <span className="h-px flex-1 bg-gray-200"></span>
                   </h3>
-                  
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Arriving From */}
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100 col-span-full sm:col-span-1">
                       <MapPin size={16} className="text-blue-500 flex-shrink-0" />
                       <div className="min-w-0">
@@ -337,8 +355,6 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Next Destination */}
                     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100 col-span-full sm:col-span-1">
                       <ArrowRight size={16} className="text-green-500 flex-shrink-0" />
                       <div className="min-w-0">
@@ -358,9 +374,7 @@ export default function GuestDetailsModal({
                     <span>Stay Details</span>
                     <span className="h-px flex-1 bg-gray-200"></span>
                   </h3>
-                  
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Check-in */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -370,8 +384,6 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Check-out */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -381,8 +393,6 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Number of Guests */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Users size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -416,13 +426,11 @@ export default function GuestDetailsModal({
                           <Check size={14} /> Saved
                         </span>
                       )}
-                      
                       {error && (
                         <span className="text-xs text-red-600 font-medium flex items-center gap-1">
                           <AlertCircle size={14} /> Error
                         </span>
                       )}
-                      
                       <button
                         onClick={handleSave}
                         disabled={!hasUnsavedChanges || saving}
@@ -447,9 +455,9 @@ export default function GuestDetailsModal({
                     </div>
                   </div>
 
-                  {/* Dietary Requirements Checkboxes */}
+                  {/* ✅ Dietary Requirements Checkboxes with Icons */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {DIETARY_OPTIONS.map(({ key, label }) => {
+                    {DIETARY_OPTIONS.map(({ key, label, icon }) => {
                       const isChecked = restrictions[key as keyof FoodRestrictions] as boolean;
                       return (
                         <label
@@ -466,7 +474,7 @@ export default function GuestDetailsModal({
                             onChange={(e) => handleRestrictionChange(key as keyof FoodRestrictions, e.target.checked)}
                             className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 flex-shrink-0"
                           />
-                          <span className="truncate">{label}</span>
+                          <span className="truncate">{icon} {label}</span>
                         </label>
                       );
                     })}
@@ -485,6 +493,20 @@ export default function GuestDetailsModal({
                         placeholder="Please specify..."
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                       />
+                    </div>
+                  )}
+
+                  {/* ✅ Active restrictions display with icons */}
+                  {getActiveRestrictionsWithIcons().length > 0 && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs font-medium text-amber-800 mb-2">Current Restrictions:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {getActiveRestrictionsWithIcons().map((item, index) => (
+                          <span key={index} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-medium">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
