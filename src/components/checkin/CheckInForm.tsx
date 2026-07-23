@@ -42,6 +42,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
 
   const {
     step,
+    setStep,
     branding,
     loading,
     loadingBranding,
