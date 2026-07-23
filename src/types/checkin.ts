@@ -32,7 +32,7 @@ export interface FoodRestrictions {
   seafood_allergy: boolean;
   diabetic: boolean;
   no_pork: boolean;
-  carnivore: boolean;  // ✅ NEW: Carnivore option
+  carnivore: boolean;
   other: boolean;
   other_text: string;
 }
