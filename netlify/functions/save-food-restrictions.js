@@ -1,5 +1,5 @@
 // netlify/functions/save-food-restrictions.js
-// ✅ ADDED: Carnivore field support
+// ✅ COMPLETE: All dietary options including carnivore
 
 export const handler = async (event) => {
   const headers = {
@@ -25,6 +25,8 @@ export const handler = async (event) => {
     const body = JSON.parse(event.body);
     const { bookingId, restrictions } = body;
 
+    console.log('📥 Received save request:', { bookingId, restrictions });
+
     if (!bookingId) {
       return { 
         statusCode: 400, 
@@ -37,6 +39,7 @@ export const handler = async (event) => {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
       return {
         statusCode: 500,
         headers,
@@ -44,28 +47,28 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ Prepare restrictions with all fields including carnivore
+    // ✅ Build restriction data with ALL fields including carnivore
     const restrictionData = {
-      vegetarian: restrictions.vegetarian || false,
-      vegan: restrictions.vegan || false,
-      pescatarian: restrictions.pescatarian || false,
-      halal: restrictions.halal || false,
-      kosher: restrictions.kosher || false,
-      gluten_free: restrictions.gluten_free || false,
-      lactose_free: restrictions.lactose_free || false,
-      nut_allergy: restrictions.nut_allergy || false,
-      seafood_allergy: restrictions.seafood_allergy || false,
-      diabetic: restrictions.diabetic || false,
-      no_pork: restrictions.no_pork || false,
-      carnivore: restrictions.carnivore || false,  // ✅ NEW
-      other: restrictions.other || false,
+      vegetarian: restrictions.vegetarian === true,
+      vegan: restrictions.vegan === true,
+      pescatarian: restrictions.pescatarian === true,
+      halal: restrictions.halal === true,
+      kosher: restrictions.kosher === true,
+      gluten_free: restrictions.gluten_free === true,
+      lactose_free: restrictions.lactose_free === true,
+      nut_allergy: restrictions.nut_allergy === true,
+      seafood_allergy: restrictions.seafood_allergy === true,
+      diabetic: restrictions.diabetic === true,
+      no_pork: restrictions.no_pork === true,
+      carnivore: restrictions.carnivore === true,  // ✅ NOW WORKS
+      other: restrictions.other === true,
       other_text: restrictions.other_text || '',
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving restrictions with carnivore:', restrictionData.carnivore);
+    console.log('💾 Saving data:', JSON.stringify(restrictionData, null, 2));
 
-    // Check if restrictions exist
+    // Check if restrictions already exist
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
       {
@@ -77,13 +80,24 @@ export const handler = async (event) => {
       }
     );
 
+    if (!checkResponse.ok) {
+      console.error('❌ Check error:', await checkResponse.text());
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to check existing restrictions' })
+      };
+    }
+
     const existingData = await checkResponse.json();
     const existingId = existingData[0]?.id;
 
     let result;
 
     if (existingId) {
-      // Update
+      // ✅ UPDATE
+      console.log('📝 Updating existing restrictions for:', bookingId);
+      
       const updateResponse = await fetch(
         `${supabaseUrl}/rest/v1/booking_food_restrictions?id=eq.${existingId}`,
         {
@@ -101,14 +115,20 @@ export const handler = async (event) => {
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text();
         console.error('❌ Update error:', errorText);
-        throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: `Update failed: ${errorText}` })
+        };
       }
 
       const updateData = await updateResponse.json();
       result = updateData[0];
       console.log('✅ Updated restrictions:', result);
     } else {
-      // Insert
+      // ✅ INSERT
+      console.log('📝 Inserting new restrictions for:', bookingId);
+      
       const insertResponse = await fetch(
         `${supabaseUrl}/rest/v1/booking_food_restrictions`,
         {
@@ -130,7 +150,11 @@ export const handler = async (event) => {
       if (!insertResponse.ok) {
         const errorText = await insertResponse.text();
         console.error('❌ Insert error:', errorText);
-        throw new Error(`HTTP ${insertResponse.status}: ${errorText}`);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: `Insert failed: ${errorText}` })
+        };
       }
 
       const insertData = await insertResponse.json();
