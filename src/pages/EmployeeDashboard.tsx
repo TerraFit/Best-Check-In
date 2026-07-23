@@ -1,17 +1,16 @@
 // src/pages/EmployeeDashboard.tsx
-// ✅ CORRECTED: Stayovers logic - guests BETWEEN arrival and departure
+// ✅ COMPLETE: Using GuestOverviewTab with modal support
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  LogOut, Users, Utensils, Calendar, Clock, 
-  User, Phone, Mail, Globe, MapPin, 
-  ChevronRight, AlertCircle, CheckCircle, 
-  Bed, ArrowRight, UserCheck, UserX,
+  LogOut, Users, Utensils, Calendar, 
+  User, Bed, UserCheck, UserX,
   QrCode, PlusCircle
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import QRCodeModal from '../components/QRCodeModal';
+import { GuestOverviewTab } from '../components/staff/GuestOverviewTab';
 
 interface Booking {
   id: string;
@@ -24,6 +23,7 @@ interface Booking {
   check_in_date?: string;
   check_out_date?: string;
   status?: string;
+  nights?: number;
   food_restrictions?: {
     vegetarian: boolean;
     vegan: boolean;
@@ -157,7 +157,6 @@ export default function EmployeeDashboard() {
   // ============================================================
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
 
   const parseDate = (dateStr: string | undefined): Date | null => {
     if (!dateStr) return null;
@@ -180,24 +179,15 @@ export default function EmployeeDashboard() {
   }, [bookings]);
 
   // ✅ STAYOVERS: Checked in BEFORE today AND checking out AFTER today
-  // OR: check_in_date < today AND check_out_date > today
   const stayovers = useMemo(() => {
     return bookings.filter(b => {
       const checkIn = parseDate(b.check_in_date);
       const checkOut = parseDate(b.check_out_date);
       
       if (!checkIn) return false;
-      
-      // Must be checked in
       if (b.status !== 'checked_in') return false;
-      
-      // Must have checked in BEFORE today (not today)
       if (checkIn.getTime() >= today.getTime()) return false;
-      
-      // If no check-out date, they're still staying (ongoing stay)
       if (!checkOut) return true;
-      
-      // Check-out must be AFTER today (strictly greater than today)
       return checkOut.getTime() > today.getTime();
     });
   }, [bookings]);
@@ -302,137 +292,17 @@ export default function EmployeeDashboard() {
         </div>
 
         {/* ============================================================
-            TAB: OVERVIEW - Guest Cards + Quick Actions at bottom
+            TAB: OVERVIEW - Using GuestOverviewTab with Modal
             ============================================================ */}
         {activeTab === 'overview' && (
-          <div className="space-y-6 animate-fade-in">
-            
-            {/* Guest Cards - 3 columns */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Arrivals Card - Guests checking in TODAY */}
-              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-stone-100 bg-green-50/50 flex items-center gap-2">
-                  <UserCheck size={16} className="text-green-600" />
-                  <h3 className="font-bold text-xs uppercase tracking-widest text-green-700">Arrivals</h3>
-                  <span className="ml-auto bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {todaysArrivals.length}
-                  </span>
-                </div>
-                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {todaysArrivals.length === 0 ? (
-                    <p className="text-sm text-stone-400 text-center py-6">No arrivals today</p>
-                  ) : (
-                    todaysArrivals.map(guest => (
-                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                        <div>
-                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          {getGuestLocation(guest) && (
-                            <p className="text-[10px] text-stone-400">{getGuestLocation(guest)}</p>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-green-600 font-medium">Arriving</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Stayovers Card - Guests between check-in and check-out */}
-              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-stone-100 bg-blue-50/50 flex items-center gap-2">
-                  <Bed size={16} className="text-blue-600" />
-                  <h3 className="font-bold text-xs uppercase tracking-widest text-blue-700">Stayovers</h3>
-                  <span className="ml-auto bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {stayovers.length}
-                  </span>
-                </div>
-                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {stayovers.length === 0 ? (
-                    <p className="text-sm text-stone-400 text-center py-6">No current stayovers</p>
-                  ) : (
-                    stayovers.map(guest => (
-                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <p className="text-sm font-medium text-stone-900 truncate">{guest.guest_name}</p>
-                          {hasDietaryRestrictions(guest) && (
-                            <span className="text-[10px] text-amber-600 font-bold flex-shrink-0" title="Has dietary restrictions">
-                              ⚠️
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {getGuestLocation(guest) && (
-                            <span className="text-[10px] text-stone-400 hidden sm:inline">{getGuestLocation(guest)}</span>
-                          )}
-                          <span className="text-[10px] text-blue-600 font-medium">Staying</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Check-outs Card - Guests checking out TODAY */}
-              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-stone-100 bg-amber-50/50 flex items-center gap-2">
-                  <UserX size={16} className="text-amber-600" />
-                  <h3 className="font-bold text-xs uppercase tracking-widest text-amber-700">Check-outs</h3>
-                  <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {todaysCheckouts.length}
-                  </span>
-                </div>
-                <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {todaysCheckouts.length === 0 ? (
-                    <p className="text-sm text-stone-400 text-center py-6">No check-outs today</p>
-                  ) : (
-                    todaysCheckouts.map(guest => (
-                      <div key={guest.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                        <div>
-                          <p className="text-sm font-medium text-stone-900">{guest.guest_name}</p>
-                          {getGuestLocation(guest) && (
-                            <p className="text-[10px] text-stone-400">{getGuestLocation(guest)}</p>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-amber-600 font-medium">Departing</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ============================================================
-                QUICK ACTIONS - At bottom of Guest Overview tab
-                ============================================================ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <button
-                onClick={() => window.location.href = `/checkin/${businessId}`}
-                className="flex items-center gap-4 p-4 bg-white border border-stone-200 rounded-2xl hover:shadow-md transition-all hover:border-amber-200 text-left"
-              >
-                <div className="p-3 bg-amber-500 rounded-xl flex-shrink-0">
-                  <PlusCircle size={20} className="text-white" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900 text-sm">New Check-in</p>
-                  <p className="text-xs text-stone-400">Quick check-in for arriving guests</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setShowQRModal(true)}
-                className="flex items-center gap-4 p-4 bg-white border border-stone-200 rounded-2xl hover:shadow-md transition-all hover:border-blue-200 text-left"
-              >
-                <div className="p-3 bg-blue-500 rounded-xl flex-shrink-0">
-                  <QrCode size={20} className="text-white" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900 text-sm">QR Code</p>
-                  <p className="text-xs text-stone-400">Display check-in QR code</p>
-                </div>
-              </button>
-            </div>
-          </div>
+          <GuestOverviewTab
+            bookings={bookings}
+            todayArrivals={todaysArrivals}
+            todayStayovers={stayovers}
+            todayCheckouts={todaysCheckouts}
+            businessId={businessId || ''}
+            onShowQRModal={() => setShowQRModal(true)}
+          />
         )}
 
         {/* ============================================================
@@ -473,6 +343,8 @@ export default function EmployeeDashboard() {
                           .filter(([key, val]) => val === true && key !== 'other_text')
                           .map(([key]) => key.replace('_', ' ').toUpperCase());
                         
+                        const otherText = restrictions.other_text ? ` (${restrictions.other_text})` : '';
+                        
                         return (
                           <tr key={guest.id} className="hover:bg-stone-50/50 transition-colors">
                             <td className="px-6 py-4 font-bold text-stone-900">{guest.guest_name}</td>
@@ -498,9 +370,9 @@ export default function EmployeeDashboard() {
                                     +{activeRestrictions.length - 3}
                                   </span>
                                 )}
-                                {restrictions.other_text && (
+                                {restrictions.other && (
                                   <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-[8px] font-bold" title={restrictions.other_text}>
-                                    Other
+                                    Other{otherText}
                                   </span>
                                 )}
                               </div>
