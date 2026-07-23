@@ -1,20 +1,34 @@
+// src/components/checkin/Step3DietaryRestrictions.tsx
+// ✅ FIXED: Remove any reference to setStep
+
 import React from 'react';
-import { Utensils, Check, X } from 'lucide-react';
-import { useTranslation } from '../../i18n';
-import { FoodRestrictions, DIETARY_OPTIONS, DEFAULT_RESTRICTIONS } from '../../types/checkin';
+import { FoodRestrictions } from '../../types/checkin';
 
 interface Step3DietaryRestrictionsProps {
   foodRestrictions: FoodRestrictions;
-  onRestrictionToggle: (key: keyof FoodRestrictions) => void;
+  onRestrictionToggle: (key: string) => void;
   onOtherTextChange: (text: string) => void;
   hasDietaryRestrictions: boolean | null;
-  onHasDietaryRestrictionsChange: (value: boolean | null) => void;
+  onHasDietaryRestrictionsChange: (value: boolean) => void;
   showRestrictionsPanel: boolean;
   onShowRestrictionsPanelChange: (show: boolean) => void;
   onContinue: () => void;
-  onSave: () => void;
+  onSave: () => void;  // ✅ This is the callback - NO setStep here!
   onBack: () => void;
+  primaryColor?: string;
 }
+
+const RESTRICTION_OPTIONS = [
+  { key: 'vegetarian', label: '🥬 Vegetarian' },
+  { key: 'vegan', label: '🌱 Vegan' },
+  { key: 'gluten_free', label: '🌾 Gluten Free' },
+  { key: 'lactose_free', label: '🥛 Lactose Free' },
+  { key: 'nut_allergy', label: '🥜 Nut Allergy' },
+  { key: 'shellfish_allergy', label: '🦐 Shellfish Allergy' },
+  { key: 'diabetic', label: '💉 Diabetic' },
+  { key: 'halal', label: '☪️ Halal' },
+  { key: 'kosher', label: '✡️ Kosher' },
+];
 
 export function Step3DietaryRestrictions({
   foodRestrictions,
@@ -25,214 +39,172 @@ export function Step3DietaryRestrictions({
   showRestrictionsPanel,
   onShowRestrictionsPanelChange,
   onContinue,
-  onSave,
+  onSave,  // ✅ This is the callback from parent
   onBack,
+  primaryColor = '#f59e0b',
 }: Step3DietaryRestrictionsProps) {
-  const { t } = useTranslation();
-
-  const handleContinue = () => {
-    if (hasDietaryRestrictions === null) {
-      alert('Please select whether you have any dietary restrictions.');
-      return;
-    }
-    if (hasDietaryRestrictions === false) {
-      onContinue();
-      return;
-    }
-    onShowRestrictionsPanelChange(true);
-  };
-
+  
+  // ✅ This is the key fix - NO setStep here!
   const handleSave = () => {
+    console.log('🔍 Step3: handleSave called');
+    
     const hasSelected = Object.entries(foodRestrictions).some(
-      ([key, val]) => val === true && key !== 'other_text' && key !== 'carnivore'
+      ([key, val]) => val === true && key !== 'other_text'
     );
-    if (!hasSelected && !foodRestrictions.other_text && !foodRestrictions.carnivore) {
-      alert('Please select at least one dietary restriction or specify "Other".');
+    
+    if (!hasSelected && !foodRestrictions.other_text?.trim()) {
+      alert('Please select at least one dietary restriction or add a note.');
       return;
     }
+    
+    console.log('🔍 Step3: Save successful, calling onSave callback');
+    // ✅ Only call the callback - parent handles setStep
     onSave();
   };
 
-  const handleBack = () => {
-    if (showRestrictionsPanel) {
-      onShowRestrictionsPanelChange(false);
-      onHasDietaryRestrictionsChange(null);
-    } else {
-      onBack();
-    }
-  };
-
-  const hasAnyRestrictions = Object.entries(foodRestrictions).some(
-    ([key, val]) => val === true && key !== 'other_text' && key !== 'carnivore'
-  );
-
-  // ✅ Get selected labels with icons
-  const selectedLabels = Object.entries(foodRestrictions)
-    .filter(([key, val]) => val === true && key !== 'other_text')
-    .map(([key]) => {
-      const option = DIETARY_OPTIONS.find(o => o.key === key);
-      return option ? `${option.icon} ${option.label}` : key;
-    });
-
   return (
-    <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Utensils size={32} className="text-amber-600" />
-        </div>
-        <h2 className="text-3xl font-serif font-bold text-stone-900">Dietary Requirements</h2>
-        <p className="text-stone-500 text-sm mt-2">
-          Do you have any special dietary requirements or food restrictions?
-        </p>
-      </div>
+    <div className="p-10 md:p-16 animate-fade-in">
+      <div className="max-w-3xl mx-auto">
+        <h2 className="text-2xl font-bold text-stone-900 mb-2">Dietary Preferences</h2>
+        <p className="text-stone-500 mb-8">Let us know about any dietary requirements</p>
 
-      {!showRestrictionsPanel ? (
-        // Initial Question: YES / NO
-        <div className="flex-grow flex flex-col items-center justify-center gap-6 max-w-md mx-auto w-full">
-          <div className="grid grid-cols-2 gap-4 w-full">
-            <button
-              type="button"
-              onClick={() => onHasDietaryRestrictionsChange(false)}
-              className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
-                hasDietaryRestrictions === false
-                  ? 'border-green-500 bg-green-50 shadow-md'
-                  : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
-              }`}
-            >
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Check size={24} className="text-green-600" />
-              </div>
-              <span className="font-bold text-stone-800">No</span>
-              <span className="text-xs text-stone-400">No dietary restrictions</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onHasDietaryRestrictionsChange(true)}
-              className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
-                hasDietaryRestrictions === true
-                  ? 'border-amber-500 bg-amber-50 shadow-md'
-                  : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
-              }`}
-            >
-              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                <Utensils size={24} className="text-amber-600" />
-              </div>
-              <span className="font-bold text-stone-800">Yes</span>
-              <span className="text-xs text-stone-400">I have restrictions</span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="mt-6 px-12 py-4 bg-amber-600 text-white rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider"
-          >
-            Continue
-          </button>
-
-          {hasDietaryRestrictions !== null && (
-            <p className="text-xs text-stone-400 mt-2">
-              {hasDietaryRestrictions === false 
-                ? '✓ No restrictions selected. Proceed to indemnity.' 
-                : '✓ Please select your restrictions below.'}
-            </p>
-          )}
-        </div>
-      ) : (
-        // ✅ Restrictions Selection Panel - Now includes Carnivore
-        <div className="flex-grow overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {DIETARY_OPTIONS.map(option => {
-              const isSelected = foodRestrictions[option.key] as boolean;
-              return (
+        {!showRestrictionsPanel ? (
+          // Initial question: Do you have dietary restrictions?
+          <div className="space-y-8">
+            <div className="bg-stone-50 rounded-2xl p-6 border border-stone-200">
+              <p className="text-lg font-medium text-stone-800 mb-4">
+                Do you have any dietary restrictions?
+              </p>
+              <div className="flex gap-4">
                 <button
-                  key={option.key}
                   type="button"
-                  onClick={() => onRestrictionToggle(option.key)}
-                  className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                    isSelected
-                      ? 'border-amber-500 bg-amber-50 shadow-md'
-                      : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                  onClick={() => {
+                    console.log('🔍 Step3: Selected YES');
+                    onHasDietaryRestrictionsChange(true);
+                  }}
+                  className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all font-medium ${
+                    hasDietaryRestrictions === true
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
                   }`}
+                  style={hasDietaryRestrictions === true ? { borderColor: primaryColor } : {}}
                 >
-                  <span className="text-2xl">{option.icon}</span>
-                  <span className="text-xs font-medium text-center">{option.label}</span>
-                  {isSelected && (
-                    <span className="text-[10px] text-amber-600 font-bold">✓ Selected</span>
-                  )}
+                  ✅ Yes
                 </button>
-              );
-            })}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('🔍 Step3: Selected NO');
+                    onHasDietaryRestrictionsChange(false);
+                  }}
+                  className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all font-medium ${
+                    hasDietaryRestrictions === false
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                  }`}
+                  style={hasDietaryRestrictions === false ? { borderColor: primaryColor } : {}}
+                >
+                  ❌ No
+                </button>
+              </div>
+            </div>
 
-          {/* Other input */}
-          <div className="mt-6">
-            <label className="flex items-center gap-3 text-sm font-medium text-stone-700">
-              <input
-                type="checkbox"
-                checked={foodRestrictions.other}
-                onChange={() => onRestrictionToggle('other')}
-                className="w-4 h-4 rounded border-stone-300 text-amber-500 focus:ring-amber-500"
-              />
-              Other (please specify)
-            </label>
-            {foodRestrictions.other && (
-              <input
-                type="text"
-                value={foodRestrictions.other_text}
-                onChange={(e) => onOtherTextChange(e.target.value)}
-                placeholder="Please specify your dietary requirement..."
-                className="mt-2 w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-sm"
-              />
-            )}
-          </div>
-
-          {/* ✅ Selected summary with icons */}
-          <div className="mt-6 p-4 bg-stone-50 rounded-xl border border-stone-200">
-            <p className="text-xs font-medium text-stone-500">Selected restrictions:</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {selectedLabels.length > 0 ? (
-                selectedLabels.map(label => (
-                  <span key={label} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-medium">
-                    {label}
-                  </span>
-                ))
-              ) : (
-                <span className="text-xs text-stone-400 italic">No restrictions selected</span>
-              )}
-              {foodRestrictions.other && foodRestrictions.other_text && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-[10px] font-medium">
-                  📝 Other: {foodRestrictions.other_text}
-                </span>
-              )}
-              {/* ✅ Show carnivore in summary */}
-              {foodRestrictions.carnivore && (
-                <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-[10px] font-medium">
-                  🥩 Carnivore
-                </span>
-              )}
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                onClick={onContinue}
+                className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
+                style={{ backgroundColor: primaryColor || '#f59e0b' }}
+              >
+                Continue →
+              </button>
             </div>
           </div>
+        ) : (
+          // Restrictions panel
+          <div className="space-y-8">
+            <div className="bg-stone-50 rounded-2xl p-6 border border-stone-200">
+              <p className="text-lg font-medium text-stone-800 mb-4">
+                Select your dietary restrictions
+              </p>
+              <p className="text-sm text-stone-500 mb-6">
+                Select all that apply, or add a note below
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {RESTRICTION_OPTIONS.map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      foodRestrictions[key as keyof FoodRestrictions]
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                    }`}
+                    style={
+                      foodRestrictions[key as keyof FoodRestrictions]
+                        ? { borderColor: primaryColor }
+                        : {}
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!foodRestrictions[key as keyof FoodRestrictions]}
+                      onChange={() => onRestrictionToggle(key)}
+                      className="w-4 h-4 text-amber-500 rounded border-stone-300 focus:ring-amber-500"
+                    />
+                    <span className="text-sm font-medium text-stone-700">{label}</span>
+                  </label>
+                ))}
+              </div>
 
-          <div className="mt-8 flex justify-between">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="px-6 py-3 border border-stone-200 rounded-xl text-stone-600 font-medium hover:bg-stone-50 transition-colors"
-            >
-              ← Back
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-8 py-3 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 transition-all shadow-md"
-            >
-              Save & Continue →
-            </button>
+              {/* ✅ Updated: Note/Comments field */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Note / Comments
+                </label>
+                <textarea
+                  rows={3}
+                  value={foodRestrictions.other_text || ''}
+                  onChange={(e) => onOtherTextChange(e.target.value)}
+                  placeholder="e.g., Mr. is a carnivore, Mrs. is lactose & gluten intolerant"
+                  className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"
+                />
+                <p className="text-xs text-stone-400 mt-1">
+                  📝 Add any specific dietary notes or comments here
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('🔍 Step3: Back button clicked');
+                  onBack();
+                }}
+                className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}  // ✅ Uses handleSave which calls onSave
+                className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
+                style={{ backgroundColor: primaryColor || '#f59e0b' }}
+              >
+                Save and Continue →
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
