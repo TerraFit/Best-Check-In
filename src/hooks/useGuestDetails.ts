@@ -1,5 +1,5 @@
 // src/hooks/useGuestDetails.ts
-// ✅ ADDED: Update stay details function
+// ✅ ADDED: Audit logging for all updates
 
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
@@ -86,6 +86,14 @@ export function useGuestDetails() {
         });
       }
 
+      // ✅ Add audit log for food restriction changes
+      await addAuditLog({
+        bookingId,
+        action: 'UPDATE_FOOD_RESTRICTIONS',
+        details: restrictions,
+        description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`
+      });
+
       return result;
     } catch (err) {
       console.error('❌ useGuestDetails: Error saving restrictions:', err);
@@ -94,9 +102,9 @@ export function useGuestDetails() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [guestDetails]);
 
-  // ✅ NEW: Update stay details (check-in, check-out, nights)
+  // ✅ NEW: Update stay details with audit logging
   const updateStayDetails = useCallback(async (
     bookingId: string,
     data: StayUpdateData
@@ -141,6 +149,14 @@ export function useGuestDetails() {
         });
       }
 
+      // ✅ Add audit log for stay changes
+      await addAuditLog({
+        bookingId,
+        action: 'UPDATE_STAY_DETAILS',
+        details: data,
+        description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`
+      });
+
       return result;
     } catch (err) {
       console.error('❌ useGuestDetails: Error updating stay details:', err);
@@ -149,7 +165,57 @@ export function useGuestDetails() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [guestDetails]);
+
+  // ✅ NEW: Add audit log helper
+  const addAuditLog = useCallback(async (logData: {
+    bookingId: string;
+    action: string;
+    details: any;
+    description: string;
+  }) => {
+    try {
+      // Get current user from auth
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      const auth = authStr ? JSON.parse(authStr) : null;
+      const user = auth?.user || { id: 'unknown', name: 'Unknown User' };
+
+      const response = await fetch('/.netlify/functions/create-audit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: guestDetails?.id ? guestDetails.id : 'unknown',
+          user_id: user.id || 'unknown',
+          user_name: user.name || user.full_name || 'Unknown User',
+          action: logData.action,
+          details: logData.details,
+          description: logData.description,
+          booking_id: logData.bookingId,
+          ip_address: await getIPAddress(),
+          user_agent: navigator.userAgent
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Audit log created for:', logData.action);
+      } else {
+        console.warn('⚠️ Failed to create audit log:', await response.text());
+      }
+    } catch (err) {
+      console.warn('⚠️ Audit log error (non-critical):', err);
+    }
+  }, [guestDetails]);
+
+  // ✅ Helper to get IP address (optional)
+  const getIPAddress = async (): Promise<string> => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  };
 
   const resetGuestDetails = useCallback(() => {
     console.log('🔄 useGuestDetails: Resetting guest details');
@@ -164,7 +230,7 @@ export function useGuestDetails() {
     error,
     fetchGuestDetails,
     updateFoodRestrictions,
-    updateStayDetails,  // ✅ NEW
+    updateStayDetails,
     resetGuestDetails
   };
 }
