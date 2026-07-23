@@ -9,9 +9,6 @@ export default function CheckInApp() {
 
   const handleCheckinComplete = (booking: Booking, indemnityToken?: string) => {
     console.log('✅ Check-in complete!', booking);
-    
-    // Optionally navigate to a success page or stay on the same page
-    // The CheckInForm already shows a success step internally
   };
 
   if (!businessId) {
@@ -36,7 +33,7 @@ export default function CheckInApp() {
       <CheckInForm 
         onComplete={handleCheckinComplete}
         businessId={businessId}
-        resetOnMount={true}  // ✅ THIS IS THE KEY FIX - always start fresh
+        resetOnMount={true}
       />
     </div>
   );
