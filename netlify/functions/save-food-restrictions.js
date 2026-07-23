@@ -1,5 +1,5 @@
 // netlify/functions/save-food-restrictions.js
-// ✅ Using REST API - No Supabase client dependency
+// ✅ ADDED: Carnivore field support
 
 export const handler = async (event) => {
   const headers = {
@@ -44,6 +44,25 @@ export const handler = async (event) => {
       };
     }
 
+    // ✅ Prepare restrictions with all fields including carnivore
+    const restrictionData = {
+      vegetarian: restrictions.vegetarian || false,
+      vegan: restrictions.vegan || false,
+      pescatarian: restrictions.pescatarian || false,
+      halal: restrictions.halal || false,
+      kosher: restrictions.kosher || false,
+      gluten_free: restrictions.gluten_free || false,
+      lactose_free: restrictions.lactose_free || false,
+      nut_allergy: restrictions.nut_allergy || false,
+      seafood_allergy: restrictions.seafood_allergy || false,
+      diabetic: restrictions.diabetic || false,
+      no_pork: restrictions.no_pork || false,
+      carnivore: restrictions.carnivore || false,  // ✅ NEW
+      other: restrictions.other || false,
+      other_text: restrictions.other_text || '',
+      updated_at: new Date().toISOString()
+    };
+
     // Check if restrictions exist
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
@@ -73,10 +92,7 @@ export const handler = async (event) => {
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
           },
-          body: JSON.stringify({
-            ...restrictions,
-            updated_at: new Date().toISOString()
-          })
+          body: JSON.stringify(restrictionData)
         }
       );
 
@@ -100,9 +116,8 @@ export const handler = async (event) => {
           },
           body: JSON.stringify([{
             booking_id: bookingId,
-            ...restrictions,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            ...restrictionData,
+            created_at: new Date().toISOString()
           }])
         }
       );
