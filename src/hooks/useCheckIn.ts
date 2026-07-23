@@ -764,6 +764,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   return {
     // State
     step,
+    setStep,
     branding,
     loading,
     loadingBranding,
