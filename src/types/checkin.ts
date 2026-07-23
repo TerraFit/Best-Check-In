@@ -1,5 +1,3 @@
-// src/types/checkin.ts
-
 export interface BusinessBranding {
   id: string;
   trading_name: string;
@@ -34,6 +32,7 @@ export interface FoodRestrictions {
   seafood_allergy: boolean;
   diabetic: boolean;
   no_pork: boolean;
+  carnivore: boolean;  // ✅ NEW: Carnivore option
   other: boolean;
   other_text: string;
 }
@@ -94,6 +93,7 @@ export const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   seafood_allergy: false,
   diabetic: false,
   no_pork: false,
+  carnivore: false,  // ✅ NEW
   other: false,
   other_text: ''
 };
@@ -110,4 +110,6 @@ export const DIETARY_OPTIONS = [
   { key: 'seafood_allergy', label: 'Seafood Allergy', icon: '🦐' },
   { key: 'diabetic', label: 'Diabetic', icon: '💉' },
   { key: 'no_pork', label: 'No Pork', icon: '🐷' },
+  { key: 'carnivore', label: 'Carnivore', icon: '🥩' },
+  { key: 'other', label: 'Other', icon: '📝' }
 ] as const;
