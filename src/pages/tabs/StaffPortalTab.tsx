@@ -1,7 +1,5 @@
-// src/pages/tabs/StaffPortalTab.tsx
 import React, { useState, useEffect } from 'react';
 import { StaffPortalWrapper } from '../../components/staff/StaffPortalWrapper';
-import { useBusinessData } from '../../hooks/useBusinessData';
 import { useAuth } from '../../hooks/useAuth';
 
 interface StaffPortalTabProps {
@@ -16,11 +14,6 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [loadingAudit, setLoadingAudit] = useState(false);
-  
-  // Get bookings using existing hook
-  const { bookings, loading: loadingBookings, refreshData } = useBusinessData('staff', 1, 1000, {});
-  
-  // Get business data from context/state
   const [business, setBusiness] = useState<any>(null);
   
   // Fetch business data
@@ -92,16 +85,9 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
     fetchAuditLogs();
   }, [businessId]);
   
-  // Handle updating bookings (for food restrictions)
-  const handleUpdateBookings = (updatedBookings: any[]) => {
-    // Refresh bookings data
-    refreshData();
-  };
-  
   // Handle updating employees
   const handleUpdateEmployees = async (updatedEmployees: any[]) => {
     setEmployees(updatedEmployees);
-    // Optionally refresh from server
     await fetchEmployees();
   };
   
@@ -110,19 +96,8 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
     setAuditLogs(prev => [log, ...prev]);
   };
   
-  // Handle updating business
-  const handleUpdateBusiness = (updatedBusiness: any) => {
-    setBusiness(updatedBusiness);
-  };
-  
-  // Handle showing QR modal
-  const handleShowQrModal = () => {
-    // You can integrate with your existing QR modal here
-    console.log('Show QR modal for:', businessId);
-  };
-  
-  // Check if all data is loading
-  const isLoading = loadingBookings || loadingEmployees || loadingAudit || !business;
+  // Check if data is loading
+  const isLoading = loadingEmployees || loadingAudit || !business;
   
   if (isLoading) {
     return (
@@ -138,8 +113,8 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
   // Get current user session
   const session = {
     user: {
-      id: 'user_1', // Replace with actual user ID from auth
-      full_name: 'Admin User', // Replace with actual user name
+      id: 'user_1',
+      full_name: 'Admin User',
       role: 'owner' as 'owner' | 'EmployeeOverview',
       business_id: businessId,
     }
@@ -158,14 +133,10 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
     <StaffPortalWrapper
       session={session}
       business={businessData}
-      bookings={bookings || []}
       employees={employees}
       auditLogs={auditLogs}
-      onUpdateBookings={handleUpdateBookings}
       onUpdateEmployees={handleUpdateEmployees}
       onAddAuditLog={handleAddAuditLog}
-      onUpdateBusiness={handleUpdateBusiness}
-      onShowQrModal={handleShowQrModal}
     />
   );
 }
