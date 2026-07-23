@@ -1,15 +1,11 @@
-// src/components/staff/GuestOverviewTab.tsx
-// ✅ FIXED: Modal working + Other text display
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, UserPlus, QrCode, Phone, 
   Calendar, ChevronRight, Utensils,
-  Bed, UserCheck, UserX, Printer
+  Bed, UserCheck, UserX, Printer,
+  AlertCircle
 } from 'lucide-react';
-
-// ✅ Import the Guest Details Modal
 import GuestDetailsModal from '../dashboard/GuestDetailsModal';
 
 interface GuestOverviewTabProps {
@@ -44,15 +40,6 @@ export function GuestOverviewTab({
     });
   }, [isModalOpen, selectedBookingId, businessId]);
 
-  // Get all checked-in guests (for the list)
-  const checkedInGuests = useMemo(() => {
-    const checked = bookings.filter(b => 
-      b.status === 'checked_in' || b.status === 'Checked-In' || b.status === 'active'
-    );
-    console.log('🔍 Checked-in guests:', checked.length);
-    return checked;
-  }, [bookings]);
-
   // ✅ Handle guest click - opens the modal
   const handleGuestClick = (bookingId: string) => {
     console.log('🖱️ Guest clicked, bookingId:', bookingId);
@@ -63,10 +50,8 @@ export function GuestOverviewTab({
       return;
     }
     
-    // ✅ Set state and log
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
-    console.log('✅ Modal should now be open');
   };
 
   // ✅ Handle modal close
@@ -94,14 +79,13 @@ export function GuestOverviewTab({
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
-  // ✅ Get dietary restrictions display text - INCLUDING "Other" text
+  // ✅ Get dietary restrictions display text
   const getDietaryDisplay = (guest: any): string => {
     const restrictions = guest.food_restrictions || {};
     const active = Object.entries(restrictions)
       .filter(([key, val]) => val === true && key !== 'other_text')
       .map(([key]) => key.replace('_', ' '));
     
-    // ✅ Include "Other" text if present
     const otherText = restrictions.other_text ? ` (${restrictions.other_text})` : '';
     
     if (active.length === 0 && otherText) {
@@ -112,23 +96,6 @@ export function GuestOverviewTab({
       return `${active[0]}${otherText}`;
     }
     return `${active[0]} +${active.length - 1}${otherText}`;
-  };
-
-  // ✅ Get food restrictions for table display
-  const getActiveRestrictions = (guest: any): string[] => {
-    const restrictions = guest.food_restrictions || {};
-    const active = Object.entries(restrictions)
-      .filter(([key, val]) => val === true && key !== 'other_text')
-      .map(([key]) => key.replace('_', ' ').toUpperCase());
-    
-    // ✅ Include "Other" with text if present
-    if (restrictions.other_text) {
-      active.push(`OTHER (${restrictions.other_text})`);
-    } else if (restrictions.other) {
-      active.push('OTHER');
-    }
-    
-    return active;
   };
 
   return (
@@ -164,6 +131,11 @@ export function GuestOverviewTab({
                           <Phone size={12} /> {formatPhone(guest.guest_phone)}
                         </p>
                       </div>
+                      {hasDietaryRestrictions(guest) && (
+                        <span className="text-amber-500" title="Has dietary restrictions">
+                          ⚠️
+                        </span>
+                      )}
                       <ChevronRight size={16} className="text-stone-400" />
                     </div>
                   ))}
@@ -198,6 +170,11 @@ export function GuestOverviewTab({
                           <Calendar size={12} /> Check-out: {guest.check_out_date || 'N/A'}
                         </p>
                       </div>
+                      {hasDietaryRestrictions(guest) && (
+                        <span className="text-amber-500" title="Has dietary restrictions">
+                          ⚠️
+                        </span>
+                      )}
                       <ChevronRight size={16} className="text-stone-400" />
                     </div>
                   ))}
@@ -232,6 +209,11 @@ export function GuestOverviewTab({
                           <Phone size={12} /> {formatPhone(guest.guest_phone)}
                         </p>
                       </div>
+                      {hasDietaryRestrictions(guest) && (
+                        <span className="text-amber-500" title="Has dietary restrictions">
+                          ⚠️
+                        </span>
+                      )}
                       <ChevronRight size={16} className="text-stone-400" />
                     </div>
                   ))}
@@ -291,85 +273,7 @@ export function GuestOverviewTab({
         </div>
 
         {/* ============================================================
-            ALL GUESTS LIST
-            ============================================================ */}
-        <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users size={18} className="text-stone-500" />
-              <h3 className="font-bold text-sm text-stone-700">All Guests</h3>
-              <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
-                {checkedInGuests.length} checked in
-              </span>
-            </div>
-            <span className="text-xs text-stone-400">Click to view details</span>
-          </div>
-
-          <div className="divide-y divide-stone-100">
-            {checkedInGuests.length === 0 ? (
-              <div className="p-8 text-center text-stone-400">
-                <Users size={32} className="mx-auto mb-2 text-stone-300" />
-                <p className="text-sm">No guests currently checked in</p>
-              </div>
-            ) : (
-              checkedInGuests.map(guest => {
-                const hasRestrictions = hasDietaryRestrictions(guest);
-                const dietaryDisplay = getDietaryDisplay(guest);
-                
-                return (
-                  <div
-                    key={guest.id}
-                    onClick={() => {
-                      console.log('👆 Clicked on guest card:', guest.id, guest.guest_name);
-                      handleGuestClick(guest.id);
-                    }}
-                    className="px-6 py-4 hover:bg-stone-50/60 cursor-pointer transition-colors flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">
-                        {guest.guest_name?.charAt(0) || 'G'}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm text-stone-900">{guest.guest_name}</p>
-                        <div className="flex items-center gap-3 text-xs text-stone-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar size={12} /> {guest.check_in_date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Bed size={12} /> {guest.nights || 1} nights
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {hasRestrictions && (
-                        <span 
-                          className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 cursor-help" 
-                          title={dietaryDisplay}
-                        >
-                          <Utensils size={12} /> Dietary
-                        </span>
-                      )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        guest.status === 'checked_in' || guest.status === 'Checked-In' || guest.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-stone-100 text-stone-500'
-                      }`}>
-                        {guest.status === 'checked_in' || guest.status === 'Checked-In' || guest.status === 'active' 
-                          ? 'Checked In' 
-                          : guest.status}
-                      </span>
-                      <ChevronRight size={16} className="text-stone-400" />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* ============================================================
-            GUEST DETAILS MODAL - ✅ UNCONDITIONAL RENDERING
+            GUEST DETAILS MODAL
             ============================================================ */}
         <GuestDetailsModal
           isOpen={isModalOpen}
@@ -377,15 +281,6 @@ export function GuestOverviewTab({
           onClose={handleModalClose}
           businessId={businessId}
         />
-
-        {/* ✅ DEBUG: Show modal state on screen (remove after testing) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 bg-black/80 text-white text-xs p-3 rounded-lg z-50 font-mono max-w-xs">
-            <div>Modal Open: {isModalOpen ? '✅' : '❌'}</div>
-            <div>Booking ID: {selectedBookingId || 'null'}</div>
-            <div>Business ID: {businessId || 'null'}</div>
-          </div>
-        )}
       </div>
     </>
   );
