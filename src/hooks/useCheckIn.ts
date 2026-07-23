@@ -1,3 +1,6 @@
+// src/hooks/useCheckIn.ts
+// ✅ FIXED: Prevent form submission from reloading page
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
 import { checkinService } from '../services/checkinService';
@@ -9,12 +12,12 @@ import {
   BusinessBranding 
 } from '../types/checkin';
 import { Booking } from '../types';
-import { formatFullName } from '../utils/checkinHelpers';
+import { cleanLocation, formatFullName, parseFullName } from '../utils/checkinHelpers';
 
 interface UseCheckInProps {
   businessId: string | null;
   onComplete: (booking: Booking, token?: string) => void;
-  resetOnMount?: boolean; // ✅ NEW: Option to reset on mount
+  resetOnMount?: boolean;
 }
 
 export function useCheckIn({ businessId, onComplete, resetOnMount = false }: UseCheckInProps) {
@@ -22,7 +25,6 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   
   // State
   const [step, setStep] = useState(() => {
-    // ✅ If resetOnMount is true, always start at step 1
     if (resetOnMount) {
       return 1;
     }
@@ -46,9 +48,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   const [hasDietaryRestrictions, setHasDietaryRestrictions] = useState<boolean | null>(null);
   const [showRestrictionsPanel, setShowRestrictionsPanel] = useState(false);
   
-  // Form data - with proper defaults
+  // Form data
   const [formData, setFormData] = useState<CheckInFormData>(() => {
-    // ✅ If resetOnMount is true, use empty defaults
     if (resetOnMount) {
       return {
         email: '',
@@ -114,7 +115,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     };
   });
 
-  // ✅ Clear session storage on mount if resetOnMount is true
+  // Clear session storage on mount if resetOnMount is true
   useEffect(() => {
     if (resetOnMount) {
       sessionStorage.removeItem('checkin_step');
@@ -209,9 +210,9 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         let lastName = profile.last_name || '';
         
         if (!firstName && profile.full_name) {
-          const parts = profile.full_name.split(' ');
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
+          const nameParts = profile.full_name.split(' ');
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
         }
         
         const countryValue = profile.country || '';
@@ -342,8 +343,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    // ✅ CRITICAL: Prevent default form submission (page reload)
     e.preventDefault();
     e.stopPropagation();
+    
     console.log('🔍 useCheckIn: handleSubmit called, current step:', step);
     console.log('🔍 useCheckIn: formData', formData);
     
