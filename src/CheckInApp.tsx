@@ -1,4 +1,7 @@
-import React from 'react';
+// src/CheckInApp.tsx
+// ✅ With debug logs to track re-mounts
+
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckInForm } from './components/checkin/CheckInForm';
 import { Booking } from './types';
@@ -6,6 +9,14 @@ import { Booking } from './types';
 export default function CheckInApp() {
   const { businessId } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
+
+  // ✅ DEBUG: Log when component mounts/unmounts
+  useEffect(() => {
+    console.log('🔍 CheckInApp: Mounted with businessId:', businessId);
+    return () => {
+      console.log('🔍 CheckInApp: Unmounted');
+    };
+  }, [businessId]);
 
   const handleCheckinComplete = (booking: Booking, indemnityToken?: string) => {
     console.log('✅ Check-in complete!', booking);
