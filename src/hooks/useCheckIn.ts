@@ -344,10 +344,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setStep(4);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    // ✅ CRITICAL: Prevent default form submission (page reload)
-    e.preventDefault();
-    e.stopPropagation();
+  const handleSubmit = async () => {
+  // Remove e.preventDefault() and e.stopPropagation()
+  // ... rest unchanged
+}
     
     console.log('🔍 useCheckIn: handleSubmit called, current step:', step);
     console.log('🔍 useCheckIn: formData', formData);
