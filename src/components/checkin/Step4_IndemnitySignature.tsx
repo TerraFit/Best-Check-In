@@ -1,4 +1,4 @@
-// src/components/checkin/Step4_IndemnitySignature.tsx
+// src/components/checkin/Step4IndemnitySignature.tsx
 import React, { useRef, useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { IndemnityText } from '../IndemnityText';
@@ -72,6 +72,8 @@ export function Step4IndemnitySignature({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    console.log('🟣 STEP 4 FORM SUBMIT FIRED');
     onSubmit();
   };
 
