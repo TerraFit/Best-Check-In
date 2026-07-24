@@ -1,5 +1,5 @@
 // src/components/checkin/CheckInForm.tsx
-// ✅ CORRECT - Restore the main CheckInForm component
+// ✅ FIXED: Form onSubmit now correctly wraps handleSubmit without event parameter
 
 import React, { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
@@ -216,11 +216,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
 
         <form
           onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
+            e.preventDefault();
+            handleSubmit();
           }}
           className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]"
-          >
+        >
           
           {step === 1 && (
             <Step1EmailEntry
