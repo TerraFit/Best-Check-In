@@ -546,13 +546,21 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         food_restrictions: foodRestrictions
       };
 
+      // ✅ DIAGNOSTIC LOGS - SUCCESS FLOW
+      console.log('✅ BEFORE setStep(5)');
+      console.log('🔍 Current step before setStep(5):', step);
+
       // Clear session storage on success
       sessionStorage.removeItem('checkin_step');
       sessionStorage.removeItem('checkin_formData');
+      console.log('✅ Session storage cleared');
 
-      // ✅ Set success step BEFORE parent callback (matching monolithic working version)
       setStep(5);
+      console.log('✅ setStep(5) CALLED - React state update scheduled');
+
+      console.log('✅ Calling onComplete');
       onComplete(newBooking, accessToken || undefined);
+      console.log('✅ onComplete finished');
 
     } catch (error) {
       console.error('❌ Unexpected error during check-in:', error);
@@ -718,7 +726,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     };
   };
 
-  const resetForm = () => {
+    const resetForm = () => {
+    console.log('🚨 resetForm() CALLED');
+    console.trace();  // Shows call stack
+      
     setStep(1);
     setFormData({
       email: '',
