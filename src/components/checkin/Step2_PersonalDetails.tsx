@@ -1,11 +1,11 @@
 // src/components/checkin/Step2PersonalDetails.tsx
-// ✅ FIXED: No autocorrect on keystroke - clean only on blur
+// ✅ UPDATED: Uses LocationAutocomplete component
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
-import { cleanLocation } from '../../services/locationIntelligenceService';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -80,22 +80,11 @@ export function Step2PersonalDetails({
     { value: 'other', label: 'Other' },
   ];
 
-  // ✅ FIXED: No cleaning on every keystroke
   const handleFieldChange = (field: string, value: any) => {
     console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
     onFormChange(field, value);
     if (field !== 'email') {
       onTouched(field as keyof TouchedFields);
-    }
-  };
-
-  // ✅ Clean only on blur
-  const handleLocationBlur = (field: string, value: string) => {
-    if (!value || !value.trim()) return;
-    const cleaned = cleanLocation(value);
-    if (cleaned !== value) {
-      console.log(`🔍 Step2PersonalDetails: Cleaned ${field} from "${value}" to "${cleaned}"`);
-      onFormChange(field, cleaned);
     }
   };
 
@@ -283,56 +272,50 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* ✅ FIXED: Arriving From - no cleaning on keystroke */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Arriving From *
-              </label>
-              <input
-                type="text" 
-                placeholder="Where did you sleep last night? (e.g., Johannesburg, Cape Town, Gaborone)"
-                className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('arrivingFrom', getValidation('arrivingFrom', formData.arrivingFrom))}`}
-                value={formData.arrivingFrom} 
-                onFocus={() => onTouched('arrivingFrom')}
-                onChange={(e) => {
-                  // ✅ Pass raw value - NO cleaning on keystroke
-                  handleFieldChange('arrivingFrom', e.target.value);
-                }}
-                onBlur={(e) => handleLocationBlur('arrivingFrom', e.target.value)}
-              />
-              <p className="text-xs text-stone-400 mt-1">
-                🏨 Tell us the last city/town where you stayed before arriving here
-              </p>
-              <ErrorMessage 
-                field="arrivingFrom" 
-                message={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Please tell us your last location before arriving' : ''} 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Next Destination *
-              </label>
-              <input
-                type="text" 
-                placeholder="Where are you heading after your stay? (e.g., Johannesburg, Cape Town, Gaborone)"
-                className={`w-full px-4 py-3 rounded-lg border transition-colors uppercase ${getErrorClass('nextDestination', getValidation('nextDestination', formData.nextDestination))}`}
-                value={formData.nextDestination} 
-                onFocus={() => onTouched('nextDestination')}
-                onChange={(e) => {
-                  // ✅ Pass raw value - NO cleaning on keystroke
-                  handleFieldChange('nextDestination', e.target.value);
-                }}
-                onBlur={(e) => handleLocationBlur('nextDestination', e.target.value)}
-              />
-              <p className="text-xs text-stone-400 mt-1">
-                🚗 Tell us where you're headed after your stay with us
-              </p>
-              <ErrorMessage 
-                field="nextDestination" 
-                message={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Please tell us your next destination' : ''} 
-              />
-            </div>
+          {/* ✅ UPDATED: Arriving From - using LocationAutocomplete */}
+          <div className="col-span-full">
+            <LocationAutocomplete
+              value={formData.arrivingFrom}
+              onChange={(value) => {
+                console.log('🔍 ArrivingFrom: onChange', value);
+                handleFieldChange('arrivingFrom', value);
+              }}
+              onBlur={(value) => {
+                console.log('🔍 ArrivingFrom: onBlur', value);
+              }}
+              country={formData.country}
+              placeholder="Where did you sleep last night? (e.g., Cape Town, Johannesburg)"
+              label="Arriving From"
+              required={true}
+              error={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Please tell us your last location before arriving' : ''}
+              touched={touched.arrivingFrom}
+            />
+            <p className="text-xs text-stone-400 mt-1">
+              🏨 Tell us the last city/town where you stayed before arriving here
+            </p>
+          </div>
+
+          {/* ✅ UPDATED: Next Destination - using LocationAutocomplete */}
+          <div className="col-span-full">
+            <LocationAutocomplete
+              value={formData.nextDestination}
+              onChange={(value) => {
+                console.log('🔍 NextDestination: onChange', value);
+                handleFieldChange('nextDestination', value);
+              }}
+              onBlur={(value) => {
+                console.log('🔍 NextDestination: onBlur', value);
+              }}
+              country={formData.country}
+              placeholder="Where are you heading after your stay? (e.g., Gqeberha, East London)"
+              label="Next Destination"
+              required={true}
+              error={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Please tell us your next destination' : ''}
+              touched={touched.nextDestination}
+            />
+            <p className="text-xs text-stone-400 mt-1">
+              🚗 Tell us where you're headed after your stay with us
+            </p>
           </div>
 
           {/* Arrival Date + Nights */}
