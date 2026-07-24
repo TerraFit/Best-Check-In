@@ -1,6 +1,3 @@
-// src/components/checkin/CheckInForm.tsx
-// ✅ FIXED: Form onSubmit now correctly wraps handleSubmit without event parameter
-
 import React, { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { Booking } from '../../types';
@@ -217,6 +214,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            console.log('🟢 CheckInForm: Parent form submit handler called, step:', step);
             handleSubmit();
           }}
           className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]"
