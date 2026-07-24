@@ -1,5 +1,5 @@
 // src/hooks/useCheckIn.ts
-// ✅ FIXED: Prevent form submission from reloading page
+// ✅ FIXED: handleSubmit is async, no event parameter
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
@@ -309,16 +309,16 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setTouched(prev => ({ ...prev, [field]: true }));
   };
 
- const handleIndemnityScroll = (el?: HTMLDivElement) => {
-  const target = el || indemnityRef.current;
-  if (!target) return;
+  const handleIndemnityScroll = (el?: HTMLDivElement) => {
+    const target = el || indemnityRef.current;
+    if (!target) return;
 
-  const { scrollTop, scrollHeight, clientHeight } = target;
+    const { scrollTop, scrollHeight, clientHeight } = target;
 
-  if (scrollTop + clientHeight >= scrollHeight - 20) {
-    setHasScrolledToBottom(true);
-  }
-};
+    if (scrollTop + clientHeight >= scrollHeight - 20) {
+      setHasScrolledToBottom(true);
+    }
+  };
 
   const handleDietaryContinue = () => {
     if (hasDietaryRestrictions === null) {
@@ -345,11 +345,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   };
 
   const handleSubmit = async () => {
-  // Remove e.preventDefault() and e.stopPropagation()
-  // ... rest unchanged
-}
-    
-    console.log('🔍 useCheckIn: handleSubmit called, current step:', step);
+    console.log('🔵 useCheckIn.handleSubmit FIRED, step:', step);
     console.log('🔍 useCheckIn: formData', formData);
     
     if (loading) return;
@@ -726,10 +722,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     };
   };
 
-    const resetForm = () => {
+  const resetForm = () => {
     console.log('🚨 resetForm() CALLED');
     console.trace();  // Shows call stack
-      
+    
     setStep(1);
     setFormData({
       email: '',
