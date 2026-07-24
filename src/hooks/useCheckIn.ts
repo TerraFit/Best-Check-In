@@ -309,14 +309,16 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setTouched(prev => ({ ...prev, [field]: true }));
   };
 
-  const handleIndemnityScroll = () => {
-    if (indemnityRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = indemnityRef.current;
-      if (scrollTop + clientHeight >= scrollHeight - 20) {
-        setHasScrolledToBottom(true);
-      }
-    }
-  };
+ const handleIndemnityScroll = (el?: HTMLDivElement) => {
+  const target = el || indemnityRef.current;
+  if (!target) return;
+
+  const { scrollTop, scrollHeight, clientHeight } = target;
+
+  if (scrollTop + clientHeight >= scrollHeight - 20) {
+    setHasScrolledToBottom(true);
+  }
+};
 
   const handleDietaryContinue = () => {
     if (hasDietaryRestrictions === null) {
