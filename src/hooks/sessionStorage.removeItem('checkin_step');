@@ -549,9 +549,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       // Clear session storage on success
       sessionStorage.removeItem('checkin_step');
       sessionStorage.removeItem('checkin_formData');
-      
-      onComplete(newBooking, accessToken || undefined);
+
+      // ✅ Set success step BEFORE parent callback (matching monolithic working version)
       setStep(5);
+      onComplete(newBooking, accessToken || undefined);
 
     } catch (error) {
       console.error('❌ Unexpected error during check-in:', error);
