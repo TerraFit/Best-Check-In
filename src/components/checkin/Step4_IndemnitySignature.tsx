@@ -1,4 +1,6 @@
 // src/components/checkin/Step4IndemnitySignature.tsx
+// ✅ FIXED: Removed inner form - using div with button onClick
+
 import React, { useRef, useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { IndemnityText } from '../IndemnityText';
@@ -70,15 +72,9 @@ export function Step4IndemnitySignature({
     onIdPhotoChange(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('🟣 STEP 4 FORM SUBMIT FIRED');
-    onSubmit();
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
+    // ✅ Changed from <form> to <div>
+    <div className="p-10 md:p-16 animate-fade-in flex flex-col flex-grow">
       <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">{t('checkin_indemnity')}</h2>
       
       {submitAttempted && (!idPhoto || !signature || !acceptLegal) && (
@@ -213,14 +209,16 @@ export function Step4IndemnitySignature({
         <button type="button" onClick={onBack} className="text-stone-500 font-medium hover:text-stone-800 uppercase text-[10px] tracking-widest transition-colors">
           {t('common_back_to_details')}
         </button>
+        {/* ✅ Changed from type="submit" to type="button" with onClick */}
         <button 
-          type="submit" 
+          type="button"
+          onClick={onSubmit}
           disabled={loading || !hasScrolledToBottom}
           className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-all shadow-md text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? t('common_processing') : t('checkin_complete_button')}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
