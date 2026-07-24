@@ -1,5 +1,5 @@
 // src/hooks/useCheckIn.ts
-// ✅ FIXED: handleSubmit is async, no event parameter
+// ✅ FIXED: Prevent form submission from reloading page with diagnostic logs
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
@@ -348,7 +348,10 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     console.log('🔵 useCheckIn.handleSubmit FIRED, step:', step);
     console.log('🔍 useCheckIn: formData', formData);
     
-    if (loading) return;
+    if (loading) {
+      console.log('🔵 useCheckIn: Loading in progress, returning');
+      return;
+    }
 
     // Step 1: Email
     if (step === 1) {
@@ -394,28 +397,39 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
 
     // Step 4: Indemnity & Submit
     if (step === 4) {
-      console.log('🔍 useCheckIn: Processing Step 4');
-      const errors = validateStep3();
-      if (errors.length > 0) {
-        setSubmitAttempted(true);
-        if (!hasScrolledToBottom) {
-          alert(t('error_scroll_indemnity'));
-          indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
+      console.log('🔍 useCheckIn: Processing Step 4 - START');
+      
+      try {
+        const errors = validateStep3();
+        console.log('🔍 useCheckIn: Step 4 validation errors:', errors);
+        
+        if (errors.length > 0) {
+          setSubmitAttempted(true);
+          if (!hasScrolledToBottom) {
+            alert(t('error_scroll_indemnity'));
+            indemnityRef.current?.scrollIntoView({ behavior: 'smooth' });
+            return;
+          }
+          if (!formData.signature) {
+            alert(t('error_signature_required_alert'));
+            return;
+          }
+          if (!formData.idPhoto) {
+            alert(t('error_id_photo_required_alert'));
+            return;
+          }
+          alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
           return;
         }
-        if (!formData.signature) {
-          alert(t('error_signature_required_alert'));
-          return;
-        }
-        if (!formData.idPhoto) {
-          alert(t('error_id_photo_required_alert'));
-          return;
-        }
-        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
-        return;
-      }
 
-      await submitBooking();
+        console.log('🔍 useCheckIn: Before submitBooking');
+        await submitBooking();
+        console.log('🔍 useCheckIn: After submitBooking - SUCCESS');
+        
+      } catch (error) {
+        console.error('🔴 useCheckIn: Step 4 ERROR:', error);
+        setNotification({ type: 'error', message: t('error_unexpected') });
+      }
     }
   };
 
@@ -446,9 +460,14 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   };
 
   const submitBooking = async () => {
+    console.log('🔍 submitBooking: STARTED');
     setLoading(true);
+    
     try {
+      console.log('🔍 submitBooking: Calculating total amount...');
       const totalAmount = await checkinService.calculateTotalAmount(businessId, formData.nights);
+      console.log('🔍 submitBooking: Total amount calculated:', totalAmount);
+      
       const fullName = formatFullName(formData.firstName, formData.lastName);
       const formattedCheckIn = formData.arrivalDate.split('T')[0];
       const formattedCheckOut = formData.departureDate ? formData.departureDate.split('T')[0] : '';
@@ -483,17 +502,23 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         source: 'live_checkin'
       };
 
+      console.log('🔍 submitBooking: Saving booking...');
       const result = await checkinService.saveBooking(dbBooking);
+      console.log('🔍 submitBooking: Booking save result:', result);
+      
       if (!result.success) {
+        console.error('🔴 submitBooking: Booking save failed');
         alert(t('error_booking_failed'));
         setLoading(false);
         return;
       }
 
       if (result.isDuplicate) {
+        console.log('⚠️ submitBooking: Duplicate booking detected');
         setDuplicateWarning(t('warning_duplicate_booking'));
       }
 
+      console.log('🔍 submitBooking: Saving indemnity record...');
       const accessToken = await checkinService.saveIndemnityRecord(
         result.bookingId!,
         businessId!,
@@ -503,9 +528,13 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         formData.passportOrId,
         formData.signature
       );
+      console.log('🔍 submitBooking: Indemnity record saved');
 
+      console.log('🔍 submitBooking: Sending confirmation email...');
       checkinService.sendConfirmationEmail(dbBooking, accessToken || undefined);
+      
       if (formData.saveDetails) {
+        console.log('🔍 submitBooking: Saving guest profile...');
         saveGuestProfile();
       }
 
@@ -542,7 +571,6 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         food_restrictions: foodRestrictions
       };
 
-      // ✅ DIAGNOSTIC LOGS - SUCCESS FLOW
       console.log('✅ BEFORE setStep(5)');
       console.log('🔍 Current step before setStep(5):', step);
 
@@ -557,9 +585,11 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       console.log('✅ Calling onComplete');
       onComplete(newBooking, accessToken || undefined);
       console.log('✅ onComplete finished');
+      
+      console.log('🔍 submitBooking: COMPLETED SUCCESSFULLY');
 
     } catch (error) {
-      console.error('❌ Unexpected error during check-in:', error);
+      console.error('❌ submitBooking ERROR:', error);
       setNotification({ type: 'error', message: t('error_unexpected') });
     } finally {
       setLoading(false);
@@ -724,7 +754,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
 
   const resetForm = () => {
     console.log('🚨 resetForm() CALLED');
-    console.trace();  // Shows call stack
+    console.trace();
     
     setStep(1);
     setFormData({
