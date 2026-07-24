@@ -1,6 +1,6 @@
-// src/utils/auth.ts - COMPLETE PRODUCTION READY
+// src/utils/auth.ts - COMPLETE PRODUCTION READY WITH EMPLOYEE SUPPORT
 
-export type AuthType = 'business' | 'super_admin';
+export type AuthType = 'business' | 'super_admin' | 'employee';
 
 export interface AuthUser {
   id: string;
@@ -20,6 +20,7 @@ export interface AuthSession {
 const AUTH_KEY = 'fastcheckin_auth';
 const BUSINESS_AUTH_KEY = 'fastcheckin_business_auth';
 const SUPER_ADMIN_AUTH_KEY = 'fastcheckin_admin_auth';
+const EMPLOYEE_AUTH_KEY = 'fastcheckin_employee_auth';
 
 // ============================================================
 // CORE AUTH FUNCTIONS
@@ -37,15 +38,15 @@ export const getAuth = (): AuthSession | null => {
 };
 
 export const getAuthToken = (): string | null => {
-  // Try primary auth first
   const auth = getAuth();
   if (auth?.token) return auth.token;
   
-  // Try business auth as fallback
   const businessAuth = getBusinessAuth();
   if (businessAuth?.token) return businessAuth.token;
   
-  // Try legacy storage
+  const employeeAuth = getEmployeeAuth();
+  if (employeeAuth?.token) return employeeAuth.token;
+  
   const legacyBusiness = localStorage.getItem('business');
   if (legacyBusiness) {
     try {
@@ -72,19 +73,16 @@ export const setAuth = (session: AuthSession): void => {
   console.log('💾 Setting auth session:', {
     type: session.type,
     hasToken: !!session.token,
-    tokenPreview: session.token?.substring(0, 30) + '...',
     userId: session.user.id
   });
   
-  // Store main auth
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   
-  // Store type-specific auth
   if (session.type === 'business') {
     localStorage.setItem(BUSINESS_AUTH_KEY, JSON.stringify(session));
     localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
+    localStorage.removeItem(EMPLOYEE_AUTH_KEY);
     
-    // Also store legacy format for compatibility
     localStorage.setItem('business', JSON.stringify({
       id: session.user.businessId || session.user.id,
       trading_name: session.user.name,
@@ -94,15 +92,17 @@ export const setAuth = (session: AuthSession): void => {
   } else if (session.type === 'super_admin') {
     localStorage.setItem(SUPER_ADMIN_AUTH_KEY, JSON.stringify(session));
     localStorage.removeItem(BUSINESS_AUTH_KEY);
+    localStorage.removeItem(EMPLOYEE_AUTH_KEY);
     
-    // Legacy storage
     localStorage.setItem('fastcheckin_admin', JSON.stringify({
       email: session.user.email,
       token: session.token
     }));
+  } else if (session.type === 'employee') {
+    localStorage.setItem(EMPLOYEE_AUTH_KEY, JSON.stringify(session));
+    localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   }
   
-  // Dispatch storage event for cross-tab sync
   window.dispatchEvent(new Event('storage'));
 };
 
@@ -111,6 +111,7 @@ export const clearAuth = (): void => {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(BUSINESS_AUTH_KEY);
   localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
+  localStorage.removeItem(EMPLOYEE_AUTH_KEY);
   localStorage.removeItem('business');
   localStorage.removeItem('fastcheckin_admin');
   localStorage.removeItem('jbay_user');
@@ -142,6 +143,16 @@ export const clearSuperAdminAuth = (): void => {
   window.dispatchEvent(new Event('storage'));
 };
 
+export const clearEmployeeAuth = (): void => {
+  console.log('🗑️ Clearing employee auth only');
+  localStorage.removeItem(EMPLOYEE_AUTH_KEY);
+  const auth = getAuth();
+  if (auth?.type === 'employee') {
+    localStorage.removeItem(AUTH_KEY);
+  }
+  window.dispatchEvent(new Event('storage'));
+};
+
 // ============================================================
 // TYPE-SPECIFIC AUTH GETTERS
 // ============================================================
@@ -159,6 +170,17 @@ export const getBusinessAuth = (): AuthSession | null => {
 
 export const getSuperAdminAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(SUPER_ADMIN_AUTH_KEY);
+  if (!stored) return null;
+  
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+};
+
+export const getEmployeeAuth = (): AuthSession | null => {
+  const stored = localStorage.getItem(EMPLOYEE_AUTH_KEY);
   if (!stored) return null;
   
   try {
@@ -186,12 +208,18 @@ export const isSuperAdminAuthenticated = (): boolean => {
   return hasToken;
 };
 
+export const isEmployeeAuthenticated = (): boolean => {
+  const auth = getEmployeeAuth();
+  const hasToken = !!(auth?.type === 'employee' && auth?.token);
+  console.log('🔐 isEmployeeAuthenticated:', hasToken);
+  return hasToken;
+};
+
 // ============================================================
 // BUSINESS ID EXTRACTION
 // ============================================================
 
 export const getBusinessId = (): string | null => {
-  // Try business auth first
   const businessAuth = getBusinessAuth();
   if (businessAuth?.type === 'business') {
     if (businessAuth.user.businessId) {
@@ -202,7 +230,6 @@ export const getBusinessId = (): string | null => {
     }
   }
   
-  // Try main auth
   const auth = getAuth();
   if (auth?.type === 'business') {
     if (auth.user.businessId) {
@@ -213,7 +240,13 @@ export const getBusinessId = (): string | null => {
     }
   }
   
-  // Try legacy storage
+  const employeeAuth = getEmployeeAuth();
+  if (employeeAuth?.type === 'employee') {
+    if (employeeAuth.user.businessId) {
+      return employeeAuth.user.businessId;
+    }
+  }
+  
   const legacy = localStorage.getItem('business');
   if (legacy) {
     try {
@@ -230,7 +263,7 @@ export const getBusinessId = (): string | null => {
 };
 
 // ============================================================
-// DEBUG HELPER (Development only)
+// DEBUG HELPER
 // ============================================================
 
 export const debugAuth = (): void => {
@@ -238,15 +271,16 @@ export const debugAuth = (): void => {
   console.log('AUTH_KEY:', localStorage.getItem(AUTH_KEY));
   console.log('BUSINESS_AUTH_KEY:', localStorage.getItem(BUSINESS_AUTH_KEY));
   console.log('SUPER_ADMIN_AUTH_KEY:', localStorage.getItem(SUPER_ADMIN_AUTH_KEY));
+  console.log('EMPLOYEE_AUTH_KEY:', localStorage.getItem(EMPLOYEE_AUTH_KEY));
   console.log('Legacy business:', localStorage.getItem('business'));
   console.log('getAuthToken():', getAuthToken());
   console.log('getBusinessId():', getBusinessId());
   console.log('isBusinessAuthenticated():', isBusinessAuthenticated());
   console.log('isSuperAdminAuthenticated():', isSuperAdminAuthenticated());
+  console.log('isEmployeeAuthenticated():', isEmployeeAuthenticated());
   console.groupEnd();
 };
 
-// Attach debug to window for console access (development only)
 if (typeof window !== 'undefined') {
   (window as any).debugAuth = debugAuth;
 }

@@ -1,27 +1,40 @@
+// src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
-import { getBusinessAuth, getSuperAdminAuth } from '../utils/auth';
+import { getBusinessAuth, getSuperAdminAuth, getEmployeeAuth } from '../utils/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'business' | 'super_admin' | 'tenant_admin';
+  requiredRole?: 'business' | 'super_admin' | 'employee';
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  // ✅ Get auth separately - NO CROSS CONTAMINATION
   const businessAuth = getBusinessAuth();
   const superAdminAuth = getSuperAdminAuth();
+  const employeeAuth = getEmployeeAuth();
   
   const isBusinessAuthed = businessAuth?.type === 'business';
   const isSuperAdminAuthed = superAdminAuth?.type === 'super_admin';
+  const isEmployeeAuthed = employeeAuth?.type === 'employee';
   
   console.log('🔒 ProtectedRoute check:', {
     requiredRole,
     isBusinessAuthed,
     isSuperAdminAuthed,
+    isEmployeeAuthed,
     path: window.location.pathname
   });
   
-  // ✅ For business routes - ONLY check business auth
+  // ✅ Employee routes - ONLY check employee auth
+  if (requiredRole === 'employee') {
+    if (isEmployeeAuthed) {
+      console.log('✅ Employee auth valid, rendering employee dashboard');
+      return <>{children}</>;
+    }
+    console.log('❌ No employee auth, redirecting to employee login');
+    return <Navigate to="/employee/login" replace />;
+  }
+  
+  // ✅ Business routes - ONLY check business auth
   if (requiredRole === 'business' || requiredRole === 'tenant_admin') {
     if (isBusinessAuthed) {
       console.log('✅ Business auth valid, rendering dashboard');
@@ -31,7 +44,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return <Navigate to="/business/login" replace />;
   }
   
-  // ✅ For super admin routes - ONLY check super admin auth
+  // ✅ Super admin routes - ONLY check super admin auth
   if (requiredRole === 'super_admin') {
     if (isSuperAdminAuthed) {
       console.log('✅ Super admin auth valid');
@@ -41,8 +54,8 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return <Navigate to="/super-admin-login" replace />;
   }
   
-  // ✅ Default fallback for routes without specific role
-  if (!isBusinessAuthed && !isSuperAdminAuthed) {
+  // ✅ Default fallback
+  if (!isBusinessAuthed && !isSuperAdminAuthed && !isEmployeeAuthed) {
     return <Navigate to="/business/login" replace />;
   }
   

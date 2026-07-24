@@ -1,7 +1,10 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+// netlify/functions/business-login.js
+// ✅ CORRECT VERSION - For business owner login
 
-export const handler = async function(event) {
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

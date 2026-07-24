@@ -1,4 +1,7 @@
-export const handler = async function(event) {
+// netlify/functions/get-business-branding.js
+// ✅ CONVERTED to CommonJS (matching your other functions)
+
+exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

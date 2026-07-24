@@ -7,6 +7,7 @@ import { useFilters } from '../hooks/useFilters';
 import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../components/dashboard';
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
+import StaffPortalTab from './tabs/StaffPortalTab';
 
 export default function BusinessDashboard() {
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
@@ -361,6 +362,7 @@ export default function BusinessDashboard() {
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
     { id: 'reports', name: 'Reports' },
+    { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
 
@@ -453,6 +455,11 @@ export default function BusinessDashboard() {
             bookings={bookings}
             totalBookings={displayTotalBookings}
           />
+        )}
+        
+        {/* Staff Portal Tab - ADD THIS HERE */}
+        {activeTab === 'staff' && (
+        <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
         )}
 
         {/* Settings Tab */}

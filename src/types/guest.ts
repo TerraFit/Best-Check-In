@@ -14,6 +14,7 @@ export interface GuestDetails {
   check_in_date: string;
   check_out_date?: string;
   booking_reference?: string;
+  nights?: number;
   food_restrictions?: FoodRestrictions;
 }
 
@@ -29,6 +30,13 @@ export interface FoodRestrictions {
   seafood_allergy: boolean;
   diabetic: boolean;
   no_pork: boolean;
+  carnivore: boolean;
   other: boolean;
   other_text?: string;
+}
+
+export interface StayUpdateData {
+  check_in_date?: string;
+  check_out_date?: string;
+  nights?: number;
 }

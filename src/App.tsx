@@ -1,6 +1,3 @@
-// src/App.tsx
-// ✅ Language Selector positioned below logout button, same level as tabs
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -24,8 +21,10 @@ import NewsletterSubscribe from './pages/NewsletterSubscribe';
 import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
 import { LanguageSelector } from './i18n';
+import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
+import EmployeeLogin from './pages/EmployeeLogin';
+import EmployeeDashboard from './pages/EmployeeDashboard';
 
-// Unauthorized Page Component
 function UnauthorizedPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-900">
@@ -40,7 +39,6 @@ function UnauthorizedPage() {
   );
 }
 
-// Not Found Page Component
 function NotFoundPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-900">
@@ -58,7 +56,6 @@ function NotFoundPage() {
 function AppContent() {
   return (
     <>
-      {/* ✅ Language Selector - Positioned below logout, same level as tabs */}
       <div className="fixed top-[72px] right-4 z-30">
         <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" />
       </div>
@@ -73,7 +70,7 @@ function AppContent() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/set-password/:token" element={<SetPassword />} />
         
-        {/* Check-in Routes */}
+        {/* ✅ Check-in Routes - ALWAYS start fresh */}
         <Route path="/checkin" element={<CheckInApp />} />
         <Route path="/checkin/:businessId" element={<CheckInApp />} />
         
@@ -82,6 +79,20 @@ function AppContent() {
         
         {/* Newsletter Subscription */}
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
+        
+        {/* ============================================================
+            ✅ Employee Routes
+            ============================================================ */}
+        <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
+        <Route path="/employee/login" element={<EmployeeLogin />} />
+        <Route 
+          path="/employee/dashboard" 
+          element={
+            <ProtectedRoute requiredRole="employee">
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Auth Routes */}
         <Route path="/business/login" element={<BusinessLogin />} />

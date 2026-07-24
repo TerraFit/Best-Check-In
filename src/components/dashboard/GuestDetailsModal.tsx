@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ Full Guest Details Modal with Food Restrictions + Next Destination
+// ✅ COMPLETE: Food restrictions + Editable stay details
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -29,23 +29,25 @@ const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   seafood_allergy: false,
   diabetic: false,
   no_pork: false,
+  carnivore: false,
   other: false,
   other_text: ''
 };
 
 const DIETARY_OPTIONS = [
-  { key: 'vegetarian', label: 'Vegetarian' },
-  { key: 'vegan', label: 'Vegan' },
-  { key: 'pescatarian', label: 'Pescatarian' },
-  { key: 'halal', label: 'Halal' },
-  { key: 'kosher', label: 'Kosher' },
-  { key: 'gluten_free', label: 'Gluten-Free' },
-  { key: 'lactose_free', label: 'Lactose-Free' },
-  { key: 'nut_allergy', label: 'Nut Allergy' },
-  { key: 'seafood_allergy', label: 'Seafood Allergy' },
-  { key: 'diabetic', label: 'Diabetic' },
-  { key: 'no_pork', label: 'No Pork' },
-  { key: 'other', label: 'Other' }
+  { key: 'vegetarian', label: 'Vegetarian', icon: '🥬' },
+  { key: 'vegan', label: 'Vegan', icon: '🌱' },
+  { key: 'pescatarian', label: 'Pescatarian', icon: '🐟' },
+  { key: 'halal', label: 'Halal', icon: '☪️' },
+  { key: 'kosher', label: 'Kosher', icon: '✡️' },
+  { key: 'gluten_free', label: 'Gluten-Free', icon: '🌾' },
+  { key: 'lactose_free', label: 'Lactose-Free', icon: '🥛' },
+  { key: 'nut_allergy', label: 'Nut Allergy', icon: '🥜' },
+  { key: 'seafood_allergy', label: 'Seafood Allergy', icon: '🦐' },
+  { key: 'diabetic', label: 'Diabetic', icon: '💉' },
+  { key: 'no_pork', label: 'No Pork', icon: '🐷' },
+  { key: 'carnivore', label: 'Carnivore', icon: '🥩' },
+  { key: 'other', label: 'Other', icon: '📝' }
 ];
 
 const formatDate = (dateStr?: string): string => {
@@ -67,13 +69,29 @@ export default function GuestDetailsModal({
   onClose,
   businessId
 }: GuestDetailsModalProps) {
-  const { guestDetails, loading, fetchGuestDetails, updateFoodRestrictions } = useGuestDetails();
+  const { 
+    guestDetails, 
+    loading, 
+    fetchGuestDetails, 
+    updateFoodRestrictions,
+    updateStayDetails  // ✅ NEW
+  } = useGuestDetails();
   
   const [restrictions, setRestrictions] = useState<FoodRestrictions>(DEFAULT_RESTRICTIONS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // ✅ NEW: Stay editing state
+  const [isEditingStay, setIsEditingStay] = useState(false);
+  const [stayEditData, setStayEditData] = useState({
+    check_in_date: '',
+    check_out_date: '',
+    nights: 1
+  });
+  const [savingStay, setSavingStay] = useState(false);
 
   // Load guest details when modal opens
   useEffect(() => {
@@ -88,6 +106,13 @@ export default function GuestDetailsModal({
       setRestrictions(guestDetails.food_restrictions);
       setHasUnsavedChanges(false);
     }
+    if (guestDetails) {
+      setStayEditData({
+        check_in_date: guestDetails.check_in_date || '',
+        check_out_date: guestDetails.check_out_date || '',
+        nights: guestDetails.nights || 1
+      });
+    }
   }, [guestDetails]);
 
   // Handle ESC key
@@ -99,24 +124,31 @@ export default function GuestDetailsModal({
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleClose = useCallback(() => {
-    if (hasUnsavedChanges) {
+    if (hasUnsavedChanges || isEditingStay) {
       setShowUnsavedWarning(true);
     } else {
       onClose();
     }
-  }, [hasUnsavedChanges, onClose]);
+  }, [hasUnsavedChanges, isEditingStay, onClose]);
 
   const handleDiscard = useCallback(() => {
     setShowUnsavedWarning(false);
     setHasUnsavedChanges(false);
+    setIsEditingStay(false);
     if (guestDetails?.food_restrictions) {
       setRestrictions(guestDetails.food_restrictions);
     } else {
       setRestrictions(DEFAULT_RESTRICTIONS);
+    }
+    if (guestDetails) {
+      setStayEditData({
+        check_in_date: guestDetails.check_in_date || '',
+        check_out_date: guestDetails.check_out_date || '',
+        nights: guestDetails.nights || 1
+      });
     }
     onClose();
   }, [guestDetails, onClose]);
@@ -135,12 +167,14 @@ export default function GuestDetailsModal({
     });
     setHasUnsavedChanges(true);
     setSaveSuccess(false);
+    setError(null);
   }, []);
 
   const handleOtherTextChange = useCallback((text: string) => {
     setRestrictions(prev => ({ ...prev, other_text: text }));
     setHasUnsavedChanges(true);
     setSaveSuccess(false);
+    setError(null);
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -148,21 +182,58 @@ export default function GuestDetailsModal({
     
     setSaving(true);
     setSaveSuccess(false);
+    setError(null);
     
     try {
       await updateFoodRestrictions(bookingId, restrictions);
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
-      
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to save restrictions:', error);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err) {
+      setError('Failed to save food restrictions. Please try again.');
     } finally {
       setSaving(false);
     }
   }, [bookingId, restrictions, updateFoodRestrictions]);
+
+  // ✅ NEW: Handle stay save
+  const handleSaveStay = async () => {
+    if (!bookingId) return;
+    
+    setSavingStay(true);
+    setError(null);
+    
+    try {
+      const result = await updateStayDetails(bookingId, stayEditData);
+      if (result.success) {
+        setIsEditingStay(false);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+      }
+    } catch (err) {
+      console.error('❌ Failed to save stay details:', err);
+      setError('Failed to save stay details. Please try again.');
+    } finally {
+      setSavingStay(false);
+    }
+  };
+
+  // ✅ Get active restrictions with icons
+  const getActiveRestrictionsWithIcons = (): string[] => {
+    const active: string[] = [];
+    DIETARY_OPTIONS.forEach(({ key, icon }) => {
+      if (key === 'other') {
+        if (restrictions.other && restrictions.other_text) {
+          active.push(`📝 OTHER (${restrictions.other_text})`);
+        } else if (restrictions.other) {
+          active.push('📝 OTHER');
+        }
+      } else if (restrictions[key as keyof FoodRestrictions] === true) {
+        active.push(`${icon} ${key.replace('_', ' ').toUpperCase()}`);
+      }
+    });
+    return active;
+  };
 
   if (!isOpen) return null;
 
@@ -211,7 +282,7 @@ export default function GuestDetailsModal({
             {loading && (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4" />
                   <p className="text-sm text-gray-400">Loading guest details...</p>
                 </div>
               </div>
@@ -237,7 +308,6 @@ export default function GuestDetailsModal({
                   </h3>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Full Name */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <User size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -247,17 +317,12 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Phone */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Phone size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400">Phone</p>
                         {guestDetails.guest_phone ? (
-                          <a 
-                            href={`tel:${guestDetails.guest_phone}`}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
-                          >
+                          <a href={`tel:${guestDetails.guest_phone}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block">
                             {guestDetails.guest_phone}
                           </a>
                         ) : (
@@ -265,17 +330,12 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
-
-                    {/* Email */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Mail size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400">Email</p>
                         {guestDetails.guest_email ? (
-                          <a 
-                            href={`mailto:${guestDetails.guest_email}`}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
-                          >
+                          <a href={`mailto:${guestDetails.guest_email}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block">
                             {guestDetails.guest_email}
                           </a>
                         ) : (
@@ -283,8 +343,6 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
-
-                    {/* Country */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Globe size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
@@ -304,9 +362,7 @@ export default function GuestDetailsModal({
                     <span>Travel Details</span>
                     <span className="h-px flex-1 bg-gray-200"></span>
                   </h3>
-                  
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Arriving From */}
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100 col-span-full sm:col-span-1">
                       <MapPin size={16} className="text-blue-500 flex-shrink-0" />
                       <div className="min-w-0">
@@ -316,8 +372,6 @@ export default function GuestDetailsModal({
                         </p>
                       </div>
                     </div>
-
-                    {/* Next Destination */}
                     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100 col-span-full sm:col-span-1">
                       <ArrowRight size={16} className="text-green-500 flex-shrink-0" />
                       <div className="min-w-0">
@@ -330,48 +384,123 @@ export default function GuestDetailsModal({
                   </div>
                 </section>
 
-                {/* SECTION 3: STAY DETAILS */}
+                {/* SECTION 3: STAY DETAILS - ✅ WITH EDIT BUTTON */}
                 <section>
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <span className="h-px flex-1 bg-gray-200"></span>
-                    <span>Stay Details</span>
-                    <span className="h-px flex-1 bg-gray-200"></span>
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                      <span className="h-px flex-1 bg-gray-200"></span>
+                      <span className="flex items-center gap-2">
+                        <Calendar size={14} className="text-blue-500" />
+                        Stay Details
+                      </span>
+                      <span className="h-px flex-1 bg-gray-200"></span>
+                    </h3>
+                    
+                    {!isEditingStay ? (
+                      <button
+                        onClick={() => setIsEditingStay(true)}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
+                      >
+                        <Edit2 size={12} /> Edit
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsEditingStay(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveStay}
+                          disabled={savingStay}
+                          className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 font-medium disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {savingStay ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Check size={12} /> Save
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Check-in */}
+                    {/* Check-in Date */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs text-gray-400">Check-in</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {formatDate(guestDetails.check_in_date)}
-                        </p>
+                        {isEditingStay ? (
+                          <input
+                            type="date"
+                            value={stayEditData.check_in_date}
+                            onChange={(e) => setStayEditData(prev => ({ 
+                              ...prev, 
+                              check_in_date: e.target.value 
+                            }))}
+                            className="w-full text-sm font-medium text-gray-900 bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                          />
+                        ) : (
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {formatDate(guestDetails?.check_in_date)}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Check-out */}
+                    {/* Check-out Date */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs text-gray-400">Check-out</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {formatDate(guestDetails.check_out_date)}
-                        </p>
+                        {isEditingStay ? (
+                          <input
+                            type="date"
+                            value={stayEditData.check_out_date}
+                            onChange={(e) => setStayEditData(prev => ({ 
+                              ...prev, 
+                              check_out_date: e.target.value 
+                            }))}
+                            className="w-full text-sm font-medium text-gray-900 bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                          />
+                        ) : (
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {formatDate(guestDetails?.check_out_date)}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Number of Guests */}
+                    {/* Nights */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Users size={16} className="text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-400">Guests</p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {guestDetails.guests || 1} 
-                          <span className="text-xs text-gray-400 ml-1">
-                            ({guestDetails.adults || 0}A, {guestDetails.children || 0}C)
-                          </span>
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-400">Nights</p>
+                        {isEditingStay ? (
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={stayEditData.nights}
+                            onChange={(e) => setStayEditData(prev => ({ 
+                              ...prev, 
+                              nights: parseInt(e.target.value) || 1 
+                            }))}
+                            className="w-full text-sm font-medium text-gray-900 bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                          />
+                        ) : (
+                          <p className="text-sm font-medium text-gray-900">
+                            {guestDetails?.nights || 1}
+                            <span className="text-xs text-gray-400 ml-1">nights</span>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -395,7 +524,11 @@ export default function GuestDetailsModal({
                           <Check size={14} /> Saved
                         </span>
                       )}
-                      
+                      {error && (
+                        <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+                          <AlertCircle size={14} /> Error
+                        </span>
+                      )}
                       <button
                         onClick={handleSave}
                         disabled={!hasUnsavedChanges || saving}
@@ -422,7 +555,7 @@ export default function GuestDetailsModal({
 
                   {/* Dietary Requirements Checkboxes */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {DIETARY_OPTIONS.map(({ key, label }) => {
+                    {DIETARY_OPTIONS.map(({ key, label, icon }) => {
                       const isChecked = restrictions[key as keyof FoodRestrictions] as boolean;
                       return (
                         <label
@@ -439,7 +572,7 @@ export default function GuestDetailsModal({
                             onChange={(e) => handleRestrictionChange(key as keyof FoodRestrictions, e.target.checked)}
                             className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 flex-shrink-0"
                           />
-                          <span className="truncate">{label}</span>
+                          <span className="truncate">{icon} {label}</span>
                         </label>
                       );
                     })}
@@ -458,6 +591,20 @@ export default function GuestDetailsModal({
                         placeholder="Please specify..."
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                       />
+                    </div>
+                  )}
+
+                  {/* Active restrictions display */}
+                  {getActiveRestrictionsWithIcons().length > 0 && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs font-medium text-amber-800 mb-2">Current Restrictions:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {getActiveRestrictionsWithIcons().map((item, index) => (
+                          <span key={index} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-medium">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -508,7 +655,7 @@ export default function GuestDetailsModal({
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Unsaved Changes</h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  You have unsaved changes to the food restrictions. What would you like to do?
+                  You have unsaved changes. What would you like to do?
                 </p>
               </div>
             </div>
