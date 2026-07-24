@@ -214,7 +214,13 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           secondaryColor={secondaryColor}
         />
 
-        <form onSubmit={handleSubmit} className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]">
+        <form
+          onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+          }}
+          className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-stone-100 flex flex-col min-h-[700px]"
+          >
           
           {step === 1 && (
             <Step1EmailEntry
