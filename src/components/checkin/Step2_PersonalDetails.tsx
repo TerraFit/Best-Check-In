@@ -1,5 +1,5 @@
 // src/components/checkin/Step2PersonalDetails.tsx
-// ✅ FIXED: Remove nested form, keep native submit flow
+// ✅ FIXED: No autocorrect on keystroke - clean only on blur
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
@@ -80,14 +80,22 @@ export function Step2PersonalDetails({
     { value: 'other', label: 'Other' },
   ];
 
+  // ✅ FIXED: No cleaning on every keystroke
   const handleFieldChange = (field: string, value: any) => {
-    if (field === 'arrivingFrom' || field === 'nextDestination') {
-      value = cleanLocation(value);
-    }
     console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
     onFormChange(field, value);
     if (field !== 'email') {
       onTouched(field as keyof TouchedFields);
+    }
+  };
+
+  // ✅ Clean only on blur
+  const handleLocationBlur = (field: string, value: string) => {
+    if (!value || !value.trim()) return;
+    const cleaned = cleanLocation(value);
+    if (cleaned !== value) {
+      console.log(`🔍 Step2PersonalDetails: Cleaned ${field} from "${value}" to "${cleaned}"`);
+      onFormChange(field, cleaned);
     }
   };
 
@@ -120,7 +128,6 @@ export function Step2PersonalDetails({
         <h2 className="text-2xl font-bold text-stone-900 mb-2">Personal Details</h2>
         <p className="text-stone-500 mb-8">Please provide your personal information for check-in</p>
 
-        {/* ✅ REMOVED <form> - using div instead, button is type="submit" to trigger parent form */}
         <div className="space-y-6">
           {/* Row: First Name + Last Name */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -276,7 +283,7 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* Arriving From + Next Destination */}
+          {/* ✅ FIXED: Arriving From - no cleaning on keystroke */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
@@ -289,9 +296,10 @@ export function Step2PersonalDetails({
                 value={formData.arrivingFrom} 
                 onFocus={() => onTouched('arrivingFrom')}
                 onChange={(e) => {
-                  const cleaned = cleanLocation(e.target.value);
-                  handleFieldChange('arrivingFrom', cleaned);
+                  // ✅ Pass raw value - NO cleaning on keystroke
+                  handleFieldChange('arrivingFrom', e.target.value);
                 }}
+                onBlur={(e) => handleLocationBlur('arrivingFrom', e.target.value)}
               />
               <p className="text-xs text-stone-400 mt-1">
                 🏨 Tell us the last city/town where you stayed before arriving here
@@ -312,9 +320,10 @@ export function Step2PersonalDetails({
                 value={formData.nextDestination} 
                 onFocus={() => onTouched('nextDestination')}
                 onChange={(e) => {
-                  const cleaned = cleanLocation(e.target.value);
-                  handleFieldChange('nextDestination', cleaned);
+                  // ✅ Pass raw value - NO cleaning on keystroke
+                  handleFieldChange('nextDestination', e.target.value);
                 }}
+                onBlur={(e) => handleLocationBlur('nextDestination', e.target.value)}
               />
               <p className="text-xs text-stone-400 mt-1">
                 🚗 Tell us where you're headed after your stay with us
@@ -449,7 +458,7 @@ export function Step2PersonalDetails({
               ← Back
             </button>
             <button
-              type="submit"  // ✅ Native submit - triggers parent form
+              type="submit"
               className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
               style={{ backgroundColor: primaryColor || '#f59e0b' }}
             >
