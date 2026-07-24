@@ -1,5 +1,5 @@
 // src/components/checkin/Step2PersonalDetails.tsx
-// ✅ UPDATED: Uses LocationAutocomplete component
+// ✅ FIXED: No cleanLocation in handleFieldChange - spaces work!
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
@@ -80,8 +80,9 @@ export function Step2PersonalDetails({
     { value: 'other', label: 'Other' },
   ];
 
+  // ✅ FIXED: NO cleanLocation here - spaces work!
   const handleFieldChange = (field: string, value: any) => {
-    console.log(`🔍 Step2PersonalDetails: Changing ${field} to`, value);
+    console.log(`🔍 Step2PersonalDetails: Changing ${field} to "${value}"`);
     onFormChange(field, value);
     if (field !== 'email') {
       onTouched(field as keyof TouchedFields);
@@ -272,16 +273,16 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* ✅ UPDATED: Arriving From - using LocationAutocomplete */}
+          {/* ✅ FIXED: Arriving From - using LocationAutocomplete, spaces work! */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.arrivingFrom}
               onChange={(value) => {
-                console.log('🔍 ArrivingFrom: onChange', value);
+                console.log(`🔍 ArrivingFrom: onChange "${value}"`);
                 handleFieldChange('arrivingFrom', value);
               }}
               onBlur={(value) => {
-                console.log('🔍 ArrivingFrom: onBlur', value);
+                console.log(`🔍 ArrivingFrom: onBlur "${value}"`);
               }}
               country={formData.country}
               placeholder="Where did you sleep last night? (e.g., Cape Town, Johannesburg)"
@@ -295,16 +296,16 @@ export function Step2PersonalDetails({
             </p>
           </div>
 
-          {/* ✅ UPDATED: Next Destination - using LocationAutocomplete */}
+          {/* ✅ FIXED: Next Destination - using LocationAutocomplete, spaces work! */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.nextDestination}
               onChange={(value) => {
-                console.log('🔍 NextDestination: onChange', value);
+                console.log(`🔍 NextDestination: onChange "${value}"`);
                 handleFieldChange('nextDestination', value);
               }}
               onBlur={(value) => {
-                console.log('🔍 NextDestination: onBlur', value);
+                console.log(`🔍 NextDestination: onBlur "${value}"`);
               }}
               country={formData.country}
               placeholder="Where are you heading after your stay? (e.g., Gqeberha, East London)"
