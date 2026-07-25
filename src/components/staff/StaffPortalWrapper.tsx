@@ -1,13 +1,6 @@
-// src/components/staff/StaffPortalWrapper.tsx
-// ✅ FULL VERSION: All original functionality + audit log fetching
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
 import { AuditTrailTab } from './AuditTrailTab';
-import { BusinessOverviewTab } from './BusinessOverviewTab';
-import { GuestOverviewTab } from './GuestOverviewTab';
-import { GuestDietariesTab } from './GuestDietariesTab';
-import { ResortSettingsTab } from './ResortSettingsTab';
 
 interface StaffPortalWrapperProps {
   session: {
@@ -26,37 +19,21 @@ interface StaffPortalWrapperProps {
     logo_url?: string;
   };
   employees: any[];
-  auditLogs: any[];
-  bookings?: any[];
-  todayArrivals?: any[];
-  todayStayovers?: any[];
-  todayCheckouts?: any[];
+  auditLogs?: any[];
   onUpdateEmployees: (employees: any[]) => void;
   onAddAuditLog: (log: any) => void;
-  onUpdateBusiness?: (business: any) => void;
-  onSaveDietary?: (guestId: string, restrictions: any, log?: any) => void;
-  onShowQRModal?: () => void;
-  onShowImportModal?: () => void;
 }
 
 export function StaffPortalWrapper({
   session,
   business,
   employees,
-  auditLogs: initialAuditLogs,
-  bookings = [],
-  todayArrivals = [],
-  todayStayovers = [],
-  todayCheckouts = [],
+  auditLogs: initialAuditLogs = [],
   onUpdateEmployees,
   onAddAuditLog,
-  onUpdateBusiness,
-  onSaveDietary,
-  onShowQRModal,
-  onShowImportModal,
 }: StaffPortalWrapperProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'guests' | 'dietaries' | 'employees' | 'audit' | 'settings'>('overview');
-  const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
+  const [activeTab, setActiveTab] = useState<'employees' | 'audit'>('employees');
+  const [auditLogs, setAuditLogs] = useState<any[]>(initialAuditLogs);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   
@@ -146,13 +123,6 @@ export function StaffPortalWrapper({
     }
   }, [initialAuditLogs]);
 
-  // Employees should not see this tab at all (they use EmployeeDashboard)
-  useEffect(() => {
-    if (isEmployee) {
-      console.warn('Employee attempting to access Staff Portal tab - redirecting');
-    }
-  }, [isEmployee]);
-
   // If employee, show restricted message
   if (isEmployee) {
     return (
@@ -198,42 +168,9 @@ export function StaffPortalWrapper({
       </div>
 
       {/* ============================================================
-          TABS - All tabs including Overview, Guests, Dietaries, Employees, Audit, Settings
+          TABS - ONLY Employee Management + Audit Trail
           ============================================================ */}
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'overview'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          📊 Business Overview
-        </button>
-
-        <button
-          onClick={() => setActiveTab('guests')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'guests'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          🏨 Guest Overview
-        </button>
-
-        <button
-          onClick={() => setActiveTab('dietaries')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'dietaries'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          🥑 Guest Dietaries
-        </button>
-
         <button
           onClick={() => setActiveTab('employees')}
           className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
@@ -258,49 +195,11 @@ export function StaffPortalWrapper({
             <span className="ml-2 inline-block animate-spin rounded-full h-3 w-3 border-2 border-amber-500 border-t-transparent" />
           )}
         </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-            activeTab === 'settings'
-              ? 'border-amber-500 text-stone-950'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          ⚙️ Resort Settings
-        </button>
       </div>
 
       {/* ============================================================
           RENDER ACTIVE TAB
           ============================================================ */}
-      {activeTab === 'overview' && (
-        <BusinessOverviewTab
-          bookings={bookings}
-          totalRooms={business.total_rooms}
-        />
-      )}
-
-      {activeTab === 'guests' && (
-        <GuestOverviewTab
-          bookings={bookings}
-          todayArrivals={todayArrivals}
-          todayStayovers={todayStayovers}
-          todayCheckouts={todayCheckouts}
-          businessId={business.id}
-          onShowQRModal={onShowQRModal || (() => {})}
-          onShowImportModal={onShowImportModal}
-        />
-      )}
-
-      {activeTab === 'dietaries' && (
-        <GuestDietariesTab
-          bookings={bookings}
-          session={session}
-          onSaveDietary={onSaveDietary || (() => {})}
-        />
-      )}
-
       {activeTab === 'employees' && (
         <EmployeeManagementTab
           employees={employees}
@@ -337,13 +236,6 @@ export function StaffPortalWrapper({
             />
           )}
         </>
-      )}
-
-      {activeTab === 'settings' && (
-        <ResortSettingsTab
-          business={business}
-          onUpdateBusiness={onUpdateBusiness || (() => {})}
-        />
       )}
     </div>
   );
