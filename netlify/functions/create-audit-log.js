@@ -1,4 +1,4 @@
-export const handler = async (event) => {
+exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -24,10 +24,12 @@ export const handler = async (event) => {
       business_id, 
       user_id, 
       user_name, 
+      user_role,
       action, 
       details, 
       description, 
       booking_id,
+      guest_name,
       ip_address,
       user_agent
     } = body;
@@ -54,15 +56,17 @@ export const handler = async (event) => {
       };
     }
 
-    // Create audit log entry
+    // ✅ Create audit log entry for audit_logs table
     const logEntry = {
       business_id,
       user_id,
       user_name: user_name || 'Unknown User',
+      user_role: user_role || 'owner',
       action,
       details: details || {},
       description: description || `${action} performed`,
       booking_id: booking_id || null,
+      guest_name: guest_name || null,
       ip_address: ip_address || 'unknown',
       user_agent: user_agent || 'unknown',
       created_at: new Date().toISOString()
