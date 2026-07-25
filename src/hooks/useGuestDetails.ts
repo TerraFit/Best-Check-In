@@ -1,5 +1,5 @@
 // src/hooks/useGuestDetails.ts
-// ✅ ADDED: Audit logging for all updates
+// ✅ COMPLETE: Fixed business_id for audit logging
 
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
@@ -44,6 +44,31 @@ export function useGuestDetails() {
     }
   }, []);
 
+  // ✅ FIXED: Get business_id from auth, not from guestDetails
+  const getBusinessId = useCallback((): string | null => {
+    try {
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        return auth.user?.businessId || null;
+      }
+    } catch (e) {
+      console.warn('Could not get business_id from auth:', e);
+    }
+    
+    try {
+      const businessStr = localStorage.getItem('business');
+      if (businessStr) {
+        const business = JSON.parse(businessStr);
+        return business.id || null;
+      }
+    } catch (e) {
+      console.warn('Could not get business_id from business storage:', e);
+    }
+    
+    return null;
+  }, []);
+
   const updateFoodRestrictions = useCallback(async (
     bookingId: string,
     restrictions: FoodRestrictions
@@ -59,10 +84,18 @@ export function useGuestDetails() {
     setError(null);
 
     try {
+      // ✅ Get business_id
+      const businessId = getBusinessId();
+      console.log('💾 useGuestDetails: Business ID:', businessId);
+
       const response = await fetch('/.netlify/functions/save-food-restrictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, restrictions })
+        body: JSON.stringify({ 
+          bookingId, 
+          restrictions,
+          business_id: businessId  // ✅ Pass business_id
+        })
       });
 
       console.log('📡 useGuestDetails: Save response status:', response.status);
@@ -86,12 +119,13 @@ export function useGuestDetails() {
         });
       }
 
-      // ✅ Add audit log for food restriction changes
+      // ✅ Create audit log with correct business_id
       await addAuditLog({
         bookingId,
         action: 'UPDATE_FOOD_RESTRICTIONS',
         details: restrictions,
-        description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`
+        description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`,
+        businessId: businessId || undefined
       });
 
       return result;
@@ -102,9 +136,8 @@ export function useGuestDetails() {
     } finally {
       setLoading(false);
     }
-  }, [guestDetails]);
+  }, [guestDetails, getBusinessId]);
 
-  // ✅ NEW: Update stay details with audit logging
   const updateStayDetails = useCallback(async (
     bookingId: string,
     data: StayUpdateData
@@ -120,10 +153,18 @@ export function useGuestDetails() {
     setError(null);
 
     try {
+      // ✅ Get business_id
+      const businessId = getBusinessId();
+      console.log('📅 useGuestDetails: Business ID:', businessId);
+
       const response = await fetch('/.netlify/functions/update-booking-stay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, ...data })
+        body: JSON.stringify({ 
+          bookingId, 
+          ...data,
+          business_id: businessId  // ✅ Pass business_id
+        })
       });
 
       console.log('📡 useGuestDetails: Update stay response status:', response.status);
@@ -149,12 +190,13 @@ export function useGuestDetails() {
         });
       }
 
-      // ✅ Add audit log for stay changes
+      // ✅ Create audit log with correct business_id
       await addAuditLog({
         bookingId,
         action: 'UPDATE_STAY_DETAILS',
         details: data,
-        description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`
+        description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`,
+        businessId: businessId || undefined
       });
 
       return result;
@@ -165,48 +207,69 @@ export function useGuestDetails() {
     } finally {
       setLoading(false);
     }
-  }, [guestDetails]);
+  }, [guestDetails, getBusinessId]);
 
-  // ✅ NEW: Add audit log helper
+  // ✅ FIXED: Add audit log with correct business_id
   const addAuditLog = useCallback(async (logData: {
     bookingId: string;
     action: string;
     details: any;
     description: string;
+    businessId?: string;
   }) => {
     try {
       // Get current user from auth
       const authStr = localStorage.getItem('fastcheckin_auth');
       const auth = authStr ? JSON.parse(authStr) : null;
-      const user = auth?.user || { id: 'unknown', name: 'Unknown User' };
+      const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
+
+      // ✅ Use provided businessId, or try to get it
+      let businessId = logData.businessId || null;
+      if (!businessId) {
+        businessId = getBusinessId();
+      }
+
+      // ✅ If still null, use a fallback
+      if (!businessId) {
+        console.warn('⚠️ No business_id available for audit log, using fallback');
+        businessId = '00000000-0000-0000-0000-000000000000';
+      }
+
+      const auditLog = {
+        business_id: businessId,
+        user_id: user.id || '00000000-0000-0000-0000-000000000000',
+        user_name: user.name || user.full_name || 'Unknown User',
+        user_role: user.role || 'owner',
+        action: logData.action,
+        details: logData.details,
+        description: logData.description,
+        booking_id: logData.bookingId,
+        guest_name: guestDetails?.guest_name || null,
+        ip_address: await getIPAddress(),
+        user_agent: navigator.userAgent
+      };
+
+      console.log('📝 Creating audit log from useGuestDetails:', auditLog);
 
       const response = await fetch('/.netlify/functions/create-audit-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: guestDetails?.id ? guestDetails.id : 'unknown',
-          user_id: user.id || 'unknown',
-          user_name: user.name || user.full_name || 'Unknown User',
-          action: logData.action,
-          details: logData.details,
-          description: logData.description,
-          booking_id: logData.bookingId,
-          ip_address: await getIPAddress(),
-          user_agent: navigator.userAgent
-        })
+        body: JSON.stringify(auditLog)
       });
 
       if (response.ok) {
-        console.log('✅ Audit log created for:', logData.action);
+        const result = await response.json();
+        console.log('✅ Audit log created for:', logData.action, result);
       } else {
-        console.warn('⚠️ Failed to create audit log:', await response.text());
+        const errorText = await response.text();
+        console.warn('⚠️ Failed to create audit log:', errorText);
       }
     } catch (err) {
       console.warn('⚠️ Audit log error (non-critical):', err);
     }
-  }, [guestDetails]);
+  }, [guestDetails, getBusinessId]);
 
-  // ✅ Helper to get IP address (optional)
+  // ✅ Helper to get IP address
   const getIPAddress = async (): Promise<string> => {
     try {
       const response = await fetch('https://api.ipify.org?format=json');
