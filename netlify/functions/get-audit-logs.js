@@ -1,6 +1,3 @@
-// netlify/functions/get-audit-logs.js
-// Using CommonJS (require)
-
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -43,8 +40,9 @@ exports.handler = async function(event) {
       };
     }
 
+    // ✅ CHANGED: Querying audit_logs (not food_restriction_audit)
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/food_restriction_audit?business_id=eq.${businessId}&select=*&order=timestamp.desc&limit=${limit}&offset=${offset}`,
+      `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${businessId}&select=*&order=created_at.desc&limit=${limit}&offset=${offset}`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -65,13 +63,29 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
+    // ✅ Map the data to match what AuditTrailTab expects
+    const mappedData = data.map(log => ({
+      id: log.id,
+      business_id: log.business_id,
+      user_id: log.user_id,
+      user_name: log.user_name || 'Unknown User',
+      action: log.action,
+      details: log.details || {},
+      description: log.description || log.action,
+      booking_id: log.booking_id,
+      guest_name: log.details?.guest_name || log.details?.guestName || 'Unknown Guest',
+      ip_address: log.ip_address || 'unknown',
+      user_agent: log.user_agent || 'unknown',
+      created_at: log.created_at
+    }));
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        data: data || [],
-        total: data?.length || 0,
+        data: mappedData || [],
+        total: mappedData?.length || 0,
         limit: parseInt(limit),
         offset: parseInt(offset)
       })
