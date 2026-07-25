@@ -40,7 +40,7 @@ exports.handler = async function(event) {
       };
     }
 
-    // ✅ CHANGED: Querying audit_logs (not food_restriction_audit)
+    // ✅ Read from audit_logs
     const response = await fetch(
       `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${businessId}&select=*&order=created_at.desc&limit=${limit}&offset=${offset}`,
       {
@@ -63,7 +63,7 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
-    // ✅ Map the data to match what AuditTrailTab expects
+    // ✅ Map to frontend expectations
     const mappedData = data.map(log => ({
       id: log.id,
       business_id: log.business_id,
@@ -73,7 +73,7 @@ exports.handler = async function(event) {
       details: log.details || {},
       description: log.description || log.action,
       booking_id: log.booking_id,
-      guest_name: log.details?.guest_name || log.details?.guestName || 'Unknown Guest',
+      guest_name: log.guest_name || log.details?.guest_name || 'Unknown Guest',
       ip_address: log.ip_address || 'unknown',
       user_agent: log.user_agent || 'unknown',
       created_at: log.created_at
