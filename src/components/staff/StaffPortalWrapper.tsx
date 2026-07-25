@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
+// src/components/staff/StaffPortalWrapper.tsx
+// ✅ FULL VERSION: All original functionality + audit log fetching
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
 import { AuditTrailTab } from './AuditTrailTab';
+import { BusinessOverviewTab } from './BusinessOverviewTab';
+import { GuestOverviewTab } from './GuestOverviewTab';
+import { GuestDietariesTab } from './GuestDietariesTab';
+import { ResortSettingsTab } from './ResortSettingsTab';
 
 interface StaffPortalWrapperProps {
   session: {
@@ -20,32 +27,133 @@ interface StaffPortalWrapperProps {
   };
   employees: any[];
   auditLogs: any[];
+  bookings?: any[];
+  todayArrivals?: any[];
+  todayStayovers?: any[];
+  todayCheckouts?: any[];
   onUpdateEmployees: (employees: any[]) => void;
   onAddAuditLog: (log: any) => void;
+  onUpdateBusiness?: (business: any) => void;
+  onSaveDietary?: (guestId: string, restrictions: any, log?: any) => void;
+  onShowQRModal?: () => void;
+  onShowImportModal?: () => void;
 }
 
 export function StaffPortalWrapper({
   session,
   business,
   employees,
-  auditLogs,
+  auditLogs: initialAuditLogs,
+  bookings = [],
+  todayArrivals = [],
+  todayStayovers = [],
+  todayCheckouts = [],
   onUpdateEmployees,
   onAddAuditLog,
+  onUpdateBusiness,
+  onSaveDietary,
+  onShowQRModal,
+  onShowImportModal,
 }: StaffPortalWrapperProps) {
-  const [activeTab, setActiveTab] = useState<'employees' | 'audit'>('employees');
+  const [activeTab, setActiveTab] = useState<'overview' | 'guests' | 'dietaries' | 'employees' | 'audit' | 'settings'>('overview');
+  const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   
   const isEmployee = session.user.role === 'EmployeeOverview';
 
+  // ✅ Fetch audit logs from the API
+  const fetchAuditLogs = useCallback(async () => {
+    if (!business.id) {
+      console.warn('⚠️ No business ID available for audit logs');
+      return;
+    }
+
+    setLoadingAudit(true);
+    setFetchError(null);
+    console.log('🔍 Fetching audit logs for business:', business.id);
+
+    try {
+      // Get auth token from localStorage
+      let token = null;
+      try {
+        const authStr = localStorage.getItem('fastcheckin_auth');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          token = auth.token;
+        }
+      } catch (e) {
+        console.warn('Could not get auth token:', e);
+      }
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const url = `/.netlify/functions/get-audit-logs?businessId=${encodeURIComponent(business.id)}&limit=100`;
+      console.log('📡 Fetching from:', url);
+
+      const response = await fetch(url, { headers });
+
+      console.log('📡 Audit logs response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Failed to fetch audit logs:', errorText);
+        setFetchError(`Failed to fetch: ${response.status} ${response.statusText}`);
+        setAuditLogs([]);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('✅ Audit logs fetched:', data);
+      
+      if (data.success && data.data) {
+        setAuditLogs(data.data);
+        console.log(`✅ Loaded ${data.data.length} audit logs`);
+      } else if (Array.isArray(data)) {
+        setAuditLogs(data);
+        console.log(`✅ Loaded ${data.length} audit logs (array format)`);
+      } else {
+        console.warn('⚠️ Unexpected data format:', data);
+        setAuditLogs([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching audit logs:', error);
+      setFetchError(error instanceof Error ? error.message : 'Unknown error');
+      setAuditLogs([]);
+    } finally {
+      setLoadingAudit(false);
+    }
+  }, [business.id]);
+
+  // ✅ Fetch audit logs when switching to audit tab
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      console.log('🔍 Switching to audit tab, fetching logs...');
+      fetchAuditLogs();
+    }
+  }, [activeTab, fetchAuditLogs]);
+
+  // ✅ Update local state if prop changes
+  useEffect(() => {
+    if (initialAuditLogs && initialAuditLogs.length > 0) {
+      setAuditLogs(initialAuditLogs);
+    }
+  }, [initialAuditLogs]);
+
   // Employees should not see this tab at all (they use EmployeeDashboard)
-  // If an employee somehow gets here, redirect them away
   useEffect(() => {
     if (isEmployee) {
-      // Employees shouldn't be here - they have their own dashboard
       console.warn('Employee attempting to access Staff Portal tab - redirecting');
     }
   }, [isEmployee]);
 
-  // If employee, show nothing (they should use EmployeeDashboard)
+  // If employee, show restricted message
   if (isEmployee) {
     return (
       <div className="text-center py-12">
@@ -66,7 +174,7 @@ export function StaffPortalWrapper({
 
   return (
     <div className="space-y-8">
-      {/* Brand Profile Hero Widget - Simplified */}
+      {/* Brand Profile Hero Widget */}
       <div className="bg-white p-6 rounded-3xl border border-stone-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center font-bold text-amber-500 font-serif text-3xl">
@@ -90,9 +198,42 @@ export function StaffPortalWrapper({
       </div>
 
       {/* ============================================================
-          TABS - Only Employee Management + Audit Trail
+          TABS - All tabs including Overview, Guests, Dietaries, Employees, Audit, Settings
           ============================================================ */}
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'overview'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          📊 Business Overview
+        </button>
+
+        <button
+          onClick={() => setActiveTab('guests')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'guests'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          🏨 Guest Overview
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dietaries')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'dietaries'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          🥑 Guest Dietaries
+        </button>
+
         <button
           onClick={() => setActiveTab('employees')}
           className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
@@ -113,12 +254,53 @@ export function StaffPortalWrapper({
           }`}
         >
           📋 Platform Audit Trail
+          {loadingAudit && (
+            <span className="ml-2 inline-block animate-spin rounded-full h-3 w-3 border-2 border-amber-500 border-t-transparent" />
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`pb-4 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'settings'
+              ? 'border-amber-500 text-stone-950'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          ⚙️ Resort Settings
         </button>
       </div>
 
       {/* ============================================================
           RENDER ACTIVE TAB
           ============================================================ */}
+      {activeTab === 'overview' && (
+        <BusinessOverviewTab
+          bookings={bookings}
+          totalRooms={business.total_rooms}
+        />
+      )}
+
+      {activeTab === 'guests' && (
+        <GuestOverviewTab
+          bookings={bookings}
+          todayArrivals={todayArrivals}
+          todayStayovers={todayStayovers}
+          todayCheckouts={todayCheckouts}
+          businessId={business.id}
+          onShowQRModal={onShowQRModal || (() => {})}
+          onShowImportModal={onShowImportModal}
+        />
+      )}
+
+      {activeTab === 'dietaries' && (
+        <GuestDietariesTab
+          bookings={bookings}
+          session={session}
+          onSaveDietary={onSaveDietary || (() => {})}
+        />
+      )}
+
       {activeTab === 'employees' && (
         <EmployeeManagementTab
           employees={employees}
@@ -128,9 +310,39 @@ export function StaffPortalWrapper({
       )}
 
       {activeTab === 'audit' && (
-        <AuditTrailTab 
-          auditLogs={auditLogs}
-          businessId={business.id}
+        <>
+          {loadingAudit ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-4" />
+                <p className="text-sm text-stone-500">Loading audit logs...</p>
+              </div>
+            </div>
+          ) : fetchError ? (
+            <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-center">
+              <div className="text-red-500 text-4xl mb-4">⚠️</div>
+              <h3 className="text-lg font-semibold text-red-700 mb-2">Failed to Load Audit Logs</h3>
+              <p className="text-sm text-red-600">{fetchError}</p>
+              <button
+                onClick={fetchAuditLogs}
+                className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <AuditTrailTab 
+              auditLogs={auditLogs}
+              businessId={business.id}
+            />
+          )}
+        </>
+      )}
+
+      {activeTab === 'settings' && (
+        <ResortSettingsTab
+          business={business}
+          onUpdateBusiness={onUpdateBusiness || (() => {})}
         />
       )}
     </div>
