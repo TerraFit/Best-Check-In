@@ -1,3 +1,6 @@
+// netlify/functions/get-audit-logs.js
+// ✅ FIXED: Reads from audit_logs (NOT food_restriction_audit)
+
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -43,7 +46,7 @@ exports.handler = async function(event) {
 
     console.log(`🔍 Fetching audit logs for business: ${businessId}`);
 
-    // ✅ CORRECT: Query audit_logs (not food_restriction_audit)
+    // ✅ CRITICAL FIX: Query audit_logs (NOT food_restriction_audit)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${encodeURIComponent(businessId)}&select=*&order=created_at.desc&limit=${parseInt(limit)}&offset=${parseInt(offset)}`,
       {
@@ -67,7 +70,7 @@ exports.handler = async function(event) {
     const data = await response.json();
     console.log(`✅ Found ${data?.length || 0} audit logs`);
 
-    // ✅ Map to frontend expectations (AuditTrailTab)
+    // ✅ Map to frontend expectations
     const mappedData = data.map(log => ({
       id: log.id,
       business_id: log.business_id,
