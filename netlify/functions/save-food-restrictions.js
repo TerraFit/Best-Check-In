@@ -1,5 +1,4 @@
-// netlify/functions/save-food-restrictions.js
-// ✅ COMPLETE: All dietary options including carnivore with audit logging
+const jwt = require('jsonwebtoken');
 
 export const handler = async (event) => {
   const headers = {
@@ -198,7 +197,7 @@ export const handler = async (event) => {
     }
 
     // ============================================================
-    // ✅ 6. CREATE AUDIT LOG WITH CHANGES
+    // ✅ 6. CREATE AUDIT LOG WITH CHANGES (COMPLETELY REWRITTEN)
     // ============================================================
     try {
       // Calculate what changed
@@ -226,60 +225,88 @@ export const handler = async (event) => {
 
       // Only create audit log if there were changes
       if (Object.keys(changes).length > 0) {
-        // Get user from auth header
+        // ✅ Get user from auth header - with proper fallback
         const authHeader = event.headers.authorization || '';
-        let userId = 'unknown';
-        let userName = 'Unknown User';
+        let userId = '00000000-0000-0000-0000-000000000000'; // ✅ Valid UUID fallback
+        let userName = 'System';
+        let userRole = 'owner';
 
         try {
           const token = authHeader.replace('Bearer ', '');
-          const jwt = require('jsonwebtoken');
-          const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-          userId = decoded.sub || 'unknown';
-          userName = decoded.user_metadata?.full_name || 
-                     decoded.user_metadata?.name || 
-                     decoded.user_metadata?.business_name ||
-                     'Unknown User';
+          if (token) {
+            const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+            userId = decoded.sub || '00000000-0000-0000-0000-000000000000';
+            userName = decoded.user_metadata?.full_name || 
+                       decoded.user_metadata?.name || 
+                       decoded.user_metadata?.business_name ||
+                       'System';
+            userRole = decoded.user_metadata?.role || 'owner';
+          }
         } catch (tokenError) {
           console.warn('Could not extract user from token:', tokenError.message);
         }
 
-        // Get guest name for description
+        // ✅ Get guest name for description
         const guestName = currentBooking?.guest_name || 'Unknown Guest';
+        const businessId = currentBooking?.business_id || 'unknown';
 
+        // ✅ Build audit log with ALL required fields
         const auditLog = {
-          business_id: currentBooking?.business_id || 'unknown',
+          business_id: businessId,
           user_id: userId,
           user_name: userName,
+          user_role: userRole,
           action: 'UPDATE_FOOD_RESTRICTIONS',
           details: changes,
           description: `Updated food restrictions for guest ${guestName}`,
           booking_id: bookingId,
+          guest_name: guestName,  // ✅ Now supported
           ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
           user_agent: event.headers['user-agent'] || 'unknown',
           created_at: new Date().toISOString()
         };
 
-        console.log('📝 Audit log:', auditLog);
+        console.log('📝 Audit log:', JSON.stringify(auditLog, null, 2));
 
+        // ✅ Call create-audit-log function (preferred) or direct insert
         const auditResponse = await fetch(
-          `${supabaseUrl}/rest/v1/audit_logs`,
+          `${process.env.URL || 'https://fastcheckin.netlify.app'}/.netlify/functions/create-audit-log`,
           {
             method: 'POST',
             headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': authHeader
             },
-            body: JSON.stringify([auditLog])
+            body: JSON.stringify(auditLog)
           }
         );
 
         if (auditResponse.ok) {
-          console.log('✅ Audit log created for food restrictions update');
+          const auditResult = await auditResponse.json();
+          console.log('✅ Audit log created:', auditResult.log?.id || 'success');
         } else {
-          const auditError = await auditResponse.text();
-          console.warn('⚠️ Failed to create audit log:', auditError);
+          // ✅ Fallback: Direct insert if create-audit-log fails
+          console.warn('⚠️ create-audit-log failed, trying direct insert...');
+          
+          const directResponse = await fetch(
+            `${supabaseUrl}/rest/v1/audit_logs`,
+            {
+              method: 'POST',
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify([auditLog])
+            }
+          );
+
+          if (directResponse.ok) {
+            console.log('✅ Audit log created (direct insert)');
+          } else {
+            const directError = await directResponse.text();
+            console.warn('⚠️ Direct insert also failed:', directError);
+          }
         }
       } else {
         console.log('ℹ️ No changes detected, skipping audit log');
