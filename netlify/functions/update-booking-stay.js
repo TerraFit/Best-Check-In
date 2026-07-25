@@ -1,3 +1,7 @@
+// netlify/functions/update-booking-stay.js
+// ✅ COMPLETE: Update check-in/out dates and nights with audit logging
+// ✅ FIXED: Accepts business_id from request
+
 const jwt = require('jsonwebtoken');
 
 export const handler = async (event) => {
@@ -22,10 +26,11 @@ export const handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    const { bookingId, check_in_date, check_out_date, nights } = body;
+    // ✅ Accept business_id from request
+    const { bookingId, check_in_date, check_out_date, nights, business_id } = body;
 
     console.log('📅 Updating stay for booking:', bookingId);
-    console.log('📅 Data:', { check_in_date, check_out_date, nights });
+    console.log('📅 Data:', { check_in_date, check_out_date, nights, business_id });
 
     if (!bookingId) {
       return { 
@@ -152,12 +157,12 @@ export const handler = async (event) => {
     console.log('✅ Updated booking:', updatedBooking);
 
     // ============================================================
-    // ✅ 4. CREATE AUDIT LOG (COMPLETELY REWRITTEN)
+    // ✅ 4. CREATE AUDIT LOG
     // ============================================================
     try {
-      // ✅ Get user from auth header - with proper fallback
+      // ✅ Get user from auth header
       const authHeader = event.headers.authorization || '';
-      let userId = '00000000-0000-0000-0000-000000000000'; // ✅ Valid UUID fallback
+      let userId = '00000000-0000-0000-0000-000000000000';
       let userName = 'System';
       let userRole = 'owner';
 
@@ -178,7 +183,9 @@ export const handler = async (event) => {
 
       // ✅ Get guest name for description
       const guestName = currentBooking?.guest_name || 'Unknown Guest';
-      const businessId = updatedBooking?.business_id || currentBooking?.business_id || 'unknown';
+      
+      // ✅ Use business_id from request, fallback to booking's business_id
+      const businessId = business_id || updatedBooking?.business_id || currentBooking?.business_id || 'unknown';
 
       // ✅ Build audit log with ALL required fields
       const auditLog = {
@@ -190,7 +197,7 @@ export const handler = async (event) => {
         details: changes,
         description: `Updated stay details for guest ${guestName}`,
         booking_id: bookingId,
-        guest_name: guestName,  // ✅ Now supported
+        guest_name: guestName,
         ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
         user_agent: event.headers['user-agent'] || 'unknown',
         created_at: new Date().toISOString()
@@ -198,45 +205,25 @@ export const handler = async (event) => {
 
       console.log('📝 Audit log:', JSON.stringify(auditLog, null, 2));
 
-      // ✅ Call create-audit-log function (preferred) or direct insert
-      const auditResponse = await fetch(
-        `${process.env.URL || 'https://fastcheckin.netlify.app'}/.netlify/functions/create-audit-log`,
+      // ✅ DIRECT INSERT (most reliable)
+      const directResponse = await fetch(
+        `${supabaseUrl}/rest/v1/audit_logs`,
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify(auditLog)
+          body: JSON.stringify([auditLog])
         }
       );
 
-      if (auditResponse.ok) {
-        const auditResult = await auditResponse.json();
-        console.log('✅ Audit log created:', auditResult.log?.id || 'success');
+      if (directResponse.ok) {
+        console.log('✅ Audit log created (direct insert)');
       } else {
-        // ✅ Fallback: Direct insert if create-audit-log fails
-        console.warn('⚠️ create-audit-log failed, trying direct insert...');
-        
-        const directResponse = await fetch(
-          `${supabaseUrl}/rest/v1/audit_logs`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify([auditLog])
-          }
-        );
-
-        if (directResponse.ok) {
-          console.log('✅ Audit log created (direct insert)');
-        } else {
-          const directError = await directResponse.text();
-          console.warn('⚠️ Direct insert also failed:', directError);
-        }
+        const directError = await directResponse.text();
+        console.warn('⚠️ Direct insert failed:', directError);
       }
     } catch (auditError) {
       console.warn('⚠️ Audit log error (non-critical):', auditError);
