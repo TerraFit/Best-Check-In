@@ -22,6 +22,7 @@ exports.handler = async function(event) {
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error('❌ Missing Supabase credentials');
     return {
       statusCode: 500,
       headers,
@@ -40,9 +41,11 @@ exports.handler = async function(event) {
       };
     }
 
-    // ✅ CRITICAL FIX: Read from audit_logs (not food_restriction_audit)
+    console.log(`🔍 Fetching audit logs for business: ${businessId}`);
+
+    // ✅ CORRECT: Query audit_logs (not food_restriction_audit)
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${businessId}&select=*&order=created_at.desc&limit=${limit}&offset=${offset}`,
+      `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${encodeURIComponent(businessId)}&select=*&order=created_at.desc&limit=${parseInt(limit)}&offset=${parseInt(offset)}`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -53,7 +56,7 @@ exports.handler = async function(event) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Supabase error:', error);
+      console.error('❌ Supabase error:', error);
       return {
         statusCode: 500,
         headers,
@@ -62,6 +65,7 @@ exports.handler = async function(event) {
     }
 
     const data = await response.json();
+    console.log(`✅ Found ${data?.length || 0} audit logs`);
 
     // ✅ Map to frontend expectations (AuditTrailTab)
     const mappedData = data.map(log => ({
@@ -84,19 +88,22 @@ exports.handler = async function(event) {
       headers,
       body: JSON.stringify({
         success: true,
-        data: mappedData || [],
-        total: mappedData?.length || 0,
+        data: mappedData,
+        total: mappedData.length,
         limit: parseInt(limit),
         offset: parseInt(offset)
       })
     };
 
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    console.error('❌ Error fetching audit logs:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        success: false,
+        error: error.message || 'Failed to fetch audit logs' 
+      })
     };
   }
 };
