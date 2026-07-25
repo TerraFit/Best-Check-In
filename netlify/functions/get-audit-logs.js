@@ -40,7 +40,7 @@ exports.handler = async function(event) {
       };
     }
 
-    // ✅ Read from audit_logs
+    // ✅ CRITICAL FIX: Read from audit_logs (not food_restriction_audit)
     const response = await fetch(
       `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${businessId}&select=*&order=created_at.desc&limit=${limit}&offset=${offset}`,
       {
@@ -63,7 +63,7 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
-    // ✅ Map to frontend expectations
+    // ✅ Map to frontend expectations (AuditTrailTab)
     const mappedData = data.map(log => ({
       id: log.id,
       business_id: log.business_id,
