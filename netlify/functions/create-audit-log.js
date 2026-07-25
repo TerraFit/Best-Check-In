@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -20,6 +22,12 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
+    console.log('📝 Creating audit log:', { 
+      action: body.action, 
+      user_name: body.user_name, 
+      booking_id: body.booking_id 
+    });
+
     const { 
       business_id, 
       user_id, 
@@ -34,13 +42,13 @@ exports.handler = async (event) => {
       user_agent
     } = body;
 
-    console.log('📝 Creating audit log:', { action, user_name, booking_id });
-
     if (!business_id || !action) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields: business_id and action are required' })
+        body: JSON.stringify({ 
+          error: 'Missing required fields: business_id and action are required' 
+        })
       };
     }
 
@@ -56,19 +64,18 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Handle missing user_id - use a placeholder or generate one
-    let finalUserId = user_id || '00000000-0000-0000-0000-000000000000';
-    
-    // If user_id is 'unknown', use a placeholder UUID
-    if (finalUserId === 'unknown' || !finalUserId) {
+    // ✅ FIX: Handle invalid UUIDs - use placeholder if user_id is 'unknown' or missing
+    let finalUserId = user_id;
+    if (!finalUserId || finalUserId === 'unknown' || finalUserId === 'null' || finalUserId === 'undefined') {
       finalUserId = '00000000-0000-0000-0000-000000000000';
+      console.log('🔑 Using placeholder UUID for missing/invalid user_id');
     }
 
-    // ✅ Build log entry with only columns that exist
+    // ✅ Build log entry with all fields
     const logEntry = {
       business_id,
       user_id: finalUserId,
-      user_name: user_name || 'Unknown User',
+      user_name: user_name || 'System',
       user_role: user_role || 'owner',
       action,
       details: details || {},
@@ -80,8 +87,9 @@ exports.handler = async (event) => {
       created_at: new Date().toISOString()
     };
 
-    console.log('📝 Audit log entry:', logEntry);
+    console.log('📝 Audit log entry:', JSON.stringify(logEntry, null, 2));
 
+    // ✅ Insert into audit_logs
     const response = await fetch(
       `${supabaseUrl}/rest/v1/audit_logs`,
       {
@@ -100,7 +108,7 @@ exports.handler = async (event) => {
       const errorText = await response.text();
       console.error('❌ Audit log error:', errorText);
       
-      // Try without guest_name if that's the issue
+      // ✅ If guest_name column doesn't exist, retry without it
       if (errorText.includes('guest_name')) {
         console.log('🔄 Retrying without guest_name column...');
         const { guest_name, ...logWithoutGuest } = logEntry;
