@@ -1,8 +1,6 @@
-// src/components/staff/GuestDietariesTab.tsx
-// UPDATED: Only shows checked-in and stayover guests
-
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, X, Utensils, Info } from 'lucide-react';
+import { createAuditLog } from '@/utils/auditLogger';
 
 // Types
 interface FoodRestrictions {
