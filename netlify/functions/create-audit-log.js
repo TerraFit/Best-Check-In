@@ -36,11 +36,11 @@ exports.handler = async (event) => {
 
     console.log('📝 Creating audit log:', { action, user_name, booking_id });
 
-    if (!business_id || !user_id || !action) {
+    if (!business_id || !action) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        body: JSON.stringify({ error: 'Missing required fields: business_id and action are required' })
       };
     }
 
@@ -56,10 +56,18 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Create audit log entry for audit_logs table
+    // ✅ Handle missing user_id - use a placeholder or generate one
+    let finalUserId = user_id || '00000000-0000-0000-0000-000000000000';
+    
+    // If user_id is 'unknown', use a placeholder UUID
+    if (finalUserId === 'unknown' || !finalUserId) {
+      finalUserId = '00000000-0000-0000-0000-000000000000';
+    }
+
+    // ✅ Build log entry with only columns that exist
     const logEntry = {
       business_id,
-      user_id,
+      user_id: finalUserId,
       user_name: user_name || 'Unknown User',
       user_role: user_role || 'owner',
       action,
@@ -91,6 +99,50 @@ exports.handler = async (event) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Audit log error:', errorText);
+      
+      // Try without guest_name if that's the issue
+      if (errorText.includes('guest_name')) {
+        console.log('🔄 Retrying without guest_name column...');
+        const { guest_name, ...logWithoutGuest } = logEntry;
+        
+        const retryResponse = await fetch(
+          `${supabaseUrl}/rest/v1/audit_logs`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify([logWithoutGuest])
+          }
+        );
+        
+        if (!retryResponse.ok) {
+          const retryError = await retryResponse.text();
+          console.error('❌ Retry failed:', retryError);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to create audit log' })
+          };
+        }
+        
+        const retryResult = await retryResponse.json();
+        console.log('✅ Audit log created (without guest_name):', retryResult[0]?.id);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            log: retryResult[0],
+            message: 'Audit log created successfully'
+          })
+        };
+      }
+      
       return {
         statusCode: 500,
         headers,
