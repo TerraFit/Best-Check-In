@@ -1,3 +1,6 @@
+// src/pages/tabs/StaffPortalTab.tsx
+// ✅ SIMPLIFIED: Passes businessId to StaffPortalWrapper
+
 import React, { useState, useEffect } from 'react';
 import { StaffPortalWrapper } from '../../components/staff/StaffPortalWrapper';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,7 +16,6 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
   const [employees, setEmployees] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [loadingAudit, setLoadingAudit] = useState(false);
   const [business, setBusiness] = useState<any>(null);
   
   // Fetch business data
@@ -57,32 +59,9 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
     }
   };
   
-  // Fetch audit logs
-  const fetchAuditLogs = async () => {
-    if (!businessId) return;
-    
-    setLoadingAudit(true);
-    try {
-      const headers = getAuthHeaders();
-      const response = await fetch(`/.netlify/functions/get-audit-logs?businessId=${businessId}&limit=100`, {
-        headers
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setAuditLogs(data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching audit logs:', error);
-    } finally {
-      setLoadingAudit(false);
-    }
-  };
-  
-  // Load employees and audit logs on mount
+  // Load employees on mount
   useEffect(() => {
     fetchEmployees();
-    fetchAuditLogs();
   }, [businessId]);
   
   // Handle updating employees
@@ -97,7 +76,7 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
   };
   
   // Check if data is loading
-  const isLoading = loadingEmployees || loadingAudit || !business;
+  const isLoading = loadingEmployees || !business;
   
   if (isLoading) {
     return (

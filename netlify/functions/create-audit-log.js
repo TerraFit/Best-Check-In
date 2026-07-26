@@ -1,4 +1,6 @@
-export const handler = async (event) => {
+const jwt = require('jsonwebtoken');
+
+exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -20,25 +22,33 @@ export const handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
+    console.log('📝 Creating audit log:', { 
+      action: body.action, 
+      user_name: body.user_name, 
+      booking_id: body.booking_id 
+    });
+
     const { 
       business_id, 
       user_id, 
       user_name, 
+      user_role,
       action, 
       details, 
       description, 
       booking_id,
+      guest_name,
       ip_address,
       user_agent
     } = body;
 
-    console.log('📝 Creating audit log:', { action, user_name, booking_id });
-
-    if (!business_id || !user_id || !action) {
+    if (!business_id || !action) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        body: JSON.stringify({ 
+          error: 'Missing required fields: business_id and action are required' 
+        })
       };
     }
 
@@ -54,22 +64,32 @@ export const handler = async (event) => {
       };
     }
 
-    // Create audit log entry
+    // ✅ FIX: Handle invalid UUIDs - use placeholder if user_id is 'unknown' or missing
+    let finalUserId = user_id;
+    if (!finalUserId || finalUserId === 'unknown' || finalUserId === 'null' || finalUserId === 'undefined') {
+      finalUserId = '00000000-0000-0000-0000-000000000000';
+      console.log('🔑 Using placeholder UUID for missing/invalid user_id');
+    }
+
+    // ✅ Build log entry with all fields
     const logEntry = {
       business_id,
-      user_id,
-      user_name: user_name || 'Unknown User',
+      user_id: finalUserId,
+      user_name: user_name || 'System',
+      user_role: user_role || 'owner',
       action,
       details: details || {},
       description: description || `${action} performed`,
       booking_id: booking_id || null,
+      guest_name: guest_name || null,
       ip_address: ip_address || 'unknown',
       user_agent: user_agent || 'unknown',
       created_at: new Date().toISOString()
     };
 
-    console.log('📝 Audit log entry:', logEntry);
+    console.log('📝 Audit log entry:', JSON.stringify(logEntry, null, 2));
 
+    // ✅ Insert into audit_logs
     const response = await fetch(
       `${supabaseUrl}/rest/v1/audit_logs`,
       {
@@ -87,6 +107,50 @@ export const handler = async (event) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Audit log error:', errorText);
+      
+      // ✅ If guest_name column doesn't exist, retry without it
+      if (errorText.includes('guest_name')) {
+        console.log('🔄 Retrying without guest_name column...');
+        const { guest_name, ...logWithoutGuest } = logEntry;
+        
+        const retryResponse = await fetch(
+          `${supabaseUrl}/rest/v1/audit_logs`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify([logWithoutGuest])
+          }
+        );
+        
+        if (!retryResponse.ok) {
+          const retryError = await retryResponse.text();
+          console.error('❌ Retry failed:', retryError);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to create audit log' })
+          };
+        }
+        
+        const retryResult = await retryResponse.json();
+        console.log('✅ Audit log created (without guest_name):', retryResult[0]?.id);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            log: retryResult[0],
+            message: 'Audit log created successfully'
+          })
+        };
+      }
+      
       return {
         statusCode: 500,
         headers,

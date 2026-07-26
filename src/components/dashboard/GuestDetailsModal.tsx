@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ COMPLETE: Food restrictions + Editable stay details
+// ✅ COMPLETE: Food restrictions + Editable stay details + Audit logging
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -63,18 +63,96 @@ const formatDate = (dateStr?: string): string => {
   }
 };
 
+// ✅ Helper to get business_id from localStorage
+const getBusinessIdFromStorage = (): string | null => {
+  try {
+    const authStr = localStorage.getItem('fastcheckin_auth');
+    if (authStr) {
+      const auth = JSON.parse(authStr);
+      return auth.user?.businessId || null;
+    }
+  } catch (e) {
+    console.warn('Could not get business_id from auth:', e);
+  }
+  
+  try {
+    const businessStr = localStorage.getItem('business');
+    if (businessStr) {
+      const business = JSON.parse(businessStr);
+      return business.id || null;
+    }
+  } catch (e) {
+    console.warn('Could not get business_id from business storage:', e);
+  }
+  
+  return null;
+};
+
+// ✅ Helper to create audit log directly
+const createAuditLog = async (logData: {
+  bookingId: string;
+  action: string;
+  details: any;
+  description: string;
+  businessId?: string;
+  guestName?: string;
+}) => {
+  try {
+    const authStr = localStorage.getItem('fastcheckin_auth');
+    const auth = authStr ? JSON.parse(authStr) : null;
+    const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
+
+    const businessId = logData.businessId || getBusinessIdFromStorage() || '7417fcbb-7771-4d44-8c7f-ccef573fa24b';
+
+    const auditLog = {
+      business_id: businessId,
+      user_id: user.id || '00000000-0000-0000-0000-000000000000',
+      user_name: user.name || user.full_name || 'Unknown User',
+      user_role: user.role || 'owner',
+      action: logData.action,
+      details: logData.details,
+      description: logData.description,
+      booking_id: logData.bookingId,
+      guest_name: logData.guestName || null,
+      ip_address: 'unknown',
+      user_agent: navigator.userAgent || 'unknown'
+    };
+
+    console.log('📝 Creating audit log from GuestDetailsModal:', auditLog);
+
+    const response = await fetch('/.netlify/functions/create-audit-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auditLog)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Audit log created:', result);
+      return { success: true };
+    } else {
+      const errorText = await response.text();
+      console.warn('⚠️ Failed to create audit log:', errorText);
+      return { success: false, error: errorText };
+    }
+  } catch (err) {
+    console.warn('⚠️ Audit log error (non-critical):', err);
+    return { success: false, error: err };
+  }
+};
+
 export default function GuestDetailsModal({
   isOpen,
   bookingId,
   onClose,
-  businessId
+  businessId: businessIdProp
 }: GuestDetailsModalProps) {
   const { 
     guestDetails, 
     loading, 
     fetchGuestDetails, 
     updateFoodRestrictions,
-    updateStayDetails  // ✅ NEW
+    updateStayDetails
   } = useGuestDetails();
   
   const [restrictions, setRestrictions] = useState<FoodRestrictions>(DEFAULT_RESTRICTIONS);
@@ -84,7 +162,6 @@ export default function GuestDetailsModal({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // ✅ NEW: Stay editing state
   const [isEditingStay, setIsEditingStay] = useState(false);
   const [stayEditData, setStayEditData] = useState({
     check_in_date: '',
@@ -177,6 +254,7 @@ export default function GuestDetailsModal({
     setError(null);
   }, []);
 
+  // ✅ FIXED: Save with direct audit logging
   const handleSave = useCallback(async () => {
     if (!bookingId) return;
     
@@ -185,18 +263,33 @@ export default function GuestDetailsModal({
     setError(null);
     
     try {
+      const businessId = businessIdProp || getBusinessIdFromStorage() || '7417fcbb-7771-4d44-8c7f-ccef573fa24b';
+      
+      // Save restrictions
       await updateFoodRestrictions(bookingId, restrictions);
+      
+      // ✅ Create audit log directly
+      await createAuditLog({
+        bookingId,
+        action: 'UPDATE_FOOD_RESTRICTIONS',
+        details: restrictions,
+        description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`,
+        businessId: businessId,
+        guestName: guestDetails?.guest_name
+      });
+      
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
+      console.error('❌ Error saving:', err);
       setError('Failed to save food restrictions. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [bookingId, restrictions, updateFoodRestrictions]);
+  }, [bookingId, restrictions, updateFoodRestrictions, guestDetails, businessIdProp]);
 
-  // ✅ NEW: Handle stay save
+  // ✅ FIXED: Save stay with direct audit logging
   const handleSaveStay = async () => {
     if (!bookingId) return;
     
@@ -204,8 +297,21 @@ export default function GuestDetailsModal({
     setError(null);
     
     try {
+      const businessId = businessIdProp || getBusinessIdFromStorage() || '7417fcbb-7771-4d44-8c7f-ccef573fa24b';
+      
       const result = await updateStayDetails(bookingId, stayEditData);
+      
       if (result.success) {
+        // ✅ Create audit log directly
+        await createAuditLog({
+          bookingId,
+          action: 'UPDATE_STAY_DETAILS',
+          details: stayEditData,
+          description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`,
+          businessId: businessId,
+          guestName: guestDetails?.guest_name
+        });
+        
         setIsEditingStay(false);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2000);
@@ -384,7 +490,7 @@ export default function GuestDetailsModal({
                   </div>
                 </section>
 
-                {/* SECTION 3: STAY DETAILS - ✅ WITH EDIT BUTTON */}
+                {/* SECTION 3: STAY DETAILS */}
                 <section>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -432,7 +538,6 @@ export default function GuestDetailsModal({
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Check-in Date */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
@@ -455,7 +560,6 @@ export default function GuestDetailsModal({
                       </div>
                     </div>
 
-                    {/* Check-out Date */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
@@ -478,7 +582,6 @@ export default function GuestDetailsModal({
                       </div>
                     </div>
 
-                    {/* Nights */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Users size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
@@ -553,7 +656,6 @@ export default function GuestDetailsModal({
                     </div>
                   </div>
 
-                  {/* Dietary Requirements Checkboxes */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {DIETARY_OPTIONS.map(({ key, label, icon }) => {
                       const isChecked = restrictions[key as keyof FoodRestrictions] as boolean;
@@ -578,7 +680,6 @@ export default function GuestDetailsModal({
                     })}
                   </div>
 
-                  {/* Other Text Input */}
                   {restrictions.other && (
                     <div className="mt-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -594,7 +695,6 @@ export default function GuestDetailsModal({
                     </div>
                   )}
 
-                  {/* Active restrictions display */}
                   {getActiveRestrictionsWithIcons().length > 0 && (
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-xs font-medium text-amber-800 mb-2">Current Restrictions:</p>

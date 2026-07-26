@@ -1,5 +1,8 @@
 // netlify/functions/update-booking-stay.js
-// ✅ Update check-in/out dates and nights with audit logging
+// ✅ COMPLETE: Update check-in/out dates and nights with audit logging
+// ✅ FIXED: Accepts business_id from request
+
+const jwt = require('jsonwebtoken');
 
 export const handler = async (event) => {
   const headers = {
@@ -23,10 +26,11 @@ export const handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    const { bookingId, check_in_date, check_out_date, nights } = body;
+    // ✅ Accept business_id from request
+    const { bookingId, check_in_date, check_out_date, nights, business_id } = body;
 
     console.log('📅 Updating stay for booking:', bookingId);
-    console.log('📅 Data:', { check_in_date, check_out_date, nights });
+    console.log('📅 Data:', { check_in_date, check_out_date, nights, business_id });
 
     if (!bookingId) {
       return { 
@@ -156,43 +160,53 @@ export const handler = async (event) => {
     // ✅ 4. CREATE AUDIT LOG
     // ============================================================
     try {
-      // Get user from auth header
+      // ✅ Get user from auth header
       const authHeader = event.headers.authorization || '';
-      let userId = 'unknown';
-      let userName = 'Unknown User';
+      let userId = '00000000-0000-0000-0000-000000000000';
+      let userName = 'System';
+      let userRole = 'owner';
 
       try {
         const token = authHeader.replace('Bearer ', '');
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-        userId = decoded.sub || 'unknown';
-        userName = decoded.user_metadata?.full_name || 
-                   decoded.user_metadata?.name || 
-                   decoded.user_metadata?.business_name ||
-                   'Unknown User';
+        if (token) {
+          const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+          userId = decoded.sub || '00000000-0000-0000-0000-000000000000';
+          userName = decoded.user_metadata?.full_name || 
+                     decoded.user_metadata?.name || 
+                     decoded.user_metadata?.business_name ||
+                     'System';
+          userRole = decoded.user_metadata?.role || 'owner';
+        }
       } catch (tokenError) {
         console.warn('Could not extract user from token:', tokenError.message);
       }
 
-      // Get guest name for description
+      // ✅ Get guest name for description
       const guestName = currentBooking?.guest_name || 'Unknown Guest';
+      
+      // ✅ Use business_id from request, fallback to booking's business_id
+      const businessId = business_id || updatedBooking?.business_id || currentBooking?.business_id || 'unknown';
 
+      // ✅ Build audit log with ALL required fields
       const auditLog = {
-        business_id: updatedBooking.business_id,
+        business_id: businessId,
         user_id: userId,
         user_name: userName,
+        user_role: userRole,
         action: 'UPDATE_STAY_DETAILS',
         details: changes,
         description: `Updated stay details for guest ${guestName}`,
         booking_id: bookingId,
+        guest_name: guestName,
         ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
         user_agent: event.headers['user-agent'] || 'unknown',
         created_at: new Date().toISOString()
       };
 
-      console.log('📝 Audit log:', auditLog);
+      console.log('📝 Audit log:', JSON.stringify(auditLog, null, 2));
 
-      const auditResponse = await fetch(
+      // ✅ DIRECT INSERT (most reliable)
+      const directResponse = await fetch(
         `${supabaseUrl}/rest/v1/audit_logs`,
         {
           method: 'POST',
@@ -205,11 +219,11 @@ export const handler = async (event) => {
         }
       );
 
-      if (auditResponse.ok) {
-        console.log('✅ Audit log created for stay update');
+      if (directResponse.ok) {
+        console.log('✅ Audit log created (direct insert)');
       } else {
-        const auditError = await auditResponse.text();
-        console.warn('⚠️ Failed to create audit log:', auditError);
+        const directError = await directResponse.text();
+        console.warn('⚠️ Direct insert failed:', directError);
       }
     } catch (auditError) {
       console.warn('⚠️ Audit log error (non-critical):', auditError);

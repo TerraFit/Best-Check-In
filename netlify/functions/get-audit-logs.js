@@ -1,5 +1,5 @@
 // netlify/functions/get-audit-logs.js
-// Using CommonJS (require)
+// ✅ FIXED: Reads from audit_logs (NOT food_restriction_audit)
 
 exports.handler = async function(event) {
   const headers = {
@@ -25,6 +25,7 @@ exports.handler = async function(event) {
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error('❌ Missing Supabase credentials');
     return {
       statusCode: 500,
       headers,
@@ -43,8 +44,11 @@ exports.handler = async function(event) {
       };
     }
 
+    console.log(`🔍 Fetching audit logs for business: ${businessId}`);
+
+    // ✅ CRITICAL FIX: Query audit_logs (NOT food_restriction_audit)
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/food_restriction_audit?business_id=eq.${businessId}&select=*&order=timestamp.desc&limit=${limit}&offset=${offset}`,
+      `${supabaseUrl}/rest/v1/audit_logs?business_id=eq.${encodeURIComponent(businessId)}&select=*&order=created_at.desc&limit=${parseInt(limit)}&offset=${parseInt(offset)}`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -55,7 +59,7 @@ exports.handler = async function(event) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Supabase error:', error);
+      console.error('❌ Supabase error:', error);
       return {
         statusCode: 500,
         headers,
@@ -64,25 +68,45 @@ exports.handler = async function(event) {
     }
 
     const data = await response.json();
+    console.log(`✅ Found ${data?.length || 0} audit logs`);
+
+    // ✅ Map to frontend expectations
+    const mappedData = data.map(log => ({
+      id: log.id,
+      business_id: log.business_id,
+      user_id: log.user_id,
+      user_name: log.user_name || 'Unknown User',
+      action: log.action,
+      details: log.details || {},
+      description: log.description || log.action,
+      booking_id: log.booking_id,
+      guest_name: log.guest_name || log.details?.guest_name || 'Unknown Guest',
+      ip_address: log.ip_address || 'unknown',
+      user_agent: log.user_agent || 'unknown',
+      created_at: log.created_at
+    }));
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        data: data || [],
-        total: data?.length || 0,
+        data: mappedData,
+        total: mappedData.length,
         limit: parseInt(limit),
         offset: parseInt(offset)
       })
     };
 
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    console.error('❌ Error fetching audit logs:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        success: false,
+        error: error.message || 'Failed to fetch audit logs' 
+      })
     };
   }
 };

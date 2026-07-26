@@ -1,8 +1,9 @@
 // src/components/staff/GuestDietariesTab.tsx
-// UPDATED: Only shows checked-in and stayover guests
+// ✅ COMPLETE: Fixed audit logging for employee actions
 
-import React, { useState, useMemo } from 'react';
-import { ChevronRight, X, Utensils, Info } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ChevronRight, X, Utensils, Info, Check, AlertCircle } from 'lucide-react';
+import { createAuditLog } from '@/utils/auditLogger';
 
 // Types
 interface FoodRestrictions {
@@ -38,6 +39,7 @@ interface Booking {
   nights: number;
   status: string;
   food_restrictions: FoodRestrictions;
+  business_id?: string;
   [key: string]: any;
 }
 
@@ -49,9 +51,10 @@ interface GuestDietariesTabProps {
       full_name: string;
       role: 'owner' | 'EmployeeOverview';
       business_id: string;
+      email?: string;
     };
   };
-  onSaveDietary: (guestId: string, updatedRestrictions: FoodRestrictions, log?: any) => void;
+  onSaveDietary: (guestId: string, updatedRestrictions: FoodRestrictions) => Promise<void>;
 }
 
 const DIETARY_OPTIONS = [
@@ -77,12 +80,16 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
   const [localRestrictions, setLocalRestrictions] = useState<FoodRestrictions | null>(null);
   const [otherText, setOtherText] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // ============================================================
-  // ✅ UPDATED: Only checked-in and stayover guests
-  // ============================================================
+  // Reset error when guest changes
+  useEffect(() => {
+    setErrorMsg(null);
+  }, [selectedGuest]);
+
+  // Filter to ONLY checked-in and stayover guests
   const filteredGuests = useMemo(() => {
-    // Filter to ONLY checked-in and stayover guests
     const activeGuests = bookings.filter(b => {
       const isCheckedIn = b.status === 'checked_in' || b.status === 'Checked-In';
       const isStayover = b.status === 'stayover' || b.status === 'Stayover';
@@ -97,7 +104,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
       return isCheckedIn || isStayover;
     });
     
-    // Then apply search filter
+    // Apply search filter
     return activeGuests.filter(b => {
       const nameMatch = b.guest_name?.toLowerCase().includes(searchTerm.toLowerCase());
       const emailMatch = b.guest_email?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -109,6 +116,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
     setSelectedGuest(guest);
     setLocalRestrictions({ ...guest.food_restrictions });
     setOtherText(guest.food_restrictions?.other_text || '');
+    setErrorMsg(null);
   };
 
   const handleToggleRestriction = (key: keyof FoodRestrictions) => {
@@ -122,45 +130,117 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
     });
   };
 
-  const handleSave = () => {
-    if (!selectedGuest || !localRestrictions) return;
-
-    const previousActive = Object.entries(selectedGuest.food_restrictions)
+  // Helper to format restrictions for display
+  const formatRestrictions = (restrictions: FoodRestrictions, includeOtherText: boolean = true): string => {
+    const active = Object.entries(restrictions)
       .filter(([key, value]) => value === true && key !== 'other_text')
       .map(([key]) => key.replace(/_/g, ' '))
-      .join(', ') || 'None';
+      .join(', ');
+    
+    if (includeOtherText && restrictions.other && restrictions.other_text) {
+      return active ? `${active} (${restrictions.other_text})` : restrictions.other_text;
+    }
+    
+    return active || 'None';
+  };
 
-    const newActive = Object.entries(localRestrictions)
+  // Helper to count active restrictions
+  const getActiveRestrictionCount = (restrictions: FoodRestrictions): number => {
+    return Object.entries(restrictions)
       .filter(([key, value]) => value === true && key !== 'other_text')
-      .map(([key]) => key.replace(/_/g, ' '))
-      .join(', ') || 'None';
+      .length;
+  };
 
-    const finalRestrictions: FoodRestrictions = {
-      ...localRestrictions,
-      other_text: localRestrictions.other ? otherText : ''
-    };
-
-    let auditLog: any | undefined;
-    if (previousActive !== newActive || (selectedGuest.food_restrictions?.other_text || '') !== otherText) {
-      auditLog = {
-        id: 'audit_' + Date.now(),
-        business_id: selectedGuest.business_id,
-        employee_id: session.user.id,
-        employee_name: session.user.full_name,
-        guest_id: selectedGuest.id,
-        guest_name: selectedGuest.guest_name,
-        previous_value: previousActive + (selectedGuest.food_restrictions?.other ? ` (${selectedGuest.food_restrictions.other_text})` : ''),
-        new_value: newActive + (finalRestrictions.other ? ` (${otherText})` : ''),
-        timestamp: new Date().toISOString()
-      };
+  const handleSave = async () => {
+    if (!selectedGuest || !localRestrictions) {
+      setErrorMsg('No guest selected or restrictions not loaded');
+      return;
     }
 
-    onSaveDietary(selectedGuest.id, finalRestrictions, auditLog);
-    setSuccessMsg(true);
-    setTimeout(() => {
-      setSuccessMsg(false);
-      setSelectedGuest(null);
-    }, 1500);
+    setIsSaving(true);
+    setErrorMsg(null);
+
+    try {
+      // Prepare final restrictions with other_text
+      const finalRestrictions: FoodRestrictions = {
+        ...localRestrictions,
+        other_text: localRestrictions.other ? otherText : ''
+      };
+
+      // Check if anything actually changed
+      const previousRestrictions = selectedGuest.food_restrictions;
+      const hasChanged = JSON.stringify(previousRestrictions) !== JSON.stringify(finalRestrictions);
+
+      if (!hasChanged) {
+        setErrorMsg('No changes detected. Please modify a restriction before saving.');
+        setIsSaving(false);
+        return;
+      }
+
+      // Format changes for audit log
+      const previousActive = formatRestrictions(previousRestrictions, true);
+      const newActive = formatRestrictions(finalRestrictions, true);
+
+      // ✅ Get business_id from session or selectedGuest
+      const businessId = session.user.business_id || selectedGuest.business_id || 'unknown';
+
+      console.log('🔍 Creating audit log with:', {
+        businessId,
+        userId: session.user.id,
+        userName: session.user.full_name,
+        userRole: session.user.role,
+        guestName: selectedGuest.guest_name,
+        bookingId: selectedGuest.id
+      });
+
+      // ✅ CREATE AUDIT LOG FIRST (before saving)
+      const auditResult = await createAuditLog({
+        action: 'UPDATE_FOOD_RESTRICTIONS',
+        guest_id: selectedGuest.id,
+        employee_id: session.user.id,
+        user_id: session.user.id,
+        user_name: session.user.full_name || 'Employee',
+        user_role: session.user.role || 'EmployeeOverview',
+        business_id: businessId,
+        guest_name: selectedGuest.guest_name,
+        booking_id: selectedGuest.id,
+        description: `Updated food restrictions for guest ${selectedGuest.guest_name}`,
+        changes: {
+          previous_value: previousActive,
+          new_value: newActive,
+          previous_restrictions: previousRestrictions,
+          new_restrictions: finalRestrictions
+        }
+      });
+
+      console.log('📝 Audit result:', auditResult);
+
+      // ✅ Then save the dietary restrictions
+      await onSaveDietary(selectedGuest.id, finalRestrictions);
+
+      // Show success
+      setSuccessMsg(true);
+      setErrorMsg(null);
+      
+      // Update the selected guest's restrictions in the local state
+      setSelectedGuest({
+        ...selectedGuest,
+        food_restrictions: finalRestrictions
+      });
+
+      setTimeout(() => {
+        setSuccessMsg(false);
+        setSelectedGuest(null);
+        setLocalRestrictions(null);
+        setOtherText('');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('❌ Error saving dietary restrictions:', error);
+      setErrorMsg(error.message || 'Failed to save dietary restrictions. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -191,9 +271,9 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
             </div>
           ) : (
             filteredGuests.map(guest => {
-              const activeCount = Object.entries(guest.food_restrictions || {})
-                .filter(([key, val]) => val === true && key !== 'other_text')
-                .length;
+              const activeCount = guest.food_restrictions 
+                ? getActiveRestrictionCount(guest.food_restrictions)
+                : 0;
 
               return (
                 <div
@@ -243,12 +323,33 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                   </p>
                 </div>
                 <button
-                  onClick={() => setSelectedGuest(null)}
+                  onClick={() => {
+                    setSelectedGuest(null);
+                    setErrorMsg(null);
+                  }}
                   className="p-1 rounded-full hover:bg-stone-100 text-stone-400"
                 >
                   <X size={18} />
                 </button>
               </div>
+
+              {/* Error Message */}
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-red-700">{errorMsg}</span>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {successMsg && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center gap-2 animate-fade-in">
+                  <Check size={16} className="text-emerald-500" />
+                  <span className="text-xs text-emerald-700 font-medium">
+                    ✅ Kitchen synchronization complete! Audit log created.
+                  </span>
+                </div>
+              )}
 
               <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 text-stone-500 font-bold text-[10px] uppercase tracking-wider">
@@ -328,22 +429,31 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
             </div>
 
             <div className="pt-6 border-t border-stone-100 flex items-center justify-between mt-8">
-              {successMsg ? (
-                <span className="text-emerald-600 text-xs font-bold flex items-center gap-1.5 animate-bounce">
-                  ✓ Kitchen synchronisation complete!
-                </span>
-              ) : (
-                <span className="text-stone-400 text-xs">
-                  Updated values write immediately to audit trails.
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {successMsg ? (
+                  <span className="text-emerald-600 text-xs font-bold flex items-center gap-1.5">
+                    ✓ Saved to audit trail
+                  </span>
+                ) : isSaving ? (
+                  <span className="text-amber-600 text-xs font-bold flex items-center gap-1.5">
+                    ⏳ Saving...
+                  </span>
+                ) : (
+                  <span className="text-stone-400 text-xs">
+                    All changes are logged in the Platform Audit Trail
+                  </span>
+                )}
+              </div>
 
               <button
                 type="button"
                 onClick={handleSave}
-                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black px-8 py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all"
+                disabled={isSaving}
+                className={`bg-amber-500 hover:bg-amber-600 text-stone-950 font-black px-8 py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all ${
+                  isSaving ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                Save Food Restrictions
+                {isSaving ? 'Saving...' : 'Save Food Restrictions'}
               </button>
             </div>
           </div>
