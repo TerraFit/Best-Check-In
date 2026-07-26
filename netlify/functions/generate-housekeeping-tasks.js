@@ -1,5 +1,5 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// ✅ Generates housekeeping tasks from bookings
+// ✅ FIXED: Properly handles bookings with room numbers
 
 exports.handler = async (event) => {
   const headers = {
@@ -46,7 +46,7 @@ exports.handler = async (event) => {
 
     // 1. Get business settings
     const settingsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=housekeeping_policy,housekeeping_full_service_interval,auto_generate_housekeeping`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=housekeeping_policy,housekeeping_full_service_frequency,housekeeping_first_full_service_day,housekeeping_min_nights_before_full_service,auto_generate_housekeeping`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -79,9 +79,11 @@ exports.handler = async (event) => {
     }
 
     const policy = settings.housekeeping_policy || 'standard';
-    const customInterval = settings.housekeeping_full_service_interval || 3;
+    const fullServiceFrequency = settings.housekeeping_full_service_frequency || 3;
+    const firstFullServiceDay = settings.housekeeping_first_full_service_day || 3;
+    const minNightsBeforeFullService = settings.housekeeping_min_nights_before_full_service || 3;
 
-    // 2. Get active bookings (checked-in or confirmed)
+    // 2. Get active bookings with room numbers
     const today = new Date().toISOString().split('T')[0];
     
     const bookingsResponse = await fetch(
@@ -101,14 +103,16 @@ exports.handler = async (event) => {
     let tasksSkipped = 0;
 
     for (const booking of bookings) {
-      // Skip if no room number
+      // ✅ Skip if no room number
       if (!booking.room_number) {
         console.log(`⚠️ Booking ${booking.id} has no room number, skipping`);
         continue;
       }
 
       // Generate tasks for this booking
-      const tasks = generateTasksForBooking(booking, policy, customInterval);
+      const tasks = generateTasksForBooking(booking, policy, fullServiceFrequency, firstFullServiceDay, minNightsBeforeFullService);
+
+      console.log(`📋 Booking ${booking.id} (${booking.guest_name}, Room ${booking.room_number}): ${tasks.length} tasks`);
 
       for (const task of tasks) {
         // Check if task already exists
@@ -125,7 +129,6 @@ exports.handler = async (event) => {
         const existing = await existingResponse.json();
 
         if (existing && existing.length > 0) {
-          // Skip if task already exists
           tasksSkipped++;
           continue;
         }
@@ -144,6 +147,8 @@ exports.handler = async (event) => {
           updated_at: new Date().toISOString()
         };
 
+        console.log(`✅ Creating ${task.taskType} task for room ${booking.room_number} on ${task.scheduled_date}`);
+
         const createResponse = await fetch(
           `${supabaseUrl}/rest/v1/housekeeping_tasks`,
           {
@@ -160,7 +165,6 @@ exports.handler = async (event) => {
 
         if (createResponse.ok) {
           tasksCreated++;
-          console.log(`✅ Created ${task.taskType} task for room ${booking.room_number} on ${task.scheduled_date}`);
         } else {
           const errorText = await createResponse.text();
           console.error(`❌ Failed to create task: ${errorText}`);
@@ -194,50 +198,66 @@ exports.handler = async (event) => {
 };
 
 // Helper: Generate tasks for a single booking
-function generateTasksForBooking(booking, policy, customInterval) {
+function generateTasksForBooking(booking, policy, fullServiceFrequency, firstFullServiceDay, minNightsBeforeFullService) {
   const tasks = [];
   const checkIn = new Date(booking.check_in_date);
   const checkOut = new Date(booking.check_out_date);
   
-  // Calculate housekeeping tasks using the same logic as the service
+  // Calculate total nights
+  const totalNights = Math.floor((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+  console.log(`📊 ${booking.guest_name}: ${totalNights} nights`);
+
+  // If total nights is 1, only generate checkout task
+  if (totalNights <= 1) {
+    tasks.push({
+      taskType: 'full_service',
+      scheduled_date: checkOut.toISOString().split('T')[0],
+      stayNight: 1
+    });
+    return tasks;
+  }
+
+  // Calculate Full Service nights based on the same logic
+  const fullServiceNights = [];
+  
+  // First Full Service
+  if (firstFullServiceDay <= totalNights) {
+    fullServiceNights.push(firstFullServiceDay);
+  }
+  
+  // Subsequent Full Services
+  let nextService = firstFullServiceDay + fullServiceFrequency;
+  while (nextService < totalNights) {
+    fullServiceNights.push(nextService);
+    nextService += fullServiceFrequency;
+  }
+
+  console.log(`📋 Full service nights for ${booking.guest_name}:`, fullServiceNights);
+
+  // Generate tasks for each night
   let current = new Date(checkIn);
   let stayNight = 1;
-  const totalNights = Math.floor((checkOut - checkIn) / (1000 * 60 * 60 * 24));
 
-  while (current <= checkOut) {
+  while (current < checkOut) {
     const dateStr = current.toISOString().split('T')[0];
+    
+    // Check if this is the checkout day
+    const isCheckout = current.getTime() === checkOut.getTime();
     
     // Determine task type
     let taskType = null;
-    let isCheckout = current.getTime() === checkOut.getTime();
 
-    // Checkout day
+    // Checkout day - always Full Service
     if (isCheckout) {
       taskType = 'full_service';
     } 
-    // Last stay night - no service
-    else if (stayNight === totalNights) {
-      taskType = null;
-    }
-    // Daily Full Service
-    else if (policy === 'daily_full_service') {
+    // Check if this night is a Full Service night (and not the last night)
+    else if (fullServiceNights.includes(stayNight) && stayNight < totalNights) {
       taskType = 'full_service';
-    }
-    // Standard or Eco
-    else if (policy === 'standard' || policy === 'eco') {
-      if (stayNight % 3 === 0) {
-        taskType = 'full_service';
-      } else {
-        taskType = 'refresh';
-      }
-    }
-    // Custom
-    else if (policy === 'custom') {
-      if (stayNight % customInterval === 0) {
-        taskType = 'full_service';
-      } else {
-        taskType = 'refresh';
-      }
+    } 
+    // Refresh on other nights
+    else if (stayNight < totalNights) {
+      taskType = 'refresh';
     }
 
     if (taskType) {
