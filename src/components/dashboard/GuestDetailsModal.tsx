@@ -119,12 +119,13 @@ export default function GuestDetailsModal({
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
 
-  // ✅ Check if user can assign rooms - with proper fallback
-  const userRole = session?.user?.role || '';
+  // ✅ Allow business role too
   const canAssignRooms = userRole === 'owner' || 
-                         userRole === 'EmployeeOverview' ||
-                         userRole.toLowerCase() === 'owner' ||
-                         userRole.toLowerCase() === 'employeeoverview';
+                       userRole === 'EmployeeOverview' ||
+                       userRole === 'business' ||
+                       userRole.toLowerCase() === 'owner' ||
+                       userRole.toLowerCase() === 'employeeoverview' ||
+                       userRole.toLowerCase() === 'business';
 
   // Load guest details when modal opens
   useEffect(() => {
