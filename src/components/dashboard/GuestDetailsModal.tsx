@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ COMPLETE: With Room Allocation dropdown
+// ✅ COMPLETE: Food restrictions + Editable stay details + Room Allocation dropdown
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -19,7 +19,7 @@ interface GuestDetailsModalProps {
     user: {
       id: string;
       full_name: string;
-      role: 'owner' | 'EmployeeOverview';
+      role: string;
       business_id: string;
     };
   };
@@ -101,7 +101,7 @@ export default function GuestDetailsModal({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // ✅ Stay editing state
+  // Stay editing state
   const [isEditingStay, setIsEditingStay] = useState(false);
   const [stayEditData, setStayEditData] = useState({
     check_in_date: '',
@@ -110,7 +110,7 @@ export default function GuestDetailsModal({
   });
   const [savingStay, setSavingStay] = useState(false);
 
-  // ✅ Room Allocation state
+  // Room Allocation state
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -119,12 +119,12 @@ export default function GuestDetailsModal({
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
 
-  // ✅ Check if user can assign rooms
-  const canAssignRooms = session?.user?.role === 'owner' || 
-                         session?.user?.role === 'EmployeeOverview';
-
-  console.log('🔍 GuestDetailsModal - canAssignRooms:', canAssignRooms);
-  console.log('🔍 GuestDetailsModal - session:', session);
+  // ✅ Check if user can assign rooms - with proper fallback
+  const userRole = session?.user?.role || '';
+  const canAssignRooms = userRole === 'owner' || 
+                         userRole === 'EmployeeOverview' ||
+                         userRole.toLowerCase() === 'owner' ||
+                         userRole.toLowerCase() === 'employeeoverview';
 
   // Load guest details when modal opens
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function GuestDetailsModal({
     }
   }, [isOpen, bookingId, fetchGuestDetails]);
 
-  // ✅ Fetch rooms when modal opens
+  // Fetch rooms when modal opens
   useEffect(() => {
     if (isOpen && businessIdProp) {
       fetchRooms();
@@ -152,7 +152,7 @@ export default function GuestDetailsModal({
         check_out_date: guestDetails.check_out_date || '',
         nights: guestDetails.nights || 1
       });
-      // ✅ Set current room info
+      // Set current room info
       if (guestDetails.room_number) {
         setCurrentRoomNumber(guestDetails.room_number);
         setCurrentRoomName(guestDetails.room_name || null);
@@ -175,7 +175,7 @@ export default function GuestDetailsModal({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen]);
 
-  // ✅ Fetch rooms from API
+  // Fetch rooms from API or use hardcoded fallback
   const fetchRooms = async () => {
     if (!businessIdProp) return;
     
@@ -211,7 +211,7 @@ export default function GuestDetailsModal({
           }
         }
       } else {
-        // ✅ Fallback: Hardcode rooms for Zebra Lodge
+        // Fallback: Hardcode rooms for Zebra Lodge
         const hardcodedRooms = [
           { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active' },
           { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active' },
@@ -221,11 +221,10 @@ export default function GuestDetailsModal({
           { id: '6', room_number: '6', room_name: 'Oceana', room_type: 'Suite', status: 'active' }
         ];
         setRooms(hardcodedRooms);
-        console.log('✅ Using hardcoded rooms for Zebra Lodge');
       }
     } catch (error) {
       console.error('Error fetching rooms:', error);
-      // ✅ Fallback: Hardcode rooms
+      // Fallback: Hardcode rooms
       const hardcodedRooms = [
         { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active' },
         { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active' },
@@ -240,7 +239,7 @@ export default function GuestDetailsModal({
     }
   };
 
-  // ✅ Handle room assignment
+  // Handle room assignment
   const handleAssignRoom = async () => {
     if (!bookingId || !selectedRoomId) {
       setError('Please select a room');
@@ -386,7 +385,6 @@ export default function GuestDetailsModal({
     }
   }, [bookingId, restrictions, updateFoodRestrictions]);
 
-  // ✅ Handle stay save
   const handleSaveStay = async () => {
     if (!bookingId) return;
     
@@ -586,7 +584,7 @@ export default function GuestDetailsModal({
                     </h3>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Check-in Date */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
@@ -675,90 +673,90 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
+                  </div>
 
-                    {/* ✅ ROOM ALLOCATION - Full width with dropdown */}
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200 col-span-full sm:col-span-2">
-                      <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-blue-600 font-medium">Room Allocation</p>
-                          {canAssignRooms && !isEditingRoom && (
-                            <button
-                              onClick={() => setIsEditingRoom(true)}
-                              className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
-                            >
-                              <Edit2 size={12} /> Assign Room
-                            </button>
-                          )}
-                        </div>
-                        
-                        {isEditingRoom ? (
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <select
-                              value={selectedRoomId}
-                              onChange={(e) => setSelectedRoomId(e.target.value)}
-                              className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                              disabled={loadingRooms || savingRoom}
-                            >
-                              <option value="">Select a room...</option>
-                              {rooms
-                                .filter(r => r.status === 'active')
-                                .map((room) => (
-                                  <option key={room.id} value={room.id}>
-                                    #{room.room_number} - {room.room_name} ({room.room_type})
-                                  </option>
-                                ))}
-                            </select>
-                            <button
-                              onClick={handleAssignRoom}
-                              disabled={!selectedRoomId || savingRoom}
-                              className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-                            >
-                              {savingRoom ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <Check size={14} /> Assign
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setIsEditingRoom(false);
-                                if (currentRoomNumber) {
-                                  const match = rooms.find(r => r.room_number === currentRoomNumber);
-                                  if (match) {
-                                    setSelectedRoomId(match.id);
-                                  }
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 mt-1">
-                            {currentRoomNumber ? (
-                              <>
-                                <span className="text-sm font-semibold text-blue-700">
-                                  #{currentRoomNumber}
-                                </span>
-                                {currentRoomName && (
-                                  <span className="text-sm text-blue-600">
-                                    {currentRoomName}
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-sm text-gray-400 italic">No room assigned</span>
-                            )}
-                          </div>
+                  {/* ✅ ROOM ALLOCATION - Full width row */}
+                  <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-blue-600 font-medium">Room Allocation</p>
+                        {canAssignRooms && !isEditingRoom && (
+                          <button
+                            onClick={() => setIsEditingRoom(true)}
+                            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <Edit2 size={12} /> Assign Room
+                          </button>
                         )}
                       </div>
+                      
+                      {isEditingRoom ? (
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <select
+                            value={selectedRoomId}
+                            onChange={(e) => setSelectedRoomId(e.target.value)}
+                            className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                            disabled={loadingRooms || savingRoom}
+                          >
+                            <option value="">Select a room...</option>
+                            {rooms
+                              .filter(r => r.status === 'active')
+                              .map((room) => (
+                                <option key={room.id} value={room.id}>
+                                  #{room.room_number} - {room.room_name} ({room.room_type})
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            onClick={handleAssignRoom}
+                            disabled={!selectedRoomId || savingRoom}
+                            className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {savingRoom ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Check size={14} /> Assign
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditingRoom(false);
+                              if (currentRoomNumber) {
+                                const match = rooms.find(r => r.room_number === currentRoomNumber);
+                                if (match) {
+                                  setSelectedRoomId(match.id);
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          {currentRoomNumber ? (
+                            <>
+                              <span className="text-sm font-semibold text-blue-700">
+                                #{currentRoomNumber}
+                              </span>
+                              {currentRoomName && (
+                                <span className="text-sm text-blue-600">
+                                  {currentRoomName}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-400 italic">No room assigned</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
