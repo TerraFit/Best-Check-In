@@ -1,8 +1,7 @@
 // src/components/dashboard/HousekeepingSettings.tsx
 // ✅ COMPLETE: Housekeeping settings with full customization
 
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../../i18n';
+import React, { useState } from 'react';
 import { HousekeepingPolicy, HousekeepingConfig, DEFAULT_HOUSEKEEPING_CONFIG } from '../../services/housekeepingService';
 
 interface HousekeepingSettingsProps {
@@ -79,9 +78,6 @@ export function HousekeepingSettings({
   onSave,
   saving = false
 }: HousekeepingSettingsProps) {
-  const { t } = useTranslation();
-  
-  // Initialize config with defaults
   const [config, setConfig] = useState<HousekeepingConfig>({
     ...DEFAULT_HOUSEKEEPING_CONFIG,
     ...initialConfig
@@ -91,12 +87,30 @@ export function HousekeepingSettings({
   const [error, setError] = useState<string | null>(null);
   const [previewNights, setPreviewNights] = useState<number>(7);
 
-  // Generate preview schedule
+  const calculateFullServiceNightsPreview = (totalNights: number, cfg: HousekeepingConfig): number[] => {
+    if (totalNights < cfg.minNightsBeforeFullService) {
+      return [];
+    }
+
+    const nights: number[] = [];
+    const { fullServiceFrequency, firstFullServiceDay } = cfg;
+
+    if (firstFullServiceDay <= totalNights) {
+      nights.push(firstFullServiceDay);
+    }
+
+    let next = firstFullServiceDay + fullServiceFrequency;
+    while (next < totalNights) {
+      nights.push(next);
+      next += fullServiceFrequency;
+    }
+
+    return nights;
+  };
+
   const generatePreview = () => {
     const preview: { night: number; task: string; icon: string }[] = [];
-    const totalNights = previewNights;
 
-    // Check-in day
     preview.push({
       night: 1,
       task: config.checkinDayService === 'none' ? 'No Service' :
@@ -105,13 +119,11 @@ export function HousekeepingSettings({
             config.checkinDayService === 'refresh' ? '✨' : '🧺'
     });
 
-    // Stayover nights
-    for (let night = 2; night <= totalNights; night++) {
-      const isLastNight = night === totalNights;
+    for (let night = 2; night <= previewNights; night++) {
+      const isLastNight = night === previewNights;
       let task = 'Refresh';
       let icon = '✨';
 
-      // Check if it's a Full Service night
       if (config.policy === 'daily_full_service') {
         task = 'Full Service';
         icon = '🧺';
@@ -132,12 +144,11 @@ export function HousekeepingSettings({
           icon = '✨';
         }
       } else {
-        // Standard policy with custom settings
         if (isLastNight && !config.refreshOnLastNight) {
           task = 'No Service';
           icon = '—';
         } else {
-          const fullServiceNights = calculateFullServiceNightsPreview(totalNights, config);
+          const fullServiceNights = calculateFullServiceNightsPreview(previewNights, config);
           if (fullServiceNights.includes(night)) {
             task = 'Full Service';
             icon = '🧺';
@@ -151,36 +162,13 @@ export function HousekeepingSettings({
       preview.push({ night, task, icon });
     }
 
-    // Checkout day
     preview.push({
-      night: totalNights,
+      night: previewNights,
       task: 'Full Service (Checkout)',
       icon: '🧺'
     });
 
     return preview;
-  };
-
-  // Helper to calculate Full Service nights for preview
-  const calculateFullServiceNightsPreview = (totalNights: number, cfg: HousekeepingConfig): number[] => {
-    if (totalNights < cfg.minNightsBeforeFullService) {
-      return [];
-    }
-
-    const nights: number[] = [];
-    const { fullServiceFrequency, firstFullServiceDay } = cfg;
-
-    if (firstFullServiceDay <= totalNights) {
-      nights.push(firstFullServiceDay);
-    }
-
-    let next = firstFullServiceDay + fullServiceFrequency;
-    while (next < totalNights) {
-      nights.push(next);
-      next += fullServiceFrequency;
-    }
-
-    return nights;
   };
 
   const previewSchedule = generatePreview();
@@ -227,7 +215,6 @@ export function HousekeepingSettings({
         </div>
       )}
 
-      {/* Policy Selection */}
       <div className="space-y-3">
         <label className="text-sm font-medium text-stone-700">Housekeeping Policy</label>
         <div className="space-y-3">
@@ -259,7 +246,6 @@ export function HousekeepingSettings({
         </div>
       </div>
 
-      {/* Custom interval selector */}
       {(config.policy === 'eco' || config.policy === 'custom') && (
         <div className="space-y-2 animate-fade-in">
           <label className="text-sm font-medium text-stone-700">
@@ -282,7 +268,6 @@ export function HousekeepingSettings({
         </div>
       )}
 
-      {/* Standard policy customization */}
       {config.policy === 'standard' && (
         <div className="space-y-4 animate-fade-in border-t border-stone-200 pt-4">
           <p className="text-sm font-semibold text-stone-800">Full Service Schedule</p>
@@ -375,7 +360,6 @@ export function HousekeepingSettings({
         </div>
       )}
 
-      {/* Schedule Preview */}
       <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Schedule Preview</p>
@@ -425,7 +409,6 @@ export function HousekeepingSettings({
         </div>
       </div>
 
-      {/* Save button */}
       <button
         onClick={handleSave}
         disabled={saving}
