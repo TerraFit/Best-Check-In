@@ -1,6 +1,6 @@
 // netlify/functions/save-food-restrictions.js
-// ✅ COMPLETE: All dietary options with audit logging
-// ✅ FIXED: Accepts business_id from request
+// ✅ COMPLETE REWRITE: All dietary options with audit logging
+// ✅ FIXED: Food restriction changes now create audit logs
 
 const jwt = require('jsonwebtoken');
 
@@ -202,7 +202,7 @@ export const handler = async (event) => {
     }
 
     // ============================================================
-    // ✅ 6. CREATE AUDIT LOG WITH CHANGES
+    // ✅ 6. CREATE AUDIT LOG (COMPLETELY REWRITTEN)
     // ============================================================
     try {
       // Calculate what changed
@@ -228,7 +228,7 @@ export const handler = async (event) => {
         changes.other_text = { from: oldOtherText, to: newOtherText };
       }
 
-      // Only create audit log if there were changes
+      // ✅ CRITICAL: Only create audit log if there were changes
       if (Object.keys(changes).length > 0) {
         // ✅ Get user from auth header
         const authHeader = event.headers.authorization || '';
@@ -251,13 +251,13 @@ export const handler = async (event) => {
           console.warn('Could not extract user from token:', tokenError.message);
         }
 
-        // ✅ Get guest name for description
+        // ✅ Get guest name
         const guestName = currentBooking?.guest_name || 'Unknown Guest';
         
         // ✅ Use business_id from request, fallback to booking's business_id
         const businessId = business_id || currentBooking?.business_id || 'unknown';
 
-        // ✅ Build audit log with ALL required fields
+        // ✅ Build the audit log
         const auditLog = {
           business_id: businessId,
           user_id: userId,
@@ -273,7 +273,7 @@ export const handler = async (event) => {
           created_at: new Date().toISOString()
         };
 
-        console.log('📝 Audit log:', JSON.stringify(auditLog, null, 2));
+        console.log('📝 Audit log for food restrictions:', JSON.stringify(auditLog, null, 2));
 
         // ✅ DIRECT INSERT (most reliable)
         const directResponse = await fetch(
@@ -290,7 +290,7 @@ export const handler = async (event) => {
         );
 
         if (directResponse.ok) {
-          console.log('✅ Audit log created (direct insert)');
+          console.log('✅ Audit log created for food restrictions update');
         } else {
           const directError = await directResponse.text();
           console.warn('⚠️ Direct insert failed:', directError);
