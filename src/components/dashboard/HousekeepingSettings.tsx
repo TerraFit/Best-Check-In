@@ -1,20 +1,14 @@
 // src/components/dashboard/HousekeepingSettings.tsx
-// ✅ Complete Housekeeping Settings component
+// ✅ COMPLETE: Housekeeping settings with full customization
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n';
-import { HousekeepingPolicy } from '../../services/housekeepingService';
+import { HousekeepingPolicy, HousekeepingConfig, DEFAULT_HOUSEKEEPING_CONFIG } from '../../services/housekeepingService';
 
 interface HousekeepingSettingsProps {
   businessId: string;
-  initialPolicy?: HousekeepingPolicy;
-  initialInterval?: number;
-  initialAutoGenerate?: boolean;
-  onSave: (settings: {
-    policy: HousekeepingPolicy;
-    interval: number;
-    autoGenerate: boolean;
-  }) => Promise<void>;
+  initialConfig?: Partial<HousekeepingConfig>;
+  onSave: (config: HousekeepingConfig) => Promise<void>;
   saving?: boolean;
 }
 
@@ -26,23 +20,50 @@ const POLICY_OPTIONS: {
   {
     value: 'standard',
     label: 'Standard (Recommended)',
-    description: 'Refresh on occupied stay-over nights. Full Service every 3rd night. Full Service after check-out.'
+    description: 'Balanced service with customizable Full Service schedule'
   },
   {
     value: 'daily_full_service',
     label: 'Daily Full Service',
-    description: 'Full Service every occupied night. Full Service after check-out.'
+    description: 'Full Service every occupied night'
   },
   {
     value: 'eco',
     label: 'Eco Mode',
-    description: 'Refresh every occupied night. Full Service every 3rd night. Full Service after check-out.'
+    description: 'Refresh daily, Full Service on custom interval'
   },
   {
     value: 'custom',
     label: 'Custom',
-    description: 'Choose your own Full Service interval. Refresh on other nights.'
+    description: 'Define your own Full Service interval'
   }
+];
+
+const FREQUENCY_OPTIONS = [
+  { value: 2, label: 'Every 2 days (Luxury)' },
+  { value: 3, label: 'Every 3 days (Recommended)' },
+  { value: 4, label: 'Every 4 days' },
+  { value: 5, label: 'Every 5 days (Economy)' }
+];
+
+const FIRST_SERVICE_OPTIONS = [
+  { value: 2, label: 'Day 2 (Luxury)' },
+  { value: 3, label: 'Day 3 (Recommended)' },
+  { value: 4, label: 'Day 4' },
+  { value: 5, label: 'Day 5' }
+];
+
+const MIN_NIGHTS_OPTIONS = [
+  { value: 2, label: '2 nights (Luxury)' },
+  { value: 3, label: '3 nights (Recommended)' },
+  { value: 4, label: '4 nights' },
+  { value: 5, label: '5 nights (Economy)' }
+];
+
+const CHECKIN_SERVICE_OPTIONS = [
+  { value: 'none', label: 'No Service (Recommended)' },
+  { value: 'refresh', label: '✨ Refresh' },
+  { value: 'full_service', label: '🧺 Full Service' }
 ];
 
 const INTERVAL_OPTIONS = [
@@ -54,34 +75,131 @@ const INTERVAL_OPTIONS = [
 
 export function HousekeepingSettings({
   businessId,
-  initialPolicy = 'standard',
-  initialInterval = 3,
-  initialAutoGenerate = true,
+  initialConfig = {},
   onSave,
   saving = false
 }: HousekeepingSettingsProps) {
   const { t } = useTranslation();
-  const [policy, setPolicy] = useState<HousekeepingPolicy>(initialPolicy);
-  const [interval, setInterval] = useState<number>(initialInterval);
-  const [autoGenerate, setAutoGenerate] = useState<boolean>(initialAutoGenerate);
+  
+  // Initialize config with defaults
+  const [config, setConfig] = useState<HousekeepingConfig>({
+    ...DEFAULT_HOUSEKEEPING_CONFIG,
+    ...initialConfig
+  });
+
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewNights, setPreviewNights] = useState<number>(7);
+
+  // Generate preview schedule
+  const generatePreview = () => {
+    const preview: { night: number; task: string; icon: string }[] = [];
+    const totalNights = previewNights;
+
+    // Check-in day
+    preview.push({
+      night: 1,
+      task: config.checkinDayService === 'none' ? 'No Service' :
+            config.checkinDayService === 'refresh' ? 'Refresh' : 'Full Service',
+      icon: config.checkinDayService === 'none' ? '—' :
+            config.checkinDayService === 'refresh' ? '✨' : '🧺'
+    });
+
+    // Stayover nights
+    for (let night = 2; night <= totalNights; night++) {
+      const isLastNight = night === totalNights;
+      let task = 'Refresh';
+      let icon = '✨';
+
+      // Check if it's a Full Service night
+      if (config.policy === 'daily_full_service') {
+        task = 'Full Service';
+        icon = '🧺';
+      } else if (config.policy === 'eco') {
+        if (night % config.customInterval === 0) {
+          task = 'Full Service';
+          icon = '🧺';
+        } else {
+          task = 'Refresh';
+          icon = '✨';
+        }
+      } else if (config.policy === 'custom') {
+        if (night % config.customInterval === 0) {
+          task = 'Full Service';
+          icon = '🧺';
+        } else {
+          task = 'Refresh';
+          icon = '✨';
+        }
+      } else {
+        // Standard policy with custom settings
+        if (isLastNight && !config.refreshOnLastNight) {
+          task = 'No Service';
+          icon = '—';
+        } else {
+          const fullServiceNights = calculateFullServiceNightsPreview(totalNights, config);
+          if (fullServiceNights.includes(night)) {
+            task = 'Full Service';
+            icon = '🧺';
+          } else {
+            task = 'Refresh';
+            icon = '✨';
+          }
+        }
+      }
+
+      preview.push({ night, task, icon });
+    }
+
+    // Checkout day
+    preview.push({
+      night: totalNights,
+      task: 'Full Service (Checkout)',
+      icon: '🧺'
+    });
+
+    return preview;
+  };
+
+  // Helper to calculate Full Service nights for preview
+  const calculateFullServiceNightsPreview = (totalNights: number, cfg: HousekeepingConfig): number[] => {
+    if (totalNights < cfg.minNightsBeforeFullService) {
+      return [];
+    }
+
+    const nights: number[] = [];
+    const { fullServiceFrequency, firstFullServiceDay } = cfg;
+
+    if (firstFullServiceDay <= totalNights) {
+      nights.push(firstFullServiceDay);
+    }
+
+    let next = firstFullServiceDay + fullServiceFrequency;
+    while (next < totalNights) {
+      nights.push(next);
+      next += fullServiceFrequency;
+    }
+
+    return nights;
+  };
+
+  const previewSchedule = generatePreview();
 
   const handleSave = async () => {
     setError(null);
     setSuccess(false);
 
     try {
-      await onSave({
-        policy,
-        interval,
-        autoGenerate
-      });
+      await onSave(config);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
     }
+  };
+
+  const updateConfig = <K extends keyof HousekeepingConfig>(key: K, value: HousekeepingConfig[K]) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -109,24 +227,7 @@ export function HousekeepingSettings({
         </div>
       )}
 
-      {/* Auto-generate toggle */}
-      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl border border-stone-200">
-        <div>
-          <p className="font-medium text-stone-800">Auto-generate housekeeping tasks</p>
-          <p className="text-xs text-stone-500">Automatically create tasks from active reservations</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={autoGenerate}
-            onChange={(e) => setAutoGenerate(e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-        </label>
-      </div>
-
-      {/* Policy selection */}
+      {/* Policy Selection */}
       <div className="space-y-3">
         <label className="text-sm font-medium text-stone-700">Housekeeping Policy</label>
         <div className="space-y-3">
@@ -134,7 +235,7 @@ export function HousekeepingSettings({
             <label
               key={option.value}
               className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                policy === option.value
+                config.policy === option.value
                   ? 'border-orange-500 bg-orange-50 shadow-sm'
                   : 'border-stone-200 hover:border-orange-200 hover:bg-stone-50'
               }`}
@@ -144,8 +245,8 @@ export function HousekeepingSettings({
                   type="radio"
                   name="policy"
                   value={option.value}
-                  checked={policy === option.value}
-                  onChange={() => setPolicy(option.value)}
+                  checked={config.policy === option.value}
+                  onChange={() => updateConfig('policy', option.value)}
                   className="mt-1 w-4 h-4 text-orange-500 focus:ring-orange-400"
                 />
                 <div className="flex-1">
@@ -159,14 +260,14 @@ export function HousekeepingSettings({
       </div>
 
       {/* Custom interval selector */}
-      {policy === 'custom' && (
+      {(config.policy === 'eco' || config.policy === 'custom') && (
         <div className="space-y-2 animate-fade-in">
           <label className="text-sm font-medium text-stone-700">
             Full Service Interval
           </label>
           <select
-            value={interval}
-            onChange={(e) => setInterval(parseInt(e.target.value))}
+            value={config.customInterval}
+            onChange={(e) => updateConfig('customInterval', parseInt(e.target.value))}
             className="w-full px-4 py-3 border border-stone-200 rounded-xl bg-white text-stone-800 focus:ring-2 focus:ring-orange-500 outline-none"
           >
             {INTERVAL_OPTIONS.map((opt) => (
@@ -176,25 +277,151 @@ export function HousekeepingSettings({
             ))}
           </select>
           <p className="text-xs text-stone-400">
-            Full Service will be performed every {interval} nights of a stay
+            Full Service will be performed every {config.customInterval} nights of a stay
           </p>
         </div>
       )}
 
-      {/* Schedule preview */}
-      <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
-        <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">Preview Schedule</p>
-        <div className="flex gap-2 flex-wrap">
-          <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">✨ Refresh</span>
-          <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full">🧺 Full Service</span>
-          <span className="text-xs text-stone-400 flex items-center">—</span>
-          <span className="px-3 py-1 bg-stone-200 text-stone-500 text-xs font-medium rounded-full">No Service (checkout day)</span>
+      {/* Standard policy customization */}
+      {config.policy === 'standard' && (
+        <div className="space-y-4 animate-fade-in border-t border-stone-200 pt-4">
+          <p className="text-sm font-semibold text-stone-800">Full Service Schedule</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-stone-600 mb-1">
+                First Full Service Day
+              </label>
+              <select
+                value={config.firstFullServiceDay}
+                onChange={(e) => updateConfig('firstFullServiceDay', parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+              >
+                {FIRST_SERVICE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-stone-600 mb-1">
+                Full Service Frequency
+              </label>
+              <select
+                value={config.fullServiceFrequency}
+                onChange={(e) => updateConfig('fullServiceFrequency', parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+              >
+                {FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-stone-600 mb-1">
+                Minimum Nights Before Full Service
+              </label>
+              <select
+                value={config.minNightsBeforeFullService}
+                onChange={(e) => updateConfig('minNightsBeforeFullService', parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+              >
+                {MIN_NIGHTS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-stone-600 mb-1">
+                Last Night Service
+              </label>
+              <select
+                value={config.refreshOnLastNight ? 'refresh' : 'none'}
+                onChange={(e) => updateConfig('refreshOnLastNight', e.target.value === 'refresh')}
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+              >
+                <option value="refresh">✨ Refresh</option>
+                <option value="none">No Service</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-stone-600 mb-1">
+              Check-in Day Service
+            </label>
+            <select
+              value={config.checkinDayService}
+              onChange={(e) => updateConfig('checkinDayService', e.target.value as any)}
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+            >
+              {CHECKIN_SERVICE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="mt-3 text-xs text-stone-500">
-          {policy === 'standard' && '✨ Night 1-2, 🧺 Night 3, ✨ Night 4-5, 🧺 Night 6, ✨...'}
-          {policy === 'daily_full_service' && '🧺 Every occupied night'}
-          {policy === 'eco' && '✨ Night 1-2, 🧺 Night 3, ✨ Night 4-5, 🧺 Night 6, ✨...'}
-          {policy === 'custom' && `✨ Nights ${interval-1}*, 🧺 Every ${interval} nights`}
+      )}
+
+      {/* Schedule Preview */}
+      <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Schedule Preview</p>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-stone-500">Stay Length:</label>
+            <select
+              value={previewNights}
+              onChange={(e) => setPreviewNights(parseInt(e.target.value))}
+              className="px-2 py-1 border border-stone-200 rounded text-xs bg-white"
+            >
+              {[3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                <option key={n} value={n}>{n} nights</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {previewSchedule.map((item, index) => (
+            <div
+              key={index}
+              className={`px-2.5 py-1 rounded-md text-[10px] font-medium ${
+                item.icon === '🧺' ? 'bg-amber-100 text-amber-800' :
+                item.icon === '✨' ? 'bg-blue-100 text-blue-800' :
+                'bg-stone-100 text-stone-400'
+              }`}
+              title={`Night ${item.night}: ${item.task}`}
+            >
+              {item.icon} {item.night}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-stone-500">
+          <span className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">✨ Refresh</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">🧺 Full Service</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 bg-stone-100 text-stone-400 rounded">— No Service</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded">🧺 Checkout</span>
+          </span>
         </div>
       </div>
 
