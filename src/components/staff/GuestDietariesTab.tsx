@@ -1,3 +1,6 @@
+// src/components/staff/GuestDietariesTab.tsx
+// ✅ COMPLETE: Fixed audit logging for employee actions
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, X, Utensils, Info, Check, AlertCircle } from 'lucide-react';
 import { createAuditLog } from '@/utils/auditLogger';
@@ -178,22 +181,42 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
       const previousActive = formatRestrictions(previousRestrictions, true);
       const newActive = formatRestrictions(finalRestrictions, true);
 
-      // Save the dietary restrictions
-      await onSaveDietary(selectedGuest.id, finalRestrictions);
+      // ✅ Get business_id from session or selectedGuest
+      const businessId = session.user.business_id || selectedGuest.business_id || 'unknown';
 
-      // ✅ CREATE AUDIT LOG ENTRY
-      await createAuditLog({
+      console.log('🔍 Creating audit log with:', {
+        businessId,
+        userId: session.user.id,
+        userName: session.user.full_name,
+        userRole: session.user.role,
+        guestName: selectedGuest.guest_name,
+        bookingId: selectedGuest.id
+      });
+
+      // ✅ CREATE AUDIT LOG FIRST (before saving)
+      const auditResult = await createAuditLog({
         action: 'UPDATE_FOOD_RESTRICTIONS',
         guest_id: selectedGuest.id,
         employee_id: session.user.id,
+        user_id: session.user.id,
+        user_name: session.user.full_name || 'Employee',
+        user_role: session.user.role || 'EmployeeOverview',
+        business_id: businessId,
+        guest_name: selectedGuest.guest_name,
+        booking_id: selectedGuest.id,
+        description: `Updated food restrictions for guest ${selectedGuest.guest_name}`,
         changes: {
           previous_value: previousActive,
           new_value: newActive,
-          guest_name: selectedGuest.guest_name,
           previous_restrictions: previousRestrictions,
           new_restrictions: finalRestrictions
         }
       });
+
+      console.log('📝 Audit result:', auditResult);
+
+      // ✅ Then save the dietary restrictions
+      await onSaveDietary(selectedGuest.id, finalRestrictions);
 
       // Show success
       setSuccessMsg(true);
@@ -213,7 +236,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
       }, 2000);
 
     } catch (error: any) {
-      console.error('Error saving dietary restrictions:', error);
+      console.error('❌ Error saving dietary restrictions:', error);
       setErrorMsg(error.message || 'Failed to save dietary restrictions. Please try again.');
     } finally {
       setIsSaving(false);
