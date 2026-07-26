@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ COMPLETE: Food restrictions + Editable stay details + Room Allocation
+// ✅ COMPLETE: Food restrictions + Editable stay details + Room Allocation dropdown
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -101,7 +101,6 @@ export default function GuestDetailsModal({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Stay editing state
   const [isEditingStay, setIsEditingStay] = useState(false);
   const [stayEditData, setStayEditData] = useState({
     check_in_date: '',
@@ -152,7 +151,6 @@ export default function GuestDetailsModal({
       if (guestDetails.room_number) {
         setCurrentRoomNumber(guestDetails.room_number);
         setCurrentRoomName(guestDetails.room_name || null);
-        // Find the room in the list to select it
         const match = rooms.find(r => r.room_number === guestDetails.room_number);
         if (match) {
           setSelectedRoomId(match.id);
@@ -201,7 +199,6 @@ export default function GuestDetailsModal({
         const data = await response.json();
         setRooms(data || []);
         
-        // If guest has a room number, select it
         if (guestDetails?.room_number) {
           const match = data.find((r: Room) => r.room_number === guestDetails.room_number);
           if (match) {
@@ -234,7 +231,6 @@ export default function GuestDetailsModal({
         return;
       }
 
-      // Get auth token
       let token = null;
       try {
         const authStr = localStorage.getItem('fastcheckin_auth');
@@ -265,11 +261,9 @@ export default function GuestDetailsModal({
         setIsEditingRoom(false);
         setSaveSuccess(true);
         
-        // Update guest details with room info
         setCurrentRoomNumber(selectedRoom.room_number);
         setCurrentRoomName(selectedRoom.room_name);
         
-        // Update guestDetails in parent
         if (guestDetails) {
           guestDetails.room_number = selectedRoom.room_number;
           guestDetails.room_name = selectedRoom.room_name;
@@ -312,7 +306,6 @@ export default function GuestDetailsModal({
         check_out_date: guestDetails.check_out_date || '',
         nights: guestDetails.nights || 1
       });
-      // Reset room selection
       if (guestDetails.room_number) {
         const match = rooms.find(r => r.room_number === guestDetails.room_number);
         if (match) {
@@ -600,7 +593,7 @@ export default function GuestDetailsModal({
                       </div>
                     </div>
 
-                    {/* ✅ ROOM ALLOCATION */}
+                    {/* ✅ ROOM ALLOCATION - Full width with dropdown */}
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200 col-span-full sm:col-span-2">
                       <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
@@ -652,7 +645,6 @@ export default function GuestDetailsModal({
                             <button
                               onClick={() => {
                                 setIsEditingRoom(false);
-                                // Reset to current room
                                 if (currentRoomNumber) {
                                   const match = rooms.find(r => r.room_number === currentRoomNumber);
                                   if (match) {
@@ -735,7 +727,6 @@ export default function GuestDetailsModal({
                     </div>
                   </div>
 
-                  {/* Dietary Requirements Checkboxes */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {DIETARY_OPTIONS.map(({ key, label, icon }) => {
                       const isChecked = restrictions[key as keyof FoodRestrictions] as boolean;
@@ -760,7 +751,6 @@ export default function GuestDetailsModal({
                     })}
                   </div>
 
-                  {/* Other Text Input */}
                   {restrictions.other && (
                     <div className="mt-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -776,7 +766,6 @@ export default function GuestDetailsModal({
                     </div>
                   )}
 
-                  {/* Active restrictions display */}
                   {getActiveRestrictionsWithIcons().length > 0 && (
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-xs font-medium text-amber-800 mb-2">Current Restrictions:</p>
