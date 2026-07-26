@@ -1,5 +1,5 @@
 // src/components/dashboard/TodayActivityCards.tsx
-// ✅ COMPLETE: With housekeeping task icons on guest cards
+// ✅ COMPLETE: With housekeeping task icons
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n';
@@ -46,15 +46,12 @@ interface TodayActivityCardsProps {
   businessId?: string;
 }
 
-// Helper to check if a guest has dietary restrictions
 const hasDietaryRestrictions = (guest: Guest): boolean => {
   const restrictions = guest.food_restrictions || {};
   return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
 };
 
-// Helper to get task icon display
 const getTaskIconDisplay = (guest: Guest, isCheckout: boolean = false) => {
-  // Checkout guests always show 🧺
   if (isCheckout) {
     return {
       icon: '🧺',
@@ -76,7 +73,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
   const [taskMap, setTaskMap] = useState<Record<string, { task_type: string; status: string }>>({});
   const [loading, setLoading] = useState(false);
 
-  // Fetch housekeeping tasks for today's guests
   useEffect(() => {
     const fetchTasks = async () => {
       if (!businessId) return;
@@ -92,7 +88,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
           const data = await response.json();
           const tasks = data.data || [];
 
-          // Create a map of booking_id → task
           const map: Record<string, { task_type: string; status: string }> = {};
           tasks.forEach((task: any) => {
             if (task.booking_id && task.task_type) {
@@ -114,7 +109,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
     fetchTasks();
   }, [businessId]);
 
-  // Get task for a guest
   const getGuestTask = (guest: Guest) => {
     const task = taskMap[guest.id];
     if (!task) return null;
@@ -126,7 +120,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
   };
 
   const renderGuestList = (guests: Guest[], title: string, bgColor: string, icon: JSX.Element, isCheckoutList: boolean = false) => {
-    // Enrich guests with housekeeping tasks
     const enrichedGuests = guests.map(guest => ({
       ...guest,
       housekeeping_task: getGuestTask(guest),
@@ -168,7 +161,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
                         {guest.guest_name}
                       </p>
 
-                      {/* Housekeeping Task Icon */}
                       {taskDisplay && (
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${taskDisplay.color} border`}
@@ -178,7 +170,6 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
                         </span>
                       )}
 
-                      {/* Dietary Warning Icon */}
                       {hasDietary && (
                         <span className="text-amber-500 text-sm" title="Has dietary restrictions">
                           ⚠️
@@ -238,7 +229,7 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts, businessId 
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
         </svg>,
-        true  // ✅ Checkout list always shows 🧺
+        true
       )}
     </div>
   );
