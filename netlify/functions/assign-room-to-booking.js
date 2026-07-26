@@ -1,5 +1,5 @@
 // netlify/functions/assign-room-to-booking.js
-// ✅ FIXED: Only updates columns that exist (room_id removed)
+// ✅ FIXED: Uses booking_id properly to only update one booking
 
 exports.handler = async (event) => {
   const headers = {
@@ -27,6 +27,7 @@ exports.handler = async (event) => {
 
     const { bookingId, roomId, roomNumber, roomName } = body;
 
+    // ✅ Validate required fields
     if (!bookingId) {
       console.error('❌ Missing bookingId');
       return {
@@ -59,9 +60,9 @@ exports.handler = async (event) => {
 
     console.log(`📝 Assigning room ${roomNumber} to booking ${bookingId}`);
 
-    // ✅ 1. First, check if the booking exists
+    // ✅ 1. First, check if the booking exists and get its current data
     const checkResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id`,
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id,room_number`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -92,18 +93,52 @@ exports.handler = async (event) => {
       };
     }
 
-    console.log(`✅ Found booking: ${booking.guest_name}`);
+    console.log(`✅ Found booking: ${booking.guest_name} (ID: ${booking.id})`);
+    console.log(`📌 Current room: ${booking.room_number || 'None'}`);
 
-    // ✅ 2. Update the booking with room info (ONLY columns that exist)
-    // Remove room_id since it doesn't exist in the table
+    // ✅ 2. Prepare update data - ONLY update the specific booking by ID
     const updateData = {
       room_number: roomNumber,
       room_name: roomName || null,
       updated_at: new Date().toISOString()
     };
 
+    // ✅ Only add room_id if it's a valid UUID
+    if (roomId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(roomId)) {
+        updateData.room_id = roomId;
+        console.log(`✅ Using room_id: ${roomId}`);
+      } else {
+        console.log(`⚠️ roomId "${roomId}" is not a valid UUID, skipping room_id`);
+        // Try to find the room by room_number to get its UUID
+        try {
+          const roomLookupResponse = await fetch(
+            `${supabaseUrl}/rest/v1/rooms?room_number=eq.${roomNumber}&business_id=eq.${booking.business_id}&select=id`,
+            {
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+              }
+            }
+          );
+          
+          if (roomLookupResponse.ok) {
+            const roomData = await roomLookupResponse.json();
+            if (roomData && roomData.length > 0) {
+              updateData.room_id = roomData[0].id;
+              console.log(`✅ Found room UUID: ${roomData[0].id}`);
+            }
+          }
+        } catch (lookupError) {
+          console.warn('Could not look up room UUID:', lookupError);
+        }
+      }
+    }
+
     console.log('📝 Update data:', updateData);
 
+    // ✅ CRITICAL: Update ONLY the specific booking by its ID
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
       headers: {
@@ -118,54 +153,6 @@ exports.handler = async (event) => {
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
       console.error('❌ Update failed:', errorText);
-      
-      // If room_name doesn't exist, try without it
-      if (errorText.includes('room_name')) {
-        console.log('🔄 Retrying without room_name...');
-        const retryData = {
-          room_number: roomNumber,
-          updated_at: new Date().toISOString()
-        };
-        
-        const retryResponse = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
-          method: 'PATCH',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify(retryData)
-        });
-        
-        if (!retryResponse.ok) {
-          const retryError = await retryResponse.text();
-          console.error('❌ Retry failed:', retryError);
-          return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ 
-              error: 'Failed to assign room',
-              details: retryError
-            })
-          };
-        }
-        
-        const retryData_result = await retryResponse.json();
-        const retryBooking = retryData_result[0];
-        console.log(`✅ Room ${roomNumber} assigned to ${retryBooking?.guest_name || 'guest'}`);
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            data: retryBooking,
-            message: `Room ${roomNumber} assigned successfully`
-          })
-        };
-      }
-      
       return {
         statusCode: 500,
         headers,
@@ -178,7 +165,17 @@ exports.handler = async (event) => {
 
     const updatedData = await updateResponse.json();
     const updatedBooking = updatedData[0];
-    console.log(`✅ Room ${roomNumber} assigned to ${updatedBooking.guest_name}`);
+    
+    if (!updatedBooking) {
+      console.error('❌ No booking returned after update');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'No booking returned after update' })
+      };
+    }
+
+    console.log(`✅ Room ${roomNumber} assigned to ${updatedBooking.guest_name} (ID: ${updatedBooking.id})`);
 
     // ✅ 3. Create audit log
     try {
