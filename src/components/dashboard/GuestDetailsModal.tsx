@@ -1,5 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ COMPLETE: Food restrictions + Editable stay details + Room Allocation dropdown
+// ✅ COMPLETE: With Room Allocation dropdown - Fixed role check
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -119,13 +119,14 @@ export default function GuestDetailsModal({
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
 
-  // ✅ Allow business role too
+  // ✅ FIXED: Allow 'business' role too
+  const userRole = session?.user?.role || '';
   const canAssignRooms = userRole === 'owner' || 
-                       userRole === 'EmployeeOverview' ||
-                       userRole === 'business' ||
-                       userRole.toLowerCase() === 'owner' ||
-                       userRole.toLowerCase() === 'employeeoverview' ||
-                       userRole.toLowerCase() === 'business';
+                         userRole === 'EmployeeOverview' ||
+                         userRole === 'business' ||
+                         userRole.toLowerCase() === 'owner' ||
+                         userRole.toLowerCase() === 'employeeoverview' ||
+                         userRole.toLowerCase() === 'business';
 
   // Load guest details when modal opens
   useEffect(() => {
