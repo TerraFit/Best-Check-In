@@ -1,5 +1,5 @@
 // src/services/housekeepingService.ts
-// ✅ Complete housekeeping scheduling engine
+// ✅ COMPLETE: Fully customizable housekeeping scheduling engine
 
 export type HousekeepingPolicy = 'standard' | 'daily_full_service' | 'eco' | 'custom';
 export type TaskType = 'refresh' | 'full_service' | 'none';
@@ -11,94 +11,138 @@ export interface HousekeepingTaskResult {
   reason: string;
 }
 
-export interface HousekeepingSettings {
+export interface HousekeepingConfig {
+  // Full Service frequency (days between Full Services)
+  fullServiceFrequency: number;  // 2, 3, 4, 5
+  // First Full Service day (relative to check-in)
+  firstFullServiceDay: number;   // 2, 3, 4, 5
+  // Minimum nights before Full Service applies
+  minNightsBeforeFullService: number;  // 2, 3, 4, 5
+  // Refresh on last night before checkout
+  refreshOnLastNight: boolean;   // true, false
+  // Service on check-in day
+  checkinDayService: 'none' | 'refresh' | 'full_service';
+  // Policy type
   policy: HousekeepingPolicy;
   customInterval: number;
 }
 
-export interface CalculateTaskParams {
-  checkInDate: Date | string;
-  checkOutDate: Date | string;
-  targetDate: Date | string;
-  policy: HousekeepingPolicy;
-  customInterval?: number;
+// Default config (Zebra Lodge - Up-market)
+export const DEFAULT_HOUSEKEEPING_CONFIG: HousekeepingConfig = {
+  fullServiceFrequency: 3,
+  firstFullServiceDay: 3,
+  minNightsBeforeFullService: 3,
+  refreshOnLastNight: true,
+  checkinDayService: 'none',
+  policy: 'standard',
+  customInterval: 3
+};
+
+/**
+ * Calculate Full Service nights based on customizable settings
+ */
+export function calculateFullServiceNights(
+  totalNights: number,
+  config: HousekeepingConfig
+): number[] {
+  // If stay is shorter than minimum, no Full Service
+  if (totalNights < config.minNightsBeforeFullService) {
+    return [];
+  }
+
+  const fullServiceNights: number[] = [];
+  const { fullServiceFrequency, firstFullServiceDay } = config;
+
+  // First Full Service at configured day
+  if (firstFullServiceDay <= totalNights) {
+    fullServiceNights.push(firstFullServiceDay);
+  }
+
+  // Subsequent Full Services at configured frequency
+  let nextServiceNight = firstFullServiceDay + fullServiceFrequency;
+  while (nextServiceNight < totalNights) {
+    fullServiceNights.push(nextServiceNight);
+    nextServiceNight += fullServiceFrequency;
+  }
+
+  return fullServiceNights;
 }
 
 /**
- * Calculate the housekeeping task for a specific night of a stay
- * 
- * @param checkInDate - Guest check-in date
- * @param checkOutDate - Guest check-out date  
- * @param targetDate - The date to calculate the task for
- * @param policy - The property's housekeeping policy
- * @param customInterval - Custom interval for 'custom' policy (2-5)
- * @returns Object with taskType, stayNight, isCheckout, reason
+ * Get total nights between check-in and check-out
  */
-export function calculateHousekeepingTask({
-  checkInDate,
-  checkOutDate,
-  targetDate,
-  policy,
-  customInterval = 3
-}: CalculateTaskParams): HousekeepingTaskResult {
-  // Parse dates
+export function getTotalNights(checkIn: Date, checkOut: Date): number {
+  const diff = checkOut.getTime() - checkIn.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Get stay night number for a given date
+ */
+export function getStayNight(checkIn: Date, target: Date): number {
+  const diff = target.getTime() - checkIn.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+}
+
+/**
+ * Calculate task for a specific date
+ */
+export function calculateHousekeepingTask(
+  checkInDate: Date,
+  checkOutDate: Date,
+  targetDate: Date,
+  config: HousekeepingConfig = DEFAULT_HOUSEKEEPING_CONFIG
+): HousekeepingTaskResult {
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
   const target = new Date(targetDate);
 
-  // Normalize dates to start of day for accurate comparison
   checkIn.setHours(0, 0, 0, 0);
   checkOut.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
 
-  // Check if target is before check-in or after check-out (excluding check-out day)
+  // Before check-in
   if (target < checkIn) {
     return { taskType: 'none', stayNight: 0, isCheckout: false, reason: 'Before check-in' };
   }
 
-  // Check if target is after check-out (including check-out day)
+  // After check-out
   if (target > checkOut) {
     return { taskType: 'none', stayNight: 0, isCheckout: false, reason: 'After check-out' };
   }
 
-  // Calculate stay night number
-  const diffTime = target.getTime() - checkIn.getTime();
-  const stayNight = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-  const totalNights = Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-
-  // Check if this is the check-out day
+  const totalNights = getTotalNights(checkIn, checkOut);
+  const stayNight = getStayNight(checkIn, target);
+  const isCheckin = target.getTime() === checkIn.getTime();
   const isCheckout = target.getTime() === checkOut.getTime();
 
-  // For 1-night stays
-  if (totalNights === 1) {
-    if (isCheckout) {
+  // ✅ Check-in day
+  if (isCheckin) {
+    if (config.checkinDayService === 'full_service') {
       return {
         taskType: 'full_service',
         stayNight,
-        isCheckout: true,
-        reason: 'Check-out Full Service'
+        isCheckout: false,
+        reason: 'Check-in Full Service (custom setting)'
+      };
+    }
+    if (config.checkinDayService === 'refresh') {
+      return {
+        taskType: 'refresh',
+        stayNight,
+        isCheckout: false,
+        reason: 'Check-in Refresh (custom setting)'
       };
     }
     return {
       taskType: 'none',
       stayNight,
       isCheckout: false,
-      reason: '1-night stay, no stay-over service'
+      reason: 'Check-in day, no service'
     };
   }
 
-  // Last night before checkout - no stay-over service (checkout handled separately)
-  const isLastStayNight = stayNight === totalNights;
-  if (isLastStayNight) {
-    return {
-      taskType: 'none',
-      stayNight,
-      isCheckout: false,
-      reason: 'Last stay night, no service (checkout will generate Full Service)'
-    };
-  }
-
-  // Check if it's a checkout day
+  // ✅ Check-out day - ALWAYS Full Service
   if (isCheckout) {
     return {
       taskType: 'full_service',
@@ -108,48 +152,86 @@ export function calculateHousekeepingTask({
     };
   }
 
-  // Calculate based on policy
-  switch (policy) {
-    case 'daily_full_service':
+  // ✅ Last night before checkout
+  const isLastNight = stayNight === totalNights;
+  if (isLastNight) {
+    if (config.refreshOnLastNight) {
       return {
-        taskType: 'full_service',
+        taskType: 'refresh',
         stayNight,
         isCheckout: false,
-        reason: 'Daily Full Service policy'
+        reason: 'Last night, Refresh service'
       };
-
-    case 'eco':
-    case 'standard':
-      return calculateStandardEcoTask(stayNight, policy);
-
-    case 'custom':
-      return calculateCustomTask(stayNight, customInterval);
-
-    default:
+    } else {
       return {
         taskType: 'none',
         stayNight,
         isCheckout: false,
-        reason: 'Unknown policy'
+        reason: 'Last night, no service (custom setting)'
       };
+    }
   }
-}
 
-/**
- * Calculate task for Standard or Eco policy
- */
-function calculateStandardEcoTask(stayNight: number, policy: 'standard' | 'eco'): HousekeepingTaskResult {
-  // Full Service every 3rd night
-  if (stayNight % 3 === 0) {
+  // ✅ Daily Full Service policy
+  if (config.policy === 'daily_full_service') {
     return {
       taskType: 'full_service',
       stayNight,
       isCheckout: false,
-      reason: `Every 3rd night Full Service (Night ${stayNight})`
+      reason: 'Daily Full Service policy'
     };
   }
 
-  // Refresh on other occupied nights
+  // ✅ Eco policy
+  if (config.policy === 'eco') {
+    if (stayNight % config.customInterval === 0) {
+      return {
+        taskType: 'full_service',
+        stayNight,
+        isCheckout: false,
+        reason: `Eco Full Service every ${config.customInterval} nights`
+      };
+    }
+    return {
+      taskType: 'refresh',
+      stayNight,
+      isCheckout: false,
+      reason: 'Eco Refresh service'
+    };
+  }
+
+  // ✅ Custom policy
+  if (config.policy === 'custom') {
+    if (stayNight % config.customInterval === 0) {
+      return {
+        taskType: 'full_service',
+        stayNight,
+        isCheckout: false,
+        reason: `Custom Full Service every ${config.customInterval} nights`
+      };
+    }
+    return {
+      taskType: 'refresh',
+      stayNight,
+      isCheckout: false,
+      reason: 'Custom Refresh service'
+    };
+  }
+
+  // ✅ Standard policy with customizable settings
+  const fullServiceNights = calculateFullServiceNights(totalNights, config);
+
+  // Check if this night is a Full Service night
+  if (fullServiceNights.includes(stayNight)) {
+    return {
+      taskType: 'full_service',
+      stayNight,
+      isCheckout: false,
+      reason: `Full Service (Night ${stayNight})`
+    };
+  }
+
+  // All other occupied nights = Refresh
   return {
     taskType: 'refresh',
     stayNight,
@@ -159,54 +241,22 @@ function calculateStandardEcoTask(stayNight: number, policy: 'standard' | 'eco')
 }
 
 /**
- * Calculate task for Custom policy
- */
-function calculateCustomTask(stayNight: number, interval: number): HousekeepingTaskResult {
-  // Full Service on interval
-  if (stayNight % interval === 0) {
-    return {
-      taskType: 'full_service',
-      stayNight,
-      isCheckout: false,
-      reason: `Custom Full Service every ${interval} nights (Night ${stayNight})`
-    };
-  }
-
-  // Refresh on other occupied nights
-  return {
-    taskType: 'refresh',
-    stayNight,
-    isCheckout: false,
-    reason: `Refresh service (Night ${stayNight})`
-  };
-}
-
-/**
- * Generate all housekeeping tasks for a stay
+ * Generate all tasks for a stay
  */
 export function generateTasksForStay(
   checkInDate: Date | string,
   checkOutDate: Date | string,
-  policy: HousekeepingPolicy,
-  customInterval: number = 3
+  config: HousekeepingConfig = DEFAULT_HOUSEKEEPING_CONFIG
 ): { date: Date; taskType: TaskType; stayNight: number; isCheckout: boolean }[] {
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
   const tasks: { date: Date; taskType: TaskType; stayNight: number; isCheckout: boolean }[] = [];
 
-  // Start from check-in date
   let current = new Date(checkIn);
   current.setHours(0, 0, 0, 0);
 
-  // Generate tasks for each day from check-in to check-out
   while (current <= checkOut) {
-    const result = calculateHousekeepingTask({
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      targetDate: current,
-      policy,
-      customInterval
-    });
+    const result = calculateHousekeepingTask(checkIn, checkOut, current, config);
 
     if (result.taskType !== 'none') {
       tasks.push({
@@ -217,7 +267,6 @@ export function generateTasksForStay(
       });
     }
 
-    // Move to next day
     current.setDate(current.getDate() + 1);
   }
 
@@ -225,45 +274,55 @@ export function generateTasksForStay(
 }
 
 /**
- * Get display text for task type
+ * Get task display info
  */
-export function getTaskDisplayText(taskType: TaskType): string {
+export function getTaskDisplayInfo(taskType: TaskType, isCheckout: boolean = false) {
+  if (isCheckout) {
+    return {
+      icon: '🧺',
+      label: 'Full Service (Checkout)',
+      color: 'bg-red-100 text-red-700 border-red-200',
+      description: 'Complete room service - strip all linen, clean thoroughly',
+      estimatedMinutes: 60
+    };
+  }
+
   switch (taskType) {
     case 'refresh':
-      return '✨ Refresh';
+      return {
+        icon: '✨',
+        label: 'Refresh',
+        color: 'bg-blue-100 text-blue-700 border-blue-200',
+        description: 'Make bed, tighten sheets, replenish amenities, light clean',
+        estimatedMinutes: 30
+      };
     case 'full_service':
-      return '🧺 Full Service';
+      return {
+        icon: '🧺',
+        label: 'Full Service',
+        color: 'bg-amber-100 text-amber-700 border-amber-200',
+        description: 'Strip and replace all linen, thoroughly clean room',
+        estimatedMinutes: 60
+      };
     default:
-      return 'No Service';
+      return {
+        icon: '—',
+        label: 'No Service',
+        color: 'bg-gray-100 text-gray-400 border-gray-200',
+        description: 'No service required',
+        estimatedMinutes: 0
+      };
   }
 }
 
 /**
- * Get icon for task type
+ * Get task type from string
  */
-export function getTaskIcon(taskType: TaskType): string {
-  switch (taskType) {
-    case 'refresh':
-      return '✨';
-    case 'full_service':
-      return '🧺';
-    default:
-      return '—';
+export function getTaskTypeFromString(type: string): TaskType {
+  if (type === 'refresh' || type === 'full_service') {
+    return type as TaskType;
   }
-}
-
-/**
- * Get color for task type
- */
-export function getTaskColor(taskType: TaskType): string {
-  switch (taskType) {
-    case 'refresh':
-      return 'bg-blue-100 text-blue-800 border-blue-200';
-    case 'full_service':
-      return 'bg-amber-100 text-amber-800 border-amber-200';
-    default:
-      return 'bg-gray-100 text-gray-400 border-gray-200';
-  }
+  return 'none';
 }
 
 /**
