@@ -1,13 +1,17 @@
 // src/components/staff/HousekeepingTab.tsx
-// ✅ Complete Housekeeping Task List for Staff
+// ✅ COMPLETE: Staff housekeeping task list
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Check, X, Clock, User, DoorOpen, 
-  Calendar, AlertCircle, Filter, Search,
-  ChevronDown
+  Calendar, AlertCircle, Filter, Search
 } from 'lucide-react';
-import { getTaskIcon, getTaskColor, getStatusDisplayText } from '../../services/housekeepingService';
+import { 
+  getTaskIcon, 
+  getTaskColor, 
+  getStatusDisplayText,
+  getTaskEstimatedMinutes
+} from '../../services/housekeepingService';
 
 interface HousekeepingTask {
   id: string;
@@ -26,6 +30,7 @@ interface HousekeepingTask {
   created_at: string;
   updated_at: string;
   assigned_staff_name?: string;
+  isCheckout?: boolean;
 }
 
 interface HousekeepingTabProps {
@@ -68,14 +73,9 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
           const auth = JSON.parse(authStr);
           token = auth.token;
         }
-      } catch (e) {
-        console.warn('Could not get auth token:', e);
-      }
+      } catch (e) {}
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -93,13 +93,12 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Failed to fetch tasks:', errorText);
+        console.error('Failed to fetch tasks:', errorText);
         setError(`Failed to fetch tasks: ${response.status}`);
         return;
       }
 
       const data = await response.json();
-      console.log('✅ Housekeeping tasks:', data);
 
       if (data.success && data.data) {
         setTasks(data.data);
@@ -109,7 +108,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
         setTasks([]);
       }
     } catch (err) {
-      console.error('❌ Error fetching tasks:', err);
+      console.error('Error fetching tasks:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -120,7 +119,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Filter tasks by search
   const filteredTasks = tasks.filter(task => {
     if (!search) return true;
     const term = search.toLowerCase();
@@ -148,10 +146,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
         }
       } catch (e) {}
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -178,7 +173,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
       setShowNotesModal(false);
       setNotes('');
     } catch (err) {
-      console.error('❌ Error completing task:', err);
+      console.error('Error completing task:', err);
       alert('Failed to complete task. Please try again.');
     } finally {
       setCompleting(false);
@@ -209,7 +204,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold font-serif text-stone-900 leading-none flex items-center gap-2">
@@ -221,7 +215,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Filter buttons */}
           <div className="flex bg-stone-100 rounded-xl p-1">
             <button
               onClick={() => setFilter('today')}
@@ -255,7 +248,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
             </button>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
@@ -279,7 +271,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
         </div>
       )}
 
-      {/* Task List */}
       {filteredTasks.length === 0 ? (
         <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center">
           <div className="text-5xl mb-4">🧹</div>
@@ -305,6 +296,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
             const isCancelled = task.status === 'cancelled';
             const isSkipped = task.status === 'skipped';
             const isPending = !isCompleted && !isCancelled && !isSkipped;
+            const estimatedMinutes = getTaskEstimatedMinutes(task.task_type, task.isCheckout || false);
 
             return (
               <div
@@ -319,7 +311,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    {/* Icon */}
                     <div className={`p-2 rounded-xl flex-shrink-0 ${getTaskColor(task.task_type)}`}>
                       <span className="text-xl">{getTaskIcon(task.task_type)}</span>
                     </div>
@@ -335,6 +326,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
                             : 'bg-amber-100 text-amber-700'
                         }`}>
                           {task.task_type === 'refresh' ? '✨ Refresh' : '🧺 Full Service'}
+                          {task.isCheckout && ' (Checkout)'}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           isCompleted
@@ -344,6 +336,9 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
                             : 'bg-amber-100 text-amber-700'
                         }`}>
                           {getStatusDisplayText(task.status)}
+                        </span>
+                        <span className="text-[10px] text-stone-400">
+                          ⏱️ {estimatedMinutes} min
                         </span>
                       </div>
 
@@ -375,7 +370,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex flex-col gap-2 flex-shrink-0">
                     {isPending && canComplete && (
                       <>
@@ -410,7 +404,6 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
         </div>
       )}
 
-      {/* Complete Task Modal */}
       {showNotesModal && selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl animate-scale-in">
@@ -444,6 +437,7 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
                       selectedTask.task_type === 'refresh' ? 'text-blue-600' : 'text-amber-600'
                     }`}>
                       {selectedTask.task_type === 'refresh' ? '✨ Refresh' : '🧺 Full Service'}
+                      {selectedTask.isCheckout && ' (Checkout)'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -454,6 +448,12 @@ export function HousekeepingTab({ businessId, session }: HousekeepingTabProps) {
                         month: 'short',
                         day: 'numeric'
                       })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Estimated Time</span>
+                    <span className="font-semibold text-stone-900">
+                      {getTaskEstimatedMinutes(selectedTask.task_type, selectedTask.isCheckout || false)} min
                     </span>
                   </div>
                 </div>
