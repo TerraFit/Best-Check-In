@@ -1,4 +1,6 @@
 // src/pages/BusinessDashboard.tsx
+// ✅ COMPLETE: With session prop for Room Allocation
+
 import { useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboardState } from '../hooks/useDashboardState';
@@ -25,8 +27,8 @@ export default function BusinessDashboard() {
     showQRModal, setShowQRModal,
     showImportModal, setShowImportModal,
     editingProfile, setEditingProfile,
-    savingProfile,        // ✅ Already here
-    setSavingProfile,     // ✅ ADD THIS LINE
+    savingProfile,
+    setSavingProfile,
     editingEmail, setEditingEmail,
     editingPhone, setEditingPhone,
     newEmail, setNewEmail,
@@ -79,6 +81,55 @@ export default function BusinessDashboard() {
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
   // ============================================================
+  // ✅ SESSION - For Room Allocation in GuestDetailsModal
+  // ============================================================
+
+  const session = useMemo(() => {
+    try {
+      const authStr = localStorage.getItem('fastcheckin_auth');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        const user = auth.user || {};
+        return {
+          user: {
+            id: user.id || '',
+            full_name: user.name || user.full_name || 'Admin',
+            role: user.role || 'owner',
+            business_id: user.businessId || getBusinessId() || ''
+          }
+        };
+      }
+    } catch (e) {
+      console.error('Error getting session:', e);
+    }
+    // Fallback: try to get from business storage
+    try {
+      const businessStr = localStorage.getItem('business');
+      if (businessStr) {
+        const businessData = JSON.parse(businessStr);
+        return {
+          user: {
+            id: businessData.id || '',
+            full_name: businessData.trading_name || 'Admin',
+            role: 'owner',
+            business_id: businessData.id || getBusinessId() || ''
+          }
+        };
+      }
+    } catch (e) {
+      console.error('Error getting business from storage:', e);
+    }
+    return {
+      user: {
+        id: '',
+        full_name: 'Admin',
+        role: 'owner',
+        business_id: getBusinessId() || ''
+      }
+    };
+  }, [getBusinessId]);
+
+  // ============================================================
   // LOAD NEWSLETTER SETTINGS FROM BUSINESS DATA
   // ============================================================
 
@@ -101,7 +152,6 @@ export default function BusinessDashboard() {
   const subscriptionTier = useMemo((): SubscriptionTier => {
     if (!business) return 'starter';
 
-    // 1. Check for explicit plan fields
     const planFields = [
       business.current_plan,
       business.plan,
@@ -117,7 +167,6 @@ export default function BusinessDashboard() {
       }
     }
 
-    // 2. Check subscription_tier
     const tier = business.subscription_tier?.toLowerCase() || '';
     
     if (['monthly', 'annual', 'trial', 'complimentary'].includes(tier)) {
@@ -132,7 +181,6 @@ export default function BusinessDashboard() {
       return tier as SubscriptionTier;
     }
 
-    // 3. Fallback: determine from total_rooms
     const rooms = business.total_rooms || 0;
     if (rooms >= 16) return 'business';
     if (rooms >= 11) return 'pro';
@@ -296,7 +344,7 @@ export default function BusinessDashboard() {
   }, [business, profileForm, setEditingProfile, refreshData, setSavingProfile]);
 
   // ============================================================
-  // SAVE NEWSLETTER SETTINGS - ✅ FULLY IMPLEMENTED
+  // SAVE NEWSLETTER SETTINGS
   // ============================================================
 
   const saveNewsletterSettings = useCallback(async () => {
@@ -374,7 +422,7 @@ export default function BusinessDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
           <p className="text-gray-500">Loading dashboard...</p>
         </div>
       </div>
@@ -411,7 +459,7 @@ export default function BusinessDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Overview Tab */}
+        {/* Overview Tab - ✅ PASS SESSION HERE */}
         {activeTab === 'overview' && (
           <OverviewTab
             business={business}
@@ -421,6 +469,7 @@ export default function BusinessDashboard() {
             businessId={business?.id || getBusinessId() || ''}
             onShowQRModal={() => setShowQRModal(true)}
             onShowImportModal={() => setShowImportModal(true)}
+            session={session}  // ✅ PASS SESSION FOR ROOM ALLOCATION
           />
         )}
 
@@ -457,9 +506,9 @@ export default function BusinessDashboard() {
           />
         )}
         
-        {/* Staff Portal Tab - ADD THIS HERE */}
+        {/* Staff Portal Tab */}
         {activeTab === 'staff' && (
-        <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
+          <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
         )}
 
         {/* Settings Tab */}
