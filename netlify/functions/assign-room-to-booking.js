@@ -1,5 +1,5 @@
 // netlify/functions/assign-room-to-booking.js
-// ✅ Assigns a room to a booking
+// ✅ FIXED: Proper error handling and logging
 
 exports.handler = async (event) => {
   const headers = {
@@ -22,9 +22,13 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { bookingId, roomId, roomNumber, roomName } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    console.log('📥 assign-room-to-booking received:', body);
+
+    const { bookingId, roomId, roomNumber, roomName } = body;
 
     if (!bookingId) {
+      console.error('❌ Missing bookingId');
       return {
         statusCode: 400,
         headers,
@@ -32,11 +36,66 @@ exports.handler = async (event) => {
       };
     }
 
+    if (!roomId || !roomNumber) {
+      console.error('❌ Missing roomId or roomNumber');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Room ID and number required' })
+      };
+    }
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    // Update booking with room info
-    const response = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    console.log(`📝 Assigning room ${roomNumber} to booking ${bookingId}`);
+
+    // ✅ 1. First, check if the booking exists
+    const checkResponse = await fetch(
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    if (!checkResponse.ok) {
+      const errorText = await checkResponse.text();
+      console.error('❌ Booking check failed:', errorText);
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' })
+      };
+    }
+
+    const bookingData = await checkResponse.json();
+    const booking = bookingData[0];
+
+    if (!booking) {
+      console.error('❌ Booking not found:', bookingId);
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' })
+      };
+    }
+
+    console.log(`✅ Found booking: ${booking.guest_name}`);
+
+    // ✅ 2. Update the booking with room info
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -45,43 +104,49 @@ exports.handler = async (event) => {
         'Prefer': 'return=representation'
       },
       body: JSON.stringify({
-        room_number: roomNumber || null,
+        room_number: roomNumber,
         room_name: roomName || null,
         room_id: roomId || null,
         updated_at: new Date().toISOString()
       })
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Update error:', error);
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error('❌ Update failed:', errorText);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to assign room' })
+        body: JSON.stringify({ 
+          error: 'Failed to assign room',
+          details: errorText
+        })
       };
     }
 
-    const data = await response.json();
-    const updatedBooking = data[0];
+    const updatedData = await updateResponse.json();
+    const updatedBooking = updatedData[0];
+    console.log(`✅ Room ${roomNumber} assigned to ${updatedBooking.guest_name}`);
 
-    // Create audit log
+    // ✅ 3. Create audit log
     try {
       const authHeader = event.headers.authorization || '';
       let userId = 'system';
       let userName = 'System';
 
       try {
-        const jwt = require('jsonwebtoken');
         const token = authHeader.replace('Bearer ', '');
         if (token) {
+          const jwt = require('jsonwebtoken');
           const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
           userId = decoded.sub || 'system';
           userName = decoded.user_metadata?.full_name || 
                      decoded.user_metadata?.name || 
                      'System';
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Could not extract user from token:', e.message);
+      }
 
       const auditLog = {
         business_id: updatedBooking.business_id,
@@ -95,7 +160,7 @@ exports.handler = async (event) => {
           room_name: roomName,
           guest_name: updatedBooking.guest_name
         },
-        description: `Room ${roomNumber} assigned to ${updatedBooking.guest_name}`,
+        description: `Room ${roomNumber} (${roomName || ''}) assigned to ${updatedBooking.guest_name}`,
         booking_id: bookingId,
         guest_name: updatedBooking.guest_name,
         ip_address: event.headers['client-ip'] || 'unknown',
@@ -103,7 +168,7 @@ exports.handler = async (event) => {
         created_at: new Date().toISOString()
       };
 
-      await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      const auditResponse = await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
         method: 'POST',
         headers: {
           'apikey': supabaseKey,
@@ -112,8 +177,15 @@ exports.handler = async (event) => {
         },
         body: JSON.stringify([auditLog])
       });
+
+      if (auditResponse.ok) {
+        console.log('✅ Audit log created for room assignment');
+      } else {
+        const auditError = await auditResponse.text();
+        console.warn('⚠️ Audit log error:', auditError);
+      }
     } catch (auditError) {
-      console.warn('Audit log error:', auditError);
+      console.warn('⚠️ Audit log error (non-critical):', auditError);
     }
 
     return {
@@ -127,13 +199,14 @@ exports.handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Error assigning room:', error);
+    console.error('❌ Error assigning room:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Failed to assign room'
+        error: error.message || 'Failed to assign room',
+        stack: error.stack
       })
     };
   }
