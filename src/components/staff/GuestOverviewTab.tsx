@@ -1,3 +1,6 @@
+// src/components/staff/GuestOverviewTab.tsx
+// ✅ Pass session to GuestDetailsModal
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -16,6 +19,14 @@ interface GuestOverviewTabProps {
   businessId: string;
   onShowQRModal: () => void;
   onShowImportModal?: () => void;
+  session: {
+    user: {
+      id: string;
+      full_name: string;
+      role: 'owner' | 'EmployeeOverview';
+      business_id: string;
+    };
+  };
 }
 
 export function GuestOverviewTab({
@@ -26,21 +37,21 @@ export function GuestOverviewTab({
   businessId,
   onShowQRModal,
   onShowImportModal,
+  session,  // ✅ Added session prop
 }: GuestOverviewTabProps) {
   const navigate = useNavigate();
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ✅ Debug: Log when modal state changes
   useEffect(() => {
     console.log('🔍 GuestOverviewTab: Modal state:', { 
       isModalOpen, 
       selectedBookingId,
-      businessId 
+      businessId,
+      session // ✅ Log session to verify
     });
-  }, [isModalOpen, selectedBookingId, businessId]);
+  }, [isModalOpen, selectedBookingId, businessId, session]);
 
-  // ✅ Handle guest click - opens the modal
   const handleGuestClick = (bookingId: string) => {
     console.log('🖱️ Guest clicked, bookingId:', bookingId);
     console.log('🖱️ Business ID:', businessId);
@@ -54,7 +65,6 @@ export function GuestOverviewTab({
     setIsModalOpen(true);
   };
 
-  // ✅ Handle modal close
   const handleModalClose = () => {
     console.log('❌ Closing modal');
     setIsModalOpen(false);
@@ -67,19 +77,16 @@ export function GuestOverviewTab({
     navigate(`/checkin/${businessId}`);
   };
 
-  // Helper to format phone number
   const formatPhone = (phone: string) => {
     if (!phone) return 'N/A';
     return phone;
   };
 
-  // ✅ Check if guest has dietary restrictions
   const hasDietaryRestrictions = (guest: any): boolean => {
     const restrictions = guest.food_restrictions || {};
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
-  // ✅ Get dietary restrictions display text
   const getDietaryDisplay = (guest: any): string => {
     const restrictions = guest.food_restrictions || {};
     const active = Object.entries(restrictions)
@@ -101,9 +108,7 @@ export function GuestOverviewTab({
   return (
     <>
       <div className="space-y-6">
-        {/* ============================================================
-            TODAY'S ACTIVITY CARDS
-            ============================================================ */}
+        {/* Today's Activity Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Arrivals Card */}
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
@@ -223,9 +228,7 @@ export function GuestOverviewTab({
           </div>
         </div>
 
-        {/* ============================================================
-            QUICK ACTIONS
-            ============================================================ */}
+        {/* Quick Actions */}
         <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6">
           <h3 className="text-sm font-bold text-stone-700 mb-4 flex items-center gap-2">
             <span className="text-lg">⚡</span> Quick Actions
@@ -271,17 +274,16 @@ export function GuestOverviewTab({
             </button>
           </div>
         </div>
-
-        {/* ============================================================
-            GUEST DETAILS MODAL
-            ============================================================ */}
-        <GuestDetailsModal
-          isOpen={isModalOpen}
-          bookingId={selectedBookingId}
-          onClose={handleModalClose}
-          businessId={businessId}
-        />
       </div>
+
+      {/* Guest Details Modal */}
+      <GuestDetailsModal
+        isOpen={isModalOpen}
+        bookingId={selectedBookingId}
+        onClose={handleModalClose}
+        businessId={businessId}
+        session={session}  // ✅ PASS SESSION HERE
+      />
     </>
   );
 }
