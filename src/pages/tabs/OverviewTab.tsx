@@ -1,3 +1,6 @@
+// src/pages/tabs/OverviewTab.tsx
+// ✅ Pass session to GuestOverviewTab
+
 import { useState } from 'react';
 import { BusinessInfoCard, TodayActivityCards, QuickActions } from '../../components/dashboard';
 import GuestDetailsModal from '../../components/dashboard/GuestDetailsModal';
@@ -10,6 +13,14 @@ interface OverviewTabProps {
   businessId: string;
   onShowQRModal: () => void;
   onShowImportModal: () => void;
+  session: {
+    user: {
+      id: string;
+      full_name: string;
+      role: 'owner' | 'EmployeeOverview';
+      business_id: string;
+    };
+  };
 }
 
 export function OverviewTab({
@@ -20,6 +31,7 @@ export function OverviewTab({
   businessId,
   onShowQRModal,
   onShowImportModal,
+  session  // ✅ Added session prop
 }: OverviewTabProps) {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,10 +41,9 @@ export function OverviewTab({
     setIsModalOpen(true);
   };
 
-  // ✅ Wrap guests with click handler and preserve all data including food_restrictions
   const wrapGuestCards = (guests: any[]) => {
     return guests.map((guest: any) => ({
-      ...guest,  // ✅ Preserve all guest data including food_restrictions
+      ...guest,
       onClick: () => handleGuestClick(guest.id)
     }));
   };
@@ -45,6 +56,9 @@ export function OverviewTab({
           arrivals={wrapGuestCards(todayArrivals)}
           stayovers={wrapGuestCards(todayStayovers)}
           checkouts={wrapGuestCards(todayCheckouts)}
+          businessId={businessId}
+          session={session}  // ✅ Pass session to TodayActivityCards
+          onGuestClick={handleGuestClick}
         />
         <QuickActions
           businessId={businessId}
@@ -61,6 +75,7 @@ export function OverviewTab({
           setSelectedBookingId(null);
         }}
         businessId={businessId}
+        session={session}  // ✅ Pass session to GuestDetailsModal
       />
     </>
   );
