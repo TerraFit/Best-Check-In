@@ -1,10 +1,7 @@
 // netlify/functions/assign-room.js
-// ✅ CORRECT: Uses CommonJS (require) - no import statements
+// ✅ CORRECT: ESM format - same as get-available-rooms
 
-// Use require instead of import
-const { createHandlerResponse } = require('./lib/supabase-rest.js');
-
-// Since we need supabaseRpc, we'll use direct fetch calls
+// Use the same pattern as get-available-rooms
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
@@ -35,27 +32,66 @@ async function supabaseRpc(functionName, params) {
   return text ? JSON.parse(text) : [];
 }
 
-exports.handler = async (event) => {
+// ✅ CORRECT: Same export format as get-available-rooms
+export const handler = async (event) => {
   // Handle preflight OPTIONS
   if (event.httpMethod === 'OPTIONS') {
-    return createHandlerResponse(204, {});
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
   }
 
   // Only allow POST
   if (event.httpMethod !== 'POST') {
-    return createHandlerResponse(405, { error: 'Method Not Allowed' });
+    return {
+      statusCode: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
   }
 
   try {
     const { bookingId, roomId, action } = JSON.parse(event.body);
 
     if (!bookingId) {
-      return createHandlerResponse(400, {
-        error: 'Missing required field: bookingId'
-      });
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Missing required field: bookingId'
+        })
+      };
     }
 
     console.log(`📝 Action: ${action || 'assign'} for booking ${bookingId}, room: ${roomId || 'none'}`);
+
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Server configuration error'
+        })
+      };
+    }
 
     // ✅ REMOVE - Use atomic RPC
     if (action === 'remove') {
@@ -68,45 +104,81 @@ exports.handler = async (event) => {
       if (!rpcResult || !rpcResult.success) {
         const errorMsg = rpcResult?.error || 'Failed to remove room';
         console.warn(`⚠️ Room removal failed: ${errorMsg}`);
-        return createHandlerResponse(409, {
-          success: false,
-          error: errorMsg,
-          details: rpcResult
-        });
+        return {
+          statusCode: 409,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
+          body: JSON.stringify({
+            success: false,
+            error: errorMsg,
+            details: rpcResult
+          })
+        };
       }
 
       console.log(`✅ Room ${rpcResult.room_number} removed from booking ${bookingId}`);
 
-      return createHandlerResponse(200, {
-        success: true,
-        data: {
-          bookingId: rpcResult.booking_id,
-          roomId: rpcResult.room_id,
-          roomNumber: rpcResult.room_number,
-          guestName: rpcResult.guest_name
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
         },
-        message: `Room ${rpcResult.room_number} removed from ${rpcResult.guest_name} successfully`
-      });
+        body: JSON.stringify({
+          success: true,
+          data: {
+            bookingId: rpcResult.booking_id,
+            roomId: rpcResult.room_id,
+            roomNumber: rpcResult.room_number,
+            guestName: rpcResult.guest_name
+          },
+          message: `Room ${rpcResult.room_number} removed from ${rpcResult.guest_name} successfully`
+        })
+      };
     }
 
     // ✅ ASSIGN or CHANGE - Need roomId
     if (!roomId) {
-      return createHandlerResponse(400, {
-        error: 'Missing required field: roomId for assign or change action'
-      });
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Missing required field: roomId for assign or change action'
+        })
+      };
     }
 
-    // ✅ Get booking details to determine action
+    // ✅ Get booking details
     const bookingUrl = `${SUPABASE_URL}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,guest_name,status,room_id,business_id`;
     const bookingResponse = await fetch(bookingUrl, { headers });
     
     if (!bookingResponse.ok) {
-      return createHandlerResponse(404, { error: 'Booking not found' });
+      return {
+        statusCode: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ success: false, error: 'Booking not found' })
+      };
     }
 
     const bookings = await bookingResponse.json();
     if (!bookings || bookings.length === 0) {
-      return createHandlerResponse(404, { error: 'Booking not found' });
+      return {
+        statusCode: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ success: false, error: 'Booking not found' })
+      };
     }
 
     const booking = bookings[0];
@@ -120,9 +192,17 @@ exports.handler = async (event) => {
 
     if (action === 'change' || (booking.room_id && booking.room_id !== roomId)) {
       if (!booking.room_id) {
-        return createHandlerResponse(400, { 
-          error: 'Booking has no room to change from. Use assign action instead.'
-        });
+        return {
+          statusCode: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
+          body: JSON.stringify({
+            success: false,
+            error: 'Booking has no room to change from. Use assign action instead.'
+          })
+        };
       }
       rpcName = 'change_room_safely';
       rpcParams = {
@@ -131,9 +211,17 @@ exports.handler = async (event) => {
         p_new_room_id: roomId
       };
     } else if (booking.room_id && booking.room_id === roomId) {
-      return createHandlerResponse(400, {
-        error: 'Room is already assigned to this booking'
-      });
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Room is already assigned to this booking'
+        })
+      };
     }
 
     // ✅ Execute RPC
@@ -153,11 +241,18 @@ exports.handler = async (event) => {
         statusCode = 400;
       }
 
-      return createHandlerResponse(statusCode, {
-        success: false,
-        error: errorMsg,
-        details: rpcResult
-      });
+      return {
+        statusCode: statusCode,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: errorMsg,
+          details: rpcResult
+        })
+      };
     }
 
     const successMessage = action === 'change' 
@@ -166,17 +261,31 @@ exports.handler = async (event) => {
 
     console.log(`✅ ${successMessage}`);
 
-    return createHandlerResponse(200, {
-      success: true,
-      data: rpcResult,
-      message: `${successMessage} successfully`
-    });
+    return {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        success: true,
+        data: rpcResult,
+        message: `${successMessage} successfully`
+      })
+    };
 
   } catch (error) {
     console.error('❌ Error in assign-room:', error);
-    return createHandlerResponse(500, {
-      success: false,
-      error: error.message || 'Internal server error'
-    });
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        success: false,
+        error: error.message || 'Internal server error'
+      })
+    };
   }
 };
