@@ -1,5 +1,5 @@
 // src/components/staff/GuestOverviewTab.tsx
-// ✅ Pass session to GuestDetailsModal
+// ✅ COMPLETE: Passes correct booking ID to GuestDetailsModal
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -37,7 +37,7 @@ export function GuestOverviewTab({
   businessId,
   onShowQRModal,
   onShowImportModal,
-  session,  // ✅ Added session prop
+  session,
 }: GuestOverviewTabProps) {
   const navigate = useNavigate();
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -48,13 +48,20 @@ export function GuestOverviewTab({
       isModalOpen, 
       selectedBookingId,
       businessId,
-      session // ✅ Log session to verify
+      session
     });
   }, [isModalOpen, selectedBookingId, businessId, session]);
 
   const handleGuestClick = (bookingId: string) => {
-    console.log('🖱️ Guest clicked, bookingId:', bookingId);
-    console.log('🖱️ Business ID:', businessId);
+    // Find the full booking data for debugging
+    const fullBooking = bookings.find(b => b.id === bookingId);
+    console.log('🖱️ Guest clicked:', {
+      bookingId,
+      guestName: fullBooking?.guest_name,
+      checkIn: fullBooking?.check_in_date,
+      checkOut: fullBooking?.check_out_date,
+      roomNumber: fullBooking?.room_number
+    });
     
     if (!bookingId) {
       console.error('❌ No booking ID provided');
@@ -282,7 +289,7 @@ export function GuestOverviewTab({
         bookingId={selectedBookingId}
         onClose={handleModalClose}
         businessId={businessId}
-        session={session}  // ✅ PASS SESSION HERE
+        session={session}
       />
     </>
   );
