@@ -1,8 +1,5 @@
 // netlify/functions/get-available-rooms.js
-// ✅ FINAL PRODUCTION VERSION
-// ✅ ESM + Pure Fetch - Same structure as working test-rooms.js
-// ✅ Fail-safe: If bookings query fails, return error (don't show occupied rooms as available)
-// ✅ Uses 'available' status (matches database constraint)
+// ✅ FIXED: Check for 'active' status (matches your database constraint)
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -102,8 +99,12 @@ export const handler = async (event) => {
     const allRooms = await roomsResponse.json();
     console.log(`📡 Found ${allRooms.length} total rooms`);
 
+    // ✅ Log room statuses for debugging
+    allRooms.forEach(room => {
+      console.log(`📋 Room ${room.room_number}: status = "${room.status}"`);
+    });
+
     // ✅ Step 2: Get active bookings (Checked-In or Stayover) with room_id
-    // FAIL-SAFE: If this query fails, return an error instead of showing all rooms as available
     const activeStatuses = encodeURIComponent('("Checked-In","Stayover")');
     const bookingsUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(businessId)}&status=in.${activeStatuses}&room_id=not.is.null&select=room_id`;
     console.log(`📡 Bookings URL: ${bookingsUrl}`);
@@ -113,7 +114,8 @@ export const handler = async (event) => {
       headers
     });
 
-    // ✅ FAIL-SAFE: If bookings API fails, return 502 instead of showing all rooms as available
+    let occupiedRoomIds = new Set();
+
     if (!bookingsResponse.ok) {
       const errorText = await bookingsResponse.text();
       console.error(`❌ Bookings API error: ${bookingsResponse.status} - ${errorText}`);
@@ -132,9 +134,7 @@ export const handler = async (event) => {
     }
 
     const activeBookings = await bookingsResponse.json();
-
-    // ✅ Build Set of occupied room IDs
-    const occupiedRoomIds = new Set(
+    occupiedRoomIds = new Set(
       (activeBookings || [])
         .map(b => b.room_id)
         .filter(id => id !== null)
@@ -143,11 +143,11 @@ export const handler = async (event) => {
     console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
 
     // ✅ Step 3: Filter available rooms
-    // Available = NOT occupied AND physical status = 'available'
+    // ✅ FIXED: Check for 'active' status (matches your database constraint)
     const availableRooms = allRooms.filter(room => {
       const isOccupied = occupiedRoomIds.has(room.id);
-      const isPhysicallyAvailable = room.status === 'available';
-      return !isOccupied && isPhysicallyAvailable;
+      const isActive = room.status === 'active'; // ✅ Changed from 'available' to 'active'
+      return !isOccupied && isActive;
     });
 
     console.log(`✅ Found ${availableRooms.length} available rooms`);
