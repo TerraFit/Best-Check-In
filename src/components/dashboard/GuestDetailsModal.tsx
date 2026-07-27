@@ -1,5 +1,6 @@
 // src/components/dashboard/GuestDetailsModal.tsx
 // ✅ COMPLETE: With Room Allocation dropdown - Fixed role check
+// ✅ FIXED: Per-booking room allocation state
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -23,6 +24,7 @@ interface GuestDetailsModalProps {
       business_id: string;
     };
   };
+  onRoomAssigned?: () => void; // ✅ NEW: Callback when room is assigned
 }
 
 interface Room {
@@ -31,6 +33,8 @@ interface Room {
   room_name: string;
   room_type: string;
   status: 'active' | 'maintenance' | 'blocked';
+  is_available?: boolean; // ✅ NEW: Indicates if room is available
+  current_guest?: string; // ✅ NEW: Shows who's currently in the room
 }
 
 const DEFAULT_RESTRICTIONS: FoodRestrictions = {
@@ -84,7 +88,8 @@ export default function GuestDetailsModal({
   bookingId,
   onClose,
   businessId: businessIdProp,
-  session
+  session,
+  onRoomAssigned // ✅ NEW
 }: GuestDetailsModalProps) {
   const { 
     guestDetails, 
@@ -110,7 +115,7 @@ export default function GuestDetailsModal({
   });
   const [savingStay, setSavingStay] = useState(false);
 
-  // Room Allocation state
+  // ✅ PER-BOOKING ROOM ALLOCATION STATE
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -118,8 +123,9 @@ export default function GuestDetailsModal({
   const [savingRoom, setSavingRoom] = useState(false);
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
-  // Debug logging for booking ID
+  // Debug logging
   console.log('🔍 GuestDetailsModal - bookingId received:', bookingId);
   console.log('🔍 GuestDetailsModal - guestDetails:', guestDetails);
 
@@ -132,20 +138,27 @@ export default function GuestDetailsModal({
                          userRole.toLowerCase() === 'employeeoverview' ||
                          userRole.toLowerCase() === 'business';
 
-  // Load guest details when modal opens
+  // ✅ Reset state when bookingId changes (new guest)
   useEffect(() => {
     if (isOpen && bookingId) {
+      // Reset per-guest state
+      setSelectedRoomId('');
+      setError(null);
+      setSaveSuccess(false);
+      setIsEditingRoom(false);
+      setCurrentRoomNumber(null);
+      setCurrentRoomName(null);
+      setCurrentRoomId(null);
+      
       console.log('🔍 Fetching guest details for bookingId:', bookingId);
       fetchGuestDetails(bookingId);
+      
+      // Load available rooms
+      if (businessIdProp) {
+        fetchAvailableRooms();
+      }
     }
-  }, [isOpen, bookingId, fetchGuestDetails]);
-
-  // Fetch rooms when modal opens
-  useEffect(() => {
-    if (isOpen && businessIdProp) {
-      fetchRooms();
-    }
-  }, [isOpen, businessIdProp]);
+  }, [isOpen, bookingId, businessIdProp]);
 
   // Initialize restrictions when guest details load
   useEffect(() => {
@@ -159,14 +172,21 @@ export default function GuestDetailsModal({
         check_out_date: guestDetails.check_out_date || '',
         nights: guestDetails.nights || 1
       });
-      // Set current room info
+      
+      // ✅ Set current room info for this specific guest
       if (guestDetails.room_number) {
         setCurrentRoomNumber(guestDetails.room_number);
         setCurrentRoomName(guestDetails.room_name || null);
+        setCurrentRoomId(guestDetails.room_id || null);
         const match = rooms.find(r => r.room_number === guestDetails.room_number);
         if (match) {
           setSelectedRoomId(match.id);
         }
+      } else {
+        setCurrentRoomNumber(null);
+        setCurrentRoomName(null);
+        setCurrentRoomId(null);
+        setSelectedRoomId('');
       }
     }
   }, [guestDetails, rooms]);
@@ -182,8 +202,8 @@ export default function GuestDetailsModal({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen]);
 
-  // Fetch rooms from API or use hardcoded fallback
-  const fetchRooms = async () => {
+  // ✅ Fetch available rooms from API
+  const fetchAvailableRooms = async () => {
     if (!businessIdProp) return;
     
     setLoadingRooms(true);
@@ -202,43 +222,47 @@ export default function GuestDetailsModal({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
+      // ✅ Use get-available-rooms endpoint
       const response = await fetch(
-        `/.netlify/functions/get-rooms?businessId=${businessIdProp}`,
+        `/.netlify/functions/get-available-rooms?businessId=${businessIdProp}`,
         { headers }
       );
 
       if (response.ok) {
         const data = await response.json();
-        setRooms(data || []);
+        console.log('✅ Available rooms loaded:', data);
+        setRooms(data.rooms || []);
         
+        // ✅ If this guest already has a room, select it
         if (guestDetails?.room_number) {
-          const match = data.find((r: Room) => r.room_number === guestDetails.room_number);
+          const match = data.rooms?.find((r: Room) => r.room_number === guestDetails.room_number);
           if (match) {
             setSelectedRoomId(match.id);
           }
         }
       } else {
-        // Fallback: Hardcode rooms for Zebra Lodge
+        console.error('Failed to fetch rooms, using fallback');
+        // Fallback: Hardcode rooms with availability based on current bookings
         const hardcodedRooms = [
-          { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active' },
-          { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active' },
-          { id: '3', room_number: '3', room_name: 'Leopard', room_type: 'Deluxe', status: 'active' },
-          { id: '4', room_number: '4', room_name: 'Country', room_type: 'Deluxe', status: 'active' },
-          { id: '5', room_number: '5', room_name: 'Colonial', room_type: 'Suite', status: 'active' },
-          { id: '6', room_number: '6', room_name: 'Oceana', room_type: 'Suite', status: 'active' }
+          { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active', is_available: true },
+          { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active', is_available: true },
+          { id: '3', room_number: '3', room_name: 'Leopard', room_type: 'Deluxe', status: 'active', is_available: true },
+          { id: '4', room_number: '4', room_name: 'Country', room_type: 'Deluxe', status: 'active', is_available: true },
+          { id: '5', room_number: '5', room_name: 'Colonial', room_type: 'Suite', status: 'active', is_available: true },
+          { id: '6', room_number: '6', room_name: 'Oceana', room_type: 'Suite', status: 'active', is_available: true }
         ];
         setRooms(hardcodedRooms);
       }
     } catch (error) {
       console.error('Error fetching rooms:', error);
-      // Fallback: Hardcode rooms
+      // Fallback
       const hardcodedRooms = [
-        { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active' },
-        { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active' },
-        { id: '3', room_number: '3', room_name: 'Leopard', room_type: 'Deluxe', status: 'active' },
-        { id: '4', room_number: '4', room_name: 'Country', room_type: 'Deluxe', status: 'active' },
-        { id: '5', room_number: '5', room_name: 'Colonial', room_type: 'Suite', status: 'active' },
-        { id: '6', room_number: '6', room_name: 'Oceana', room_type: 'Suite', status: 'active' }
+        { id: '1', room_number: '1', room_name: 'Stone', room_type: 'Standard', status: 'active', is_available: true },
+        { id: '2', room_number: '2', room_name: 'Earth', room_type: 'Standard', status: 'active', is_available: true },
+        { id: '3', room_number: '3', room_name: 'Leopard', room_type: 'Deluxe', status: 'active', is_available: true },
+        { id: '4', room_number: '4', room_name: 'Country', room_type: 'Deluxe', status: 'active', is_available: true },
+        { id: '5', room_number: '5', room_name: 'Colonial', room_type: 'Suite', status: 'active', is_available: true },
+        { id: '6', room_number: '6', room_name: 'Oceana', room_type: 'Suite', status: 'active', is_available: true }
       ];
       setRooms(hardcodedRooms);
     } finally {
@@ -246,7 +270,7 @@ export default function GuestDetailsModal({
     }
   };
 
-  // Handle room assignment
+  // ✅ Handle room assignment - scoped to this specific booking
   const handleAssignRoom = async () => {
     console.log('🔍 handleAssignRoom - bookingId:', bookingId);
     console.log('🔍 handleAssignRoom - selectedRoomId:', selectedRoomId);
@@ -289,40 +313,112 @@ export default function GuestDetailsModal({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/.netlify/functions/assign-room-to-booking', {
+      // ✅ Use assign-room function
+      const response = await fetch('/.netlify/functions/assign-room', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           bookingId: bookingId,
           roomId: selectedRoom.id,
-          roomNumber: selectedRoom.room_number,
-          roomName: selectedRoom.room_name
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         console.log('✅ Room assignment result:', result);
         setIsEditingRoom(false);
         setSaveSuccess(true);
         
+        // ✅ Update current room info for this guest
         setCurrentRoomNumber(selectedRoom.room_number);
         setCurrentRoomName(selectedRoom.room_name);
+        setCurrentRoomId(selectedRoom.id);
         
+        // ✅ Update guest details
         if (guestDetails) {
           guestDetails.room_number = selectedRoom.room_number;
           guestDetails.room_name = selectedRoom.room_name;
+          guestDetails.room_id = selectedRoom.id;
         }
+        
+        // ✅ Refresh available rooms
+        await fetchAvailableRooms();
+        
+        // ✅ Notify parent
+        onRoomAssigned?.();
         
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
-        const errorData = await response.json();
-        console.error('❌ Room assignment failed:', errorData);
-        setError(errorData.error || 'Failed to assign room');
+        console.error('❌ Room assignment failed:', result);
+        setError(result.error || 'Failed to assign room');
       }
     } catch (err) {
       console.error('Error assigning room:', err);
       setError('Failed to assign room');
+    } finally {
+      setSavingRoom(false);
+    }
+  };
+
+  // ✅ Handle removing room assignment
+  const handleRemoveRoom = async () => {
+    if (!bookingId) {
+      setError('No booking ID found');
+      return;
+    }
+
+    setSavingRoom(true);
+    setError(null);
+
+    try {
+      let token = null;
+      try {
+        const authStr = localStorage.getItem('fastcheckin_auth');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          token = auth.token;
+        }
+      } catch (e) {}
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch('/.netlify/functions/remove-room-from-booking', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          bookingId: bookingId,
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Room removed from booking');
+        setCurrentRoomNumber(null);
+        setCurrentRoomName(null);
+        setCurrentRoomId(null);
+        setSelectedRoomId('');
+        
+        if (guestDetails) {
+          guestDetails.room_number = undefined;
+          guestDetails.room_name = undefined;
+          guestDetails.room_id = undefined;
+        }
+        
+        await fetchAvailableRooms();
+        onRoomAssigned?.();
+        
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to remove room');
+      }
+    } catch (err) {
+      console.error('Error removing room:', err);
+      setError('Failed to remove room');
     } finally {
       setSavingRoom(false);
     }
@@ -440,6 +536,18 @@ export default function GuestDetailsModal({
       }
     });
     return active;
+  };
+
+  // ✅ Get available rooms (exclude occupied)
+  const getAvailableRooms = (): Room[] => {
+    return rooms.filter(r => {
+      // ✅ If room has is_available flag, use it
+      if (r.is_available !== undefined) {
+        return r.is_available === true;
+      }
+      // ✅ Otherwise check if it's not the current guest's room
+      return r.status === 'active' && r.room_number !== currentRoomNumber;
+    });
   };
 
   if (!isOpen) return null;
@@ -695,89 +803,118 @@ export default function GuestDetailsModal({
                     </div>
                   </div>
 
-                  {/* ✅ ROOM ALLOCATION - Full width row */}
-                  <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
-                    <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-blue-600 font-medium">Room Allocation</p>
-                        {canAssignRooms && !isEditingRoom && (
-                          <button
-                            onClick={() => setIsEditingRoom(true)}
-                            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
-                          >
-                            <Edit2 size={12} /> Assign Room
-                          </button>
-                        )}
-                      </div>
-                      
-                      {isEditingRoom ? (
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <select
-                            value={selectedRoomId}
-                            onChange={(e) => setSelectedRoomId(e.target.value)}
-                            className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                            disabled={loadingRooms || savingRoom}
-                          >
-                            <option value="">Select a room...</option>
-                            {rooms
-                              .filter(r => r.status === 'active')
-                              .map((room) => (
-                                <option key={room.id} value={room.id}>
-                                  #{room.room_number} - {room.room_name} ({room.room_type})
-                                </option>
-                              ))}
-                          </select>
-                          <button
-                            onClick={handleAssignRoom}
-                            disabled={!selectedRoomId || savingRoom}
-                            className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-                          >
-                            {savingRoom ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Check size={14} /> Assign
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsEditingRoom(false);
-                              if (currentRoomNumber) {
-                                const match = rooms.find(r => r.room_number === currentRoomNumber);
-                                if (match) {
-                                  setSelectedRoomId(match.id);
-                                }
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 mt-1">
-                          {currentRoomNumber ? (
-                            <>
-                              <span className="text-sm font-semibold text-blue-700">
-                                #{currentRoomNumber}
-                              </span>
-                              {currentRoomName && (
-                                <span className="text-sm text-blue-600">
-                                  {currentRoomName}
-                                </span>
+                  {/* ✅ ROOM ALLOCATION - Per-Guest */}
+                  <div className="mt-3">
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                      <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-blue-600 font-medium">Room Allocation</p>
+                          {canAssignRooms && (
+                            <div className="flex items-center gap-2">
+                              {!isEditingRoom && currentRoomNumber && (
+                                <button
+                                  onClick={handleRemoveRoom}
+                                  disabled={savingRoom}
+                                  className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1"
+                                >
+                                  <X size={12} /> Remove
+                                </button>
                               )}
-                            </>
-                          ) : (
-                            <span className="text-sm text-gray-400 italic">No room assigned</span>
+                              {!isEditingRoom && (
+                                <button
+                                  onClick={() => setIsEditingRoom(true)}
+                                  className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                  <Edit2 size={12} /> {currentRoomNumber ? 'Change' : 'Assign'} Room
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                        
+                        {isEditingRoom ? (
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <select
+                              value={selectedRoomId}
+                              onChange={(e) => setSelectedRoomId(e.target.value)}
+                              className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                              disabled={loadingRooms || savingRoom}
+                            >
+                              <option value="">Select a room...</option>
+                              {loadingRooms ? (
+                                <option disabled>Loading rooms...</option>
+                              ) : getAvailableRooms().length === 0 ? (
+                                <option disabled>No rooms available</option>
+                              ) : (
+                                getAvailableRooms().map((room) => (
+                                  <option key={room.id} value={room.id}>
+                                    #{room.room_number} - {room.room_name} ({room.room_type})
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            <button
+                              onClick={handleAssignRoom}
+                              disabled={!selectedRoomId || savingRoom}
+                              className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {savingRoom ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Check size={14} /> Assign
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingRoom(false);
+                                if (currentRoomNumber) {
+                                  const match = rooms.find(r => r.room_number === currentRoomNumber);
+                                  if (match) {
+                                    setSelectedRoomId(match.id);
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-1">
+                            {currentRoomNumber ? (
+                              <>
+                                <span className="text-sm font-semibold text-blue-700">
+                                  #{currentRoomNumber}
+                                </span>
+                                {currentRoomName && (
+                                  <span className="text-sm text-blue-600">
+                                    {currentRoomName}
+                                  </span>
+                                )}
+                                <span className="text-xs text-blue-400 ml-1">
+                                  (assigned to this guest)
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">No room assigned</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    
+                    {/* Room availability info */}
+                    {!isEditingRoom && !loadingRooms && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        {rooms.filter(r => r.is_available !== false).length} room{rooms.filter(r => r.is_available !== false).length !== 1 ? 's' : ''} available
+                      </p>
+                    )}
                   </div>
                 </section>
 
