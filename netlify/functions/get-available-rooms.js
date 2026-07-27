@@ -1,10 +1,9 @@
 // netlify/functions/get-available-rooms.js
-// ✅ Returns rooms available for check-in (excludes occupied)
+// ✅ CORRECTED: Using your actual table schema
 
 const { pool } = require('../lib/db');
 
 exports.handler = async (event) => {
-  // ✅ Only allow GET requests
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -22,15 +21,14 @@ exports.handler = async (event) => {
   }
 
   try {
-    // ✅ Get all rooms for this business
-    // ✅ Only include rooms that are NOT occupied
+    // ✅ Using your actual column names
     const query = `
       SELECT 
         r.id,
-        r.number,
-        r.name,
-        r.type,
-        r.capacity,
+        r.room_number,
+        r.room_name,
+        r.room_type,
+        r.floor,
         r.status,
         CASE 
           WHEN ra.id IS NOT NULL AND ra.status = 'active' 
@@ -45,14 +43,13 @@ exports.handler = async (event) => {
       LEFT JOIN bookings b ON ra.booking_id = b.id 
         AND (b.status = 'checked_in' OR b.status = 'Checked-In' OR b.status = 'stayover')
       WHERE r.business_id = $1
-        AND r.status != 'maintenance'
-        AND r.status != 'cleaning'
-      ORDER BY r.number ASC
+        AND (r.status IS NULL OR r.status != 'maintenance')
+        AND (r.status IS NULL OR r.status != 'cleaning')
+      ORDER BY r.room_number ASC
     `;
 
     const result = await pool.query(query, [businessId]);
 
-    // ✅ Filter to only available rooms
     const availableRooms = result.rows.filter(room => room.is_available === true);
 
     return {
