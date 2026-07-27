@@ -1,10 +1,9 @@
 // netlify/functions/assign-room.js
-// ✅ FIXED: Per-booking room assignment with validation
+// ✅ CORRECTED: Using your actual table schema
 
 const { pool } = require('../lib/db');
 
 exports.handler = async (event) => {
-  // ✅ Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -15,7 +14,6 @@ exports.handler = async (event) => {
   try {
     const { bookingId, roomId } = JSON.parse(event.body);
 
-    // ✅ Validate required fields
     if (!bookingId || !roomId) {
       return {
         statusCode: 400,
@@ -25,9 +23,9 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Check if the booking exists
+    // Check if booking exists
     const bookingCheck = await pool.query(
-      `SELECT id, guest_name, status, check_in_date, check_out_date 
+      `SELECT id, guest_name, status, check_in_date, check_out_date, room_id 
        FROM bookings 
        WHERE id = $1`,
       [bookingId]
@@ -42,7 +40,7 @@ exports.handler = async (event) => {
 
     const booking = bookingCheck.rows[0];
 
-    // ✅ Check if booking already has a room
+    // Check if booking already has a room
     if (booking.room_id) {
       return {
         statusCode: 409,
@@ -53,9 +51,9 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Check if the room exists
+    // ✅ Using your actual column names
     const roomCheck = await pool.query(
-      `SELECT id, number, name, status 
+      `SELECT id, room_number, room_name, room_type, floor, status 
        FROM rooms 
        WHERE id = $1 AND business_id = (SELECT business_id FROM bookings WHERE id = $2)`,
       [roomId, bookingId]
@@ -70,7 +68,7 @@ exports.handler = async (event) => {
 
     const room = roomCheck.rows[0];
 
-    // ✅ CRITICAL: Check if room is already occupied by another booking
+    // Check if room is already occupied
     const existingAllocation = await pool.query(
       `SELECT 
         ra.booking_id,
@@ -94,20 +92,20 @@ exports.handler = async (event) => {
       return {
         statusCode: 409,
         body: JSON.stringify({ 
-          error: `Room ${room.number} is already occupied by ${existing.guest_name} until ${existing.check_out_date}`,
+          error: `Room ${room.room_number} is already occupied by ${existing.guest_name} until ${existing.check_out_date}`,
           currentGuest: existing.guest_name,
           checkOutDate: existing.check_out_date,
         }),
       };
     }
 
-    // ✅ Begin transaction
+    // Begin transaction
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // ✅ Update booking with room_id
+      // Update booking with room_id
       const updateResult = await client.query(
         `UPDATE bookings 
          SET room_id = $1, updated_at = NOW() 
@@ -116,7 +114,7 @@ exports.handler = async (event) => {
         [roomId, bookingId]
       );
 
-      // ✅ Create room allocation record
+      // Create room allocation record
       await client.query(
         `INSERT INTO room_allocations (
           booking_id, 
@@ -134,18 +132,17 @@ exports.handler = async (event) => {
         ]
       );
 
-      // ✅ Update room status to occupied
+      // Update room status to occupied
       await client.query(
         `UPDATE rooms 
          SET status = 'occupied', 
-             last_allocated_at = NOW() 
+             updated_at = NOW() 
          WHERE id = $1`,
         [roomId]
       );
 
       await client.query('COMMIT');
 
-      // ✅ Return success with full details
       return {
         statusCode: 200,
         body: JSON.stringify({
@@ -153,11 +150,14 @@ exports.handler = async (event) => {
           data: {
             bookingId: updateResult.rows[0].id,
             roomId: roomId,
-            roomNumber: room.number,
+            roomNumber: room.room_number,
+            roomName: room.room_name,
+            roomType: room.room_type,
+            floor: room.floor,
             guestName: updateResult.rows[0].guest_name,
             status: updateResult.rows[0].status,
           },
-          message: `Room ${room.number} assigned to ${booking.guest_name} successfully`,
+          message: `Room ${room.room_number} assigned to ${booking.guest_name} successfully`,
         }),
       };
 
