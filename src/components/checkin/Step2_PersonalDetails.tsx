@@ -1,12 +1,14 @@
 // src/components/checkin/Step2PersonalDetails.tsx
 // ✅ FIXED: No cleanLocation in handleFieldChange - spaces work!
 // ✅ DIAGNOSTIC: Full logging for country/province debugging
+// ✅ NEW: Room allocation integration
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { RoomAllocation } from './RoomAllocation';
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -21,6 +23,7 @@ interface Step2PersonalDetailsProps {
   ErrorMessage: React.ComponentType<{ field: string; message: string }>;
   primaryColor?: string;
   secondaryColor?: string;
+  businessId?: string; // ← NEW: For room allocation
 }
 
 export function Step2PersonalDetails({
@@ -36,6 +39,7 @@ export function Step2PersonalDetails({
   ErrorMessage,
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
+  businessId, // ← NEW
 }: Step2PersonalDetailsProps) {
   // ✅ DIAGNOSTIC: Log COUNTRIES on mount
   React.useEffect(() => {
@@ -56,8 +60,9 @@ export function Step2PersonalDetails({
       country: formData.country || '(empty)',
       province: formData.province || '(empty)',
       email: formData.email || '(empty)',
+      roomAllocation: formData.roomAllocation || '(none)',
     });
-  }, [formData.country, formData.province, formData.email]);
+  }, [formData.country, formData.province, formData.email, formData.roomAllocation]);
 
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Province / State';
@@ -142,6 +147,10 @@ export function Step2PersonalDetails({
     }
     if (field === 'nights') {
       return value && value >= 1;
+    }
+    // ✅ NEW: Room allocation validation
+    if (field === 'roomAllocation') {
+      return value && value !== '';
     }
     return true;
   };
@@ -432,6 +441,33 @@ export function Step2PersonalDetails({
               />
             </div>
           </div>
+
+          {/* ✅ NEW: Room Allocation */}
+          {businessId && formData.arrivalDate && formData.departureDate && (
+            <div>
+              <RoomAllocation
+                businessId={businessId}
+                checkInDate={formData.arrivalDate}
+                checkOutDate={formData.departureDate}
+                value={formData.roomAllocation || ''}
+                onChange={(roomId) => {
+                  console.log(`🏨 Room selected: ${roomId}`);
+                  handleFieldChange('roomAllocation', roomId);
+                }}
+                onError={(err) => {
+                  console.error('Room allocation error:', err);
+                  onError([err]);
+                }}
+                required={true}
+                touched={touched.roomAllocation || false}
+                error={submitAttempted && !touched.roomAllocation && !getValidation('roomAllocation', formData.roomAllocation) 
+                  ? 'Please select a room' 
+                  : ''}
+                label="Room Allocation"
+                primaryColor={primaryColor}
+              />
+            </div>
+          )}
 
           {/* Referral Source */}
           <div>
