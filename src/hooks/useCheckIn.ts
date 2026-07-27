@@ -1,6 +1,7 @@
 // src/hooks/useCheckIn.ts
 // ✅ FIXED: Prevent form submission from reloading page with diagnostic logs
 // ✅ FIXED: handleFormChange with functional update to avoid stale closure
+// ✅ NEW: Room allocation support
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
@@ -88,6 +89,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         acceptLegal: false,
         popiaConsent: false,
         saveDetails: false,
+        roomAllocation: '', // ← NEW
       };
     }
     const saved = sessionStorage.getItem('checkin_formData');
@@ -98,6 +100,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
           ...parsed,
           country: parsed.country || '',
           province: parsed.province || '',
+          roomAllocation: parsed.roomAllocation || '', // ← NEW
         };
       } catch {
         // ignore
@@ -126,6 +129,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       acceptLegal: false,
       popiaConsent: false,
       saveDetails: false,
+      roomAllocation: '', // ← NEW
     };
   });
 
@@ -154,6 +158,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     idPhoto: false,
     signature: false,
     acceptLegal: false,
+    roomAllocation: false, // ← NEW
   });
 
   // Refs for camera, signature, indemnity
@@ -289,6 +294,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
             city: userModifiedFieldsRef.current.has('city') 
               ? prev.city 
               : cityValue || prev.city,
+            // ✅ Room allocation is NOT loaded from profile
+            // It must be selected manually
           };
           
           console.log('✅ Profile applied (fields not modified by user):', {
@@ -470,7 +477,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         const allFields: (keyof TouchedFields)[] = [
           'firstName', 'lastName', 'passportOrId', 'phone', 'country',
           'province', 'city', 'arrivalDate', 'nights', 'referral',
-          'arrivingFrom', 'nextDestination', 'settlement'
+          'arrivingFrom', 'nextDestination', 'settlement', 'roomAllocation' // ← NEW
         ];
         allFields.forEach(field => markTouched(field));
         alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
@@ -536,6 +543,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     if (!formData.referral) errors.push(t('checkin_referral'));
     if (!formData.nextDestination.trim()) errors.push(t('checkin_next_destination'));
     if (!formData.settlement) errors.push(t('checkin_settlement'));
+    // ✅ NEW: Room allocation validation
+    if (!formData.roomAllocation) errors.push('Room allocation');
     return errors;
   };
 
@@ -587,7 +596,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         marketing_consent: formData.popiaConsent,
         food_restrictions: foodRestrictions,
         created_at: new Date().toISOString(),
-        source: 'live_checkin'
+        source: 'live_checkin',
+        room_id: formData.roomAllocation, // ← NEW: Room allocation
       };
 
       console.log('🔍 submitBooking: Saving booking...');
@@ -656,7 +666,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         timestamp: new Date().toISOString(),
         tenantId: businessId || 'default',
         source: 'live_checkin',
-        food_restrictions: foodRestrictions
+        food_restrictions: foodRestrictions,
+        roomId: formData.roomAllocation, // ← NEW: Room allocation
       };
 
       console.log('✅ BEFORE setStep(5)');
@@ -869,6 +880,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       acceptLegal: false,
       popiaConsent: false,
       saveDetails: false,
+      roomAllocation: '', // ← NEW
     });
     setHasScrolledToBottom(false);
     setSubmitAttempted(false);
@@ -938,7 +950,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     resetForm,
     updateFullName,
     getErrorClass,
-    // ✅ NEW: Expose handleFormChange for components
+    // ✅ Expose handleFormChange for components
     handleFormChange,
   };
 }
