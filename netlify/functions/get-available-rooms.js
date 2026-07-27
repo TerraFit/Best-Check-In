@@ -1,6 +1,8 @@
 // netlify/functions/get-available-rooms.js
-// ✅ FIXED: Uses 'active' status (matching your database constraint)
-// ✅ CORRECT: ES Module syntax with import/export
+// ✅ FINAL PRODUCTION VERSION
+// ✅ ESM + Pure Fetch - Same structure as working test-rooms.js
+// ✅ Fail-safe: If bookings query fails, return error (don't show occupied rooms as available)
+// ✅ Uses 'available' status (matches database constraint)
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -101,6 +103,7 @@ export const handler = async (event) => {
     console.log(`📡 Found ${allRooms.length} total rooms`);
 
     // ✅ Step 2: Get active bookings (Checked-In or Stayover) with room_id
+    // FAIL-SAFE: If this query fails, return an error instead of showing all rooms as available
     const activeStatuses = encodeURIComponent('("Checked-In","Stayover")');
     const bookingsUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(businessId)}&status=in.${activeStatuses}&room_id=not.is.null&select=room_id`;
     console.log(`📡 Bookings URL: ${bookingsUrl}`);
@@ -110,24 +113,41 @@ export const handler = async (event) => {
       headers
     });
 
-    let occupiedRoomIds = new Set();
-
-    if (bookingsResponse.ok) {
-      const activeBookings = await bookingsResponse.json();
-      occupiedRoomIds = new Set(
-        (activeBookings || []).map(b => b.room_id).filter(id => id !== null)
-      );
-      console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
-    } else {
-      console.warn(`⚠️ Could not fetch active bookings: ${bookingsResponse.status}`);
+    // ✅ FAIL-SAFE: If bookings API fails, return 502 instead of showing all rooms as available
+    if (!bookingsResponse.ok) {
+      const errorText = await bookingsResponse.text();
+      console.error(`❌ Bookings API error: ${bookingsResponse.status} - ${errorText}`);
+      return {
+        statusCode: 502,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Unable to verify current room occupancy',
+          details: errorText
+        })
+      };
     }
 
+    const activeBookings = await bookingsResponse.json();
+
+    // ✅ Build Set of occupied room IDs
+    const occupiedRoomIds = new Set(
+      (activeBookings || [])
+        .map(b => b.room_id)
+        .filter(id => id !== null)
+    );
+
+    console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
+
     // ✅ Step 3: Filter available rooms
-    // Check for 'active' status (matching your database constraint)
+    // Available = NOT occupied AND physical status = 'available'
     const availableRooms = allRooms.filter(room => {
       const isOccupied = occupiedRoomIds.has(room.id);
-      const isActive = room.status === 'active';
-      return !isOccupied && isActive;
+      const isPhysicallyAvailable = room.status === 'available';
+      return !isOccupied && isPhysicallyAvailable;
     });
 
     console.log(`✅ Found ${availableRooms.length} available rooms`);
