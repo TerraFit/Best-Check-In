@@ -1,75 +1,126 @@
 // netlify/functions/get-available-rooms.js
-// ✅ CORRECTED: Using your actual table schema
+// ✅ ES Module version
 
-const { pool } = require('../lib/db');
+import { createClient } from '@supabase/supabase-js';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
+
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
-  const { businessId } = event.queryStringParameters;
-
-  if (!businessId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Business ID is required' }),
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    // ✅ Using your actual column names
-    const query = `
-      SELECT 
-        r.id,
-        r.room_number,
-        r.room_name,
-        r.room_type,
-        r.floor,
-        r.status,
-        CASE 
-          WHEN ra.id IS NOT NULL AND ra.status = 'active' 
-            AND (b.status = 'checked_in' OR b.status = 'Checked-In' OR b.status = 'stayover')
-          THEN false
-          ELSE true
-        END AS is_available,
-        b.guest_name AS current_guest,
-        b.check_out_date AS current_checkout
-      FROM rooms r
-      LEFT JOIN room_allocations ra ON r.id = ra.room_id AND ra.status = 'active'
-      LEFT JOIN bookings b ON ra.booking_id = b.id 
-        AND (b.status = 'checked_in' OR b.status = 'Checked-In' OR b.status = 'stayover')
-      WHERE r.business_id = $1
-        AND (r.status IS NULL OR r.status != 'maintenance')
-        AND (r.status IS NULL OR r.status != 'cleaning')
-      ORDER BY r.room_number ASC
-    `;
+    const { businessId } = event.queryStringParameters || {};
 
-    const result = await pool.query(query, [businessId]);
+    if (!businessId) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Business ID is required' })
+      };
+    }
 
-    const availableRooms = result.rows.filter(room => room.is_available === true);
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    console.log(`📡 Fetching available rooms for business: ${businessId}`);
+
+    // Get all rooms that are available (not occupied)
+    const { data, error } = await supabase
+      .from('rooms')
+      .select(`
+        id,
+        room_number,
+        room_name,
+        room_type,
+        floor,
+        status,
+        room_allocations!left(
+          id,
+          status,
+          bookings!inner(
+            guest_name,
+            check_out_date
+          )
+        )
+      `)
+      .eq('business_id', businessId)
+      .eq('status', 'available')
+      .or('room_allocations.status.is.null,room_allocations.status.neq.active')
+      .order('room_number', { ascending: true });
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Failed to fetch available rooms',
+          details: error.message
+        })
+      };
+    }
+
+    // Format the response
+    const rooms = (data || []).map(room => ({
+      id: room.id,
+      room_number: room.room_number,
+      room_name: room.room_name,
+      room_type: room.room_type,
+      floor: room.floor,
+      status: room.status,
+      is_available: true,
+      current_guest: null,
+      current_checkout: null
+    }));
+
+    console.log(`✅ Found ${rooms.length} available rooms`);
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({
         success: true,
-        rooms: availableRooms,
-        total_rooms: result.rows.length,
-        available_count: availableRooms.length,
-        occupied_count: result.rows.length - availableRooms.length,
-      }),
+        rooms: rooms,
+        count: rooms.length,
+        businessId: businessId
+      })
     };
 
   } catch (error) {
-    console.error('Error fetching available rooms:', error);
+    console.error('❌ Error in get-available-rooms:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: error.message || 'Failed to fetch available rooms',
-      }),
+      headers,
+      body: JSON.stringify({
+        success: false,
+        error: error.message || 'Failed to fetch available rooms'
+      })
     };
   }
 };
