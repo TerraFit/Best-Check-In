@@ -267,21 +267,21 @@ export default function GuestDetailsModal({
     }
   };
 
-  // ✅ Get available rooms - FIXED to check for 'active' status
-  const getAvailableRooms = (): Room[] => {
-    return rooms.filter(room => {
-      // ✅ Exclude the current room when changing rooms
-      if (room.id === currentRoomId) return false;
+  // ✅ FIXED: Check for 'active' status (matches database)
+const getAvailableRooms = (): Room[] => {
+  return rooms.filter(room => {
+    // Exclude the current room when changing rooms
+    if (room.id === currentRoomId) return false;
 
-      // ✅ Use is_available flag from API if present
-      if (room.is_available !== undefined) {
-        return room.is_available === true;
-      }
+    // Use is_available flag from API if present
+    if (room.is_available !== undefined) {
+      return room.is_available === true;
+    }
 
-      // ✅ FIXED: Check for 'active' (matches database constraint)
-      return room.status === 'active';
-    });
-  };
+    // ✅ FIXED: Check for 'active' (matches database)
+    return room.status === 'active';
+  });
+};
 
   // ✅ Handle room assignment - supports assign, change, and remove
   const handleAssignRoom = async () => {
