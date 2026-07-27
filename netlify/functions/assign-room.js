@@ -1,13 +1,25 @@
 // netlify/functions/assign-room.js
-// ✅ CORRECTED: Using your actual table schema
+// ✅ ES Module version - use import instead of require
 
-const { pool } = require('../lib/db');
+import { createClient } from '@supabase/supabase-js';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' }),
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
@@ -17,33 +29,48 @@ exports.handler = async (event) => {
     if (!bookingId || !roomId) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ 
           error: 'Missing required fields: bookingId and roomId are required',
         }),
       };
     }
 
-    // Check if booking exists
-    const bookingCheck = await pool.query(
-      `SELECT id, guest_name, status, check_in_date, check_out_date, room_id 
-       FROM bookings 
-       WHERE id = $1`,
-      [bookingId]
-    );
+    // Initialize Supabase client
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (bookingCheck.rows.length === 0) {
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
       return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'Booking not found' }),
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' }),
       };
     }
 
-    const booking = bookingCheck.rows[0];
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if booking exists
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('id, guest_name, status, check_in_date, check_out_date, room_id')
+      .eq('id', bookingId)
+      .single();
+
+    if (bookingError || !booking) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' }),
+      };
+    }
 
     // Check if booking already has a room
     if (booking.room_id) {
       return {
         statusCode: 409,
+        headers,
         body: JSON.stringify({ 
           error: 'This booking already has a room assigned',
           currentRoomId: booking.room_id,
@@ -51,132 +78,124 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Using your actual column names
-    const roomCheck = await pool.query(
-      `SELECT id, room_number, room_name, room_type, floor, status 
-       FROM rooms 
-       WHERE id = $1 AND business_id = (SELECT business_id FROM bookings WHERE id = $2)`,
-      [roomId, bookingId]
-    );
+    // Check if room exists and get room details
+    const { data: room, error: roomError } = await supabase
+      .from('rooms')
+      .select('id, room_number, room_name, room_type, floor, status')
+      .eq('id', roomId)
+      .eq('business_id', booking.business_id)
+      .single();
 
-    if (roomCheck.rows.length === 0) {
+    if (roomError || !room) {
       return {
         statusCode: 404,
+        headers,
         body: JSON.stringify({ error: 'Room not found' }),
       };
     }
 
-    const room = roomCheck.rows[0];
-
     // Check if room is already occupied
-    const existingAllocation = await pool.query(
-      `SELECT 
-        ra.booking_id,
-        b.guest_name,
-        b.check_in_date,
-        b.check_out_date
-       FROM room_allocations ra
-       JOIN bookings b ON ra.booking_id = b.id
-       WHERE ra.room_id = $1 
-         AND ra.status = 'active'
-         AND ra.booking_id != $2
-         AND (
-           (b.check_in_date <= (SELECT check_out_date FROM bookings WHERE id = $2))
-           AND (b.check_out_date >= (SELECT check_in_date FROM bookings WHERE id = $2))
-         )`,
-      [roomId, bookingId]
-    );
+    const { data: existingAllocation, error: allocationError } = await supabase
+      .from('room_allocations')
+      .select(`
+        booking_id,
+        bookings!inner(guest_name, check_in_date, check_out_date)
+      `)
+      .eq('room_id', roomId)
+      .eq('status', 'active')
+      .neq('booking_id', bookingId)
+      .gte('bookings.check_out_date', booking.check_in_date)
+      .lte('bookings.check_in_date', booking.check_out_date);
 
-    if (existingAllocation.rows.length > 0) {
-      const existing = existingAllocation.rows[0];
+    if (existingAllocation && existingAllocation.length > 0) {
+      const existing = existingAllocation[0];
       return {
         statusCode: 409,
+        headers,
         body: JSON.stringify({ 
-          error: `Room ${room.room_number} is already occupied by ${existing.guest_name} until ${existing.check_out_date}`,
-          currentGuest: existing.guest_name,
-          checkOutDate: existing.check_out_date,
+          error: `Room ${room.room_number} is already occupied by ${existing.bookings.guest_name}`,
         }),
       };
     }
 
-    // Begin transaction
-    const client = await pool.connect();
+    // Start a transaction using Supabase
+    const { data: updatedBooking, error: updateError } = await supabase
+      .from('bookings')
+      .update({ 
+        room_id: roomId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', bookingId)
+      .select()
+      .single();
 
-    try {
-      await client.query('BEGIN');
-
-      // Update booking with room_id
-      const updateResult = await client.query(
-        `UPDATE bookings 
-         SET room_id = $1, updated_at = NOW() 
-         WHERE id = $2 
-         RETURNING id, room_id, guest_name, status`,
-        [roomId, bookingId]
-      );
-
-      // Create room allocation record
-      await client.query(
-        `INSERT INTO room_allocations (
-          booking_id, 
-          room_id, 
-          check_in_date, 
-          check_out_date, 
-          status, 
-          assigned_at
-        ) VALUES ($1, $2, $3, $4, 'active', NOW())`,
-        [
-          bookingId,
-          roomId,
-          booking.check_in_date,
-          booking.check_out_date,
-        ]
-      );
-
-      // Update room status to occupied
-      await client.query(
-        `UPDATE rooms 
-         SET status = 'occupied', 
-             updated_at = NOW() 
-         WHERE id = $1`,
-        [roomId]
-      );
-
-      await client.query('COMMIT');
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success: true,
-          data: {
-            bookingId: updateResult.rows[0].id,
-            roomId: roomId,
-            roomNumber: room.room_number,
-            roomName: room.room_name,
-            roomType: room.room_type,
-            floor: room.floor,
-            guestName: updateResult.rows[0].guest_name,
-            status: updateResult.rows[0].status,
-          },
-          message: `Room ${room.room_number} assigned to ${booking.guest_name} successfully`,
-        }),
-      };
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Transaction error:', error);
+    if (updateError) {
+      console.error('Error updating booking:', updateError);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Database transaction failed' }),
+        headers,
+        body: JSON.stringify({ error: 'Failed to assign room' }),
       };
-    } finally {
-      client.release();
     }
 
+    // Create room allocation record
+    const { error: allocationInsertError } = await supabase
+      .from('room_allocations')
+      .insert({
+        booking_id: bookingId,
+        room_id: roomId,
+        check_in_date: booking.check_in_date,
+        check_out_date: booking.check_out_date,
+        status: 'active',
+        assigned_at: new Date().toISOString()
+      });
+
+    if (allocationInsertError) {
+      console.error('Error creating allocation:', allocationInsertError);
+      // Rollback: remove room_id from booking
+      await supabase
+        .from('bookings')
+        .update({ room_id: null })
+        .eq('id', bookingId);
+      
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to create room allocation' }),
+      };
+    }
+
+    // Update room status to occupied
+    await supabase
+      .from('rooms')
+      .update({ 
+        status: 'occupied',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', roomId);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        data: {
+          bookingId: updatedBooking.id,
+          roomId: roomId,
+          roomNumber: room.room_number,
+          roomName: room.room_name,
+          guestName: updatedBooking.guest_name,
+        },
+        message: `Room ${room.room_number} assigned to ${updatedBooking.guest_name} successfully`,
+      }),
+    };
+
   } catch (error) {
-    console.error('Error assigning room:', error);
+    console.error('Error in assign-room:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
+      headers,
+      body: JSON.stringify({
         error: error.message || 'Internal server error',
       }),
     };
