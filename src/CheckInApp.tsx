@@ -12,11 +12,20 @@ export default function CheckInApp() {
 
   // ✅ DEBUG: Log when component mounts/unmounts
   useEffect(() => {
-    console.log('🔍 CheckInApp: Mounted with businessId:', businessId);
+    console.log('🟢 CheckInApp: MOUNTED', { 
+      businessId,
+      timestamp: new Date().toISOString(),
+    });
     return () => {
-      console.log('🔍 CheckInApp: Unmounted');
+      console.log('🔴 CheckInApp: UNMOUNTED', {
+        businessId,
+        timestamp: new Date().toISOString(),
+      });
     };
   }, [businessId]);
+
+  // ✅ DEBUG: Log each render
+  console.log('🔄 CheckInApp: RENDER', { businessId });
 
   const handleCheckinComplete = (booking: Booking, indemnityToken?: string) => {
     console.log('✅ Check-in complete!', booking);
