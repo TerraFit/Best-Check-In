@@ -1,5 +1,7 @@
+```javascript
 // netlify/functions/get-available-rooms.js
 // ✅ FIXED: Uses 'active' status (matching your database constraint)
+// ✅ CORRECT: ES Module syntax with import/export
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -125,7 +127,7 @@ export const handler = async (event) => {
     // Check for 'active' status (matching your database constraint)
     const availableRooms = allRooms.filter(room => {
       const isOccupied = occupiedRoomIds.has(room.id);
-      const isActive = room.status === 'active'; // ✅ Changed from 'available' to 'active'
+      const isActive = room.status === 'active';
       return !isOccupied && isActive;
     });
 
