@@ -1,5 +1,6 @@
 // src/hooks/useCheckIn.ts
 // ✅ FIXED: Prevent form submission from reloading page with diagnostic logs
+// ✅ FIXED: handleFormChange with functional update to avoid stale closure
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n';
@@ -23,6 +24,14 @@ interface UseCheckInProps {
 export function useCheckIn({ businessId, onComplete, resetOnMount = false }: UseCheckInProps) {
   const { t } = useTranslation();
   
+  // ✅ DIAGNOSTIC: Log hook lifecycle
+  useEffect(() => {
+    console.log('🔵 useCheckIn: Hook MOUNTED', { businessId, resetOnMount });
+    return () => {
+      console.log('🔴 useCheckIn: Hook UNMOUNTED');
+    };
+  }, []);
+
   // State
   const [step, setStep] = useState(() => {
     if (resetOnMount) {
@@ -47,6 +56,11 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   const [foodRestrictions, setFoodRestrictions] = useState<FoodRestrictions>(DEFAULT_RESTRICTIONS);
   const [hasDietaryRestrictions, setHasDietaryRestrictions] = useState<boolean | null>(null);
   const [showRestrictionsPanel, setShowRestrictionsPanel] = useState(false);
+  
+  // ✅ Refs for tracking user modifications and profile loading
+  const userModifiedFieldsRef = useRef<Set<string>>(new Set());
+  const profileRequestIdRef = useRef(0);
+  const profileLoadedRef = useRef(false);
   
   // Form data
   const [formData, setFormData] = useState<CheckInFormData>(() => {
@@ -186,23 +200,37 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   }, [businessId]);
 
-  // Load guest profile when email changes
+  // ✅ FIXED: Load guest profile only for valid emails
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (formData.email && formData.email.includes('@')) {
+      // ✅ Valid email regex - prevents partial email lookups
+      const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+      
+      if (formData.email && isValidEmail && !profileLoadedRef.current) {
+        console.log('🔍 Loading guest profile for valid email:', formData.email);
         loadGuestProfile(formData.email);
       }
     }, 800);
     return () => clearTimeout(timer);
   }, [formData.email]);
 
+  // ✅ FIXED: loadGuestProfile with stale request handling and field protection
   const loadGuestProfile = async (email: string) => {
     if (!email || !email.includes('@')) return;
     
+    const requestId = ++profileRequestIdRef.current;
+    console.log(`🔍 Profile request #${requestId} started for: ${email}`);
+    
     try {
-      console.log('🔍 Loading guest profile for:', email);
       const result = await checkinService.getGuestProfile(email);
-      console.log('🔍 Guest profile result:', result);
+      
+      // ✅ Ignore stale responses
+      if (requestId !== profileRequestIdRef.current) {
+        console.log(`⏭️ Ignoring stale profile response #${requestId} (current: ${profileRequestIdRef.current})`);
+        return;
+      }
+      
+      console.log(`✅ Profile request #${requestId} completed`);
       
       if (result?.profile) {
         const profile = result.profile;
@@ -219,27 +247,59 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         const provinceValue = profile.province || '';
         const cityValue = profile.city || '';
         
-        console.log('🔍 Setting form data with:', {
-          firstName: firstName || formData.firstName,
-          lastName: lastName || formData.lastName,
-          phone: profile.phone || formData.phone,
-          passportOrId: profile.passport_or_id || formData.passportOrId,
-          country: countryValue,
-          province: provinceValue,
-          city: cityValue,
+        console.log('🔍 PROFILE DATA RECEIVED:', {
+          firstName,
+          lastName,
+          country: countryValue || '(none)',
+          province: provinceValue || '(none)',
+          city: cityValue || '(none)',
         });
         
-        setFormData(prev => ({
-          ...prev,
-          firstName: firstName || prev.firstName,
-          lastName: lastName || prev.lastName,
-          phone: profile.phone || prev.phone,
-          passportOrId: profile.passport_or_id || prev.passportOrId,
-          country: countryValue || prev.country,
-          province: provinceValue || prev.province,
-          city: cityValue || prev.city,
-        }));
+        console.log('🔍 User-modified fields before profile apply:', 
+          Array.from(userModifiedFieldsRef.current)
+        );
         
+        console.log('🔍 Current formData before profile apply:', {
+          country: formData.country || '(empty)',
+          province: formData.province || '(empty)',
+        });
+        
+        // ✅ Only set fields that user hasn't modified
+        setFormData(prev => {
+          const newData = {
+            ...prev,
+            firstName: userModifiedFieldsRef.current.has('firstName') 
+              ? prev.firstName 
+              : firstName || prev.firstName,
+            lastName: userModifiedFieldsRef.current.has('lastName') 
+              ? prev.lastName 
+              : lastName || prev.lastName,
+            phone: userModifiedFieldsRef.current.has('phone') 
+              ? prev.phone 
+              : profile.phone || prev.phone,
+            passportOrId: userModifiedFieldsRef.current.has('passportOrId') 
+              ? prev.passportOrId 
+              : profile.passport_or_id || prev.passportOrId,
+            country: userModifiedFieldsRef.current.has('country') 
+              ? prev.country 
+              : countryValue || prev.country,
+            province: userModifiedFieldsRef.current.has('province') 
+              ? prev.province 
+              : provinceValue || prev.province,
+            city: userModifiedFieldsRef.current.has('city') 
+              ? prev.city 
+              : cityValue || prev.city,
+          };
+          
+          console.log('✅ Profile applied (fields not modified by user):', {
+            country: newData.country,
+            province: newData.province,
+          });
+          
+          return newData;
+        });
+        
+        profileLoadedRef.current = true;
         setProfileLoaded(true);
         setTimeout(() => setProfileLoaded(false), 3000);
       }
@@ -247,6 +307,34 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       console.error('Error loading guest profile:', error);
     }
   };
+
+  // ✅ FIXED: handleFormChange with functional update to avoid stale closure
+  const handleFormChange = useCallback((field: string, value: any) => {
+    console.log(`✏️ handleFormChange: ${field} =`, value);
+    
+    // Mark field as user-modified
+    userModifiedFieldsRef.current.add(field);
+    
+    // ✅ Use functional update for accurate state
+    setFormData(prev => {
+      const oldValue = prev[field as keyof CheckInFormData];
+      console.log(`✏️ setFormData: "${field}" BEFORE =`, oldValue);
+      console.log(`✏️ setFormData: "${field}" AFTER =`, value);
+      
+      const newData = {
+        ...prev,
+        [field]: value,
+      };
+      
+      // If changing country, clear province
+      if (field === 'country') {
+        console.log('🌍 Country changed, clearing province');
+        newData.province = '';
+      }
+      
+      return newData;
+    });
+  }, []); // ✅ Empty dependency array - uses functional updates
 
   const saveGuestProfile = async () => {
     if (!formData.saveDetails || !formData.email || !formData.email.includes('@')) return;
@@ -596,7 +684,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   };
 
-  // Camera functions
+  // Camera functions (unchanged)
   const startCamera = async () => {
     setCameraError(null);
     setIsCameraActive(true);
@@ -672,7 +760,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setFormData(prev => ({ ...prev, idPhoto: '' }));
   };
 
-  // Signature functions
+  // Signature functions (unchanged)
   const clearSignature = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -752,6 +840,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     };
   };
 
+  // ✅ FIXED: resetForm resets all tracking refs
   const resetForm = () => {
     console.log('🚨 resetForm() CALLED');
     console.trace();
@@ -786,6 +875,12 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setHasDietaryRestrictions(null);
     setFoodRestrictions(DEFAULT_RESTRICTIONS);
     setShowRestrictionsPanel(false);
+    
+    // ✅ Reset tracking refs
+    userModifiedFieldsRef.current = new Set();
+    profileRequestIdRef.current = 0;
+    profileLoadedRef.current = false;
+    
     // Clear session storage
     sessionStorage.removeItem('checkin_step');
     sessionStorage.removeItem('checkin_formData');
@@ -843,5 +938,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     resetForm,
     updateFullName,
     getErrorClass,
+    // ✅ NEW: Expose handleFormChange for components
+    handleFormChange,
   };
 }
