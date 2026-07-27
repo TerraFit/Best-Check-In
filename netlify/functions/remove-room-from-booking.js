@@ -1,5 +1,5 @@
 // netlify/functions/remove-room-from-booking.js
-// ✅ ES Module version
+// ✅ CORRECT: Removes room assignment
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -48,7 +48,7 @@ export const handler = async (event) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get the booking with room_id
+    // Get booking with room_id
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select('id, room_id, guest_name')
@@ -76,14 +76,14 @@ export const handler = async (event) => {
     // Update booking - remove room_id
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ 
+      .update({
         room_id: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', bookingId);
 
     if (updateError) {
-      console.error('Error updating booking:', updateError);
+      console.error('❌ Error updating booking:', updateError);
       return {
         statusCode: 500,
         headers,
@@ -91,27 +91,16 @@ export const handler = async (event) => {
       };
     }
 
-    // Update room allocation status
-    const { error: allocationError } = await supabase
-      .from('room_allocations')
-      .update({ 
-        status: 'cancelled'
-      })
-      .eq('booking_id', bookingId)
-      .eq('status', 'active');
-
-    if (allocationError) {
-      console.error('Error updating allocation:', allocationError);
-    }
-
-    // Update room status back to available
+    // Update room physical status back to available
     await supabase
       .from('rooms')
-      .update({ 
+      .update({
         status: 'available',
         updated_at: new Date().toISOString()
       })
       .eq('id', roomId);
+
+    console.log(`✅ Room removed from booking ${bookingId}`);
 
     return {
       statusCode: 200,
@@ -123,11 +112,12 @@ export const handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Error in remove-room-from-booking:', error);
+    console.error('❌ Error in remove-room-from-booking:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
+        success: false,
         error: error.message || 'Internal server error'
       })
     };
