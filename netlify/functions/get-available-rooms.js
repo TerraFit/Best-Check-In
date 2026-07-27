@@ -1,5 +1,5 @@
 // netlify/functions/get-available-rooms.js
-// ✅ ES Module version
+// ✅ CORRECT: Single source of truth - bookings.status
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -50,64 +50,74 @@ export const handler = async (event) => {
 
     console.log(`📡 Fetching available rooms for business: ${businessId}`);
 
-    // Get all rooms that are available (not occupied)
-    const { data, error } = await supabase
-      .from('rooms')
-      .select(`
-        id,
-        room_number,
-        room_name,
-        room_type,
-        floor,
-        status,
-        room_allocations!left(
-          id,
-          status,
-          bookings!inner(
-            guest_name,
-            check_out_date
-          )
-        )
-      `)
-      .eq('business_id', businessId)
-      .eq('status', 'available')
-      .or('room_allocations.status.is.null,room_allocations.status.neq.active')
-      .order('room_number', { ascending: true });
+    // ✅ ACTIVE STATUSES - Single source of truth
+    const ACTIVE_STATUSES = ['Checked-In', 'Stayover'];
 
-    if (error) {
-      console.error('❌ Supabase error:', error);
+    // ✅ Step 1: Get all active bookings with room_id
+    const { data: activeBookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select('room_id')
+      .eq('business_id', businessId)
+      .in('status', ACTIVE_STATUSES)
+      .not('room_id', 'is', null);
+
+    if (bookingsError) {
+      console.error('❌ Error fetching active bookings:', bookingsError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Failed to fetch available rooms',
-          details: error.message
+        body: JSON.stringify({
+          error: 'Failed to fetch active bookings',
+          details: bookingsError.message
         })
       };
     }
 
-    // Format the response
-    const rooms = (data || []).map(room => ({
-      id: room.id,
-      room_number: room.room_number,
-      room_name: room.room_name,
-      room_type: room.room_type,
-      floor: room.floor,
-      status: room.status,
-      is_available: true,
-      current_guest: null,
-      current_checkout: null
-    }));
+    // ✅ Step 2: Build Set of occupied room IDs (O(1) lookup)
+    const occupiedRoomIds = new Set(
+      (activeBookings || []).map(b => b.room_id).filter(id => id !== null)
+    );
 
-    console.log(`✅ Found ${rooms.length} available rooms`);
+    console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
+
+    // ✅ Step 3: Get all rooms for this business
+    const { data: allRooms, error: roomsError } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('room_number', { ascending: true });
+
+    if (roomsError) {
+      console.error('❌ Error fetching rooms:', roomsError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Failed to fetch rooms',
+          details: roomsError.message
+        })
+      };
+    }
+
+    // ✅ Step 4: Filter available rooms
+    // Available = NOT occupied AND physical status = 'available'
+    const availableRooms = allRooms.filter(room => {
+      const isOccupied = occupiedRoomIds.has(room.id);
+      const isPhysicallyAvailable = room.status === 'available';
+      return !isOccupied && isPhysicallyAvailable;
+    });
+
+    console.log(`✅ Found ${availableRooms.length} available rooms`);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        rooms: rooms,
-        count: rooms.length,
+        rooms: availableRooms,
+        total_rooms: allRooms.length,
+        occupied_count: occupiedRoomIds.size,
+        available_count: availableRooms.length,
         businessId: businessId
       })
     };
