@@ -1,10 +1,9 @@
 // netlify/functions/get-current-bookings.js
-// ✅ Returns all current bookings with room assignments
+// ✅ CORRECTED: Using your actual table schema
 
 const { pool } = require('../lib/db');
 
 exports.handler = async (event) => {
-  // ✅ Only allow GET requests
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -22,7 +21,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    // ✅ Get all current bookings (checked-in + stayover) with room info
+    // ✅ Using your actual column names
     const query = `
       SELECT 
         b.id,
@@ -42,9 +41,11 @@ exports.handler = async (event) => {
         b.status,
         b.total_amount,
         b.room_id,
-        r.number AS room_number,
-        r.name AS room_name,
-        r.type AS room_type,
+        r.room_number,
+        r.room_name,
+        r.room_type,
+        r.floor,
+        r.status AS room_status,
         ra.id AS allocation_id,
         ra.status AS allocation_status
       FROM bookings b
