@@ -2,8 +2,8 @@
 // ✅ COMPLETE: With Room Allocation dropdown - Fixed role check
 // ✅ FIXED: Per-booking room allocation state
 // ✅ FIXED: No fallback to all rooms on error
-// ✅ FIXED: Simplified getAvailableRooms - no obsolete 'active' fallback
 // ✅ FIXED: Supports Assign, Change, and Remove actions
+// ✅ FIXED: getAvailableRooms checks for 'active' status (matches database constraint)
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -35,7 +35,7 @@ interface Room {
   room_number: string;
   room_name: string;
   room_type: string;
-  status: 'available' | 'occupied' | 'maintenance' | 'blocked';
+  status: 'active' | 'occupied' | 'maintenance' | 'blocked';
   is_available?: boolean;
   current_guest?: string;
 }
@@ -267,7 +267,7 @@ export default function GuestDetailsModal({
     }
   };
 
-  // ✅ Get available rooms (exclude occupied rooms and current room)
+  // ✅ Get available rooms - FIXED to check for 'active' status
   const getAvailableRooms = (): Room[] => {
     return rooms.filter(room => {
       // ✅ Exclude the current room when changing rooms
@@ -278,8 +278,8 @@ export default function GuestDetailsModal({
         return room.is_available === true;
       }
 
-      // ✅ Fallback: only rooms with status 'available' (matches backend)
-      return room.status === 'available';
+      // ✅ FIXED: Check for 'active' (matches database constraint)
+      return room.status === 'active';
     });
   };
 
