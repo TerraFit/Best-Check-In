@@ -1,12 +1,41 @@
 // netlify/functions/assign-room.js
-// ✅ FIXED: Uses remove_room_safely for atomic removal
+// ✅ CORRECT: Uses CommonJS (require) - no import statements
 
-import { 
-  supabaseRpc,
-  createHandlerResponse 
-} from './lib/supabase-rest.js';
+// Use require instead of import
+const { createHandlerResponse } = require('./lib/supabase-rest.js');
 
-export const handler = async (event) => {
+// Since we need supabaseRpc, we'll use direct fetch calls
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+const headers = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json'
+};
+
+// Helper function to call Supabase RPC via REST
+async function supabaseRpc(functionName, params) {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${functionName}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(params)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`RPC error ${response.status}: ${errorText}`);
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : [];
+}
+
+exports.handler = async (event) => {
   // Handle preflight OPTIONS
   if (event.httpMethod === 'OPTIONS') {
     return createHandlerResponse(204, {});
@@ -67,36 +96,44 @@ export const handler = async (event) => {
       });
     }
 
-    // ✅ Use the appropriate RPC based on action
+    // ✅ Get booking details to determine action
+    const bookingUrl = `${SUPABASE_URL}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,guest_name,status,room_id,business_id`;
+    const bookingResponse = await fetch(bookingUrl, { headers });
+    
+    if (!bookingResponse.ok) {
+      return createHandlerResponse(404, { error: 'Booking not found' });
+    }
+
+    const bookings = await bookingResponse.json();
+    if (!bookings || bookings.length === 0) {
+      return createHandlerResponse(404, { error: 'Booking not found' });
+    }
+
+    const booking = bookings[0];
+
+    // ✅ Determine which RPC to call
     let rpcName = 'assign_room_safely';
     let rpcParams = {
       p_booking_id: bookingId,
       p_room_id: roomId
     };
 
-    if (action === 'change') {
-      // Need to know the old room - fetch it first
-      const bookingQuery = `bookings?id=eq.${bookingId}&select=room_id`;
-      const bookingResults = await supabaseFetch(bookingQuery);
-      
-      if (!bookingResults || bookingResults.length === 0) {
-        return createHandlerResponse(404, { error: 'Booking not found' });
-      }
-
-      const booking = bookingResults[0];
-      
+    if (action === 'change' || (booking.room_id && booking.room_id !== roomId)) {
       if (!booking.room_id) {
         return createHandlerResponse(400, { 
           error: 'Booking has no room to change from. Use assign action instead.'
         });
       }
-
       rpcName = 'change_room_safely';
       rpcParams = {
         p_booking_id: bookingId,
         p_old_room_id: booking.room_id,
         p_new_room_id: roomId
       };
+    } else if (booking.room_id && booking.room_id === roomId) {
+      return createHandlerResponse(400, {
+        error: 'Room is already assigned to this booking'
+      });
     }
 
     // ✅ Execute RPC
