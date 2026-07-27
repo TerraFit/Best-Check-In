@@ -119,7 +119,11 @@ export default function GuestDetailsModal({
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
 
-  // ✅ FIXED: Allow 'business' role too
+  // Debug logging for booking ID
+  console.log('🔍 GuestDetailsModal - bookingId received:', bookingId);
+  console.log('🔍 GuestDetailsModal - guestDetails:', guestDetails);
+
+  // Allow 'business' role too
   const userRole = session?.user?.role || '';
   const canAssignRooms = userRole === 'owner' || 
                          userRole === 'EmployeeOverview' ||
@@ -131,6 +135,7 @@ export default function GuestDetailsModal({
   // Load guest details when modal opens
   useEffect(() => {
     if (isOpen && bookingId) {
+      console.log('🔍 Fetching guest details for bookingId:', bookingId);
       fetchGuestDetails(bookingId);
     }
   }, [isOpen, bookingId, fetchGuestDetails]);
@@ -243,7 +248,16 @@ export default function GuestDetailsModal({
 
   // Handle room assignment
   const handleAssignRoom = async () => {
-    if (!bookingId || !selectedRoomId) {
+    console.log('🔍 handleAssignRoom - bookingId:', bookingId);
+    console.log('🔍 handleAssignRoom - selectedRoomId:', selectedRoomId);
+    
+    if (!bookingId) {
+      console.error('❌ bookingId is null or undefined!');
+      setError('No booking ID found. Please try again.');
+      return;
+    }
+    
+    if (!selectedRoomId) {
       setError('Please select a room');
       return;
     }
@@ -258,6 +272,8 @@ export default function GuestDetailsModal({
         setSavingRoom(false);
         return;
       }
+
+      console.log(`📝 Assigning room ${selectedRoom.room_number} to booking ${bookingId}`);
 
       let token = null;
       try {
@@ -277,7 +293,7 @@ export default function GuestDetailsModal({
         method: 'POST',
         headers,
         body: JSON.stringify({
-          bookingId,
+          bookingId: bookingId,
           roomId: selectedRoom.id,
           roomNumber: selectedRoom.room_number,
           roomName: selectedRoom.room_name
@@ -286,6 +302,7 @@ export default function GuestDetailsModal({
 
       if (response.ok) {
         const result = await response.json();
+        console.log('✅ Room assignment result:', result);
         setIsEditingRoom(false);
         setSaveSuccess(true);
         
@@ -300,6 +317,7 @@ export default function GuestDetailsModal({
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         const errorData = await response.json();
+        console.error('❌ Room assignment failed:', errorData);
         setError(errorData.error || 'Failed to assign room');
       }
     } catch (err) {
