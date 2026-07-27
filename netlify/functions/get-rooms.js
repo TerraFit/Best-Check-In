@@ -1,10 +1,9 @@
 // netlify/functions/get-rooms.js
-// ✅ FIXED: Proper error handling
-// ✅ CORRECTED: Using your actual table schema
+// ✅ ES Module version - using import
 
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -12,16 +11,10 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers,
-      body: ''
-    };
+    return { statusCode: 204, headers, body: '' };
   }
 
-  // Only allow GET requests
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -31,7 +24,6 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Get businessId from query parameters
     const { businessId } = event.queryStringParameters || {};
 
     if (!businessId) {
@@ -42,7 +34,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Initialize Supabase client
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
@@ -51,9 +42,7 @@ exports.handler = async (event) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Server configuration error: Missing Supabase credentials' 
-        })
+        body: JSON.stringify({ error: 'Server configuration error' })
       };
     }
 
@@ -61,7 +50,6 @@ exports.handler = async (event) => {
 
     console.log(`📡 Fetching rooms for business: ${businessId}`);
 
-    // ✅ Query using your actual table schema
     const { data, error, count } = await supabase
       .from('rooms')
       .select('*', { count: 'exact' })
@@ -75,15 +63,14 @@ exports.handler = async (event) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Failed to fetch rooms from database',
+          error: 'Failed to fetch rooms',
           details: error.message
         })
       };
     }
 
-    console.log(`✅ Found ${data?.length || 0} available rooms for business ${businessId}`);
+    console.log(`✅ Found ${data?.length || 0} available rooms`);
 
-    // Return the rooms array
     return {
       statusCode: 200,
       headers,
@@ -102,8 +89,7 @@ exports.handler = async (event) => {
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Failed to fetch rooms',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: error.message || 'Failed to fetch rooms'
       })
     };
   }
