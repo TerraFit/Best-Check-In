@@ -1,24 +1,32 @@
 // netlify/functions/get-available-rooms.js
-// ✅ CORRECT: Single source of truth - bookings.status
-
-import { createClient } from '@supabase/supabase-js';
+// ✅ FINAL DIAGNOSTIC VERSION - Pure fetch, NO Supabase client
+// ✅ Add this, deploy, and check the response
 
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
-  };
+  // 🔥 UNMISTAKABLE LOG - Check Netlify Function logs
+  console.log('🚀🚀🚀 FINAL DIAGNOSTIC - PURE FETCH VERSION 🚀🚀🚀');
 
+  // Handle preflight OPTIONS
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+      },
+      body: ''
+    };
   }
 
+  // Only allow GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
@@ -27,12 +35,21 @@ export const handler = async (event) => {
     const { businessId } = event.queryStringParameters || {};
 
     if (!businessId) {
+      console.error('❌ Missing businessId');
       return {
         statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID is required' })
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Business ID is required'
+        })
       };
     }
+
+    console.log(`📡 Fetching rooms for business: ${businessId}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -41,95 +58,82 @@ export const handler = async (event) => {
       console.error('❌ Missing Supabase credentials');
       return {
         statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    console.log(`📡 Fetching available rooms for business: ${businessId}`);
-
-    // ✅ ACTIVE STATUSES - Single source of truth
-    const ACTIVE_STATUSES = ['Checked-In', 'Stayover'];
-
-    // ✅ Step 1: Get all active bookings with room_id
-    const { data: activeBookings, error: bookingsError } = await supabase
-      .from('bookings')
-      .select('room_id')
-      .eq('business_id', businessId)
-      .in('status', ACTIVE_STATUSES)
-      .not('room_id', 'is', null);
-
-    if (bookingsError) {
-      console.error('❌ Error fetching active bookings:', bookingsError);
-      return {
-        statusCode: 500,
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
         body: JSON.stringify({
-          error: 'Failed to fetch active bookings',
-          details: bookingsError.message
+          success: false,
+          error: 'Server configuration error: Missing Supabase credentials'
         })
       };
     }
 
-    // ✅ Step 2: Build Set of occupied room IDs (O(1) lookup)
-    const occupiedRoomIds = new Set(
-      (activeBookings || []).map(b => b.room_id).filter(id => id !== null)
-    );
+    // ✅ PURE REST - NO Supabase client, NO WebSocket
+    const url = `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&order=room_number.asc`;
+    console.log(`📡 URL: ${url}`);
 
-    console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
+    const headers = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json'
+    };
 
-    // ✅ Step 3: Get all rooms for this business
-    const { data: allRooms, error: roomsError } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('business_id', businessId)
-      .order('room_number', { ascending: true });
-
-    if (roomsError) {
-      console.error('❌ Error fetching rooms:', roomsError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          error: 'Failed to fetch rooms',
-          details: roomsError.message
-        })
-      };
-    }
-
-    // ✅ Step 4: Filter available rooms
-    // Available = NOT occupied AND physical status = 'available'
-    const availableRooms = allRooms.filter(room => {
-      const isOccupied = occupiedRoomIds.has(room.id);
-      const isPhysicallyAvailable = room.status === 'available';
-      return !isOccupied && isPhysicallyAvailable;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers
     });
 
-    console.log(`✅ Found ${availableRooms.length} available rooms`);
+    const text = await response.text();
+    console.log(`📡 Supabase status: ${response.status}`);
+    console.log(`📡 Response length: ${text.length} chars`);
+
+    if (!response.ok) {
+      console.error(`❌ Supabase error: ${text}`);
+      return {
+        statusCode: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: `Supabase API error: ${response.status}`,
+          details: text
+        })
+      };
+    }
+
+    const rooms = JSON.parse(text);
+    console.log(`✅ Found ${rooms.length} rooms`);
 
     return {
       statusCode: 200,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({
         success: true,
-        rooms: availableRooms,
-        total_rooms: allRooms.length,
-        occupied_count: occupiedRoomIds.size,
-        available_count: availableRooms.length,
-        businessId: businessId
+        rooms: rooms,
+        count: rooms.length,
+        businessId: businessId,
+        diagnostic: 'REST_ONLY_FUNCTION_WORKING'
       })
     };
 
   } catch (error) {
-    console.error('❌ Error in get-available-rooms:', error);
+    console.error('❌ Unhandled error:', error);
     return {
       statusCode: 500,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Failed to fetch available rooms'
+        error: error.message || 'Internal server error',
+        stack: error.stack
       })
     };
   }
