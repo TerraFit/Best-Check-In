@@ -1,3 +1,5 @@
+// src/types/checkin.ts
+
 export interface BusinessBranding {
   id: string;
   trading_name: string;
@@ -60,6 +62,7 @@ export interface CheckInFormData {
   acceptLegal: boolean;
   popiaConsent: boolean;
   saveDetails: boolean;
+  roomAllocation?: string; // ← NEW: Room allocation field
 }
 
 export interface TouchedFields {
@@ -79,6 +82,7 @@ export interface TouchedFields {
   idPhoto: boolean;
   signature: boolean;
   acceptLegal: boolean;
+  roomAllocation: boolean; // ← NEW: Room allocation touched state
 }
 
 export const DEFAULT_RESTRICTIONS: FoodRestrictions = {
@@ -93,7 +97,7 @@ export const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   seafood_allergy: false,
   diabetic: false,
   no_pork: false,
-  carnivore: false,  // ✅ NEW
+  carnivore: false,
   other: false,
   other_text: ''
 };
