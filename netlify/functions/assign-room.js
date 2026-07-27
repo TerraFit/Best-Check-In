@@ -1,5 +1,5 @@
 // netlify/functions/assign-room.js
-// ✅ ES Module version - use import instead of require
+// ✅ CORRECT: Uses atomic RPC function for race condition protection
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -30,13 +30,12 @@ export const handler = async (event) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'Missing required fields: bookingId and roomId are required',
-        }),
+        body: JSON.stringify({
+          error: 'Missing required fields: bookingId and roomId are required'
+        })
       };
     }
 
-    // Initialize Supabase client
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
@@ -45,134 +44,58 @@ export const handler = async (event) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Server configuration error' }),
+        body: JSON.stringify({ error: 'Server configuration error' })
       };
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if booking exists
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('id, guest_name, status, check_in_date, check_out_date, room_id')
-      .eq('id', bookingId)
-      .single();
+    console.log(`📝 Assigning room ${roomId} to booking ${bookingId}`);
 
-    if (bookingError || !booking) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Booking not found' }),
-      };
-    }
-
-    // Check if booking already has a room
-    if (booking.room_id) {
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ 
-          error: 'This booking already has a room assigned',
-          currentRoomId: booking.room_id,
-        }),
-      };
-    }
-
-    // Check if room exists and get room details
-    const { data: room, error: roomError } = await supabase
-      .from('rooms')
-      .select('id, room_number, room_name, room_type, floor, status')
-      .eq('id', roomId)
-      .eq('business_id', booking.business_id)
-      .single();
-
-    if (roomError || !room) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Room not found' }),
-      };
-    }
-
-    // Check if room is already occupied
-    const { data: existingAllocation, error: allocationError } = await supabase
-      .from('room_allocations')
-      .select(`
-        booking_id,
-        bookings!inner(guest_name, check_in_date, check_out_date)
-      `)
-      .eq('room_id', roomId)
-      .eq('status', 'active')
-      .neq('booking_id', bookingId)
-      .gte('bookings.check_out_date', booking.check_in_date)
-      .lte('bookings.check_in_date', booking.check_out_date);
-
-    if (existingAllocation && existingAllocation.length > 0) {
-      const existing = existingAllocation[0];
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ 
-          error: `Room ${room.room_number} is already occupied by ${existing.bookings.guest_name}`,
-        }),
-      };
-    }
-
-    // Start a transaction using Supabase
-    const { data: updatedBooking, error: updateError } = await supabase
-      .from('bookings')
-      .update({ 
-        room_id: roomId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', bookingId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating booking:', updateError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to assign room' }),
-      };
-    }
-
-    // Create room allocation record
-    const { error: allocationInsertError } = await supabase
-      .from('room_allocations')
-      .insert({
-        booking_id: bookingId,
-        room_id: roomId,
-        check_in_date: booking.check_in_date,
-        check_out_date: booking.check_out_date,
-        status: 'active',
-        assigned_at: new Date().toISOString()
+    // ✅ Use the atomic RPC function
+    const { data: result, error: rpcError } = await supabase
+      .rpc('assign_room_safely', {
+        p_booking_id: bookingId,
+        p_room_id: roomId
       });
 
-    if (allocationInsertError) {
-      console.error('Error creating allocation:', allocationInsertError);
-      // Rollback: remove room_id from booking
-      await supabase
-        .from('bookings')
-        .update({ room_id: null })
-        .eq('id', bookingId);
-      
+    if (rpcError) {
+      console.error('❌ RPC Error:', rpcError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to create room allocation' }),
+        body: JSON.stringify({
+          success: false,
+          error: rpcError.message || 'Failed to assign room'
+        })
       };
     }
 
-    // Update room status to occupied
-    await supabase
-      .from('rooms')
-      .update({ 
-        status: 'occupied',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', roomId);
+    // ✅ Check the result
+    if (!result.success) {
+      console.warn(`⚠️ Room allocation failed: ${result.error}`);
+
+      // Map error to appropriate HTTP status
+      let statusCode = 409; // Conflict by default
+
+      if (result.error === 'Booking not found' || result.error === 'Room not found') {
+        statusCode = 404;
+      } else if (result.error === 'Room is not available for allocation') {
+        statusCode = 400;
+      }
+
+      return {
+        statusCode,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: result.error,
+          details: result
+        })
+      };
+    }
+
+    console.log(`✅ Room ${result.room_number} assigned to ${result.guest_name}`);
 
     return {
       statusCode: 200,
@@ -180,24 +103,24 @@ export const handler = async (event) => {
       body: JSON.stringify({
         success: true,
         data: {
-          bookingId: updatedBooking.id,
-          roomId: roomId,
-          roomNumber: room.room_number,
-          roomName: room.room_name,
-          guestName: updatedBooking.guest_name,
+          bookingId: result.booking_id,
+          roomId: result.room_id,
+          roomNumber: result.room_number,
+          guestName: result.guest_name
         },
-        message: `Room ${room.room_number} assigned to ${updatedBooking.guest_name} successfully`,
-      }),
+        message: `Room ${result.room_number} assigned to ${result.guest_name} successfully`
+      })
     };
 
   } catch (error) {
-    console.error('Error in assign-room:', error);
+    console.error('❌ Error in assign-room:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: error.message || 'Internal server error',
-      }),
+        success: false,
+        error: error.message || 'Internal server error'
+      })
     };
   }
 };
