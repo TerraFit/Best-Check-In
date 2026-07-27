@@ -1,4 +1,3 @@
-```javascript
 // netlify/functions/get-available-rooms.js
 // ✅ FIXED: Uses 'active' status (matching your database constraint)
 // ✅ CORRECT: ES Module syntax with import/export
