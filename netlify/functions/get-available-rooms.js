@@ -1,6 +1,5 @@
 // netlify/functions/get-available-rooms.js
-// ✅ PRODUCTION VERSION - Pure fetch with active bookings filter
-// ✅ NO Supabase client, NO WebSocket
+// ✅ FIXED: Uses 'active' status (matching your database constraint)
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -123,10 +122,11 @@ export const handler = async (event) => {
     }
 
     // ✅ Step 3: Filter available rooms
+    // Check for 'active' status (matching your database constraint)
     const availableRooms = allRooms.filter(room => {
       const isOccupied = occupiedRoomIds.has(room.id);
-      const isPhysicallyAvailable = room.status === 'available';
-      return !isOccupied && isPhysicallyAvailable;
+      const isActive = room.status === 'active'; // ✅ Changed from 'available' to 'active'
+      return !isOccupied && isActive;
     });
 
     console.log(`✅ Found ${availableRooms.length} available rooms`);
