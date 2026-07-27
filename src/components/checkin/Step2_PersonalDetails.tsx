@@ -1,5 +1,6 @@
 // src/components/checkin/Step2PersonalDetails.tsx
 // ✅ FIXED: No cleanLocation in handleFieldChange - spaces work!
+// ✅ DIAGNOSTIC: Full logging for country/province debugging
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
@@ -36,8 +37,41 @@ export function Step2PersonalDetails({
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
+  // ✅ DIAGNOSTIC: Log COUNTRIES on mount
+  React.useEffect(() => {
+    console.log('🌍 ACTUAL COUNTRIES:', {
+      count: COUNTRIES.length,
+      hasAlbania: COUNTRIES.includes('Albania'),
+      hasAfghanistan: COUNTRIES.includes('Afghanistan'),
+      hasSouthAfrica: COUNTRIES.includes('South Africa'),
+      hasSwitzerland: COUNTRIES.includes('Switzerland'),
+      firstFive: COUNTRIES.slice(0, 5),
+      lastFive: COUNTRIES.slice(-5),
+    });
+  }, []);
+
+  // ✅ DIAGNOSTIC: Log formData changes
+  React.useEffect(() => {
+    console.log('🧾 FORM DATA CHANGED:', {
+      country: formData.country || '(empty)',
+      province: formData.province || '(empty)',
+      email: formData.email || '(empty)',
+    });
+  }, [formData.country, formData.province, formData.email]);
+
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
   const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Province / State';
+
+  // ✅ DIAGNOSTIC: Log available regions when country changes
+  React.useEffect(() => {
+    if (formData.country) {
+      console.log(`🔍 Country "${formData.country}" has regions:`, {
+        count: availableRegions?.length || 0,
+        regions: availableRegions?.slice(0, 5) || [],
+        regionTypeLabel: regionTypeLabel,
+      });
+    }
+  }, [formData.country, availableRegions, regionTypeLabel]);
 
   const provinceOptions = React.useMemo(() => {
     if (availableRegions && availableRegions.length > 0) {
@@ -204,7 +238,13 @@ export function Step2PersonalDetails({
               <select
                 value={formData.country || ''}
                 onChange={(e) => {
-                  handleFieldChange('country', e.target.value);
+                  const value = e.target.value;
+                  console.log('🖱️ COUNTRY SELECT EVENT:', {
+                    value: value,
+                    currentFormCountry: formData.country,
+                    currentFormProvince: formData.province,
+                  });
+                  handleFieldChange('country', value);
                   handleFieldChange('province', '');
                 }}
                 onBlur={() => onTouched('country')}
@@ -227,7 +267,10 @@ export function Step2PersonalDetails({
               {availableRegions && availableRegions.length > 0 ? (
                 <select
                   value={formData.province || ''}
-                  onChange={(e) => handleFieldChange('province', e.target.value)}
+                  onChange={(e) => {
+                    console.log(`🖱️ PROVINCE SELECT EVENT: "${e.target.value}"`);
+                    handleFieldChange('province', e.target.value);
+                  }}
                   onBlur={() => onTouched('province')}
                   className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
                   disabled={!formData.country}
@@ -273,7 +316,7 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* ✅ FIXED: Arriving From - using LocationAutocomplete, spaces work! */}
+          {/* Arriving From - using LocationAutocomplete */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.arrivingFrom}
@@ -296,7 +339,7 @@ export function Step2PersonalDetails({
             </p>
           </div>
 
-          {/* ✅ FIXED: Next Destination - using LocationAutocomplete, spaces work! */}
+          {/* Next Destination - using LocationAutocomplete */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.nextDestination}
