@@ -1,11 +1,8 @@
 // netlify/functions/get-available-rooms.js
-// ✅ FINAL DIAGNOSTIC VERSION - Pure fetch, NO Supabase client
-// ✅ Add this, deploy, and check the response
+// ✅ PRODUCTION VERSION - Pure fetch with active bookings filter
+// ✅ NO Supabase client, NO WebSocket
 
 export const handler = async (event) => {
-  // 🔥 UNMISTAKABLE LOG - Check Netlify Function logs
-  console.log('🚀🚀🚀 FINAL DIAGNOSTIC - PURE FETCH VERSION 🚀🚀🚀');
-
   // Handle preflight OPTIONS
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -35,7 +32,6 @@ export const handler = async (event) => {
     const { businessId } = event.queryStringParameters || {};
 
     if (!businessId) {
-      console.error('❌ Missing businessId');
       return {
         statusCode: 400,
         headers: {
@@ -49,7 +45,7 @@ export const handler = async (event) => {
       };
     }
 
-    console.log(`📡 Fetching rooms for business: ${businessId}`);
+    console.log(`📡 Fetching available rooms for business: ${businessId}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -64,14 +60,10 @@ export const handler = async (event) => {
         },
         body: JSON.stringify({
           success: false,
-          error: 'Server configuration error: Missing Supabase credentials'
+          error: 'Server configuration error'
         })
       };
     }
-
-    // ✅ PURE REST - NO Supabase client, NO WebSocket
-    const url = `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&order=room_number.asc`;
-    console.log(`📡 URL: ${url}`);
 
     const headers = {
       'apikey': supabaseKey,
@@ -79,33 +71,65 @@ export const handler = async (event) => {
       'Content-Type': 'application/json'
     };
 
-    const response = await fetch(url, {
+    // ✅ Step 1: Get all rooms for this business
+    const roomsUrl = `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&order=room_number.asc`;
+    console.log(`📡 Rooms URL: ${roomsUrl}`);
+
+    const roomsResponse = await fetch(roomsUrl, {
       method: 'GET',
       headers
     });
 
-    const text = await response.text();
-    console.log(`📡 Supabase status: ${response.status}`);
-    console.log(`📡 Response length: ${text.length} chars`);
-
-    if (!response.ok) {
-      console.error(`❌ Supabase error: ${text}`);
+    if (!roomsResponse.ok) {
+      const errorText = await roomsResponse.text();
+      console.error(`❌ Rooms API error: ${roomsResponse.status} - ${errorText}`);
       return {
-        statusCode: response.status,
+        statusCode: roomsResponse.status,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
         body: JSON.stringify({
           success: false,
-          error: `Supabase API error: ${response.status}`,
-          details: text
+          error: `Rooms API error: ${roomsResponse.status}`,
+          details: errorText
         })
       };
     }
 
-    const rooms = JSON.parse(text);
-    console.log(`✅ Found ${rooms.length} rooms`);
+    const allRooms = await roomsResponse.json();
+    console.log(`📡 Found ${allRooms.length} total rooms`);
+
+    // ✅ Step 2: Get active bookings (Checked-In or Stayover) with room_id
+    const activeStatuses = encodeURIComponent('("Checked-In","Stayover")');
+    const bookingsUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(businessId)}&status=in.${activeStatuses}&room_id=not.is.null&select=room_id`;
+    console.log(`📡 Bookings URL: ${bookingsUrl}`);
+
+    const bookingsResponse = await fetch(bookingsUrl, {
+      method: 'GET',
+      headers
+    });
+
+    let occupiedRoomIds = new Set();
+
+    if (bookingsResponse.ok) {
+      const activeBookings = await bookingsResponse.json();
+      occupiedRoomIds = new Set(
+        (activeBookings || []).map(b => b.room_id).filter(id => id !== null)
+      );
+      console.log(`🔒 ${occupiedRoomIds.size} rooms are occupied`);
+    } else {
+      console.warn(`⚠️ Could not fetch active bookings: ${bookingsResponse.status}`);
+    }
+
+    // ✅ Step 3: Filter available rooms
+    const availableRooms = allRooms.filter(room => {
+      const isOccupied = occupiedRoomIds.has(room.id);
+      const isPhysicallyAvailable = room.status === 'available';
+      return !isOccupied && isPhysicallyAvailable;
+    });
+
+    console.log(`✅ Found ${availableRooms.length} available rooms`);
 
     return {
       statusCode: 200,
@@ -115,15 +139,16 @@ export const handler = async (event) => {
       },
       body: JSON.stringify({
         success: true,
-        rooms: rooms,
-        count: rooms.length,
-        businessId: businessId,
-        diagnostic: 'REST_ONLY_FUNCTION_WORKING'
+        rooms: availableRooms,
+        total_rooms: allRooms.length,
+        occupied_count: occupiedRoomIds.size,
+        available_count: availableRooms.length,
+        businessId: businessId
       })
     };
 
   } catch (error) {
-    console.error('❌ Unhandled error:', error);
+    console.error('❌ Unhandled error in get-available-rooms:', error);
     return {
       statusCode: 500,
       headers: {
