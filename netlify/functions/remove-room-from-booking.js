@@ -1,13 +1,25 @@
 // netlify/functions/remove-room-from-booking.js
-// ✅ CORRECTED: Using your actual table schema
+// ✅ ES Module version
 
-const { pool } = require('../lib/db');
+import { createClient } from '@supabase/supabase-js';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' }),
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
@@ -17,91 +29,107 @@ exports.handler = async (event) => {
     if (!bookingId) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Booking ID is required' }),
+        headers,
+        body: JSON.stringify({ error: 'Booking ID is required' })
       };
     }
 
-    // Get the room_id before removing
-    const roomCheck = await pool.query(
-      `SELECT room_id FROM bookings WHERE id = $1`,
-      [bookingId]
-    );
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    if (roomCheck.rows.length === 0) {
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get the booking with room_id
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('id, room_id, guest_name')
+      .eq('id', bookingId)
+      .single();
+
+    if (bookingError || !booking) {
       return {
         statusCode: 404,
-        body: JSON.stringify({ error: 'Booking not found' }),
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' })
       };
     }
 
-    const roomId = roomCheck.rows[0].room_id;
+    const roomId = booking.room_id;
 
     if (!roomId) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'No room assigned to this booking' }),
+        headers,
+        body: JSON.stringify({ error: 'No room assigned to this booking' })
       };
     }
 
-    // Begin transaction
-    const client = await pool.connect();
+    // Update booking - remove room_id
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ 
+        room_id: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', bookingId);
 
-    try {
-      await client.query('BEGIN');
-
-      // Update booking - remove room_id
-      await client.query(
-        `UPDATE bookings 
-         SET room_id = NULL, updated_at = NOW() 
-         WHERE id = $1`,
-        [bookingId]
-      );
-
-      // Update room allocation status to 'cancelled'
-      await client.query(
-        `UPDATE room_allocations 
-         SET status = 'cancelled' 
-         WHERE booking_id = $1 AND status = 'active'`,
-        [bookingId]
-      );
-
-      // Update room status back to 'available'
-      await client.query(
-        `UPDATE rooms 
-         SET status = 'available', 
-             updated_at = NOW() 
-         WHERE id = $1`,
-        [roomId]
-      );
-
-      await client.query('COMMIT');
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success: true,
-          message: 'Room removed from booking successfully',
-        }),
-      };
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Transaction error:', error);
+    if (updateError) {
+      console.error('Error updating booking:', updateError);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Database transaction failed' }),
+        headers,
+        body: JSON.stringify({ error: 'Failed to remove room' })
       };
-    } finally {
-      client.release();
     }
 
+    // Update room allocation status
+    const { error: allocationError } = await supabase
+      .from('room_allocations')
+      .update({ 
+        status: 'cancelled'
+      })
+      .eq('booking_id', bookingId)
+      .eq('status', 'active');
+
+    if (allocationError) {
+      console.error('Error updating allocation:', allocationError);
+    }
+
+    // Update room status back to available
+    await supabase
+      .from('rooms')
+      .update({ 
+        status: 'available',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', roomId);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        message: `Room removed from booking ${bookingId} successfully`
+      })
+    };
+
   } catch (error) {
-    console.error('Error removing room from booking:', error);
+    console.error('Error in remove-room-from-booking:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: error.message || 'Internal server error',
-      }),
+      headers,
+      body: JSON.stringify({
+        error: error.message || 'Internal server error'
+      })
     };
   }
 };
