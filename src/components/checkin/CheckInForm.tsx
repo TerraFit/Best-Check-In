@@ -1,3 +1,6 @@
+// src/components/checkin/CheckInForm.tsx
+// ✅ With debug logs to track re-mounts
+
 import React, { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { Booking } from '../../types';
@@ -30,12 +33,21 @@ const ErrorMessage = ({ field, message }: { field: string; message: string }) =>
 export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMount = false }: CheckInFormProps) {
   const { t } = useTranslation();
   
+  // ✅ DEBUG: Log when component mounts/unmounts
   useEffect(() => {
-    console.log('🔍 CheckInForm: Component MOUNTED with resetOnMount:', resetOnMount);
+    console.log('🟢 CheckInForm: MOUNTED', { 
+      resetOnMount,
+      businessId: propBusinessId,
+      timestamp: new Date().toISOString(),
+    });
     return () => {
-      console.log('🔍 CheckInForm: Component UNMOUNTED');
+      console.log('🔴 CheckInForm: UNMOUNTED', {
+        resetOnMount,
+        businessId: propBusinessId,
+        timestamp: new Date().toISOString(),
+      });
     };
-  }, [resetOnMount]);
+  }, [resetOnMount, propBusinessId]);
 
   const {
     step,
@@ -78,6 +90,8 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
     resetForm,
     updateFullName,
     getErrorClass,
+    // ✅ Get handleFormChange from hook
+    handleFormChange,
   } = useCheckIn({ businessId: propBusinessId || null, onComplete, resetOnMount });
 
   useEffect(() => {
@@ -89,7 +103,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
   }, [step, canvasRef, initSignaturePad]);
 
   useEffect(() => {
-    console.log('🔍 CheckInForm: Step changed to:', step);
+    console.log('📋 CheckInForm: Step changed to:', step);
   }, [step]);
 
   if (loadingBranding) {
@@ -223,11 +237,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           {step === 1 && (
             <Step1EmailEntry
               email={formData.email}
-              onEmailChange={(email) => setFormData({ ...formData, email })}
+              onEmailChange={(email) => handleFormChange('email', email)}
               saveDetails={formData.saveDetails}
-              onSaveDetailsChange={(saved) => setFormData({ ...formData, saveDetails: saved })}
+              onSaveDetailsChange={(saved) => handleFormChange('saveDetails', saved)}
               popiaConsent={formData.popiaConsent}
-              onPopiaConsentChange={(consent) => setFormData({ ...formData, popiaConsent: consent })}
+              onPopiaConsentChange={(consent) => handleFormChange('popiaConsent', consent)}
               onSubmit={handleSubmit}
               loading={loginLoading}
               businessName={businessName}
@@ -243,7 +257,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           {step === 2 && (
             <Step2PersonalDetails
               formData={formData}
-              onFormChange={(field, value) => setFormData({ ...formData, [field]: value })}
+              onFormChange={handleFormChange}
               touched={touched}
               onTouched={markTouched}
               submitAttempted={submitAttempted}
@@ -311,11 +325,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
               guestName={updateFullName()}
               passportOrId={formData.passportOrId}
               idPhoto={formData.idPhoto}
-              onIdPhotoChange={(photo) => setFormData({ ...formData, idPhoto: photo || '' })}
+              onIdPhotoChange={(photo) => handleFormChange('idPhoto', photo || '')}
               signature={formData.signature}
-              onSignatureChange={(sig) => setFormData({ ...formData, signature: sig })}
+              onSignatureChange={(sig) => handleFormChange('signature', sig)}
               acceptLegal={formData.acceptLegal}
-              onAcceptLegalChange={(accepted) => setFormData({ ...formData, acceptLegal: accepted })}
+              onAcceptLegalChange={(accepted) => handleFormChange('acceptLegal', accepted)}
               hasScrolledToBottom={hasScrolledToBottom}
               onIndemnityScroll={handleIndemnityScroll}
               loading={loading}
