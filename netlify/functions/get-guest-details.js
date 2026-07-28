@@ -1,5 +1,5 @@
 // netlify/functions/get-guest-details.js
-// ✅ FIXED: Include room information in guest details
+// ✅ FIXED: Use 'marketing_consent' instead of 'popia_consent'
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -70,9 +70,8 @@ export const handler = async (event) => {
       'Content-Type': 'application/json'
     };
 
-    // ✅ Query booking with room information
-    // Join with rooms table to get room_number and room_name
-    const query = `bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,guest_province,guest_city,check_in_date,check_out_date,nights,adults,children,status,total_amount,room_id,booking_source,referral_source,arriving_from,next_destination,popia_consent,created_at,rooms:room_id(room_number,room_name,room_type,floor,status)`;
+    // ✅ FIXED: Use 'marketing_consent' (not 'popia_consent')
+    const query = `bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,guest_province,guest_city,check_in_date,check_out_date,nights,adults,children,status,total_amount,room_id,booking_source,referral_source,arriving_from,next_destination,marketing_consent,created_at,rooms:room_id(room_number,room_name,room_type,floor,status)`;
     
     const response = await fetch(`${supabaseUrl}/rest/v1/${query}`, {
       method: 'GET',
@@ -114,7 +113,6 @@ export const handler = async (event) => {
 
     const booking = bookings[0];
 
-    // ✅ Extract room information from the nested rooms object
     const roomInfo = booking.rooms || {};
     const guestDetails = {
       id: booking.id,
@@ -134,7 +132,6 @@ export const handler = async (event) => {
       status: booking.status,
       total_amount: booking.total_amount,
       room_id: booking.room_id,
-      // ✅ Include room details
       room_number: roomInfo.room_number || null,
       room_name: roomInfo.room_name || null,
       room_type: roomInfo.room_type || null,
@@ -144,7 +141,7 @@ export const handler = async (event) => {
       referral_source: booking.referral_source,
       arriving_from: booking.arriving_from,
       next_destination: booking.next_destination,
-      popia_consent: booking.popia_consent,
+      marketing_consent: booking.marketing_consent, // ✅ FIXED: Use correct column name
       created_at: booking.created_at
     };
 
