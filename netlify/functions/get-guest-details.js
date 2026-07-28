@@ -1,7 +1,7 @@
 // netlify/functions/get-guest-details.js
-// ✅ FIXED: Handles both string IDs and UUIDs
+// ✅ PRODUCTION VERSION - Real Supabase data
 
-console.log('📦📦📦 get-guest-details LOADED (with string ID support) 📦📦📦');
+console.log('📦📦📦 PRODUCTION VERSION - REAL SUPABASE DATA 📦📦📦');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -14,90 +14,8 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
-// ✅ Mock data for test bookings
-const MOCK_GUESTS = {
-  '1': {
-    id: '1',
-    guest_name: 'Test Guest 1',
-    guest_first_name: 'Test',
-    guest_last_name: 'Guest',
-    guest_email: 'test1@example.com',
-    guest_phone: '+27123456789',
-    guest_country: 'South Africa',
-    guest_province: 'Western Cape',
-    guest_city: 'Cape Town',
-    check_in_date: '2026-07-28',
-    check_out_date: '2026-07-30',
-    nights: 2,
-    adults: 1,
-    children: 0,
-    status: 'checked_in',
-    room_id: 'room-1',
-    room_number: '1',
-    room_name: 'Stone',
-    room_type: 'Standard',
-    arriving_from: 'Cape Town',
-    next_destination: 'Gqeberha',
-    marketing_consent: true,
-    booking_source: 'Booking.com',
-    created_at: new Date().toISOString()
-  },
-  '2': {
-    id: '2',
-    guest_name: 'Test Guest 2',
-    guest_first_name: 'Test',
-    guest_last_name: 'Guest 2',
-    guest_email: 'test2@example.com',
-    guest_phone: '+27123456789',
-    guest_country: 'South Africa',
-    guest_province: 'Gauteng',
-    guest_city: 'Johannesburg',
-    check_in_date: '2026-07-27',
-    check_out_date: '2026-07-29',
-    nights: 2,
-    adults: 1,
-    children: 0,
-    status: 'stayover',
-    room_id: 'room-2',
-    room_number: '2',
-    room_name: 'Earth',
-    room_type: 'Standard',
-    arriving_from: 'Johannesburg',
-    next_destination: 'Durban',
-    marketing_consent: true,
-    booking_source: 'Airbnb',
-    created_at: new Date().toISOString()
-  },
-  '3': {
-    id: '3',
-    guest_name: 'Test Guest 3',
-    guest_first_name: 'Test',
-    guest_last_name: 'Guest 3',
-    guest_email: 'test3@example.com',
-    guest_phone: '+27123456789',
-    guest_country: 'South Africa',
-    guest_province: 'Eastern Cape',
-    guest_city: 'Gqeberha',
-    check_in_date: '2026-07-28',
-    check_out_date: '2026-07-31',
-    nights: 3,
-    adults: 2,
-    children: 0,
-    status: 'checked_in',
-    room_id: 'room-3',
-    room_number: '3',
-    room_name: 'Leopard',
-    room_type: 'Deluxe',
-    arriving_from: 'Port Elizabeth',
-    next_destination: 'Knysna',
-    marketing_consent: false,
-    booking_source: 'Google',
-    created_at: new Date().toISOString()
-  }
-};
-
 exports.handler = async (event) => {
-  console.log('🔵 get-guest-details handler');
+  console.log('🔵 PRODUCTION HANDLER - Real Supabase data');
   console.log('📡 Query:', event.queryStringParameters);
   
   if (event.httpMethod === 'OPTIONS') {
@@ -117,24 +35,6 @@ exports.handler = async (event) => {
     
     console.log('🔑 Booking ID:', bookingId);
     
-    // ✅ Check if it's a test ID (string like "1", "2", "3")
-    const isTestId = /^[0-9]+$/.test(bookingId);
-    
-    if (isTestId) {
-      console.log('📦 Using mock data for test ID:', bookingId);
-      const mockGuest = MOCK_GUESTS[bookingId];
-      
-      if (!mockGuest) {
-        return createResponse(404, { success: false, error: 'Guest not found' });
-      }
-      
-      return createResponse(200, {
-        success: true,
-        guest: mockGuest
-      });
-    }
-    
-    // ✅ For real UUIDs, query Supabase
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     
@@ -142,7 +42,6 @@ exports.handler = async (event) => {
       return createResponse(500, { success: false, error: 'Server configuration error' });
     }
     
-    // ✅ Include room data in the query
     const url = `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*,rooms:room_id(room_number,room_name,room_type)`;
     
     console.log('🔗 Supabase URL:', url);
