@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ SUPER SIMPLE VERSION - No room data, no food restrictions
+// ✅ FIXED: Include business_id in response
 
 const jwt = require('jsonwebtoken');
 
@@ -40,7 +40,10 @@ exports.handler = async (event) => {
 
     const { 
       businessId: businessIdFromQuery, 
-      limit = 100,
+      status,
+      startDate, 
+      endDate, 
+      limit = 25,
       page = 1
     } = event.queryStringParameters || {};
 
@@ -65,10 +68,52 @@ exports.handler = async (event) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ SIMPLE SELECT - Only basic fields
-    const selectFields = 'id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,check_in_date,check_out_date,nights,adults,children,status,total_amount,guest_country,guest_province,guest_city,booking_source,referral_source,arriving_from,next_destination,created_at,room_id,marketing_consent';
+    // ✅ Include business_id in select fields
+    const selectFields = [
+      'id',
+      'business_id',
+      'guest_name',
+      'guest_first_name',
+      'guest_last_name',
+      'guest_email',
+      'guest_phone',
+      'guest_id_number',
+      'guest_id_photo',
+      'guest_signature',
+      'check_in_date',
+      'check_out_date',
+      'nights',
+      'adults',
+      'children',
+      'total_amount',
+      'status',
+      'guest_province',
+      'guest_city',
+      'guest_country',
+      'booking_source',
+      'referral_source',
+      'marketing_consent',
+      'arriving_from',
+      'next_destination',
+      'created_at',
+      'updated_at',
+      'room_id'
+    ].join(',');
     
-    const url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
+    let url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
+    
+    // ✅ Add status filter if provided
+    if (status) {
+      const statuses = status.split(',').map(s => s.trim());
+      const statusConditions = statuses.map(s => `status=eq.${s}`).join(',');
+      url += `&or=(${statusConditions})`;
+    }
+    
+    if (startDate && endDate) {
+      url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
+    } else if (startDate && !endDate) {
+      url += `&check_in_date=gte.${startDate}`;
+    }
     
     console.log(`🔗 URL: ${url}`);
 
@@ -89,7 +134,18 @@ exports.handler = async (event) => {
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
     // ✅ Get total count
-    const countUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=id`;
+    let countUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=id`;
+    if (status) {
+      const statuses = status.split(',').map(s => s.trim());
+      const statusConditions = statuses.map(s => `status=eq.${s}`).join(',');
+      countUrl += `&or=(${statusConditions})`;
+    }
+    if (startDate && endDate) {
+      countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
+    } else if (startDate && !endDate) {
+      countUrl += `&check_in_date=gte.${startDate}`;
+    }
+    
     const countResponse = await fetch(countUrl, {
       headers: {
         'apikey': supabaseKey,
@@ -105,7 +161,7 @@ exports.handler = async (event) => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
     
-    const todayCheckIns = bookings.filter(b => b.check_in_date === todayStr).length;
+    const todayCheckIns = bookings.filter(b => b.check_in_date === todayStr && b.status === 'checked_in').length;
     const todayCheckOuts = bookings.filter(b => b.check_out_date === todayStr).length;
     
     const todayStayovers = bookings.filter(b => {
@@ -119,6 +175,8 @@ exports.handler = async (event) => {
       checkOutDate.setHours(0, 0, 0, 0);
       return checkOutDate >= today;
     }).length;
+
+    console.log(`📊 Today's Stats - Arrivals: ${todayCheckIns}, Stayovers: ${todayStayovers}, Departures: ${todayCheckOuts}`);
 
     return createResponse(200, {
       success: true,
