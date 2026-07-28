@@ -1,5 +1,5 @@
 // src/components/checkin/CheckInForm.tsx
-// ✅ With debug logs to track re-mounts
+// ✅ FIXED: Pass businessId to Step2PersonalDetails
 
 import React, { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
@@ -33,19 +33,11 @@ const ErrorMessage = ({ field, message }: { field: string; message: string }) =>
 export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMount = false }: CheckInFormProps) {
   const { t } = useTranslation();
   
-  // ✅ DEBUG: Log when component mounts/unmounts
   useEffect(() => {
-    console.log('🟢 CheckInForm: MOUNTED', { 
-      resetOnMount,
-      businessId: propBusinessId,
-      timestamp: new Date().toISOString(),
-    });
+    console.log('🔍 CheckInForm: Component MOUNTED with resetOnMount:', resetOnMount);
+    console.log('🔍 CheckInForm: propBusinessId:', propBusinessId);
     return () => {
-      console.log('🔴 CheckInForm: UNMOUNTED', {
-        resetOnMount,
-        businessId: propBusinessId,
-        timestamp: new Date().toISOString(),
-      });
+      console.log('🔍 CheckInForm: Component UNMOUNTED');
     };
   }, [resetOnMount, propBusinessId]);
 
@@ -90,7 +82,6 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
     resetForm,
     updateFullName,
     getErrorClass,
-    // ✅ Get handleFormChange from hook
     handleFormChange,
   } = useCheckIn({ businessId: propBusinessId || null, onComplete, resetOnMount });
 
@@ -103,7 +94,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
   }, [step, canvasRef, initSignaturePad]);
 
   useEffect(() => {
-    console.log('📋 CheckInForm: Step changed to:', step);
+    console.log('🔍 CheckInForm: Step changed to:', step);
   }, [step]);
 
   if (loadingBranding) {
@@ -268,6 +259,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
               ErrorMessage={ErrorMessage}
               primaryColor={primaryColor}
               secondaryColor={secondaryColor}
+              businessId={propBusinessId} // ✅ PASS businessId HERE!
             />
           )}
 
