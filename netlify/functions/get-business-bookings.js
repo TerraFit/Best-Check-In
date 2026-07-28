@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: Proper room data fetching without nested select issues
+// ✅ FIXED: Flat select without nested rooms syntax
 
 const jwt = require('jsonwebtoken');
 
@@ -71,16 +71,16 @@ exports.handler = async (event) => {
     const BOOKINGS_TABLE = 'bookings';
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ SIMPLIFIED: Fetch bookings WITHOUT nested rooms select
-    const selectFields = `
-      id,business_id,guest_name,guest_first_name,guest_last_name,
-      guest_email,guest_phone,guest_id_number,guest_id_photo,guest_signature,
-      check_in_date,check_out_date,nights,adults,children,total_amount,
-      status,guest_province,guest_city,guest_country,
-      booking_source,referral_source,marketing_consent,
-      arriving_from,next_destination,created_at,updated_at,
-      room_id
-    `;
+    // ✅ FIXED: Flat select WITHOUT nested rooms (just room_id)
+    const selectFields = [
+      'id', 'business_id', 'guest_name', 'guest_first_name', 'guest_last_name',
+      'guest_email', 'guest_phone', 'guest_id_number', 'guest_id_photo', 'guest_signature',
+      'check_in_date', 'check_out_date', 'nights', 'adults', 'children', 'total_amount',
+      'status', 'guest_province', 'guest_city', 'guest_country',
+      'booking_source', 'referral_source', 'marketing_consent',
+      'arriving_from', 'next_destination', 'created_at', 'updated_at',
+      'room_id'
+    ].join(',');
     
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
@@ -108,16 +108,15 @@ exports.handler = async (event) => {
     let bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // ✅ Fetch room data separately for each booking that has a room_id
+    // ✅ Fetch room data separately for bookings with room_id
     if (bookings.length > 0) {
-      const bookingIdsWithRooms = bookings.filter(b => b.room_id).map(b => b.room_id);
+      const bookingsWithRooms = bookings.filter(b => b.room_id);
       
-      if (bookingIdsWithRooms.length > 0) {
-        console.log(`🔍 Fetching room data for ${bookingIdsWithRooms.length} rooms...`);
+      if (bookingsWithRooms.length > 0) {
+        const roomIds = bookingsWithRooms.map(b => b.room_id).join(',');
+        console.log(`🔍 Fetching room data for ${bookingsWithRooms.length} rooms: ${roomIds}`);
         
         try {
-          // Fetch all rooms in one query
-          const roomIds = bookingIdsWithRooms.join(',');
           const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${roomIds})&select=id,room_number,room_name,room_type,floor,status`;
           
           const roomResponse = await fetch(roomUrl, {
@@ -158,14 +157,12 @@ exports.handler = async (event) => {
       }
     }
 
-    // ============================================================
     // ✅ Fetch food restrictions
-    // ============================================================
     if (bookings.length > 0) {
+      const bookingIds = bookings.map(b => b.id).join(',');
       console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
       
       try {
-        const bookingIds = bookings.map(b => b.id).join(',');
         const restrictionsUrl = `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIds})&select=*`;
         
         const restrictionsResponse = await fetch(restrictionsUrl, {
@@ -177,32 +174,22 @@ exports.handler = async (event) => {
 
         if (restrictionsResponse.ok) {
           const allRestrictions = await restrictionsResponse.json();
-          console.log(`✅ Total food restrictions in DB: ${allRestrictions.length}`);
+          console.log(`✅ Food restrictions fetched: ${allRestrictions.length}`);
           
-          // Create a map of booking_id -> restrictions
           const restrictionsMap = {};
           allRestrictions.forEach(r => {
             restrictionsMap[r.booking_id] = r;
           });
           
-          // Attach food_restrictions to each booking
           bookings = bookings.map(booking => ({
             ...booking,
             food_restrictions: restrictionsMap[booking.id] || null
           }));
         } else {
           console.warn('⚠️ Could not fetch food restrictions');
-          bookings = bookings.map(booking => ({
-            ...booking,
-            food_restrictions: null
-          }));
         }
       } catch (err) {
-        console.error('❌ Error fetching food restrictions:', err.message);
-        bookings = bookings.map(booking => ({
-          ...booking,
-          food_restrictions: null
-        }));
+        console.warn('⚠️ Error fetching food restrictions:', err.message);
       }
     }
 
