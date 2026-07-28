@@ -1,5 +1,5 @@
 // src/hooks/useBusinessData.ts
-// ✅ FIXED: Simplified response handling for bookings
+// ✅ PHASE 1: Minimal version - no status filter, no double filter, full debug logging
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './useAuth';
@@ -23,6 +23,9 @@ interface Booking {
   business_id?: string;
   arriving_from?: string;
   next_destination?: string;
+  room_id?: string;
+  room_number?: string;
+  room_name?: string;
 }
 
 export function useBusinessData(activeTab: string, currentPage: number, pageSize: number, currentFilters: any) {
@@ -143,15 +146,17 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   }, [fetchWithAuth, getBusinessId]);
 
   // ============================================================
-  // ✅ Load Bookings - SIMPLIFIED
+  // ✅ Load Bookings - PHASE 1: NO status filter, NO double filter
   // ============================================================
   const loadBookings = useCallback(async () => {
     const businessId = getBusinessId();
     if (!businessId || !business) {
+      console.log('⏭️ Skipping bookings load - no business');
       return;
     }
 
     if (refreshing) {
+      console.log('⏭️ Skipping bookings load - already refreshing');
       return;
     }
 
@@ -172,6 +177,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
 
     // Skip if same filters
     if (lastFiltersRef.current === filtersKey) {
+      console.log('⏭️ Skipping bookings load - same filters');
       return;
     }
     lastFiltersRef.current = filtersKey;
@@ -185,11 +191,8 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     setRefreshing(true);
 
     try {
+      // ✅ PHASE 1: NO status filter - just businessId
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
-      
-      // ✅ Always fetch active bookings (checked_in + stayover)
-      // ✅ Use status parameter to filter
-      url += `&status=checked_in,stayover`;
       
       if (activeTab === 'reports') {
         url += `&limit=10000&page=1`;
@@ -197,6 +200,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
         url += `&limit=${pageSize}&page=${currentPage}`;
       }
       
+      // ✅ Date filters only (if needed)
       if (activeTab === 'reports' || activeTab === 'checkins') {
         if (currentFilters?.startDate && currentFilters?.endDate) {
           url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
@@ -210,7 +214,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
         }
       }
       
-      console.log('🔗 Fetching bookings:', url);
+      console.log('🔗 Fetching bookings (no status filter):', url);
       const res = await fetchWithAuth(url, { signal: controller.signal });
       
       if (!res.ok) {
@@ -218,11 +222,16 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       }
       
       const result = await res.json();
-      console.log('📡 API Response:', result);
+      
+      // ✅ PHASE 1: Log the full response shape
+      console.log('📡 API Response keys:', Object.keys(result));
+      console.log('📡 Bookings length:', result.bookings?.length);
+      console.log('📡 Total count:', result.total_count);
+      console.log('📡 Success:', result.success);
       
       if (!isMountedRef.current) return;
       
-      // ✅ SIMPLIFIED: Just use result.bookings
+      // ✅ Parse the response
       let validBookings: Booking[] = [];
       
       if (result.success && result.bookings && Array.isArray(result.bookings)) {
@@ -235,11 +244,20 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
         validBookings = [];
       }
       
-      // ✅ Filter by business ID just to be safe
-      const filteredBookings = validBookings.filter(b => b.business_id === businessId);
+      // ✅ PHASE 1: NO business_id filter - use raw data
+      const filteredBookings = validBookings;
       
+      // ✅ PHASE 1: Debug business ID comparison
+      console.log('🔍 Auth Business ID:', businessId);
+      const bizIds = [...new Set(validBookings.map(b => b.business_id))];
+      console.log('📋 Business IDs in bookings:', bizIds);
+      
+      if (validBookings.length > 0 && bizIds.length > 0) {
+        console.log('✅ Match?', bizIds[0] === businessId);
+      }
+      
+      console.log(`✅ Setting ${filteredBookings.length} bookings`);
       setBookings(filteredBookings);
-      console.log(`✅ Set ${filteredBookings.length} bookings`);
       
       // ✅ Use total_count from API or fallback to length
       const totalCount = result.total_count || filteredBookings.length;
