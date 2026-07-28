@@ -1,7 +1,9 @@
 // netlify/functions/get-business-bookings.js
-// ✅ TEST VERSION - Returns hardcoded bookings
+// ✅ PRODUCTION VERSION - Real Supabase data
 
-console.log('📦📦📦 TEST VERSION - HARDCODED BOOKINGS 📦📦📦');
+console.log('📦📦📦 PRODUCTION VERSION - REAL SUPABASE DATA 📦📦📦');
+
+const jwt = require('jsonwebtoken');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -15,7 +17,7 @@ const createResponse = (statusCode, body) => ({
 });
 
 exports.handler = async (event) => {
-  console.log('🔵 TEST HANDLER - Hardcoded bookings');
+  console.log('🔵 PRODUCTION HANDLER - Real Supabase data');
   console.log('📡 Method:', event.httpMethod);
   console.log('📡 Query:', event.queryStringParameters);
   
@@ -23,19 +25,63 @@ exports.handler = async (event) => {
     return createResponse(204, {});
   }
   
-  // ✅ Hardcoded bookings
-  const mockBookings = [
-    { id: '1', guest_name: 'Test Guest 1', status: 'checked_in', check_in_date: '2026-07-28' },
-    { id: '2', guest_name: 'Test Guest 2', status: 'stayover', check_in_date: '2026-07-27' },
-    { id: '3', guest_name: 'Test Guest 3', status: 'checked_in', check_in_date: '2026-07-28' }
-  ];
+  if (event.httpMethod !== 'GET') {
+    return createResponse(405, { success: false, error: 'Method Not Allowed' });
+  }
   
-  return createResponse(200, {
-    success: true,
-    bookings: mockBookings,
-    total_count: mockBookings.length,
-    page: 1,
-    limit: 25,
-    total_pages: 1
-  });
+  try {
+    const targetBusinessId = event.queryStringParameters?.businessId;
+    console.log('🎯 Target business ID:', targetBusinessId);
+    
+    if (!targetBusinessId) {
+      return createResponse(400, { success: false, error: 'Business ID required' });
+    }
+    
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
+      return createResponse(500, { success: false, error: 'Server configuration error' });
+    }
+    
+    const limit = parseInt(event.queryStringParameters?.limit || 25);
+    const offset = (parseInt(event.queryStringParameters?.page || 1) - 1) * limit;
+    const url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
+    
+    console.log('🔗 Supabase URL:', url);
+    
+    const response = await fetch(url, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Supabase error:', errorText);
+      return createResponse(response.status, {
+        success: false,
+        error: 'Supabase query failed',
+        details: errorText
+      });
+    }
+    
+    const bookings = await response.json();
+    console.log('✅ Real bookings fetched:', bookings.length);
+    
+    return createResponse(200, {
+      success: true,
+      bookings: bookings,
+      total_count: bookings.length,
+      page: parseInt(event.queryStringParameters?.page || 1),
+      limit: limit,
+      total_pages: Math.ceil(bookings.length / limit)
+    });
+    
+  } catch (err) {
+    console.error('❌ Error:', err.message);
+    return createResponse(500, { success: false, error: err.message });
+  }
 };
