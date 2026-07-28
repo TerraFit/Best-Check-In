@@ -4,6 +4,7 @@
 // ✅ FIXED: No fallback to all rooms on error
 // ✅ FIXED: Supports Assign, Change, and Remove actions
 // ✅ FIXED: getAvailableRooms checks for 'active' status (matches database constraint)
+// ✅ FIXED: GuestDetails interface includes room fields (room_id, room_number, room_name)
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -38,6 +39,39 @@ interface Room {
   status: 'active' | 'occupied' | 'maintenance' | 'blocked';
   is_available?: boolean;
   current_guest?: string;
+}
+
+// ✅ GuestDetails interface with room fields
+interface GuestDetails {
+  id: string;
+  guest_name: string;
+  guest_first_name?: string;
+  guest_last_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  guest_country?: string;
+  guest_province?: string;
+  guest_city?: string;
+  check_in_date?: string;
+  check_out_date?: string;
+  nights?: number;
+  adults?: number;
+  children?: number;
+  status?: string;
+  total_amount?: number;
+  room_id?: string | null;
+  room_number?: string | null;
+  room_name?: string | null;
+  room_type?: string | null;
+  floor?: string | null;
+  room_status?: string | null;
+  arriving_from?: string;
+  next_destination?: string;
+  booking_source?: string;
+  referral_source?: string;
+  popia_consent?: boolean;
+  food_restrictions?: FoodRestrictions;
+  created_at?: string;
 }
 
 const DEFAULT_RESTRICTIONS: FoodRestrictions = {
@@ -180,7 +214,8 @@ export default function GuestDetailsModal({
         nights: guestDetails.nights || 1
       });
       
-      // ✅ Set current room info for this specific guest
+      // ✅ Set current room info for this specific guest from guestDetails
+      // The API now returns room_id, room_number, and room_name
       if (guestDetails.room_number) {
         setCurrentRoomNumber(guestDetails.room_number);
         setCurrentRoomName(guestDetails.room_name || null);
@@ -268,20 +303,20 @@ export default function GuestDetailsModal({
   };
 
   // ✅ FIXED: Check for 'active' status (matches database)
-const getAvailableRooms = (): Room[] => {
-  return rooms.filter(room => {
-    // Exclude the current room when changing rooms
-    if (room.id === currentRoomId) return false;
+  const getAvailableRooms = (): Room[] => {
+    return rooms.filter(room => {
+      // Exclude the current room when changing rooms
+      if (room.id === currentRoomId) return false;
 
-    // Use is_available flag from API if present
-    if (room.is_available !== undefined) {
-      return room.is_available === true;
-    }
+      // Use is_available flag from API if present
+      if (room.is_available !== undefined) {
+        return room.is_available === true;
+      }
 
-    // ✅ FIXED: Check for 'active' (matches database)
-    return room.status === 'active';
-  });
-};
+      // ✅ FIXED: Check for 'active' (matches database)
+      return room.status === 'active';
+    });
+  };
 
   // ✅ Handle room assignment - supports assign, change, and remove
   const handleAssignRoom = async () => {
