@@ -62,7 +62,7 @@ export interface CheckInFormData {
   acceptLegal: boolean;
   popiaConsent: boolean;
   saveDetails: boolean;
-  roomAllocation?: string; // ← NEW: Room allocation field
+  roomAllocation?: string; // ✅ Optional - can be null
 }
 
 export interface TouchedFields {
@@ -82,7 +82,7 @@ export interface TouchedFields {
   idPhoto: boolean;
   signature: boolean;
   acceptLegal: boolean;
-  roomAllocation: boolean; // ← NEW: Room allocation touched state
+  roomAllocation: boolean; // ✅ Track touch state but not required
 }
 
 export const DEFAULT_RESTRICTIONS: FoodRestrictions = {
