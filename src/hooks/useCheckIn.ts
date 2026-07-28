@@ -567,59 +567,60 @@ useEffect(() => {
   };
 
   const submitBooking = async () => {
-    console.log('🔍 submitBooking: STARTED');
-    setLoading(true);
+  console.log('🔍 submitBooking: STARTED');
+  setLoading(true);
+  
+  try {
+    console.log('🔍 submitBooking: Calculating total amount...');
+    const totalAmount = await checkinService.calculateTotalAmount(businessId, formData.nights);
+    console.log('🔍 submitBooking: Total amount calculated:', totalAmount);
     
-    try {
-      console.log('🔍 submitBooking: Calculating total amount...');
-      const totalAmount = await checkinService.calculateTotalAmount(businessId, formData.nights);
-      console.log('🔍 submitBooking: Total amount calculated:', totalAmount);
-      
-      const fullName = formatFullName(formData.firstName, formData.lastName);
-      const formattedCheckIn = formData.arrivalDate.split('T')[0];
-      const formattedCheckOut = formData.departureDate ? formData.departureDate.split('T')[0] : '';
+    const fullName = formatFullName(formData.firstName, formData.lastName);
+    const formattedCheckIn = formData.arrivalDate.split('T')[0];
+    const formattedCheckOut = formData.departureDate ? formData.departureDate.split('T')[0] : '';
 
-      const dbBooking = {
-        business_id: businessId,
-        guest_name: fullName,
-        guest_first_name: formData.firstName,
-        guest_last_name: formData.lastName,
-        guest_email: formData.email.toLowerCase().trim(),
-        guest_phone: formData.phone,
-        guest_id_number: formData.passportOrId,
-        guest_id_photo: formData.idPhoto,
-        guest_signature: formData.signature,
-        check_in_date: formattedCheckIn,
-        check_out_date: formattedCheckOut,
-        nights: formData.nights,
-        adults: formData.adults,
-        children: formData.kids,
-        total_amount: totalAmount,
-        status: 'checked_in',
-        guest_province: formData.province,
-        guest_city: formData.city,
-        guest_country: formData.country,
-        arriving_from: formData.arrivingFrom,
-        next_destination: formData.nextDestination,
-        booking_source: formData.referral,
-        referral_source: formData.referral,
-        marketing_consent: formData.popiaConsent,
-        food_restrictions: foodRestrictions,
-        created_at: new Date().toISOString(),
-        source: 'live_checkin',
-        room_id: formData.roomAllocation, // ← NEW: Room allocation
-      };
+    const dbBooking = {
+      business_id: businessId,
+      guest_name: fullName,
+      guest_first_name: formData.firstName,
+      guest_last_name: formData.lastName,
+      guest_email: formData.email.toLowerCase().trim(),
+      guest_phone: formData.phone,
+      guest_id_number: formData.passportOrId,
+      guest_id_photo: formData.idPhoto,
+      guest_signature: formData.signature,
+      check_in_date: formattedCheckIn,
+      check_out_date: formattedCheckOut,
+      nights: formData.nights,
+      adults: formData.adults,
+      children: formData.kids,
+      total_amount: totalAmount,
+      status: 'checked_in',
+      guest_province: formData.province,
+      guest_city: formData.city,
+      guest_country: formData.country,
+      arriving_from: formData.arrivingFrom,
+      next_destination: formData.nextDestination,
+      booking_source: formData.referral,
+      referral_source: formData.referral,
+      marketing_consent: formData.popiaConsent,
+      food_restrictions: foodRestrictions,
+      created_at: new Date().toISOString(),
+      source: 'live_checkin',
+      // ✅ CRITICAL: Include room allocation
+      room_id: formData.roomAllocation || null,
+    };
 
-      console.log('🔍 submitBooking: Saving booking...');
-      const result = await checkinService.saveBooking(dbBooking);
-      console.log('🔍 submitBooking: Booking save result:', result);
-      
-      if (!result.success) {
-        console.error('🔴 submitBooking: Booking save failed');
-        alert(t('error_booking_failed'));
-        setLoading(false);
-        return;
-      }
+    console.log('🔍 submitBooking: Saving booking with room_id:', dbBooking.room_id);
+    const result = await checkinService.saveBooking(dbBooking);
+    console.log('🔍 submitBooking: Booking save result:', result);
+    
+    if (!result.success) {
+      console.error('🔴 submitBooking: Booking save failed');
+      alert(t('error_booking_failed'));
+      setLoading(false);
+      return;
+    }
 
       if (result.isDuplicate) {
         console.log('⚠️ submitBooking: Duplicate booking detected');
@@ -698,12 +699,12 @@ useEffect(() => {
       console.log('🔍 submitBooking: COMPLETED SUCCESSFULLY');
 
     } catch (error) {
-      console.error('❌ submitBooking ERROR:', error);
-      setNotification({ type: 'error', message: t('error_unexpected') });
-    } finally {
-      setLoading(false);
-    }
-  };
+    console.error('❌ submitBooking ERROR:', error);
+    setNotification({ type: 'error', message: t('error_unexpected') });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Camera functions (unchanged)
   const startCamera = async () => {
