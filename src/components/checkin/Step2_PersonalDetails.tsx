@@ -1,14 +1,12 @@
 // src/components/checkin/Step2PersonalDetails.tsx
-// ✅ FIXED: No cleanLocation in handleFieldChange - spaces work!
-// ✅ DIAGNOSTIC: Full logging for country/province debugging
-// ✅ NEW: Room allocation integration (OPTIONAL during check-in)
+// ✅ UPDATED: Uses extracted RoomAllocation component
 
 import React from 'react';
 import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
 import { LocationAutocomplete } from './LocationAutocomplete';
-import { RoomAllocation } from './RoomAllocation';
+import { RoomAllocation } from '../common/RoomAllocation';
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -119,7 +117,6 @@ export function Step2PersonalDetails({
     { value: 'other', label: 'Other' },
   ];
 
-  // ✅ FIXED: NO cleanLocation here - spaces work!
   const handleFieldChange = (field: string, value: any) => {
     console.log(`🔍 Step2PersonalDetails: Changing ${field} to "${value}"`);
     onFormChange(field, value);
@@ -128,7 +125,6 @@ export function Step2PersonalDetails({
     }
   };
 
-  // ✅ FIXED: Room allocation is OPTIONAL - always returns true
   const getValidation = (field: keyof TouchedFields, value: any): boolean => {
     if (field === 'firstName' || field === 'lastName' || field === 'city' || 
         field === 'arrivingFrom' || field === 'nextDestination') {
@@ -149,7 +145,6 @@ export function Step2PersonalDetails({
     if (field === 'nights') {
       return value && value >= 1;
     }
-    // ✅ Room allocation is OPTIONAL - always valid
     if (field === 'roomAllocation') {
       return true;
     }
@@ -326,7 +321,7 @@ export function Step2PersonalDetails({
             />
           </div>
 
-          {/* Arriving From - using LocationAutocomplete */}
+          {/* Arriving From */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.arrivingFrom}
@@ -349,7 +344,7 @@ export function Step2PersonalDetails({
             </p>
           </div>
 
-          {/* Next Destination - using LocationAutocomplete */}
+          {/* Next Destination */}
           <div className="col-span-full">
             <LocationAutocomplete
               value={formData.nextDestination}
@@ -443,54 +438,6 @@ export function Step2PersonalDetails({
             </div>
           </div>
 
-          {/* ✅ ROOM ALLOCATION - OPTIONAL */}
-          {businessId && formData.arrivalDate && formData.departureDate && (
-            <div className="border-t border-stone-200 pt-6 mt-2">
-              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-1.5 bg-blue-100 rounded-full mt-0.5">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-blue-800 font-medium">Room Allocation (Optional)</p>
-                    <p className="text-xs text-blue-600">
-                      If you already know which room you're staying in, you can select it below. 
-                      Otherwise, leave it blank and the staff will assign a room upon arrival.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <RoomAllocation
-                  businessId={businessId}
-                  checkInDate={formData.arrivalDate}
-                  checkOutDate={formData.departureDate}
-                  value={formData.roomAllocation || ''}
-                  onChange={(roomId) => {
-                    console.log(`🏨 Room selected: ${roomId}`);
-                    handleFieldChange('roomAllocation', roomId);
-                  }}
-                  onError={(err) => {
-                    console.error('Room allocation error:', err);
-                    onError([err]);
-                  }}
-                  required={false}
-                  touched={touched.roomAllocation || false}
-                  error=""
-                  label="Room Allocation"
-                  primaryColor={primaryColor}
-                />
-                <p className="text-xs text-stone-400 mt-1 flex items-center gap-1">
-                  <span className="text-blue-400">ℹ️</span>
-                  This field is optional. You can skip it and the staff will assign your room later.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Referral Source */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
@@ -532,6 +479,55 @@ export function Step2PersonalDetails({
               message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? 'Settlement method is required' : ''} 
             />
           </div>
+
+          {/* ✅ ROOM ALLOCATION - Using Extracted Component */}
+          {businessId && formData.arrivalDate && (
+            <div className="border-t border-stone-200 pt-6 mt-2">
+              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-1.5 bg-blue-100 rounded-full mt-0.5">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-blue-800 font-medium">Room Allocation (Optional)</p>
+                    <p className="text-xs text-blue-600">
+                      If you already know which room you're staying in, you can select it below. 
+                      Otherwise, leave it blank and the staff will assign a room upon arrival.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <RoomAllocation
+                  businessId={businessId}
+                  checkInDate={formData.arrivalDate}
+                  checkOutDate={formData.departureDate || ''}
+                  value={formData.roomAllocation || ''}
+                  onChange={(roomId) => {
+                    console.log(`🏨 Room selected: ${roomId}`);
+                    handleFieldChange('roomAllocation', roomId);
+                  }}
+                  onError={(err) => {
+                    console.error('Room allocation error:', err);
+                    onError([err]);
+                  }}
+                  required={false}
+                  touched={touched.roomAllocation || false}
+                  error=""
+                  label="Room Allocation"
+                  primaryColor={primaryColor}
+                  showRefresh={true}
+                />
+                <p className="text-xs text-stone-400 mt-1 flex items-center gap-1">
+                  <span className="text-blue-400">ℹ️</span>
+                  This field is optional. You can skip it and the staff will assign your room later.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-stone-200">
