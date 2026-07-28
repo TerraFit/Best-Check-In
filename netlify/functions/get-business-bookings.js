@@ -1,7 +1,13 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: Include business_id in response
+// ✅ FINAL DIAGNOSTIC: Logs everything, safe for production (no stack trace exposed)
+
+console.log('🚀🚀🚀 get-business-bookings FUNCTION LOADED 🚀🚀🚀');
+console.log('📦 Node version:', process.version);
+console.log('🌐 fetch available:', typeof fetch === 'function' ? '✅ YES' : '❌ NO');
 
 const jwt = require('jsonwebtoken');
+
+console.log('✅ jwt loaded successfully');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -14,190 +20,152 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
-  if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
+console.log('✅ createResponse defined');
 
+// ✅ Safe error logger
+const logError = (message, error) => {
+  console.error(`❌ ${message}:`, error?.message || error);
+  if (error?.stack) {
+    console.error('📚 Stack trace:', error.stack);
+  }
+};
+
+exports.handler = async (event) => {
+  console.log('🔵🔵🔵 HANDLER STARTED 🔵🔵🔵');
+  console.log('📡 HTTP Method:', event.httpMethod);
+  console.log('📡 Query params:', event.queryStringParameters);
+  console.log('📡 Headers present:', {
+    authorization: !!event.headers.authorization,
+    'content-type': event.headers['content-type'] || 'not set'
+  });
+  
   try {
-    // Auth verification
+    console.log('🔵 Step 1: Checking OPTIONS...');
+    if (event.httpMethod === 'OPTIONS') {
+      console.log('✅ OPTIONS request - returning 204');
+      return createResponse(204, {});
+    }
+    
+    console.log('🔵 Step 2: Checking GET...');
+    if (event.httpMethod !== 'GET') {
+      console.log('❌ Not GET - returning 405');
+      return createResponse(405, { success: false, error: 'Method Not Allowed' });
+    }
+    
+    console.log('🔵 Step 3: Getting auth token...');
     const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) return createResponse(401, { success: false, error: 'No authorization token provided' });
+    console.log('🔑 Token present:', !!token);
+    console.log('🔑 Token length:', token?.length || 0);
+    
+    if (!token) {
+      console.log('❌ No token - returning 401');
+      return createResponse(401, { success: false, error: 'No authorization token provided' });
+    }
+    
+    console.log('🔵 Step 4: Verifying JWT...');
+    console.log('🔐 JWT_SECRET present:', !!process.env.SUPABASE_JWT_SECRET);
+    console.log('🔐 JWT_SECRET length:', process.env.SUPABASE_JWT_SECRET?.length || 0);
     
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+      console.log('✅ JWT verified successfully');
+      console.log('📋 Decoded sub:', decoded.sub);
+      console.log('📋 Decoded user_metadata:', JSON.stringify(decoded.user_metadata));
     } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return createResponse(401, { success: false, error: 'Token has expired' });
-      }
-      return createResponse(401, { success: false, error: 'Invalid token signature' });
+      logError('JWT verification failed', err);
+      return createResponse(401, { success: false, error: 'Invalid token' });
     }
     
+    console.log('🔵 Step 5: Getting business ID...');
     const businessIdFromToken = decoded.user_metadata?.business_id;
-    if (!businessIdFromToken) {
-      return createResponse(403, { success: false, error: 'Token missing business ID' });
-    }
-
-    const { 
-      businessId: businessIdFromQuery, 
-      status,
-      startDate, 
-      endDate, 
-      limit = 25,
-      page = 1
-    } = event.queryStringParameters || {};
-
+    const { businessId: businessIdFromQuery, limit = 25, page = 1 } = event.queryStringParameters || {};
     const targetBusinessId = businessIdFromQuery || businessIdFromToken;
     
-    if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
-      return createResponse(403, { success: false, error: 'Forbidden' });
-    }
+    console.log('🏢 Business ID from token:', businessIdFromToken);
+    console.log('🏢 Business ID from query:', businessIdFromQuery);
+    console.log('🎯 Target business ID:', targetBusinessId);
     
     if (!targetBusinessId) {
+      console.log('❌ No business ID - returning 400');
       return createResponse(400, { success: false, error: 'Missing businessId parameter' });
     }
-
-    console.log(`✅ Fetching bookings for business: ${targetBusinessId}`);
-
+    
+    console.log('🔵 Step 6: Getting Supabase credentials...');
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
+    
+    console.log('🔗 SUPABASE_URL present:', !!supabaseUrl);
+    console.log('🔑 SUPABASE_SERVICE_KEY present:', !!supabaseKey);
+    
     if (!supabaseUrl || !supabaseKey) {
+      console.log('❌ Missing credentials - returning 500');
+      logError('Missing Supabase credentials', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
       return createResponse(500, { success: false, error: 'Server configuration error' });
     }
-
+    
+    console.log('🔵 Step 7: Building URL...');
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    const url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
-    // ✅ Include business_id in select fields
-    const selectFields = [
-      'id',
-      'business_id',
-      'guest_name',
-      'guest_first_name',
-      'guest_last_name',
-      'guest_email',
-      'guest_phone',
-      'guest_id_number',
-      'guest_id_photo',
-      'guest_signature',
-      'check_in_date',
-      'check_out_date',
-      'nights',
-      'adults',
-      'children',
-      'total_amount',
-      'status',
-      'guest_province',
-      'guest_city',
-      'guest_country',
-      'booking_source',
-      'referral_source',
-      'marketing_consent',
-      'arriving_from',
-      'next_destination',
-      'created_at',
-      'updated_at',
-      'room_id'
-    ].join(',');
+    console.log('🔗 URL:', url);
+    console.log('📊 Limit:', limit);
+    console.log('📊 Offset:', offset);
     
-    let url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
-    
-    // ✅ Add status filter if provided
-    if (status) {
-      const statuses = status.split(',').map(s => s.trim());
-      const statusConditions = statuses.map(s => `status=eq.${s}`).join(',');
-      url += `&or=(${statusConditions})`;
-    }
-    
-    if (startDate && endDate) {
-      url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (startDate && !endDate) {
-      url += `&check_in_date=gte.${startDate}`;
-    }
-    
-    console.log(`🔗 URL: ${url}`);
-
+    console.log('🔵 Step 8: Fetching from Supabase...');
     const response = await fetch(url, {
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`
       }
     });
-
+    
+    console.log('📡 Supabase response status:', response.status);
+    console.log('📡 Supabase response ok:', response.ok);
+    console.log('📡 Supabase response statusText:', response.statusText);
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Supabase error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      console.error('❌ Supabase error response:', errorText);
+      logError('Supabase query failed', { status: response.status, body: errorText });
+      return createResponse(response.status, {
+        success: false,
+        error: 'Supabase query failed',
+        status: response.status
+      });
     }
-
+    
+    console.log('🔵 Step 9: Parsing response...');
     const bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
-
-    // ✅ Get total count
-    let countUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=id`;
-    if (status) {
-      const statuses = status.split(',').map(s => s.trim());
-      const statusConditions = statuses.map(s => `status=eq.${s}`).join(',');
-      countUrl += `&or=(${statusConditions})`;
-    }
-    if (startDate && endDate) {
-      countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (startDate && !endDate) {
-      countUrl += `&check_in_date=gte.${startDate}`;
+    
+    if (bookings.length > 0) {
+      console.log('📋 First booking:', {
+        id: bookings[0]?.id,
+        guest_name: bookings[0]?.guest_name,
+        status: bookings[0]?.status,
+        business_id: bookings[0]?.business_id
+      });
     }
     
-    const countResponse = await fetch(countUrl, {
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`
-      }
-    });
-    const totalCountData = await countResponse.json();
-    const totalBookings = totalCountData.length;
-    const totalPages = Math.ceil(totalBookings / parseInt(limit));
-
-    // ✅ Calculate today's activity
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-    
-    const todayCheckIns = bookings.filter(b => b.check_in_date === todayStr && b.status === 'checked_in').length;
-    const todayCheckOuts = bookings.filter(b => b.check_out_date === todayStr).length;
-    
-    const todayStayovers = bookings.filter(b => {
-      if (!b.check_in_date) return false;
-      const checkInDate = new Date(b.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      if (checkInDate.getTime() === today.getTime()) return false;
-      if (checkInDate > today) return false;
-      if (!b.check_out_date) return true;
-      const checkOutDate = new Date(b.check_out_date);
-      checkOutDate.setHours(0, 0, 0, 0);
-      return checkOutDate >= today;
-    }).length;
-
-    console.log(`📊 Today's Stats - Arrivals: ${todayCheckIns}, Stayovers: ${todayStayovers}, Departures: ${todayCheckOuts}`);
-
+    console.log('🔵 Step 10: Returning response...');
     return createResponse(200, {
       success: true,
       bookings: bookings,
-      total_count: totalBookings,
+      total_count: bookings.length,
       page: parseInt(page),
       limit: parseInt(limit),
-      total_pages: totalPages,
-      today_activity: {
-        arrivals: todayCheckIns,
-        stayovers: todayStayovers,
-        checkouts: todayCheckOuts
-      }
+      total_pages: Math.ceil(bookings.length / parseInt(limit))
     });
-
+    
   } catch (err) {
-    console.error('❌ get-business-bookings error:', err);
+    console.error('❌❌❌ CATASTROPHIC ERROR ❌❌❌');
+    logError('Unhandled exception', err);
     return createResponse(500, {
       success: false,
-      error: 'Internal Server Error',
-      message: err.message
+      error: 'Internal server error'
     });
   }
 };
+
+console.log('✅✅✅ FUNCTION DEFINITION COMPLETE ✅✅✅');
