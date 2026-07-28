@@ -1,5 +1,6 @@
 // src/components/dashboard/GuestDetailsModal.tsx
 // ✅ UPDATED: Uses extracted RoomAllocation component
+// ✅ FIXED: Properly handles guest details data
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
