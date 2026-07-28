@@ -1,4 +1,6 @@
 // src/hooks/useBusinessData.ts
+// ✅ FIXED: Simplified response handling for bookings
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './useAuth';
 
@@ -46,7 +48,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   const isMountedRef = useRef(true);
   const initialLoadDoneRef = useRef(false);
   const lastFiltersRef = useRef<string>('');
-  const loadingBusinessRef = useRef(false); // ✅ Prevent duplicate loads
+  const loadingBusinessRef = useRef(false);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -59,10 +61,9 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
   }, []);
 
   // ============================================================
-  // ✅ Load Business Profile - FIXED infinite loop
+  // ✅ Load Business Profile
   // ============================================================
   useEffect(() => {
-    // ✅ Prevent multiple simultaneous loads
     if (loadingBusinessRef.current) return;
     if (initialLoadDoneRef.current) return;
 
@@ -82,7 +83,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       try {
         console.log('📡 Loading business profile...');
         
-        // ✅ Add timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           console.warn('⚠️ Business branding request timed out');
@@ -140,10 +140,10 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     };
 
     loadBusinessProfile();
-  }, [fetchWithAuth, getBusinessId]); // ✅ Only depend on stable values
+  }, [fetchWithAuth, getBusinessId]);
 
   // ============================================================
-  // ✅ Load Bookings - FIXED dependencies
+  // ✅ Load Bookings - SIMPLIFIED
   // ============================================================
   const loadBookings = useCallback(async () => {
     const businessId = getBusinessId();
@@ -187,6 +187,10 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     try {
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
       
+      // ✅ Always fetch active bookings (checked_in + stayover)
+      // ✅ Use status parameter to filter
+      url += `&status=checked_in,stayover`;
+      
       if (activeTab === 'reports') {
         url += `&limit=10000&page=1`;
       } else {
@@ -208,48 +212,60 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       
       console.log('🔗 Fetching bookings:', url);
       const res = await fetchWithAuth(url, { signal: controller.signal });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      
       const result = await res.json();
+      console.log('📡 API Response:', result);
       
       if (!isMountedRef.current) return;
       
-      let rawBookings = [];
-      if (result.bookings && Array.isArray(result.bookings)) {
-        rawBookings = result.bookings;
-      } else if (result.success && Array.isArray(result.data)) {
-        rawBookings = result.data;
-      } else if (Array.isArray(result)) {
-        rawBookings = result;
-      }
+      // ✅ SIMPLIFIED: Just use result.bookings
+      let validBookings: Booking[] = [];
       
-      const validBookings = rawBookings.filter(b => b.business_id === businessId);
-      setBookings(validBookings);
-      
-      if (activeTab !== 'reports') {
-        setTotalBookingsCount(result.total_count || validBookings.length);
-        const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
-        setTotalPages(calculatedTotalPages);
+      if (result.success && result.bookings && Array.isArray(result.bookings)) {
+        validBookings = result.bookings;
+        console.log(`✅ Found ${validBookings.length} bookings in response`);
+      } else if (result.bookings && Array.isArray(result.bookings)) {
+        validBookings = result.bookings;
       } else {
-        setTotalBookingsCount(validBookings.length);
-        setTotalPages(1);
+        console.warn('⚠️ Unexpected response format:', Object.keys(result));
+        validBookings = [];
       }
       
-      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
-      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
+      // ✅ Filter by business ID just to be safe
+      const filteredBookings = validBookings.filter(b => b.business_id === businessId);
+      
+      setBookings(filteredBookings);
+      console.log(`✅ Set ${filteredBookings.length} bookings`);
+      
+      // ✅ Use total_count from API or fallback to length
+      const totalCount = result.total_count || filteredBookings.length;
+      setTotalBookingsCount(totalCount);
+      
+      const calculatedTotalPages = result.total_pages || Math.ceil(totalCount / pageSize);
+      setTotalPages(calculatedTotalPages);
+      
+      // ✅ Extract unique locations
+      const provinces = [...new Set(filteredBookings.map(b => b.guest_province).filter(Boolean))];
+      const cities = [...new Set(filteredBookings.map(b => b.guest_city).filter(Boolean))];
+      const countries = [...new Set(filteredBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
       
       setUniqueProvinces(provinces.sort());
       setUniqueCities(cities.sort());
       setUniqueCountries(countries.sort());
       
-      // Today's Activity Calculations
+      // ✅ Today's Activity Calculations
       const todayStr = new Date().toISOString().split('T')[0];
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
       
-      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
+      const arrivals = filteredBookings.filter(b => b.check_in_date === todayStr);
+      const checkouts = filteredBookings.filter(b => b.check_out_date === todayStr);
       
-      const stayovers = validBookings.filter(b => {
+      const stayovers = filteredBookings.filter(b => {
         if (!b.check_in_date) return false;
         
         const checkInDate = new Date(b.check_in_date);
@@ -267,7 +283,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       setTodayStayovers(stayovers);
       setTodayCheckouts(checkouts);
       
-      console.log(`📦 Loaded ${validBookings.length} bookings`);
+      console.log(`📦 Loaded ${filteredBookings.length} bookings`);
       console.log(`📊 Today: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
       
     } catch (err: any) {
