@@ -1,5 +1,5 @@
 // src/components/checkin/RoomAllocation.tsx
-// ✅ OPTIONAL: Room allocation component with proper optional handling
+// ✅ FIXED: Date-aware room availability
 
 import React, { useEffect, useState } from 'react';
 import { RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
@@ -12,6 +12,7 @@ interface Room {
   status: string;
   is_available?: boolean;
   current_guest?: string;
+  check_out_date?: string;
 }
 
 interface RoomAllocationProps {
@@ -46,7 +47,7 @@ export function RoomAllocation({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(value || '');
 
-  // Load available rooms
+  // ✅ Load available rooms with date checking
   const loadRooms = async () => {
     if (!businessId) return;
 
@@ -54,9 +55,9 @@ export function RoomAllocation({
     setLoadError(null);
 
     try {
-      const response = await fetch(
-        `/.netlify/functions/get-available-rooms?businessId=${businessId}`
-      );
+      // ✅ Pass check-in and check-out dates to API
+      const url = `/.netlify/functions/get-available-rooms?businessId=${businessId}&checkIn=${checkInDate}&checkOut=${checkOutDate}`;
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Failed to load rooms: ${response.status}`);
@@ -65,6 +66,7 @@ export function RoomAllocation({
       const data = await response.json();
 
       if (data.success) {
+        // ✅ API already filters by date - just set the rooms
         setRooms(data.rooms || []);
       } else {
         throw new Error(data.error || 'Failed to load rooms');
@@ -78,10 +80,12 @@ export function RoomAllocation({
     }
   };
 
-  // Load rooms on mount
+  // Load rooms when dates change
   useEffect(() => {
-    loadRooms();
-  }, [businessId]);
+    if (businessId && checkInDate) {
+      loadRooms();
+    }
+  }, [businessId, checkInDate, checkOutDate]);
 
   // Sync selected room with external value
   useEffect(() => {
@@ -94,9 +98,11 @@ export function RoomAllocation({
     onChange(roomId);
   };
 
+  // ✅ Only show rooms that are available for the selected dates
   const availableRooms = rooms.filter(room => {
-    // Exclude occupied rooms
+    // Skip rooms that are not available
     if (room.is_available === false) return false;
+    // Only show rooms with 'active' status
     return room.status === 'active';
   });
 
@@ -137,12 +143,13 @@ export function RoomAllocation({
         <option value="">
           {loadError ? 'Error loading rooms' :
            loading ? 'Loading rooms...' :
-           !hasAvailableRooms ? 'No rooms available' :
+           !hasAvailableRooms ? 'No rooms available for these dates' :
            'Select a room...'}
         </option>
         {!loadError && !loading && availableRooms.map((room) => (
           <option key={room.id} value={room.id}>
             #{room.room_number} - {room.room_name} ({room.room_type})
+            {room.current_guest && ` 🔒 ${room.current_guest} until ${room.check_out_date}`}
           </option>
         ))}
       </select>
@@ -151,8 +158,8 @@ export function RoomAllocation({
       <p className="text-xs text-stone-400">
         {loading ? 'Loading available rooms...' :
          loadError ? 'Unable to load rooms. Please try again.' :
-         hasAvailableRooms ? `${availableRooms.length} room${availableRooms.length !== 1 ? 's' : ''} available` :
-         'No rooms currently available'}
+         hasAvailableRooms ? `${availableRooms.length} room${availableRooms.length !== 1 ? 's' : ''} available for your stay` :
+         'No rooms available for the selected dates'}
       </p>
 
       {/* Error message */}
