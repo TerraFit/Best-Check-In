@@ -1,8 +1,9 @@
 // src/components/checkin/RoomAllocation.tsx
 // ✅ FIXED: Date-aware room availability
+// ✅ FIXED: Handles empty checkOutDate gracefully
 
-import React, { useEffect, useState } from 'react';
-import { RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 
 interface Room {
   id: string;
@@ -48,52 +49,74 @@ export function RoomAllocation({
   const [selectedRoomId, setSelectedRoomId] = useState<string>(value || '');
 
   // ✅ Load available rooms with date checking
-  const loadRooms = async () => {
-    if (!businessId) return;
+  const loadRooms = useCallback(async () => {
+    if (!businessId || !checkInDate) {
+      console.log('⏭️ Skipping room load - missing businessId or checkInDate');
+      return;
+    }
 
     setLoading(true);
     setLoadError(null);
 
     try {
-      // ✅ Pass check-in and check-out dates to API
-      const url = `/.netlify/functions/get-available-rooms?businessId=${businessId}&checkIn=${checkInDate}&checkOut=${checkOutDate}`;
+      // ✅ If checkOutDate is empty, use checkInDate + 1 day as default
+      let effectiveCheckOut = checkOutDate;
+      if (!effectiveCheckOut) {
+        const date = new Date(checkInDate);
+        date.setDate(date.getDate() + 1);
+        effectiveCheckOut = date.toISOString().split('T')[0];
+        console.log(`📅 Using default check-out date: ${effectiveCheckOut}`);
+      }
+
+      const url = `/.netlify/functions/get-available-rooms?businessId=${encodeURIComponent(businessId)}&checkIn=${encodeURIComponent(checkInDate)}&checkOut=${encodeURIComponent(effectiveCheckOut)}`;
+      console.log(`📡 Fetching rooms: ${url}`);
+
       const response = await fetch(url);
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ HTTP Error: ${response.status} - ${errorText}`);
         throw new Error(`Failed to load rooms: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('📡 Room data received:', data);
 
       if (data.success) {
         // ✅ API already filters by date - just set the rooms
         setRooms(data.rooms || []);
+        console.log(`✅ Loaded ${data.rooms?.length || 0} available rooms`);
       } else {
         throw new Error(data.error || 'Failed to load rooms');
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load rooms';
+      console.error('❌ Error loading rooms:', errorMsg);
       setLoadError(errorMsg);
       onError?.(errorMsg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId, checkInDate, checkOutDate, onError]);
 
   // Load rooms when dates change
   useEffect(() => {
     if (businessId && checkInDate) {
+      console.log(`🔄 Loading rooms for check-in: ${checkInDate}, check-out: ${checkOutDate || 'not set'}`);
       loadRooms();
     }
-  }, [businessId, checkInDate, checkOutDate]);
+  }, [businessId, checkInDate, checkOutDate, loadRooms]);
 
   // Sync selected room with external value
   useEffect(() => {
-    setSelectedRoomId(value || '');
-  }, [value]);
+    if (value !== selectedRoomId) {
+      setSelectedRoomId(value || '');
+    }
+  }, [value, selectedRoomId]);
 
   // Handle room selection
   const handleRoomChange = (roomId: string) => {
+    console.log(`🏨 Room selected: ${roomId}`);
     setSelectedRoomId(roomId);
     onChange(roomId);
   };
@@ -120,7 +143,7 @@ export function RoomAllocation({
           type="button"
           onClick={loadRooms}
           disabled={loading}
-          className="text-xs text-stone-500 hover:text-stone-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+          className="text-xs text-stone-500 hover:text-stone-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -131,10 +154,10 @@ export function RoomAllocation({
       <select
         value={selectedRoomId}
         onChange={(e) => handleRoomChange(e.target.value)}
-        disabled={loading || !hasAvailableRooms}
+        disabled={loading || !hasAvailableRooms || !!loadError}
         className={`w-full px-4 py-2.5 rounded-lg border transition-colors ${
           loadError
-            ? 'border-red-300 bg-red-50'
+            ? 'border-red-300 bg-red-50 cursor-not-allowed'
             : loading || !hasAvailableRooms
             ? 'bg-stone-50 border-stone-200 cursor-not-allowed'
             : 'border-stone-200 focus:ring-2 focus:ring-amber-500 focus:border-transparent'
@@ -175,6 +198,14 @@ export function RoomAllocation({
             Retry
           </button>
         </div>
+      )}
+
+      {/* Validation error */}
+      {error && touched && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />
+          {error}
+        </p>
       )}
     </div>
   );
