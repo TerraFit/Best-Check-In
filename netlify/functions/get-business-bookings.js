@@ -1,5 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: Flat select without nested rooms syntax
+// ✅ SUPER SIMPLE VERSION - No room data, no food restrictions
 
 const jwt = require('jsonwebtoken');
 
@@ -38,19 +38,15 @@ exports.handler = async (event) => {
       return createResponse(403, { success: false, error: 'Token missing business ID' });
     }
 
-    // Get query parameters
     const { 
       businessId: businessIdFromQuery, 
-      startDate, 
-      endDate, 
-      limit = 25,
+      limit = 100,
       page = 1
     } = event.queryStringParameters || {};
 
     const targetBusinessId = businessIdFromQuery || businessIdFromToken;
     
     if (businessIdFromQuery && businessIdFromToken && businessIdFromQuery !== businessIdFromToken) {
-      console.error(`❌ Security violation - business ID mismatch`);
       return createResponse(403, { success: false, error: 'Forbidden' });
     }
     
@@ -58,8 +54,7 @@ exports.handler = async (event) => {
       return createResponse(400, { success: false, error: 'Missing businessId parameter' });
     }
 
-    console.log(`✅ Authenticated request for business: ${targetBusinessId}`);
-    console.log(`📊 Limit: ${limit}, Page: ${page}`);
+    console.log(`✅ Fetching bookings for business: ${targetBusinessId}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -68,29 +63,14 @@ exports.handler = async (event) => {
       return createResponse(500, { success: false, error: 'Server configuration error' });
     }
 
-    const BOOKINGS_TABLE = 'bookings';
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ FIXED: Flat select WITHOUT nested rooms (just room_id)
-    const selectFields = [
-      'id', 'business_id', 'guest_name', 'guest_first_name', 'guest_last_name',
-      'guest_email', 'guest_phone', 'guest_id_number', 'guest_id_photo', 'guest_signature',
-      'check_in_date', 'check_out_date', 'nights', 'adults', 'children', 'total_amount',
-      'status', 'guest_province', 'guest_city', 'guest_country',
-      'booking_source', 'referral_source', 'marketing_consent',
-      'arriving_from', 'next_destination', 'created_at', 'updated_at',
-      'room_id'
-    ].join(',');
+    // ✅ SIMPLE SELECT - Only basic fields
+    const selectFields = 'id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,check_in_date,check_out_date,nights,adults,children,status,total_amount,guest_country,guest_province,guest_city,booking_source,referral_source,arriving_from,next_destination,created_at,room_id,marketing_consent';
     
-    let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
+    const url = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
-    if (startDate && endDate) {
-      url += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (startDate && !endDate) {
-      url += `&check_in_date=gte.${startDate}`;
-    }
-    
-    console.log(`🔗 Fetching bookings: ${url}`);
+    console.log(`🔗 URL: ${url}`);
 
     const response = await fetch(url, {
       headers: {
@@ -101,106 +81,15 @@ exports.handler = async (event) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Supabase error:', errorText);
+      console.error('❌ Supabase error:', errorText);
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    let bookings = await response.json();
+    const bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // ✅ Fetch room data separately for bookings with room_id
-    if (bookings.length > 0) {
-      const bookingsWithRooms = bookings.filter(b => b.room_id);
-      
-      if (bookingsWithRooms.length > 0) {
-        const roomIds = bookingsWithRooms.map(b => b.room_id).join(',');
-        console.log(`🔍 Fetching room data for ${bookingsWithRooms.length} rooms: ${roomIds}`);
-        
-        try {
-          const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${roomIds})&select=id,room_number,room_name,room_type,floor,status`;
-          
-          const roomResponse = await fetch(roomUrl, {
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`
-            }
-          });
-
-          if (roomResponse.ok) {
-            const rooms = await roomResponse.json();
-            console.log(`✅ Room data fetched: ${rooms.length} rooms`);
-            
-            // Create a map of room_id -> room data
-            const roomMap = {};
-            rooms.forEach(room => {
-              roomMap[room.id] = room;
-            });
-            
-            // Attach room data to each booking
-            bookings = bookings.map(booking => {
-              const roomData = roomMap[booking.room_id] || {};
-              return {
-                ...booking,
-                room_number: roomData.room_number || null,
-                room_name: roomData.room_name || null,
-                room_type: roomData.room_type || null,
-                floor: roomData.floor || null,
-                room_status: roomData.status || null
-              };
-            });
-          } else {
-            console.warn('⚠️ Could not fetch room data');
-          }
-        } catch (err) {
-          console.warn('⚠️ Error fetching room data:', err.message);
-        }
-      }
-    }
-
-    // ✅ Fetch food restrictions
-    if (bookings.length > 0) {
-      const bookingIds = bookings.map(b => b.id).join(',');
-      console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
-      
-      try {
-        const restrictionsUrl = `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIds})&select=*`;
-        
-        const restrictionsResponse = await fetch(restrictionsUrl, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
-        });
-
-        if (restrictionsResponse.ok) {
-          const allRestrictions = await restrictionsResponse.json();
-          console.log(`✅ Food restrictions fetched: ${allRestrictions.length}`);
-          
-          const restrictionsMap = {};
-          allRestrictions.forEach(r => {
-            restrictionsMap[r.booking_id] = r;
-          });
-          
-          bookings = bookings.map(booking => ({
-            ...booking,
-            food_restrictions: restrictionsMap[booking.id] || null
-          }));
-        } else {
-          console.warn('⚠️ Could not fetch food restrictions');
-        }
-      } catch (err) {
-        console.warn('⚠️ Error fetching food restrictions:', err.message);
-      }
-    }
-
-    // Get total count for pagination
-    let countUrl = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=id`;
-    if (startDate && endDate) {
-      countUrl += `&check_in_date=gte.${startDate}&check_in_date=lte.${endDate}`;
-    } else if (startDate && !endDate) {
-      countUrl += `&check_in_date=gte.${startDate}`;
-    }
-    
+    // ✅ Get total count
+    const countUrl = `${supabaseUrl}/rest/v1/bookings?business_id=eq.${targetBusinessId}&select=id`;
     const countResponse = await fetch(countUrl, {
       headers: {
         'apikey': supabaseKey,
@@ -211,7 +100,7 @@ exports.handler = async (event) => {
     const totalBookings = totalCountData.length;
     const totalPages = Math.ceil(totalBookings / parseInt(limit));
 
-    // Calculate today's activity
+    // ✅ Calculate today's activity
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
@@ -230,8 +119,6 @@ exports.handler = async (event) => {
       checkOutDate.setHours(0, 0, 0, 0);
       return checkOutDate >= today;
     }).length;
-
-    console.log(`📊 Today's Stats - Arrivals: ${todayCheckIns}, Stayovers: ${todayStayovers}, Departures: ${todayCheckOuts}`);
 
     return createResponse(200, {
       success: true,
@@ -252,8 +139,7 @@ exports.handler = async (event) => {
     return createResponse(500, {
       success: false,
       error: 'Internal Server Error',
-      message: err.message,
-      stack: err.stack
+      message: err.message
     });
   }
 };
