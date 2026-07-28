@@ -1,10 +1,5 @@
 // src/components/dashboard/GuestDetailsModal.tsx
-// ✅ COMPLETE: With Room Allocation dropdown - Fixed role check
-// ✅ FIXED: Per-booking room allocation state
-// ✅ FIXED: No fallback to all rooms on error
-// ✅ FIXED: Supports Assign, Change, and Remove actions
-// ✅ FIXED: getAvailableRooms checks for 'active' status (matches database constraint)
-// ✅ FIXED: GuestDetails interface includes room fields (room_id, room_number, room_name)
+// ✅ UPDATED: Uses extracted RoomAllocation component
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -14,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useGuestDetails } from '../../hooks/useGuestDetails';
 import { FoodRestrictions } from '../../types/guest';
+import { RoomAllocation, Room } from '../common/RoomAllocation';
 
 interface GuestDetailsModalProps {
   isOpen: boolean;
@@ -29,49 +25,6 @@ interface GuestDetailsModalProps {
     };
   };
   onRoomAssigned?: () => void;
-}
-
-interface Room {
-  id: string;
-  room_number: string;
-  room_name: string;
-  room_type: string;
-  status: 'active' | 'occupied' | 'maintenance' | 'blocked';
-  is_available?: boolean;
-  current_guest?: string;
-}
-
-// ✅ GuestDetails interface with room fields
-interface GuestDetails {
-  id: string;
-  guest_name: string;
-  guest_first_name?: string;
-  guest_last_name?: string;
-  guest_email?: string;
-  guest_phone?: string;
-  guest_country?: string;
-  guest_province?: string;
-  guest_city?: string;
-  check_in_date?: string;
-  check_out_date?: string;
-  nights?: number;
-  adults?: number;
-  children?: number;
-  status?: string;
-  total_amount?: number;
-  room_id?: string | null;
-  room_number?: string | null;
-  room_name?: string | null;
-  room_type?: string | null;
-  floor?: string | null;
-  room_status?: string | null;
-  arriving_from?: string;
-  next_destination?: string;
-  booking_source?: string;
-  referral_source?: string;
-  popia_consent?: boolean;
-  food_restrictions?: FoodRestrictions;
-  created_at?: string;
 }
 
 const DEFAULT_RESTRICTIONS: FoodRestrictions = {
@@ -152,17 +105,14 @@ export default function GuestDetailsModal({
   });
   const [savingStay, setSavingStay] = useState(false);
 
-  // ✅ PER-BOOKING ROOM ALLOCATION STATE
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loadingRooms, setLoadingRooms] = useState(false);
-  const [roomLoadError, setRoomLoadError] = useState<string | null>(null);
+  // ✅ Room allocation state using extracted component
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [isEditingRoom, setIsEditingRoom] = useState(false);
   const [savingRoom, setSavingRoom] = useState(false);
   const [currentRoomNumber, setCurrentRoomNumber] = useState<string | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-  const [currentAction, setCurrentAction] = useState<'assign' | 'change' | 'remove'>('assign');
+  const [roomAllocationError, setRoomAllocationError] = useState<string | null>(null);
 
   // Debug logging
   console.log('🔍 GuestDetailsModal - bookingId received:', bookingId);
@@ -180,26 +130,19 @@ export default function GuestDetailsModal({
   // ✅ Reset state when bookingId changes (new guest)
   useEffect(() => {
     if (isOpen && bookingId) {
-      // Reset per-guest state
       setSelectedRoomId('');
       setError(null);
-      setRoomLoadError(null);
+      setRoomAllocationError(null);
       setSaveSuccess(false);
       setIsEditingRoom(false);
       setCurrentRoomNumber(null);
       setCurrentRoomName(null);
       setCurrentRoomId(null);
-      setCurrentAction('assign');
       
       console.log('🔍 Fetching guest details for bookingId:', bookingId);
       fetchGuestDetails(bookingId);
-      
-      // Load available rooms
-      if (businessIdProp) {
-        fetchAvailableRooms();
-      }
     }
-  }, [isOpen, bookingId, businessIdProp, fetchGuestDetails]);
+  }, [isOpen, bookingId, fetchGuestDetails]);
 
   // Initialize restrictions when guest details load
   useEffect(() => {
@@ -214,16 +157,12 @@ export default function GuestDetailsModal({
         nights: guestDetails.nights || 1
       });
       
-      // ✅ Set current room info for this specific guest from guestDetails
-      // The API now returns room_id, room_number, and room_name
+      // ✅ Set current room info for this specific guest
       if (guestDetails.room_number) {
         setCurrentRoomNumber(guestDetails.room_number);
         setCurrentRoomName(guestDetails.room_name || null);
         setCurrentRoomId(guestDetails.room_id || null);
-        const match = rooms.find(r => r.room_number === guestDetails.room_number);
-        if (match) {
-          setSelectedRoomId(match.id);
-        }
+        setSelectedRoomId(guestDetails.room_id || '');
       } else {
         setCurrentRoomNumber(null);
         setCurrentRoomName(null);
@@ -231,7 +170,7 @@ export default function GuestDetailsModal({
         setSelectedRoomId('');
       }
     }
-  }, [guestDetails, rooms]);
+  }, [guestDetails]);
 
   // Handle ESC key
   useEffect(() => {
@@ -244,115 +183,40 @@ export default function GuestDetailsModal({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen]);
 
-  // ✅ Fetch available rooms from API - NO FALLBACK TO ALL ROOMS
-  const fetchAvailableRooms = async () => {
-    if (!businessIdProp) return;
-    
-    setLoadingRooms(true);
-    setRoomLoadError(null);
-    
-    try {
-      let token = null;
-      try {
-        const authStr = localStorage.getItem('fastcheckin_auth');
-        if (authStr) {
-          const auth = JSON.parse(authStr);
-          token = auth.token;
-        }
-      } catch (e) {}
-
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/.netlify/functions/get-available-rooms?businessId=${businessIdProp}`,
-        { headers }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch rooms: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        console.log('✅ Available rooms loaded:', data);
-        setRooms(data.rooms || []);
-        
-        // ✅ If this guest already has a room, select it
-        if (guestDetails?.room_number) {
-          const match = data.rooms?.find((r: Room) => r.room_number === guestDetails.room_number);
-          if (match) {
-            setSelectedRoomId(match.id);
-          }
-        }
-      } else {
-        throw new Error(data.error || 'Failed to fetch rooms');
-      }
-      
-    } catch (error) {
-      console.error('Error fetching rooms:', error);
-      setRoomLoadError('Unable to verify room availability. Please try again.');
-      setRooms([]);
-    } finally {
-      setLoadingRooms(false);
-    }
-  };
-
-  // ✅ FIXED: Check for 'active' status (matches database)
-  const getAvailableRooms = (): Room[] => {
-    return rooms.filter(room => {
-      // Exclude the current room when changing rooms
-      if (room.id === currentRoomId) return false;
-
-      // Use is_available flag from API if present
-      if (room.is_available !== undefined) {
-        return room.is_available === true;
-      }
-
-      // ✅ FIXED: Check for 'active' (matches database)
-      return room.status === 'active';
-    });
-  };
-
-  // ✅ Handle room assignment - supports assign, change, and remove
-  const handleAssignRoom = async () => {
-    console.log('🔍 handleAssignRoom - bookingId:', bookingId);
-    console.log('🔍 handleAssignRoom - selectedRoomId:', selectedRoomId);
+  // ✅ Handle room assignment - uses the extracted RoomAllocation component
+  const handleRoomChange = async (roomId: string) => {
+    console.log('🔍 handleRoomChange - bookingId:', bookingId);
+    console.log('🔍 handleRoomChange - roomId:', roomId);
     
     if (!bookingId) {
       console.error('❌ bookingId is null or undefined!');
       setError('No booking ID found. Please try again.');
       return;
     }
-    
-    if (!selectedRoomId) {
-      setError('Please select a room');
-      return;
-    }
 
     setSavingRoom(true);
     setError(null);
+    setRoomAllocationError(null);
 
     try {
-      const selectedRoom = rooms.find(r => r.id === selectedRoomId);
+      // Find the selected room to get its details
+      // Since we don't have the rooms list directly, we'll fetch it
+      const response = await fetch(
+        `/.netlify/functions/get-available-rooms?businessId=${businessIdProp}&checkIn=${guestDetails?.check_in_date || ''}&checkOut=${guestDetails?.check_out_date || ''}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch room details');
+      }
+      
+      const data = await response.json();
+      const selectedRoom = data.rooms?.find((r: Room) => r.id === roomId);
+      
       if (!selectedRoom) {
-        setError('Selected room not found');
-        setSavingRoom(false);
-        return;
+        throw new Error('Selected room not found');
       }
 
-      // ✅ Determine action based on current state
-      let action: 'assign' | 'change' = 'assign';
-      if (currentRoomId && currentRoomId !== selectedRoom.id) {
-        action = 'change';
-        console.log(`🔄 Changing room from ${currentRoomNumber} to ${selectedRoom.room_number}`);
-      }
-
-      console.log(`📝 ${action === 'change' ? 'Changing' : 'Assigning'} room ${selectedRoom.room_number} to booking ${bookingId}`);
+      console.log(`📝 ${currentRoomId ? 'Changing' : 'Assigning'} room ${selectedRoom.room_number} to booking ${bookingId}`);
 
       let token = null;
       try {
@@ -368,20 +232,22 @@ export default function GuestDetailsModal({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // ✅ Use assign-room function with action parameter
-      const response = await fetch('/.netlify/functions/assign-room', {
+      // Determine action based on current state
+      const action = currentRoomId && currentRoomId !== roomId ? 'change' : 'assign';
+
+      const assignResponse = await fetch('/.netlify/functions/assign-room', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           bookingId: bookingId,
-          roomId: selectedRoom.id,
+          roomId: roomId,
           action: action
         })
       });
 
-      const result = await response.json();
+      const result = await assignResponse.json();
 
-      if (response.ok && result.success) {
+      if (assignResponse.ok && result.success) {
         console.log('✅ Room assignment result:', result);
         setIsEditingRoom(false);
         setSaveSuccess(true);
@@ -390,7 +256,7 @@ export default function GuestDetailsModal({
         setCurrentRoomNumber(selectedRoom.room_number);
         setCurrentRoomName(selectedRoom.room_name);
         setCurrentRoomId(selectedRoom.id);
-        setCurrentAction('assign');
+        setSelectedRoomId(selectedRoom.id);
         
         // ✅ Update guest details
         if (guestDetails) {
@@ -399,26 +265,23 @@ export default function GuestDetailsModal({
           guestDetails.room_id = selectedRoom.id;
         }
         
-        // ✅ Refresh available rooms
-        await fetchAvailableRooms();
-        
         // ✅ Notify parent
         onRoomAssigned?.();
         
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         console.error('❌ Room assignment failed:', result);
-        setError(result.error || 'Failed to assign room');
+        setRoomAllocationError(result.error || 'Failed to assign room');
       }
     } catch (err) {
       console.error('Error assigning room:', err);
-      setError('Failed to assign room');
+      setRoomAllocationError('Failed to assign room');
     } finally {
       setSavingRoom(false);
     }
   };
 
-  // ✅ Handle removing room assignment - uses remove action
+  // ✅ Handle removing room assignment
   const handleRemoveRoom = async () => {
     if (!bookingId) {
       setError('No booking ID found');
@@ -427,7 +290,7 @@ export default function GuestDetailsModal({
 
     setSavingRoom(true);
     setError(null);
-    setCurrentAction('remove');
+    setRoomAllocationError(null);
 
     try {
       let token = null;
@@ -444,7 +307,6 @@ export default function GuestDetailsModal({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // ✅ Use assign-room with remove action
       const response = await fetch('/.netlify/functions/assign-room', {
         method: 'POST',
         headers,
@@ -461,7 +323,6 @@ export default function GuestDetailsModal({
         setCurrentRoomName(null);
         setCurrentRoomId(null);
         setSelectedRoomId('');
-        setCurrentAction('assign');
         
         if (guestDetails) {
           guestDetails.room_number = undefined;
@@ -469,21 +330,19 @@ export default function GuestDetailsModal({
           guestDetails.room_id = undefined;
         }
         
-        await fetchAvailableRooms();
         onRoomAssigned?.();
         
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to remove room');
+        setRoomAllocationError(errorData.error || 'Failed to remove room');
       }
     } catch (err) {
       console.error('Error removing room:', err);
-      setError('Failed to remove room');
+      setRoomAllocationError('Failed to remove room');
     } finally {
       setSavingRoom(false);
-      setCurrentAction('assign');
     }
   };
 
@@ -512,14 +371,14 @@ export default function GuestDetailsModal({
         nights: guestDetails.nights || 1
       });
       if (guestDetails.room_number) {
-        const match = rooms.find(r => r.room_number === guestDetails.room_number);
-        if (match) {
-          setSelectedRoomId(match.id);
-        }
+        setCurrentRoomNumber(guestDetails.room_number);
+        setCurrentRoomName(guestDetails.room_name || null);
+        setCurrentRoomId(guestDetails.room_id || null);
+        setSelectedRoomId(guestDetails.room_id || '');
       }
     }
     onClose();
-  }, [guestDetails, onClose, rooms]);
+  }, [guestDetails, onClose]);
 
   const handleContinue = useCallback(() => {
     setShowUnsavedWarning(false);
@@ -854,7 +713,7 @@ export default function GuestDetailsModal({
                     </div>
                   </div>
 
-                  {/* ✅ ROOM ALLOCATION - Per-Guest */}
+                  {/* ✅ ROOM ALLOCATION - Using Extracted Component */}
                   <div className="mt-3">
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
                       <DoorOpen size={16} className="text-blue-500 flex-shrink-0" />
@@ -885,56 +744,35 @@ export default function GuestDetailsModal({
                         </div>
                         
                         {isEditingRoom ? (
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <select
+                          <div className="mt-2">
+                            <RoomAllocation
+                              businessId={businessIdProp || ''}
+                              checkInDate={guestDetails?.check_in_date || ''}
+                              checkOutDate={guestDetails?.check_out_date || ''}
                               value={selectedRoomId}
-                              onChange={(e) => setSelectedRoomId(e.target.value)}
-                              className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                              disabled={loadingRooms || savingRoom || !!roomLoadError}
-                            >
-                              <option value="">
-                                {roomLoadError ? 'Error loading rooms' :
-                                 loadingRooms ? 'Loading rooms...' :
-                                 getAvailableRooms().length === 0 ? 'No rooms available' :
-                                 'Select a room...'}
-                              </option>
-                              {!roomLoadError && !loadingRooms && getAvailableRooms().map((room) => (
-                                <option key={room.id} value={room.id}>
-                                  #{room.room_number} - {room.room_name} ({room.room_type})
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={handleAssignRoom}
-                              disabled={!selectedRoomId || savingRoom || !!roomLoadError}
-                              className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-                            >
-                              {savingRoom ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
-                                  {currentRoomNumber ? 'Changing...' : 'Assigning...'}
-                                </>
-                              ) : (
-                                <>
-                                  <Check size={14} />
-                                  {currentRoomNumber ? 'Change Room' : 'Assign Room'}
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setIsEditingRoom(false);
-                                if (currentRoomNumber) {
-                                  const match = rooms.find(r => r.room_number === currentRoomNumber);
-                                  if (match) {
-                                    setSelectedRoomId(match.id);
+                              onChange={handleRoomChange}
+                              onError={(err) => setRoomAllocationError(err)}
+                              required={false}
+                              touched={true}
+                              error={roomAllocationError || undefined}
+                              label="Select Room"
+                              primaryColor="#3b82f6"
+                              showRefresh={true}
+                              disabled={savingRoom}
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => {
+                                  setIsEditingRoom(false);
+                                  if (currentRoomNumber) {
+                                    setSelectedRoomId(currentRoomId || '');
                                   }
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
-                            >
-                              Cancel
-                            </button>
+                                }}
+                                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 mt-1">
@@ -959,29 +797,6 @@ export default function GuestDetailsModal({
                         )}
                       </div>
                     </div>
-                    
-                    {/* Room availability info */}
-                    {!isEditingRoom && !loadingRooms && !roomLoadError && (
-                      <p className="text-xs text-gray-400 mt-2">
-                        {rooms.filter(r => r.is_available !== false).length} room{rooms.filter(r => r.is_available !== false).length !== 1 ? 's' : ''} available
-                      </p>
-                    )}
-                    
-                    {/* Error message */}
-                    {roomLoadError && (
-                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-xs text-red-600 flex items-center gap-2">
-                          <AlertCircle className="w-3 h-3" />
-                          {roomLoadError}
-                        </p>
-                        <button
-                          onClick={fetchAvailableRooms}
-                          className="mt-1 text-xs text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </section>
 
