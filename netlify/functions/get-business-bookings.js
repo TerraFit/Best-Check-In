@@ -1,6 +1,5 @@
 // netlify/functions/get-business-bookings.js
-// ✅ FIXED: Better error handling for food restrictions
-// ✅ ADDED: Room information (room_number, room_name, room_type) to bookings response
+// ✅ FIXED: Proper room data fetching without nested select issues
 
 const jwt = require('jsonwebtoken');
 
@@ -72,7 +71,7 @@ exports.handler = async (event) => {
     const BOOKINGS_TABLE = 'bookings';
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // ✅ ADDED: room fields to select - room_number, room_name, room_type
+    // ✅ SIMPLIFIED: Fetch bookings WITHOUT nested rooms select
     const selectFields = `
       id,business_id,guest_name,guest_first_name,guest_last_name,
       guest_email,guest_phone,guest_id_number,guest_id_photo,guest_signature,
@@ -80,17 +79,9 @@ exports.handler = async (event) => {
       status,guest_province,guest_city,guest_country,
       booking_source,referral_source,marketing_consent,
       arriving_from,next_destination,created_at,updated_at,
-      room_id,
-      rooms:room_id (
-        room_number,
-        room_name,
-        room_type,
-        floor,
-        status
-      )
+      room_id
     `;
     
-    // ✅ MODIFIED: Include room data via nested select
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
     if (startDate && endDate) {
@@ -117,108 +108,101 @@ exports.handler = async (event) => {
     let bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
 
-    // ✅ Process bookings to flatten room data
-    bookings = bookings.map(booking => {
-      const roomData = booking.rooms || {};
-      return {
-        ...booking,
-        room_number: roomData.room_number || null,
-        room_name: roomData.room_name || null,
-        room_type: roomData.room_type || null,
-        floor: roomData.floor || null,
-        room_status: roomData.status || null,
-        rooms: undefined // Remove nested rooms object
-      };
-    });
+    // ✅ Fetch room data separately for each booking that has a room_id
+    if (bookings.length > 0) {
+      const bookingIdsWithRooms = bookings.filter(b => b.room_id).map(b => b.room_id);
+      
+      if (bookingIdsWithRooms.length > 0) {
+        console.log(`🔍 Fetching room data for ${bookingIdsWithRooms.length} rooms...`);
+        
+        try {
+          // Fetch all rooms in one query
+          const roomIds = bookingIdsWithRooms.join(',');
+          const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${roomIds})&select=id,room_number,room_name,room_type,floor,status`;
+          
+          const roomResponse = await fetch(roomUrl, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            }
+          });
+
+          if (roomResponse.ok) {
+            const rooms = await roomResponse.json();
+            console.log(`✅ Room data fetched: ${rooms.length} rooms`);
+            
+            // Create a map of room_id -> room data
+            const roomMap = {};
+            rooms.forEach(room => {
+              roomMap[room.id] = room;
+            });
+            
+            // Attach room data to each booking
+            bookings = bookings.map(booking => {
+              const roomData = roomMap[booking.room_id] || {};
+              return {
+                ...booking,
+                room_number: roomData.room_number || null,
+                room_name: roomData.room_name || null,
+                room_type: roomData.room_type || null,
+                floor: roomData.floor || null,
+                room_status: roomData.status || null
+              };
+            });
+          } else {
+            console.warn('⚠️ Could not fetch room data');
+          }
+        } catch (err) {
+          console.warn('⚠️ Error fetching room data:', err.message);
+        }
+      }
+    }
 
     // ============================================================
-    // ✅ SIMPLIFIED: Fetch food restrictions - no 'in' query issues
+    // ✅ Fetch food restrictions
     // ============================================================
     if (bookings.length > 0) {
       console.log(`🔍 Fetching food restrictions for ${bookings.length} bookings...`);
       
       try {
-        // First, check if the table exists by trying a simple query
-        const testResponse = await fetch(
-          `${supabaseUrl}/rest/v1/booking_food_restrictions?limit=1`,
-          {
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`
-            }
+        const bookingIds = bookings.map(b => b.id).join(',');
+        const restrictionsUrl = `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${bookingIds})&select=*`;
+        
+        const restrictionsResponse = await fetch(restrictionsUrl, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
           }
-        );
+        });
 
-        if (!testResponse.ok) {
-          console.warn('⚠️ booking_food_restrictions table not found or inaccessible');
-          bookings.forEach(booking => {
-            booking.food_restrictions = null;
+        if (restrictionsResponse.ok) {
+          const allRestrictions = await restrictionsResponse.json();
+          console.log(`✅ Total food restrictions in DB: ${allRestrictions.length}`);
+          
+          // Create a map of booking_id -> restrictions
+          const restrictionsMap = {};
+          allRestrictions.forEach(r => {
+            restrictionsMap[r.booking_id] = r;
           });
+          
+          // Attach food_restrictions to each booking
+          bookings = bookings.map(booking => ({
+            ...booking,
+            food_restrictions: restrictionsMap[booking.id] || null
+          }));
         } else {
-          // Table exists - fetch all restrictions and filter in JavaScript
-          const restrictionsResponse = await fetch(
-            `${supabaseUrl}/rest/v1/booking_food_restrictions?select=*`,
-            {
-              headers: {
-                'apikey': supabaseKey,
-                'Authorization': `Bearer ${supabaseKey}`
-              }
-            }
-          );
-
-          if (restrictionsResponse.ok) {
-            const allRestrictions = await restrictionsResponse.json();
-            console.log(`✅ Total food restrictions in DB: ${allRestrictions.length}`);
-            
-            // Create a set of booking IDs for O(1) lookup
-            const bookingIdSet = new Set(bookings.map(b => b.id));
-            
-            // Filter restrictions to only those matching our bookings
-            const matchingRestrictions = allRestrictions.filter(r => bookingIdSet.has(r.booking_id));
-            console.log(`✅ Matching food restrictions: ${matchingRestrictions.length}`);
-            
-            // Create a map of booking_id -> restrictions
-            const restrictionsMap = {};
-            matchingRestrictions.forEach(r => {
-              restrictionsMap[r.booking_id] = r;
-            });
-            
-            // Attach food_restrictions to each booking
-            bookings.forEach(booking => {
-              booking.food_restrictions = restrictionsMap[booking.id] || null;
-              if (booking.food_restrictions) {
-                const activeRestrictions = [];
-                if (booking.food_restrictions.vegetarian) activeRestrictions.push('Vegetarian');
-                if (booking.food_restrictions.vegan) activeRestrictions.push('Vegan');
-                if (booking.food_restrictions.pescatarian) activeRestrictions.push('Pescatarian');
-                if (booking.food_restrictions.halal) activeRestrictions.push('Halal');
-                if (booking.food_restrictions.kosher) activeRestrictions.push('Kosher');
-                if (booking.food_restrictions.gluten_free) activeRestrictions.push('Gluten-Free');
-                if (booking.food_restrictions.lactose_free) activeRestrictions.push('Lactose-Free');
-                if (booking.food_restrictions.nut_allergy) activeRestrictions.push('Nut Allergy');
-                if (booking.food_restrictions.seafood_allergy) activeRestrictions.push('Seafood Allergy');
-                if (booking.food_restrictions.diabetic) activeRestrictions.push('Diabetic');
-                if (booking.food_restrictions.no_pork) activeRestrictions.push('No Pork');
-                if (booking.food_restrictions.other && booking.food_restrictions.other_text) {
-                  activeRestrictions.push(booking.food_restrictions.other_text);
-                } else if (booking.food_restrictions.other) {
-                  activeRestrictions.push('Other');
-                }
-                console.log(`🍽️ ${booking.guest_name}: ${activeRestrictions.join(', ') || 'None'}`);
-              }
-            });
-          } else {
-            console.warn('⚠️ Could not fetch food restrictions');
-            bookings.forEach(booking => {
-              booking.food_restrictions = null;
-            });
-          }
+          console.warn('⚠️ Could not fetch food restrictions');
+          bookings = bookings.map(booking => ({
+            ...booking,
+            food_restrictions: null
+          }));
         }
       } catch (err) {
         console.error('❌ Error fetching food restrictions:', err.message);
-        bookings.forEach(booking => {
-          booking.food_restrictions = null;
-        });
+        bookings = bookings.map(booking => ({
+          ...booking,
+          food_restrictions: null
+        }));
       }
     }
 
@@ -281,7 +265,8 @@ exports.handler = async (event) => {
     return createResponse(500, {
       success: false,
       error: 'Internal Server Error',
-      message: err.message
+      message: err.message,
+      stack: err.stack
     });
   }
 };
