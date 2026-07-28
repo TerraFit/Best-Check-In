@@ -1,5 +1,6 @@
 // netlify/functions/get-business-bookings.js
 // ✅ FIXED: Better error handling for food restrictions
+// ✅ ADDED: Room information (room_number, room_name, room_type) to bookings response
 
 const jwt = require('jsonwebtoken');
 
@@ -71,15 +72,25 @@ exports.handler = async (event) => {
     const BOOKINGS_TABLE = 'bookings';
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
+    // ✅ ADDED: room fields to select - room_number, room_name, room_type
     const selectFields = `
       id,business_id,guest_name,guest_first_name,guest_last_name,
-      guest_email,guest_phone,guest_id_number,
+      guest_email,guest_phone,guest_id_number,guest_id_photo,guest_signature,
       check_in_date,check_out_date,nights,adults,children,total_amount,
       status,guest_province,guest_city,guest_country,
       booking_source,referral_source,marketing_consent,
-      arriving_from,next_destination,created_at,updated_at
+      arriving_from,next_destination,created_at,updated_at,
+      room_id,
+      rooms:room_id (
+        room_number,
+        room_name,
+        room_type,
+        floor,
+        status
+      )
     `;
     
+    // ✅ MODIFIED: Include room data via nested select
     let url = `${supabaseUrl}/rest/v1/${BOOKINGS_TABLE}?business_id=eq.${targetBusinessId}&select=${selectFields}&order=check_in_date.desc&limit=${limit}&offset=${offset}`;
     
     if (startDate && endDate) {
@@ -103,8 +114,22 @@ exports.handler = async (event) => {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    const bookings = await response.json();
+    let bookings = await response.json();
     console.log(`✅ Bookings fetched: ${bookings.length}`);
+
+    // ✅ Process bookings to flatten room data
+    bookings = bookings.map(booking => {
+      const roomData = booking.rooms || {};
+      return {
+        ...booking,
+        room_number: roomData.room_number || null,
+        room_name: roomData.room_name || null,
+        room_type: roomData.room_type || null,
+        floor: roomData.floor || null,
+        room_status: roomData.status || null,
+        rooms: undefined // Remove nested rooms object
+      };
+    });
 
     // ============================================================
     // ✅ SIMPLIFIED: Fetch food restrictions - no 'in' query issues
