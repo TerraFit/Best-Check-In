@@ -468,27 +468,27 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
 
     // Step 2: Personal Details
     if (step === 2) {
-      console.log('🔍 useCheckIn: Processing Step 2');
-      const errors = validateStep2();
-      console.log('🔍 useCheckIn: Step 2 validation errors:', errors);
-      
-      if (errors.length > 0) {
-        setSubmitAttempted(true);
-        const allFields: (keyof TouchedFields)[] = [
-          'firstName', 'lastName', 'passportOrId', 'phone', 'country',
-          'province', 'city', 'arrivalDate', 'nights', 'referral',
-          'arrivingFrom', 'nextDestination', 'settlement', 'roomAllocation' // ← NEW
-        ];
-        allFields.forEach(field => markTouched(field));
-        alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
-        return;
-      }
-      
-      // Move to Step 3 (Dietary)
-      console.log('🔍 useCheckIn: Moving from Step 2 to Step 3');
-      setStep(3);
-      return;
-    }
+  console.log('🔍 useCheckIn: Processing Step 2');
+  const errors = validateStep2();
+  console.log('🔍 useCheckIn: Step 2 validation errors:', errors);
+  
+  if (errors.length > 0) {
+    setSubmitAttempted(true);
+    const allFields: (keyof TouchedFields)[] = [
+      'firstName', 'lastName', 'passportOrId', 'phone', 'country',
+      'province', 'city', 'arrivalDate', 'nights', 'referral',
+      'arrivingFrom', 'nextDestination', 'settlement'
+      // ✅ REMOVED: 'roomAllocation' - not required during check-in
+    ];
+    allFields.forEach(field => markTouched(field));
+    alert(`${t('error_required_fields')}: ${errors.join(', ')}`);
+    return;
+  }
+  
+  console.log('🔍 useCheckIn: Moving from Step 2 to Step 3');
+  setStep(3);
+  return;
+}
 
     // Step 4: Indemnity & Submit
     if (step === 4) {
@@ -529,24 +529,24 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   };
 
   const validateStep2 = (): string[] => {
-    const errors: string[] = [];
-    if (!formData.firstName.trim()) errors.push(t('checkin_first_name'));
-    if (!formData.lastName.trim()) errors.push(t('checkin_last_name'));
-    if (!formData.passportOrId.trim()) errors.push(t('checkin_passport'));
-    if (!formData.phone.trim()) errors.push(t('checkin_phone'));
-    if (!formData.country) errors.push(t('checkin_country'));
-    if (!formData.province) errors.push('Province');
-    if (!formData.city.trim()) errors.push(t('checkin_city'));
-    if (!formData.arrivingFrom.trim()) errors.push('Arriving From');
-    if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
-    if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
-    if (!formData.referral) errors.push(t('checkin_referral'));
-    if (!formData.nextDestination.trim()) errors.push(t('checkin_next_destination'));
-    if (!formData.settlement) errors.push(t('checkin_settlement'));
-    // ✅ NEW: Room allocation validation
-    if (!formData.roomAllocation) errors.push('Room allocation');
-    return errors;
-  };
+  const errors: string[] = [];
+  if (!formData.firstName.trim()) errors.push(t('checkin_first_name'));
+  if (!formData.lastName.trim()) errors.push(t('checkin_last_name'));
+  if (!formData.passportOrId.trim()) errors.push(t('checkin_passport'));
+  if (!formData.phone.trim()) errors.push(t('checkin_phone'));
+  if (!formData.country) errors.push(t('checkin_country'));
+  if (!formData.province) errors.push('Province');
+  if (!formData.city.trim()) errors.push(t('checkin_city'));
+  if (!formData.arrivingFrom.trim()) errors.push('Arriving From');
+  if (!formData.arrivalDate) errors.push(t('checkin_arrival_date'));
+  if (!formData.nights || formData.nights < 1) errors.push(t('checkin_nights'));
+  if (!formData.referral) errors.push(t('checkin_referral'));
+  if (!formData.nextDestination.trim()) errors.push(t('checkin_next_destination'));
+  if (!formData.settlement) errors.push(t('checkin_settlement'));
+  // ✅ Room allocation is OPTIONAL - not required
+  // if (!formData.roomAllocation) errors.push('Room allocation');
+  return errors;
+};
 
   const validateStep3 = (): string[] => {
     const errors: string[] = [];
