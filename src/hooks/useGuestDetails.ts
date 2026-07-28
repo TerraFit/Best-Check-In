@@ -1,8 +1,64 @@
 // src/hooks/useGuestDetails.ts
+// ✅ FIXED: Extracts guest data from API response correctly
 // ✅ ADDED: Audit logging for all updates
 
 import { useState, useCallback } from 'react';
-import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
+
+export interface GuestDetails {
+  id: string;
+  guest_name: string;
+  guest_first_name?: string;
+  guest_last_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  guest_country?: string;
+  guest_province?: string;
+  guest_city?: string;
+  check_in_date?: string;
+  check_out_date?: string;
+  nights?: number;
+  adults?: number;
+  children?: number;
+  status?: string;
+  total_amount?: number;
+  room_id?: string | null;
+  room_number?: string | null;
+  room_name?: string | null;
+  room_type?: string | null;
+  floor?: string | null;
+  room_status?: string | null;
+  arriving_from?: string;
+  next_destination?: string;
+  booking_source?: string;
+  referral_source?: string;
+  marketing_consent?: boolean;
+  food_restrictions?: FoodRestrictions;
+  created_at?: string;
+  booking_reference?: string;
+}
+
+export interface FoodRestrictions {
+  vegetarian: boolean;
+  vegan: boolean;
+  pescatarian: boolean;
+  halal: boolean;
+  kosher: boolean;
+  gluten_free: boolean;
+  lactose_free: boolean;
+  nut_allergy: boolean;
+  seafood_allergy: boolean;
+  diabetic: boolean;
+  no_pork: boolean;
+  carnivore: boolean;
+  other: boolean;
+  other_text: string;
+}
+
+export interface StayUpdateData {
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+}
 
 export function useGuestDetails() {
   const [loading, setLoading] = useState(false);
@@ -35,7 +91,15 @@ export function useGuestDetails() {
 
       const data = await response.json();
       console.log('✅ useGuestDetails: Guest details received:', data);
-      setGuestDetails(data);
+
+      // ✅ FIXED: Extract the guest from the response
+      if (data.success && data.guest) {
+        setGuestDetails(data.guest);
+        console.log('✅ useGuestDetails: Guest data extracted:', data.guest);
+      } else {
+        console.warn('⚠️ useGuestDetails: No guest data in response');
+        setGuestDetails(null);
+      }
     } catch (err) {
       console.error('❌ useGuestDetails: Error fetching guest details:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch guest details');
