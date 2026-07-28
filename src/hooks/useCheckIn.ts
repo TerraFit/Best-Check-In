@@ -365,14 +365,24 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   };
 
-  // Calculate departure date
-  useEffect(() => {
-    if (formData.arrivalDate && formData.nights) {
-      const date = new Date(formData.arrivalDate);
-      date.setDate(date.getDate() + formData.nights);
-      setFormData(prev => ({ ...prev, departureDate: date.toISOString().split('T')[0] }));
+  // src/hooks/useCheckIn.ts
+
+// ✅ Calculate departure date whenever arrivalDate or nights changes
+useEffect(() => {
+  if (formData.arrivalDate && formData.nights) {
+    const date = new Date(formData.arrivalDate);
+    date.setDate(date.getDate() + formData.nights);
+    const departureDate = date.toISOString().split('T')[0];
+    
+    // ✅ Only update if different to avoid loops
+    if (formData.departureDate !== departureDate) {
+      setFormData(prev => ({ 
+        ...prev, 
+        departureDate: departureDate 
+      }));
     }
-  }, [formData.arrivalDate, formData.nights]);
+  }
+}, [formData.arrivalDate, formData.nights]);
 
   // Update full name when firstName or lastName changes
   const updateFullName = useCallback(() => {
