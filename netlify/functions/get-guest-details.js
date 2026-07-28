@@ -1,5 +1,6 @@
 // netlify/functions/get-guest-details.js
 // ✅ FIXED: Use 'marketing_consent' instead of 'popia_consent'
+// ✅ ADDED: Food restrictions fetching for guest details
 
 export const handler = async (event) => {
   // Handle preflight OPTIONS
@@ -112,8 +113,38 @@ export const handler = async (event) => {
     }
 
     const booking = bookings[0];
-
     const roomInfo = booking.rooms || {};
+
+    // ✅ Fetch food restrictions for this booking
+    let foodRestrictions = null;
+    try {
+      console.log(`🔍 Fetching food restrictions for booking: ${bookingId}`);
+      
+      const restrictionsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodeURIComponent(bookingId)}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        }
+      );
+
+      if (restrictionsResponse.ok) {
+        const restrictionsData = await restrictionsResponse.json();
+        if (restrictionsData && restrictionsData.length > 0) {
+          foodRestrictions = restrictionsData[0];
+          console.log(`✅ Food restrictions found for booking ${bookingId}`);
+        } else {
+          console.log(`ℹ️ No food restrictions for booking ${bookingId}`);
+        }
+      } else {
+        console.warn(`⚠️ Could not fetch food restrictions: ${restrictionsResponse.status}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ Error fetching food restrictions:`, err.message);
+    }
+
     const guestDetails = {
       id: booking.id,
       guest_name: booking.guest_name,
@@ -141,11 +172,13 @@ export const handler = async (event) => {
       referral_source: booking.referral_source,
       arriving_from: booking.arriving_from,
       next_destination: booking.next_destination,
-      marketing_consent: booking.marketing_consent, // ✅ FIXED: Use correct column name
-      created_at: booking.created_at
+      marketing_consent: booking.marketing_consent,
+      created_at: booking.created_at,
+      food_restrictions: foodRestrictions
     };
 
     console.log(`✅ Guest details retrieved for ${guestDetails.guest_name}`);
+    console.log(`🏨 Room: ${guestDetails.room_number || 'None'} - ${guestDetails.room_name || ''}`);
 
     return {
       statusCode: 200,
