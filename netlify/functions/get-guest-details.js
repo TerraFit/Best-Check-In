@@ -1,25 +1,29 @@
 // netlify/functions/get-guest-details.js
-// ✅ FIXED - Removed Realtime dependency
-
-import { createClient } from '@supabase/supabase-js';
+// ✅ FIXED: Include room information in guest details
 
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
-  };
-
+  // Handle preflight OPTIONS
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+      },
+      body: ''
+    };
   }
 
+  // Only allow GET
   if (event.httpMethod !== 'GET') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    return {
+      statusCode: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
@@ -27,137 +31,149 @@ export const handler = async (event) => {
     const { bookingId } = event.queryStringParameters || {};
 
     if (!bookingId) {
-      return { 
-        statusCode: 400, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking ID required' }) 
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Booking ID is required'
+        })
       };
     }
+
+    console.log(`📡 Fetching guest details for booking: ${bookingId}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase credentials');
       return {
         statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
-    }
-
-    // ✅ SIMPLE FETCH - Using REST API directly (no Realtime)
-    // Fetch booking details
-    const bookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
-      {
         headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
-    );
-
-    if (!bookingResponse.ok) {
-      const errorText = await bookingResponse.text();
-      console.error('Booking fetch error:', errorText);
-      return { 
-        statusCode: 404, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking not found' }) 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Server configuration error'
+        })
       };
     }
 
-    const bookingData = await bookingResponse.json();
-    const booking = bookingData[0];
-
-    if (!booking) {
-      return { 
-        statusCode: 404, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking not found' }) 
-      };
-    }
-
-    // Fetch food restrictions
-    let restrictions = null;
-    try {
-      const restrictionsResponse = await fetch(
-        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=*`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (restrictionsResponse.ok) {
-        const restrictionsData = await restrictionsResponse.json();
-        if (restrictionsData && restrictionsData.length > 0) {
-          restrictions = restrictionsData[0];
-        }
-      }
-    } catch (err) {
-      console.warn('Could not fetch food restrictions:', err.message);
-    }
-
-    // Combine data
-    const guestDetails = {
-      id: booking.id,
-      guest_name: booking.guest_name || '',
-      guest_first_name: booking.guest_first_name || '',
-      guest_last_name: booking.guest_last_name || '',
-      guest_email: booking.guest_email || '',
-      guest_phone: booking.guest_phone || '',
-      guest_country: booking.guest_country || '',
-      arriving_from: booking.arriving_from || '',
-      next_destination: booking.next_destination || '',
-      guests: (booking.adults || 0) + (booking.children || 0),
-      adults: booking.adults || 0,
-      children: booking.children || 0,
-      check_in_date: booking.check_in_date,
-      check_out_date: booking.check_out_date || '',
-      booking_reference: booking.id.substring(0, 8).toUpperCase(),
-      food_restrictions: restrictions || {
-        vegetarian: false,
-        vegan: false,
-        pescatarian: false,
-        halal: false,
-        kosher: false,
-        gluten_free: false,
-        lactose_free: false,
-        nut_allergy: false,
-        seafood_allergy: false,
-        diabetic: false,
-        no_pork: false,
-        other: false,
-        other_text: ''
-      }
+    const headers = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json'
     };
 
-    console.log('✅ Guest details fetched:', {
-      id: guestDetails.id,
-      guest_name: guestDetails.guest_name,
-      arriving_from: guestDetails.arriving_from,
-      next_destination: guestDetails.next_destination
+    // ✅ Query booking with room information
+    // Join with rooms table to get room_number and room_name
+    const query = `bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,guest_province,guest_city,check_in_date,check_out_date,nights,adults,children,status,total_amount,room_id,booking_source,referral_source,arriving_from,next_destination,popia_consent,created_at,rooms:room_id(room_number,room_name,room_type,floor,status)`;
+    
+    const response = await fetch(`${supabaseUrl}/rest/v1/${query}`, {
+      method: 'GET',
+      headers
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Guest details API error: ${response.status} - ${errorText}`);
+      return {
+        statusCode: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: `Guest details API error: ${response.status}`,
+          details: errorText
+        })
+      };
+    }
+
+    const bookings = await response.json();
+    
+    if (!bookings || bookings.length === 0) {
+      return {
+        statusCode: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Booking not found'
+        })
+      };
+    }
+
+    const booking = bookings[0];
+
+    // ✅ Extract room information from the nested rooms object
+    const roomInfo = booking.rooms || {};
+    const guestDetails = {
+      id: booking.id,
+      guest_name: booking.guest_name,
+      guest_first_name: booking.guest_first_name,
+      guest_last_name: booking.guest_last_name,
+      guest_email: booking.guest_email,
+      guest_phone: booking.guest_phone,
+      guest_country: booking.guest_country,
+      guest_province: booking.guest_province,
+      guest_city: booking.guest_city,
+      check_in_date: booking.check_in_date,
+      check_out_date: booking.check_out_date,
+      nights: booking.nights,
+      adults: booking.adults,
+      children: booking.children,
+      status: booking.status,
+      total_amount: booking.total_amount,
+      room_id: booking.room_id,
+      // ✅ Include room details
+      room_number: roomInfo.room_number || null,
+      room_name: roomInfo.room_name || null,
+      room_type: roomInfo.room_type || null,
+      floor: roomInfo.floor || null,
+      room_status: roomInfo.status || null,
+      booking_source: booking.booking_source,
+      referral_source: booking.referral_source,
+      arriving_from: booking.arriving_from,
+      next_destination: booking.next_destination,
+      popia_consent: booking.popia_consent,
+      created_at: booking.created_at
+    };
+
+    console.log(`✅ Guest details retrieved for ${guestDetails.guest_name}`);
 
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify(guestDetails)
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        success: true,
+        guest: guestDetails
+      })
     };
 
   } catch (error) {
-    console.error('Error fetching guest details:', error);
+    console.error('❌ Unhandled error in get-guest-details:', error);
     return {
       statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch guest details',
-        details: error.message 
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        success: false,
+        error: error.message || 'Internal server error',
+        stack: error.stack
       })
     };
   }
