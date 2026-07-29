@@ -1,13 +1,19 @@
 // src/pages/RoomSettings.tsx
-// Final functional spec: operational room config only — no licensing / sync UI
+// Final functional spec + status colour coding
 
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { fetchRooms, updateRoom } from '../services/roomApi';
-import { getRoomDisplayName } from '../services/roomDisplayService';
+import {
+  getRoomDisplayName,
+  getRoomCardTone,
+  getRoomToneBorderClass,
+  getRoomToneSurfaceClass,
+} from '../services/roomDisplayService';
 import { isAvailableForAllocation, type Room } from '../types/room';
 import { ROOM_TYPES, UNAVAILABLE_REASONS } from '../constants/roomTypes';
+import { RoomStatusBadge, RoomStatusLegend } from '../components/rooms/RoomStatusBadge';
 
 interface EditForm {
   room_name: string;
@@ -54,7 +60,9 @@ export default function RoomSettings() {
         fetchRooms(businessId, { includeInactive: true }),
         fetch(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`),
       ]);
-      setRooms(list.sort((a, b) => a.room_number - b.room_number));
+      setRooms(
+        list.sort((a, b) => Number(a.room_number) - Number(b.room_number))
+      );
 
       if (brandingRes.ok) {
         const branding = await brandingRes.json();
@@ -105,7 +113,9 @@ export default function RoomSettings() {
         notes: form.notes.trim() || null,
       });
       setRooms((prev) =>
-        prev.map((r) => (r.id === updated.id ? updated : r)).sort((a, b) => a.room_number - b.room_number)
+        prev
+          .map((r) => (r.id === updated.id ? updated : r))
+          .sort((a, b) => Number(a.room_number) - Number(b.room_number))
       );
       setMessage(`Saved ${getRoomDisplayName(updated)}`);
       closeEdit();
@@ -136,7 +146,6 @@ export default function RoomSettings() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {/* Licensed capacity — read only */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
             Licensed Room Capacity
@@ -165,10 +174,10 @@ export default function RoomSettings() {
           </p>
         )}
 
-        {/* Room list */}
         <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
+          <div className="px-5 py-4 border-b border-gray-100 space-y-3">
             <h2 className="text-sm font-semibold text-gray-900">Rooms</h2>
+            <RoomStatusLegend />
           </div>
 
           {loading ? (
@@ -188,6 +197,7 @@ export default function RoomSettings() {
                   <tr>
                     <th className="px-4 py-3">Room</th>
                     <th className="px-4 py-3">Room Type</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Available for Allocation</th>
                     <th className="px-4 py-3">Actions</th>
                   </tr>
@@ -195,12 +205,19 @@ export default function RoomSettings() {
                 <tbody className="divide-y divide-gray-100">
                   {rooms.map((room) => {
                     const available = isAvailableForAllocation(room);
+                    const tone = getRoomCardTone(room);
                     return (
-                      <tr key={room.id} className={!available ? 'bg-gray-50' : ''}>
+                      <tr
+                        key={room.id}
+                        className={`${getRoomToneBorderClass(tone)} ${getRoomToneSurfaceClass(tone)}`}
+                      >
                         <td className="px-4 py-3 font-medium text-gray-900">
                           {getRoomDisplayName(room)}
                         </td>
                         <td className="px-4 py-3 text-gray-600">{room.room_type || '—'}</td>
+                        <td className="px-4 py-3">
+                          <RoomStatusBadge room={room} />
+                        </td>
                         <td className="px-4 py-3">
                           {available ? (
                             <span className="inline-flex items-center gap-1 text-green-700 text-xs font-medium">
@@ -232,19 +249,22 @@ export default function RoomSettings() {
         </section>
       </main>
 
-      {/* Edit Room modal */}
       {editingRoom && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Edit Room</h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Room</h3>
+                <div className="mt-1">
+                  <RoomStatusBadge room={editingRoom} />
+                </div>
+              </div>
               <button type="button" onClick={closeEdit} className="text-gray-400 hover:text-gray-600 text-sm">
                 Close
               </button>
             </div>
 
             <div className="px-6 py-5 space-y-4">
-              {/* Room number — read only */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Room Number</label>
                 <p className="text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -265,7 +285,7 @@ export default function RoomSettings() {
                   Shown as:{' '}
                   <span className="font-medium text-gray-600">
                     {getRoomDisplayName({
-                      room_number: editingRoom.room_number,
+                      room_number: Number(editingRoom.room_number),
                       room_name: form.room_name,
                     })}
                   </span>
