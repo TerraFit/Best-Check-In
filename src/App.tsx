@@ -24,6 +24,7 @@ import { LanguageSelector } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeDashboard from './pages/EmployeeDashboard';
+import RoomSettings from './pages/RoomSettings';
 
 function UnauthorizedPage() {
   return (
@@ -70,19 +71,12 @@ function AppContent() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/set-password/:token" element={<SetPassword />} />
         
-        {/* ✅ Check-in Routes - ALWAYS start fresh */}
         <Route path="/checkin" element={<CheckInApp />} />
         <Route path="/checkin/:businessId" element={<CheckInApp />} />
         
-        {/* Indemnity View Route */}
         <Route path="/indemnity/:token" element={<IndemnityView />} />
-        
-        {/* Newsletter Subscription */}
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
         
-        {/* ============================================================
-            ✅ Employee Routes
-            ============================================================ */}
         <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
         <Route path="/employee/login" element={<EmployeeLogin />} />
         <Route 
@@ -94,12 +88,10 @@ function AppContent() {
           } 
         />
         
-        {/* Auth Routes */}
         <Route path="/business/login" element={<BusinessLogin />} />
         <Route path="/super-admin-login" element={<SuperAdminLogin />} />
         <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
         
-        {/* Protected Business Routes */}
         <Route 
           path="/business/pending" 
           element={
@@ -113,6 +105,14 @@ function AppContent() {
           element={
             <ProtectedRoute requiredRole="business">
               <BusinessDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/business/rooms" 
+          element={
+            <ProtectedRoute requiredRole="business">
+              <RoomSettings />
             </ProtectedRoute>
           } 
         />
@@ -133,7 +133,6 @@ function AppContent() {
           } 
         />
         
-        {/* Protected Super Admin Routes */}
         <Route 
           path="/super-admin" 
           element={
@@ -159,11 +158,9 @@ function AppContent() {
           } 
         />
         
-        {/* Legacy Redirects */}
         <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} />
         <Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} />
         
-        {/* Error Routes */}
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
