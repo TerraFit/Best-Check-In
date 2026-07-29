@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, UserPlus, QrCode, Phone, 
-  Calendar, ChevronRight, Utensils,
+  UserPlus, QrCode, Phone, 
+  Calendar, ChevronRight,
   Bed, UserCheck, UserX, Printer,
-  AlertCircle
 } from 'lucide-react';
 import GuestDetailsModal from '../dashboard/GuestDetailsModal';
+import { getRoomDisplayName } from '../../services/roomDisplayService';
 
 interface GuestOverviewTabProps {
   bookings: any[];
@@ -18,94 +18,98 @@ interface GuestOverviewTabProps {
   onShowImportModal?: () => void;
 }
 
+function formatGuestRoom(guest: {
+  room_number?: number | string | null;
+  room_name?: string | null;
+}): string | null {
+  if (guest.room_number === null || guest.room_number === undefined || guest.room_number === '') {
+    return null;
+  }
+  const n =
+    typeof guest.room_number === 'string'
+      ? parseInt(guest.room_number, 10)
+      : guest.room_number;
+  if (Number.isNaN(n)) return null;
+  return getRoomDisplayName({
+    room_number: n,
+    room_name: guest.room_name,
+  });
+}
+
 export function GuestOverviewTab({
-  bookings,
   todayArrivals,
   todayStayovers,
   todayCheckouts,
   businessId,
   onShowQRModal,
-  onShowImportModal,
 }: GuestOverviewTabProps) {
   const navigate = useNavigate();
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ✅ Debug: Log when modal state changes
   useEffect(() => {
-    console.log('🔍 GuestOverviewTab: Modal state:', { 
-      isModalOpen, 
-      selectedBookingId,
-      businessId 
-    });
+    console.log('GuestOverviewTab: Modal state:', { isModalOpen, selectedBookingId, businessId });
   }, [isModalOpen, selectedBookingId, businessId]);
 
-  // ✅ Handle guest click - opens the modal
   const handleGuestClick = (bookingId: string) => {
-    console.log('🖱️ Guest clicked, bookingId:', bookingId);
-    console.log('🖱️ Business ID:', businessId);
-    
-    if (!bookingId) {
-      console.error('❌ No booking ID provided');
-      return;
-    }
-    
+    if (!bookingId) return;
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
   };
 
-  // ✅ Handle modal close
   const handleModalClose = () => {
-    console.log('❌ Closing modal');
     setIsModalOpen(false);
-    setTimeout(() => {
-      setSelectedBookingId(null);
-    }, 300);
+    setTimeout(() => setSelectedBookingId(null), 300);
   };
 
   const handleNewCheckin = () => {
     navigate(`/checkin/${businessId}`);
   };
 
-  // Helper to format phone number
   const formatPhone = (phone: string) => {
     if (!phone) return 'N/A';
     return phone;
   };
 
-  // ✅ Check if guest has dietary restrictions
   const hasDietaryRestrictions = (guest: any): boolean => {
     const restrictions = guest.food_restrictions || {};
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
-  // ✅ Get dietary restrictions display text
-  const getDietaryDisplay = (guest: any): string => {
-    const restrictions = guest.food_restrictions || {};
-    const active = Object.entries(restrictions)
-      .filter(([key, val]) => val === true && key !== 'other_text')
-      .map(([key]) => key.replace('_', ' '));
-    
-    const otherText = restrictions.other_text ? ` (${restrictions.other_text})` : '';
-    
-    if (active.length === 0 && otherText) {
-      return `Other${otherText}`;
-    }
-    if (active.length === 0) return '';
-    if (active.length === 1) {
-      return `${active[0]}${otherText}`;
-    }
-    return `${active[0]} +${active.length - 1}${otherText}`;
+  const renderGuestRow = (guest: any, hoverClass: string) => {
+    const roomLabel = formatGuestRoom(guest);
+    return (
+      <div 
+        key={guest.id}
+        onClick={() => handleGuestClick(guest.id)}
+        className={`flex items-center justify-between p-2 rounded-lg ${hoverClass} cursor-pointer transition-colors`}
+      >
+        <div className="min-w-0">
+          <p className="font-medium text-stone-900">{guest.guest_name}</p>
+          {guest.guest_country && (
+            <p className="text-xs text-stone-500 truncate">{guest.guest_country}</p>
+          )}
+          {roomLabel && (
+            <p className="text-xs text-stone-600 mt-0.5 truncate">🏨 {roomLabel}</p>
+          )}
+          <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
+            <Phone size={12} /> {formatPhone(guest.guest_phone)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {hasDietaryRestrictions(guest) && (
+            <span className="text-amber-500" title="Has dietary restrictions">⚠️</span>
+          )}
+          <ChevronRight size={16} className="text-stone-400" />
+        </div>
+      </div>
+    );
   };
 
   return (
     <>
       <div className="space-y-6">
-        {/* ============================================================
-            TODAY'S ACTIVITY CARDS
-            ============================================================ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Arrivals Card */}
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-green-50 px-4 py-3 border-b border-green-100 flex items-center gap-2">
               <UserCheck size={18} className="text-green-600" />
@@ -119,32 +123,12 @@ export function GuestOverviewTab({
                 <p className="text-stone-400 text-sm text-center py-4">No arrivals today</p>
               ) : (
                 <div className="space-y-2">
-                  {todayArrivals.map(guest => (
-                    <div 
-                      key={guest.id}
-                      onClick={() => handleGuestClick(guest.id)}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-green-50 cursor-pointer transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium text-stone-900">{guest.guest_name}</p>
-                        <p className="text-xs text-stone-500 flex items-center gap-1">
-                          <Phone size={12} /> {formatPhone(guest.guest_phone)}
-                        </p>
-                      </div>
-                      {hasDietaryRestrictions(guest) && (
-                        <span className="text-amber-500" title="Has dietary restrictions">
-                          ⚠️
-                        </span>
-                      )}
-                      <ChevronRight size={16} className="text-stone-400" />
-                    </div>
-                  ))}
+                  {todayArrivals.map(guest => renderGuestRow(guest, 'hover:bg-green-50'))}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Stayovers Card */}
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
               <Bed size={18} className="text-blue-600" />
@@ -164,18 +148,23 @@ export function GuestOverviewTab({
                       onClick={() => handleGuestClick(guest.id)}
                       className="flex items-center justify-between p-2 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium text-stone-900">{guest.guest_name}</p>
-                        <p className="text-xs text-stone-500 flex items-center gap-1">
+                        {formatGuestRoom(guest) && (
+                          <p className="text-xs text-stone-600 mt-0.5 truncate">
+                            🏨 {formatGuestRoom(guest)}
+                          </p>
+                        )}
+                        <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
                           <Calendar size={12} /> Check-out: {guest.check_out_date || 'N/A'}
                         </p>
                       </div>
-                      {hasDietaryRestrictions(guest) && (
-                        <span className="text-amber-500" title="Has dietary restrictions">
-                          ⚠️
-                        </span>
-                      )}
-                      <ChevronRight size={16} className="text-stone-400" />
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {hasDietaryRestrictions(guest) && (
+                          <span className="text-amber-500" title="Has dietary restrictions">⚠️</span>
+                        )}
+                        <ChevronRight size={16} className="text-stone-400" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -183,7 +172,6 @@ export function GuestOverviewTab({
             </div>
           </div>
 
-          {/* Check-outs Card */}
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-amber-50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
               <UserX size={18} className="text-amber-600" />
@@ -197,35 +185,13 @@ export function GuestOverviewTab({
                 <p className="text-stone-400 text-sm text-center py-4">No check-outs today</p>
               ) : (
                 <div className="space-y-2">
-                  {todayCheckouts.map(guest => (
-                    <div 
-                      key={guest.id}
-                      onClick={() => handleGuestClick(guest.id)}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-amber-50 cursor-pointer transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium text-stone-900">{guest.guest_name}</p>
-                        <p className="text-xs text-stone-500 flex items-center gap-1">
-                          <Phone size={12} /> {formatPhone(guest.guest_phone)}
-                        </p>
-                      </div>
-                      {hasDietaryRestrictions(guest) && (
-                        <span className="text-amber-500" title="Has dietary restrictions">
-                          ⚠️
-                        </span>
-                      )}
-                      <ChevronRight size={16} className="text-stone-400" />
-                    </div>
-                  ))}
+                  {todayCheckouts.map(guest => renderGuestRow(guest, 'hover:bg-amber-50'))}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* ============================================================
-            QUICK ACTIONS
-            ============================================================ */}
         <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6">
           <h3 className="text-sm font-bold text-stone-700 mb-4 flex items-center gap-2">
             <span className="text-lg">⚡</span> Quick Actions
@@ -272,9 +238,6 @@ export function GuestOverviewTab({
           </div>
         </div>
 
-        {/* ============================================================
-            GUEST DETAILS MODAL
-            ============================================================ */}
         <GuestDetailsModal
           isOpen={isModalOpen}
           bookingId={selectedBookingId}
