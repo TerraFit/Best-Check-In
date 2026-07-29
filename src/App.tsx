@@ -25,6 +25,7 @@ import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import RoomSettings from './pages/RoomSettings';
+import HousekeepingSettings from './pages/HousekeepingSettings';
 
 function UnauthorizedPage() {
   return (
@@ -63,7 +64,6 @@ function AppContent() {
       
       <ScrollToTop />
       <Routes>
-        {/* Public Routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<BusinessRegistration />} />
         <Route path="/registration-success" element={<RegistrationSuccess />} />
@@ -113,6 +113,14 @@ function AppContent() {
           element={
             <ProtectedRoute requiredRole="business">
               <RoomSettings />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/business/housekeeping-settings" 
+          element={
+            <ProtectedRoute requiredRole="business">
+              <HousekeepingSettings />
             </ProtectedRoute>
           } 
         />

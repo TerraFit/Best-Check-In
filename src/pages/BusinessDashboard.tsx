@@ -9,6 +9,7 @@ import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../compone
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
+import HousekeepingTab from './tabs/HousekeepingTab';
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
@@ -270,12 +271,12 @@ export default function BusinessDashboard() {
     { id: 'checkins', name: 'Check-ins' },
     { id: 'reports', name: 'Reports' },
     { id: 'rooms', name: 'Rooms' },
+    { id: 'housekeeping', name: 'Housekeeping' },
     { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
 
   const handleTabChange = useCallback((tabId: string) => {
-    // Rooms opens Room Settings directly — no intermediate landing page
     if (tabId === 'rooms') {
       navigate('/business/rooms');
       return;
@@ -355,6 +356,21 @@ export default function BusinessDashboard() {
             bookings={bookings}
             totalBookings={displayTotalBookings}
           />
+        )}
+
+        {activeTab === 'housekeeping' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/business/housekeeping-settings')}
+                className="text-sm font-medium text-orange-600 hover:text-orange-700"
+              >
+                Housekeeping Settings →
+              </button>
+            </div>
+            <HousekeepingTab businessId={business?.id || getBusinessId() || ''} />
+          </div>
         )}
         
         {activeTab === 'staff' && (
