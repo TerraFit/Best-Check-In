@@ -1,5 +1,6 @@
 // src/pages/BusinessDashboard.tsx
 import { useMemo, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useBusinessData } from '../hooks/useBusinessData';
@@ -8,9 +9,9 @@ import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../compone
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
-import RoomsTab from './tabs/RoomsTab';
 
 export default function BusinessDashboard() {
+  const navigate = useNavigate();
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
 
   const {
@@ -273,6 +274,16 @@ export default function BusinessDashboard() {
     { id: 'settings', name: 'Settings' },
   ];
 
+  const handleTabChange = useCallback((tabId: string) => {
+    // Rooms opens Room Settings directly — no intermediate landing page
+    if (tabId === 'rooms') {
+      navigate('/business/rooms');
+      return;
+    }
+    setActiveTab(tabId);
+    setCurrentPage(1);
+  }, [navigate, setActiveTab, setCurrentPage]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -299,10 +310,7 @@ export default function BusinessDashboard() {
       <NavigationTabs
         tabs={tabs}
         activeTab={activeTab}
-        onTabChange={(tabId) => {
-          setActiveTab(tabId);
-          setCurrentPage(1);
-        }}
+        onTabChange={handleTabChange}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -347,10 +355,6 @@ export default function BusinessDashboard() {
             bookings={bookings}
             totalBookings={displayTotalBookings}
           />
-        )}
-
-        {activeTab === 'rooms' && (
-          <RoomsTab businessId={business?.id || getBusinessId() || ''} />
         )}
         
         {activeTab === 'staff' && (
