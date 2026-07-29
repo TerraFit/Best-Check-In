@@ -1,12 +1,35 @@
 // src/pages/RoomSettings.tsx
-// Dedicated Room Settings page (Phase 1) — not part of general Settings
+// Final functional spec: operational room config only — no licensing / sync UI
 
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { fetchRooms, syncRooms, updateRoom } from '../services/roomApi';
+import { fetchRooms, updateRoom } from '../services/roomApi';
 import { getRoomDisplayName } from '../services/roomDisplayService';
-import type { Room } from '../types/room';
+import { isAvailableForAllocation, type Room } from '../types/room';
+import { ROOM_TYPES, UNAVAILABLE_REASONS } from '../constants/roomTypes';
+
+interface EditForm {
+  room_name: string;
+  room_type: string;
+  max_adults: number;
+  max_children: number;
+  max_infants: number;
+  availableForAllocation: boolean;
+  unavailable_reason: string;
+  notes: string;
+}
+
+const emptyForm = (room?: Room): EditForm => ({
+  room_name: room?.room_name || '',
+  room_type: room?.room_type || 'Standard Room',
+  max_adults: room?.max_adults ?? 2,
+  max_children: room?.max_children ?? 0,
+  max_infants: room?.max_infants ?? 0,
+  availableForAllocation: room ? isAvailableForAllocation(room) : true,
+  unavailable_reason: room?.unavailable_reason || '',
+  notes: room?.notes || '',
+});
 
 export default function RoomSettings() {
   const { getBusinessId } = useAuth();
@@ -14,25 +37,33 @@ export default function RoomSettings() {
   const businessId = getBusinessId() || '';
 
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [licensedRooms, setLicensedRooms] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [totalRoomsInput, setTotalRoomsInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [excessPending, setExcessPending] = useState<Room[] | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState('Standard');
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [form, setForm] = useState<EditForm>(emptyForm());
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
     setError(null);
     try {
-      const list = await fetchRooms(businessId, { includeInactive: true });
-      setRooms(list);
-      const activeCount = list.filter((r) => r.active).length;
-      setTotalRoomsInput(String(activeCount || list.length || ''));
+      const [list, brandingRes] = await Promise.all([
+        fetchRooms(businessId, { includeInactive: true }),
+        fetch(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`),
+      ]);
+      setRooms(list.sort((a, b) => a.room_number - b.room_number));
+
+      if (brandingRes.ok) {
+        const branding = await brandingRes.json();
+        const total =
+          branding.total_rooms ??
+          branding.data?.total_rooms ??
+          null;
+        setLicensedRooms(typeof total === 'number' ? total : parseInt(total, 10) || null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load rooms');
     } finally {
@@ -44,265 +75,325 @@ export default function RoomSettings() {
     load();
   }, [load]);
 
-  const handleSync = async (confirmDeactivate = false) => {
-    if (!businessId) return;
-    const n = parseInt(totalRoomsInput, 10);
-    if (isNaN(n) || n < 0) {
-      setError('Enter a valid room count');
-      return;
-    }
-    setSyncing(true);
-    setError(null);
+  const openEdit = (room: Room) => {
+    setEditingRoom(room);
+    setForm(emptyForm(room));
     setMessage(null);
+    setError(null);
+  };
+
+  const closeEdit = () => {
+    setEditingRoom(null);
+    setForm(emptyForm());
+  };
+
+  const handleSave = async () => {
+    if (!editingRoom || !businessId) return;
+    setSaving(true);
+    setError(null);
     try {
-      const result = await syncRooms({
-        businessId,
-        totalRooms: n,
-        confirmDeactivate,
+      const available = form.availableForAllocation;
+      const updated = await updateRoom(editingRoom.id, businessId, {
+        room_name: form.room_name.trim() || null,
+        room_type: form.room_type,
+        max_adults: form.max_adults,
+        max_children: form.max_children,
+        max_infants: form.max_infants,
+        active: available,
+        availability_status: available ? 'available' : 'unavailable',
+        unavailable_reason: available ? null : form.unavailable_reason || null,
+        notes: form.notes.trim() || null,
       });
-      if (result.requiresConfirmation && result.excessRooms?.length) {
-        setExcessPending(result.excessRooms);
-        setMessage(result.message || 'Confirm deactivation of excess rooms.');
-        setRooms(result.rooms || []);
-      } else {
-        setExcessPending(null);
-        setRooms(result.rooms || []);
-        setMessage(
-          `Synced: ${result.created} created, ${result.deactivated || 0} deactivated.`
-        );
-      }
+      setRooms((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)).sort((a, b) => a.room_number - b.room_number)
+      );
+      setMessage(`Saved ${getRoomDisplayName(updated)}`);
+      closeEdit();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sync failed');
+      setError(e instanceof Error ? e.message : 'Failed to save room');
     } finally {
-      setSyncing(false);
-    }
-  };
-
-  const startEdit = (room: Room) => {
-    setEditingId(room.id);
-    setEditName(room.room_name || '');
-    setEditType(room.room_type || 'Standard');
-  };
-
-  const saveEdit = async () => {
-    if (!editingId || !businessId) return;
-    try {
-      const updated = await updateRoom(editingId, businessId, {
-        room_name: editName.trim() || null,
-        room_type: editType,
-      });
-      setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-      setEditingId(null);
-      setMessage('Room updated.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
-    }
-  };
-
-  const toggleActive = async (room: Room) => {
-    if (!businessId) return;
-    try {
-      const updated = await updateRoom(room.id, businessId, {
-        active: !room.active,
-        availability_status: room.active ? 'unavailable' : 'available',
-      });
-      setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update active state');
+      setSaving(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate('/business/dashboard')}
-              className="text-sm text-orange-600 hover:text-orange-700 mb-1"
-            >
-              ← Back to dashboard
-            </button>
-            <h1 className="text-xl font-bold text-gray-900">Room Settings</h1>
-            <p className="text-sm text-gray-500">
-              Manage physical rooms. Room numbers and internal codes cannot be changed.
-            </p>
-          </div>
+        <div className="max-w-5xl mx-auto px-4 py-4">
+          <button
+            type="button"
+            onClick={() => navigate('/business/dashboard')}
+            className="text-sm text-orange-600 hover:text-orange-700 mb-1"
+          >
+            ← Back to dashboard
+          </button>
+          <h1 className="text-xl font-bold text-gray-900">Room Settings</h1>
+          <p className="text-sm text-gray-500">
+            Name, classify, and manage availability of your licensed rooms. Room numbers cannot be
+            changed.
+          </p>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        {/* Sync from total */}
-        <section className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900 mb-2">Sync room inventory</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            Creates sequential rooms up to the target count. Reducing the count never deletes rooms —
-            excess rooms must be confirmed for deactivation.
+      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        {/* Licensed capacity — read only */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
+            Licensed Room Capacity
+          </h2>
+          <p className="text-2xl font-bold text-gray-900">
+            Licensed Rooms:{' '}
+            <span className="text-orange-600">
+              {licensedRooms !== null ? licensedRooms : '—'}
+            </span>
           </p>
-          <div className="flex flex-wrap gap-2 items-end">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Target room count</label>
-              <input
-                type="number"
-                min={0}
-                value={totalRoomsInput}
-                onChange={(e) => setTotalRoomsInput(e.target.value)}
-                className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => handleSync(false)}
-              disabled={syncing}
-              className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50"
-            >
-              {syncing ? 'Syncing…' : 'Sync rooms'}
-            </button>
-          </div>
-
-          {excessPending && excessPending.length > 0 && (
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-sm text-amber-900 font-medium mb-2">
-                {excessPending.length} room(s) are above the new total and will be deactivated (not
-                deleted):
-              </p>
-              <ul className="text-xs text-amber-800 mb-3 list-disc list-inside">
-                {excessPending.map((r) => (
-                  <li key={r.id}>{getRoomDisplayName(r)}</li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                onClick={() => handleSync(true)}
-                disabled={syncing}
-                className="px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700"
-              >
-                Confirm deactivate excess rooms
-              </button>
-            </div>
-          )}
-
-          {message && <p className="mt-3 text-sm text-green-700">{message}</p>}
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          <p className="text-xs text-gray-500 mt-2">
+            Controlled by your FastCheckIn subscription and Business Profile. To add rooms, request a
+            room count increase through FastCheckIn. After approval, new rooms appear here
+            automatically.
+          </p>
         </section>
+
+        {message && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+            {message}
+          </p>
+        )}
+        {error && !editingRoom && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            {error}
+          </p>
+        )}
 
         {/* Room list */}
         <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="px-5 py-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-900">Rooms</h2>
           </div>
 
           {loading ? (
             <div className="p-12 text-center text-gray-400 text-sm">Loading rooms…</div>
           ) : rooms.length === 0 ? (
-            <div className="p-12 text-center text-gray-400 text-sm">
-              No rooms yet. Set a target count and sync to create them.
+            <div className="p-12 text-center text-gray-500 text-sm max-w-md mx-auto">
+              <p className="mb-2">No rooms are set up for this property yet.</p>
+              <p className="text-xs text-gray-400">
+                Rooms are created when your licensed capacity is approved. Contact FastCheckIn if you
+                expected rooms to appear here.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Display name</th>
-                    <th className="px-4 py-3">Code</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Active</th>
+                    <th className="px-4 py-3">Room</th>
+                    <th className="px-4 py-3">Room Type</th>
+                    <th className="px-4 py-3">Available for Allocation</th>
                     <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {rooms.map((room) => (
-                    <tr key={room.id} className={!room.active ? 'bg-gray-50 opacity-70' : ''}>
-                      <td className="px-4 py-3 font-mono text-gray-700">{room.room_number}</td>
-                      <td className="px-4 py-3">
-                        {editingId === room.id ? (
-                          <input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            placeholder="Optional name"
-                            className="w-full max-w-xs px-2 py-1 border rounded text-sm"
-                          />
-                        ) : (
-                          getRoomDisplayName(room)
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{room.room_code}</td>
-                      <td className="px-4 py-3">
-                        {editingId === room.id ? (
-                          <select
-                            value={editType}
-                            onChange={(e) => setEditType(e.target.value)}
-                            className="px-2 py-1 border rounded text-sm"
-                          >
-                            {['Standard', 'Deluxe', 'Luxury', 'Family', 'Suite', 'Tent', 'Chalet', 'Cottage'].map(
-                              (t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
-                              )
-                            )}
-                          </select>
-                        ) : (
-                          room.room_type
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        <span className="text-gray-600">{room.occupancy_status}</span>
-                        {' · '}
-                        <span className="text-gray-500">{room.housekeeping_status}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(room)}
-                          className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            room.active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {room.active ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        {editingId === room.id ? (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={saveEdit}
-                              className="text-xs text-green-700 font-medium"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingId(null)}
-                              className="text-xs text-gray-500"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
+                  {rooms.map((room) => {
+                    const available = isAvailableForAllocation(room);
+                    return (
+                      <tr key={room.id} className={!available ? 'bg-gray-50' : ''}>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {getRoomDisplayName(room)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{room.room_type || '—'}</td>
+                        <td className="px-4 py-3">
+                          {available ? (
+                            <span className="inline-flex items-center gap-1 text-green-700 text-xs font-medium">
+                              <span aria-hidden>✅</span> Available
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-red-700 text-xs font-medium">
+                              <span aria-hidden>❌</span>{' '}
+                              {room.unavailable_reason || 'Unavailable'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={() => startEdit(room)}
-                            className="text-xs text-orange-600 font-medium"
+                            onClick={() => openEdit(room)}
+                            className="text-xs font-medium text-orange-600 hover:text-orange-700"
                           >
                             Edit
                           </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </section>
       </main>
+
+      {/* Edit Room modal */}
+      {editingRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Room</h3>
+              <button type="button" onClick={closeEdit} className="text-gray-400 hover:text-gray-600 text-sm">
+                Close
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Room number — read only */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Room Number</label>
+                <p className="text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  {editingRoom.room_number}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Room Name</label>
+                <input
+                  type="text"
+                  value={form.room_name}
+                  onChange={(e) => setForm((f) => ({ ...f, room_name: e.target.value }))}
+                  placeholder="Optional (e.g. Safari Tent)"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Shown as:{' '}
+                  <span className="font-medium text-gray-600">
+                    {getRoomDisplayName({
+                      room_number: editingRoom.room_number,
+                      room_name: form.room_name,
+                    })}
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Room Type</label>
+                <select
+                  value={form.room_type}
+                  onChange={(e) => setForm((f) => ({ ...f, room_type: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                >
+                  {!ROOM_TYPES.includes(form.room_type as any) && form.room_type && (
+                    <option value={form.room_type}>{form.room_type}</option>
+                  )}
+                  {ROOM_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-2">Capacity</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(
+                    [
+                      ['max_adults', 'Adults'],
+                      ['max_children', 'Children'],
+                      ['max_infants', 'Infants'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block text-[10px] text-gray-400 mb-1">{label}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={form[key]}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            [key]: Math.max(0, parseInt(e.target.value, 10) || 0),
+                          }))
+                        }
+                        className="w-full px-2 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.availableForAllocation}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        availableForAllocation: e.target.checked,
+                        unavailable_reason: e.target.checked ? '' : f.unavailable_reason,
+                      }))
+                    }
+                    className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span className="text-sm font-medium text-gray-800">Available for Allocation</span>
+                </label>
+                <p className="text-[11px] text-gray-400">
+                  When disabled, this room is hidden from the allocation dropdown. Existing bookings
+                  and history are preserved.
+                </p>
+
+                {!form.availableForAllocation && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Reason</label>
+                    <select
+                      value={form.unavailable_reason}
+                      onChange={(e) => setForm((f) => ({ ...f, unavailable_reason: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Select reason…</option>
+                      {UNAVAILABLE_REASONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Internal notes for staff"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none"
+                />
+              </div>
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

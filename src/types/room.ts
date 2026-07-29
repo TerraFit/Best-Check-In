@@ -1,6 +1,8 @@
 // src/types/room.ts
 // Room Operations — Phase 1 types
 
+import type { CanonicalRoomType } from '../constants/roomTypes';
+
 export type AvailabilityStatus =
   | 'available'
   | 'unavailable'
@@ -40,18 +42,8 @@ export type RoomEventSource = 'system' | 'staff' | 'guest' | 'integration';
 
 export type RoomEventSeverity = 'info' | 'warning' | 'critical';
 
-export type RoomType =
-  | 'Standard'
-  | 'Deluxe'
-  | 'Luxury'
-  | 'Family'
-  | 'Suite'
-  | 'Tent'
-  | 'Chalet'
-  | 'Cottage'
-  | 'Dormitory'
-  | 'Camping Site'
-  | string;
+/** Prefer CanonicalRoomType from constants; string allowed for legacy values */
+export type RoomType = CanonicalRoomType | string;
 
 export interface Room {
   id: string;
@@ -69,6 +61,8 @@ export interface Room {
   room_condition: RoomCondition;
   cleaning_priority: CleaningPriority;
   active: boolean;
+  /** Why allocation is disabled — only meaningful when not available for allocation */
+  unavailable_reason?: string | null;
   sort_order?: number | null;
   notes?: string | null;
   created_at?: string;
@@ -101,6 +95,7 @@ export interface RoomUpdatePayload {
   room_condition?: RoomCondition;
   cleaning_priority?: CleaningPriority;
   active?: boolean;
+  unavailable_reason?: string | null;
   sort_order?: number | null;
   notes?: string | null;
 }
@@ -120,4 +115,10 @@ export interface SyncRoomsResult {
   requiresConfirmation?: boolean;
   excessRooms?: Room[];
   rooms: Room[];
+  message?: string;
+}
+
+/** True when room may appear in allocation dropdowns */
+export function isAvailableForAllocation(room: Pick<Room, 'active' | 'availability_status'>): boolean {
+  return room.active === true && room.availability_status === 'available';
 }

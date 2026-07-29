@@ -34,7 +34,6 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
-    // Immutable fields must never be updated via this endpoint
     const allowed = [
       'room_name',
       'room_type',
@@ -47,6 +46,7 @@ exports.handler = async (event) => {
       'room_condition',
       'cleaning_priority',
       'active',
+      'unavailable_reason',
       'sort_order',
       'notes',
     ];
