@@ -1,11 +1,17 @@
-// src/services/index.ts
-export * from './analyticsService';
 export * from './analyticsAggregator';
+export * from './analyticsService';
+export * from './checkinService';
 export * from './cityAutocompleteService';
 export * from './countryRegionService';
 export * from './entitlementService';
+export * from './exportService';
 export * from './geminiService';
 export * from './geoLoader';
+export * from './grammarlyService';
 export * from './importService';
+export * from './locationIntelligenceService';
 export * from './regionService';
-export * from './visitorOriginAdapter'; // ✅ NEW
+export * from './visitorOriginAdapter';
+export * from './roomApi';
+export * from './roomDisplayService';
+export * from './roomStatusService';
