@@ -3,6 +3,9 @@
 //   checkout today → occupancy=departure_pending, housekeeping=dirty
 //   + mandatory 🧺 Full Service (Checkout) task
 // Clean is NEVER set here — only after inspection approval.
+//
+// stay_night: legacy NOT NULL column from an earlier HK schema (not in Phase 2 migration 003).
+// Always calculated and set so PostgreSQL accepts the insert.
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -35,6 +38,20 @@ function calculateStayLength(checkIn, checkOut) {
   const a = parseDate(checkIn);
   const b = parseDate(checkOut);
   return Math.max(0, Math.round((b - a) / (1000 * 60 * 60 * 24)));
+}
+
+/**
+ * stay_night for a service on scheduled_date within a stay.
+ * - Mid-stay morning after N nights from check-in → N
+ * - Checkout after N nights → N (minimum 1 so NOT NULL is never violated)
+ */
+function stayNightForDate(checkIn, checkOut, scheduledDate, isCheckout) {
+  const nights = calculateStayLength(checkIn, checkOut);
+  if (isCheckout) {
+    return Math.max(1, nights);
+  }
+  const fromCheckIn = calculateStayLength(checkIn, scheduledDate);
+  return Math.max(1, fromCheckIn);
 }
 
 function determineCustomNights(nights, settings) {
@@ -88,7 +105,6 @@ function determineOptimalServiceNights(nights, policy, settings) {
   return determineIntelligentNights(nights, policy);
 }
 
-/** Mid-stay + mandatory checkout Full Service (no exceptions). */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
@@ -100,19 +116,21 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
   if (nights > 0) {
     const mid = determineOptimalServiceNights(nights, policy, settings);
     for (const m of mid) {
+      const scheduled_date = addDays(checkInDate, m.nightIndex);
       tasks.push({
-        scheduled_date: addDays(checkInDate, m.nightIndex),
+        scheduled_date,
         task_type: m.task_type,
         is_checkout: false,
+        stay_night: Math.max(1, m.nightIndex),
       });
     }
   }
 
-  // Checkout Full Service — always, independent of mid-stay and of settings toggle
   tasks.push({
     scheduled_date: checkOutDate,
     task_type: 'full_service',
     is_checkout: true,
+    stay_night: Math.max(1, nights),
   });
 
   const byDate = new Map();
@@ -129,6 +147,51 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
   return Array.from(byDate.values()).sort((a, b) =>
     a.scheduled_date.localeCompare(b.scheduled_date)
   );
+}
+
+function buildTaskPayload({
+  businessId,
+  resolved,
+  booking,
+  task_type,
+  is_checkout,
+  scheduled_date,
+  stay_night,
+  policy,
+}) {
+  const payload = {
+    business_id: businessId,
+    room_id: resolved.room_id,
+    room_number:
+      resolved.room_number !== null && resolved.room_number !== undefined
+        ? Number(resolved.room_number)
+        : null,
+    room_name: resolved.room_name ?? null,
+    booking_id: booking.id,
+    guest_name: booking.guest_name || null,
+    scheduled_date,
+    stay_night: Math.max(1, Number(stay_night) || 1),
+    task_type,
+    is_checkout: !!is_checkout,
+    priority: 'standard',
+    status: 'pending',
+    policy_used: policy,
+  };
+
+  console.log('housekeeping_tasks INSERT payload', {
+    room_id: payload.room_id,
+    room_number: payload.room_number,
+    booking_id: payload.booking_id,
+    guest_name: payload.guest_name,
+    scheduled_date: payload.scheduled_date,
+    stay_night: payload.stay_night,
+    task_type: payload.task_type,
+    is_checkout: payload.is_checkout,
+    policy_used: payload.policy_used,
+    status: payload.status,
+  });
+
+  return payload;
 }
 
 exports.handler = async (event) => {
@@ -292,14 +355,9 @@ exports.handler = async (event) => {
       };
     }
 
-    /**
-     * Ensure a pending/in_progress checkout Full Service exists for today.
-     * Force room → departure_pending + dirty (never clean/vacant here).
-     */
     async function ensureCheckoutDirtyState(booking, resolved) {
       let createdTask = false;
 
-      // Open checkout FS for today?
       const openRes = await fetch(
         `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${todayStr}&task_type=eq.full_service&is_checkout=eq.true&status=in.(pending,in_progress)&select=id`,
         { headers: restGet }
@@ -307,27 +365,27 @@ exports.handler = async (event) => {
       const open = openRes.ok ? await openRes.json() : [];
 
       if (!open || open.length === 0) {
-        // Do not treat completed checkout as blocking a new dirty cycle if still checkout day
-        // (re-generate should recreate only if no open task)
+        const stay_night = stayNightForDate(
+          booking.check_in_date,
+          booking.check_out_date,
+          todayStr,
+          true
+        );
+
+        const payload = buildTaskPayload({
+          businessId,
+          resolved,
+          booking,
+          task_type: 'full_service',
+          is_checkout: true,
+          scheduled_date: todayStr,
+          stay_night,
+          policy,
+        });
+
         await sb('housekeeping_tasks', {
           method: 'POST',
-          body: JSON.stringify({
-            business_id: businessId,
-            room_id: resolved.room_id,
-            room_number:
-              resolved.room_number !== null && resolved.room_number !== undefined
-                ? Number(resolved.room_number)
-                : null,
-            room_name: resolved.room_name ?? null,
-            booking_id: booking.id,
-            guest_name: booking.guest_name || null,
-            task_type: 'full_service',
-            is_checkout: true,
-            scheduled_date: todayStr,
-            priority: 'standard',
-            status: 'pending',
-            policy_used: policy,
-          }),
+          body: JSON.stringify(payload),
         });
         createdTask = true;
 
@@ -349,6 +407,7 @@ exports.handler = async (event) => {
             details: {
               task_type: 'full_service',
               scheduled_date: todayStr,
+              stay_night,
               is_checkout: true,
               policy,
             },
@@ -356,8 +415,6 @@ exports.handler = async (event) => {
         }).catch(() => {});
       }
 
-      // Always force dirty / departure_pending until inspection approves Clean
-      // Skip overwrite if already cleaning_in_progress or awaiting_inspection (housekeeper working)
       const roomRes = await fetch(
         `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status,occupancy_status`,
         { headers: restGet }
@@ -421,7 +478,6 @@ exports.handler = async (event) => {
           const existing = exRes.ok ? await exRes.json() : [];
           for (const t of existing) {
             const d = String(t.scheduled_date).slice(0, 10);
-            // Keep today's open checkout tasks — ensureCheckoutDirtyState owns them
             if (t.is_checkout && d === todayStr) continue;
             if (d >= todayStr) {
               await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${t.id}`, {
@@ -446,11 +502,9 @@ exports.handler = async (event) => {
         }
       }
 
-      // Mid-stay + future slots (not the checkout-today path)
       for (const slot of schedule) {
         const slotDate = String(slot.scheduled_date).slice(0, 10);
         if (slotDate < todayStr) continue;
-        // Checkout-today handled exclusively by ensureCheckoutDirtyState
         if (slot.is_checkout && slotDate === todayStr) continue;
 
         const dupRes = await fetch(
@@ -460,32 +514,26 @@ exports.handler = async (event) => {
         const dup = dupRes.ok ? await dupRes.json() : [];
         if (dup && dup.length) continue;
 
+        const payload = buildTaskPayload({
+          businessId,
+          resolved,
+          booking,
+          task_type: slot.task_type,
+          is_checkout: !!slot.is_checkout,
+          scheduled_date: slotDate,
+          stay_night: slot.stay_night,
+          policy,
+        });
+
         await sb('housekeeping_tasks', {
           method: 'POST',
-          body: JSON.stringify({
-            business_id: businessId,
-            room_id: resolved.room_id,
-            room_number:
-              resolved.room_number !== null && resolved.room_number !== undefined
-                ? Number(resolved.room_number)
-                : null,
-            room_name: resolved.room_name ?? null,
-            booking_id: booking.id,
-            guest_name: booking.guest_name || null,
-            task_type: slot.task_type,
-            is_checkout: !!slot.is_checkout,
-            scheduled_date: slotDate,
-            priority: 'standard',
-            status: 'pending',
-            policy_used: policy,
-          }),
+          body: JSON.stringify(payload),
         });
         created += 1;
 
         if (slotDate === todayStr && !slot.is_checkout) {
           const hk =
             slot.task_type === 'full_service' ? 'full_service_required' : 'refresh_required';
-          // Do not mark clean; only set due status if not already in workflow
           const roomRes = await fetch(
             `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
             { headers: restGet }
@@ -498,15 +546,10 @@ exports.handler = async (event) => {
         }
       }
 
-      // Mandatory: every departure today gets Dirty + Departure Pending + Checkout FS task
       if (checkOutDate === todayStr) {
         const result = await ensureCheckoutDirtyState(booking, resolved);
-        if (result.createdTask) {
-          created += 1;
-          checkoutTasksEnsured += 1;
-        } else {
-          checkoutTasksEnsured += 1; // already present
-        }
+        if (result.createdTask) created += 1;
+        checkoutTasksEnsured += 1;
         if (result.markedDirty) roomsMarkedDirty += 1;
       }
     }
