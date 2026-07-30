@@ -1,6 +1,6 @@
 // src/services/housekeepingScheduleEngine.ts
 // Intelligent Housekeeping Scheduling Engine — pure functions, no I/O
-// Reused by Eco, Standard, Premium, and Custom policies.
+// Checkout Full Service is independent of mid-stay Refresh schedule.
 
 import type {
   HousekeepingPolicy,
@@ -10,7 +10,7 @@ import type {
 } from '../types/housekeeping';
 
 function parseDate(iso: string): Date {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -36,15 +36,10 @@ export function calculateStayLength(checkIn: string, checkOut: string): number {
 }
 
 interface NightService {
-  nightIndex: number; // 1 .. nights-1 → morning after that many nights from check-in
+  nightIndex: number;
   task_type: HousekeepingTaskType;
 }
 
-/**
- * determineOptimalServiceDay — core of the intelligent engine.
- * Chooses which nights receive mid-stay service and whether Refresh or Full Service.
- * Checkout is handled separately (always Full Service when mandatory).
- */
 export function determineOptimalServiceNights(
   nights: number,
   policy: HousekeepingPolicy,
@@ -53,7 +48,7 @@ export function determineOptimalServiceNights(
     'custom_refresh_interval' | 'custom_full_interval'
   >
 ): NightService[] {
-  if (nights <= 2) return []; // only checkout service
+  if (nights <= 2) return [];
 
   if (policy === 'premium') {
     const out: NightService[] = [];
@@ -67,7 +62,6 @@ export function determineOptimalServiceNights(
     return determineCustomNights(nights, settings);
   }
 
-  // Eco & Standard share the same gap logic; differ on service type choice
   return determineIntelligentNights(nights, policy);
 }
 
@@ -93,26 +87,17 @@ function determineCustomNights(
   return out.sort((a, b) => a.nightIndex - b.nightIndex);
 }
 
-/**
- * Intelligent mid-stay placement:
- * - Avoid service the morning of checkout (checkout FS covers departure).
- * - Cap gap between services for hygiene / comfort.
- * - Eco: prefer Refresh; escalate to Full Service after longer stretches.
- * - Standard: prefer Full Service when a midpoint meaningfully improves comfort.
- */
 function determineIntelligentNights(
   nights: number,
   policy: 'eco' | 'standard'
 ): NightService[] {
   const out: NightService[] = [];
-  // Eco tolerates slightly longer gaps; Standard services more often
   const maxGap = policy === 'eco' ? 3 : 2;
   let lastServiceNight = 0;
   let lastFullNight = 0;
 
   for (let night = 1; night < nights; night++) {
-    const remainingAfter = nights - night; // nights left after this morning's service day
-    // Skip if checkout is tomorrow (checkout FS handles last morning)
+    const remainingAfter = nights - night;
     if (remainingAfter <= 0) continue;
 
     const gap = night - lastServiceNight;
@@ -123,12 +108,10 @@ function determineIntelligentNights(
     let task_type: HousekeepingTaskType = 'refresh';
 
     if (policy === 'eco') {
-      // Full Service only when hygiene requires (~every 4 nights since last FS)
       if (night - lastFullNight >= 4 && nights >= 5) {
         task_type = 'full_service';
       }
     } else {
-      // Standard: prefer Full Service at meaningful midpoints
       const isMidpoint =
         Math.abs(night - nights / 2) <= 1 || gap >= maxGap;
       if (isMidpoint && nights >= 4) {
@@ -147,7 +130,8 @@ function determineIntelligentNights(
 }
 
 /**
- * applySelectedPolicy + generateTasks schedule for a stay.
+ * Full schedule for a stay.
+ * Checkout Full Service does NOT depend on mid-stay services existing.
  */
 export function generateSchedule(
   checkIn: string,
@@ -155,34 +139,35 @@ export function generateSchedule(
   policy: HousekeepingPolicy,
   settings?: HousekeepingSettings
 ): ScheduledService[] {
-  const nights = calculateStayLength(checkIn, checkOut);
-  if (nights <= 0) return [];
+  const checkInDate = String(checkIn).slice(0, 10);
+  const checkOutDate = String(checkOut).slice(0, 10);
+  if (!checkInDate || !checkOutDate) return [];
 
+  const nights = calculateStayLength(checkInDate, checkOutDate);
   const tasks: ScheduledService[] = [];
-  const mid = determineOptimalServiceNights(nights, policy, settings);
 
-  for (const m of mid) {
-    tasks.push({
-      scheduled_date: addDays(checkIn, m.nightIndex),
-      task_type: m.task_type,
-      is_checkout: false,
-      night_index: m.nightIndex,
-    });
+  if (nights > 0) {
+    const mid = determineOptimalServiceNights(nights, policy, settings);
+    for (const m of mid) {
+      tasks.push({
+        scheduled_date: addDays(checkInDate, m.nightIndex),
+        task_type: m.task_type,
+        is_checkout: false,
+        night_index: m.nightIndex,
+      });
+    }
   }
 
-  const mandatoryCheckout =
-    settings?.mandatory_checkout_fs !== false; // default true
-
+  const mandatoryCheckout = settings?.mandatory_checkout_fs !== false;
   if (mandatoryCheckout || policy === 'premium') {
     tasks.push({
-      scheduled_date: checkOut.slice(0, 10),
+      scheduled_date: checkOutDate,
       task_type: 'full_service',
       is_checkout: true,
       night_index: nights,
     });
   }
 
-  // Deduplicate by date (prefer full_service / checkout if clash)
   const byDate = new Map<string, ScheduledService>();
   for (const t of tasks) {
     const existing = byDate.get(t.scheduled_date);
