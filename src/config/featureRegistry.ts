@@ -1,9 +1,8 @@
 /**
  * Runtime Feature Registry — keep in sync with netlify/functions/lib/featureRegistry.js
- * Lifecycle: version, introduced, deprecated
  */
 
-import type { PlanType } from './packages';
+import { planSatisfies, type PlanType } from './packages';
 
 export type FeatureVisibility =
   | 'internal'
@@ -226,9 +225,7 @@ export function listFeatures(): FeatureDefinition[] {
   return Object.values(FEATURE_REGISTRY);
 }
 
-/** Features visible on billing comparison for a package (released/visible/locked/preview). */
 export function featuresForPackageDisplay(planId: PlanType): FeatureDefinition[] {
-  const { planSatisfies } = require('./packages') as typeof import('./packages');
   return listFeatures().filter(
     (f) =>
       planSatisfies(planId, f.minimumPackage) &&
