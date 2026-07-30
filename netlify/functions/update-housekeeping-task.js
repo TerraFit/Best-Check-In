@@ -1,6 +1,10 @@
 // netlify/functions/update-housekeeping-task.js
-// Update task status, assignment, notes, inspection — syncs room housekeeping_status
-// CommonJS exports.handler — same pattern as get-rooms.js (no require)
+// State machine (room-centric):
+//   Start      → Cleaning In Progress
+//   Complete   → Awaiting Inspection  (NOT Clean)
+//   Approve    → Clean (+ Vacant if checkout)
+//   Reject     → Cleaning In Progress
+// Clean is NEVER set on Complete alone.
 
 exports.handler = async (event) => {
   const headers = {
@@ -66,12 +70,15 @@ exports.handler = async (event) => {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
     }
 
-    if (status === 'skipped' && task.task_type !== 'refresh') {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Only Refresh tasks can be skipped' }),
-      };
+    // Checkout Full Service cannot be skipped
+    if (status === 'skipped') {
+      if (task.task_type !== 'refresh' || task.is_checkout) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }),
+        };
+      }
     }
 
     const patch = { updated_at: new Date().toISOString() };
@@ -87,10 +94,14 @@ exports.handler = async (event) => {
     if (status === 'completed') {
       patch.completed_at = new Date().toISOString();
       if (completed_by) patch.completed_by = completed_by;
+      // Complete always enters inspection — never jumps to Clean
       if (!inspection_status) patch.inspection_status = 'pending';
     }
     if (inspection_status === 'approved' || inspection_status === 'rejected') {
-      if (task.status !== 'completed') patch.status = 'completed';
+      if (task.status !== 'completed' && status !== 'completed') {
+        patch.status = 'completed';
+        patch.completed_at = patch.completed_at || new Date().toISOString();
+      }
     }
 
     const updateRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${taskId}`, {
@@ -105,28 +116,33 @@ exports.handler = async (event) => {
     const updated = await updateRes.json();
     const next = updated[0] || { ...task, ...patch };
 
-    // Room status sync (same rules as before — not redesigned)
-    const effectiveStatus = status || task.status;
-    const insp = inspection_status || null;
-    let roomPatch = {};
-    if (effectiveStatus === 'in_progress') {
+    // ---- Room state machine (strict) ----
+    let roomPatch = null;
+
+    if (status === 'in_progress') {
       roomPatch = { housekeeping_status: 'cleaning_in_progress' };
-    } else if (effectiveStatus === 'skipped') {
+    } else if (status === 'skipped') {
+      // Refresh skip only — does not force dirty; leave operational state stable
       roomPatch = { housekeeping_status: 'clean' };
-    } else if (effectiveStatus === 'completed') {
-      if (insp === 'rejected') {
-        roomPatch = { housekeeping_status: 'cleaning_in_progress' };
-      } else if (insp === 'approved') {
-        roomPatch = { housekeeping_status: 'clean' };
-        if (task.is_checkout) roomPatch.occupancy_status = 'vacant';
-      } else {
-        roomPatch = { housekeeping_status: 'awaiting_inspection' };
+    } else if (status === 'completed' && !inspection_status) {
+      // Complete → Awaiting Inspection (NOT Clean)
+      roomPatch = { housekeeping_status: 'awaiting_inspection' };
+    } else if (inspection_status === 'rejected') {
+      roomPatch = { housekeeping_status: 'cleaning_in_progress' };
+    } else if (inspection_status === 'approved') {
+      // ONLY path to Clean (+ Vacant after checkout FS)
+      roomPatch = { housekeeping_status: 'clean' };
+      if (task.is_checkout) {
+        roomPatch.occupancy_status = 'vacant';
       }
-    } else if (effectiveStatus === 'pending' && task.is_checkout) {
-      roomPatch = { occupancy_status: 'departure_pending', housekeeping_status: 'dirty' };
+    } else if (status === 'pending' && task.is_checkout) {
+      roomPatch = {
+        occupancy_status: 'departure_pending',
+        housekeeping_status: 'dirty',
+      };
     }
 
-    if (Object.keys(roomPatch).length && task.room_id) {
+    if (roomPatch && task.room_id) {
       roomPatch.updated_at = new Date().toISOString();
       await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${task.room_id}`, {
         method: 'PATCH',
@@ -137,7 +153,7 @@ exports.handler = async (event) => {
           Prefer: 'return=minimal',
         },
         body: JSON.stringify(roomPatch),
-      }).catch(() => {});
+      }).catch((e) => console.warn('room patch failed', e.message));
     }
 
     try {
@@ -161,8 +177,10 @@ exports.handler = async (event) => {
           details: {
             task_id: taskId,
             task_type: task.task_type,
+            is_checkout: task.is_checkout,
             status: next.status,
             inspection_status: next.inspection_status,
+            room_patch: roomPatch,
           },
         }),
       });
@@ -173,7 +191,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, task: next }),
+      body: JSON.stringify({ success: true, task: next, room_patch: roomPatch }),
     };
   } catch (error) {
     console.error('update-housekeeping-task fatal:', error);

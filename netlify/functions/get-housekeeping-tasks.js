@@ -1,6 +1,7 @@
 // netlify/functions/get-housekeeping-tasks.js
-// List housekeeping tasks + dashboard stats
-// CommonJS exports.handler — same pattern as get-rooms.js (no require under type:module + esbuild)
+// Stats: Clean only when housekeeping_status is clean/inspected.
+// Dirty = dirty | full_service_required | refresh_required.
+// cleaning_in_progress / awaiting_inspection are neither Clean nor Dirty.
 
 exports.handler = async (event) => {
   const headers = {
@@ -30,7 +31,6 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
-    // Africa/Johannesburg calendar day (property timezone)
     const todayStr =
       date ||
       new Intl.DateTimeFormat('en-CA', {
@@ -67,13 +67,13 @@ exports.handler = async (event) => {
     const tasks = await res.json();
 
     const roomsRes = await fetch(
-      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status`,
+      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status,occupancy_status`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     const rooms = roomsRes.ok ? await roomsRes.json() : [];
 
     const allTasksRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&select=id,task_type,status,scheduled_date`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&select=id,task_type,status,scheduled_date,is_checkout`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     const allTasks = allTasksRes.ok ? await allTasksRes.json() : [];
@@ -85,6 +85,9 @@ exports.handler = async (event) => {
       rooms_dirty: rooms.filter((r) =>
         ['dirty', 'full_service_required', 'refresh_required'].includes(r.housekeeping_status)
       ).length,
+      rooms_cleaning: rooms.filter((r) => r.housekeeping_status === 'cleaning_in_progress').length,
+      rooms_awaiting_inspection: rooms.filter((r) => r.housekeeping_status === 'awaiting_inspection')
+        .length,
       refresh_due: allTasks.filter(
         (t) =>
           t.task_type === 'refresh' &&

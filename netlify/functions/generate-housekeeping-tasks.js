@@ -1,6 +1,8 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Room-centric task generation. CommonJS exports.handler — same pattern as get-rooms.js
-// Schedule helpers inlined (no require) so esbuild + package.json type:module still exports handler.
+// Room-centric generation. State machine:
+//   checkout today → occupancy=departure_pending, housekeeping=dirty
+//   + mandatory 🧺 Full Service (Checkout) task
+// Clean is NEVER set here — only after inspection approval.
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -86,7 +88,7 @@ function determineOptimalServiceNights(nights, policy, settings) {
   return determineIntelligentNights(nights, policy);
 }
 
-/** Checkout Full Service is independent of mid-stay Refresh schedule. */
+/** Mid-stay + mandatory checkout Full Service (no exceptions). */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
@@ -106,14 +108,12 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
     }
   }
 
-  const mandatoryCheckout = settings?.mandatory_checkout_fs !== false;
-  if (mandatoryCheckout || policy === 'premium') {
-    tasks.push({
-      scheduled_date: checkOutDate,
-      task_type: 'full_service',
-      is_checkout: true,
-    });
-  }
+  // Checkout Full Service — always, independent of mid-stay and of settings toggle
+  tasks.push({
+    scheduled_date: checkOutDate,
+    task_type: 'full_service',
+    is_checkout: true,
+  });
 
   const byDate = new Map();
   for (const t of tasks) {
@@ -161,18 +161,18 @@ exports.handler = async (event) => {
     }
 
     const restGet = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
-    const restWrite = {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-      Accept: 'application/json',
-    };
 
     async function sb(path, options = {}) {
       const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
         ...options,
-        headers: { ...restWrite, ...(options.headers || {}) },
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          Prefer: options.prefer || 'return=representation',
+          Accept: 'application/json',
+          ...(options.headers || {}),
+        },
       });
       const text = await res.text();
       let data = null;
@@ -191,13 +191,23 @@ exports.handler = async (event) => {
       return data;
     }
 
+    async function patchRoom(roomIdVal, patch) {
+      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${roomIdVal}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+      });
+    }
+
     let settings = {
       policy: 'standard',
       custom_refresh_interval: 2,
       custom_full_interval: 3,
-      allow_skip_refresh: true,
-      mandatory_checkout_fs: true,
-      auto_generate: true,
     };
     try {
       const settingsRes = await fetch(
@@ -223,8 +233,9 @@ exports.handler = async (event) => {
     let bookings = [];
     try {
       const bRes = await fetch(`${supabaseUrl}/rest/v1/${bookingQuery}`, { headers: restGet });
-      if (bRes.ok) bookings = await bRes.json();
-      else {
+      if (bRes.ok) {
+        bookings = await bRes.json();
+      } else {
         let fallback =
           `bookings?business_id=eq.${businessId}&room_id=not.is.null&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;
         if (bookingId) fallback += `&id=eq.${bookingId}`;
@@ -244,11 +255,12 @@ exports.handler = async (event) => {
           success: true,
           created: 0,
           cancelled_future: 0,
+          checkout_tasks_ensured: 0,
+          rooms_marked_dirty: 0,
           bookings_matched: 0,
-          bookings_processed: 0,
           today: todayStr,
           policy,
-          message: 'No bookings with assigned rooms (room_id or room_number). Allocate rooms first.',
+          message: 'No bookings with assigned rooms. Allocate rooms first.',
         }),
       };
     }
@@ -280,12 +292,99 @@ exports.handler = async (event) => {
       };
     }
 
+    /**
+     * Ensure a pending/in_progress checkout Full Service exists for today.
+     * Force room → departure_pending + dirty (never clean/vacant here).
+     */
+    async function ensureCheckoutDirtyState(booking, resolved) {
+      let createdTask = false;
+
+      // Open checkout FS for today?
+      const openRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${todayStr}&task_type=eq.full_service&is_checkout=eq.true&status=in.(pending,in_progress)&select=id`,
+        { headers: restGet }
+      );
+      const open = openRes.ok ? await openRes.json() : [];
+
+      if (!open || open.length === 0) {
+        // Do not treat completed checkout as blocking a new dirty cycle if still checkout day
+        // (re-generate should recreate only if no open task)
+        await sb('housekeeping_tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            business_id: businessId,
+            room_id: resolved.room_id,
+            room_number:
+              resolved.room_number !== null && resolved.room_number !== undefined
+                ? Number(resolved.room_number)
+                : null,
+            room_name: resolved.room_name ?? null,
+            booking_id: booking.id,
+            guest_name: booking.guest_name || null,
+            task_type: 'full_service',
+            is_checkout: true,
+            scheduled_date: todayStr,
+            priority: 'standard',
+            status: 'pending',
+            policy_used: policy,
+          }),
+        });
+        createdTask = true;
+
+        await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+          method: 'POST',
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            business_id: businessId,
+            room_id: resolved.room_id,
+            event_type: 'housekeeping_task_created',
+            source: 'system',
+            severity: 'info',
+            booking_id: booking.id,
+            guest_name: booking.guest_name,
+            details: {
+              task_type: 'full_service',
+              scheduled_date: todayStr,
+              is_checkout: true,
+              policy,
+            },
+          }),
+        }).catch(() => {});
+      }
+
+      // Always force dirty / departure_pending until inspection approves Clean
+      // Skip overwrite if already cleaning_in_progress or awaiting_inspection (housekeeper working)
+      const roomRes = await fetch(
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status,occupancy_status`,
+        { headers: restGet }
+      );
+      const roomRows = roomRes.ok ? await roomRes.json() : [];
+      const room = roomRows[0];
+      const hk = room?.housekeeping_status;
+      const inWorkflow = ['cleaning_in_progress', 'awaiting_inspection'].includes(hk);
+
+      if (!inWorkflow) {
+        await patchRoom(resolved.room_id, {
+          occupancy_status: 'departure_pending',
+          housekeeping_status: 'dirty',
+        });
+      }
+
+      return { createdTask, markedDirty: !inWorkflow };
+    }
+
     let created = 0;
     let cancelledFuture = 0;
     let bookingsProcessed = 0;
     let skippedNoRoom = 0;
     let skippedStatus = 0;
     let skippedNoDates = 0;
+    let checkoutTasksEnsured = 0;
+    let roomsMarkedDirty = 0;
 
     for (const booking of bookings) {
       if (!booking.check_in_date || !booking.check_out_date) {
@@ -305,6 +404,7 @@ exports.handler = async (event) => {
       }
 
       bookingsProcessed += 1;
+      const checkOutDate = String(booking.check_out_date).slice(0, 10);
       const schedule = generateSchedule(
         booking.check_in_date,
         booking.check_out_date,
@@ -315,12 +415,14 @@ exports.handler = async (event) => {
       if (regenerate) {
         try {
           const exRes = await fetch(
-            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&booking_id=eq.${booking.id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes`,
+            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&booking_id=eq.${booking.id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,is_checkout`,
             { headers: restGet }
           );
           const existing = exRes.ok ? await exRes.json() : [];
           for (const t of existing) {
             const d = String(t.scheduled_date).slice(0, 10);
+            // Keep today's open checkout tasks — ensureCheckoutDirtyState owns them
+            if (t.is_checkout && d === todayStr) continue;
             if (d >= todayStr) {
               await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${t.id}`, {
                 method: 'PATCH',
@@ -344,9 +446,12 @@ exports.handler = async (event) => {
         }
       }
 
+      // Mid-stay + future slots (not the checkout-today path)
       for (const slot of schedule) {
         const slotDate = String(slot.scheduled_date).slice(0, 10);
         if (slotDate < todayStr) continue;
+        // Checkout-today handled exclusively by ensureCheckoutDirtyState
+        if (slot.is_checkout && slotDate === todayStr) continue;
 
         const dupRes = await fetch(
           `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=in.(pending,in_progress,completed)&select=id`,
@@ -355,72 +460,54 @@ exports.handler = async (event) => {
         const dup = dupRes.ok ? await dupRes.json() : [];
         if (dup && dup.length) continue;
 
-        const row = {
-          business_id: businessId,
-          room_id: resolved.room_id,
-          room_number:
-            resolved.room_number !== null && resolved.room_number !== undefined
-              ? Number(resolved.room_number)
-              : null,
-          room_name: resolved.room_name ?? null,
-          booking_id: booking.id,
-          guest_name: booking.guest_name || null,
-          task_type: slot.task_type,
-          is_checkout: !!slot.is_checkout,
-          scheduled_date: slotDate,
-          priority: 'standard',
-          status: 'pending',
-          policy_used: policy,
-        };
-
-        await sb('housekeeping_tasks', { method: 'POST', body: JSON.stringify(row) });
-        created += 1;
-
-        if (slotDate === todayStr) {
-          const roomPatch = {
-            housekeeping_status: slot.is_checkout
-              ? 'dirty'
-              : slot.task_type === 'full_service'
-                ? 'full_service_required'
-                : 'refresh_required',
-            updated_at: new Date().toISOString(),
-          };
-          if (slot.is_checkout) roomPatch.occupancy_status = 'departure_pending';
-          await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}`, {
-            method: 'PATCH',
-            headers: {
-              apikey: key,
-              Authorization: `Bearer ${key}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=minimal',
-            },
-            body: JSON.stringify(roomPatch),
-          }).catch(() => {});
-        }
-
-        await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+        await sb('housekeeping_tasks', {
           method: 'POST',
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             business_id: businessId,
             room_id: resolved.room_id,
-            event_type: 'housekeeping_task_created',
-            source: 'system',
-            severity: 'info',
+            room_number:
+              resolved.room_number !== null && resolved.room_number !== undefined
+                ? Number(resolved.room_number)
+                : null,
+            room_name: resolved.room_name ?? null,
             booking_id: booking.id,
-            guest_name: booking.guest_name,
-            details: {
-              task_type: slot.task_type,
-              scheduled_date: slotDate,
-              is_checkout: slot.is_checkout,
-              policy,
-            },
+            guest_name: booking.guest_name || null,
+            task_type: slot.task_type,
+            is_checkout: !!slot.is_checkout,
+            scheduled_date: slotDate,
+            priority: 'standard',
+            status: 'pending',
+            policy_used: policy,
           }),
-        }).catch(() => {});
+        });
+        created += 1;
+
+        if (slotDate === todayStr && !slot.is_checkout) {
+          const hk =
+            slot.task_type === 'full_service' ? 'full_service_required' : 'refresh_required';
+          // Do not mark clean; only set due status if not already in workflow
+          const roomRes = await fetch(
+            `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
+            { headers: restGet }
+          );
+          const rr = roomRes.ok ? await roomRes.json() : [];
+          const current = rr[0]?.housekeeping_status;
+          if (!['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)) {
+            await patchRoom(resolved.room_id, { housekeeping_status: hk });
+          }
+        }
+      }
+
+      // Mandatory: every departure today gets Dirty + Departure Pending + Checkout FS task
+      if (checkOutDate === todayStr) {
+        const result = await ensureCheckoutDirtyState(booking, resolved);
+        if (result.createdTask) {
+          created += 1;
+          checkoutTasksEnsured += 1;
+        } else {
+          checkoutTasksEnsured += 1; // already present
+        }
+        if (result.markedDirty) roomsMarkedDirty += 1;
       }
     }
 
@@ -431,6 +518,8 @@ exports.handler = async (event) => {
         success: true,
         created,
         cancelled_future: cancelledFuture,
+        checkout_tasks_ensured: checkoutTasksEnsured,
+        rooms_marked_dirty: roomsMarkedDirty,
         bookings_matched: bookings.length,
         bookings_processed: bookingsProcessed,
         skipped_no_room: skippedNoRoom,
@@ -439,11 +528,11 @@ exports.handler = async (event) => {
         today: todayStr,
         policy,
         message:
-          created > 0
-            ? `Created ${created} task(s) for ${bookingsProcessed} booking(s).`
+          checkoutTasksEnsured > 0
+            ? `Checkout FS ensured for ${checkoutTasksEnsured} departure(s). Rooms marked dirty: ${roomsMarkedDirty}. Created ${created} new task(s).`
             : bookingsProcessed === 0
               ? 'No eligible bookings with resolvable rooms.'
-              : 'No new tasks (already exist for today/future, or all schedule dates are in the past).',
+              : `Created ${created} task(s). No checkouts today.`,
       }),
     };
   } catch (error) {
