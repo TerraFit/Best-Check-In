@@ -1,312 +1,141 @@
 import { useState, useMemo, useEffect } from 'react';
 import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginExplorer';
-import { 
-  transformBookingsToVisitorOrigins, 
-} from '../../services/visitorOriginAdapter';
+import { transformBookingsToVisitorOrigins } from '../../services/visitorOriginAdapter';
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
 import { SubscriptionTier, SubscriptionLimits, Booking } from '../../types';
-import { 
-  TrendingUp, 
-  Globe2, 
-  QrCode, 
-  Users, 
-  Sparkles,
-  Database,
-  Cloud
-} from 'lucide-react';
+import { Sparkles, Database, Cloud } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import { getAnalyticsLimits } from '../../services/featureAccessService';
+import { getPackage, normalizePlanId } from '../../config/packages';
+import { getBusinessId } from '../../utils/auth';
 
-// ============================================================
-// 📦 MOCK DATA - For demo/testing only
-// ============================================================
-const MOCK_BOOKINGS: Booking[] = [
-  { 
-    id: '101', guestName: 'John Doe', email: 'john@example.com', phone: '+27 82 123 4567',
-    guest_country: 'South Africa', guest_city: 'Cape Town', guest_province: 'Western Cape',
-    country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
-    passportOrId: 'SA123456', nextDestination: 'Stellenbosch',
-    checkInDate: '2026-06-25', checkOutDate: '2026-06-28', nights: 3,
-    settlementMethod: 'Card', referralSource: 'Booking.com',
-    booking_source: 'Booking.com',
-    guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
-    totalAmount: 4500, status: 'Checked-In',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: true,
-    timestamp: '2026-06-25T10:30:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Johannesburg', next_destination: 'Stellenbosch'
-  },
-  { 
-    id: '102', guestName: 'Jane Smith', email: 'jane@example.com', phone: '+27 83 456 7890',
-    guest_country: 'South Africa', guest_city: 'Cape Town', guest_province: 'Western Cape',
-    country: 'South Africa', city: 'Cape Town', province: 'Western Cape',
-    passportOrId: 'SA234567', nextDestination: 'Stellenbosch',
-    checkInDate: '2026-06-25', checkOutDate: '2026-06-27', nights: 2,
-    settlementMethod: 'Instant EFT', referralSource: 'Google',
-    booking_source: 'Google',
-    guests: 1, adults: 1, kids: 0, roomType: 'Suite',
-    totalAmount: 3200, status: 'Checked-In',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: true,
-    timestamp: '2026-06-25T11:15:00Z',
-    tenantId: 'tenant-1', source: 'csv_import', season: 'High',
-    arriving_from: 'Cape Town', next_destination: 'Stellenbosch'
-  },
-  { 
-    id: '103', guestName: 'Robert Johnson', email: 'robert@example.com', phone: '+27 72 789 0123',
-    guest_country: 'South Africa', guest_city: 'Johannesburg', guest_province: 'Gauteng',
-    country: 'South Africa', city: 'Johannesburg', province: 'Gauteng',
-    passportOrId: 'SA345678', nextDestination: 'Cape Town',
-    checkInDate: '2026-06-25', checkOutDate: '2026-06-30', nights: 5,
-    settlementMethod: 'Cash', referralSource: 'Word of mouth',
-    booking_source: 'Word of mouth',
-    guests: 4, adults: 2, kids: 2, roomType: 'Luxury Safari Tent',
-    totalAmount: 8750, status: 'Confirmed',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: false,
-    timestamp: '2026-06-25T12:00:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Pretoria', next_destination: 'Cape Town'
-  },
-  { 
-    id: '104', guestName: 'Maria Garcia', email: 'maria@example.com', phone: '+34 612 345 678',
-    guest_country: 'Spain', guest_city: 'Barcelona', guest_province: 'Catalonia',
-    country: 'Spain', city: 'Barcelona', province: 'Catalonia',
-    passportOrId: 'ES789012', nextDestination: 'Valencia',
-    checkInDate: '2026-06-24', checkOutDate: '2026-06-27', nights: 3,
-    settlementMethod: 'Card', referralSource: 'Booking.com',
-    booking_source: 'Booking.com',
-    guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
-    totalAmount: 5400, status: 'Checked-In',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: true,
-    timestamp: '2026-06-24T09:45:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Madrid', next_destination: 'Valencia'
-  },
-  { 
-    id: '105', guestName: 'Hans Mueller', email: 'hans@example.com', phone: '+49 171 234 5678',
-    guest_country: 'Germany', guest_city: 'Munich', guest_province: 'Bavaria',
-    country: 'Germany', city: 'Munich', province: 'Bavaria',
-    passportOrId: 'DE567890', nextDestination: 'Frankfurt',
-    checkInDate: '2026-06-23', checkOutDate: '2026-06-26', nights: 3,
-    settlementMethod: 'Instant EFT', referralSource: 'Google',
-    booking_source: 'Google',
-    guests: 1, adults: 1, kids: 0, roomType: 'Suite',
-    totalAmount: 3800, status: 'Checked-In',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: false,
-    timestamp: '2026-06-23T16:10:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Berlin', next_destination: 'Frankfurt'
-  },
-  { 
-    id: '106', guestName: 'Emma Watson', email: 'emma@example.com', phone: '+44 7700 900123',
-    guest_country: 'United Kingdom', guest_city: 'London', guest_province: 'Greater London',
-    country: 'United Kingdom', city: 'London', province: 'Greater London',
-    passportOrId: 'GB901234', nextDestination: 'Birmingham',
-    checkInDate: '2026-06-22', checkOutDate: '2026-06-25', nights: 3,
-    settlementMethod: 'Card', referralSource: 'Booking.com',
-    booking_source: 'Booking.com',
-    guests: 2, adults: 2, kids: 0, roomType: 'Lodge Room',
-    totalAmount: 6200, status: 'Completed',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: true,
-    timestamp: '2026-06-22T08:15:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'High',
-    arriving_from: 'Manchester', next_destination: 'Birmingham'
-  },
-  { 
-    id: '107', guestName: 'Liam O\'Brien', email: 'liam@example.com', phone: '+1 415 555 0123',
-    guest_country: 'United States', guest_city: 'San Francisco', guest_province: 'California',
-    country: 'United States', city: 'San Francisco', province: 'California',
-    passportOrId: 'US345678', nextDestination: 'San Diego',
-    checkInDate: '2026-06-21', checkOutDate: '2026-06-24', nights: 3,
-    settlementMethod: 'Card', referralSource: 'Facebook / Instagram',
-    booking_source: 'Facebook / Instagram',
-    guests: 2, adults: 2, kids: 0, roomType: 'Luxury Safari Tent',
-    totalAmount: 7500, status: 'Completed',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: true,
-    timestamp: '2026-06-21T19:40:00Z',
-    tenantId: 'tenant-1', source: 'csv_import', season: 'High',
-    arriving_from: 'Los Angeles', next_destination: 'San Diego'
-  },
-  { 
-    id: '108', guestName: 'Yuki Tanaka', email: 'yuki@example.com', phone: '+81 80 1234 5678',
-    guest_country: 'Japan', guest_city: 'Tokyo', guest_province: 'Tokyo',
-    country: 'Japan', city: 'Tokyo', province: 'Tokyo',
-    passportOrId: 'JP567890', nextDestination: 'Nagoya',
-    checkInDate: '2026-06-20', checkOutDate: '2026-06-23', nights: 3,
-    settlementMethod: 'Instant EFT', referralSource: 'Google',
-    booking_source: 'Google',
-    guests: 1, adults: 1, kids: 0, roomType: 'Lodge Room',
-    totalAmount: 4800, status: 'Completed',
-    year: 2026, month: 'Jun',
-    popiaMarketingConsent: false,
-    timestamp: '2026-06-20T07:30:00Z',
-    tenantId: 'tenant-1', source: 'live_checkin', season: 'Mid',
-    arriving_from: 'Osaka', next_destination: 'Nagoya'
-  },
-];
+const MOCK_BOOKINGS: Booking[] = [];
 
-// ============================================================
-// 📊 REPORTS TAB COMPONENT
-// ============================================================
 interface ReportsTabProps {
   bookings: Booking[];
   totalBookings: number;
 }
 
-const TIER_LABELS: Record<SubscriptionTier, string> = {
-  starter: 'Starter',
-  growth: 'Growth',
-  pro: 'Pro',
-  business: 'Business'
-};
-
 export function ReportsTab({ bookings }: ReportsTabProps) {
   const { t } = useTranslation();
-  
-  // ============================================================
-  // STATE MANAGEMENT
-  // ============================================================
-  const [activeTier, setActiveTier] = useState<SubscriptionTier>('pro');
+  const [effectivePlan, setEffectivePlan] = useState<SubscriptionTier>('starter');
+  const [devOverride, setDevOverride] = useState<SubscriptionTier | null>(null);
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
   const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
-  
-  // ✅ Default to Live data (false = live, true = demo)
   const [useMockData, setUseMockData] = useState(false);
 
-  // ============================================================
-  // 📊 SELECT DATA SOURCE (Real or Mock)
-  // ============================================================
+  useEffect(() => {
+    const businessId = getBusinessId();
+    if (!businessId) return;
+    fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.plan) setEffectivePlan(normalizePlanId(data.plan) as SubscriptionTier);
+      })
+      .catch(() => {});
+  }, []);
+
+  const activePlan = (devOverride || effectivePlan) as SubscriptionTier;
+
   const activeBookings = useMemo(() => {
-    return useMockData ? MOCK_BOOKINGS : bookings;
+    return useMockData && MOCK_BOOKINGS.length ? MOCK_BOOKINGS : bookings;
   }, [useMockData, bookings]);
 
-  // ============================================================
-  // 📊 TRANSFORM BOOKINGS TO VISITOR ORIGINS
-  // ============================================================
   const adaptedVisitors = useMemo(() => {
     return transformBookingsToVisitorOrigins(activeBookings || []);
   }, [activeBookings]);
 
-  // ============================================================
-  // 📈 TRAVEL PATTERNS DATA - ONLY USE arriving_from AND next_destination
-  // ============================================================
   const travelData = useMemo(() => {
     const data = activeBookings || [];
     const total = data.length || 1;
-    
     const arrivingMap = new Map<string, { count: number; country: string }>();
-    data.forEach(b => {
-      const location = b.arriving_from;
+    data.forEach((b) => {
+      const location = (b as any).arriving_from;
       const country = b.guest_country || b.country || 'Unknown';
-      
-      if (location && location.trim() !== '') {
-        if (!arrivingMap.has(location)) {
-          arrivingMap.set(location, { count: 0, country });
-        }
+      if (location && String(location).trim() !== '') {
+        if (!arrivingMap.has(location)) arrivingMap.set(location, { count: 0, country });
         arrivingMap.get(location)!.count++;
       }
     });
-    
     const goingMap = new Map<string, { count: number; country: string }>();
-    data.forEach(b => {
-      const location = b.next_destination;
+    data.forEach((b) => {
+      const location = (b as any).next_destination;
       const country = b.guest_country || b.country || 'Unknown';
-      
-      if (location && location.trim() !== '') {
-        if (!goingMap.has(location)) {
-          goingMap.set(location, { count: 0, country });
-        }
+      if (location && String(location).trim() !== '') {
+        if (!goingMap.has(location)) goingMap.set(location, { count: 0, country });
         goingMap.get(location)!.count++;
       }
     });
-    
-    const arrivingFrom = Array.from(arrivingMap.entries()).map(([location, data]) => ({
-      location,
-      country: data.country,
-      count: data.count,
-      percentage: (data.count / total) * 100,
-      isCorrection: false,
-    })).sort((a, b) => b.count - a.count);
-    
-    const goingTo = Array.from(goingMap.entries()).map(([location, data]) => ({
-      location,
-      country: data.country,
-      count: data.count,
-      percentage: (data.count / total) * 100,
-      isCorrection: false,
-    })).sort((a, b) => b.count - a.count);
-    
+    const arrivingFrom = Array.from(arrivingMap.entries())
+      .map(([location, d]) => ({
+        location,
+        country: d.country,
+        count: d.count,
+        percentage: (d.count / total) * 100,
+        isCorrection: false,
+      }))
+      .sort((a, b) => b.count - a.count);
+    const goingTo = Array.from(goingMap.entries())
+      .map(([location, d]) => ({
+        location,
+        country: d.country,
+        count: d.count,
+        percentage: (d.count / total) * 100,
+        isCorrection: false,
+      }))
+      .sort((a, b) => b.count - a.count);
     return { arrivingFrom, goingTo };
   }, [activeBookings]);
 
-  // ============================================================
-  // 🎯 TIER LIMITS
-  // ============================================================
   const limits: SubscriptionLimits = useMemo(() => {
-    const maxDrillLevelMap: Record<SubscriptionTier, SubscriptionLimits['maxDrillLevel']> = {
-      starter: 'continents',
-      growth: 'countries',
-      pro: 'regions',
-      business: 'cities'
-    };
-
+    const l = getAnalyticsLimits(activePlan);
     return {
-      subscriptionTier: activeTier,
-      canViewCountries: activeTier !== 'starter',
-      canViewRegions: ['pro', 'business'].includes(activeTier),
-      canViewCities: activeTier === 'business',
-      maxDrillLevel: maxDrillLevelMap[activeTier],
+      subscriptionTier: l.subscriptionTier as SubscriptionTier,
+      canViewCountries: l.canViewCountries,
+      canViewRegions: l.canViewRegions,
+      canViewCities: l.canViewCities,
+      maxDrillLevel: l.maxDrillLevel,
     };
-  }, [activeTier]);
+  }, [activePlan]);
 
-  // ============================================================
-  // 📈 STATISTICS
-  // ============================================================
   const stats = useMemo(() => {
     const total = adaptedVisitors.length;
     if (total === 0) {
-      return { total: 0, countryCount: 0, qrPercentage: '0%', topCountries: [] };
+      return { total: 0, countryCount: 0, qrPercentage: '0%', topCountries: [] as { country: string; count: number }[] };
     }
     const countryMap = new Map<string, number>();
-    adaptedVisitors.forEach(v => countryMap.set(v.country, (countryMap.get(v.country) || 0) + 1));
-    const uniqueCountries = countryMap.size;
-    const qrCount = adaptedVisitors.filter(v => v.checkInMethod === 'QR Code').length;
+    adaptedVisitors.forEach((v) =>
+      countryMap.set(v.country, (countryMap.get(v.country) || 0) + 1)
+    );
+    const qrCount = adaptedVisitors.filter((v) => v.checkInMethod === 'QR Code').length;
     const qrPercentage = ((qrCount / total) * 100).toFixed(0) + '%';
     const topCountries = Array.from(countryMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([country, count]) => ({ country, count }));
-    return { total, countryCount: uniqueCountries, qrPercentage, topCountries };
+    return { total, countryCount: countryMap.size, qrPercentage, topCountries };
   }, [adaptedVisitors]);
 
-  // ============================================================
-  // 🎨 RENDER
-  // ============================================================
+  const isDev = import.meta.env.DEV;
+
   return (
     <div className="space-y-6">
-      {/* Header with Data Source Toggle - Live by Default */}
       <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">{t('dashboard_reports')}</h2>
           <p className="text-sm text-gray-500">{t('reports_description')}</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Data Source Toggle */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setUseMockData(false)}
               className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
                 !useMockData
                   ? 'bg-green-50 text-green-700 border-green-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                  : 'bg-stone-100 text-stone-600 border-stone-200'
               }`}
             >
               <Cloud size={12} className="inline mr-1" />
@@ -317,7 +146,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
               className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all ${
                 useMockData
                   ? 'bg-orange-50 text-orange-700 border-orange-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                  : 'bg-stone-100 text-stone-600 border-stone-200'
               }`}
             >
               <Database size={12} className="inline mr-1" />
@@ -327,45 +156,30 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           <span className="text-xs text-stone-400">
             {activeBookings?.length || 0} {t('dashboard_total_checkins')}
           </span>
-          {useMockData && (
-            <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded-full">
-              {t('reports_demo')}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('dashboard_total_checkins')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          <p className="text-[10px] text-stone-400">{useMockData ? t('reports_demo') : t('reports_live')} {t('reports_data')}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_unique_countries')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.countryCount}</p>
-          {stats.topCountries.length > 0 && (
-            <p className="text-[10px] text-stone-400 truncate">
-              {stats.topCountries.map(c => `${c.country} (${c.count})`).join(', ')}
-            </p>
-          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_qr_adoption')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.qrPercentage}</p>
-          <p className="text-[10px] text-stone-400">{t('reports_touchless_checkin')}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_revenue')}</p>
           <p className="text-2xl font-bold text-gray-900">
-            R{activeBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
+            R{(activeBookings || []).reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}
           </p>
-          <p className="text-[10px] text-stone-400">{t('reports_total_booking_value')}</p>
         </div>
       </div>
 
-      {/* Visitor Origin Explorer */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider flex items-center gap-2">
@@ -373,25 +187,33 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
             {t('reports_interactive_map')}
           </h3>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium capitalize">
-              {TIER_LABELS[activeTier]}
+            <span className="px-2 py-1 bg-stone-100 rounded-lg text-xs font-medium">
+              {getPackage(activePlan).name}
             </span>
-            {useMockData && (
-              <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded">
-                {t('reports_demo')}
-              </span>
+            {isDev && (
+              <select
+                className="text-[10px] border rounded px-1 py-0.5"
+                value={activePlan}
+                onChange={(e) => setDevOverride(e.target.value as SubscriptionTier)}
+                title="DEV only plan override"
+              >
+                {(['starter', 'growth', 'pro', 'business'] as SubscriptionTier[]).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         </div>
         <VisitorOriginExplorer
           data={adaptedVisitors}
           limits={limits}
-          onTierChange={setActiveTier}
+          onTierChange={isDev ? (tier) => setDevOverride(tier as SubscriptionTier) : undefined}
           isLoading={false}
         />
       </div>
 
-      {/* Guest Origins & Referral Sources */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GuestOriginsChart
           bookings={activeBookings || []}
@@ -405,7 +227,6 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
         />
       </div>
 
-      {/* Travel Patterns & Length of Stay */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TravelPatternsCard
           arrivingFrom={travelData.arrivingFrom}
