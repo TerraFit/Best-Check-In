@@ -1,5 +1,8 @@
 // src/services/housekeepingStatusService.ts
-// Maps task lifecycle → room housekeeping_status / occupancy transitions
+// Maps task lifecycle → room readiness (housekeeping_status) / occupancy
+//
+// Readiness workflow (independent of occupancy):
+//   Not Ready → Cleaning in Progress → Awaiting Inspection → Ready
 
 import type { HousekeepingStatus, OccupancyStatus } from '../types/room';
 import type { HousekeepingTask, HousekeepingTaskStatus } from '../types/housekeeping';
@@ -22,13 +25,11 @@ export function roomPatchForTaskTransition(
     if (task.is_checkout) {
       return {
         occupancy_status: 'departure_pending',
-        housekeeping_status: 'dirty',
+        housekeeping_status: 'not_ready',
       };
     }
-    return {
-      housekeeping_status:
-        task.task_type === 'full_service' ? 'full_service_required' : 'refresh_required',
-    };
+    // Stayover Refresh or Full Service due → Not Ready
+    return { housekeeping_status: 'not_ready' };
   }
 
   if (nextStatus === 'in_progress') {
@@ -36,8 +37,8 @@ export function roomPatchForTaskTransition(
   }
 
   if (nextStatus === 'skipped') {
-    // Skipping Refresh must not force dirty; leave room as clean if it was
-    return { housekeeping_status: 'clean' };
+    // Skipped Refresh — room considered Ready (no further work today)
+    return { housekeeping_status: 'ready' };
   }
 
   if (nextStatus === 'cancelled') {
@@ -48,17 +49,15 @@ export function roomPatchForTaskTransition(
     if (inspection === 'rejected') {
       return { housekeeping_status: 'cleaning_in_progress' };
     }
-    if (inspection === 'approved' || inspection === null || inspection === undefined) {
-      // After complete → await inspection unless already approved
-      if (inspection === 'approved') {
-        const patch: RoomStatusPatch = { housekeeping_status: 'clean' };
-        if (task.is_checkout) {
-          patch.occupancy_status = 'vacant';
-        }
-        return patch;
+    if (inspection === 'approved') {
+      const patch: RoomStatusPatch = { housekeeping_status: 'ready' };
+      if (task.is_checkout) {
+        patch.occupancy_status = 'vacant';
       }
-      return { housekeeping_status: 'awaiting_inspection' };
+      return patch;
     }
+    // Complete without inspection decision → Awaiting Inspection
+    return { housekeeping_status: 'awaiting_inspection' };
   }
 
   return {};
@@ -73,7 +72,7 @@ export function roomPatchForInspection(
     return { housekeeping_status: 'cleaning_in_progress' };
   }
   const patch: RoomStatusPatch = {
-    housekeeping_status: 'clean',
+    housekeeping_status: 'ready',
   };
   if (task.is_checkout) {
     patch.occupancy_status = 'vacant';
@@ -90,7 +89,7 @@ export function allowedTaskTransitions(
     case 'in_progress':
       return ['completed', 'cancelled'];
     case 'completed':
-      return []; // inspection is separate
+      return [];
     case 'skipped':
     case 'cancelled':
       return [];

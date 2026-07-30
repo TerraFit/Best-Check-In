@@ -1,5 +1,6 @@
 // src/services/roomStatusService.ts
 // Status transition rules (application layer — not DB triggers)
+// Occupancy and Readiness remain independent layers.
 
 import type {
   AvailabilityStatus,
@@ -24,20 +25,25 @@ export function onGuestCheckIn(): StatusTransition {
   return { occupancy_status: 'occupied' };
 }
 
-/** When guest checks out — room stays operational until housekeeping */
+/** When guest checks out — readiness becomes Not Ready until HK completes */
 export function onGuestCheckOut(): StatusTransition {
   return {
     occupancy_status: 'departure_pending',
-    housekeeping_status: 'dirty',
+    housekeeping_status: 'not_ready',
   };
 }
 
-/** After departure_pending is acknowledged and HK starts */
-export function onMarkDirty(): StatusTransition {
+/** Explicit mark not-ready after departure */
+export function onMarkNotReady(): StatusTransition {
   return {
     occupancy_status: 'vacant',
-    housekeeping_status: 'dirty',
+    housekeeping_status: 'not_ready',
   };
+}
+
+/** @deprecated use onMarkNotReady */
+export function onMarkDirty(): StatusTransition {
+  return onMarkNotReady();
 }
 
 export function onCleaningStarted(): StatusTransition {
@@ -50,7 +56,7 @@ export function onAwaitingInspection(): StatusTransition {
 
 export function onInspectionApproved(): StatusTransition {
   return {
-    housekeeping_status: 'clean',
+    housekeeping_status: 'ready',
     occupancy_status: 'vacant',
   };
 }
@@ -65,7 +71,7 @@ export function onOutOfOrder(): StatusTransition {
 export function onReturnToService(): StatusTransition {
   return {
     availability_status: 'available',
-    housekeeping_status: 'dirty',
+    housekeeping_status: 'not_ready',
   };
 }
 

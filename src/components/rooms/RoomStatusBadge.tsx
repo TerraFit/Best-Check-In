@@ -1,5 +1,5 @@
 // src/components/rooms/RoomStatusBadge.tsx
-// Shared colour-coded status chip for rooms
+// Shared colour-coded readiness chip for rooms
 
 import type { Room } from '../../types/room';
 import {
@@ -16,7 +16,7 @@ interface RoomStatusBadgeProps {
     Room,
     'active' | 'availability_status' | 'occupancy_status' | 'housekeeping_status' | 'unavailable_reason'
   >;
-  /** Show legend-style label (Clean / Ready) instead of operational summary */
+  /** Show legend-style readiness label instead of operational Occupancy · Readiness summary */
   useLegendLabel?: boolean;
   className?: string;
 }
@@ -36,8 +36,9 @@ export function RoomStatusBadge({ room, useLegendLabel = false, className = '' }
   );
 }
 
+/** Readiness legend for room dashboards */
 export function RoomStatusLegend() {
-  const tones: RoomCardTone[] = ['green', 'yellow', 'amber', 'red', 'blue', 'purple', 'grey'];
+  const tones: RoomCardTone[] = ['green', 'orange', 'yellow', 'blue', 'grey', 'purple'];
 
   return (
     <div className="flex flex-wrap gap-2">

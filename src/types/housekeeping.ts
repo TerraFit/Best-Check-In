@@ -67,7 +67,13 @@ export interface ScheduledService {
 }
 
 export interface HousekeepingDashboardStats {
+  /** Rooms with readiness = Ready (incl. legacy clean/inspected) */
+  rooms_ready: number;
+  /** Rooms with readiness = Not Ready (incl. legacy dirty / *_required) */
+  rooms_not_ready: number;
+  /** @deprecated use rooms_ready */
   rooms_clean: number;
+  /** @deprecated use rooms_not_ready */
   rooms_dirty: number;
   refresh_due: number;
   full_service_due: number;

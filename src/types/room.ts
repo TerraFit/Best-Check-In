@@ -1,5 +1,5 @@
 // src/types/room.ts
-// Room Operations — Phase 1 types
+// Room Operations — Phase 1 + Phase 2 readiness types
 
 import type { CanonicalRoomType } from '../constants/roomTypes';
 
@@ -15,15 +15,25 @@ export type OccupancyStatus =
   | 'occupied'
   | 'departure_pending';
 
+/**
+ * Room Readiness (housekeeping layer) — independent of occupancy.
+ * Canonical:
+ *   not_ready → cleaning_in_progress → awaiting_inspection → ready
+ * Legacy aliases (dirty, clean, refresh_required, …) remain readable for
+ * rows written before this enhancement.
+ */
 export type HousekeepingStatus =
+  | 'ready'
+  | 'not_ready'
+  | 'cleaning_in_progress'
+  | 'awaiting_inspection'
+  | 'do_not_disturb'
+  // Legacy (still accepted from DB)
   | 'clean'
   | 'dirty'
   | 'refresh_required'
   | 'full_service_required'
-  | 'cleaning_in_progress'
-  | 'awaiting_inspection'
-  | 'inspected'
-  | 'do_not_disturb';
+  | 'inspected';
 
 export type RoomCondition =
   | 'good'
@@ -121,4 +131,35 @@ export interface SyncRoomsResult {
 /** True when room may appear in allocation dropdowns */
 export function isAvailableForAllocation(room: Pick<Room, 'active' | 'availability_status'>): boolean {
   return room.active === true && room.availability_status === 'available';
+}
+
+/** Normalize legacy housekeeping_status → canonical readiness */
+export function normalizeReadiness(status: string | null | undefined): HousekeepingStatus {
+  switch (status) {
+    case 'ready':
+    case 'clean':
+    case 'inspected':
+      return 'ready';
+    case 'not_ready':
+    case 'dirty':
+    case 'refresh_required':
+    case 'full_service_required':
+      return 'not_ready';
+    case 'cleaning_in_progress':
+      return 'cleaning_in_progress';
+    case 'awaiting_inspection':
+      return 'awaiting_inspection';
+    case 'do_not_disturb':
+      return 'do_not_disturb';
+    default:
+      return 'ready';
+  }
+}
+
+export function isNotReadyStatus(status: string | null | undefined): boolean {
+  return normalizeReadiness(status) === 'not_ready';
+}
+
+export function isReadyStatus(status: string | null | undefined): boolean {
+  return normalizeReadiness(status) === 'ready';
 }
