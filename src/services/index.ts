@@ -4,8 +4,9 @@ export * from './analyticsAggregator';
 export * from './cityAutocompleteService';
 export * from './countryRegionService';
 export * from './entitlementService';
+export * from './featureAccessService';
 export * from './geminiService';
 export * from './geoLoader';
 export * from './importService';
 export * from './regionService';
-export * from './visitorOriginAdapter'; // ✅ NEW
+export * from './visitorOriginAdapter';

@@ -3,10 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ============================================================
-// CORE BOOKING TYPE
-// ============================================================
-
 export interface Booking {
   id: string;
   guestName: string;
@@ -44,10 +40,6 @@ export interface Booking {
   guest_city?: string;
   [key: string]: any;
 }
-
-// ============================================================
-// VISITOR ORIGIN TYPES
-// ============================================================
 
 export interface VisitorRecord {
   id: string;
@@ -95,9 +87,7 @@ export interface CityData {
 }
 
 export interface VisitorData {
-  world: {
-    total: number;
-  };
+  world: { total: number };
   continents: ContinentData[];
 }
 
@@ -105,11 +95,8 @@ export interface SimpleVisitorData {
   [continent: string]: number;
 }
 
-// ============================================================
-// SUBSCRIPTION TYPES
-// ============================================================
-
-export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business';
+/** @deprecated Prefer PlanType from src/config/packages */
+export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
 
 export interface SubscriptionLimits {
   subscriptionTier: SubscriptionTier;
@@ -118,10 +105,6 @@ export interface SubscriptionLimits {
   canViewCities: boolean;
   maxDrillLevel: string;
 }
-
-// ============================================================
-// DASHBOARD / ANALYTICS TYPES
-// ============================================================
 
 export interface MonthlyData {
   month: string;
@@ -141,14 +124,24 @@ export interface SeasonStats {
 
 export type ViewState = 'HOME' | 'CHECKIN' | 'ADMIN_DASHBOARD' | 'REPORTS' | 'IMPORT';
 
-export type SettlementMethod = 'Cash' | 'Card' | 'Instant EFT' | 'Instant EFT (RSA resident only)' | 'Part of a package';
+export type SettlementMethod =
+  | 'Cash'
+  | 'Card'
+  | 'Instant EFT'
+  | 'Instant EFT (RSA resident only)'
+  | 'Part of a package';
 
-export type ReferralSource = 'Word of mouth' | 'Booking.com' | 'Google' | 'Facebook / Instagram' | 'Travel Agency' | 'LinkedIn' | 'YouTube' | 'Research engine' | 'TikTok';
+export type ReferralSource =
+  | 'Word of mouth'
+  | 'Booking.com'
+  | 'Google'
+  | 'Facebook / Instagram'
+  | 'Travel Agency'
+  | 'LinkedIn'
+  | 'YouTube'
+  | 'Research engine'
+  | 'TikTok';
 
 export type DrillLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
-
-// ============================================================
-// COUNTRY TO CONTINENT MAPPING (TYPE ONLY)
-// ============================================================
 
 export type CountryToContinentMap = Record<string, string>;

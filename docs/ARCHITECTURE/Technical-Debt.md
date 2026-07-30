@@ -1,16 +1,17 @@
 # Technical Debt (Architecture & Subscriptions)
 
-| Item | Impact | Direction |
-|------|--------|-----------|
-| Plan/price/feature duplication | Drift, wrong upsell | Single config |
-| USD in Upgrade modal vs ZAR Billing | Trust | Config-driven ZAR |
-| Demo tier toggles on Reports | Fake enforcement | Real effective plan |
-| Weak export gating | Package leakage | Backend checks |
-| No staff seat limits | Commercial leakage | Enforce on invite APIs |
-| Business ≠ multi-property in schema | Cannot sell PD-003 | Establishments model |
-| AccessContext ignores subscription | Ad-hoc fetches | Subscription context |
-| `current_plan` + `subscription_tier` | Inconsistent reads | Canonical field |
-| Claimed modules missing (HK, L&F) | Support/marketing debt | Build or unclaim |
-| AI not package-scoped | Cost/value mismatch | Tier AI features |
+| Item | Impact | Status |
+|------|--------|--------|
+| Plan/price/feature duplication | Drift, wrong upsell | **Reduced** — SSOT in `src/config` + Netlify mirror |
+| Netlify mirror of config | Sync risk | **Open** — remove when shared module exists |
+| USD in Upgrade modal | Trust | **Resolved** — ZAR from packages |
+| Demo tier toggles on Reports | Fake enforcement | **Partial** — consumers should use `getAnalyticsLimits` |
+| Weak export gating | Package leakage | **Resolved** — marketing + official register gated |
+| No staff seat enforcement | Commercial leakage | **Open** — Programme 2 |
+| Business ≠ multi-property | Cannot sell PD-003 | **Open** |
+| AccessContext ignores subscription | Ad-hoc fetches | **Open** |
+| `current_plan` + `subscription_tier` | Inconsistent reads | **Open** |
+| Claimed modules missing (HK, L&F) | Support debt | **Open** |
+| AI not package-scoped | Cost/value | **Open** |
 
-Source: Package & Upsell Analysis + Product Spec v1.0 (July 2026).
+Programme 1 (PD-009) addressed foundation items above marked Resolved/Reduced.
