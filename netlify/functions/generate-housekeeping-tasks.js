@@ -1,11 +1,6 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Room-centric generation. State machine:
-//   checkout today → occupancy=departure_pending, housekeeping=dirty
-//   + mandatory 🧺 Full Service (Checkout) task
+// Room-centric generation aligned with Phase 2 + legacy stay_night compatibility.
 // Clean is NEVER set here — only after inspection approval.
-//
-// stay_night: legacy NOT NULL column from an earlier HK schema (not in Phase 2 migration 003).
-// Always calculated and set so PostgreSQL accepts the insert.
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -40,18 +35,11 @@ function calculateStayLength(checkIn, checkOut) {
   return Math.max(0, Math.round((b - a) / (1000 * 60 * 60 * 24)));
 }
 
-/**
- * stay_night for a service on scheduled_date within a stay.
- * - Mid-stay morning after N nights from check-in → N
- * - Checkout after N nights → N (minimum 1 so NOT NULL is never violated)
- */
+/** Real stay_night — never null (legacy NOT NULL / DEFAULT). */
 function stayNightForDate(checkIn, checkOut, scheduledDate, isCheckout) {
   const nights = calculateStayLength(checkIn, checkOut);
-  if (isCheckout) {
-    return Math.max(1, nights);
-  }
-  const fromCheckIn = calculateStayLength(checkIn, scheduledDate);
-  return Math.max(1, fromCheckIn);
+  if (isCheckout) return Math.max(1, nights);
+  return Math.max(1, calculateStayLength(checkIn, scheduledDate));
 }
 
 function determineCustomNights(nights, settings) {
@@ -159,7 +147,7 @@ function buildTaskPayload({
   stay_night,
   policy,
 }) {
-  const payload = {
+  return {
     business_id: businessId,
     room_id: resolved.room_id,
     room_number:
@@ -177,10 +165,13 @@ function buildTaskPayload({
     status: 'pending',
     policy_used: policy,
   };
+}
 
+function logPayload(payload) {
   console.log('housekeeping_tasks INSERT payload', {
     room_id: payload.room_id,
     room_number: payload.room_number,
+    room_name: payload.room_name,
     booking_id: payload.booking_id,
     guest_name: payload.guest_name,
     scheduled_date: payload.scheduled_date,
@@ -190,8 +181,28 @@ function buildTaskPayload({
     policy_used: payload.policy_used,
     status: payload.status,
   });
+}
 
-  return payload;
+/** Parse PostgreSQL / PostgREST error for failed column name. */
+function parseFailedColumn(sqlError) {
+  const text = String(sqlError || '');
+  const m =
+    text.match(/column "([^"]+)"/i) ||
+    text.match(/null value in column "([^"]+)"/i) ||
+    text.match(/violates .+ constraint "([^"]+)"/i);
+  return m ? m[1] : null;
+}
+
+class InsertError extends Error {
+  constructor(sqlError, payload) {
+    super(typeof sqlError === 'string' ? sqlError : JSON.stringify(sqlError));
+    this.name = 'InsertError';
+    this.sqlError = sqlError;
+    this.payload = payload;
+    this.failedColumn = parseFailedColumn(
+      typeof sqlError === 'string' ? sqlError : JSON.stringify(sqlError)
+    );
+  }
 }
 
 exports.handler = async (event) => {
@@ -225,17 +236,18 @@ exports.handler = async (event) => {
 
     const restGet = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
 
-    async function sb(path, options = {}) {
-      const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-        ...options,
+    async function insertTask(payload) {
+      logPayload(payload);
+      const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks`, {
+        method: 'POST',
         headers: {
           apikey: key,
           Authorization: `Bearer ${key}`,
           'Content-Type': 'application/json',
-          Prefer: options.prefer || 'return=representation',
+          Prefer: 'return=representation',
           Accept: 'application/json',
-          ...(options.headers || {}),
         },
+        body: JSON.stringify(payload),
       });
       const text = await res.text();
       let data = null;
@@ -245,11 +257,11 @@ exports.handler = async (event) => {
         data = text;
       }
       if (!res.ok) {
-        const msg =
-          typeof data === 'object' && data && (data.message || data.error)
-            ? data.message || data.error
+        const sqlError =
+          typeof data === 'object' && data
+            ? data.message || data.error || data.hint || text
             : text || res.statusText;
-        throw new Error(msg);
+        throw new InsertError(sqlError, payload);
       }
       return data;
     }
@@ -317,10 +329,8 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           success: true,
           created: 0,
-          cancelled_future: 0,
           checkout_tasks_ensured: 0,
           rooms_marked_dirty: 0,
-          bookings_matched: 0,
           today: todayStr,
           policy,
           message: 'No bookings with assigned rooms. Allocate rooms first.',
@@ -371,7 +381,6 @@ exports.handler = async (event) => {
           todayStr,
           true
         );
-
         const payload = buildTaskPayload({
           businessId,
           resolved,
@@ -382,11 +391,7 @@ exports.handler = async (event) => {
           stay_night,
           policy,
         });
-
-        await sb('housekeeping_tasks', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await insertTask(payload);
         createdTask = true;
 
         await fetch(`${supabaseUrl}/rest/v1/room_events`, {
@@ -416,12 +421,11 @@ exports.handler = async (event) => {
       }
 
       const roomRes = await fetch(
-        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status,occupancy_status`,
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status`,
         { headers: restGet }
       );
       const roomRows = roomRes.ok ? await roomRes.json() : [];
-      const room = roomRows[0];
-      const hk = room?.housekeeping_status;
+      const hk = roomRows[0]?.housekeeping_status;
       const inWorkflow = ['cleaning_in_progress', 'awaiting_inspection'].includes(hk);
 
       if (!inWorkflow) {
@@ -524,11 +528,7 @@ exports.handler = async (event) => {
           stay_night: slot.stay_night,
           policy,
         });
-
-        await sb('housekeeping_tasks', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await insertTask(payload);
         created += 1;
 
         if (slotDate === todayStr && !slot.is_checkout) {
@@ -580,6 +580,20 @@ exports.handler = async (event) => {
     };
   } catch (error) {
     console.error('generate-housekeeping-tasks fatal:', error);
+
+    if (error && error.name === 'InsertError') {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: error.message,
+          sql_error: error.sqlError,
+          failed_column: error.failedColumn,
+          payload: error.payload,
+        }),
+      };
+    }
+
     return {
       statusCode: 500,
       headers,
