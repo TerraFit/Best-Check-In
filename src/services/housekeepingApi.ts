@@ -22,7 +22,7 @@ export async function fetchHousekeepingTasks(params: {
   date?: string;
   roomId?: string;
   status?: string;
-}): Promise<{ tasks: HousekeepingTask[]; stats: HousekeepingDashboardStats }> {
+}): Promise<{ tasks: HousekeepingTask[]; stats: HousekeepingDashboardStats; today?: string }> {
   const qs = new URLSearchParams({ businessId: params.businessId });
   if (params.view) qs.set('view', params.view);
   if (params.date) qs.set('date', params.date);
@@ -40,6 +40,7 @@ export async function fetchHousekeepingTasks(params: {
       completed_today: 0,
       overdue: 0,
     },
+    today: data.today,
   };
 }
 
@@ -48,7 +49,16 @@ export async function generateHousekeepingTasks(payload: {
   bookingId?: string;
   roomId?: string;
   regenerate?: boolean;
-}): Promise<{ created: number; cancelled_future: number; policy?: string }> {
+}): Promise<{
+  created: number;
+  cancelled_future: number;
+  policy?: string;
+  message?: string;
+  today?: string;
+  bookings_processed?: number;
+  bookings_matched?: number;
+  skipped_no_room?: number;
+}> {
   const res = await fetch('/.netlify/functions/generate-housekeeping-tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

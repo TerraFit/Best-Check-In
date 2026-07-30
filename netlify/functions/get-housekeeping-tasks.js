@@ -1,4 +1,7 @@
-// List housekeeping tasks + optional dashboard stats
+// List housekeeping tasks + dashboard stats
+// Uses Africa/Johannesburg for "today" so departures match the property calendar.
+
+const { todayInJohannesburg } = require('./housekeeping-engine');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -25,14 +28,13 @@ exports.handler = async (event) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
 
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const todayStr = date || todayInJohannesburg();
 
     let filter = `business_id=eq.${businessId}`;
     if (roomId) filter += `&room_id=eq.${roomId}`;
 
     if (view === 'today') {
-      filter += `&scheduled_date=eq.${date || todayStr}`;
+      filter += `&scheduled_date=eq.${todayStr}`;
       filter += `&status=in.(pending,in_progress)`;
     } else if (view === 'pending') {
       filter += `&status=in.(pending,in_progress)`;
@@ -41,10 +43,10 @@ exports.handler = async (event) => {
     } else if (status) {
       filter += `&status=eq.${status}`;
     }
-    // view === 'all' → no status filter
+    // view === 'all' → no status filter (includes cancelled for audit)
 
     const url =
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,priority.asc`;
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`;
 
     const res = await fetch(url, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
@@ -55,7 +57,6 @@ exports.handler = async (event) => {
     }
     const tasks = await res.json();
 
-    // Stats
     const roomsRes = await fetch(
       `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } }
@@ -79,24 +80,33 @@ exports.handler = async (event) => {
         (t) =>
           t.task_type === 'refresh' &&
           ['pending', 'in_progress'].includes(t.status) &&
-          t.scheduled_date <= todayStr
+          String(t.scheduled_date).slice(0, 10) <= todayStr
       ).length,
       full_service_due: allTasks.filter(
         (t) =>
           t.task_type === 'full_service' &&
           ['pending', 'in_progress'].includes(t.status) &&
-          t.scheduled_date <= todayStr
+          String(t.scheduled_date).slice(0, 10) <= todayStr
       ).length,
       completed_today: allTasks.filter(
-        (t) => t.status === 'completed' && t.scheduled_date === todayStr
+        (t) =>
+          t.status === 'completed' &&
+          String(t.scheduled_date).slice(0, 10) === todayStr
       ).length,
       overdue: allTasks.filter(
         (t) =>
-          ['pending', 'in_progress'].includes(t.status) && t.scheduled_date < todayStr
+          ['pending', 'in_progress'].includes(t.status) &&
+          String(t.scheduled_date).slice(0, 10) < todayStr
       ).length,
     };
 
-    return createResponse(200, { success: true, tasks, stats });
+    return createResponse(200, {
+      success: true,
+      tasks,
+      stats,
+      today: todayStr,
+      businessId,
+    });
   } catch (err) {
     console.error('get-housekeeping-tasks', err);
     return createResponse(500, { error: err.message || 'Internal error' });

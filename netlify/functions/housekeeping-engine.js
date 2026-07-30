@@ -1,7 +1,8 @@
 // Shared intelligent scheduling engine for Netlify functions (CommonJS mirror)
+// Checkout Full Service is independent of mid-stay Refresh schedule.
 
 function parseDate(iso) {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -16,6 +17,16 @@ function addDays(iso, days) {
   const d = parseDate(iso);
   d.setDate(d.getDate() + days);
   return formatDate(d);
+}
+
+/** Calendar "today" in Africa/Johannesburg (property default timezone). */
+function todayInJohannesburg() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 function calculateStayLength(checkIn, checkOut) {
@@ -78,31 +89,45 @@ function determineOptimalServiceNights(nights, policy, settings) {
   return determineIntelligentNights(nights, policy);
 }
 
+/**
+ * Generate full schedule for a stay.
+ * Checkout Full Service is ALWAYS emitted when there is a valid checkout date,
+ * independent of whether any mid-stay Refresh/Full Service exists.
+ */
 function generateSchedule(checkIn, checkOut, policy, settings) {
-  const nights = calculateStayLength(checkIn, checkOut);
-  if (nights <= 0) return [];
+  const checkInDate = String(checkIn).slice(0, 10);
+  const checkOutDate = String(checkOut).slice(0, 10);
+  if (!checkInDate || !checkOutDate) return [];
 
+  const nights = calculateStayLength(checkInDate, checkOutDate);
   const tasks = [];
-  const mid = determineOptimalServiceNights(nights, policy, settings);
-  for (const m of mid) {
-    tasks.push({
-      scheduled_date: addDays(checkIn, m.nightIndex),
-      task_type: m.task_type,
-      is_checkout: false,
-      night_index: m.nightIndex,
-    });
+
+  // Mid-stay services only when stay has nights to optimise
+  if (nights > 0) {
+    const mid = determineOptimalServiceNights(nights, policy, settings);
+    for (const m of mid) {
+      tasks.push({
+        scheduled_date: addDays(checkInDate, m.nightIndex),
+        task_type: m.task_type,
+        is_checkout: false,
+        night_index: m.nightIndex,
+      });
+    }
   }
 
+  // Checkout Full Service — never depends on mid-stay schedule
+  // Default mandatory; only skipped if settings explicitly disable AND policy is not premium
   const mandatoryCheckout = settings?.mandatory_checkout_fs !== false;
   if (mandatoryCheckout || policy === 'premium') {
     tasks.push({
-      scheduled_date: checkOut.slice(0, 10),
+      scheduled_date: checkOutDate,
       task_type: 'full_service',
       is_checkout: true,
       night_index: nights,
     });
   }
 
+  // Deduplicate by date (prefer checkout / full_service over refresh)
   const byDate = new Map();
   for (const t of tasks) {
     const existing = byDate.get(t.scheduled_date);
@@ -114,11 +139,15 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
       byDate.set(t.scheduled_date, t);
     }
   }
-  return Array.from(byDate.values()).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+  return Array.from(byDate.values()).sort((a, b) =>
+    a.scheduled_date.localeCompare(b.scheduled_date)
+  );
 }
 
 module.exports = {
   calculateStayLength,
   generateSchedule,
   determineOptimalServiceNights,
+  todayInJohannesburg,
+  formatDate,
 };

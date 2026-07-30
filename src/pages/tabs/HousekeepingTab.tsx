@@ -57,9 +57,17 @@ export function HousekeepingTab({ businessId }: Props) {
         businessId,
         regenerate: true,
       });
-      setMessage(
-        `Generated ${result.created} task(s). Cancelled ${result.cancelled_future} future task(s). Policy: ${result.policy || 'standard'}`
-      );
+      const detail = [
+        result.message,
+        result.today ? `Today (SAST): ${result.today}` : null,
+        typeof result.bookings_processed === 'number'
+          ? `Bookings processed: ${result.bookings_processed}`
+          : null,
+        typeof result.created === 'number' ? `Created: ${result.created}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      setMessage(detail || `Generated ${result.created ?? 0} task(s).`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generate failed');
