@@ -51,13 +51,20 @@ export async function generateHousekeepingTasks(payload: {
   regenerate?: boolean;
 }): Promise<{
   created: number;
-  cancelled_future: number;
+  open_tasks_removed?: number;
+  tasks_regenerated?: number;
+  refresh_tasks?: number;
+  full_service_tasks?: number;
+  skipped_historical_tasks?: number;
+  checkout_tasks_ensured?: number;
+  rooms_marked_dirty?: number;
   policy?: string;
   message?: string;
   today?: string;
   bookings_processed?: number;
   bookings_matched?: number;
   skipped_no_room?: number;
+  regenerate?: boolean;
 }> {
   const res = await fetch('/.netlify/functions/generate-housekeeping-tasks', {
     method: 'POST',

@@ -57,16 +57,32 @@ export function HousekeepingTab({ businessId }: Props) {
         businessId,
         regenerate: true,
       });
-      const detail = [
-        result.message,
-        result.today ? `Today (SAST): ${result.today}` : null,
-        typeof result.bookings_processed === 'number'
-          ? `Bookings processed: ${result.bookings_processed}`
-          : null,
-        typeof result.created === 'number' ? `Created: ${result.created}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
+      // Prefer server message (includes full diagnostics)
+      const detail =
+        result.message ||
+        [
+          typeof result.bookings_processed === 'number'
+            ? `Bookings processed: ${result.bookings_processed}`
+            : null,
+          typeof result.open_tasks_removed === 'number'
+            ? `Open tasks removed: ${result.open_tasks_removed}`
+            : null,
+          typeof result.tasks_regenerated === 'number'
+            ? `Tasks regenerated: ${result.tasks_regenerated}`
+            : null,
+          typeof result.refresh_tasks === 'number'
+            ? `Refresh tasks: ${result.refresh_tasks}`
+            : null,
+          typeof result.full_service_tasks === 'number'
+            ? `Full Service tasks: ${result.full_service_tasks}`
+            : null,
+          typeof result.skipped_historical_tasks === 'number'
+            ? `Skipped historical tasks: ${result.skipped_historical_tasks}`
+            : null,
+          result.today ? `Today (SAST): ${result.today}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
       setMessage(detail || `Generated ${result.created ?? 0} task(s).`);
       await load();
     } catch (e) {
@@ -312,7 +328,7 @@ export function HousekeepingTab({ businessId }: Props) {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => act(task, 'approve')}
+                        onClick={() => act(task, 'reject')}
                         className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg disabled:opacity-50"
                       >
                         Approve inspection
