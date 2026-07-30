@@ -1,5 +1,7 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Room-centric generation aligned with Phase 2 + legacy stay_night compatibility.
+// Room-centric generation + Intelligent Stay Optimisation Algorithm.
+// Stage 1: calculateOptimalFullServiceNights
+// Stage 2: Refresh/FS per night + mandatory Checkout FS
 // Clean is NEVER set here — only after inspection approval.
 
 function todayInJohannesburg() {
@@ -35,106 +37,113 @@ function calculateStayLength(checkIn, checkOut) {
   return Math.max(0, Math.round((b - a) / (1000 * 60 * 60 * 24)));
 }
 
-/** Real stay_night — never null (legacy NOT NULL / DEFAULT). */
 function stayNightForDate(checkIn, checkOut, scheduledDate, isCheckout) {
   const nights = calculateStayLength(checkIn, checkOut);
   if (isCheckout) return Math.max(1, nights);
   return Math.max(1, calculateStayLength(checkIn, scheduledDate));
 }
 
-function determineCustomNights(nights, settings) {
-  const refreshEvery = Math.max(1, settings?.custom_refresh_interval ?? 2);
-  const fullEvery = Math.max(1, settings?.custom_full_interval ?? 3);
-  const out = [];
-  const used = new Set();
-  for (let n = fullEvery; n < nights; n += fullEvery) {
-    out.push({ nightIndex: n, task_type: 'full_service' });
-    used.add(n);
-  }
-  for (let n = refreshEvery; n < nights; n += refreshEvery) {
-    if (!used.has(n)) out.push({ nightIndex: n, task_type: 'refresh' });
-  }
-  return out.sort((a, b) => a.nightIndex - b.nightIndex);
+function maxLinenAge(policy, settings) {
+  if (policy === 'eco') return 5;
+  if (policy === 'standard') return 3;
+  if (policy === 'custom') return Math.max(1, settings?.custom_full_interval ?? 3);
+  return 1;
 }
 
-function determineIntelligentNights(nights, policy) {
-  const out = [];
-  const maxGap = policy === 'eco' ? 3 : 2;
-  let lastServiceNight = 0;
-  let lastFullNight = 0;
-  for (let night = 1; night < nights; night++) {
-    const remainingAfter = nights - night;
-    if (remainingAfter <= 0) continue;
-    const gap = night - lastServiceNight;
-    const forceNearEnd = remainingAfter === 1 && gap >= Math.ceil(maxGap / 2) && nights >= 4;
-    if (gap < maxGap && !forceNearEnd) continue;
-    let task_type = 'refresh';
-    if (policy === 'eco') {
-      if (night - lastFullNight >= 4 && nights >= 5) task_type = 'full_service';
-    } else {
-      const isMidpoint = Math.abs(night - nights / 2) <= 1 || gap >= maxGap;
-      if ((isMidpoint && nights >= 4) || night - lastFullNight >= 3) task_type = 'full_service';
-    }
-    out.push({ nightIndex: night, task_type });
-    lastServiceNight = night;
-    if (task_type === 'full_service') lastFullNight = night;
-  }
-  return out;
-}
+/** Stage 1 — optimal Full Service nights (never uses modulus intervals). */
+function calculateOptimalFullServiceNights(stayLength, policy, settings) {
+  if (stayLength <= 1) return [];
 
-function determineOptimalServiceNights(nights, policy, settings) {
-  if (nights <= 2) return [];
   if (policy === 'premium') {
     const out = [];
-    for (let n = 1; n < nights; n++) out.push({ nightIndex: n, task_type: 'full_service' });
+    for (let n = 1; n < stayLength; n++) out.push(n);
     return out;
   }
-  if (policy === 'custom') return determineCustomNights(nights, settings);
-  return determineIntelligentNights(nights, policy);
+
+  const maxAge = maxLinenAge(policy, settings);
+  if (stayLength <= maxAge) return [];
+
+  const segments = Math.ceil(stayLength / maxAge);
+  const needed = segments - 1;
+  if (needed <= 0) return [];
+
+  const fs = [];
+
+  if (needed === 1) {
+    let pos = Math.round(stayLength / 2);
+    pos = Math.min(maxAge, Math.max(stayLength - maxAge, pos));
+    if (pos === stayLength - 1) pos = stayLength - 2;
+    if (pos >= 1 && pos < stayLength) return [pos];
+    return [];
+  }
+
+  for (let i = 1; i <= needed; i++) {
+    let pos = Math.round((i * stayLength) / (needed + 1));
+    const alternate = i * maxAge;
+    if (Math.abs(alternate - pos) <= 1 && alternate > 0 && alternate < stayLength) {
+      pos = alternate;
+    }
+    if (pos === stayLength - 1) pos = pos - 1;
+
+    const prev = fs.length ? fs[fs.length - 1] : 0;
+    if (pos - prev > maxAge) pos = prev + maxAge;
+    if (pos === stayLength - 1) pos = pos - 1;
+    if (pos > prev && pos < stayLength) fs.push(pos);
+  }
+
+  let last = fs.length ? fs[fs.length - 1] : 0;
+  while (stayLength - last > maxAge) {
+    let pos = last + maxAge;
+    if (pos >= stayLength - 1) pos = stayLength - 2;
+    if (pos <= last) break;
+    fs.push(pos);
+    last = pos;
+  }
+
+  return fs;
 }
 
+/** Stage 2 — every mid-stay night is Refresh or FS; checkout always FS. */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
   if (!checkInDate || !checkOutDate) return [];
 
-  const nights = calculateStayLength(checkInDate, checkOutDate);
+  const stayLength = calculateStayLength(checkInDate, checkOutDate);
   const tasks = [];
 
-  if (nights > 0) {
-    const mid = determineOptimalServiceNights(nights, policy, settings);
-    for (const m of mid) {
-      const scheduled_date = addDays(checkInDate, m.nightIndex);
-      tasks.push({
-        scheduled_date,
-        task_type: m.task_type,
-        is_checkout: false,
-        stay_night: Math.max(1, m.nightIndex),
-      });
-    }
+  if (stayLength <= 0) {
+    tasks.push({
+      scheduled_date: checkOutDate,
+      task_type: 'full_service',
+      is_checkout: true,
+      stay_night: 1,
+    });
+    return tasks;
+  }
+
+  const fullServiceNights = new Set(
+    calculateOptimalFullServiceNights(stayLength, policy, settings)
+  );
+
+  for (let stayNight = 1; stayNight < stayLength; stayNight++) {
+    const isFs = fullServiceNights.has(stayNight);
+    tasks.push({
+      scheduled_date: addDays(checkInDate, stayNight),
+      task_type: isFs ? 'full_service' : 'refresh',
+      is_checkout: false,
+      stay_night: stayNight,
+    });
   }
 
   tasks.push({
     scheduled_date: checkOutDate,
     task_type: 'full_service',
     is_checkout: true,
-    stay_night: Math.max(1, nights),
+    stay_night: Math.max(1, stayLength),
   });
 
-  const byDate = new Map();
-  for (const t of tasks) {
-    const existing = byDate.get(t.scheduled_date);
-    if (!existing) {
-      byDate.set(t.scheduled_date, t);
-      continue;
-    }
-    if (t.is_checkout || (t.task_type === 'full_service' && existing.task_type === 'refresh')) {
-      byDate.set(t.scheduled_date, t);
-    }
-  }
-  return Array.from(byDate.values()).sort((a, b) =>
-    a.scheduled_date.localeCompare(b.scheduled_date)
-  );
+  return tasks;
 }
 
 function buildTaskPayload({
@@ -183,7 +192,6 @@ function logPayload(payload) {
   });
 }
 
-/** Parse PostgreSQL / PostgREST error for failed column name. */
 function parseFailedColumn(sqlError) {
   const text = String(sqlError || '');
   const m =
