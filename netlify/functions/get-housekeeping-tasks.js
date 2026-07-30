@@ -1,34 +1,44 @@
+// netlify/functions/get-housekeeping-tasks.js
 // List housekeeping tasks + dashboard stats
-// Uses Africa/Johannesburg for "today" so departures match the property calendar.
+// CommonJS exports.handler — same pattern as get-rooms.js (no require under type:module + esbuild)
 
-const { todayInJohannesburg } = require('./housekeeping-engine');
-
-const createResponse = (statusCode, body) => ({
-  statusCode,
-  headers: {
+exports.handler = async (event) => {
+  const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  },
-  body: JSON.stringify(body),
-});
+  };
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
   if (event.httpMethod !== 'GET') {
-    return createResponse(405, { error: 'Method Not Allowed' });
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
   try {
     const q = event.queryStringParameters || {};
     const { businessId, view, date, roomId, status } = q;
-    if (!businessId) return createResponse(400, { error: 'businessId required' });
+    if (!businessId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
+    }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !key) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
+    }
 
-    const todayStr = date || todayInJohannesburg();
+    // Africa/Johannesburg calendar day (property timezone)
+    const todayStr =
+      date ||
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Africa/Johannesburg',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
 
     let filter = `business_id=eq.${businessId}`;
     if (roomId) filter += `&room_id=eq.${roomId}`;
@@ -43,29 +53,28 @@ exports.handler = async (event) => {
     } else if (status) {
       filter += `&status=eq.${status}`;
     }
-    // view === 'all' → no status filter (includes cancelled for audit)
 
     const url =
       `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`;
 
     const res = await fetch(url, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
     });
     if (!res.ok) {
       const t = await res.text();
-      throw new Error(t || res.statusText);
+      return { statusCode: res.status, headers, body: JSON.stringify({ error: t || res.statusText }) };
     }
     const tasks = await res.json();
 
     const roomsRes = await fetch(
       `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     const rooms = roomsRes.ok ? await roomsRes.json() : [];
 
     const allTasksRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&select=id,task_type,status,scheduled_date`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     const allTasks = allTasksRes.ok ? await allTasksRes.json() : [];
 
@@ -100,15 +109,23 @@ exports.handler = async (event) => {
       ).length,
     };
 
-    return createResponse(200, {
-      success: true,
-      tasks,
-      stats,
-      today: todayStr,
-      businessId,
-    });
-  } catch (err) {
-    console.error('get-housekeeping-tasks', err);
-    return createResponse(500, { error: err.message || 'Internal error' });
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        tasks,
+        stats,
+        today: todayStr,
+        businessId,
+      }),
+    };
+  } catch (error) {
+    console.error('get-housekeeping-tasks fatal:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message || 'Failed to fetch housekeeping tasks' }),
+    };
   }
 };
