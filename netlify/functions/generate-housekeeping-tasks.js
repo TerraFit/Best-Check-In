@@ -1,7 +1,6 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Room-centric generation + Intelligent Stay Optimisation Algorithm.
-// Stage 1: calculateOptimalFullServiceNights
-// Stage 2: Refresh/FS per night + mandatory Checkout FS
+// Cost-neutral Intelligent Stay Optimisation:
+//   min FS count for max linen age → even intervals → shorter gap before checkout
 // Clean is NEVER set here — only after inspection approval.
 
 function todayInJohannesburg() {
@@ -43,14 +42,28 @@ function stayNightForDate(checkIn, checkOut, scheduledDate, isCheckout) {
   return Math.max(1, calculateStayLength(checkIn, scheduledDate));
 }
 
-function maxLinenAge(policy, settings) {
+function calculateMaximumLinenAge(policy, settings) {
   if (policy === 'eco') return 5;
   if (policy === 'standard') return 3;
   if (policy === 'custom') return Math.max(1, settings?.custom_full_interval ?? 3);
-  return 1;
+  if (policy === 'premium') return 1;
+  return 3;
 }
 
-/** Stage 1 — optimal Full Service nights (never uses modulus intervals). */
+/** Even intervals; larger first, shorter last (before checkout). */
+function distributeServicesEvenly(stayLength, maxAge) {
+  if (stayLength <= 0) return [];
+  const k = Math.max(1, Math.ceil(stayLength / maxAge));
+  const base = Math.floor(stayLength / k);
+  const remainder = stayLength % k;
+  const intervals = [];
+  for (let i = 0; i < k; i++) {
+    intervals.push(i < remainder ? base + 1 : base);
+  }
+  return intervals;
+}
+
+/** Mid-stay FS nights — cost-neutral count, even spacing. */
 function calculateOptimalFullServiceNights(stayLength, policy, settings) {
   if (stayLength <= 1) return [];
 
@@ -60,50 +73,19 @@ function calculateOptimalFullServiceNights(stayLength, policy, settings) {
     return out;
   }
 
-  const maxAge = maxLinenAge(policy, settings);
+  const maxAge = calculateMaximumLinenAge(policy, settings);
   if (stayLength <= maxAge) return [];
 
-  const segments = Math.ceil(stayLength / maxAge);
-  const needed = segments - 1;
-  if (needed <= 0) return [];
-
+  const intervals = distributeServicesEvenly(stayLength, maxAge);
   const fs = [];
-
-  if (needed === 1) {
-    let pos = Math.round(stayLength / 2);
-    pos = Math.min(maxAge, Math.max(stayLength - maxAge, pos));
-    if (pos === stayLength - 1) pos = stayLength - 2;
-    if (pos >= 1 && pos < stayLength) return [pos];
-    return [];
+  let cum = 0;
+  for (let i = 0; i < intervals.length - 1; i++) {
+    cum += intervals[i];
+    if (cum > 0 && cum < stayLength) fs.push(cum);
   }
-
-  for (let i = 1; i <= needed; i++) {
-    let pos = Math.round((i * stayLength) / (needed + 1));
-    const alternate = i * maxAge;
-    if (Math.abs(alternate - pos) <= 1 && alternate > 0 && alternate < stayLength) {
-      pos = alternate;
-    }
-    if (pos === stayLength - 1) pos = pos - 1;
-
-    const prev = fs.length ? fs[fs.length - 1] : 0;
-    if (pos - prev > maxAge) pos = prev + maxAge;
-    if (pos === stayLength - 1) pos = pos - 1;
-    if (pos > prev && pos < stayLength) fs.push(pos);
-  }
-
-  let last = fs.length ? fs[fs.length - 1] : 0;
-  while (stayLength - last > maxAge) {
-    let pos = last + maxAge;
-    if (pos >= stayLength - 1) pos = stayLength - 2;
-    if (pos <= last) break;
-    fs.push(pos);
-    last = pos;
-  }
-
   return fs;
 }
 
-/** Stage 2 — every mid-stay night is Refresh or FS; checkout always FS. */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
@@ -127,10 +109,9 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
   );
 
   for (let stayNight = 1; stayNight < stayLength; stayNight++) {
-    const isFs = fullServiceNights.has(stayNight);
     tasks.push({
       scheduled_date: addDays(checkInDate, stayNight),
-      task_type: isFs ? 'full_service' : 'refresh',
+      task_type: fullServiceNights.has(stayNight) ? 'full_service' : 'refresh',
       is_checkout: false,
       stay_night: stayNight,
     });

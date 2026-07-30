@@ -1,7 +1,10 @@
 // src/services/housekeepingScheduleEngine.ts
-// Intelligent Stay Optimisation Algorithm (approved Phase 2)
-// Stage 1: calculateOptimalFullServiceNights(stayLength, policy)
-// Stage 2: assign Full Service / Refresh from that set + mandatory Checkout FS
+// Intelligent Stay Optimisation — cost-neutral guest experience
+//
+// 1. Max linen age (policy)
+// 2. Minimum Full Services required (never more)
+// 3. Even interval distribution; shorter interval nearest checkout
+// 4. Mandatory Checkout Full Service
 
 import type {
   HousekeepingPolicy,
@@ -34,20 +37,42 @@ export function calculateStayLength(checkIn: string, checkOut: string): number {
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-function maxLinenAge(policy: HousekeepingPolicy, settings?: HousekeepingSettings): number {
+/** Maximum consecutive nights on the same linen. */
+export function calculateMaximumLinenAge(
+  policy: HousekeepingPolicy,
+  settings?: HousekeepingSettings
+): number {
   if (policy === 'eco') return 5;
   if (policy === 'standard') return 3;
-  if (policy === 'custom') {
-    return Math.max(1, settings?.custom_full_interval ?? 3);
-  }
-  // premium: every night FS — age unused
-  return 1;
+  if (policy === 'custom') return Math.max(1, settings?.custom_full_interval ?? 3);
+  if (policy === 'premium') return 1;
+  return 3;
 }
 
 /**
- * Stage 1 — optimal Full Service night indices (1 .. stayLength-1).
- * Checkout night is never included (handled separately as Checkout FS).
- * Never places FS on stayLength-1 when avoidable (linen change day before departure).
+ * Split stayLength into k equal-as-possible intervals (k = ceil(stay / maxAge)).
+ * Larger intervals first; shorter interval(s) at the end (before checkout).
+ * Sum of intervals === stayLength; each interval ≤ maxAge.
+ */
+export function distributeServicesEvenly(
+  stayLength: number,
+  maxAge: number
+): number[] {
+  if (stayLength <= 0) return [];
+  const k = Math.max(1, Math.ceil(stayLength / maxAge));
+  const base = Math.floor(stayLength / k);
+  const remainder = stayLength % k;
+  const intervals: number[] = [];
+  for (let i = 0; i < k; i++) {
+    // First `remainder` segments get base+1 (larger), rest get base (shorter at end)
+    intervals.push(i < remainder ? base + 1 : base);
+  }
+  return intervals;
+}
+
+/**
+ * Mid-stay Full Service night indices from interval model.
+ * Cost-neutral: exactly (k - 1) mid-stay FS where k = ceil(stayLength / maxAge).
  */
 export function calculateOptimalFullServiceNights(
   stayLength: number,
@@ -62,55 +87,29 @@ export function calculateOptimalFullServiceNights(
     return out;
   }
 
-  const maxAge = maxLinenAge(policy, settings);
+  const maxAge = calculateMaximumLinenAge(policy, settings);
   if (stayLength <= maxAge) return [];
 
-  const segments = Math.ceil(stayLength / maxAge);
-  const needed = segments - 1;
-  if (needed <= 0) return [];
-
+  const intervals = distributeServicesEvenly(stayLength, maxAge);
+  // FS at cumulative ends of all intervals except the last (checkout)
   const fs: number[] = [];
-
-  if (needed === 1) {
-    // Single FS: keep start/end gaps ≤ maxAge, prefer centre
-    let pos = Math.round(stayLength / 2);
-    pos = Math.min(maxAge, Math.max(stayLength - maxAge, pos));
-    if (pos === stayLength - 1) pos = stayLength - 2;
-    if (pos >= 1 && pos < stayLength) return [pos];
-    return [];
+  let cum = 0;
+  for (let i = 0; i < intervals.length - 1; i++) {
+    cum += intervals[i];
+    if (cum > 0 && cum < stayLength) fs.push(cum);
   }
-
-  for (let i = 1; i <= needed; i++) {
-    let pos = Math.round((i * stayLength) / (needed + 1));
-    const alternate = i * maxAge;
-    if (Math.abs(alternate - pos) <= 1 && alternate > 0 && alternate < stayLength) {
-      pos = alternate;
-    }
-    if (pos === stayLength - 1) pos = pos - 1;
-
-    const prev = fs.length ? fs[fs.length - 1] : 0;
-    if (pos - prev > maxAge) pos = prev + maxAge;
-    if (pos === stayLength - 1) pos = pos - 1;
-    if (pos > prev && pos < stayLength) fs.push(pos);
-  }
-
-  let last = fs.length ? fs[fs.length - 1] : 0;
-  while (stayLength - last > maxAge) {
-    let pos = last + maxAge;
-    if (pos >= stayLength - 1) pos = stayLength - 2;
-    if (pos <= last) break;
-    fs.push(pos);
-    last = pos;
-  }
-
   return fs;
 }
 
-/**
- * Stage 2 — build full schedule from optimal FS nights.
- * Every mid-stay night 1..stayLength-1 is either Full Service or Refresh.
- * Checkout is always Full Service (is_checkout).
- */
+/** Required mid-stay Full Service count (for diagnostics / cost checks). */
+export function calculateRequiredNumberOfFullServices(
+  stayLength: number,
+  policy: HousekeepingPolicy,
+  settings?: HousekeepingSettings
+): number {
+  return calculateOptimalFullServiceNights(stayLength, policy, settings).length;
+}
+
 export function generateSchedule(
   checkIn: string,
   checkOut: string,
@@ -123,7 +122,6 @@ export function generateSchedule(
 
   const stayLength = calculateStayLength(checkInDate, checkOutDate);
   if (stayLength <= 0) {
-    // Same-day edge: checkout FS only
     return [
       {
         scheduled_date: checkOutDate,
@@ -141,16 +139,14 @@ export function generateSchedule(
   const tasks: ScheduledService[] = [];
 
   for (let stayNight = 1; stayNight < stayLength; stayNight++) {
-    const isFs = fullServiceNights.has(stayNight);
     tasks.push({
       scheduled_date: addDays(checkInDate, stayNight),
-      task_type: isFs ? 'full_service' : 'refresh',
+      task_type: fullServiceNights.has(stayNight) ? 'full_service' : 'refresh',
       is_checkout: false,
       night_index: stayNight,
     });
   }
 
-  // Permanent rule: checkout is always Full Service (Checkout)
   tasks.push({
     scheduled_date: checkOutDate,
     task_type: 'full_service',
@@ -170,17 +166,18 @@ export function taskTypeShortLabel(type: HousekeepingTaskType): string {
   return type === 'full_service' ? '🧺 Full Service' : '✨ Refresh';
 }
 
-/** @deprecated kept for any external imports — use calculateOptimalFullServiceNights */
+/** @deprecated — use calculateOptimalFullServiceNights */
 export function determineOptimalServiceNights(
   nights: number,
   policy: HousekeepingPolicy,
   settings?: Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'>
 ): { nightIndex: number; task_type: HousekeepingTaskType }[] {
-  const fs = calculateOptimalFullServiceNights(nights, policy, settings as HousekeepingSettings);
-  const set = new Set(fs);
+  const fs = new Set(
+    calculateOptimalFullServiceNights(nights, policy, settings as HousekeepingSettings)
+  );
   const out: { nightIndex: number; task_type: HousekeepingTaskType }[] = [];
   for (let n = 1; n < nights; n++) {
-    out.push({ nightIndex: n, task_type: set.has(n) ? 'full_service' : 'refresh' });
+    out.push({ nightIndex: n, task_type: fs.has(n) ? 'full_service' : 'refresh' });
   }
   return out;
 }
