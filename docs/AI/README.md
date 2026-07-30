@@ -2,6 +2,8 @@
 
 **Mandatory reading** for Grok, ChatGPT, Claude, Cursor agents, and any automated coder working on FastCheckIn.
 
+**Project constitution (root):** [PROJECT_CHARTER.md](../../PROJECT_CHARTER.md)
+
 ---
 
 ## Documentation First Principle

@@ -6,6 +6,8 @@ FastCheckIn digitises statutory guest check-in (ID capture, digital signatures, 
 
 > Brand name in product: **FastCheckIn** · Repository name: **Best-Check-In**
 
+**Project constitution:** [PROJECT_CHARTER.md](./PROJECT_CHARTER.md) — mission, principles, and workflow for every contributor.
+
 ---
 
 ## Product overview
@@ -47,7 +49,7 @@ Details: [`docs/ARCHITECTURE/`](./docs/ARCHITECTURE/).
 
 ## Documentation
 
-**Start here:** [docs/README.md](./docs/README.md)
+**Start here:** [docs/README.md](./docs/README.md) · **Charter:** [PROJECT_CHARTER.md](./PROJECT_CHARTER.md)
 
 | Area | Link |
 |------|------|
@@ -57,6 +59,8 @@ Details: [`docs/ARCHITECTURE/`](./docs/ARCHITECTURE/).
 | AI agent rules | [docs/AI/](./docs/AI/) |
 | Development standards | [docs/DEVELOPMENT/](./docs/DEVELOPMENT/) |
 | Roadmap | [docs/PRODUCT/Product-Roadmap.md](./docs/PRODUCT/Product-Roadmap.md) |
+
+**Documentation First:** No architectural, commercial, or user-facing feature without updated and approved docs. See [docs/AI/README.md](./docs/AI/README.md).
 
 ---
 
@@ -78,10 +82,11 @@ npm run preview  # preview build
 
 ## Contribution guidelines
 
-1. Read [docs/AI/](./docs/AI/) if you are an automated agent.  
-2. Follow [docs/DEVELOPMENT/](./docs/DEVELOPMENT/).  
-3. Update the Feature Registry when adding product features.  
-4. Prefer small, reviewed pull requests.  
+1. Read [PROJECT_CHARTER.md](./PROJECT_CHARTER.md).  
+2. Read [docs/AI/](./docs/AI/) if you are an automated agent.  
+3. Follow [docs/DEVELOPMENT/](./docs/DEVELOPMENT/).  
+4. Update the Feature Registry when adding product features.  
+5. Prefer small, reviewed pull requests.  
 
 ---
 
@@ -97,4 +102,4 @@ Proprietary application. Commercial enquiries: use in-product Enterprise contact
 
 ---
 
-*Documentation framework v1.0 · July 2026*
+*Documentation framework v1.0 · Project Charter adopted 30 July 2026*
