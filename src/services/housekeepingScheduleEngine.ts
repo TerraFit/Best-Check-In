@@ -1,10 +1,9 @@
 // src/services/housekeepingScheduleEngine.ts
-// Intelligent Stay Optimisation — cost-neutral guest experience
+// Cost-neutral Intelligent Stay Optimisation
 //
-// 1. Max linen age (policy)
-// 2. Minimum Full Services required (never more)
-// 3. Even interval distribution; shorter interval nearest checkout
-// 4. Mandatory Checkout Full Service
+// k starts at ceil(N / M). On long stays, k may reduce by 1 when the
+// resulting max interval is only M+1 — fewer short fragments, same philosophy,
+// shorter gap still nearest checkout. Never increases Full Service count.
 
 import type {
   HousekeepingPolicy,
@@ -37,7 +36,6 @@ export function calculateStayLength(checkIn: string, checkOut: string): number {
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-/** Maximum consecutive nights on the same linen. */
 export function calculateMaximumLinenAge(
   policy: HousekeepingPolicy,
   settings?: HousekeepingSettings
@@ -50,30 +48,41 @@ export function calculateMaximumLinenAge(
 }
 
 /**
- * Split stayLength into k equal-as-possible intervals (k = ceil(stay / maxAge)).
- * Larger intervals first; shorter interval(s) at the end (before checkout).
- * Sum of intervals === stayLength; each interval ≤ maxAge.
+ * Divide stay into k intervals (sum = N, lengths differ by at most 1).
+ * Longer intervals first; shorter last (nearest checkout).
  */
 export function distributeServicesEvenly(
   stayLength: number,
   maxAge: number
 ): number[] {
   if (stayLength <= 0) return [];
-  const k = Math.max(1, Math.ceil(stayLength / maxAge));
+
+  // Minimum intervals if every gap is at most maxAge
+  let k = Math.max(1, Math.ceil(stayLength / maxAge));
+
+  // Soft collapse (edge-case refinement): on longer stays, one fewer interval
+  // is allowed when the new max gap is only maxAge+1. Avoids many short
+  // fragments (e.g. Standard 10: 3-3-2-2 → 4-3-3) without adding FS.
+  while (k > 2) {
+    const maxWithFewer = Math.ceil(stayLength / (k - 1));
+    if (maxWithFewer > maxAge + 1) break;
+    const minWithCurrent = Math.floor(stayLength / k);
+    if (minWithCurrent <= maxAge - 1 && stayLength > maxAge * 3) {
+      k -= 1;
+    } else {
+      break;
+    }
+  }
+
   const base = Math.floor(stayLength / k);
   const remainder = stayLength % k;
   const intervals: number[] = [];
   for (let i = 0; i < k; i++) {
-    // First `remainder` segments get base+1 (larger), rest get base (shorter at end)
     intervals.push(i < remainder ? base + 1 : base);
   }
   return intervals;
 }
 
-/**
- * Mid-stay Full Service night indices from interval model.
- * Cost-neutral: exactly (k - 1) mid-stay FS where k = ceil(stayLength / maxAge).
- */
 export function calculateOptimalFullServiceNights(
   stayLength: number,
   policy: HousekeepingPolicy,
@@ -91,7 +100,6 @@ export function calculateOptimalFullServiceNights(
   if (stayLength <= maxAge) return [];
 
   const intervals = distributeServicesEvenly(stayLength, maxAge);
-  // FS at cumulative ends of all intervals except the last (checkout)
   const fs: number[] = [];
   let cum = 0;
   for (let i = 0; i < intervals.length - 1; i++) {
@@ -101,7 +109,6 @@ export function calculateOptimalFullServiceNights(
   return fs;
 }
 
-/** Required mid-stay Full Service count (for diagnostics / cost checks). */
 export function calculateRequiredNumberOfFullServices(
   stayLength: number,
   policy: HousekeepingPolicy,
@@ -166,7 +173,7 @@ export function taskTypeShortLabel(type: HousekeepingTaskType): string {
   return type === 'full_service' ? '🧺 Full Service' : '✨ Refresh';
 }
 
-/** @deprecated — use calculateOptimalFullServiceNights */
+/** @deprecated */
 export function determineOptimalServiceNights(
   nights: number,
   policy: HousekeepingPolicy,

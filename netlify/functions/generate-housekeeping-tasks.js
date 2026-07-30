@@ -1,7 +1,7 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Cost-neutral Intelligent Stay Optimisation:
-//   min FS count for max linen age → even intervals → shorter gap before checkout
-// Clean is NEVER set here — only after inspection approval.
+// Cost-neutral Intelligent Stay Optimisation (final).
+// Interval model: longer gaps first, shorter nearest checkout.
+// Soft k-collapse on long stays only (e.g. Standard 10 → 4-3-3).
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -50,10 +50,22 @@ function calculateMaximumLinenAge(policy, settings) {
   return 3;
 }
 
-/** Even intervals; larger first, shorter last (before checkout). */
 function distributeServicesEvenly(stayLength, maxAge) {
   if (stayLength <= 0) return [];
-  const k = Math.max(1, Math.ceil(stayLength / maxAge));
+
+  let k = Math.max(1, Math.ceil(stayLength / maxAge));
+
+  while (k > 2) {
+    const maxWithFewer = Math.ceil(stayLength / (k - 1));
+    if (maxWithFewer > maxAge + 1) break;
+    const minWithCurrent = Math.floor(stayLength / k);
+    if (minWithCurrent <= maxAge - 1 && stayLength > maxAge * 3) {
+      k -= 1;
+    } else {
+      break;
+    }
+  }
+
   const base = Math.floor(stayLength / k);
   const remainder = stayLength % k;
   const intervals = [];
@@ -63,7 +75,6 @@ function distributeServicesEvenly(stayLength, maxAge) {
   return intervals;
 }
 
-/** Mid-stay FS nights — cost-neutral count, even spacing. */
 function calculateOptimalFullServiceNights(stayLength, policy, settings) {
   if (stayLength <= 1) return [];
 
