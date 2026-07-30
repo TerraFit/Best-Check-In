@@ -1,7 +1,7 @@
 // netlify/functions/generate-housekeeping-tasks.js
 // Cost-neutral Intelligent Stay Optimisation (final).
-// Interval model: longer gaps first, shorter nearest checkout.
-// Soft k-collapse on long stays only (e.g. Standard 10 → 4-3-3).
+// Regeneration: open tasks from today onwards are replaced by the current schedule.
+// Completed / historical tasks before today are never touched.
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -228,13 +228,20 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || '{}');
-    const { businessId, bookingId, roomId, regenerate = false } = body;
+    // Default regenerate=true so Generate / Refresh always replaces open work
+    const { businessId, bookingId, roomId, regenerate = true } = body;
 
     if (!businessId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
     }
 
     const restGet = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
+    const patchHeaders = {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    };
 
     async function insertTask(payload) {
       logPayload(payload);
@@ -269,14 +276,72 @@ exports.handler = async (event) => {
     async function patchRoom(roomIdVal, patch) {
       await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${roomIdVal}`, {
         method: 'PATCH',
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
+        headers: patchHeaders,
         body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
       });
+    }
+
+    async function cancelOpenTask(task) {
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${task.id}`, {
+        method: 'PATCH',
+        headers: patchHeaders,
+        body: JSON.stringify({
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+          notes: `${task.notes || ''} [auto-cancelled: schedule regenerated]`.trim(),
+        }),
+      });
+    }
+
+    /**
+     * Remove every pending/in_progress task for this booking (and room orphans)
+     * from today onwards. Completed / historical before today are left alone.
+     */
+    async function clearOpenTasksFromToday(booking, resolved) {
+      let removed = 0;
+      let skippedHistorical = 0;
+
+      // 1) By booking_id
+      const byBookingRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&booking_id=eq.${booking.id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,task_type,is_checkout`,
+        { headers: restGet }
+      );
+      const byBooking = byBookingRes.ok ? await byBookingRes.json() : [];
+
+      for (const t of byBooking) {
+        const d = String(t.scheduled_date).slice(0, 10);
+        if (d < todayStr) {
+          skippedHistorical += 1;
+          continue;
+        }
+        await cancelOpenTask(t);
+        removed += 1;
+      }
+
+      // 2) Room-level orphans (null booking_id or mismatched) scheduled today+ for this room
+      if (resolved?.room_id) {
+        const byRoomRes = await fetch(
+          `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,booking_id,task_type,is_checkout`,
+          { headers: restGet }
+        );
+        const byRoom = byRoomRes.ok ? await byRoomRes.json() : [];
+        for (const t of byRoom) {
+          const d = String(t.scheduled_date).slice(0, 10);
+          if (d < todayStr) {
+            skippedHistorical += 1;
+            continue;
+          }
+          // Already cancelled via booking_id path
+          if (t.booking_id === booking.id) continue;
+          // Only clear orphans or tasks still open for this room from today
+          if (!t.booking_id || t.booking_id === booking.id) {
+            await cancelOpenTask(t);
+            removed += 1;
+          }
+        }
+      }
+
+      return { removed, skippedHistorical };
     }
 
     let settings = {
@@ -329,6 +394,11 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           success: true,
           created: 0,
+          open_tasks_removed: 0,
+          tasks_regenerated: 0,
+          refresh_tasks: 0,
+          full_service_tasks: 0,
+          skipped_historical_tasks: 0,
           checkout_tasks_ensured: 0,
           rooms_marked_dirty: 0,
           today: todayStr,
@@ -439,13 +509,19 @@ exports.handler = async (event) => {
     }
 
     let created = 0;
-    let cancelledFuture = 0;
+    let openTasksRemoved = 0;
+    let skippedHistorical = 0;
+    let refreshTasks = 0;
+    let fullServiceTasks = 0;
     let bookingsProcessed = 0;
     let skippedNoRoom = 0;
     let skippedStatus = 0;
     let skippedNoDates = 0;
     let checkoutTasksEnsured = 0;
     let roomsMarkedDirty = 0;
+
+    // Track inserts within this run to avoid same-run duplicates
+    const insertedKeys = new Set();
 
     for (const booking of bookings) {
       if (!booking.check_in_date || !booking.check_out_date) {
@@ -473,50 +549,48 @@ exports.handler = async (event) => {
         settings
       );
 
+      // --- Clear stale open work (regenerate path) ---
       if (regenerate) {
         try {
-          const exRes = await fetch(
-            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&booking_id=eq.${booking.id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,is_checkout`,
-            { headers: restGet }
-          );
-          const existing = exRes.ok ? await exRes.json() : [];
-          for (const t of existing) {
-            const d = String(t.scheduled_date).slice(0, 10);
-            if (t.is_checkout && d === todayStr) continue;
-            if (d >= todayStr) {
-              await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${t.id}`, {
-                method: 'PATCH',
-                headers: {
-                  apikey: key,
-                  Authorization: `Bearer ${key}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({
-                  status: 'cancelled',
-                  updated_at: new Date().toISOString(),
-                  notes: `${t.notes || ''} [auto-cancelled: schedule regenerated]`.trim(),
-                }),
-              });
-              cancelledFuture += 1;
-            }
-          }
+          const cleared = await clearOpenTasksFromToday(booking, resolved);
+          openTasksRemoved += cleared.removed;
+          skippedHistorical += cleared.skippedHistorical;
         } catch (e) {
-          console.warn('cancel future', e.message);
+          console.warn('clear open tasks', e.message);
         }
       }
 
+      // --- Insert current schedule from today onwards ---
       for (const slot of schedule) {
         const slotDate = String(slot.scheduled_date).slice(0, 10);
         if (slotDate < todayStr) continue;
-        if (slot.is_checkout && slotDate === todayStr) continue;
 
-        const dupRes = await fetch(
-          `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=in.(pending,in_progress,completed)&select=id`,
+        // Checkout today is handled by ensureCheckoutDirtyState for room state
+        // but we still insert it here when regenerating so schedule is complete.
+        // ensureCheckoutDirtyState is idempotent (checks for existing open FS).
+
+        const runKey = `${resolved.room_id}|${slotDate}|${slot.task_type}|${slot.is_checkout ? 'co' : 'mid'}`;
+        if (insertedKeys.has(runKey)) continue;
+
+        // Only block if a completed task already exists for this room/date/type
+        // (historical integrity). Do not let pending/in_progress block — those
+        // were cancelled above when regenerating.
+        const completedRes = await fetch(
+          `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=eq.completed&select=id`,
           { headers: restGet }
         );
-        const dup = dupRes.ok ? await dupRes.json() : [];
-        if (dup && dup.length) continue;
+        const completed = completedRes.ok ? await completedRes.json() : [];
+        if (completed && completed.length) continue;
+
+        // After regenerate, also skip if somehow still pending (race)
+        if (!regenerate) {
+          const openDupRes = await fetch(
+            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=in.(pending,in_progress)&select=id`,
+            { headers: restGet }
+          );
+          const openDup = openDupRes.ok ? await openDupRes.json() : [];
+          if (openDup && openDup.length) continue;
+        }
 
         const payload = buildTaskPayload({
           businessId,
@@ -529,7 +603,11 @@ exports.handler = async (event) => {
           policy,
         });
         await insertTask(payload);
+        insertedKeys.add(runKey);
         created += 1;
+
+        if (slot.task_type === 'refresh') refreshTasks += 1;
+        else fullServiceTasks += 1;
 
         if (slotDate === todayStr && !slot.is_checkout) {
           const hk =
@@ -548,11 +626,23 @@ exports.handler = async (event) => {
 
       if (checkOutDate === todayStr) {
         const result = await ensureCheckoutDirtyState(booking, resolved);
-        if (result.createdTask) created += 1;
+        if (result.createdTask) {
+          created += 1;
+          fullServiceTasks += 1;
+        }
         checkoutTasksEnsured += 1;
         if (result.markedDirty) roomsMarkedDirty += 1;
       }
     }
+
+    const message = [
+      `Bookings processed: ${bookingsProcessed}`,
+      `Open tasks removed: ${openTasksRemoved}`,
+      `Tasks regenerated: ${created}`,
+      `Refresh tasks: ${refreshTasks}`,
+      `Full Service tasks: ${fullServiceTasks}`,
+      `Skipped historical tasks: ${skippedHistorical}`,
+    ].join(' · ');
 
     return {
       statusCode: 200,
@@ -560,7 +650,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         success: true,
         created,
-        cancelled_future: cancelledFuture,
+        open_tasks_removed: openTasksRemoved,
+        tasks_regenerated: created,
+        refresh_tasks: refreshTasks,
+        full_service_tasks: fullServiceTasks,
+        skipped_historical_tasks: skippedHistorical,
         checkout_tasks_ensured: checkoutTasksEnsured,
         rooms_marked_dirty: roomsMarkedDirty,
         bookings_matched: bookings.length,
@@ -570,12 +664,8 @@ exports.handler = async (event) => {
         skipped_no_dates: skippedNoDates,
         today: todayStr,
         policy,
-        message:
-          checkoutTasksEnsured > 0
-            ? `Checkout FS ensured for ${checkoutTasksEnsured} departure(s). Rooms marked dirty: ${roomsMarkedDirty}. Created ${created} new task(s).`
-            : bookingsProcessed === 0
-              ? 'No eligible bookings with resolvable rooms.'
-              : `Created ${created} task(s). No checkouts today.`,
+        regenerate,
+        message,
       }),
     };
   } catch (error) {
