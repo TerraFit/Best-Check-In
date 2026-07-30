@@ -57,7 +57,6 @@ export function HousekeepingTab({ businessId }: Props) {
         businessId,
         regenerate: true,
       });
-      // Prefer server message (includes full diagnostics)
       const detail =
         result.message ||
         [
@@ -328,7 +327,7 @@ export function HousekeepingTab({ businessId }: Props) {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => act(task, 'reject')}
+                        onClick={() => act(task, 'approve')}
                         className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg disabled:opacity-50"
                       >
                         Approve inspection
