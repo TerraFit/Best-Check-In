@@ -1,7 +1,16 @@
 // netlify/functions/get-housekeeping-tasks.js
-// Stats: Clean only when housekeeping_status is clean/inspected.
-// Dirty = dirty | full_service_required | refresh_required.
-// cleaning_in_progress / awaiting_inspection are neither Clean nor Dirty.
+// Stats use readiness terminology:
+//   Ready     = ready | clean | inspected
+//   Not Ready = not_ready | dirty | full_service_required | refresh_required
+// cleaning_in_progress / awaiting_inspection are neither Ready nor Not Ready counts.
+
+function isReadyStatus(s) {
+  return ['ready', 'clean', 'inspected'].includes(s);
+}
+
+function isNotReadyStatus(s) {
+  return ['not_ready', 'dirty', 'full_service_required', 'refresh_required'].includes(s);
+}
 
 exports.handler = async (event) => {
   const headers = {
@@ -78,13 +87,15 @@ exports.handler = async (event) => {
     );
     const allTasks = allTasksRes.ok ? await allTasksRes.json() : [];
 
+    const roomsReady = rooms.filter((r) => isReadyStatus(r.housekeeping_status)).length;
+    const roomsNotReady = rooms.filter((r) => isNotReadyStatus(r.housekeeping_status)).length;
+
     const stats = {
-      rooms_clean: rooms.filter((r) =>
-        ['clean', 'inspected'].includes(r.housekeeping_status)
-      ).length,
-      rooms_dirty: rooms.filter((r) =>
-        ['dirty', 'full_service_required', 'refresh_required'].includes(r.housekeeping_status)
-      ).length,
+      rooms_ready: roomsReady,
+      rooms_not_ready: roomsNotReady,
+      // Backward-compatible aliases
+      rooms_clean: roomsReady,
+      rooms_dirty: roomsNotReady,
       rooms_cleaning: rooms.filter((r) => r.housekeeping_status === 'cleaning_in_progress').length,
       rooms_awaiting_inspection: rooms.filter((r) => r.housekeeping_status === 'awaiting_inspection')
         .length,

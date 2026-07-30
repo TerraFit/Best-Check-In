@@ -1,10 +1,10 @@
 // netlify/functions/update-housekeeping-task.js
-// State machine (room-centric):
-//   Start      → Cleaning In Progress
-//   Complete   → Awaiting Inspection  (NOT Clean)
-//   Approve    → Clean (+ Vacant if checkout)
-//   Reject     → Cleaning In Progress
-// Clean is NEVER set on Complete alone.
+// Room Readiness state machine (independent of occupancy):
+//   Start      → Cleaning in Progress
+//   Complete   → Awaiting Inspection  (NOT Ready)
+//   Approve    → Ready (+ Vacant if checkout)
+//   Reject     → Cleaning in Progress
+// Ready is NEVER set on Complete alone.
 
 exports.handler = async (event) => {
   const headers = {
@@ -70,7 +70,6 @@ exports.handler = async (event) => {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
     }
 
-    // Checkout Full Service cannot be skipped
     if (status === 'skipped') {
       if (task.task_type !== 'refresh' || task.is_checkout) {
         return {
@@ -94,7 +93,6 @@ exports.handler = async (event) => {
     if (status === 'completed') {
       patch.completed_at = new Date().toISOString();
       if (completed_by) patch.completed_by = completed_by;
-      // Complete always enters inspection — never jumps to Clean
       if (!inspection_status) patch.inspection_status = 'pending';
     }
     if (inspection_status === 'approved' || inspection_status === 'rejected') {
@@ -116,29 +114,26 @@ exports.handler = async (event) => {
     const updated = await updateRes.json();
     const next = updated[0] || { ...task, ...patch };
 
-    // ---- Room state machine (strict) ----
+    // ---- Room readiness state machine ----
     let roomPatch = null;
 
     if (status === 'in_progress') {
       roomPatch = { housekeeping_status: 'cleaning_in_progress' };
     } else if (status === 'skipped') {
-      // Refresh skip only — does not force dirty; leave operational state stable
-      roomPatch = { housekeeping_status: 'clean' };
+      roomPatch = { housekeeping_status: 'ready' };
     } else if (status === 'completed' && !inspection_status) {
-      // Complete → Awaiting Inspection (NOT Clean)
       roomPatch = { housekeeping_status: 'awaiting_inspection' };
     } else if (inspection_status === 'rejected') {
       roomPatch = { housekeeping_status: 'cleaning_in_progress' };
     } else if (inspection_status === 'approved') {
-      // ONLY path to Clean (+ Vacant after checkout FS)
-      roomPatch = { housekeeping_status: 'clean' };
+      roomPatch = { housekeeping_status: 'ready' };
       if (task.is_checkout) {
         roomPatch.occupancy_status = 'vacant';
       }
     } else if (status === 'pending' && task.is_checkout) {
       roomPatch = {
         occupancy_status: 'departure_pending',
-        housekeeping_status: 'dirty',
+        housekeeping_status: 'not_ready',
       };
     }
 
