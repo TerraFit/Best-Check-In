@@ -1,7 +1,9 @@
 // netlify/functions/generate-housekeeping-tasks.js
-// Cost-neutral Intelligent Stay Optimisation (final).
-// Regeneration: open tasks from today onwards are replaced by the current schedule.
-// Completed / historical tasks before today are never touched.
+// Cost-neutral Intelligent Stay Optimisation.
+// Generate focuses on TODAY's operational tasks:
+//   - checkout today  → Full Service (Checkout)
+//   - stayover today  → Refresh or Full Service per optimiser
+// Checkout and stayover are independent paths.
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -97,6 +99,10 @@ function calculateOptimalFullServiceNights(stayLength, policy, settings) {
   return fs;
 }
 
+/**
+ * Full multi-night schedule (used for future planning on regenerate).
+ * stay_night N is scheduled on check_in + N days.
+ */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
@@ -136,6 +142,56 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
   });
 
   return tasks;
+}
+
+/**
+ * Decide today's single operational task for a booking.
+ * Independent paths:
+ *   checkout today → Full Service (Checkout)
+ *   stayover (check_in < today < check_out) → Refresh or Full Service
+ *   arrival day only / outside stay → null
+ */
+function serviceForToday(checkIn, checkOut, todayStr, policy, settings) {
+  const checkInDate = String(checkIn).slice(0, 10);
+  const checkOutDate = String(checkOut).slice(0, 10);
+  if (!checkInDate || !checkOutDate) return null;
+
+  // Outside stay window
+  if (todayStr < checkInDate || todayStr > checkOutDate) return null;
+
+  const stayLength = calculateStayLength(checkInDate, checkOutDate);
+
+  // PATH A — Checkout today (mandatory Full Service)
+  if (todayStr === checkOutDate) {
+    return {
+      scheduled_date: todayStr,
+      task_type: 'full_service',
+      is_checkout: true,
+      stay_night: Math.max(1, stayLength || 1),
+      kind: 'checkout',
+    };
+  }
+
+  // PATH B — Stayover: in-house, not arrival day, not checkout day
+  // Arrival day (today === check_in): no mid-stay service yet
+  if (todayStr === checkInDate) return null;
+
+  // stay_night = nights elapsed since check-in (same as optimiser index)
+  const stayNight = calculateStayLength(checkInDate, todayStr);
+  if (stayNight < 1 || stayNight >= stayLength) return null;
+
+  const fullServiceNights = new Set(
+    calculateOptimalFullServiceNights(stayLength, policy, settings)
+  );
+  const task_type = fullServiceNights.has(stayNight) ? 'full_service' : 'refresh';
+
+  return {
+    scheduled_date: todayStr,
+    task_type,
+    is_checkout: false,
+    stay_night: stayNight,
+    kind: 'stayover',
+  };
 }
 
 function buildTaskPayload({
@@ -224,18 +280,29 @@ exports.handler = async (event) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' }),
+      };
     }
 
     const body = JSON.parse(event.body || '{}');
-    // Default regenerate=true so Generate / Refresh always replaces open work
     const { businessId, bookingId, roomId, regenerate = true } = body;
 
     if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'businessId required' }),
+      };
     }
 
-    const restGet = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
+    const restGet = {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Accept: 'application/json',
+    };
     const patchHeaders = {
       apikey: key,
       Authorization: `Bearer ${key}`,
@@ -294,14 +361,13 @@ exports.handler = async (event) => {
     }
 
     /**
-     * Remove every pending/in_progress task for this booking (and room orphans)
-     * from today onwards. Completed / historical before today are left alone.
+     * Cancel pending/in_progress tasks for this booking (and room orphans)
+     * from today onwards. Completed / historical before today are preserved.
      */
     async function clearOpenTasksFromToday(booking, resolved) {
       let removed = 0;
       let skippedHistorical = 0;
 
-      // 1) By booking_id
       const byBookingRes = await fetch(
         `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&booking_id=eq.${booking.id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,task_type,is_checkout`,
         { headers: restGet }
@@ -318,7 +384,6 @@ exports.handler = async (event) => {
         removed += 1;
       }
 
-      // 2) Room-level orphans (null booking_id or mismatched) scheduled today+ for this room
       if (resolved?.room_id) {
         const byRoomRes = await fetch(
           `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&status=in.(pending,in_progress)&select=id,scheduled_date,notes,booking_id,task_type,is_checkout`,
@@ -331,9 +396,7 @@ exports.handler = async (event) => {
             skippedHistorical += 1;
             continue;
           }
-          // Already cancelled via booking_id path
           if (t.booking_id === booking.id) continue;
-          // Only clear orphans or tasks still open for this room from today
           if (!t.booking_id || t.booking_id === booking.id) {
             await cancelOpenTask(t);
             removed += 1;
@@ -365,6 +428,7 @@ exports.handler = async (event) => {
     const policy = settings.policy || 'standard';
     const todayStr = todayInJohannesburg();
 
+    // Fetch bookings that may need today's housekeeping
     let bookingQuery =
       `bookings?business_id=eq.${businessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;
     if (bookingId) bookingQuery += `&id=eq.${bookingId}`;
@@ -372,7 +436,9 @@ exports.handler = async (event) => {
 
     let bookings = [];
     try {
-      const bRes = await fetch(`${supabaseUrl}/rest/v1/${bookingQuery}`, { headers: restGet });
+      const bRes = await fetch(`${supabaseUrl}/rest/v1/${bookingQuery}`, {
+        headers: restGet,
+      });
       if (bRes.ok) {
         bookings = await bRes.json();
       } else {
@@ -380,7 +446,9 @@ exports.handler = async (event) => {
           `bookings?business_id=eq.${businessId}&room_id=not.is.null&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;
         if (bookingId) fallback += `&id=eq.${bookingId}`;
         if (roomId) fallback += `&room_id=eq.${roomId}`;
-        const fRes = await fetch(`${supabaseUrl}/rest/v1/${fallback}`, { headers: restGet });
+        const fRes = await fetch(`${supabaseUrl}/rest/v1/${fallback}`, {
+          headers: restGet,
+        });
         if (fRes.ok) bookings = await fRes.json();
       }
     } catch (e) {
@@ -394,13 +462,10 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           success: true,
           created: 0,
+          stayover_refresh: 0,
+          stayover_full_service: 0,
+          checkout_full_service: 0,
           open_tasks_removed: 0,
-          tasks_regenerated: 0,
-          refresh_tasks: 0,
-          full_service_tasks: 0,
-          skipped_historical_tasks: 0,
-          checkout_tasks_ensured: 0,
-          rooms_marked_dirty: 0,
           today: todayStr,
           policy,
           message: 'No bookings with assigned rooms. Allocate rooms first.',
@@ -416,7 +481,11 @@ exports.handler = async (event) => {
           room_name: booking.room_name ?? null,
         };
       }
-      if (booking.room_number === null || booking.room_number === undefined || booking.room_number === '') {
+      if (
+        booking.room_number === null ||
+        booking.room_number === undefined ||
+        booking.room_number === ''
+      ) {
         return null;
       }
       const n = Number(booking.room_number);
@@ -436,60 +505,6 @@ exports.handler = async (event) => {
     }
 
     async function ensureCheckoutDirtyState(booking, resolved) {
-      let createdTask = false;
-
-      const openRes = await fetch(
-        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${todayStr}&task_type=eq.full_service&is_checkout=eq.true&status=in.(pending,in_progress)&select=id`,
-        { headers: restGet }
-      );
-      const open = openRes.ok ? await openRes.json() : [];
-
-      if (!open || open.length === 0) {
-        const stay_night = stayNightForDate(
-          booking.check_in_date,
-          booking.check_out_date,
-          todayStr,
-          true
-        );
-        const payload = buildTaskPayload({
-          businessId,
-          resolved,
-          booking,
-          task_type: 'full_service',
-          is_checkout: true,
-          scheduled_date: todayStr,
-          stay_night,
-          policy,
-        });
-        await insertTask(payload);
-        createdTask = true;
-
-        await fetch(`${supabaseUrl}/rest/v1/room_events`, {
-          method: 'POST',
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            business_id: businessId,
-            room_id: resolved.room_id,
-            event_type: 'housekeeping_task_created',
-            source: 'system',
-            severity: 'info',
-            booking_id: booking.id,
-            guest_name: booking.guest_name,
-            details: {
-              task_type: 'full_service',
-              scheduled_date: todayStr,
-              stay_night,
-              is_checkout: true,
-              policy,
-            },
-          }),
-        }).catch(() => {});
-      }
-
       const roomRes = await fetch(
         `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status`,
         { headers: restGet }
@@ -505,22 +520,34 @@ exports.handler = async (event) => {
         });
       }
 
-      return { createdTask, markedDirty: !inWorkflow };
+      return { markedDirty: !inWorkflow };
+    }
+
+    async function taskAlreadyExists(roomIdVal, scheduledDate, taskType, isCheckout) {
+      // Block only completed (history) or still-open same type
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${roomIdVal}&scheduled_date=eq.${scheduledDate}&task_type=eq.${taskType}&is_checkout=eq.${isCheckout}&status=in.(pending,in_progress,completed)&select=id`,
+        { headers: restGet }
+      );
+      const rows = res.ok ? await res.json() : [];
+      return rows && rows.length > 0;
     }
 
     let created = 0;
     let openTasksRemoved = 0;
     let skippedHistorical = 0;
-    let refreshTasks = 0;
-    let fullServiceTasks = 0;
+    let stayoverRefresh = 0;
+    let stayoverFullService = 0;
+    let checkoutFullService = 0;
     let bookingsProcessed = 0;
+    let stayoversConsidered = 0;
+    let checkoutsConsidered = 0;
     let skippedNoRoom = 0;
     let skippedStatus = 0;
     let skippedNoDates = 0;
-    let checkoutTasksEnsured = 0;
+    let skippedOutsideWindow = 0;
     let roomsMarkedDirty = 0;
 
-    // Track inserts within this run to avoid same-run duplicates
     const insertedKeys = new Set();
 
     for (const booking of bookings) {
@@ -534,6 +561,15 @@ exports.handler = async (event) => {
         continue;
       }
 
+      const checkInDate = String(booking.check_in_date).slice(0, 10);
+      const checkOutDate = String(booking.check_out_date).slice(0, 10);
+
+      // Only care about bookings that touch today
+      if (todayStr < checkInDate || todayStr > checkOutDate) {
+        skippedOutsideWindow += 1;
+        continue;
+      }
+
       const resolved = await resolveRoom(booking);
       if (!resolved?.room_id) {
         skippedNoRoom += 1;
@@ -541,15 +577,8 @@ exports.handler = async (event) => {
       }
 
       bookingsProcessed += 1;
-      const checkOutDate = String(booking.check_out_date).slice(0, 10);
-      const schedule = generateSchedule(
-        booking.check_in_date,
-        booking.check_out_date,
-        policy,
-        settings
-      );
 
-      // --- Clear stale open work (regenerate path) ---
+      // --- Clear stale open work when regenerating ---
       if (regenerate) {
         try {
           const cleared = await clearOpenTasksFromToday(booking, resolved);
@@ -560,89 +589,174 @@ exports.handler = async (event) => {
         }
       }
 
-      // --- Insert current schedule from today onwards ---
-      for (const slot of schedule) {
-        const slotDate = String(slot.scheduled_date).slice(0, 10);
-        if (slotDate < todayStr) continue;
+      // --- TODAY operational task (primary path) ---
+      const todayService = serviceForToday(
+        checkInDate,
+        checkOutDate,
+        todayStr,
+        policy,
+        settings
+      );
 
-        // Checkout today is handled by ensureCheckoutDirtyState for room state
-        // but we still insert it here when regenerating so schedule is complete.
-        // ensureCheckoutDirtyState is idempotent (checks for existing open FS).
+      if (todayService) {
+        if (todayService.kind === 'checkout') checkoutsConsidered += 1;
+        else stayoversConsidered += 1;
 
-        const runKey = `${resolved.room_id}|${slotDate}|${slot.task_type}|${slot.is_checkout ? 'co' : 'mid'}`;
-        if (insertedKeys.has(runKey)) continue;
+        const runKey = `${resolved.room_id}|${todayService.scheduled_date}|${todayService.task_type}|${
+          todayService.is_checkout ? 'co' : 'mid'
+        }`;
 
-        // Only block if a completed task already exists for this room/date/type
-        // (historical integrity). Do not let pending/in_progress block — those
-        // were cancelled above when regenerating.
-        const completedRes = await fetch(
-          `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=eq.completed&select=id`,
-          { headers: restGet }
-        );
-        const completed = completedRes.ok ? await completedRes.json() : [];
-        if (completed && completed.length) continue;
+        if (!insertedKeys.has(runKey)) {
+          const exists =
+            !regenerate &&
+            (await taskAlreadyExists(
+              resolved.room_id,
+              todayService.scheduled_date,
+              todayService.task_type,
+              todayService.is_checkout
+            ));
 
-        // After regenerate, also skip if somehow still pending (race)
-        if (!regenerate) {
-          const openDupRes = await fetch(
-            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=in.(pending,in_progress)&select=id`,
-            { headers: restGet }
-          );
-          const openDup = openDupRes.ok ? await openDupRes.json() : [];
-          if (openDup && openDup.length) continue;
-        }
+          // After regenerate, open tasks were cancelled; only skip completed history
+          let skip = exists;
+          if (regenerate) {
+            const completedRes = await fetch(
+              `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${todayService.scheduled_date}&task_type=eq.${todayService.task_type}&is_checkout=eq.${todayService.is_checkout}&status=eq.completed&select=id`,
+              { headers: restGet }
+            );
+            const completed = completedRes.ok ? await completedRes.json() : [];
+            skip = completed && completed.length > 0;
+          }
 
-        const payload = buildTaskPayload({
-          businessId,
-          resolved,
-          booking,
-          task_type: slot.task_type,
-          is_checkout: !!slot.is_checkout,
-          scheduled_date: slotDate,
-          stay_night: slot.stay_night,
-          policy,
-        });
-        await insertTask(payload);
-        insertedKeys.add(runKey);
-        created += 1;
+          if (!skip) {
+            const payload = buildTaskPayload({
+              businessId,
+              resolved,
+              booking,
+              task_type: todayService.task_type,
+              is_checkout: !!todayService.is_checkout,
+              scheduled_date: todayService.scheduled_date,
+              stay_night: todayService.stay_night,
+              policy,
+            });
+            await insertTask(payload);
+            insertedKeys.add(runKey);
+            created += 1;
 
-        if (slot.task_type === 'refresh') refreshTasks += 1;
-        else fullServiceTasks += 1;
+            if (todayService.kind === 'checkout') {
+              checkoutFullService += 1;
+              const dirty = await ensureCheckoutDirtyState(booking, resolved);
+              if (dirty.markedDirty) roomsMarkedDirty += 1;
 
-        if (slotDate === todayStr && !slot.is_checkout) {
-          const hk =
-            slot.task_type === 'full_service' ? 'full_service_required' : 'refresh_required';
-          const roomRes = await fetch(
-            `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
-            { headers: restGet }
-          );
-          const rr = roomRes.ok ? await roomRes.json() : [];
-          const current = rr[0]?.housekeeping_status;
-          if (!['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)) {
-            await patchRoom(resolved.room_id, { housekeeping_status: hk });
+              await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+                method: 'POST',
+                headers: {
+                  apikey: key,
+                  Authorization: `Bearer ${key}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  business_id: businessId,
+                  room_id: resolved.room_id,
+                  event_type: 'housekeeping_task_created',
+                  source: 'system',
+                  severity: 'info',
+                  booking_id: booking.id,
+                  guest_name: booking.guest_name,
+                  details: {
+                    task_type: 'full_service',
+                    scheduled_date: todayStr,
+                    stay_night: todayService.stay_night,
+                    is_checkout: true,
+                    policy,
+                  },
+                }),
+              }).catch(() => {});
+            } else if (todayService.task_type === 'refresh') {
+              stayoverRefresh += 1;
+              const roomRes = await fetch(
+                `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
+                { headers: restGet }
+              );
+              const rr = roomRes.ok ? await roomRes.json() : [];
+              const current = rr[0]?.housekeeping_status;
+              if (
+                !['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)
+              ) {
+                await patchRoom(resolved.room_id, {
+                  housekeeping_status: 'refresh_required',
+                });
+              }
+            } else {
+              stayoverFullService += 1;
+              const roomRes = await fetch(
+                `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
+                { headers: restGet }
+              );
+              const rr = roomRes.ok ? await roomRes.json() : [];
+              const current = rr[0]?.housekeeping_status;
+              if (
+                !['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)
+              ) {
+                await patchRoom(resolved.room_id, {
+                  housekeeping_status: 'full_service_required',
+                });
+              }
+            }
           }
         }
       }
 
-      if (checkOutDate === todayStr) {
-        const result = await ensureCheckoutDirtyState(booking, resolved);
-        if (result.createdTask) {
+      // --- On regenerate, also seed future open tasks from optimiser ---
+      // (today already handled above; skip past and skip today to avoid dupes)
+      if (regenerate) {
+        const schedule = generateSchedule(
+          checkInDate,
+          checkOutDate,
+          policy,
+          settings
+        );
+        for (const slot of schedule) {
+          const slotDate = String(slot.scheduled_date).slice(0, 10);
+          if (slotDate <= todayStr) continue; // past + today handled
+
+          const runKey = `${resolved.room_id}|${slotDate}|${slot.task_type}|${
+            slot.is_checkout ? 'co' : 'mid'
+          }`;
+          if (insertedKeys.has(runKey)) continue;
+
+          const completedRes = await fetch(
+            `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${resolved.room_id}&scheduled_date=eq.${slotDate}&task_type=eq.${slot.task_type}&status=eq.completed&select=id`,
+            { headers: restGet }
+          );
+          const completed = completedRes.ok ? await completedRes.json() : [];
+          if (completed && completed.length) continue;
+
+          const payload = buildTaskPayload({
+            businessId,
+            resolved,
+            booking,
+            task_type: slot.task_type,
+            is_checkout: !!slot.is_checkout,
+            scheduled_date: slotDate,
+            stay_night: slot.stay_night,
+            policy,
+          });
+          await insertTask(payload);
+          insertedKeys.add(runKey);
           created += 1;
-          fullServiceTasks += 1;
         }
-        checkoutTasksEnsured += 1;
-        if (result.markedDirty) roomsMarkedDirty += 1;
       }
     }
 
     const message = [
       `Bookings processed: ${bookingsProcessed}`,
-      `Open tasks removed: ${openTasksRemoved}`,
-      `Tasks regenerated: ${created}`,
-      `Refresh tasks: ${refreshTasks}`,
-      `Full Service tasks: ${fullServiceTasks}`,
-      `Skipped historical tasks: ${skippedHistorical}`,
-    ].join(' · ');
+      `Stayover tasks created: Refresh: ${stayoverRefresh} · Full Service: ${stayoverFullService}`,
+      `Checkout tasks created: Full Service (Checkout): ${checkoutFullService}`,
+      `Total tasks created: ${created}`,
+      openTasksRemoved > 0 ? `Open tasks removed: ${openTasksRemoved}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
     return {
       statusCode: 200,
@@ -650,18 +764,20 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         success: true,
         created,
+        stayover_refresh: stayoverRefresh,
+        stayover_full_service: stayoverFullService,
+        checkout_full_service: checkoutFullService,
+        stayovers_considered: stayoversConsidered,
+        checkouts_considered: checkoutsConsidered,
         open_tasks_removed: openTasksRemoved,
-        tasks_regenerated: created,
-        refresh_tasks: refreshTasks,
-        full_service_tasks: fullServiceTasks,
         skipped_historical_tasks: skippedHistorical,
-        checkout_tasks_ensured: checkoutTasksEnsured,
         rooms_marked_dirty: roomsMarkedDirty,
         bookings_matched: bookings.length,
         bookings_processed: bookingsProcessed,
         skipped_no_room: skippedNoRoom,
         skipped_status: skippedStatus,
         skipped_no_dates: skippedNoDates,
+        skipped_outside_window: skippedOutsideWindow,
         today: todayStr,
         policy,
         regenerate,
@@ -687,7 +803,9 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Failed to generate housekeeping tasks' }),
+      body: JSON.stringify({
+        error: error.message || 'Failed to generate housekeeping tasks',
+      }),
     };
   }
 };
