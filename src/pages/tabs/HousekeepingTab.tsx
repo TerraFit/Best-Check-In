@@ -1,4 +1,5 @@
 // Staff / business Housekeeping workflow
+// Stats use readiness: Ready / Not Ready (not Clean / Dirty)
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
@@ -63,20 +64,11 @@ export function HousekeepingTab({ businessId }: Props) {
           typeof result.bookings_processed === 'number'
             ? `Bookings processed: ${result.bookings_processed}`
             : null,
-          typeof result.open_tasks_removed === 'number'
-            ? `Open tasks removed: ${result.open_tasks_removed}`
+          typeof result.stayover_refresh === 'number'
+            ? `Stayover Refresh: ${result.stayover_refresh}`
             : null,
-          typeof result.tasks_regenerated === 'number'
-            ? `Tasks regenerated: ${result.tasks_regenerated}`
-            : null,
-          typeof result.refresh_tasks === 'number'
-            ? `Refresh tasks: ${result.refresh_tasks}`
-            : null,
-          typeof result.full_service_tasks === 'number'
-            ? `Full Service tasks: ${result.full_service_tasks}`
-            : null,
-          typeof result.skipped_historical_tasks === 'number'
-            ? `Skipped historical tasks: ${result.skipped_historical_tasks}`
+          typeof result.checkout_full_service === 'number'
+            ? `Checkout FS: ${result.checkout_full_service}`
             : null,
           result.today ? `Today (SAST): ${result.today}` : null,
         ]
@@ -147,12 +139,15 @@ export function HousekeepingTab({ businessId }: Props) {
     { id: 'all', label: 'All' },
   ];
 
+  const readyCount = stats?.rooms_ready ?? stats?.rooms_clean ?? 0;
+  const notReadyCount = stats?.rooms_not_ready ?? stats?.rooms_dirty ?? 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Housekeeping</h2>
-          <p className="text-sm text-gray-500">Room-centric tasks from the intelligent schedule engine</p>
+          <p className="text-sm text-gray-500">Room readiness workflow · intelligent schedule engine</p>
         </div>
         <button
           type="button"
@@ -168,8 +163,8 @@ export function HousekeepingTab({ businessId }: Props) {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {(
             [
-              ['Clean', stats.rooms_clean, 'bg-green-50 text-green-800'],
-              ['Dirty', stats.rooms_dirty, 'bg-red-50 text-red-800'],
+              ['Ready', readyCount, 'bg-green-50 text-green-800'],
+              ['Not Ready', notReadyCount, 'bg-orange-50 text-orange-800'],
               ['Refresh Due', stats.refresh_due, 'bg-yellow-50 text-yellow-800'],
               ['Full Service Due', stats.full_service_due, 'bg-blue-50 text-blue-800'],
               ['Done Today', stats.completed_today, 'bg-emerald-50 text-emerald-800'],

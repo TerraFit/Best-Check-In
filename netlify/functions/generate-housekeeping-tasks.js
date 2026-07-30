@@ -1,9 +1,7 @@
 // netlify/functions/generate-housekeeping-tasks.js
 // Cost-neutral Intelligent Stay Optimisation.
-// Generate focuses on TODAY's operational tasks:
-//   - checkout today  → Full Service (Checkout)
-//   - stayover today  → Refresh or Full Service per optimiser
-// Checkout and stayover are independent paths.
+// Generate focuses on TODAY's operational tasks.
+// Room readiness: task creation → not_ready (until Start → Cleaning → Inspection → Ready).
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -36,12 +34,6 @@ function calculateStayLength(checkIn, checkOut) {
   const a = parseDate(checkIn);
   const b = parseDate(checkOut);
   return Math.max(0, Math.round((b - a) / (1000 * 60 * 60 * 24)));
-}
-
-function stayNightForDate(checkIn, checkOut, scheduledDate, isCheckout) {
-  const nights = calculateStayLength(checkIn, checkOut);
-  if (isCheckout) return Math.max(1, nights);
-  return Math.max(1, calculateStayLength(checkIn, scheduledDate));
 }
 
 function calculateMaximumLinenAge(policy, settings) {
@@ -99,10 +91,6 @@ function calculateOptimalFullServiceNights(stayLength, policy, settings) {
   return fs;
 }
 
-/**
- * Full multi-night schedule (used for future planning on regenerate).
- * stay_night N is scheduled on check_in + N days.
- */
 function generateSchedule(checkIn, checkOut, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
@@ -144,24 +132,15 @@ function generateSchedule(checkIn, checkOut, policy, settings) {
   return tasks;
 }
 
-/**
- * Decide today's single operational task for a booking.
- * Independent paths:
- *   checkout today → Full Service (Checkout)
- *   stayover (check_in < today < check_out) → Refresh or Full Service
- *   arrival day only / outside stay → null
- */
 function serviceForToday(checkIn, checkOut, todayStr, policy, settings) {
   const checkInDate = String(checkIn).slice(0, 10);
   const checkOutDate = String(checkOut).slice(0, 10);
   if (!checkInDate || !checkOutDate) return null;
 
-  // Outside stay window
   if (todayStr < checkInDate || todayStr > checkOutDate) return null;
 
   const stayLength = calculateStayLength(checkInDate, checkOutDate);
 
-  // PATH A — Checkout today (mandatory Full Service)
   if (todayStr === checkOutDate) {
     return {
       scheduled_date: todayStr,
@@ -172,11 +151,8 @@ function serviceForToday(checkIn, checkOut, todayStr, policy, settings) {
     };
   }
 
-  // PATH B — Stayover: in-house, not arrival day, not checkout day
-  // Arrival day (today === check_in): no mid-stay service yet
   if (todayStr === checkInDate) return null;
 
-  // stay_night = nights elapsed since check-in (same as optimiser index)
   const stayNight = calculateStayLength(checkInDate, todayStr);
   if (stayNight < 1 || stayNight >= stayLength) return null;
 
@@ -260,6 +236,9 @@ class InsertError extends Error {
     );
   }
 }
+
+/** Statuses that mean staff already own the room — do not overwrite */
+const IN_WORKFLOW = ['cleaning_in_progress', 'awaiting_inspection'];
 
 exports.handler = async (event) => {
   const headers = {
@@ -360,10 +339,6 @@ exports.handler = async (event) => {
       });
     }
 
-    /**
-     * Cancel pending/in_progress tasks for this booking (and room orphans)
-     * from today onwards. Completed / historical before today are preserved.
-     */
     async function clearOpenTasksFromToday(booking, resolved) {
       let removed = 0;
       let skippedHistorical = 0;
@@ -428,7 +403,6 @@ exports.handler = async (event) => {
     const policy = settings.policy || 'standard';
     const todayStr = todayInJohannesburg();
 
-    // Fetch bookings that may need today's housekeeping
     let bookingQuery =
       `bookings?business_id=eq.${businessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;
     if (bookingId) bookingQuery += `&id=eq.${bookingId}`;
@@ -504,27 +478,41 @@ exports.handler = async (event) => {
       };
     }
 
-    async function ensureCheckoutDirtyState(booking, resolved) {
+    /** Checkout → Departure Pending + Not Ready (unless already in HK workflow) */
+    async function ensureCheckoutNotReady(booking, resolved) {
       const roomRes = await fetch(
         `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status`,
         { headers: restGet }
       );
       const roomRows = roomRes.ok ? await roomRes.json() : [];
       const hk = roomRows[0]?.housekeeping_status;
-      const inWorkflow = ['cleaning_in_progress', 'awaiting_inspection'].includes(hk);
+      const inWorkflow = IN_WORKFLOW.includes(hk);
 
       if (!inWorkflow) {
         await patchRoom(resolved.room_id, {
           occupancy_status: 'departure_pending',
-          housekeeping_status: 'dirty',
+          housekeeping_status: 'not_ready',
         });
       }
 
-      return { markedDirty: !inWorkflow };
+      return { markedNotReady: !inWorkflow };
+    }
+
+    /** Stayover task → Not Ready (unless already in HK workflow) */
+    async function ensureStayoverNotReady(resolved) {
+      const roomRes = await fetch(
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
+        { headers: restGet }
+      );
+      const rr = roomRes.ok ? await roomRes.json() : [];
+      const current = rr[0]?.housekeeping_status;
+      if (IN_WORKFLOW.includes(current)) return;
+      // also protect legacy dirty if staff somehow mid-workflow without new status
+      if (current === 'cleaning_in_progress' || current === 'awaiting_inspection') return;
+      await patchRoom(resolved.room_id, { housekeeping_status: 'not_ready' });
     }
 
     async function taskAlreadyExists(roomIdVal, scheduledDate, taskType, isCheckout) {
-      // Block only completed (history) or still-open same type
       const res = await fetch(
         `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&room_id=eq.${roomIdVal}&scheduled_date=eq.${scheduledDate}&task_type=eq.${taskType}&is_checkout=eq.${isCheckout}&status=in.(pending,in_progress,completed)&select=id`,
         { headers: restGet }
@@ -546,7 +534,7 @@ exports.handler = async (event) => {
     let skippedStatus = 0;
     let skippedNoDates = 0;
     let skippedOutsideWindow = 0;
-    let roomsMarkedDirty = 0;
+    let roomsMarkedNotReady = 0;
 
     const insertedKeys = new Set();
 
@@ -564,7 +552,6 @@ exports.handler = async (event) => {
       const checkInDate = String(booking.check_in_date).slice(0, 10);
       const checkOutDate = String(booking.check_out_date).slice(0, 10);
 
-      // Only care about bookings that touch today
       if (todayStr < checkInDate || todayStr > checkOutDate) {
         skippedOutsideWindow += 1;
         continue;
@@ -578,7 +565,6 @@ exports.handler = async (event) => {
 
       bookingsProcessed += 1;
 
-      // --- Clear stale open work when regenerating ---
       if (regenerate) {
         try {
           const cleared = await clearOpenTasksFromToday(booking, resolved);
@@ -589,7 +575,6 @@ exports.handler = async (event) => {
         }
       }
 
-      // --- TODAY operational task (primary path) ---
       const todayService = serviceForToday(
         checkInDate,
         checkOutDate,
@@ -616,7 +601,6 @@ exports.handler = async (event) => {
               todayService.is_checkout
             ));
 
-          // After regenerate, open tasks were cancelled; only skip completed history
           let skip = exists;
           if (regenerate) {
             const completedRes = await fetch(
@@ -644,8 +628,8 @@ exports.handler = async (event) => {
 
             if (todayService.kind === 'checkout') {
               checkoutFullService += 1;
-              const dirty = await ensureCheckoutDirtyState(booking, resolved);
-              if (dirty.markedDirty) roomsMarkedDirty += 1;
+              const result = await ensureCheckoutNotReady(booking, resolved);
+              if (result.markedNotReady) roomsMarkedNotReady += 1;
 
               await fetch(`${supabaseUrl}/rest/v1/room_events`, {
                 method: 'POST',
@@ -668,56 +652,25 @@ exports.handler = async (event) => {
                     stay_night: todayService.stay_night,
                     is_checkout: true,
                     policy,
+                    readiness: 'not_ready',
                   },
                 }),
               }).catch(() => {});
-            } else if (todayService.task_type === 'refresh') {
-              stayoverRefresh += 1;
-              const roomRes = await fetch(
-                `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
-                { headers: restGet }
-              );
-              const rr = roomRes.ok ? await roomRes.json() : [];
-              const current = rr[0]?.housekeeping_status;
-              if (
-                !['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)
-              ) {
-                await patchRoom(resolved.room_id, {
-                  housekeeping_status: 'refresh_required',
-                });
-              }
             } else {
-              stayoverFullService += 1;
-              const roomRes = await fetch(
-                `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
-                { headers: restGet }
-              );
-              const rr = roomRes.ok ? await roomRes.json() : [];
-              const current = rr[0]?.housekeeping_status;
-              if (
-                !['cleaning_in_progress', 'awaiting_inspection', 'dirty'].includes(current)
-              ) {
-                await patchRoom(resolved.room_id, {
-                  housekeeping_status: 'full_service_required',
-                });
-              }
+              if (todayService.task_type === 'refresh') stayoverRefresh += 1;
+              else stayoverFullService += 1;
+              await ensureStayoverNotReady(resolved);
+              roomsMarkedNotReady += 1;
             }
           }
         }
       }
 
-      // --- On regenerate, also seed future open tasks from optimiser ---
-      // (today already handled above; skip past and skip today to avoid dupes)
       if (regenerate) {
-        const schedule = generateSchedule(
-          checkInDate,
-          checkOutDate,
-          policy,
-          settings
-        );
+        const schedule = generateSchedule(checkInDate, checkOutDate, policy, settings);
         for (const slot of schedule) {
           const slotDate = String(slot.scheduled_date).slice(0, 10);
-          if (slotDate <= todayStr) continue; // past + today handled
+          if (slotDate <= todayStr) continue;
 
           const runKey = `${resolved.room_id}|${slotDate}|${slot.task_type}|${
             slot.is_checkout ? 'co' : 'mid'
@@ -753,6 +706,7 @@ exports.handler = async (event) => {
       `Stayover tasks created: Refresh: ${stayoverRefresh} · Full Service: ${stayoverFullService}`,
       `Checkout tasks created: Full Service (Checkout): ${checkoutFullService}`,
       `Total tasks created: ${created}`,
+      roomsMarkedNotReady > 0 ? `Rooms marked Not Ready: ${roomsMarkedNotReady}` : null,
       openTasksRemoved > 0 ? `Open tasks removed: ${openTasksRemoved}` : null,
     ]
       .filter(Boolean)
@@ -771,7 +725,8 @@ exports.handler = async (event) => {
         checkouts_considered: checkoutsConsidered,
         open_tasks_removed: openTasksRemoved,
         skipped_historical_tasks: skippedHistorical,
-        rooms_marked_dirty: roomsMarkedDirty,
+        rooms_marked_not_ready: roomsMarkedNotReady,
+        rooms_marked_dirty: roomsMarkedNotReady,
         bookings_matched: bookings.length,
         bookings_processed: bookingsProcessed,
         skipped_no_room: skippedNoRoom,
