@@ -14,15 +14,29 @@
 
 ---
 
+### PD-009 — Programme 1 Commercial Foundation runtime
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-30 |
+| **Decision** | Implement Programme 1: central package config, runtime feature registry (with lifecycle metadata), feature flags in entitlement/access layer, backend-first enforcement, temporary Netlify mirrors of config. No new commercial package meanings or list prices. |
+| **Reason** | SSOT for packages/permissions; backend as authority; flags and lifecycle for safe rollout. |
+| **Alternatives considered** | Frontend-only gates; delay flags until Programme 2. |
+| **Impact** | `src/config/*`, `netlify/functions/lib/*`, Billing/Upgrade/Reports consumers, export gates. Mirror sync is tracked debt. |
+| **Status** | Accepted — implementing |
+| **Future review** | 2026-09-30 |
+
+---
+
 ### PD-008 — Documentation First Principle
 
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-07-30 |
-| **Decision** | FastCheckIn is documentation-driven. No architectural, commercial, or user-facing feature may be implemented before relevant documentation is updated and approved. Feature PRs must include Feature Registry update, feature docs, package impact review, Product Decision (if applicable), and AI docs (if architecture changes). |
-| **Reason** | Keep documentation and codebase aligned; prevent agent/human drift on packages and behaviour. |
-| **Alternatives considered** | Docs-after-merge; optional docs in DoD only. |
-| **Impact** | Binding for humans and AI agents; encoded in `docs/AI/README.md`, Coding Rules, Adding Features, PR guidelines, and Definition of Done. |
+| **Decision** | FastCheckIn is documentation-driven. No architectural, commercial, or user-facing feature may be implemented before relevant documentation is updated and approved. |
+| **Reason** | Keep documentation and codebase aligned. |
+| **Alternatives considered** | Docs-after-merge. |
+| **Impact** | Binding for humans and AI agents. |
 | **Status** | Accepted |
 | **Future review** | 2027-01-30 |
 
@@ -34,9 +48,9 @@
 |-------|--------|
 | **Date** | 2026-07-30 |
 | **Decision** | FastCheckIn is positioned as a complete operational platform for independent hospitality, not only digital registration. |
-| **Reason** | Sustainable differentiation and ARPU expansion aligned with operator maturity. |
-| **Alternatives considered** | Stay check-in-only; pivot to full chain PMS. |
-| **Impact** | Roadmap includes Housekeeping, Lost & Found, multi-establishment, enterprise APIs. |
+| **Reason** | Sustainable differentiation and ARPU expansion. |
+| **Alternatives considered** | Stay check-in-only. |
+| **Impact** | Roadmap modules and multi-establishment. |
 | **Status** | Accepted |
 | **Future review** | 2027-01-30 |
 
@@ -48,9 +62,9 @@
 |-------|--------|
 | **Date** | 2026-07-30 |
 | **Decision** | Official packages: Starter, Growth, Pro, Business, Enterprise with JTBD progression. |
-| **Reason** | Clear commercial journey; avoids feature dumping into one tier. |
-| **Alternatives considered** | Room-count-only SKUs; freemium-only. |
-| **Impact** | Feature Registry and matrix must map every feature to a minimum package. |
+| **Reason** | Clear commercial journey. |
+| **Alternatives considered** | Room-count-only SKUs. |
+| **Impact** | Feature Registry maps every feature to a minimum package. |
 | **Status** | Accepted |
 | **Future review** | 2026-12-01 |
 
@@ -61,10 +75,10 @@
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-07-30 |
-| **Decision** | Business package is primarily **multi-establishment**, not only 16–20 rooms. |
-| **Reason** | Matches real hospitality group buying; differentiates from Pro. |
+| **Decision** | Business package is primarily multi-establishment, not only 16–20 rooms. |
+| **Reason** | Matches group buying; differentiates from Pro. |
 | **Alternatives considered** | Business as pure analytics tier. |
-| **Impact** | Requires establishments data model; current single-tenant analytics insufficient. |
+| **Impact** | Establishments data model required (not Programme 1). |
 | **Status** | Accepted (architecture gap open) |
 | **Future review** | 2026-10-30 |
 
@@ -76,9 +90,9 @@
 |-------|--------|
 | **Date** | 2026-07-30 |
 | **Decision** | Prefer soft-locks with educational upgrade UX; recommend next logical tier only. |
-| **Reason** | Conversion and trust; “Upgrade Required” alone is insufficient. |
-| **Alternatives considered** | Hard-hide premium nav; always upsell Enterprise. |
-| **Impact** | Design system for Upgrade Modal; shared permission helper. |
+| **Reason** | Conversion and trust. |
+| **Alternatives considered** | Hard-hide; always Enterprise. |
+| **Impact** | Upgrade modal from registry. |
 | **Status** | Accepted |
 | **Future review** | 2026-11-15 |
 
@@ -89,10 +103,10 @@
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-07-30 |
-| **Decision** | AI and analytics deepen by tier (basic → ops → recommendations → predictive → custom). |
-| **Reason** | Cost control and clear value narrative. |
+| **Decision** | AI and analytics deepen by tier. |
+| **Reason** | Cost control and value narrative. |
 | **Alternatives considered** | Binary AI on/off. |
-| **Impact** | Gemini usage must be scoped; analytics drill maps to Growth/Pro/Business. |
+| **Impact** | Geo limits by package. |
 | **Status** | Accepted |
 | **Future review** | 2026-12-01 |
 
@@ -103,10 +117,10 @@
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-07-30 |
-| **Decision** | `/docs` is the official knowledge base; Feature Registry is mandatory for features. |
-| **Reason** | Multi-agent and multi-contributor consistency. |
-| **Alternatives considered** | Wiki-only; code comments only. |
-| **Impact** | PRs that add package-scoped features must update docs. |
+| **Decision** | `/docs` is the official knowledge base; Feature Registry is mandatory. |
+| **Reason** | Multi-contributor consistency. |
+| **Alternatives considered** | Wiki-only. |
+| **Impact** | Feature PRs update docs. |
 | **Status** | Accepted |
 | **Future review** | 2027-01-30 |
 
@@ -117,13 +131,9 @@
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-07-30 |
-| **Decision** | Plan prices, limits, and feature gates must eventually live in one config surface; no divergent hard-coding. |
-| **Reason** | Current duplication causes ZAR/USD drift and inconsistent feature lists. |
-| **Alternatives considered** | Keep per-file copies. |
-| **Impact** | Refactor Billing, entitlementService, Netlify status, Upgrade modal. |
-| **Status** | Accepted (not yet implemented) |
+| **Decision** | Plan prices, limits, and feature gates live in one config surface; Netlify mirrors temporarily. |
+| **Reason** | Stop ZAR/USD and list drift. |
+| **Alternatives considered** | Per-file copies forever. |
+| **Impact** | Programme 1 config modules. |
+| **Status** | Accepted — in progress via PD-009 |
 | **Future review** | 2026-09-30 |
-
----
-
-*Add new decisions above PD-001 in reverse chronological order within the same format (PD-008 is the latest).*
