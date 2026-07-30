@@ -30,15 +30,20 @@ export async function fetchHousekeepingTasks(params: {
   if (params.status) qs.set('status', params.status);
   const res = await fetch(`/.netlify/functions/get-housekeeping-tasks?${qs}`);
   const data = await parseJson(res);
+  const raw = data.stats || {};
+  const roomsReady = raw.rooms_ready ?? raw.rooms_clean ?? 0;
+  const roomsNotReady = raw.rooms_not_ready ?? raw.rooms_dirty ?? 0;
   return {
     tasks: data.tasks || [],
-    stats: data.stats || {
-      rooms_clean: 0,
-      rooms_dirty: 0,
-      refresh_due: 0,
-      full_service_due: 0,
-      completed_today: 0,
-      overdue: 0,
+    stats: {
+      rooms_ready: roomsReady,
+      rooms_not_ready: roomsNotReady,
+      rooms_clean: roomsReady,
+      rooms_dirty: roomsNotReady,
+      refresh_due: raw.refresh_due ?? 0,
+      full_service_due: raw.full_service_due ?? 0,
+      completed_today: raw.completed_today ?? 0,
+      overdue: raw.overdue ?? 0,
     },
     today: data.today,
   };
@@ -57,7 +62,7 @@ export async function generateHousekeepingTasks(payload: {
   stayovers_considered?: number;
   checkouts_considered?: number;
   open_tasks_removed?: number;
-  rooms_marked_dirty?: number;
+  rooms_marked_not_ready?: number;
   policy?: string;
   message?: string;
   today?: string;
