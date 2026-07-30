@@ -1,6 +1,7 @@
 // src/services/housekeepingScheduleEngine.ts
-// Intelligent Housekeeping Scheduling Engine — pure functions, no I/O
-// Checkout Full Service is independent of mid-stay Refresh schedule.
+// Intelligent Stay Optimisation Algorithm (approved Phase 2)
+// Stage 1: calculateOptimalFullServiceNights(stayLength, policy)
+// Stage 2: assign Full Service / Refresh from that set + mandatory Checkout FS
 
 import type {
   HousekeepingPolicy,
@@ -27,111 +28,88 @@ function addDays(iso: string, days: number): string {
   return formatDate(d);
 }
 
-/** Number of nights between check-in and check-out. */
 export function calculateStayLength(checkIn: string, checkOut: string): number {
   const a = parseDate(checkIn);
   const b = parseDate(checkOut);
-  const ms = b.getTime() - a.getTime();
-  return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-interface NightService {
-  nightIndex: number;
-  task_type: HousekeepingTaskType;
-}
-
-export function determineOptimalServiceNights(
-  nights: number,
-  policy: HousekeepingPolicy,
-  settings?: Pick<
-    HousekeepingSettings,
-    'custom_refresh_interval' | 'custom_full_interval'
-  >
-): NightService[] {
-  if (nights <= 2) return [];
-
-  if (policy === 'premium') {
-    const out: NightService[] = [];
-    for (let n = 1; n < nights; n++) {
-      out.push({ nightIndex: n, task_type: 'full_service' });
-    }
-    return out;
-  }
-
+function maxLinenAge(policy: HousekeepingPolicy, settings?: HousekeepingSettings): number {
+  if (policy === 'eco') return 5;
+  if (policy === 'standard') return 3;
   if (policy === 'custom') {
-    return determineCustomNights(nights, settings);
+    return Math.max(1, settings?.custom_full_interval ?? 3);
   }
-
-  return determineIntelligentNights(nights, policy);
-}
-
-function determineCustomNights(
-  nights: number,
-  settings?: Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'>
-): NightService[] {
-  const refreshEvery = Math.max(1, settings?.custom_refresh_interval ?? 2);
-  const fullEvery = Math.max(1, settings?.custom_full_interval ?? 3);
-  const out: NightService[] = [];
-  const used = new Set<number>();
-
-  for (let n = fullEvery; n < nights; n += fullEvery) {
-    out.push({ nightIndex: n, task_type: 'full_service' });
-    used.add(n);
-  }
-  for (let n = refreshEvery; n < nights; n += refreshEvery) {
-    if (!used.has(n)) {
-      out.push({ nightIndex: n, task_type: 'refresh' });
-      used.add(n);
-    }
-  }
-  return out.sort((a, b) => a.nightIndex - b.nightIndex);
-}
-
-function determineIntelligentNights(
-  nights: number,
-  policy: 'eco' | 'standard'
-): NightService[] {
-  const out: NightService[] = [];
-  const maxGap = policy === 'eco' ? 3 : 2;
-  let lastServiceNight = 0;
-  let lastFullNight = 0;
-
-  for (let night = 1; night < nights; night++) {
-    const remainingAfter = nights - night;
-    if (remainingAfter <= 0) continue;
-
-    const gap = night - lastServiceNight;
-    const forceNearEnd = remainingAfter === 1 && gap >= Math.ceil(maxGap / 2) && nights >= 4;
-
-    if (gap < maxGap && !forceNearEnd) continue;
-
-    let task_type: HousekeepingTaskType = 'refresh';
-
-    if (policy === 'eco') {
-      if (night - lastFullNight >= 4 && nights >= 5) {
-        task_type = 'full_service';
-      }
-    } else {
-      const isMidpoint =
-        Math.abs(night - nights / 2) <= 1 || gap >= maxGap;
-      if (isMidpoint && nights >= 4) {
-        task_type = 'full_service';
-      } else if (night - lastFullNight >= 3) {
-        task_type = 'full_service';
-      }
-    }
-
-    out.push({ nightIndex: night, task_type });
-    lastServiceNight = night;
-    if (task_type === 'full_service') lastFullNight = night;
-  }
-
-  return out;
+  // premium: every night FS — age unused
+  return 1;
 }
 
 /**
- * Full schedule for a stay.
- * Checkout Full Service does NOT depend on mid-stay services existing.
+ * Stage 1 — optimal Full Service night indices (1 .. stayLength-1).
+ * Checkout night is never included (handled separately as Checkout FS).
+ * Never places FS on stayLength-1 when avoidable (linen change day before departure).
+ */
+export function calculateOptimalFullServiceNights(
+  stayLength: number,
+  policy: HousekeepingPolicy,
+  settings?: HousekeepingSettings
+): number[] {
+  if (stayLength <= 1) return [];
+
+  if (policy === 'premium') {
+    const out: number[] = [];
+    for (let n = 1; n < stayLength; n++) out.push(n);
+    return out;
+  }
+
+  const maxAge = maxLinenAge(policy, settings);
+  if (stayLength <= maxAge) return [];
+
+  const segments = Math.ceil(stayLength / maxAge);
+  const needed = segments - 1;
+  if (needed <= 0) return [];
+
+  const fs: number[] = [];
+
+  if (needed === 1) {
+    // Single FS: keep start/end gaps ≤ maxAge, prefer centre
+    let pos = Math.round(stayLength / 2);
+    pos = Math.min(maxAge, Math.max(stayLength - maxAge, pos));
+    if (pos === stayLength - 1) pos = stayLength - 2;
+    if (pos >= 1 && pos < stayLength) return [pos];
+    return [];
+  }
+
+  for (let i = 1; i <= needed; i++) {
+    let pos = Math.round((i * stayLength) / (needed + 1));
+    const alternate = i * maxAge;
+    if (Math.abs(alternate - pos) <= 1 && alternate > 0 && alternate < stayLength) {
+      pos = alternate;
+    }
+    if (pos === stayLength - 1) pos = pos - 1;
+
+    const prev = fs.length ? fs[fs.length - 1] : 0;
+    if (pos - prev > maxAge) pos = prev + maxAge;
+    if (pos === stayLength - 1) pos = pos - 1;
+    if (pos > prev && pos < stayLength) fs.push(pos);
+  }
+
+  let last = fs.length ? fs[fs.length - 1] : 0;
+  while (stayLength - last > maxAge) {
+    let pos = last + maxAge;
+    if (pos >= stayLength - 1) pos = stayLength - 2;
+    if (pos <= last) break;
+    fs.push(pos);
+    last = pos;
+  }
+
+  return fs;
+}
+
+/**
+ * Stage 2 — build full schedule from optimal FS nights.
+ * Every mid-stay night 1..stayLength-1 is either Full Service or Refresh.
+ * Checkout is always Full Service (is_checkout).
  */
 export function generateSchedule(
   checkIn: string,
@@ -143,53 +121,66 @@ export function generateSchedule(
   const checkOutDate = String(checkOut).slice(0, 10);
   if (!checkInDate || !checkOutDate) return [];
 
-  const nights = calculateStayLength(checkInDate, checkOutDate);
-  const tasks: ScheduledService[] = [];
-
-  if (nights > 0) {
-    const mid = determineOptimalServiceNights(nights, policy, settings);
-    for (const m of mid) {
-      tasks.push({
-        scheduled_date: addDays(checkInDate, m.nightIndex),
-        task_type: m.task_type,
-        is_checkout: false,
-        night_index: m.nightIndex,
-      });
-    }
+  const stayLength = calculateStayLength(checkInDate, checkOutDate);
+  if (stayLength <= 0) {
+    // Same-day edge: checkout FS only
+    return [
+      {
+        scheduled_date: checkOutDate,
+        task_type: 'full_service',
+        is_checkout: true,
+        night_index: 1,
+      },
+    ];
   }
 
-  const mandatoryCheckout = settings?.mandatory_checkout_fs !== false;
-  if (mandatoryCheckout || policy === 'premium') {
+  const fullServiceNights = new Set(
+    calculateOptimalFullServiceNights(stayLength, policy, settings)
+  );
+
+  const tasks: ScheduledService[] = [];
+
+  for (let stayNight = 1; stayNight < stayLength; stayNight++) {
+    const isFs = fullServiceNights.has(stayNight);
     tasks.push({
-      scheduled_date: checkOutDate,
-      task_type: 'full_service',
-      is_checkout: true,
-      night_index: nights,
+      scheduled_date: addDays(checkInDate, stayNight),
+      task_type: isFs ? 'full_service' : 'refresh',
+      is_checkout: false,
+      night_index: stayNight,
     });
   }
 
-  const byDate = new Map<string, ScheduledService>();
-  for (const t of tasks) {
-    const existing = byDate.get(t.scheduled_date);
-    if (!existing) {
-      byDate.set(t.scheduled_date, t);
-      continue;
-    }
-    if (t.is_checkout || (t.task_type === 'full_service' && existing.task_type === 'refresh')) {
-      byDate.set(t.scheduled_date, t);
-    }
-  }
+  // Permanent rule: checkout is always Full Service (Checkout)
+  tasks.push({
+    scheduled_date: checkOutDate,
+    task_type: 'full_service',
+    is_checkout: true,
+    night_index: stayLength,
+  });
 
-  return Array.from(byDate.values()).sort((a, b) =>
-    a.scheduled_date.localeCompare(b.scheduled_date)
-  );
+  return tasks;
 }
 
 export function taskTypeLabel(type: HousekeepingTaskType, isCheckout?: boolean): string {
-  if (isCheckout) return '🧺 Checkout Full Service';
+  if (isCheckout) return '🧺 Full Service (Checkout)';
   return type === 'full_service' ? '🧺 Full Service' : '✨ Refresh';
 }
 
 export function taskTypeShortLabel(type: HousekeepingTaskType): string {
   return type === 'full_service' ? '🧺 Full Service' : '✨ Refresh';
+}
+
+/** @deprecated kept for any external imports — use calculateOptimalFullServiceNights */
+export function determineOptimalServiceNights(
+  nights: number,
+  policy: HousekeepingPolicy,
+  settings?: Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'>
+): { nightIndex: number; task_type: HousekeepingTaskType }[] {
+  const fs = calculateOptimalFullServiceNights(nights, policy, settings as HousekeepingSettings);
+  const set = new Set(fs);
+  const out: { nightIndex: number; task_type: HousekeepingTaskType }[] = [];
+  for (let n = 1; n < nights; n++) {
+    out.push({ nightIndex: n, task_type: set.has(n) ? 'full_service' : 'refresh' });
+  }
+  return out;
 }
