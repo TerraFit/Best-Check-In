@@ -8,6 +8,18 @@ This documentation is the primary reference for product management, engineering,
 
 ---
 
+## Documentation First Principle
+
+FastCheckIn is a **documentation-driven** project.
+
+No architectural, commercial, or user-facing feature may be implemented before the relevant documentation has been updated and approved.
+
+Feature pull requests must include: Feature Registry update · feature documentation · package impact review · Product Decision (if applicable) · AI documentation (if architecture changes).
+
+Full statement: [AI/README.md — Documentation First Principle](./AI/README.md#documentation-first-principle).
+
+---
+
 ## Quick start by role
 
 | Role | Start here |
@@ -74,4 +86,4 @@ When docs conflict with code, treat **Approved Direction** (Product Spec + Produ
 
 ---
 
-*Documentation framework v1.0 · July 2026*
+*Documentation framework v1.0 · July 2026 · Documentation First Principle adopted PD-008*

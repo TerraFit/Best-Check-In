@@ -14,6 +14,20 @@
 
 ---
 
+### PD-008 — Documentation First Principle
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-30 |
+| **Decision** | FastCheckIn is documentation-driven. No architectural, commercial, or user-facing feature may be implemented before relevant documentation is updated and approved. Feature PRs must include Feature Registry update, feature docs, package impact review, Product Decision (if applicable), and AI docs (if architecture changes). |
+| **Reason** | Keep documentation and codebase aligned; prevent agent/human drift on packages and behaviour. |
+| **Alternatives considered** | Docs-after-merge; optional docs in DoD only. |
+| **Impact** | Binding for humans and AI agents; encoded in `docs/AI/README.md`, Coding Rules, Adding Features, PR guidelines, and Definition of Done. |
+| **Status** | Accepted |
+| **Future review** | 2027-01-30 |
+
+---
+
 ### PD-001 — Product becomes operational platform
 
 | Field | Value |
@@ -112,4 +126,4 @@
 
 ---
 
-*Add new decisions above this line in reverse chronological order within the same format.*
+*Add new decisions above PD-001 in reverse chronological order within the same format (PD-008 is the latest).*

@@ -1,5 +1,7 @@
 # Coding Rules (for agents)
 
+0. **Documentation First** — Do not implement architectural, commercial, or user-facing features until the relevant docs are updated (Feature Registry, feature doc, package impact; Product Decision / AI docs when applicable). See [README.md](./README.md).
+
 1. **No application drive-by refactors** unless requested.  
 2. **No secrets** in source.  
 3. **Tenant isolation** on every query.  

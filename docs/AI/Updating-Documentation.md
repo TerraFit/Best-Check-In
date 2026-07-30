@@ -1,10 +1,22 @@
 # Updating Documentation
 
-When behaviour changes, update:
+Under the **Documentation First Principle**, documentation is not optional cleanup after code.
+
+## Before implementation
+
+Update (as applicable):
 
 - Feature Registry row  
-- Feature doc  
-- Architecture doc if structural  
-- Version history if release-worthy  
+- Feature doc under `docs/FEATURES/`  
+- Package impact notes  
+- Product Decision (commercial / architecture policy)  
+- AI governance docs (if agent or permission rules change)  
 
-Docs PRs may ship without code; code PRs with product impact should not ship without docs.
+## With implementation
+
+- Keep the same PR (or linked PR pair) so reviewers can approve docs + code together.  
+- Version history / release notes when release-worthy.  
+
+## Docs-only changes
+
+Allowed and encouraged. Code-only product changes without docs are **out of process**.
