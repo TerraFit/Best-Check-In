@@ -1,6 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BusinessInfoCard, TodayActivityCards, QuickActions } from '../../components/dashboard';
 import GuestDetailsModal from '../../components/dashboard/GuestDetailsModal';
+import { fetchRooms } from '../../services/roomApi';
+import {
+  deriveReadinessFromRoom,
+  readinessDotTone,
+  type ReadinessDotTone,
+} from '../../services/roomOperationalStateService';
+import type { Room } from '../../types/room';
 
 interface OverviewTabProps {
   business: any;
@@ -10,6 +17,24 @@ interface OverviewTabProps {
   businessId: string;
   onShowQRModal: () => void;
   onShowImportModal: () => void;
+}
+
+function resolveReadinessTone(
+  guest: any,
+  rooms: Room[]
+): ReadinessDotTone | null {
+  if (!rooms.length) return null;
+  const room =
+    rooms.find((r) => guest.room_id && r.id === guest.room_id) ||
+    rooms.find(
+      (r) =>
+        guest.room_number !== null &&
+        guest.room_number !== undefined &&
+        guest.room_number !== '' &&
+        Number(r.room_number) === Number(guest.room_number)
+    );
+  if (!room) return null;
+  return readinessDotTone(deriveReadinessFromRoom(room));
 }
 
 export function OverviewTab({
@@ -23,19 +48,26 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [rooms, setRooms] = useState<Room[]>([]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    fetchRooms(businessId, { includeInactive: true })
+      .then(setRooms)
+      .catch(() => setRooms([]));
+  }, [businessId]);
 
   const handleGuestClick = (bookingId: string) => {
     setSelectedBookingId(bookingId);
     setIsModalOpen(true);
   };
 
-  // ✅ Wrap guests with click handler and preserve all data including food_restrictions
-  const wrapGuestCards = (guests: any[]) => {
-    return guests.map((guest: any) => ({
-      ...guest,  // ✅ Preserve all guest data including food_restrictions
-      onClick: () => handleGuestClick(guest.id)
+  const wrapGuestCards = (guests: any[]) =>
+    guests.map((guest: any) => ({
+      ...guest,
+      readinessTone: resolveReadinessTone(guest, rooms),
+      onClick: () => handleGuestClick(guest.id),
     }));
-  };
 
   return (
     <>

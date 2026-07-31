@@ -1,9 +1,15 @@
 // src/services/roomDisplayService.ts
-// Presentation helpers for rooms — no API calls
-// Readiness legend: Ready / Not Ready / Cleaning / Inspection / Maintenance / DND
+// Presentation helpers — readiness colours/labels delegate to operational state where possible.
 
 import type { Room, HousekeepingStatus, OccupancyStatus, AvailabilityStatus } from '../types/room';
 import { normalizeReadiness } from '../types/room';
+import {
+  deriveReadinessFromRoom,
+  readinessLabel as opReadinessLabel,
+  readinessDotTone,
+  type ReadinessDotTone,
+  type DerivedOccupancy,
+} from './roomOperationalStateService';
 
 /** Display name is never stored — always computed. */
 export function getRoomDisplayName(
@@ -14,43 +20,19 @@ export function getRoomDisplayName(
   return `Room ${room.room_number}`;
 }
 
-/** Stable internal code for integrations (immutable after create). */
 export function buildRoomCode(businessId: string, roomNumber: number): string {
   const short = businessId.replace(/-/g, '').slice(0, 8).toUpperCase();
   return `R-${short}-${String(roomNumber).padStart(3, '0')}`;
 }
 
-/**
- * Operational colour key for rooms (readiness-first).
- * Green  = Ready
- * Orange = Not Ready
- * Yellow = Cleaning in Progress
- * Blue   = Awaiting Inspection
- * Purple = Do Not Disturb
- * Grey   = Maintenance / inactive / out of order
- */
-export type RoomCardTone = 'green' | 'orange' | 'yellow' | 'blue' | 'purple' | 'grey';
+/** @deprecated prefer ReadinessDotTone from roomOperationalStateService */
+export type RoomCardTone = ReadinessDotTone;
 
 export function getRoomCardTone(room: Pick<
   Room,
   'availability_status' | 'occupancy_status' | 'housekeeping_status' | 'active'
 >): RoomCardTone {
-  if (!room.active || room.availability_status === 'out_of_order' || room.availability_status === 'maintenance') {
-    return 'grey';
-  }
-  if (room.availability_status === 'unavailable') {
-    return 'grey';
-  }
-
-  const readiness = normalizeReadiness(room.housekeeping_status);
-
-  if (readiness === 'do_not_disturb') return 'purple';
-  if (readiness === 'cleaning_in_progress') return 'yellow';
-  if (readiness === 'awaiting_inspection') return 'blue';
-  if (readiness === 'not_ready') return 'orange';
-  if (readiness === 'ready') return 'green';
-
-  return 'grey';
+  return readinessDotTone(deriveReadinessFromRoom(room));
 }
 
 export const ROOM_TONE_LABELS: Record<RoomCardTone, string> = {
@@ -62,7 +44,6 @@ export const ROOM_TONE_LABELS: Record<RoomCardTone, string> = {
   grey: 'Maintenance',
 };
 
-/** Tailwind classes for solid status pills */
 export function getRoomToneBadgeClasses(tone: RoomCardTone): string {
   const map: Record<RoomCardTone, string> = {
     green: 'bg-green-100 text-green-800 border-green-200',
@@ -75,7 +56,6 @@ export function getRoomToneBadgeClasses(tone: RoomCardTone): string {
   return map[tone];
 }
 
-/** Left border accent for rows / cards */
 export function getRoomToneBorderClass(tone: RoomCardTone): string {
   const map: Record<RoomCardTone, string> = {
     green: 'border-l-4 border-l-green-500',
@@ -88,7 +68,6 @@ export function getRoomToneBorderClass(tone: RoomCardTone): string {
   return map[tone];
 }
 
-/** Soft background for card surfaces */
 export function getRoomToneSurfaceClass(tone: RoomCardTone): string {
   const map: Record<RoomCardTone, string> = {
     green: 'bg-green-50/60',
@@ -101,7 +80,6 @@ export function getRoomToneSurfaceClass(tone: RoomCardTone): string {
   return map[tone];
 }
 
-/** Dot indicator colour */
 export function getRoomToneDotClass(tone: RoomCardTone): string {
   const map: Record<RoomCardTone, string> = {
     green: 'bg-green-500',
@@ -114,27 +92,37 @@ export function getRoomToneDotClass(tone: RoomCardTone): string {
   return map[tone];
 }
 
-/** Short human-readable status line: Occupancy · Readiness */
+function occupancyDisplayLabel(
+  room: Pick<Room, 'occupancy_status'> & { derived_occupancy?: string }
+): string {
+  const derived = (room as { derived_occupancy?: DerivedOccupancy }).derived_occupancy;
+  if (derived) {
+    const map: Record<string, string> = {
+      vacant: 'Vacant',
+      reserved: 'Reserved',
+      arrival_today: 'Arrival Today',
+      occupied: 'Occupied',
+      departure_today: 'Departure Today',
+    };
+    return map[derived] || derived;
+  }
+  return formatOccupancyLabel(room.occupancy_status as OccupancyStatus);
+}
+
+/** Occupancy · Readiness — occupancy prefers live derived value from get-rooms */
 export function getRoomStatusSummary(room: Pick<
   Room,
   'active' | 'availability_status' | 'occupancy_status' | 'housekeeping_status' | 'unavailable_reason'
->): string {
+> & { derived_occupancy?: string }): string {
   if (!room.active || room.availability_status === 'unavailable') {
     return room.unavailable_reason || formatAvailabilityLabel(room.availability_status as AvailabilityStatus);
   }
   if (room.availability_status === 'out_of_order' || room.availability_status === 'maintenance') {
     return formatAvailabilityLabel(room.availability_status);
   }
-  const occ = formatOccupancyLabel(room.occupancy_status as OccupancyStatus);
+  const occ = occupancyDisplayLabel(room);
   const hk = formatHousekeepingLabel(room.housekeeping_status as HousekeepingStatus);
-  if (
-    room.occupancy_status === 'occupied' ||
-    room.occupancy_status === 'departure_pending' ||
-    room.occupancy_status === 'reserved'
-  ) {
-    return `${occ} · ${hk}`;
-  }
-  return hk;
+  return `${occ} · ${hk}`;
 }
 
 export function formatOccupancyLabel(status: OccupancyStatus): string {
@@ -148,15 +136,17 @@ export function formatOccupancyLabel(status: OccupancyStatus): string {
 }
 
 export function formatHousekeepingLabel(status: HousekeepingStatus): string {
-  const readiness = normalizeReadiness(status);
-  const map: Record<string, string> = {
-    ready: 'Ready',
-    not_ready: 'Not Ready',
-    cleaning_in_progress: 'Cleaning in Progress',
-    awaiting_inspection: 'Awaiting Inspection',
-    do_not_disturb: 'Do Not Disturb',
-  };
-  return map[readiness] || status;
+  return opReadinessLabel(normalizeReadiness(status) === 'do_not_disturb'
+    ? 'do_not_disturb'
+    : normalizeReadiness(status) === 'cleaning_in_progress'
+      ? 'cleaning_in_progress'
+      : normalizeReadiness(status) === 'awaiting_inspection'
+        ? 'awaiting_inspection'
+        : normalizeReadiness(status) === 'not_ready'
+          ? 'not_ready'
+          : normalizeReadiness(status) === 'ready'
+            ? 'ready'
+            : 'ready');
 }
 
 export function formatAvailabilityLabel(status: AvailabilityStatus): string {

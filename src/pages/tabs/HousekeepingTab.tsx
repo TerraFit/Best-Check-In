@@ -1,5 +1,5 @@
 // Staff / business Housekeeping workflow
-// Stats use readiness: Ready / Not Ready (not Clean / Dirty)
+// Counters: readiness from rooms; Due counts = today's open tasks only
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
@@ -58,23 +58,7 @@ export function HousekeepingTab({ businessId }: Props) {
         businessId,
         regenerate: true,
       });
-      const detail =
-        result.message ||
-        [
-          typeof result.bookings_processed === 'number'
-            ? `Bookings processed: ${result.bookings_processed}`
-            : null,
-          typeof result.stayover_refresh === 'number'
-            ? `Stayover Refresh: ${result.stayover_refresh}`
-            : null,
-          typeof result.checkout_full_service === 'number'
-            ? `Checkout FS: ${result.checkout_full_service}`
-            : null,
-          result.today ? `Today (SAST): ${result.today}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-      setMessage(detail || `Generated ${result.created ?? 0} task(s).`);
+      setMessage(result.message || `Generated ${result.created ?? 0} task(s).`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generate failed');
@@ -147,7 +131,7 @@ export function HousekeepingTab({ businessId }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Housekeeping</h2>
-          <p className="text-sm text-gray-500">Room readiness workflow · intelligent schedule engine</p>
+          <p className="text-sm text-gray-500">Room readiness · today's operational tasks</p>
         </div>
         <button
           type="button"
@@ -262,7 +246,8 @@ export function HousekeepingTab({ businessId }: Props) {
                     </span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Scheduled: <span className="font-medium text-gray-700">{task.scheduled_date}</span>
+                    Scheduled:{' '}
+                    <span className="font-medium text-gray-700">{task.scheduled_date}</span>
                     {' · '}
                     Priority: <span className="capitalize">{task.priority}</span>
                   </p>
