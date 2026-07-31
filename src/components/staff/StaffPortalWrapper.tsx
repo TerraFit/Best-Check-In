@@ -155,7 +155,6 @@ export function StaffPortalWrapper({
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        const errorText = await response.text();
         setFetchError(`Failed to fetch: ${response.status} ${response.statusText}`);
         setAuditLogs([]);
         return;
@@ -190,7 +189,6 @@ export function StaffPortalWrapper({
     }
   }, [business.id, checkForNewLogs, setLastViewed]);
 
-  // Mount once per business.id — do NOT depend on fetchAuditLogs identity
   useEffect(() => {
     if (isEmployee || !business.id) return;
 
@@ -205,7 +203,7 @@ export function StaffPortalWrapper({
         pollIntervalRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-run when business changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [business.id, isEmployee]);
 
   const handleTabChange = useCallback(
@@ -235,6 +233,10 @@ export function StaffPortalWrapper({
     setShowPopup(false);
     handleTabChange('audit');
   }, [handleTabChange]);
+
+  const openEmployeePortal = useCallback(() => {
+    window.open('/employee/login', '_blank', 'noopener,noreferrer');
+  }, []);
 
   if (isEmployee) {
     return (
@@ -287,6 +289,30 @@ export function StaffPortalWrapper({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Employee Portal entry — dedicated login for staff daily work */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-2xl flex-shrink-0">
+            👷
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-stone-950">Employee Portal</h2>
+            <p className="text-sm text-stone-600 mt-1 max-w-xl">
+              Employees log in here to perform their daily work — housekeeping tasks, check-ins,
+              and room operations according to their role.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={openEmployeePortal}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 hover:bg-stone-800 text-white font-bold text-sm rounded-xl shadow-md transition-colors whitespace-nowrap flex-shrink-0"
+        >
+          Open Employee Portal
+          <span aria-hidden>→</span>
+        </button>
       </div>
 
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
