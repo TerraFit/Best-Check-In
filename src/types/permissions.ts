@@ -396,7 +396,6 @@ export const EMPLOYEE_MENU_ITEMS: EmployeeMenuItem[] = [
   { id: 'todays_tasks', label: "Today's Tasks", icon: '🧹', required: 'canViewHousekeeping' },
   { id: 'my_rooms', label: 'My Rooms', icon: '🏨', required: 'canViewHousekeeping' },
   { id: 'rooms', label: 'Rooms', icon: '🚪', required: ['canViewRooms', 'canAllocateRooms'] },
-  { id: 'guests', label: 'Guests', icon: '👤', required: 'canViewGuestDetails' },
   { id: 'laundry_queue', label: 'Laundry Queue', icon: '🧺', required: 'canViewLaundry' },
   { id: 'linen_inventory', label: 'Linen Inventory', icon: '🧵', required: 'canViewLaundry' },
   { id: 'maintenance', label: 'Maintenance', icon: '🔧', required: 'canViewMaintenance' },
