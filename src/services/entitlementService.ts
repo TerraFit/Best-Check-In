@@ -1,13 +1,12 @@
 // src/services/entitlementService.ts
 // Programme 1 finalisation: pricing from src/config/packages only
-
 import {
   SubscriptionEntitlement,
   BusinessSubscription,
   PlanType,
   PromotionCode,
 } from '../types/entitlements';
-import { getPackage, normalizePlanId, PACKAGES } from '../config/packages';
+import { getPackage, normalizePlanId } from '../config/packages';
 import { featuresForPackageDisplay } from '../config/featureRegistry';
 
 function planPricing(plan: PlanType): { monthly: number; yearly: number } {
@@ -15,7 +14,6 @@ function planPricing(plan: PlanType): { monthly: number; yearly: number } {
   return { monthly: pkg.priceMonthly, yearly: pkg.priceYearly };
 }
 
-/** Feature names for a plan from Feature Registry (display helper). */
 export function getPlanFeatureNames(plan: PlanType): string[] {
   return featuresForPackageDisplay(normalizePlanId(plan)).map((f) => f.name);
 }
@@ -35,13 +33,9 @@ export class EntitlementService {
         (e.lifetime || !e.endsAt || e.endsAt > now)
     );
 
-    const complimentary = activeEntitlements.find(
-      (e) => e.type === 'complimentary_plan'
-    );
+    const complimentary = activeEntitlements.find((e) => e.type === 'complimentary_plan');
     if (complimentary && complimentary.complimentaryPlan) {
-      const effectivePlan = normalizePlanId(
-        complimentary.complimentaryPlan
-      ) as PlanType;
+      const effectivePlan = normalizePlanId(complimentary.complimentaryPlan) as PlanType;
       return {
         businessId,
         billingPlan,
@@ -76,23 +70,20 @@ export class EntitlementService {
       };
     }
 
-    const pricing = planPricing(normalizePlanId(billingPlan) as PlanType);
+    const pricing = planPricing(billingPlan);
     let monthlyPrice = pricing.monthly;
     let yearlyPrice = pricing.yearly;
 
     const percentageDiscounts = activeEntitlements.filter(
       (e) => e.type === 'discount_percentage'
     );
-    const fixedDiscounts = activeEntitlements.filter(
-      (e) => e.type === 'discount_fixed'
-    );
+    const fixedDiscounts = activeEntitlements.filter((e) => e.type === 'discount_fixed');
 
     for (const discount of percentageDiscounts) {
       const multiplier = 1 - (discount.value || 0) / 100;
       monthlyPrice *= multiplier;
       yearlyPrice *= multiplier;
     }
-
     for (const discount of fixedDiscounts) {
       monthlyPrice = Math.max(0, monthlyPrice - (discount.value || 0));
       yearlyPrice = Math.max(0, yearlyPrice - (discount.value || 0) * 12);
@@ -106,8 +97,7 @@ export class EntitlementService {
     let validUntil: Date | undefined;
 
     const activeDiscounts = activeEntitlements.filter(
-      (e) =>
-        e.type === 'discount_percentage' || e.type === 'discount_fixed'
+      (e) => e.type === 'discount_percentage' || e.type === 'discount_fixed'
     );
     const earliestEnd = activeDiscounts
       .filter((e) => e.endsAt)
@@ -197,11 +187,7 @@ export class EntitlementService {
   validatePromoCode(
     code: string,
     businessId: string
-  ): {
-    valid: boolean;
-    entitlement?: SubscriptionEntitlement;
-    message?: string;
-  } {
+  ): { valid: boolean; entitlement?: SubscriptionEntitlement; message?: string } {
     const promo: PromotionCode = {
       code: 'EXPO2026',
       type: 'discount_percentage',
@@ -215,9 +201,7 @@ export class EntitlementService {
       notes: 'Expo 2026 special discount',
     };
 
-    if (!promo.isActive) {
-      return { valid: false, message: 'Promo code is inactive' };
-    }
+    if (!promo.isActive) return { valid: false, message: 'Promo code is inactive' };
     if (promo.expiresAt && promo.expiresAt < new Date()) {
       return { valid: false, message: 'Promo code has expired' };
     }
@@ -274,13 +258,3 @@ export class EntitlementService {
 }
 
 export const entitlementService = new EntitlementService();
-
-/** @deprecated use getPackage from config — retained for import safety */
-export function getPlanPricingSnapshot() {
-  return Object.fromEntries(
-    Object.values(PACKAGES).map((p) => [
-      p.id,
-      { monthly: p.priceMonthly, yearly: p.priceYearly },
-    ])
-  );
-}
