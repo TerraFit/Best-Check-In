@@ -123,9 +123,7 @@ export async function uploadLostFoundPhotos(params: {
 export async function createLostFoundItem(
   payload: CreateLostFoundPayload
 ): Promise<LostFoundItem> {
-  if (!payload.photo_urls || payload.photo_urls.length === 0) {
-    throw new Error('At least one photo is required');
-  }
+  // Photos optional — may be empty array or omitted
   const res = await fetch('/.netlify/functions/create-lost-found-item', {
     method: 'POST',
     headers: authHeaders(),

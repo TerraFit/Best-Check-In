@@ -1,6 +1,5 @@
 // netlify/functions/update-lost-found-item.js
-// Update item fields / status; write activity + audit on status change
-// RBAC: canEditLostFound (or canDisposeLostFound for archive/unclaimed)
+// Update item fields / status; write activity + audit on status change / photo changes
 
 async function writeAudit(supabaseUrl, key, entry) {
   try {
@@ -17,6 +16,10 @@ async function writeAudit(supabaseUrl, key, entry) {
   } catch (e) {
     console.warn('audit log failed', e.message);
   }
+}
+
+function photoCount(urls) {
+  return Array.isArray(urls) ? urls.filter(Boolean).length : 0;
 }
 
 exports.handler = async (event) => {
@@ -60,7 +63,6 @@ exports.handler = async (event) => {
       Prefer: 'return=representation',
     };
 
-    // Load current
     const curRes = await fetch(
       `${supabaseUrl}/rest/v1/lost_and_found?id=eq.${itemId}&business_id=eq.${businessId}&select=*`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
@@ -107,7 +109,10 @@ exports.handler = async (event) => {
     const empId = body.employee_id || null;
     const empName = body.employee_name || null;
 
-    // Status change activity
+    const photosChanged =
+      body.photo_urls !== undefined &&
+      JSON.stringify(body.photo_urls || []) !== JSON.stringify(current.photo_urls || []);
+
     if (body.status && body.status !== current.status) {
       await fetch(`${supabaseUrl}/rest/v1/lost_and_found_activity`, {
         method: 'POST',
@@ -121,7 +126,12 @@ exports.handler = async (event) => {
           {
             business_id: businessId,
             item_id: itemId,
-            event_type: body.status === 'archived' ? 'archived' : body.status === 'returned' || body.status === 'collected' ? 'returned' : 'status_change',
+            event_type:
+              body.status === 'archived'
+                ? 'archived'
+                : body.status === 'returned' || body.status === 'collected'
+                  ? 'returned'
+                  : 'status_change',
             employee_id: empId,
             employee_name: empName,
             from_status: current.status,
@@ -139,6 +149,49 @@ exports.handler = async (event) => {
         action: 'lost_found_status_change',
         description: `Lost & Found ${current.tag_number || itemId}: ${current.status} → ${body.status}`,
         details: { item_id: itemId, from: current.status, to: body.status },
+        booking_id: current.booking_id || null,
+        guest_name: current.guest_name || null,
+        created_at: new Date().toISOString(),
+      });
+    } else if (photosChanged) {
+      const prev = photoCount(current.photo_urls);
+      const next = photoCount(body.photo_urls);
+      const notes =
+        next > prev
+          ? `${next - prev} photo(s) added (${next} total)`
+          : next < prev
+            ? `Photos updated (${next} remaining, was ${prev})`
+            : `Photos updated (${next} total)`;
+
+      await fetch(`${supabaseUrl}/rest/v1/lost_and_found_activity`, {
+        method: 'POST',
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify([
+          {
+            business_id: businessId,
+            item_id: itemId,
+            event_type: 'photos_added',
+            employee_id: empId,
+            employee_name: empName,
+            notes,
+            details: { previous_count: prev, new_count: next },
+          },
+        ]),
+      });
+
+      await writeAudit(supabaseUrl, key, {
+        business_id: businessId,
+        user_id: empId || '00000000-0000-0000-0000-000000000000',
+        user_name: empName || 'System',
+        user_role: 'staff',
+        action: 'lost_found_photos_updated',
+        description: `Lost & Found ${current.tag_number || itemId}: photos ${prev} → ${next}`,
+        details: { item_id: itemId, previous_count: prev, new_count: next },
         booking_id: current.booking_id || null,
         guest_name: current.guest_name || null,
         created_at: new Date().toISOString(),

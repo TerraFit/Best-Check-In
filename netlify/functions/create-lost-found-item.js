@@ -1,6 +1,6 @@
 // netlify/functions/create-lost-found-item.js
 // Create Lost & Found item, auto-generate tag, write activity + audit
-// Requires at least one photo_url
+// Photos are optional — staff may register items immediately and add photos later
 
 async function nextTagNumber(supabaseUrl, key, businessId) {
   const year = new Date().getFullYear();
@@ -92,14 +92,8 @@ exports.handler = async (event) => {
       };
     }
 
+    // Photos optional
     const photoUrls = Array.isArray(body.photo_urls) ? body.photo_urls.filter(Boolean) : [];
-    if (!photoUrls.length) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'At least one photo is required before saving an item' }),
-      };
-    }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
@@ -166,6 +160,30 @@ exports.handler = async (event) => {
 
     const created = (await insertRes.json())[0];
 
+    const activityRows = [
+      {
+        business_id: businessId,
+        item_id: created.id,
+        event_type: 'created',
+        employee_id: body.found_by_staff_id || null,
+        employee_name: body.found_by_staff_name || null,
+        notes: `Item created with tag ${tag}`,
+        details: { tag_number: tag, item_name: body.item_name },
+      },
+    ];
+
+    if (photoUrls.length) {
+      activityRows.push({
+        business_id: businessId,
+        item_id: created.id,
+        event_type: 'photos_added',
+        employee_id: body.found_by_staff_id || null,
+        employee_name: body.found_by_staff_name || null,
+        notes: `${photoUrls.length} photo(s) added`,
+        details: { count: photoUrls.length },
+      });
+    }
+
     await fetch(`${supabaseUrl}/rest/v1/lost_and_found_activity`, {
       method: 'POST',
       headers: {
@@ -174,26 +192,7 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
-      body: JSON.stringify([
-        {
-          business_id: businessId,
-          item_id: created.id,
-          event_type: 'created',
-          employee_id: body.found_by_staff_id || null,
-          employee_name: body.found_by_staff_name || null,
-          notes: `Item created with tag ${tag}`,
-          details: { tag_number: tag, item_name: body.item_name },
-        },
-        {
-          business_id: businessId,
-          item_id: created.id,
-          event_type: 'photos_added',
-          employee_id: body.found_by_staff_id || null,
-          employee_name: body.found_by_staff_name || null,
-          notes: `${photoUrls.length} photo(s) added`,
-          details: { count: photoUrls.length },
-        },
-      ]),
+      body: JSON.stringify(activityRows),
     });
 
     await writeAudit(supabaseUrl, key, {
