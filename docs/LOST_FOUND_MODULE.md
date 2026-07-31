@@ -14,33 +14,34 @@
 
 4. Optional: `RESEND_API_KEY` for guest email contact
 
+## Photos (optional on create)
+
+Staff can log an item immediately without photos. Print the tag, store the item, then add photos later from item details.
+
+- Create form: PhotoCapture remains available; submit allowed with zero photos
+- Detail: DetailPhotosEditor — add / replace / delete
+- Open items without photos show **Photo Missing** badge
+- **Missing Photos** dashboard card filters the list to those records (operational task)
+
+## View modes
+
+| Mode | Portal | Stats | Notes |
+|------|--------|-------|-------|
+| `employee` | Employee Portal | Awaiting Contact, Missing Photos, Ready for Collection, Overdue | Operational only |
+| `business` | Business Dashboard | Above + Archived, Returned, Outstanding, This Month | Management console |
+
+Pass `mode="employee"` or `mode="business"` to `LostFoundTab`.
+
 ## Features
 
-### Photos (required on create)
-- Camera capture (`capture=environment`) and multi-upload
-- Client-side JPEG compression (`src/utils/imageCompress.ts`)
-- Upload via `upload-lost-found-photo` → Storage
-- Full-screen preview + delete individual photos
-
 ### QR & printable tags
-- Local QR via `qrcode` (`src/utils/qrLocal.ts`)
-- Print layout: FastCheckIn branding, tag, QR, item, category, room, found by, date, storage, business name, footer “Scan QR to open this record”
+Local QR via `qrcode`; print layout unchanged.
 
 ### Collection confirmation
-- `collect-lost-found-item` records name, optional ID, signature URL, releasing employee
-- Audit + activity: Returned to guest / Collected by / Released by / date-time
+Name, optional ID, signature, releasing employee + audit.
 
 ### Search
-Tag, guest, phone, email, room, category, storage, employee, date found
-
-### Storage locations (defaults)
-Reception Safe, Reception Shelf A/B, Housekeeping Cupboard, Manager Safe, Maintenance Room, Laundry, External Storage (+ custom)
-
-### Guest timeline (UI)
-Found → Guest Contacted → Guest Replied → Collection Scheduled → Collected → Archived
-
-### Reporting stats (API)
-found_this_month, avg_days_to_collection, outstanding, plus existing dashboard counts
+Tag, guest, phone, email, room, category, storage, employee, dates
 
 ## Housekeeping handoff (future)
-From room task → Found Item → camera + room + booking prefilled → save into Lost & Found.
+From room task → Found Item → camera optional + room + booking prefilled.
