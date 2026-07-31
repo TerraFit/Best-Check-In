@@ -406,6 +406,7 @@ export default function EmployeeDashboard() {
 
         {activeMenu === 'lost_found' && hasPermission(principal, 'canViewLostFound') && businessId && (
           <LostFoundTab
+            mode="employee"
             businessId={businessId}
             businessName={businessName}
             employeeId={employee?.id}
