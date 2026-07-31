@@ -75,7 +75,6 @@ export default function BusinessDashboard() {
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  // Deep-link ?tab=staff from Staff Portal header button
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab && tab !== activeTab) {
@@ -280,7 +279,6 @@ export default function BusinessDashboard() {
     setSavingNewsletter
   ]);
 
-  // Business owner principal → full nav; employee sessions would filter here later
   const principal = businessOwnerPrincipal();
   const allTabs = [
     { id: 'overview', name: 'Overview' },
@@ -326,8 +324,6 @@ export default function BusinessDashboard() {
         onRefresh={refreshData}
         onLogout={handleLogout}
         onShowQRModal={() => setShowQRModal(true)}
-        onOpenStaffPortal={() => handleTabChange('staff')}
-        showStaffPortalButton={true}
       />
 
       <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />

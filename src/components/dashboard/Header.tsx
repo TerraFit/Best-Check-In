@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import QRCodeModal from '../QRCodeModal';
 import { useTranslation } from '../../i18n';
 
@@ -15,9 +14,6 @@ interface HeaderProps {
   onRefresh: () => void;
   onLogout: () => void;
   onShowQRModal?: () => void;
-  /** Open Staff Portal tab without extra navigation hops */
-  onOpenStaffPortal?: () => void;
-  showStaffPortalButton?: boolean;
 }
 
 export function Header({
@@ -26,12 +22,9 @@ export function Header({
   onRefresh,
   onLogout,
   onShowQRModal,
-  onOpenStaffPortal,
-  showStaffPortalButton = true,
 }: HeaderProps) {
   const [showQRModal, setShowQRModal] = useState(false);
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const handleQRClick = () => {
     if (onShowQRModal) {
@@ -39,14 +32,6 @@ export function Header({
     } else {
       setShowQRModal(true);
     }
-  };
-
-  const handleStaffPortal = () => {
-    if (onOpenStaffPortal) {
-      onOpenStaffPortal();
-      return;
-    }
-    navigate('/business/dashboard?tab=staff');
   };
 
   return (
@@ -81,19 +66,6 @@ export function Header({
             </div>
 
             <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-              {showStaffPortalButton && (
-                <button
-                  type="button"
-                  onClick={handleStaffPortal}
-                  className="px-3 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
-                  title="Staff Portal"
-                >
-                  <span aria-hidden>🧑‍💼</span>
-                  <span className="hidden sm:inline">Staff Portal</span>
-                  <span className="inline sm:hidden">Staff</span>
-                </button>
-              )}
-
               <button
                 onClick={handleQRClick}
                 className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
