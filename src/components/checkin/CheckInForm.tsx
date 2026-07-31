@@ -223,11 +223,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           {step === 1 && (
             <Step1EmailEntry
               email={formData.email}
-              onEmailChange={(email) => setFormData({ ...formData, email })}
+              onEmailChange={(email) => setFormData(prev => ({ ...prev, email }))}
               saveDetails={formData.saveDetails}
-              onSaveDetailsChange={(saved) => setFormData({ ...formData, saveDetails: saved })}
+              onSaveDetailsChange={(saved) => setFormData(prev => ({ ...prev, saveDetails: saved }))}
               popiaConsent={formData.popiaConsent}
-              onPopiaConsentChange={(consent) => setFormData({ ...formData, popiaConsent: consent })}
+              onPopiaConsentChange={(consent) => setFormData(prev => ({ ...prev, popiaConsent: consent }))}
               onSubmit={handleSubmit}
               loading={loginLoading}
               businessName={businessName}
@@ -243,7 +243,7 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           {step === 2 && (
             <Step2PersonalDetails
               formData={formData}
-              onFormChange={(field, value) => setFormData({ ...formData, [field]: value })}
+              onFormChange={(field, value) => setFormData(prev => ({ ...prev, [field]: value }))}
               touched={touched}
               onTouched={markTouched}
               submitAttempted={submitAttempted}
@@ -260,8 +260,8 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
           {step === 3 && (
             <Step3DietaryRestrictions
               foodRestrictions={foodRestrictions}
-              onRestrictionToggle={(key) => setFoodRestrictions({ ...foodRestrictions, [key]: !foodRestrictions[key] })}
-              onOtherTextChange={(text) => setFoodRestrictions({ ...foodRestrictions, other_text: text })}
+              onRestrictionToggle={(key) => setFoodRestrictions(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+              onOtherTextChange={(text) => setFoodRestrictions(prev => ({ ...prev, other_text: text }))}
               hasDietaryRestrictions={hasDietaryRestrictions}
               onHasDietaryRestrictionsChange={setHasDietaryRestrictions}
               showRestrictionsPanel={showRestrictionsPanel}
@@ -311,11 +311,11 @@ export function CheckInForm({ onComplete, businessId: propBusinessId, resetOnMou
               guestName={updateFullName()}
               passportOrId={formData.passportOrId}
               idPhoto={formData.idPhoto}
-              onIdPhotoChange={(photo) => setFormData({ ...formData, idPhoto: photo || '' })}
+              onIdPhotoChange={(photo) => setFormData(prev => ({ ...prev, idPhoto: photo || '' }))}
               signature={formData.signature}
-              onSignatureChange={(sig) => setFormData({ ...formData, signature: sig })}
+              onSignatureChange={(sig) => setFormData(prev => ({ ...prev, signature: sig }))}
               acceptLegal={formData.acceptLegal}
-              onAcceptLegalChange={(accepted) => setFormData({ ...formData, acceptLegal: accepted })}
+              onAcceptLegalChange={(accepted) => setFormData(prev => ({ ...prev, acceptLegal: accepted }))}
               hasScrolledToBottom={hasScrolledToBottom}
               onIndemnityScroll={handleIndemnityScroll}
               loading={loading}

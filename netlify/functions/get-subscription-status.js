@@ -1,12 +1,21 @@
 // netlify/functions/get-subscription-status.js
-import { createClient } from '@supabase/supabase-js';
+// Programme 1: pricing from lib/packages.js SSOT
 
-export const handler = async function(event) {
+import { createClient } from '@supabase/supabase-js';
+import {
+  normalizePlanId,
+  getPlanPricing,
+  getPackage,
+  resolveEffectivePlan,
+  getAnalyticsLimits,
+} from './lib/featureAccess.js';
+
+export const handler = async function (event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -17,18 +26,18 @@ export const handler = async function(event) {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
     };
   }
 
   try {
     const businessId = event.queryStringParameters?.businessId;
-    
+
     if (!businessId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Business ID required' })
+        body: JSON.stringify({ error: 'Business ID required' }),
       };
     }
 
@@ -37,103 +46,67 @@ export const handler = async function(event) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Fetch business details
-    const { data: business, error: businessError } = await supabase
-      .from('businesses')
-      .select('id, trading_name, subscription_tier, current_plan, subscription_status, trial_end, payment_status, billing_cycle')
-      .eq('id', businessId)
-      .single();
-
-    if (businessError || !business) {
-      console.error('Business fetch error:', businessError);
+    const resolved = await resolveEffectivePlan(supabase, businessId);
+    if (resolved.error && !resolved.business) {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Business not found' })
+        body: JSON.stringify({ error: resolved.error || 'Business not found' }),
       };
     }
 
-    // Fetch active entitlements
-    const { data: entitlements, error: entitlementsError } = await supabase
-      .from('entitlements')
-      .select('*')
-      .eq('business_id', businessId)
-      .eq('is_active', true)
-      .lte('starts_at', new Date().toISOString())
-      .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
-      .or('lifetime.eq.true');
+    const business = resolved.business;
+    const entitlements = resolved.entitlements || [];
+    const effectivePlan = normalizePlanId(resolved.effectivePlan);
+    const billingCycle = business.billing_cycle || 'monthly';
 
-    // Check for complimentary plan
-    const complimentary = entitlements?.find(e => e.type === 'complimentary_plan');
-    
-    // Check for trial
-    const trial = entitlements?.find(e => e.type === 'trial');
+    const percentageDiscounts =
+      entitlements.filter((e) => e.type === 'discount_percentage') || [];
+    const fixedDiscounts =
+      entitlements.filter((e) => e.type === 'discount_fixed') || [];
 
-    // Check for discounts
-    const percentageDiscounts = entitlements?.filter(e => e.type === 'discount_percentage') || [];
-    const fixedDiscounts = entitlements?.filter(e => e.type === 'discount_fixed') || [];
-
-    // Determine effective plan and pricing
-    let effectivePlan = business.current_plan || business.subscription_tier || 'starter';
-    let status = 'active';
+    let status = resolved.status || 'active';
     let message = 'Active subscription';
     let charge = 0;
     let validUntil = null;
 
-    // Get plan pricing
-    const planPricing = {
-      starter: { monthly: 349, yearly: 3490 },
-      growth: { monthly: 649, yearly: 6490 },
-      pro: { monthly: 949, yearly: 9490 },
-      business: { monthly: 1290, yearly: 12900 }
-    };
-
-    const billingCycle = business.billing_cycle || 'monthly';
-
-    // Check for complimentary (highest priority)
-    if (complimentary) {
-      effectivePlan = complimentary.complimentary_plan || effectivePlan;
-      status = 'complimentary';
-      message = `Complimentary ${effectivePlan} plan access`;
+    if (status === 'complimentary') {
+      message = `Complimentary ${getPackage(effectivePlan).name} plan access`;
       charge = 0;
-      validUntil = complimentary.ends_at || complimentary.lifetime ? null : complimentary.ends_at;
-    }
-    // Check for trial
-    else if (trial || business.subscription_status === 'trial') {
-      status = 'trial';
+    } else if (status === 'trial') {
       message = `Free trial${business.trial_end ? ` until ${new Date(business.trial_end).toLocaleDateString()}` : ''}`;
       charge = 0;
       validUntil = business.trial_end;
-    }
-    // Standard pricing with discounts
-    else {
-      let basePrice = planPricing[effectivePlan as keyof typeof planPricing]?.[billingCycle as 'monthly' | 'yearly'] || 0;
-      
-      // Apply percentage discounts
+    } else {
+      const pricing = getPlanPricing(effectivePlan, billingCycle);
+      let basePrice = pricing.amount || 0;
+
       for (const discount of percentageDiscounts) {
-        basePrice *= (1 - (discount.value || 0) / 100);
+        basePrice *= 1 - (discount.value || 0) / 100;
       }
-      
-      // Apply fixed discounts
       for (const discount of fixedDiscounts) {
         basePrice = Math.max(0, basePrice - (discount.value || 0));
       }
-      
+
       charge = Math.round(basePrice * 100) / 100;
       status = 'active';
       message = 'Active subscription';
-      
-      // Check for discount end date
+
       const allDiscounts = [...percentageDiscounts, ...fixedDiscounts];
       const earliestEnd = allDiscounts
-        .filter(e => e.ends_at && !e.lifetime)
-        .sort((a, b) => new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime())[0];
-      
+        .filter((e) => e.ends_at && !e.lifetime)
+        .sort(
+          (a, b) =>
+            new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime()
+        )[0];
+
       if (earliestEnd?.ends_at) {
         message = `Discounted pricing until ${new Date(earliestEnd.ends_at).toLocaleDateString()}`;
         validUntil = earliestEnd.ends_at;
       }
     }
+
+    const limits = getAnalyticsLimits(effectivePlan);
 
     return {
       statusCode: 200,
@@ -145,20 +118,26 @@ export const handler = async function(event) {
         charge,
         validUntil,
         billingCycle,
-        isComplimentary: !!complimentary,
-        isOnTrial: !!trial || business.subscription_status === 'trial'
-      })
+        isComplimentary: status === 'complimentary',
+        isOnTrial: status === 'trial',
+        currency: 'ZAR',
+        limits,
+        packageMeta: {
+          name: getPackage(effectivePlan).name,
+          maxRooms: getPackage(effectivePlan).maxRooms,
+          maxStaff: getPackage(effectivePlan).maxStaff,
+        },
+      }),
     };
-
   } catch (error) {
     console.error('Error fetching subscription status:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message 
-      })
+        details: error.message,
+      }),
     };
   }
 };
