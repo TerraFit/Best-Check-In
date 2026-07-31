@@ -1,2 +1,0 @@
-Add to LostFoundTab: mode="employee"
-Add to BusinessDashboard LostFoundTab: mode="business"
