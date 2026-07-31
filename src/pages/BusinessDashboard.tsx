@@ -1,6 +1,6 @@
 // src/pages/BusinessDashboard.tsx
 import { useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useBusinessData } from '../hooks/useBusinessData';
@@ -10,9 +10,11 @@ import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
+import { businessOwnerPrincipal, filterTabs } from '../services/rbacService';
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
 
   const {
@@ -72,6 +74,18 @@ export default function BusinessDashboard() {
     totalPages: apiTotalPages,
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+
+  // Deep-link ?tab=staff from Staff Portal header button
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && tab !== activeTab) {
+      if (tab === 'rooms') {
+        navigate('/business/rooms');
+        return;
+      }
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (business) {
@@ -266,7 +280,9 @@ export default function BusinessDashboard() {
     setSavingNewsletter
   ]);
 
-  const tabs = [
+  // Business owner principal → full nav; employee sessions would filter here later
+  const principal = businessOwnerPrincipal();
+  const allTabs = [
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
     { id: 'reports', name: 'Reports' },
@@ -275,6 +291,7 @@ export default function BusinessDashboard() {
     { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
+  const tabs = filterTabs(principal, allTabs);
 
   const handleTabChange = useCallback((tabId: string) => {
     if (tabId === 'rooms') {
@@ -283,7 +300,12 @@ export default function BusinessDashboard() {
     }
     setActiveTab(tabId);
     setCurrentPage(1);
-  }, [navigate, setActiveTab, setCurrentPage]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tabId);
+      return next;
+    });
+  }, [navigate, setActiveTab, setCurrentPage, setSearchParams]);
 
   if (loading) {
     return (
@@ -304,6 +326,8 @@ export default function BusinessDashboard() {
         onRefresh={refreshData}
         onLogout={handleLogout}
         onShowQRModal={() => setShowQRModal(true)}
+        onOpenStaffPortal={() => handleTabChange('staff')}
+        showStaffPortalButton={true}
       />
 
       <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
