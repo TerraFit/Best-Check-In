@@ -1,18 +1,15 @@
 // src/types/permissions.ts
-// Role-Based Access Control — atomic capabilities only (never hard-code in UI)
+// Role = authority level. Department = organisational unit. Permissions = capabilities.
 
 /** Atomic capabilities. Roles enable sets of these. */
 export type Permission =
-  // Dashboard / general
   | 'canViewDashboard'
   | 'canViewGuestDetails'
   | 'canViewGuestLimited'
-  // Bookings / front desk
   | 'canManageBookings'
   | 'canCheckGuestsIn'
   | 'canAllocateRooms'
   | 'canViewRooms'
-  // Housekeeping (split)
   | 'canViewHousekeeping'
   | 'canStartHousekeepingTask'
   | 'canCompleteHousekeepingTask'
@@ -20,48 +17,51 @@ export type Permission =
   | 'canGenerateHousekeepingSchedule'
   | 'canAssignHousekeepingTasks'
   | 'canViewHousekeepingReports'
-  // Laundry (future-ready)
   | 'canViewLaundry'
   | 'canManageLaundry'
   | 'canReceiveLinen'
   | 'canIssueLinen'
   | 'canViewLaundryReports'
-  // Maintenance (future-ready)
   | 'canViewMaintenance'
   | 'canCreateMaintenanceJob'
   | 'canCompleteMaintenanceJob'
   | 'canTakeRoomOffline'
   | 'canReturnRoomToService'
-  // Lost & Found (split)
   | 'canViewLostFound'
   | 'canCreateLostFound'
   | 'canEditLostFound'
   | 'canDisposeLostFound'
   | 'canViewLostFoundReports'
-  // Reporting (split)
   | 'canViewOperationalReports'
   | 'canViewFinancialReports'
   | 'canViewMarketingReports'
   | 'canViewGuestReports'
   | 'canViewAuditReports'
   | 'canExportReports'
-  // Admin
   | 'canManageMarketing'
   | 'canManageStaff'
   | 'canManageSettings'
   | 'canViewAuditLog'
   | 'canApproveRoomChanges'
   | 'canAccessStaffPortal'
-  // Legacy aliases (resolved to new flags)
   | 'canManageHousekeeping'
   | 'canManageLostFound'
   | 'canViewReports'
   | 'canInspectRooms'
   | 'canManageMaintenance';
 
+/** Authority hierarchy roles (assignable to employees) + system principals */
 export type StaffRole =
   | 'super_admin'
   | 'business_owner'
+  | 'Employee (Legacy)'
+  | 'Team Leader'
+  | 'Supervisor'
+  | 'Foreman'
+  | 'Manager'
+  | 'Director'
+  // Legacy keys kept for JWT / unmigrated rows until DB migration is applied
+  | 'EmployeeOverview'
   | 'general_manager'
   | 'supervisor'
   | 'team_leader'
@@ -74,8 +74,7 @@ export type StaffRole =
   | 'finance'
   | 'night_auditor'
   | 'security'
-  | 'custom'
-  | 'EmployeeOverview';
+  | 'custom';
 
 export type StaffDepartment =
   | 'front_office'
@@ -85,10 +84,12 @@ export type StaffDepartment =
   | 'administration'
   | 'marketing'
   | 'finance'
-  | 'management'
-  | 'food_beverage'
   | 'security'
-  | 'custom';
+  | 'grounds_gardens'
+  | 'activities'
+  | 'custom'
+  | 'management'
+  | 'food_beverage';
 
 export const ALL_PERMISSIONS: Permission[] = [
   'canViewDashboard',
@@ -134,7 +135,6 @@ export const ALL_PERMISSIONS: Permission[] = [
   'canAccessStaffPortal',
 ];
 
-/** Human labels for permission editor */
 export const PERMISSION_LABELS: Record<Permission, string> = {
   canViewDashboard: 'View Dashboard',
   canViewGuestDetails: 'View Guest Details',
@@ -184,23 +184,30 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   canManageMaintenance: 'Manage Maintenance (legacy)',
 };
 
-export const ROLE_LABELS: Record<StaffRole, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
   business_owner: 'Business Owner',
-  general_manager: 'General Manager',
+  'Employee (Legacy)': 'Employee (Legacy)',
+  'Team Leader': 'Team Leader',
+  Supervisor: 'Supervisor',
+  Foreman: 'Foreman',
+  Manager: 'Manager',
+  Director: 'Director',
+  // Legacy display fallbacks
+  EmployeeOverview: 'Employee (Legacy)',
+  general_manager: 'Manager',
   supervisor: 'Supervisor',
   team_leader: 'Team Leader',
-  front_desk: 'Front Desk',
-  housekeeper: 'Housekeeper',
-  laundry_attendant: 'Laundry Attendant',
-  maintenance: 'Maintenance',
-  administration: 'Administration',
-  marketing: 'Marketing',
-  finance: 'Finance',
-  night_auditor: 'Night Auditor',
-  security: 'Security',
-  custom: 'Custom Role',
-  EmployeeOverview: 'Employee (Legacy)',
+  front_desk: 'Employee (Legacy)',
+  housekeeper: 'Employee (Legacy)',
+  laundry_attendant: 'Employee (Legacy)',
+  maintenance: 'Employee (Legacy)',
+  administration: 'Employee (Legacy)',
+  marketing: 'Employee (Legacy)',
+  finance: 'Employee (Legacy)',
+  night_auditor: 'Employee (Legacy)',
+  security: 'Employee (Legacy)',
+  custom: 'Employee (Legacy)',
 };
 
 export const DEPARTMENT_LABELS: Record<StaffDepartment, string> = {
@@ -211,26 +218,22 @@ export const DEPARTMENT_LABELS: Record<StaffDepartment, string> = {
   administration: 'Administration',
   marketing: 'Marketing',
   finance: 'Finance',
+  security: 'Security',
+  grounds_gardens: 'Grounds & Gardens',
+  activities: 'Activities',
+  custom: 'Custom',
   management: 'Management',
   food_beverage: 'Food & Beverage',
-  security: 'Security',
-  custom: 'Custom',
 };
 
+/** Only authority hierarchy roles — never job titles or departments */
 export const ASSIGNABLE_ROLES: StaffRole[] = [
-  'general_manager',
-  'supervisor',
-  'team_leader',
-  'front_desk',
-  'housekeeper',
-  'laundry_attendant',
-  'maintenance',
-  'administration',
-  'marketing',
-  'finance',
-  'night_auditor',
-  'security',
-  'custom',
+  'Employee (Legacy)',
+  'Team Leader',
+  'Supervisor',
+  'Foreman',
+  'Manager',
+  'Director',
 ];
 
 export const ASSIGNABLE_DEPARTMENTS: StaffDepartment[] = [
@@ -241,9 +244,9 @@ export const ASSIGNABLE_DEPARTMENTS: StaffDepartment[] = [
   'administration',
   'marketing',
   'finance',
-  'management',
-  'food_beverage',
   'security',
+  'grounds_gardens',
+  'activities',
   'custom',
 ];
 
@@ -251,8 +254,10 @@ function set(...perms: Permission[]): Set<Permission> {
   return new Set(perms);
 }
 
-const HK_WORKER = set(
+const EMPLOYEE_BASE = set(
   'canViewDashboard',
+  'canViewGuestDetails',
+  'canManageBookings',
   'canViewHousekeeping',
   'canStartHousekeepingTask',
   'canCompleteHousekeepingTask',
@@ -261,116 +266,66 @@ const HK_WORKER = set(
   'canViewGuestLimited'
 );
 
-const HK_LEAD = set(
-  ...HK_WORKER,
+const TEAM_LEAD = set(
+  ...EMPLOYEE_BASE,
   'canApproveInspection',
   'canAssignHousekeepingTasks',
   'canGenerateHousekeepingSchedule',
   'canViewHousekeepingReports',
   'canEditLostFound',
-  'canViewRooms'
+  'canViewRooms',
+  'canCheckGuestsIn'
 );
 
-/** Default permission sets per role */
-export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, Set<Permission>> = {
+const SUPERVISOR_PERMS = set(
+  ...TEAM_LEAD,
+  'canAllocateRooms',
+  'canViewOperationalReports',
+  'canViewGuestReports',
+  'canAccessStaffPortal',
+  'canDisposeLostFound',
+  'canViewLostFoundReports'
+);
+
+const FOREMAN_PERMS = set(
+  ...TEAM_LEAD,
+  'canViewMaintenance',
+  'canCreateMaintenanceJob',
+  'canCompleteMaintenanceJob',
+  'canTakeRoomOffline',
+  'canReturnRoomToService',
+  'canApproveRoomChanges'
+);
+
+const MANAGER_PERMS = new Set(ALL_PERMISSIONS);
+
+/** Default permission sets by authority role */
+export const ROLE_DEFAULT_PERMISSIONS: Record<string, Set<Permission>> = {
   super_admin: new Set(ALL_PERMISSIONS),
   business_owner: new Set(ALL_PERMISSIONS),
-  general_manager: new Set(ALL_PERMISSIONS),
-  supervisor: set(
-    ...HK_LEAD,
-    'canViewRooms',
-    'canAllocateRooms',
-    'canViewGuestDetails',
-    'canManageBookings',
-    'canViewOperationalReports',
-    'canViewGuestReports',
-    'canAccessStaffPortal',
-    'canDisposeLostFound',
-    'canViewLostFoundReports'
-  ),
-  team_leader: HK_LEAD,
-  front_desk: set(
-    'canViewDashboard',
-    'canManageBookings',
-    'canCheckGuestsIn',
-    'canAllocateRooms',
-    'canViewRooms',
-    'canViewGuestDetails',
-    'canViewHousekeeping',
-    'canViewLostFound',
-    'canCreateLostFound'
-  ),
-  housekeeper: HK_WORKER,
-  laundry_attendant: set(
-    'canViewDashboard',
-    'canViewLaundry',
-    'canManageLaundry',
-    'canReceiveLinen',
-    'canIssueLinen',
-    'canViewHousekeeping',
-    'canViewLostFound',
-    'canViewGuestLimited'
-  ),
-  maintenance: set(
-    'canViewDashboard',
-    'canViewMaintenance',
-    'canCreateMaintenanceJob',
-    'canCompleteMaintenanceJob',
-    'canTakeRoomOffline',
-    'canReturnRoomToService',
-    'canViewRooms',
-    'canApproveRoomChanges'
-  ),
-  administration: set(
-    'canViewDashboard',
-    'canViewOperationalReports',
-    'canViewGuestReports',
-    'canViewAuditReports',
-    'canExportReports',
-    'canViewAuditLog',
-    'canManageSettings',
-    'canManageStaff',
-    'canAccessStaffPortal',
-    'canViewGuestDetails',
-    'canViewRooms'
-  ),
-  marketing: set(
-    'canViewDashboard',
-    'canManageMarketing',
-    'canViewMarketingReports',
-    'canViewGuestReports'
-  ),
-  finance: set(
-    'canViewDashboard',
-    'canViewFinancialReports',
-    'canExportReports',
-    'canViewOperationalReports'
-  ),
-  night_auditor: set(
-    'canViewDashboard',
-    'canManageBookings',
-    'canCheckGuestsIn',
-    'canViewRooms',
-    'canViewGuestDetails',
-    'canViewHousekeeping',
-    'canViewOperationalReports',
-    'canViewAuditLog'
-  ),
-  security: set(
-    'canViewDashboard',
-    'canViewRooms',
-    'canViewGuestLimited',
-    'canViewLostFound'
-  ),
-  custom: set('canViewDashboard'),
-  EmployeeOverview: set(
-    'canViewDashboard',
-    'canViewGuestDetails',
-    'canManageBookings'
-  ),
+  'Employee (Legacy)': EMPLOYEE_BASE,
+  'Team Leader': TEAM_LEAD,
+  Supervisor: SUPERVISOR_PERMS,
+  Foreman: FOREMAN_PERMS,
+  Manager: MANAGER_PERMS,
+  Director: new Set(ALL_PERMISSIONS),
+  // Legacy keys → same defaults (until migration / JWT refresh)
+  EmployeeOverview: EMPLOYEE_BASE,
+  general_manager: MANAGER_PERMS,
+  supervisor: SUPERVISOR_PERMS,
+  team_leader: TEAM_LEAD,
+  front_desk: EMPLOYEE_BASE,
+  housekeeper: EMPLOYEE_BASE,
+  laundry_attendant: EMPLOYEE_BASE,
+  maintenance: FOREMAN_PERMS,
+  administration: MANAGER_PERMS,
+  marketing: EMPLOYEE_BASE,
+  finance: EMPLOYEE_BASE,
+  night_auditor: EMPLOYEE_BASE,
+  security: EMPLOYEE_BASE,
+  custom: EMPLOYEE_BASE,
 };
 
-/** Expand legacy permission aliases to modern flags */
 export function expandLegacyPermissions(perms: Set<Permission>): Set<Permission> {
   const out = new Set(perms);
   if (out.has('canManageHousekeeping')) {
@@ -405,7 +360,6 @@ export function expandLegacyPermissions(perms: Set<Permission>): Set<Permission>
   return out;
 }
 
-/** Dashboard / employee nav tab → required permission(s) */
 export const TAB_REQUIRED_PERMISSION: Record<string, Permission | Permission[]> = {
   overview: 'canViewDashboard',
   checkins: 'canManageBookings',
@@ -414,7 +368,6 @@ export const TAB_REQUIRED_PERMISSION: Record<string, Permission | Permission[]> 
   housekeeping: 'canViewHousekeeping',
   staff: 'canAccessStaffPortal',
   settings: 'canManageSettings',
-  // Employee portal menu ids
   todays_tasks: 'canViewHousekeeping',
   my_rooms: 'canViewHousekeeping',
   lost_found: 'canViewLostFound',
@@ -428,7 +381,6 @@ export const TAB_REQUIRED_PERMISSION: Record<string, Permission | Permission[]> 
   maintenance: 'canViewMaintenance',
 };
 
-/** Employee portal menu items driven purely by permissions */
 export interface EmployeeMenuItem {
   id: string;
   label: string;
@@ -453,3 +405,48 @@ export const EMPLOYEE_MENU_ITEMS: EmployeeMenuItem[] = [
   { id: 'employees', label: 'Employees', icon: '👥', required: 'canManageStaff' },
   { id: 'profile', label: 'Profile', icon: '⚙️', required: 'canViewDashboard' },
 ];
+
+/** Map any stored role string to hierarchy authority level */
+export function normalizeHierarchyRole(role: string | null | undefined): StaffRole {
+  if (!role) return 'Employee (Legacy)';
+  if (
+    role === 'Employee (Legacy)' ||
+    role === 'Team Leader' ||
+    role === 'Supervisor' ||
+    role === 'Foreman' ||
+    role === 'Manager' ||
+    role === 'Director'
+  ) {
+    return role;
+  }
+  const map: Record<string, StaffRole> = {
+    EmployeeOverview: 'Employee (Legacy)',
+    employee: 'Employee (Legacy)',
+    Employee: 'Employee (Legacy)',
+    custom: 'Employee (Legacy)',
+    'Custom Role': 'Employee (Legacy)',
+    Custom: 'Employee (Legacy)',
+    general_manager: 'Manager',
+    'General Manager': 'Manager',
+    gm: 'Manager',
+    manager: 'Manager',
+    supervisor: 'Supervisor',
+    team_leader: 'Team Leader',
+    'Team Leader': 'Team Leader',
+    lead: 'Team Leader',
+    foreman: 'Foreman',
+    director: 'Director',
+    front_desk: 'Employee (Legacy)',
+    housekeeper: 'Employee (Legacy)',
+    laundry_attendant: 'Employee (Legacy)',
+    maintenance: 'Employee (Legacy)',
+    administration: 'Employee (Legacy)',
+    marketing: 'Employee (Legacy)',
+    finance: 'Employee (Legacy)',
+    night_auditor: 'Employee (Legacy)',
+    security: 'Employee (Legacy)',
+    receptionist: 'Employee (Legacy)',
+    reception: 'Employee (Legacy)',
+  };
+  return map[role] || map[role.toLowerCase()] || 'Employee (Legacy)';
+}
