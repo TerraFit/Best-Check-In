@@ -11,15 +11,15 @@ import {
   X,
   RefreshCw,
   ChevronRight,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 import {
   fetchLostFoundItems,
   fetchLostFoundItem,
-  createLostFoundItem,
   updateLostFoundItem,
   contactLostFoundGuest,
   fetchLostFoundMeta,
-  resolveGuestFromRoom,
 } from '../../services/lostFoundApi';
 import type {
   LostFoundItem,
@@ -31,14 +31,18 @@ import type {
 import {
   LOST_FOUND_STATUS_LABELS,
   LOST_FOUND_STATUS_COLORS,
-  CONDITION_OPTIONS,
   STATUS_WORKFLOW,
+  GUEST_TIMELINE,
   BUILTIN_CATEGORIES,
   BUILTIN_STORAGE,
 } from '../../types/lostFound';
+import LostFoundCreateForm from '../../components/lostFound/LostFoundCreateForm';
+import CollectionConfirmModal from '../../components/lostFound/CollectionConfirmModal';
+import { printLostFoundTag } from '../../utils/printLostFoundTag';
 
 interface Props {
   businessId: string;
+  businessName?: string | null;
   employeeId?: string | null;
   employeeName?: string | null;
   canCreate?: boolean;
@@ -58,8 +62,32 @@ const emptyStats: LostFoundDashboardStats = {
   recently_returned: 0,
 };
 
+/** Map current status onto the simplified guest timeline index */
+function timelineIndex(status: LostFoundStatus): number {
+  const order: LostFoundStatus[] = [
+    'newly_found',
+    'awaiting_contact',
+    'guest_contacted',
+    'guest_replied',
+    'collection_arranged',
+    'courier_booked',
+    'returned',
+    'collected',
+    'unclaimed',
+    'archived',
+  ];
+  const i = order.indexOf(status);
+  if (i <= 0) return 0; // Found
+  if (i <= 2) return 1; // Guest Contacted
+  if (i === 3) return 2; // Guest Replied
+  if (i <= 5) return 3; // Collection Scheduled
+  if (i <= 7) return 4; // Collected
+  return 5; // Archived / unclaimed treated as end
+}
+
 export default function LostFoundTab({
   businessId,
+  businessName,
   employeeId,
   employeeName,
   canCreate = true,
@@ -76,36 +104,14 @@ export default function LostFoundTab({
   const [storageOptions, setStorageOptions] = useState<string[]>([...BUILTIN_STORAGE]);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showCollect, setShowCollect] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<LostFoundItem | null>(null);
   const [activity, setActivity] = useState<LostFoundActivity[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Create form state
-  const [form, setForm] = useState({
-    item_name: '',
-    description: '',
-    category: 'Miscellaneous',
-    found_date: new Date().toISOString().slice(0, 10),
-    time_found: '',
-    room_number: '',
-    storage_location: 'Shelf',
-    storage_detail: '',
-    condition: 'good' as const,
-    estimated_value: '',
-    internal_notes: '',
-    guest_name: '',
-    guest_email: '',
-    guest_phone: '',
-    booking_id: '' as string | null,
-    booking_reference: '',
-    room_id: '' as string | null,
-    room_name: '',
-    check_in_date: '',
-    check_out_date: '',
-  });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [contactMethod, setContactMethod] = useState<CommunicationMethod>('email');
   const [contactNotes, setContactNotes] = useState('');
@@ -131,7 +137,7 @@ export default function LostFoundTab({
         setCategories(meta.categories.map((c) => c.name));
       }
       if (meta.storageLocations.length) {
-        setStorageOptions(meta.storageLocations.map((s) => s.name));
+        setStorageOptions(meta.storageLocations.map((loc) => loc.name));
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load Lost & Found');
@@ -162,101 +168,16 @@ export default function LostFoundTab({
     setSelectedId(null);
     setDetail(null);
     setActivity([]);
-  };
-
-  const onRoomBlur = async () => {
-    if (!form.room_number.trim()) return;
-    try {
-      const guest = await resolveGuestFromRoom({
-        businessId,
-        roomNumber: form.room_number.trim(),
-      });
-      if (guest) {
-        setForm((f) => ({
-          ...f,
-          guest_name: guest.guest_name || f.guest_name,
-          guest_email: guest.guest_email || f.guest_email,
-          guest_phone: guest.guest_phone || f.guest_phone,
-          booking_id: guest.booking_id || null,
-          booking_reference: guest.booking_reference || f.booking_reference,
-          room_id: guest.room_id || null,
-          room_name: guest.room_name || f.room_name,
-          check_in_date: guest.check_in_date || f.check_in_date,
-          check_out_date: guest.check_out_date || f.check_out_date,
-          room_number: guest.room_number || f.room_number,
-        }));
-      }
-    } catch {
-      /* optional */
-    }
-  };
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.item_name.trim()) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const item = await createLostFoundItem({
-        businessId,
-        item_name: form.item_name.trim(),
-        description: form.description || undefined,
-        category: form.category,
-        found_date: form.found_date,
-        time_found: form.time_found || undefined,
-        room_number: form.room_number || null,
-        room_id: form.room_id || null,
-        room_name: form.room_name || null,
-        booking_id: form.booking_id || null,
-        booking_reference: form.booking_reference || null,
-        guest_name: form.guest_name || null,
-        guest_email: form.guest_email || null,
-        guest_phone: form.guest_phone || null,
-        check_in_date: form.check_in_date || null,
-        check_out_date: form.check_out_date || null,
-        found_by_staff_id: employeeId || null,
-        found_by_staff_name: employeeName || null,
-        storage_location: form.storage_location || null,
-        storage_detail: form.storage_detail || null,
-        condition: form.condition,
-        estimated_value: form.estimated_value ? parseFloat(form.estimated_value) : null,
-        internal_notes: form.internal_notes || null,
-      });
-      setShowCreate(false);
-      setForm({
-        item_name: '',
-        description: '',
-        category: 'Miscellaneous',
-        found_date: new Date().toISOString().slice(0, 10),
-        time_found: '',
-        room_number: '',
-        storage_location: 'Shelf',
-        storage_detail: '',
-        condition: 'good',
-        estimated_value: '',
-        internal_notes: '',
-        guest_name: '',
-        guest_email: '',
-        guest_phone: '',
-        booking_id: null,
-        booking_reference: '',
-        room_id: null,
-        room_name: '',
-        check_in_date: '',
-        check_out_date: '',
-      });
-      await load();
-      openDetail(item.id);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create item');
-    } finally {
-      setSaving(false);
-    }
+    setShowCollect(false);
   };
 
   const handleStatusChange = async (status: LostFoundStatus) => {
     if (!detail || !canEdit) return;
     if ((status === 'unclaimed' || status === 'archived') && !canDispose) return;
+    if (status === 'collected') {
+      setShowCollect(true);
+      return;
+    }
     setSaving(true);
     try {
       const updated = await updateLostFoundItem({
@@ -304,59 +225,49 @@ export default function LostFoundTab({
     }
   };
 
-  const printTag = (item: LostFoundItem) => {
-    const win = window.open('', '_blank', 'width=400,height=500');
-    if (!win) return;
-    const qrData = encodeURIComponent(
-      JSON.stringify({
-        tag: item.tag_number,
-        id: item.id,
-        business: businessId,
-      })
-    );
-    win.document.write(`<!DOCTYPE html><html><head><title>${item.tag_number}</title>
-      <style>
-        body{font-family:system-ui,sans-serif;padding:24px;text-align:center}
-        .tag{border:2px solid #000;padding:16px;border-radius:8px;max-width:280px;margin:0 auto}
-        h1{font-size:22px;margin:0 0 8px}
-        .meta{font-size:13px;line-height:1.5;text-align:left;margin-top:12px}
-        img{margin:12px auto;display:block}
-        @media print{button{display:none}}
-      </style></head><body>
-      <div class="tag">
-        <h1>${item.tag_number || '—'}</h1>
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${qrData}" width="120" height="120" alt="QR"/>
-        <div class="meta">
-          <div><strong>Item:</strong> ${item.item_name || '—'}</div>
-          <div><strong>Room:</strong> ${item.room_number || '—'}</div>
-          <div><strong>Found:</strong> ${item.found_date || '—'}</div>
-          <div><strong>Storage:</strong> ${[item.storage_location, item.storage_detail].filter(Boolean).join(' · ') || '—'}</div>
-          <div><strong>Found by:</strong> ${item.found_by_staff_name || '—'}</div>
-        </div>
-      </div>
-      <p style="margin-top:16px"><button onclick="window.print()">Print</button></p>
-      <script>setTimeout(function(){window.print()},400)</script>
-      </body></html>`);
-    win.document.close();
+  const handlePrint = async (item: LostFoundItem) => {
+    try {
+      await printLostFoundTag(item, businessName || undefined);
+    } catch (e: any) {
+      setError(e.message || 'Failed to print tag');
+    }
   };
 
   const statCards = useMemo(
     () => [
       { label: 'Total', value: stats.total, color: 'bg-stone-100 text-stone-800' },
-      { label: 'Awaiting Contact', value: stats.awaiting_contact + stats.newly_found, color: 'bg-amber-50 text-amber-800' },
-      { label: 'Awaiting Collection', value: stats.awaiting_collection, color: 'bg-blue-50 text-blue-800' },
+      {
+        label: 'Awaiting Contact',
+        value: stats.awaiting_contact + stats.newly_found,
+        color: 'bg-amber-50 text-amber-800',
+      },
+      {
+        label: 'Awaiting Collection',
+        value: stats.awaiting_collection,
+        color: 'bg-blue-50 text-blue-800',
+      },
       { label: 'Returned', value: stats.returned, color: 'bg-green-50 text-green-800' },
       { label: 'Unclaimed', value: stats.unclaimed, color: 'bg-red-50 text-red-800' },
       { label: 'Archived', value: stats.archived, color: 'bg-stone-50 text-stone-600' },
-      { label: 'Recently Found', value: stats.recently_found, color: 'bg-orange-50 text-orange-800' },
-      { label: 'Recently Returned', value: stats.recently_returned, color: 'bg-emerald-50 text-emerald-800' },
+      {
+        label: 'This Month',
+        value: stats.found_this_month ?? stats.recently_found,
+        color: 'bg-orange-50 text-orange-800',
+      },
+      {
+        label: 'Outstanding',
+        value: stats.outstanding ?? stats.awaiting_collection + stats.newly_found,
+        color: 'bg-indigo-50 text-indigo-800',
+      },
     ],
     [stats]
   );
 
+  const photos = detail?.photo_urls?.filter(Boolean) || [];
+  const tIdx = detail ? timelineIndex(detail.status) : 0;
+
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {statCards.map((c) => (
           <div
@@ -371,14 +282,13 @@ export default function LostFoundTab({
         ))}
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex flex-1 gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
             <input
               type="text"
-              placeholder="Search guest, tag, room, item…"
+              placeholder="Search tag, guest, phone, email, room, category…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-400 outline-none"
@@ -434,10 +344,9 @@ export default function LostFoundTab({
         </div>
       )}
 
-      {/* List */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-stone-400 text-sm">Loading Lost &amp; Found…</div>
+          <div className="p-12 text-center text-stone-400 text-sm">Loading Lost & Found…</div>
         ) : items.length === 0 ? (
           <div className="p-12 text-center text-stone-400 text-sm">
             <Package className="mx-auto mb-3 opacity-40" size={36} />
@@ -469,8 +378,19 @@ export default function LostFoundTab({
                       {item.tag_number || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-stone-900">{item.item_name}</div>
-                      <div className="text-[11px] text-stone-400">{item.category}</div>
+                      <div className="flex items-center gap-2">
+                        {item.photo_urls?.[0] ? (
+                          <img
+                            src={item.photo_urls[0]}
+                            alt=""
+                            className="w-8 h-8 rounded-lg object-cover border border-stone-100"
+                          />
+                        ) : null}
+                        <div>
+                          <div className="font-semibold text-stone-900">{item.item_name}</div>
+                          <div className="text-[11px] text-stone-400">{item.category}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-stone-600">
                       {item.room_number || '—'}
@@ -509,165 +429,22 @@ export default function LostFoundTab({
         )}
       </div>
 
-      {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <h3 className="font-bold text-stone-900">New Lost &amp; Found Item</h3>
-              <button type="button" onClick={() => setShowCreate(false)} className="p-1 rounded-lg hover:bg-stone-100">
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreate} className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-stone-500">Item name *</label>
-                <input
-                  required
-                  value={form.item_name}
-                  onChange={(e) => setForm({ ...form, item_name: e.target.value })}
-                  className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                  placeholder="e.g. Black iPhone charger"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Condition</label>
-                  <select
-                    value={form.condition}
-                    onChange={(e) =>
-                      setForm({ ...form, condition: e.target.value as typeof form.condition })
-                    }
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-                  >
-                    {CONDITION_OPTIONS.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-stone-500">Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={2}
-                  className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Date found</label>
-                  <input
-                    type="date"
-                    value={form.found_date}
-                    onChange={(e) => setForm({ ...form, found_date: e.target.value })}
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Time found</label>
-                  <input
-                    type="time"
-                    value={form.time_found}
-                    onChange={(e) => setForm({ ...form, time_found: e.target.value })}
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-stone-500">Room number</label>
-                <input
-                  value={form.room_number}
-                  onChange={(e) => setForm({ ...form, room_number: e.target.value })}
-                  onBlur={onRoomBlur}
-                  className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                  placeholder="Auto-fills guest if booking exists"
-                />
-              </div>
-              {(form.guest_name || form.guest_email) && (
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs space-y-1">
-                  <div className="font-semibold text-amber-900">Guest linked</div>
-                  <div>{form.guest_name}</div>
-                  {form.guest_email && <div className="text-stone-600">{form.guest_email}</div>}
-                  {form.guest_phone && <div className="text-stone-600">{form.guest_phone}</div>}
-                  {form.booking_reference && (
-                    <div className="text-stone-500">Ref: {form.booking_reference}</div>
-                  )}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Storage</label>
-                  <select
-                    value={form.storage_location}
-                    onChange={(e) => setForm({ ...form, storage_location: e.target.value })}
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-                  >
-                    {storageOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-stone-500">Box / detail</label>
-                  <input
-                    value={form.storage_detail}
-                    onChange={(e) => setForm({ ...form, storage_detail: e.target.value })}
-                    className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                    placeholder="e.g. Box 3"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-stone-500">Internal notes</label>
-                <textarea
-                  value={form.internal_notes}
-                  onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}
-                  rows={2}
-                  className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 py-2.5 text-sm font-semibold border border-stone-200 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50"
-                >
-                  {saving ? 'Saving…' : 'Save item'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <LostFoundCreateForm
+          businessId={businessId}
+          categories={categories}
+          storageOptions={storageOptions}
+          employeeId={employeeId}
+          employeeName={employeeName}
+          onClose={() => setShowCreate(false)}
+          onCreated={async (item) => {
+            setShowCreate(false);
+            await load();
+            openDetail(item.id);
+          }}
+        />
       )}
 
-      {/* Detail drawer */}
       {selectedId && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
           <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl">
@@ -678,7 +455,11 @@ export default function LostFoundTab({
                 </div>
                 <h3 className="font-bold text-stone-900">{detail?.item_name || 'Loading…'}</h3>
               </div>
-              <button type="button" onClick={closeDetail} className="p-1.5 rounded-lg hover:bg-stone-100">
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="p-1.5 rounded-lg hover:bg-stone-100"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -697,12 +478,75 @@ export default function LostFoundTab({
                   </span>
                   <button
                     type="button"
-                    onClick={() => printTag(detail)}
+                    onClick={() => handlePrint(detail)}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-stone-600 border border-stone-200 rounded-lg px-2.5 py-1 hover:bg-stone-50"
                   >
                     <Printer size={12} /> Print tag
                   </button>
+                  {canEdit && detail.status !== 'collected' && detail.status !== 'archived' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCollect(true)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100"
+                    >
+                      Record collection
+                    </button>
+                  )}
                 </div>
+
+                {/* Guest timeline strip */}
+                <div className="bg-stone-50 rounded-2xl border border-stone-100 p-3">
+                  <h4 className="text-[10px] font-bold uppercase text-stone-400 mb-2">
+                    Guest timeline
+                  </h4>
+                  <div className="flex items-start justify-between gap-1">
+                    {GUEST_TIMELINE.map((step, i) => {
+                      const done = i <= tIdx;
+                      const current = i === tIdx;
+                      return (
+                        <div key={step} className="flex-1 flex flex-col items-center text-center min-w-0">
+                          <div
+                            className={`mb-1 ${
+                              done ? 'text-emerald-600' : 'text-stone-300'
+                            } ${current ? 'scale-110' : ''}`}
+                          >
+                            {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                          </div>
+                          <span
+                            className={`text-[9px] leading-tight font-semibold ${
+                              current
+                                ? 'text-amber-800'
+                                : done
+                                  ? 'text-stone-700'
+                                  : 'text-stone-400'
+                            }`}
+                          >
+                            {LOST_FOUND_STATUS_LABELS[step]}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Photo gallery */}
+                {photos.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-stone-400 mb-2">Photos</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {photos.map((src, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setPhotoPreview(src)}
+                          className="w-20 h-20 rounded-xl overflow-hidden border border-stone-200 hover:ring-2 hover:ring-amber-400"
+                        >
+                          <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -750,6 +594,32 @@ export default function LostFoundTab({
                     <dt className="text-[10px] uppercase text-stone-400 font-semibold">Found by</dt>
                     <dd>{detail.found_by_staff_name || '—'}</dd>
                   </div>
+                  {detail.collected_by_name && (
+                    <div className="col-span-2 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                      <dt className="text-[10px] uppercase text-emerald-700 font-semibold">
+                        Collection
+                      </dt>
+                      <dd className="text-sm text-emerald-900 whitespace-pre-line">
+                        {`Collected by: ${detail.collected_by_name}`}
+                        {detail.collected_by_id_number
+                          ? `\nID: ${detail.collected_by_id_number}`
+                          : ''}
+                        {detail.released_by_staff_name
+                          ? `\nReleased by: ${detail.released_by_staff_name}`
+                          : ''}
+                        {detail.returned_at
+                          ? `\n${new Date(detail.returned_at).toLocaleString()}`
+                          : ''}
+                      </dd>
+                      {detail.collection_signature_url && (
+                        <img
+                          src={detail.collection_signature_url}
+                          alt="Signature"
+                          className="mt-2 max-h-16 border border-emerald-100 rounded bg-white"
+                        />
+                      )}
+                    </div>
+                  )}
                   {detail.description && (
                     <div className="col-span-2">
                       <dt className="text-[10px] uppercase text-stone-400 font-semibold">
@@ -760,7 +630,6 @@ export default function LostFoundTab({
                   )}
                 </dl>
 
-                {/* Status workflow */}
                 {canEdit && (
                   <div>
                     <h4 className="text-xs font-bold uppercase text-stone-400 mb-2">Update status</h4>
@@ -784,18 +653,17 @@ export default function LostFoundTab({
                   </div>
                 )}
 
-                {/* Contact guest */}
                 {canEdit && (
                   <div className="border border-stone-100 rounded-2xl p-4 space-y-3">
                     <h4 className="text-xs font-bold uppercase text-stone-400">Contact guest</h4>
                     <div className="flex gap-2">
                       {(
                         [
-                          { id: 'email', icon: Mail, label: 'Email' },
-                          { id: 'sms', icon: MessageCircle, label: 'SMS' },
-                          { id: 'whatsapp', icon: Phone, label: 'WhatsApp' },
-                          { id: 'phone', icon: Phone, label: 'Phone' },
-                        ] as const
+                          { id: 'email' as const, icon: Mail, label: 'Email' },
+                          { id: 'sms' as const, icon: MessageCircle, label: 'SMS' },
+                          { id: 'whatsapp' as const, icon: Phone, label: 'WhatsApp' },
+                          { id: 'phone' as const, icon: Phone, label: 'Phone' },
+                        ]
                       ).map((m) => (
                         <button
                           key={m.id}
@@ -842,7 +710,6 @@ export default function LostFoundTab({
                   </div>
                 )}
 
-                {/* Activity timeline */}
                 <div>
                   <h4 className="text-xs font-bold uppercase text-stone-400 mb-3">History</h4>
                   {activity.length === 0 ? (
@@ -857,12 +724,13 @@ export default function LostFoundTab({
                               {a.event_type.replace(/_/g, ' ')}
                               {a.communication_method && (
                                 <span className="font-normal text-stone-500">
-                                  {' '}
-                                  via {a.communication_method}
+                                  {' '}via {a.communication_method}
                                 </span>
                               )}
                             </div>
-                            {a.notes && <div className="text-stone-500">{a.notes}</div>}
+                            {a.notes && (
+                              <div className="text-stone-500 whitespace-pre-line">{a.notes}</div>
+                            )}
                             {a.from_status && a.to_status && (
                               <div className="text-stone-400">
                                 {a.from_status} → {a.to_status}
@@ -881,6 +749,44 @@ export default function LostFoundTab({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {showCollect && detail && (
+        <CollectionConfirmModal
+          businessId={businessId}
+          item={detail}
+          employeeId={employeeId}
+          employeeName={employeeName}
+          onClose={() => setShowCollect(false)}
+          onCollected={async (item) => {
+            setShowCollect(false);
+            setDetail(item);
+            await load();
+            const { activity: act } = await fetchLostFoundItem(businessId, item.id);
+            setActivity(act);
+          }}
+        />
+      )}
+
+      {photoPreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white p-2"
+            onClick={() => setPhotoPreview(null)}
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={photoPreview}
+            alt="Preview"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
