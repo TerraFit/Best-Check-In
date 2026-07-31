@@ -43,7 +43,6 @@ exports.handler = async (event) => {
     const categories = catRes.ok ? await catRes.json() : [];
     const storageLocations = storRes.ok ? await storRes.json() : [];
 
-    // Fallback builtins if tables empty / migration not applied
     const fallbackCats = [
       'Clothing', 'Electronics', 'Jewellery', 'Documents', 'Wallets', 'Keys',
       'Chargers', 'Toiletries', 'Toys', 'Books', 'Sports Equipment',
@@ -56,15 +55,22 @@ exports.handler = async (event) => {
       active: true,
     }));
 
-    const fallbackStor = ['Shelf', 'Cupboard', 'Safe', 'Cabinet', 'Box Number'].map(
-      (name, i) => ({
-        id: `builtin-stor-${i}`,
-        name,
-        is_builtin: true,
-        sort_order: (i + 1) * 10,
-        active: true,
-      })
-    );
+    const fallbackStor = [
+      'Reception Safe',
+      'Reception Shelf A',
+      'Reception Shelf B',
+      'Housekeeping Cupboard',
+      'Manager Safe',
+      'Maintenance Room',
+      'Laundry',
+      'External Storage',
+    ].map((name, i) => ({
+      id: `builtin-stor-${i}`,
+      name,
+      is_builtin: true,
+      sort_order: (i + 1) * 10,
+      active: true,
+    }));
 
     return {
       statusCode: 200,
