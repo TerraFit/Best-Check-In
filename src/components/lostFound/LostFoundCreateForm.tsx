@@ -1,4 +1,4 @@
-// Create form with required photo capture + upload to Storage
+// Create form — photos optional so staff can register items immediately
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import PhotoCapture from './PhotoCapture';
@@ -86,19 +86,18 @@ export default function LostFoundCreateForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.item_name.trim()) return;
-    if (!photos.length) {
-      setError('At least one photo is required');
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
-      const urls = await uploadLostFoundPhotos({
-        businessId,
-        images: photos,
-        tagNumber: 'pending',
-      });
-      if (!urls.length) throw new Error('Photo upload failed');
+      let urls: string[] = [];
+      if (photos.length) {
+        urls = await uploadLostFoundPhotos({
+          businessId,
+          images: photos,
+          tagNumber: 'pending',
+        });
+        if (!urls.length) throw new Error('Photo upload failed');
+      }
 
       const item = await createLostFoundItem({
         businessId,
@@ -138,13 +137,16 @@ export default function LostFoundCreateForm({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-          <h3 className="font-bold text-stone-900">New Lost &amp; Found Item</h3>
+          <h3 className="font-bold text-stone-900">New Lost & Found Item</h3>
           <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100">
             <X size={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <PhotoCapture photos={photos} onChange={setPhotos} required maxPhotos={6} />
+          <PhotoCapture photos={photos} onChange={setPhotos} maxPhotos={6} />
+          <p className="text-[11px] text-stone-400 -mt-2">
+            Photos are optional — you can add them later from the item details.
+          </p>
 
           <div>
             <label className="text-xs font-semibold text-stone-500">Item name *</label>
@@ -293,7 +295,7 @@ export default function LostFoundCreateForm({
             </button>
             <button
               type="submit"
-              disabled={saving || photos.length === 0}
+              disabled={saving}
               className="flex-1 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save item'}
