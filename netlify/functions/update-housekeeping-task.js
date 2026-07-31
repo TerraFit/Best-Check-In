@@ -1,10 +1,11 @@
 // netlify/functions/update-housekeeping-task.js
-// Room Readiness state machine (independent of occupancy):
-//   Start      → Cleaning in Progress
-//   Complete   → Awaiting Inspection  (NOT Ready)
-//   Approve    → Ready (+ Vacant if checkout)
-//   Reject     → Cleaning in Progress
-// Ready is NEVER set on Complete alone.
+// Room Readiness state machine + RBAC permission checks
+//   Start      → Cleaning in Progress  (canStartHousekeepingTask)
+//   Complete   → Awaiting Inspection   (canCompleteHousekeepingTask)
+//   Approve    → Ready                 (canApproveInspection)
+//   Reject     → Cleaning in Progress  (canApproveInspection)
+
+const { assertPermission, requirePermission } = require('./_rbac');
 
 exports.handler = async (event) => {
   const headers = {
@@ -45,6 +46,25 @@ exports.handler = async (event) => {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: 'businessId and taskId required' }),
+      };
+    }
+
+    // RBAC: map action → permission
+    let needed = 'canViewHousekeeping';
+    if (status === 'in_progress') needed = 'canStartHousekeepingTask';
+    else if (status === 'completed' || status === 'skipped') needed = 'canCompleteHousekeepingTask';
+    else if (inspection_status === 'approved' || inspection_status === 'rejected') {
+      needed = 'canApproveInspection';
+    } else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) {
+      needed = 'canAssignHousekeepingTasks';
+    }
+
+    const gate = assertPermission(event, needed);
+    if (!gate.ok) {
+      return {
+        statusCode: gate.status || 403,
+        headers,
+        body: JSON.stringify({ error: gate.error }),
       };
     }
 
@@ -114,7 +134,6 @@ exports.handler = async (event) => {
     const updated = await updateRes.json();
     const next = updated[0] || { ...task, ...patch };
 
-    // ---- Room readiness state machine ----
     let roomPatch = null;
 
     if (status === 'in_progress') {

@@ -1,5 +1,5 @@
 // netlify/functions/manage-employees.js
-// RBAC-aware employee CRUD — stores staff_role + permission_set
+// RBAC-aware employee CRUD — staff_role, department, permission_set
 
 const jwt = require('jsonwebtoken');
 const { requirePermission, principalFromJwt } = require('./_rbac');
@@ -43,7 +43,6 @@ exports.handler = async function (event) {
 
     const principal = principalFromJwt(decoded);
     if (!requirePermission(principal, 'canManageStaff') && principal.actorType !== 'business') {
-      // Business owner tokens always allowed
       if (principal.actorType !== 'business' && principal.role !== 'business_owner') {
         return {
           statusCode: 403,
@@ -94,6 +93,7 @@ exports.handler = async function (event) {
         phone_number,
         role = 'front_desk',
         staff_role,
+        department,
         permission_set,
       } = body;
 
@@ -126,6 +126,7 @@ exports.handler = async function (event) {
         phone_number: cleanPhone,
         role: resolvedRole,
         staff_role: resolvedRole,
+        department: department || null,
         permission_set: permission_set || null,
         status: 'Pending',
         active: true,
@@ -146,9 +147,8 @@ exports.handler = async function (event) {
       });
 
       if (!insertResponse.ok) {
-        // Fallback without new columns if migration not applied yet
         const errText = await insertResponse.text();
-        if (/staff_role|permission_set|active/i.test(errText)) {
+        if (/staff_role|permission_set|active|department/i.test(errText)) {
           const legacy = {
             business_id: businessId,
             full_name,
@@ -201,8 +201,17 @@ exports.handler = async function (event) {
 
     if (event.httpMethod === 'PUT' || event.httpMethod === 'PATCH') {
       const body = JSON.parse(event.body || '{}');
-      const { id, status, role, staff_role, full_name, phone_number, active, permission_set } =
-        body;
+      const {
+        id,
+        status,
+        role,
+        staff_role,
+        department,
+        full_name,
+        phone_number,
+        active,
+        permission_set,
+      } = body;
 
       if (!id) {
         return {
@@ -225,6 +234,7 @@ exports.handler = async function (event) {
         updateData.staff_role = staff_role;
         updateData.role = staff_role;
       }
+      if (department !== undefined) updateData.department = department;
       if (permission_set !== undefined) updateData.permission_set = permission_set;
       if (full_name) updateData.full_name = full_name;
       if (phone_number) {
