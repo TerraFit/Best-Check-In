@@ -1,15 +1,20 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// ✅ SIMPLIFIED: Phone numbers as digits only (no international formatting)
+// RBAC: assign staff roles; cards show Role · Status · Last login
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
+import { ASSIGNABLE_ROLES, ROLE_LABELS, type StaffRole } from '../../types/permissions';
+import { roleLabel } from '../../services/rbacService';
 
 interface Employee {
   id: string;
   business_id: string;
   full_name: string;
   phone_number: string;
-  role: 'EmployeeOverview';
+  role: string;
+  staff_role?: string | null;
+  permission_set?: string[] | null;
+  active?: boolean;
   status: 'Pending' | 'Active' | 'Disabled';
   invitation_token: string;
   invitation_expiry: string;
@@ -29,15 +34,15 @@ interface EmployeeManagementTabProps {
 export function EmployeeManagementTab({
   employees,
   businessName,
-  onUpdateEmployees
+  onUpdateEmployees,
 }: EmployeeManagementTabProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [staffRole, setStaffRole] = useState<StaffRole>('front_desk');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Helper to get auth token
   const getAuthToken = (): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
@@ -45,13 +50,12 @@ export function EmployeeManagementTab({
         const auth = JSON.parse(authStr);
         return auth?.token || null;
       }
-    } catch (err) {
-      console.error('Error getting auth:', err);
+    } catch {
+      /* ignore */
     }
     return null;
   };
 
-  // ✅ Helper to get business_id
   const getBusinessId = (): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
@@ -59,15 +63,12 @@ export function EmployeeManagementTab({
         const auth = JSON.parse(authStr);
         return auth?.user?.businessId || null;
       }
-    } catch (err) {
-      console.error('Error getting business_id:', err);
+    } catch {
+      /* ignore */
     }
     return null;
   };
 
-  // ============================================================
-  // ✅ ADD EMPLOYEE - Calls API
-  // ============================================================
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !phone.trim()) {
@@ -77,205 +78,188 @@ export function EmployeeManagementTab({
 
     const businessId = getBusinessId();
     const token = getAuthToken();
-
-    if (!businessId) {
-      alert('Business ID not found. Please log in again.');
-      return;
-    }
-
-    if (!token) {
-      alert('Session token not found. Please log in again.');
+    if (!businessId || !token) {
+      alert('Session not found. Please log in again.');
       return;
     }
 
     setLoading(true);
-
     try {
-      // ✅ SIMPLIFIED: Remove all non-digit characters
       const cleanPhone = phone.replace(/\D/g, '');
-      console.log('📱 Cleaned phone:', cleanPhone);
-
       if (cleanPhone.length < 9) {
         alert('Please enter a valid phone number (at least 9 digits)');
         setLoading(false);
         return;
       }
 
-      const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const invitationToken =
+        'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 7);
 
       const newEmp = {
         business_id: businessId,
         full_name: fullName.trim(),
-        phone_number: cleanPhone, // ✅ Store as digits only
-        role: 'EmployeeOverview',
+        phone_number: cleanPhone,
+        role: staffRole,
+        staff_role: staffRole,
         status: 'Pending',
+        active: true,
         invitation_token: invitationToken,
         invitation_expiry: expiryDate.toISOString(),
-        invited_at: new Date().toISOString()
+        invited_at: new Date().toISOString(),
       };
-
-      console.log('📝 Adding employee:', newEmp);
 
       const response = await fetch('/.netlify/functions/manage-employees', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(newEmp)
+        body: JSON.stringify(newEmp),
       });
 
       const data = await response.json();
-      console.log('📡 Add response:', data);
-
       if (response.ok && data.success) {
-        const updated = [data.data, ...employees];
-        onUpdateEmployees(updated);
+        onUpdateEmployees([data.data, ...employees]);
         setFullName('');
         setPhone('');
+        setStaffRole('front_desk');
         setShowAddForm(false);
-        alert(`🎉 Added Employee "${fullName}" successfully!`);
+        alert(`Added "${fullName}" as ${ROLE_LABELS[staffRole]}`);
       } else {
         alert(data.error || 'Failed to add employee');
       }
     } catch (error) {
-      console.error('❌ Add error:', error);
+      console.error(error);
       alert('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ============================================================
-  // ✅ DELETE EMPLOYEE - Calls API
-  // ============================================================
   const handleRemoveEmployee = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to permanently delete employee "${name}"?`)) {
-      return;
-    }
-
+    if (!confirm(`Permanently delete employee "${name}"?`)) return;
     const token = getAuthToken();
-    if (!token) {
-      alert('Session token not found. Please log in again.');
-      return;
-    }
-
+    if (!token) return;
     setLoading(true);
-
     try {
-      console.log(`🗑️ Deleting employee: ${id} (${name})`);
-
       const response = await fetch('/.netlify/functions/manage-employees', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ id: id })
+        body: JSON.stringify({ id }),
       });
-
       const data = await response.json();
-      console.log('📡 Delete response:', data);
-
       if (response.ok && data.success) {
-        const updated = employees.filter(e => e.id !== id);
-        onUpdateEmployees(updated);
-        alert(`✅ Employee "${name}" deleted successfully.`);
+        onUpdateEmployees(employees.filter((e) => e.id !== id));
       } else {
-        alert(data.error || 'Failed to delete employee.');
+        alert(data.error || 'Failed to delete');
       }
-    } catch (error) {
-      console.error('❌ Delete error:', error);
-      alert('An error occurred while deleting the employee.');
+    } catch {
+      alert('Delete failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // ============================================================
-  // ✅ TOGGLE EMPLOYEE STATUS - Calls API
-  // ============================================================
-  const handleToggleDisable = async (id: string, currentStatus: 'Active' | 'Pending' | 'Disabled', name: string) => {
-    const isCurrentlyDisabled = currentStatus === 'Disabled';
-    const newStatus = isCurrentlyDisabled ? 'Active' : 'Disabled';
-    
-    if (!confirm(`Are you sure you want to ${isCurrentlyDisabled ? 'RE-ENABLE' : 'DISABLE'} employee "${name}"?`)) {
-      return;
-    }
-
+  const handleToggleDisable = async (
+    id: string,
+    currentStatus: 'Active' | 'Pending' | 'Disabled',
+    name: string
+  ) => {
+    const isDisabled = currentStatus === 'Disabled';
+    const newStatus = isDisabled ? 'Active' : 'Disabled';
+    if (!confirm(`${isDisabled ? 'Re-enable' : 'Disable'} "${name}"?`)) return;
     const token = getAuthToken();
-    if (!token) {
-      alert('Session token not found. Please log in again.');
-      return;
-    }
-
+    if (!token) return;
     setLoading(true);
-
     try {
-      console.log(`🔄 ${newStatus} employee: ${id} (${name})`);
-
       const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          id: id, 
-          status: newStatus 
-        })
+        body: JSON.stringify({
+          id,
+          status: newStatus,
+          active: newStatus === 'Active',
+        }),
       });
-
       const data = await response.json();
-      console.log('📡 Status toggle response:', data);
-
       if (response.ok && data.success) {
-        const updated = employees.map(e => 
-          e.id === id ? { ...e, status: newStatus, updated_at: new Date().toISOString() } : e
+        onUpdateEmployees(
+          employees.map((e) =>
+            e.id === id
+              ? {
+                  ...e,
+                  status: newStatus,
+                  active: newStatus === 'Active',
+                  updated_at: new Date().toISOString(),
+                }
+              : e
+          )
         );
-        onUpdateEmployees(updated);
-        alert(`✅ Employee "${name}" ${isCurrentlyDisabled ? 're-enabled' : 'disabled'} successfully.`);
       } else {
-        alert(data.error || 'Failed to update employee status.');
+        alert(data.error || 'Failed to update status');
       }
-    } catch (error) {
-      console.error('❌ Status toggle error:', error);
-      alert('An error occurred while updating employee status.');
+    } catch {
+      alert('Update failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // ============================================================
-  // ✅ SHARE OVERVIEW - WhatsApp
-  // ============================================================
-  const handleShareOverview = (emp: Employee) => {
-    const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    const text = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
-    const cleanPhone = emp.phone_number.replace(/\D/g, '');
-    const waUrl = `https://wa.me/27${cleanPhone}?text=${encodeURIComponent(text)}`;
-    window.open(waUrl, '_blank');
+  const handleChangeRole = async (id: string, nextRole: StaffRole) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, role: nextRole, staff_role: nextRole }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        onUpdateEmployees(
+          employees.map((e) =>
+            e.id === id
+              ? { ...e, role: nextRole, staff_role: nextRole, updated_at: new Date().toISOString() }
+              : e
+          )
+        );
+      } else {
+        alert(data.error || 'Failed to update role');
+      }
+    } catch {
+      alert('Role update failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ============================================================
-  // ✅ COPY LINK - Clipboard
-  // ============================================================
+  const handleShareOverview = (emp: Employee) => {
+    const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
+    const text = `Hello ${emp.full_name},\n\nYou have been invited to FastCheckIn as ${roleLabel(
+      emp.staff_role || emp.role
+    )}.\n\nActivate your account:\n${onboardingUrl}`;
+    const cleanPhone = emp.phone_number.replace(/\D/g, '');
+    window.open(`https://wa.me/27${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   const handleCopyLink = (emp: Employee) => {
     const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    const message = `Hello ${emp.full_name},\n\nYou have been invited to access the FastCheckIn Business Overview.\n\nPlease click the link below to activate your account:\n\n${onboardingUrl}\n\nYou will be asked to create your password.\n\nAfter activation you can install FastCheckIn on your Home Screen for quick access.`;
-    
+    const message = `Hello ${emp.full_name},\n\nActivate FastCheckIn (${roleLabel(
+      emp.staff_role || emp.role
+    )}):\n${onboardingUrl}`;
     navigator.clipboard.writeText(message).then(() => {
-      setCopySuccess(emp.id);
-      setTimeout(() => setCopySuccess(null), 3000);
-    }).catch(() => {
-      const textarea = document.createElement('textarea');
-      textarea.value = message;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
       setCopySuccess(emp.id);
       setTimeout(() => setCopySuccess(null), 3000);
     });
@@ -283,169 +267,197 @@ export function EmployeeManagementTab({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header bar with CTA */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold font-serif text-stone-900 leading-none">
             Employee Accounts
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Authorize read-only employee portals with kitchen synchronization permissions
+            Assign roles so each staff member only sees what they need
           </p>
         </div>
-
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold uppercase tracking-wider"
         >
-          <Plus size={14} /> Add New Employee
+          <Plus size={14} /> Add Employee
         </button>
       </div>
 
-      {/* Add Employee Form Container */}
       {showAddForm && (
-        <form 
+        <form
           onSubmit={handleAddEmployee}
-          className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-lg animate-scale-in"
+          className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-lg"
         >
           <div className="flex justify-between items-center border-b border-stone-100 pb-3">
             <h3 className="font-bold text-xs uppercase tracking-widest text-stone-400">
-              Create Employee Profile
+              Create Employee
             </h3>
-            <button 
-              type="button" 
-              onClick={() => setShowAddForm(false)}
-              className="p-1 rounded-full hover:bg-stone-100 text-stone-400"
-            >
+            <button type="button" onClick={() => setShowAddForm(false)} className="p-1 text-stone-400">
               <X size={14} />
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Full Name</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Full Name
+              </label>
               <input
                 type="text"
                 required
                 value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="John Chefson"
+                placeholder="Mary Housekeeper"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Mobile Number</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Mobile
+              </label>
               <input
                 type="text"
                 inputMode="numeric"
-                pattern="[0-9]*"
                 required
                 value={phone}
-                onChange={e => {
-                  // ✅ Only allow digits
-                  const digitsOnly = e.target.value.replace(/\D/g, '');
-                  setPhone(digitsOnly);
-                }}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500 font-mono tracking-widest"
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs font-mono"
                 placeholder="0837789487"
                 maxLength={10}
               />
-              <p className="text-[10px] text-stone-400 mt-1">Enter phone number without spaces or international codes</p>
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+              Role
+            </label>
+            <select
+              value={staffRole}
+              onChange={(e) => setStaffRole(e.target.value as StaffRole)}
+              className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
+            >
+              {ASSIGNABLE_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-stone-400">
+              Permissions follow the role defaults. Custom sets can be refined later.
+            </p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all disabled:opacity-50"
+            className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider disabled:opacity-50"
           >
-            {loading ? 'Adding...' : 'Create Invite & Register Employee'}
+            {loading ? 'Adding…' : 'Create Invite'}
           </button>
         </form>
       )}
 
-      {/* Employees Grid list */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
               <tr>
-                <th className="px-6 py-4">Employee Name</th>
-                <th className="px-6 py-4">Mobile Number</th>
+                <th className="px-6 py-4">Name</th>
+                <th className="px-6 py-4">Role</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Date Invited</th>
                 <th className="px-6 py-4">Last Login</th>
-                <th className="px-6 py-4 text-center">Action Options</th>
+                <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-stone-400">
-                    No employees registered. Click "Add New Employee" to register staff.
+                  <td colSpan={5} className="px-6 py-12 text-center text-stone-400">
+                    No employees yet. Add staff and assign a role.
                   </td>
                 </tr>
               ) : (
-                employees.map(emp => (
-                  <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-stone-900">{emp.full_name}</td>
-                    <td className="px-6 py-4 font-mono text-stone-600">{emp.phone_number}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
-                        emp.status === 'Active' ? 'bg-green-100 text-green-800' :
-                        emp.status === 'Disabled' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {emp.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-stone-500">
-                      {new Date(emp.invited_at).toLocaleDateString('en-ZA')}
-                    </td>
-                    <td className="px-6 py-4 text-stone-500">
-                      {emp.last_login ? new Date(emp.last_login).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                        <button
-                          onClick={() => handleShareOverview(emp)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase transition-all"
-                          title="Share onboarding activation link over WhatsApp"
+                employees.map((emp) => {
+                  const displayRole = emp.staff_role || emp.role;
+                  return (
+                    <tr key={emp.id} className="hover:bg-stone-50/50">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-stone-900">{emp.full_name}</div>
+                        <div className="font-mono text-stone-500 text-[10px]">{emp.phone_number}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={displayRole}
+                          disabled={loading}
+                          onChange={(e) => handleChangeRole(emp.id, e.target.value as StaffRole)}
+                          className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[140px]"
                         >
-                          📱 Share
-                        </button>
-
-                        <button
-                          onClick={() => handleCopyLink(emp)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase transition-all"
-                          title="Copy activation link to clipboard"
-                        >
-                          {copySuccess === emp.id ? '✅ Copied!' : '📋 Copy Link'}
-                        </button>
-
-                        <button
-                          onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase border transition-all ${
-                            emp.status === 'Disabled'
-                              ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                              : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {ROLE_LABELS[r]}
+                            </option>
+                          ))}
+                          {!ASSIGNABLE_ROLES.includes(displayRole as StaffRole) && (
+                            <option value={displayRole}>{roleLabel(displayRole)}</option>
+                          )}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
+                            emp.status === 'Active'
+                              ? 'bg-green-100 text-green-800'
+                              : emp.status === 'Disabled'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
                           }`}
-                          disabled={loading}
                         >
-                          {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
-                        </button>
-
-                        <button
-                          onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
-                          className="p-1.5 text-stone-400 hover:text-red-500 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                          disabled={loading}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {emp.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-stone-500">
+                        {emp.last_login
+                          ? new Date(emp.last_login).toLocaleString('en-ZA', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })
+                          : 'Never'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => handleShareOverview(emp)}
+                            className="px-2.5 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase"
+                          >
+                            Share
+                          </button>
+                          <button
+                            onClick={() => handleCopyLink(emp)}
+                            className="px-2.5 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase"
+                          >
+                            {copySuccess === emp.id ? 'Copied!' : 'Copy'}
+                          </button>
+                          <button
+                            onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
+                            className="px-2.5 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-[9px] font-bold uppercase"
+                            disabled={loading}
+                          >
+                            {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
+                          </button>
+                          <button
+                            onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
+                            className="p-1.5 text-stone-400 hover:text-red-500"
+                            disabled={loading}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
