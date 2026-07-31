@@ -5,6 +5,7 @@ export type LostFoundStatus =
   | 'newly_found'
   | 'awaiting_contact'
   | 'guest_contacted'
+  | 'guest_replied'
   | 'collection_arranged'
   | 'courier_booked'
   | 'returned'
@@ -25,10 +26,13 @@ export type LostFoundActivityType =
   | 'status_change'
   | 'note_added'
   | 'guest_contacted'
+  | 'guest_replied'
   | 'storage_updated'
   | 'returned'
+  | 'collected'
   | 'archived'
-  | 'updated';
+  | 'updated'
+  | 'reminder_sent';
 
 export type CommunicationMethod =
   | 'email'
@@ -71,6 +75,13 @@ export interface LostFoundItem {
   returned_at?: string | null;
   returned_to?: string | null;
   archived_at?: string | null;
+  collected_by_name?: string | null;
+  collected_by_id_number?: string | null;
+  collection_signature_url?: string | null;
+  released_by_staff_id?: string | null;
+  released_by_staff_name?: string | null;
+  last_reminder_at?: string | null;
+  reminder_count?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -119,6 +130,10 @@ export interface LostFoundDashboardStats {
   unclaimed: number;
   recently_found: number;
   recently_returned: number;
+  /** Reporting extras when provided by API */
+  found_this_month?: number;
+  avg_days_to_collection?: number | null;
+  outstanding?: number;
 }
 
 export interface CreateLostFoundPayload {
@@ -186,15 +201,25 @@ export interface ContactGuestPayload {
   notes?: string;
   employee_id?: string | null;
   employee_name?: string | null;
-  /** Optional: set status after contact */
   new_status?: LostFoundStatus;
 }
 
+export interface CollectItemPayload {
+  businessId: string;
+  itemId: string;
+  collected_by_name: string;
+  collected_by_id_number?: string;
+  collection_signature_url?: string;
+  employee_id?: string | null;
+  employee_name?: string | null;
+}
+
 export const LOST_FOUND_STATUS_LABELS: Record<LostFoundStatus, string> = {
-  newly_found: 'Newly Found',
+  newly_found: 'Found',
   awaiting_contact: 'Awaiting Contact',
   guest_contacted: 'Guest Contacted',
-  collection_arranged: 'Collection Arranged',
+  guest_replied: 'Guest Replied',
+  collection_arranged: 'Collection Scheduled',
   courier_booked: 'Courier Booked',
   returned: 'Returned',
   collected: 'Collected',
@@ -206,6 +231,7 @@ export const LOST_FOUND_STATUS_COLORS: Record<LostFoundStatus, string> = {
   newly_found: 'bg-amber-100 text-amber-800',
   awaiting_contact: 'bg-orange-100 text-orange-800',
   guest_contacted: 'bg-blue-100 text-blue-800',
+  guest_replied: 'bg-sky-100 text-sky-800',
   collection_arranged: 'bg-indigo-100 text-indigo-800',
   courier_booked: 'bg-purple-100 text-purple-800',
   returned: 'bg-green-100 text-green-800',
@@ -213,6 +239,16 @@ export const LOST_FOUND_STATUS_COLORS: Record<LostFoundStatus, string> = {
   unclaimed: 'bg-red-100 text-red-800',
   archived: 'bg-stone-100 text-stone-600',
 };
+
+/** Primary guest-facing timeline steps */
+export const GUEST_TIMELINE: LostFoundStatus[] = [
+  'newly_found',
+  'guest_contacted',
+  'guest_replied',
+  'collection_arranged',
+  'collected',
+  'archived',
+];
 
 export const BUILTIN_CATEGORIES = [
   'Clothing',
@@ -230,7 +266,16 @@ export const BUILTIN_CATEGORIES = [
   'Miscellaneous',
 ] as const;
 
-export const BUILTIN_STORAGE = ['Shelf', 'Cupboard', 'Safe', 'Cabinet', 'Box Number'] as const;
+export const BUILTIN_STORAGE = [
+  'Reception Safe',
+  'Reception Shelf A',
+  'Reception Shelf B',
+  'Housekeeping Cupboard',
+  'Manager Safe',
+  'Maintenance Room',
+  'Laundry',
+  'External Storage',
+] as const;
 
 export const CONDITION_OPTIONS: Array<{ id: LostFoundCondition; label: string }> = [
   { id: 'excellent', label: 'Excellent' },
@@ -244,6 +289,7 @@ export const STATUS_WORKFLOW: LostFoundStatus[] = [
   'newly_found',
   'awaiting_contact',
   'guest_contacted',
+  'guest_replied',
   'collection_arranged',
   'courier_booked',
   'returned',
@@ -251,3 +297,6 @@ export const STATUS_WORKFLOW: LostFoundStatus[] = [
   'unclaimed',
   'archived',
 ];
+
+/** Reminder schedule in days since found / last contact */
+export const REMINDER_DAYS = [1, 3, 7, 30, 90, 365] as const;
