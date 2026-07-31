@@ -40,6 +40,10 @@ function assertPermission(event, permission) {
   }
 }
 
+function hasPhotos(row) {
+  return Array.isArray(row.photo_urls) && row.photo_urls.some(Boolean);
+}
+
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -106,8 +110,9 @@ exports.handler = async (event) => {
     }
     const items = await res.json();
 
+    // Stats need photo_urls for missing_photos count
     const statsRes = await fetch(
-      `${supabaseUrl}/rest/v1/lost_and_found?business_id=eq.${businessId}&select=id,status,found_date,returned_at,created_at,category,room_number`,
+      `${supabaseUrl}/rest/v1/lost_and_found?business_id=eq.${businessId}&select=id,status,found_date,returned_at,created_at,photo_urls`,
       { headers: sh }
     );
     const all = statsRes.ok ? await statsRes.json() : [];
@@ -115,6 +120,7 @@ exports.handler = async (event) => {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     const collected = all.filter((i) => ['returned', 'collected'].includes(i.status) && i.found_date && i.returned_at);
     let avgDays = null;
@@ -122,12 +128,12 @@ exports.handler = async (event) => {
       const sum = collected.reduce((acc, i) => {
         const a = new Date(i.found_date).getTime();
         const b = new Date(i.returned_at).getTime();
-        return acc + Math.max(0, (b - a) / (86400000));
+        return acc + Math.max(0, (b - a) / 86400000);
       }, 0);
       avgDays = Math.round((sum / collected.length) * 10) / 10;
     }
 
-    const outstandingStatuses = [
+    const openStatuses = [
       'newly_found', 'awaiting_contact', 'guest_contacted', 'guest_replied',
       'collection_arranged', 'courier_booked',
     ];
@@ -135,9 +141,23 @@ exports.handler = async (event) => {
     const stats = {
       total: all.length,
       newly_found: all.filter((i) => i.status === 'newly_found').length,
-      awaiting_contact: all.filter((i) => i.status === 'awaiting_contact').length,
+      awaiting_contact: all.filter((i) =>
+        ['newly_found', 'awaiting_contact'].includes(i.status)
+      ).length,
       awaiting_collection: all.filter((i) =>
         ['collection_arranged', 'courier_booked', 'guest_contacted', 'guest_replied'].includes(i.status)
+      ).length,
+      ready_for_collection: all.filter((i) =>
+        ['collection_arranged', 'courier_booked'].includes(i.status)
+      ).length,
+      missing_photos: all.filter(
+        (i) => openStatuses.includes(i.status) && !hasPhotos(i)
+      ).length,
+      overdue: all.filter(
+        (i) =>
+          openStatuses.includes(i.status) &&
+          i.found_date &&
+          i.found_date < thirtyDaysAgo
       ).length,
       returned: all.filter((i) => ['returned', 'collected'].includes(i.status)).length,
       archived: all.filter((i) => i.status === 'archived').length,
@@ -148,7 +168,7 @@ exports.handler = async (event) => {
       ).length,
       found_this_month: all.filter((i) => i.found_date && i.found_date >= monthStart).length,
       avg_days_to_collection: avgDays,
-      outstanding: all.filter((i) => outstandingStatuses.includes(i.status)).length,
+      outstanding: all.filter((i) => openStatuses.includes(i.status)).length,
     };
 
     return {

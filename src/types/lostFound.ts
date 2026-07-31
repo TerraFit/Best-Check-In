@@ -130,11 +130,16 @@ export interface LostFoundDashboardStats {
   unclaimed: number;
   recently_found: number;
   recently_returned: number;
-  /** Reporting extras when provided by API */
   found_this_month?: number;
   avg_days_to_collection?: number | null;
   outstanding?: number;
+  /** Open items with no photos — operational task */
+  missing_photos?: number;
+  ready_for_collection?: number;
+  overdue?: number;
 }
+
+export type LostFoundViewMode = 'employee' | 'business';
 
 export interface CreateLostFoundPayload {
   businessId: string;
@@ -240,7 +245,6 @@ export const LOST_FOUND_STATUS_COLORS: Record<LostFoundStatus, string> = {
   archived: 'bg-stone-100 text-stone-600',
 };
 
-/** Primary guest-facing timeline steps */
 export const GUEST_TIMELINE: LostFoundStatus[] = [
   'newly_found',
   'guest_contacted',
@@ -298,5 +302,4 @@ export const STATUS_WORKFLOW: LostFoundStatus[] = [
   'archived',
 ];
 
-/** Reminder schedule in days since found / last contact */
 export const REMINDER_DAYS = [1, 3, 7, 30, 90, 365] as const;
