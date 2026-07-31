@@ -1,10 +1,20 @@
 // src/components/staff/EmployeeManagementTab.tsx
-// RBAC: assign staff roles; cards show Role · Status · Last login
+// RBAC: Name · Department · Role · Status · Last Login · Custom permission editor
 
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
-import { ASSIGNABLE_ROLES, ROLE_LABELS, type StaffRole } from '../../types/permissions';
-import { roleLabel } from '../../services/rbacService';
+import {
+  ALL_PERMISSIONS,
+  ASSIGNABLE_DEPARTMENTS,
+  ASSIGNABLE_ROLES,
+  DEPARTMENT_LABELS,
+  PERMISSION_LABELS,
+  ROLE_LABELS,
+  type Permission,
+  type StaffDepartment,
+  type StaffRole,
+} from '../../types/permissions';
+import { departmentLabel, roleLabel } from '../../services/rbacService';
 
 interface Employee {
   id: string;
@@ -13,6 +23,7 @@ interface Employee {
   phone_number: string;
   role: string;
   staff_role?: string | null;
+  department?: string | null;
   permission_set?: string[] | null;
   active?: boolean;
   status: 'Pending' | 'Active' | 'Disabled';
@@ -40,16 +51,17 @@ export function EmployeeManagementTab({
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('front_desk');
+  const [department, setDepartment] = useState<StaffDepartment>('front_office');
+  const [customPerms, setCustomPerms] = useState<Permission[]>(['canViewDashboard']);
+  const [editingPermsId, setEditingPermsId] = useState<string | null>(null);
+  const [editPerms, setEditPerms] = useState<Permission[]>([]);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const getAuthToken = (): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        return auth?.token || null;
-      }
+      if (authStr) return JSON.parse(authStr)?.token || null;
     } catch {
       /* ignore */
     }
@@ -59,10 +71,7 @@ export function EmployeeManagementTab({
   const getBusinessId = (): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        return auth?.user?.businessId || null;
-      }
+      if (authStr) return JSON.parse(authStr)?.user?.businessId || null;
     } catch {
       /* ignore */
     }
@@ -75,14 +84,12 @@ export function EmployeeManagementTab({
       alert('Please fill out all fields');
       return;
     }
-
     const businessId = getBusinessId();
     const token = getAuthToken();
     if (!businessId || !token) {
       alert('Session not found. Please log in again.');
       return;
     }
-
     setLoading(true);
     try {
       const cleanPhone = phone.replace(/\D/g, '');
@@ -91,24 +98,27 @@ export function EmployeeManagementTab({
         setLoading(false);
         return;
       }
-
       const invitationToken =
         'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 7);
 
-      const newEmp = {
+      const newEmp: Record<string, unknown> = {
         business_id: businessId,
         full_name: fullName.trim(),
         phone_number: cleanPhone,
         role: staffRole,
         staff_role: staffRole,
+        department,
         status: 'Pending',
         active: true,
         invitation_token: invitationToken,
         invitation_expiry: expiryDate.toISOString(),
         invited_at: new Date().toISOString(),
       };
+      if (staffRole === 'custom') {
+        newEmp.permission_set = customPerms;
+      }
 
       const response = await fetch('/.netlify/functions/manage-employees', {
         method: 'POST',
@@ -118,20 +128,20 @@ export function EmployeeManagementTab({
         },
         body: JSON.stringify(newEmp),
       });
-
       const data = await response.json();
       if (response.ok && data.success) {
         onUpdateEmployees([data.data, ...employees]);
         setFullName('');
         setPhone('');
         setStaffRole('front_desk');
+        setDepartment('front_office');
+        setCustomPerms(['canViewDashboard']);
         setShowAddForm(false);
         alert(`Added "${fullName}" as ${ROLE_LABELS[staffRole]}`);
       } else {
         alert(data.error || 'Failed to add employee');
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       alert('An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -155,9 +165,7 @@ export function EmployeeManagementTab({
       const data = await response.json();
       if (response.ok && data.success) {
         onUpdateEmployees(employees.filter((e) => e.id !== id));
-      } else {
-        alert(data.error || 'Failed to delete');
-      }
+      } else alert(data.error || 'Failed to delete');
     } catch {
       alert('Delete failed');
     } finally {
@@ -183,11 +191,7 @@ export function EmployeeManagementTab({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          id,
-          status: newStatus,
-          active: newStatus === 'Active',
-        }),
+        body: JSON.stringify({ id, status: newStatus, active: newStatus === 'Active' }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -203,9 +207,7 @@ export function EmployeeManagementTab({
               : e
           )
         );
-      } else {
-        alert(data.error || 'Failed to update status');
-      }
+      } else alert(data.error || 'Failed to update status');
     } catch {
       alert('Update failed');
     } finally {
@@ -218,31 +220,119 @@ export function EmployeeManagementTab({
     if (!token) return;
     setLoading(true);
     try {
+      const body: Record<string, unknown> = { id, role: nextRole, staff_role: nextRole };
+      if (nextRole !== 'custom') body.permission_set = null;
       const response = await fetch('/.netlify/functions/manage-employees', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ id, role: nextRole, staff_role: nextRole }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (response.ok && data.success) {
         onUpdateEmployees(
           employees.map((e) =>
             e.id === id
-              ? { ...e, role: nextRole, staff_role: nextRole, updated_at: new Date().toISOString() }
+              ? {
+                  ...e,
+                  role: nextRole,
+                  staff_role: nextRole,
+                  permission_set: nextRole === 'custom' ? e.permission_set : null,
+                  updated_at: new Date().toISOString(),
+                }
               : e
           )
         );
-      } else {
-        alert(data.error || 'Failed to update role');
-      }
+        if (nextRole === 'custom') {
+          const emp = employees.find((e) => e.id === id);
+          setEditingPermsId(id);
+          setEditPerms((emp?.permission_set as Permission[]) || ['canViewDashboard']);
+        }
+      } else alert(data.error || 'Failed to update role');
     } catch {
       alert('Role update failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChangeDepartment = async (id: string, nextDept: StaffDepartment) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, department: nextDept }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        onUpdateEmployees(
+          employees.map((e) =>
+            e.id === id
+              ? { ...e, department: nextDept, updated_at: new Date().toISOString() }
+              : e
+          )
+        );
+      } else alert(data.error || 'Failed to update department');
+    } catch {
+      alert('Department update failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCustomPerms = async (id: string) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/.netlify/functions/manage-employees', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id,
+          role: 'custom',
+          staff_role: 'custom',
+          permission_set: editPerms,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        onUpdateEmployees(
+          employees.map((e) =>
+            e.id === id
+              ? {
+                  ...e,
+                  role: 'custom',
+                  staff_role: 'custom',
+                  permission_set: editPerms,
+                  updated_at: new Date().toISOString(),
+                }
+              : e
+          )
+        );
+        setEditingPermsId(null);
+      } else alert(data.error || 'Failed to save permissions');
+    } catch {
+      alert('Save failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const togglePerm = (list: Permission[], setList: (p: Permission[]) => void, p: Permission) => {
+    if (list.includes(p)) setList(list.filter((x) => x !== p));
+    else setList([...list, p]);
   };
 
   const handleShareOverview = (emp: Employee) => {
@@ -265,6 +355,28 @@ export function EmployeeManagementTab({
     });
   };
 
+  const PermissionMatrix = ({
+    selected,
+    onToggle,
+  }: {
+    selected: Permission[];
+    onToggle: (p: Permission) => void;
+  }) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto border border-stone-100 rounded-xl p-3 bg-stone-50">
+      {ALL_PERMISSIONS.map((p) => (
+        <label key={p} className="flex items-center gap-2 text-[11px] text-stone-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={selected.includes(p)}
+            onChange={() => onToggle(p)}
+            className="rounded border-stone-300"
+          />
+          {PERMISSION_LABELS[p] || p}
+        </label>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -273,7 +385,7 @@ export function EmployeeManagementTab({
             Employee Accounts
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Assign roles so each staff member only sees what they need
+            Department is organisational only. Role controls permissions.
           </p>
         </div>
         <button
@@ -287,7 +399,7 @@ export function EmployeeManagementTab({
       {showAddForm && (
         <form
           onSubmit={handleAddEmployee}
-          className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-lg"
+          className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-xl"
         >
           <div className="flex justify-between items-center border-b border-stone-100 pb-3">
             <h3 className="font-bold text-xs uppercase tracking-widest text-stone-400">
@@ -308,7 +420,7 @@ export function EmployeeManagementTab({
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
                 placeholder="Mary Housekeeper"
               />
             </div>
@@ -329,25 +441,52 @@ export function EmployeeManagementTab({
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-              Role
-            </label>
-            <select
-              value={staffRole}
-              onChange={(e) => setStaffRole(e.target.value as StaffRole)}
-              className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
-            >
-              {ASSIGNABLE_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABELS[r]}
-                </option>
-              ))}
-            </select>
-            <p className="text-[10px] text-stone-400">
-              Permissions follow the role defaults. Custom sets can be refined later.
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Department
+              </label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value as StaffDepartment)}
+                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
+              >
+                {ASSIGNABLE_DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {DEPARTMENT_LABELS[d]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Role
+              </label>
+              <select
+                value={staffRole}
+                onChange={(e) => setStaffRole(e.target.value as StaffRole)}
+                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
+              >
+                {ASSIGNABLE_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {staffRole === 'custom' && (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Custom Permissions
+              </label>
+              <PermissionMatrix
+                selected={customPerms}
+                onToggle={(p) => togglePerm(customPerms, setCustomPerms, p)}
+              />
+            </div>
+          )}
 
           <button
             type="submit"
@@ -364,98 +503,167 @@ export function EmployeeManagementTab({
           <table className="w-full text-left text-xs">
             <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
               <tr>
-                <th className="px-6 py-4">Name</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Last Login</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-4 py-4">Name</th>
+                <th className="px-4 py-4">Department</th>
+                <th className="px-4 py-4">Role</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4">Last Login</th>
+                <th className="px-4 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-stone-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-stone-400">
                     No employees yet. Add staff and assign a role.
                   </td>
                 </tr>
               ) : (
                 employees.map((emp) => {
-                  const displayRole = emp.staff_role || emp.role;
+                  const displayRole = (emp.staff_role || emp.role) as StaffRole;
                   return (
-                    <tr key={emp.id} className="hover:bg-stone-50/50">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-stone-900">{emp.full_name}</div>
-                        <div className="font-mono text-stone-500 text-[10px]">{emp.phone_number}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={displayRole}
-                          disabled={loading}
-                          onChange={(e) => handleChangeRole(emp.id, e.target.value as StaffRole)}
-                          className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[140px]"
-                        >
-                          {ASSIGNABLE_ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {ROLE_LABELS[r]}
-                            </option>
-                          ))}
-                          {!ASSIGNABLE_ROLES.includes(displayRole as StaffRole) && (
-                            <option value={displayRole}>{roleLabel(displayRole)}</option>
+                    <React.Fragment key={emp.id}>
+                      <tr className="hover:bg-stone-50/50">
+                        <td className="px-4 py-4">
+                          <div className="font-bold text-stone-900">{emp.full_name}</div>
+                          <div className="font-mono text-stone-500 text-[10px]">
+                            {emp.phone_number}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <select
+                            value={emp.department || 'custom'}
+                            disabled={loading}
+                            onChange={(e) =>
+                              handleChangeDepartment(emp.id, e.target.value as StaffDepartment)
+                            }
+                            className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[130px]"
+                          >
+                            {ASSIGNABLE_DEPARTMENTS.map((d) => (
+                              <option key={d} value={d}>
+                                {DEPARTMENT_LABELS[d]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-4">
+                          <select
+                            value={displayRole}
+                            disabled={loading}
+                            onChange={(e) => handleChangeRole(emp.id, e.target.value as StaffRole)}
+                            className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[140px]"
+                          >
+                            {ASSIGNABLE_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {ROLE_LABELS[r]}
+                              </option>
+                            ))}
+                            {!ASSIGNABLE_ROLES.includes(displayRole) && (
+                              <option value={displayRole}>{roleLabel(displayRole)}</option>
+                            )}
+                          </select>
+                          {displayRole === 'custom' && (
+                            <button
+                              type="button"
+                              className="block mt-1 text-[10px] text-amber-600 font-bold"
+                              onClick={() => {
+                                setEditingPermsId(emp.id);
+                                setEditPerms(
+                                  (emp.permission_set as Permission[]) || ['canViewDashboard']
+                                );
+                              }}
+                            >
+                              Edit permissions
+                            </button>
                           )}
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
-                            emp.status === 'Active'
-                              ? 'bg-green-100 text-green-800'
-                              : emp.status === 'Disabled'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {emp.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-stone-500">
-                        {emp.last_login
-                          ? new Date(emp.last_login).toLocaleString('en-ZA', {
-                              dateStyle: 'short',
-                              timeStyle: 'short',
-                            })
-                          : 'Never'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => handleShareOverview(emp)}
-                            className="px-2.5 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase"
+                        </td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
+                              emp.status === 'Active'
+                                ? 'bg-green-100 text-green-800'
+                                : emp.status === 'Disabled'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                            }`}
                           >
-                            Share
-                          </button>
-                          <button
-                            onClick={() => handleCopyLink(emp)}
-                            className="px-2.5 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase"
-                          >
-                            {copySuccess === emp.id ? 'Copied!' : 'Copy'}
-                          </button>
-                          <button
-                            onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
-                            className="px-2.5 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-[9px] font-bold uppercase"
-                            disabled={loading}
-                          >
-                            {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
-                          </button>
-                          <button
-                            onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
-                            className="p-1.5 text-stone-400 hover:text-red-500"
-                            disabled={loading}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            {emp.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-stone-500">
+                          {emp.last_login
+                            ? new Date(emp.last_login).toLocaleString('en-ZA', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })
+                            : 'Never'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex justify-center items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => handleShareOverview(emp)}
+                              className="px-2 py-1 bg-green-50 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase"
+                            >
+                              Share
+                            </button>
+                            <button
+                              onClick={() => handleCopyLink(emp)}
+                              className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase"
+                            >
+                              {copySuccess === emp.id ? 'Copied!' : 'Copy'}
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleToggleDisable(emp.id, emp.status, emp.full_name)
+                              }
+                              className="px-2 py-1 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-[9px] font-bold uppercase"
+                              disabled={loading}
+                            >
+                              {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
+                            </button>
+                            <button
+                              onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
+                              className="p-1.5 text-stone-400 hover:text-red-500"
+                              disabled={loading}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {editingPermsId === emp.id && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-4 bg-amber-50/40">
+                            <div className="space-y-2 max-w-2xl">
+                              <p className="text-[10px] font-bold uppercase text-stone-500">
+                                Custom permission set for {emp.full_name}
+                              </p>
+                              <PermissionMatrix
+                                selected={editPerms}
+                                onToggle={(p) => togglePerm(editPerms, setEditPerms, p)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => handleSaveCustomPerms(emp.id)}
+                                  className="px-4 py-2 bg-stone-900 text-white rounded-lg text-xs font-bold"
+                                >
+                                  Save permissions
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPermsId(null)}
+                                  className="px-4 py-2 bg-stone-100 text-stone-600 rounded-lg text-xs font-bold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })
               )}
