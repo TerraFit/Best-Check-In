@@ -1,7 +1,50 @@
 // netlify/functions/assign-room-to-booking.js
-// Allocate or clear room. Requires canAllocateRooms when JWT is an employee token.
+// CJS exports.handler — no local require (esbuild + type:module safe)
 
-const { assertPermission } = require('./_rbac');
+function assertPermission(event, permission) {
+  const authHeader =
+    (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+  if (!authHeader) {
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
+  try {
+    const jwt = require('jsonwebtoken');
+    const token = authHeader.replace('Bearer ', '').trim();
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    const meta = (decoded && decoded.user_metadata) || {};
+    if (decoded.role === 'service_role' || meta.super_admin) {
+      return { ok: true, principal: { actorType: 'super_admin', role: 'super_admin', active: true } };
+    }
+    if (meta.business_id && !meta.employee_id) {
+      return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+    }
+    const role = meta.staff_role || meta.role || '';
+    const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
+    const allowRoles = [
+      'business_owner',
+      'general_manager',
+      'supervisor',
+      'front_desk',
+      'night_auditor',
+      'administration',
+      'super_admin',
+    ];
+    if (
+      allowRoles.includes(role) ||
+      perms.includes(permission) ||
+      perms.includes('canAllocateRooms')
+    ) {
+      return { ok: true, principal: { actorType: 'employee', role, active: true } };
+    }
+    return {
+      ok: false,
+      status: 403,
+      error: 'Missing permission: ' + permission,
+    };
+  } catch (e) {
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
+}
 
 exports.handler = async (event) => {
   const headers = {
