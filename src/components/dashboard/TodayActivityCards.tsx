@@ -1,41 +1,60 @@
 import { useTranslation } from '../../i18n';
+import { getRoomDisplayName } from '../../services/roomDisplayService';
+import {
+  readinessDotClass,
+  type ReadinessDotTone,
+} from '../../services/roomOperationalStateService';
 
 interface Guest {
-  id: string
-  guest_name: string
-  guest_phone?: string
-  onClick?: () => void
-  food_restrictions?: {
-    vegetarian: boolean;
-    vegan: boolean;
-    halal: boolean;
-    kosher: boolean;
-    gluten_free: boolean;
-    dairy_free: boolean;
-    lactose_intolerant: boolean;
-    nut_allergy: boolean;
-    shellfish_allergy: boolean;
-    egg_allergy: boolean;
-    soy_allergy: boolean;
-    pork_free: boolean;
-    diabetic: boolean;
-    no_seafood: boolean;
-    carnivore?: boolean;
-    other: boolean;
-    other_text?: string;
-  };
+  id: string;
+  guest_name: string;
+  guest_phone?: string;
+  guest_country?: string;
+  room_id?: string | null;
+  room_number?: number | string | null;
+  room_name?: string | null;
+  /** Readiness tone from canonical operational state (optional) */
+  readinessTone?: ReadinessDotTone | null;
+  onClick?: () => void;
+  food_restrictions?: Record<string, unknown>;
 }
 
 interface TodayActivityCardsProps {
-  arrivals: Guest[]
-  stayovers: Guest[]
-  checkouts: Guest[]
+  arrivals: Guest[];
+  stayovers: Guest[];
+  checkouts: Guest[];
+}
+
+function formatGuestRoom(guest: Guest): string | null {
+  if (guest.room_number === null || guest.room_number === undefined || guest.room_number === '') {
+    return null;
+  }
+  const n =
+    typeof guest.room_number === 'string'
+      ? parseInt(guest.room_number, 10)
+      : guest.room_number;
+  if (Number.isNaN(n)) return null;
+  return getRoomDisplayName({
+    room_number: n,
+    room_name: guest.room_name,
+  });
+}
+
+/** Coloured readiness dot only — no text labels */
+function ReadinessDot({ tone }: { tone?: ReadinessDotTone | null }) {
+  if (!tone) return null;
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${readinessDotClass(tone)}`}
+      title={tone}
+      aria-label={`Room readiness: ${tone}`}
+    />
+  );
 }
 
 export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActivityCardsProps) {
   const { t } = useTranslation();
 
-  // ✅ Check if guest has dietary restrictions
   const hasDietaryRestrictions = (guest: Guest): boolean => {
     const restrictions = guest.food_restrictions || {};
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
@@ -58,29 +77,42 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
           </p>
         ) : (
           <div className="space-y-2">
-            {guests.map(guest => (
-              <div 
-                key={guest.id} 
-                className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                onClick={() => guest.onClick?.()}
-              >
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-gray-900">{guest.guest_name}</p>
-                  {/* ✅ WARNING ICON for guests with dietary restrictions */}
-                  {hasDietaryRestrictions(guest) && (
-                    <span className="text-amber-500 text-sm" title="Has dietary restrictions">
-                      ⚠️
-                    </span>
-                  )}
+            {guests.map((guest) => {
+              const roomLabel = formatGuestRoom(guest);
+              return (
+                <div
+                  key={guest.id}
+                  className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => guest.onClick?.()}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">{guest.guest_name}</p>
+                      {hasDietaryRestrictions(guest) && (
+                        <span className="text-amber-500 text-sm flex-shrink-0" title="Has dietary restrictions">
+                          ⚠️
+                        </span>
+                      )}
+                    </div>
+                    {guest.guest_country && (
+                      <p className="text-xs text-gray-500 truncate">{guest.guest_country}</p>
+                    )}
+                    {roomLabel && (
+                      <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1.5 truncate">
+                        <ReadinessDot tone={guest.readinessTone} />
+                        <span className="truncate">{roomLabel}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                    <p className="text-xs text-gray-500 hidden sm:block">{guest.guest_phone}</p>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <p className="text-xs text-gray-500">{guest.guest_phone}</p>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -90,29 +122,34 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {renderGuestList(
-        arrivals, 
-        'Arrivals', 
+        arrivals,
+        'Arrivals',
         'border-green-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
       )}
-      
+
       {renderGuestList(
-        stayovers, 
-        'Stayovers', 
+        stayovers,
+        'Stayovers',
         'border-blue-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
         </svg>
       )}
-      
+
       {renderGuestList(
-        checkouts, 
-        'Check-outs', 
+        checkouts,
+        'Check-outs',
         'border-orange-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+          />
         </svg>
       )}
     </div>

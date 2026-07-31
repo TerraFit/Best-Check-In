@@ -1,5 +1,5 @@
 // src/components/staff/StaffPortalWrapper.tsx
-// ✅ WITH NOTIFICATION BADGE, POPUP, AND SOUND
+// Fixed: audit logs fetch once on mount + 30s poll — no unstable useEffect loop
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
@@ -27,7 +27,6 @@ interface StaffPortalWrapperProps {
   onAddAuditLog: (log: any) => void;
 }
 
-// ✅ Storage key for last viewed timestamp
 const LAST_VIEWED_KEY = 'fastcheckin_audit_last_viewed';
 
 export function StaffPortalWrapper({
@@ -46,59 +45,36 @@ export function StaffPortalWrapper({
   const [showNotification, setShowNotification] = useState(false);
   const [latestLogs, setLatestLogs] = useState<any[]>([]);
   const [showPopup, setShowPopup] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-  
-  const isEmployee = session.user.role === 'EmployeeOverview';
-  const lastViewedRef = useRef<string | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hasNotifiedRef = useRef<Set<string>>(new Set());
 
-  // ✅ Play notification sound
+  const isEmployee = session.user.role === 'EmployeeOverview';
+  const activeTabRef = useRef(activeTab);
+  const isFirstLoadRef = useRef(true);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasNotifiedRef = useRef<Set<string>>(new Set());
+  const fetchingRef = useRef(false);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
   const playNotificationSound = useCallback(() => {
     try {
-      // Create a simple beep using Web Audio API (no external file needed)
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
-      
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-      
       oscillator.frequency.value = 800;
       oscillator.type = 'sine';
-      
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.3);
-      
-      // Second beep for emphasis
-      setTimeout(() => {
-        const osc2 = audioContext.createOscillator();
-        const gain2 = audioContext.createGain();
-        osc2.connect(gain2);
-        gain2.connect(audioContext.destination);
-        osc2.frequency.value = 1000;
-        osc2.type = 'sine';
-        gain2.gain.setValueAtTime(0.2, audioContext.currentTime);
-        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-        osc2.start(audioContext.currentTime);
-        osc2.stop(audioContext.currentTime + 0.2);
-      }, 150);
-    } catch (error) {
-      // Fallback: use the HTML5 Audio API with a data URI
-      try {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAACBhYqFhYWJhYaFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhQ==');
-        audio.volume = 0.3;
-        audio.play().catch(() => {});
-      } catch {
-        // Silently fail
-      }
+    } catch {
+      /* ignore */
     }
   }, []);
 
-  // ✅ Get last viewed timestamp
   const getLastViewed = useCallback((): string | null => {
     try {
       return localStorage.getItem(`${LAST_VIEWED_KEY}_${business.id}`);
@@ -107,69 +83,58 @@ export function StaffPortalWrapper({
     }
   }, [business.id]);
 
-  // ✅ Set last viewed timestamp
   const setLastViewed = useCallback(() => {
     try {
       const now = new Date().toISOString();
       localStorage.setItem(`${LAST_VIEWED_KEY}_${business.id}`, now);
-      lastViewedRef.current = now;
       setNewLogCount(0);
       setShowNotification(false);
       hasNotifiedRef.current.clear();
     } catch {
-      // Ignore
+      /* ignore */
     }
   }, [business.id]);
 
-  // ✅ Check for new logs
-  const checkForNewLogs = useCallback((logs: any[]) => {
-    const lastViewed = getLastViewed();
-    if (!lastViewed || logs.length === 0) {
-      // If first load, set last viewed
-      if (isFirstLoad && logs.length > 0) {
-        setLastViewed();
-        setIsFirstLoad(false);
+  const checkForNewLogs = useCallback(
+    (logs: any[]) => {
+      const lastViewed = getLastViewed();
+      if (!lastViewed || logs.length === 0) {
+        if (isFirstLoadRef.current && logs.length > 0) {
+          setLastViewed();
+          isFirstLoadRef.current = false;
+        }
+        return;
       }
-      return;
-    }
 
-    const newLogs = logs.filter(log => {
-      const logDate = new Date(log.created_at);
-      const lastDate = new Date(lastViewed);
-      return logDate > lastDate;
-    });
+      const newLogs = logs.filter((log) => {
+        const logDate = new Date(log.created_at);
+        const lastDate = new Date(lastViewed);
+        return logDate > lastDate;
+      });
 
-    if (newLogs.length > 0) {
-      // Check if we've already notified for these logs
-      const newLogIds = newLogs.map(log => log.id).filter(Boolean);
-      const alreadyNotified = newLogIds.every(id => hasNotifiedRef.current.has(id));
-      
-      if (!alreadyNotified && newLogIds.length > 0) {
-        // Play sound notification
-        playNotificationSound();
-        // Mark these logs as notified
-        newLogIds.forEach(id => hasNotifiedRef.current.add(id));
+      if (newLogs.length > 0) {
+        const newLogIds = newLogs.map((log) => log.id).filter(Boolean);
+        const alreadyNotified = newLogIds.every((id) => hasNotifiedRef.current.has(id));
+        if (!alreadyNotified && newLogIds.length > 0) {
+          playNotificationSound();
+          newLogIds.forEach((id) => hasNotifiedRef.current.add(id));
+        }
+        setNewLogCount(newLogs.length);
+        setLatestLogs(newLogs.slice(0, 5));
+        setShowNotification(true);
+      } else {
+        setNewLogCount(0);
+        setShowNotification(false);
       }
-      
-      setNewLogCount(newLogs.length);
-      setLatestLogs(newLogs.slice(0, 5));
-      setShowNotification(true);
-    } else {
-      setNewLogCount(0);
-      setShowNotification(false);
-    }
-  }, [getLastViewed, playNotificationSound, isFirstLoad, setLastViewed]);
+    },
+    [getLastViewed, playNotificationSound, setLastViewed]
+  );
 
-  // ✅ Fetch audit logs from the API
   const fetchAuditLogs = useCallback(async () => {
-    if (!business.id) {
-      console.warn('⚠️ No business ID available for audit logs');
-      return;
-    }
-
+    if (!business.id || fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoadingAudit(true);
     setFetchError(null);
-    console.log('🔍 Fetching audit logs for business:', business.id);
 
     try {
       let token = null;
@@ -179,128 +144,100 @@ export function StaffPortalWrapper({
           const auth = JSON.parse(authStr);
           token = auth.token;
         }
-      } catch (e) {
-        console.warn('Could not get auth token:', e);
+      } catch {
+        /* ignore */
       }
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const url = `/.netlify/functions/get-audit-logs?businessId=${encodeURIComponent(business.id)}&limit=100`;
-      console.log('📡 Fetching from:', url);
-
       const response = await fetch(url, { headers });
 
-      console.log('📡 Audit logs response status:', response.status);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Failed to fetch audit logs:', errorText);
         setFetchError(`Failed to fetch: ${response.status} ${response.statusText}`);
         setAuditLogs([]);
         return;
       }
 
       const data = await response.json();
-      console.log('✅ Audit logs fetched:', data);
-      
-      let logs = [];
+      let logs: any[] = [];
       if (data.success && data.data) {
         logs = data.data;
         setAuditLogs(logs);
-        console.log(`✅ Loaded ${logs.length} audit logs`);
       } else if (Array.isArray(data)) {
         logs = data;
         setAuditLogs(logs);
-        console.log(`✅ Loaded ${logs.length} audit logs (array format)`);
       } else {
-        console.warn('⚠️ Unexpected data format:', data);
         setAuditLogs([]);
-        logs = [];
       }
 
-      // ✅ Check for new logs if we're not on the audit tab
-      if (activeTab !== 'audit') {
+      if (activeTabRef.current !== 'audit') {
         checkForNewLogs(logs);
       } else {
-        // If we're on the audit tab, mark as viewed
         setLastViewed();
         setNewLogCount(0);
         setShowNotification(false);
         hasNotifiedRef.current.clear();
       }
-
     } catch (error) {
-      console.error('❌ Error fetching audit logs:', error);
       setFetchError(error instanceof Error ? error.message : 'Unknown error');
       setAuditLogs([]);
     } finally {
       setLoadingAudit(false);
+      fetchingRef.current = false;
     }
-  }, [business.id, activeTab, checkForNewLogs, setLastViewed]);
+  }, [business.id, checkForNewLogs, setLastViewed]);
 
-  // ✅ Poll for new logs every 30 seconds
   useEffect(() => {
-    if (isEmployee) return;
-    
-    // Initial fetch
+    if (isEmployee || !business.id) return;
+
     fetchAuditLogs();
-    
-    // Set up polling
-    pollIntervalRef.current = setInterval(fetchAuditLogs, 30000);
-    
+    pollIntervalRef.current = setInterval(() => {
+      fetchAuditLogs();
+    }, 30000);
+
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [fetchAuditLogs, isEmployee]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [business.id, isEmployee]);
 
-  // ✅ Handle tab switch
-  const handleTabChange = useCallback((tab: 'employees' | 'audit') => {
-    setActiveTab(tab);
-    
-    if (tab === 'audit') {
-      // Mark as viewed when switching to audit tab
-      setLastViewed();
-      setNewLogCount(0);
-      setShowNotification(false);
-      setShowPopup(false);
-      hasNotifiedRef.current.clear();
-      // Refresh logs
-      fetchAuditLogs();
-    }
-  }, [setLastViewed, fetchAuditLogs]);
+  const handleTabChange = useCallback(
+    (tab: 'employees' | 'audit') => {
+      setActiveTab(tab);
+      if (tab === 'audit') {
+        setLastViewed();
+        setNewLogCount(0);
+        setShowNotification(false);
+        setShowPopup(false);
+        hasNotifiedRef.current.clear();
+        fetchAuditLogs();
+      }
+    },
+    [setLastViewed, fetchAuditLogs]
+  );
 
-  // ✅ Handle notification click - show popup
   const handleNotificationClick = useCallback(() => {
     setShowPopup(true);
-    // Play a subtle sound when opening popup
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAACBhYqFhYWJhYaFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhQ==');
-      audio.volume = 0.15;
-      audio.play().catch(() => {});
-    } catch {}
   }, []);
 
-  // ✅ Handle popup close
   const handlePopupClose = useCallback(() => {
     setShowPopup(false);
   }, []);
 
-  // ✅ Handle "View Now" from popup
   const handleViewNow = useCallback(() => {
     setShowPopup(false);
     handleTabChange('audit');
   }, [handleTabChange]);
 
-  // If employee, show restricted message
+  const openEmployeePortal = useCallback(() => {
+    window.open('/employee/login', '_blank', 'noopener,noreferrer');
+  }, []);
+
   if (isEmployee) {
     return (
       <div className="text-center py-12">
@@ -310,7 +247,7 @@ export function StaffPortalWrapper({
           Employees should use the <strong>Employee Dashboard</strong> for guest management.
         </p>
         <button
-          onClick={() => window.location.href = '/employee/dashboard'}
+          onClick={() => (window.location.href = '/employee/dashboard')}
           className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
         >
           Go to Employee Dashboard →
@@ -321,7 +258,6 @@ export function StaffPortalWrapper({
 
   return (
     <div className="space-y-8">
-      {/* Brand Profile Hero Widget */}
       <div className="bg-white p-6 rounded-3xl border border-stone-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center font-bold text-amber-500 font-serif text-3xl">
@@ -355,9 +291,30 @@ export function StaffPortalWrapper({
         </div>
       </div>
 
-      {/* ============================================================
-          TABS - Employee Management + Audit Trail
-          ============================================================ */}
+      {/* Employee Portal entry — dedicated login for staff daily work */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-2xl flex-shrink-0">
+            👷
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-stone-950">Employee Portal</h2>
+            <p className="text-sm text-stone-600 mt-1 max-w-xl">
+              Employees log in here to perform their daily work — housekeeping tasks, check-ins,
+              and room operations according to their role.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={openEmployeePortal}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 hover:bg-stone-800 text-white font-bold text-sm rounded-xl shadow-md transition-colors whitespace-nowrap flex-shrink-0"
+        >
+          Open Employee Portal
+          <span aria-hidden>→</span>
+        </button>
+      </div>
+
       <div className="flex border-b border-stone-200 overflow-x-auto gap-6 text-sm">
         <button
           onClick={() => handleTabChange('employees')}
@@ -390,9 +347,6 @@ export function StaffPortalWrapper({
         </button>
       </div>
 
-      {/* ============================================================
-          RENDER ACTIVE TAB
-          ============================================================ */}
       {activeTab === 'employees' && (
         <EmployeeManagementTab
           employees={employees}
@@ -423,21 +377,14 @@ export function StaffPortalWrapper({
               </button>
             </div>
           ) : (
-            <AuditTrailTab 
-              auditLogs={auditLogs}
-              businessId={business.id}
-            />
+            <AuditTrailTab auditLogs={auditLogs} businessId={business.id} />
           )}
         </>
       )}
 
-      {/* ============================================================
-          NEW LOGS POPUP MODAL
-          ============================================================ */}
       {showPopup && latestLogs.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl animate-scale-in">
-            {/* Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-red-100 rounded-full">
@@ -445,7 +392,9 @@ export function StaffPortalWrapper({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">New Audit Logs</h3>
-                  <p className="text-xs text-gray-500">{newLogCount} new entr{newLogCount > 1 ? 'ies' : 'y'} since your last visit</p>
+                  <p className="text-xs text-gray-500">
+                    {newLogCount} new entr{newLogCount > 1 ? 'ies' : 'y'} since your last visit
+                  </p>
                 </div>
               </div>
               <button
@@ -458,64 +407,36 @@ export function StaffPortalWrapper({
               </button>
             </div>
 
-            {/* Body */}
             <div className="p-6 overflow-y-auto max-h-[50vh]">
               <div className="space-y-3">
                 {latestLogs.map((log, index) => (
-                  <div key={log.id || index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {log.action === 'UPDATE_FOOD_RESTRICTIONS' ? (
-                        <span className="text-lg">🥑</span>
-                      ) : log.action === 'UPDATE_STAY_DETAILS' ? (
-                        <span className="text-lg">📅</span>
-                      ) : (
-                        <span className="text-lg">📝</span>
-                      )}
-                    </div>
+                  <div
+                    key={log.id || index}
+                    className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {log.guest_name || 'Unknown Guest'}
                         </p>
                         <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                          {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(log.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
                       </div>
                       <p className="text-xs text-gray-600">
                         <span className="font-medium">{log.user_name || 'System'}</span>
                         <span className="mx-1">•</span>
-                        {log.action === 'UPDATE_FOOD_RESTRICTIONS' ? 'Updated food restrictions' : 'Updated stay details'}
+                        {log.action}
                       </p>
-                      {log.details && Object.keys(log.details).length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {Object.entries(log.details).slice(0, 3).map(([key, value]) => {
-                            if (typeof value === 'object' && value !== null) {
-                              if (value.from !== undefined && value.to !== undefined) {
-                                return (
-                                  <span key={key} className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                                    {key}: {String(value.from)} → {String(value.to)}
-                                  </span>
-                                );
-                              }
-                              return null;
-                            }
-                            return null;
-                          }).filter(Boolean)}
-                          {Object.keys(log.details).filter(k => {
-                            const v = log.details[k];
-                            return typeof v === 'object' && v !== null && v.from !== undefined && v.to !== undefined;
-                          }).length > 3 && (
-                            <span className="text-[10px] text-gray-400">+{Object.keys(log.details).length - 3} more</span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Footer */}
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex gap-3">
               <button
                 onClick={handlePopupClose}
@@ -525,12 +446,9 @@ export function StaffPortalWrapper({
               </button>
               <button
                 onClick={handleViewNow}
-                className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm"
               >
-                <span>View Audit Trail</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                View Audit Trail
               </button>
             </div>
           </div>

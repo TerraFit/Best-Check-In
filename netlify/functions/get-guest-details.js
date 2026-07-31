@@ -1,7 +1,5 @@
 // netlify/functions/get-guest-details.js
-// ✅ FIXED - Removed Realtime dependency
-
-import { createClient } from '@supabase/supabase-js';
+// ✅ Includes optional room fields (Phase 1)
 
 export const handler = async (event) => {
   const headers = {
@@ -45,8 +43,6 @@ export const handler = async (event) => {
       };
     }
 
-    // ✅ SIMPLE FETCH - Using REST API directly (no Realtime)
-    // Fetch booking details
     const bookingResponse = await fetch(
       `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
       {
@@ -79,7 +75,6 @@ export const handler = async (event) => {
       };
     }
 
-    // Fetch food restrictions
     let restrictions = null;
     try {
       const restrictionsResponse = await fetch(
@@ -103,9 +98,9 @@ export const handler = async (event) => {
       console.warn('Could not fetch food restrictions:', err.message);
     }
 
-    // Combine data
     const guestDetails = {
       id: booking.id,
+      business_id: booking.business_id || null,
       guest_name: booking.guest_name || '',
       guest_first_name: booking.guest_first_name || '',
       guest_last_name: booking.guest_last_name || '',
@@ -119,7 +114,11 @@ export const handler = async (event) => {
       children: booking.children || 0,
       check_in_date: booking.check_in_date,
       check_out_date: booking.check_out_date || '',
+      nights: booking.nights || 1,
       booking_reference: booking.id.substring(0, 8).toUpperCase(),
+      room_id: booking.room_id || null,
+      room_number: booking.room_number ?? null,
+      room_name: booking.room_name || null,
       food_restrictions: restrictions || {
         vegetarian: false,
         vegan: false,
@@ -136,13 +135,6 @@ export const handler = async (event) => {
         other_text: ''
       }
     };
-
-    console.log('✅ Guest details fetched:', {
-      id: guestDetails.id,
-      guest_name: guestDetails.guest_name,
-      arriving_from: guestDetails.arriving_from,
-      next_destination: guestDetails.next_destination
-    });
 
     return {
       statusCode: 200,

@@ -1,5 +1,6 @@
 // src/pages/BusinessDashboard.tsx
 import { useMemo, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useBusinessData } from '../hooks/useBusinessData';
@@ -8,13 +9,13 @@ import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../compone
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
+import HousekeepingTab from './tabs/HousekeepingTab';
+import { businessOwnerPrincipal, filterTabs } from '../services/rbacService';
 
 export default function BusinessDashboard() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
-
-  // ============================================================
-  // DASHBOARD STATE
-  // ============================================================
 
   const {
     currentPage, setCurrentPage,
@@ -25,8 +26,8 @@ export default function BusinessDashboard() {
     showQRModal, setShowQRModal,
     showImportModal, setShowImportModal,
     editingProfile, setEditingProfile,
-    savingProfile,        // ✅ Already here
-    setSavingProfile,     // ✅ ADD THIS LINE
+    savingProfile,
+    setSavingProfile,
     editingEmail, setEditingEmail,
     editingPhone, setEditingPhone,
     newEmail, setNewEmail,
@@ -59,10 +60,6 @@ export default function BusinessDashboard() {
     loadingSubscribers, setLoadingSubscribers,
   } = useDashboardState();
 
-  // ============================================================
-  // FILTERS & DATA
-  // ============================================================
-
   const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
 
   const {
@@ -78,9 +75,16 @@ export default function BusinessDashboard() {
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  // ============================================================
-  // LOAD NEWSLETTER SETTINGS FROM BUSINESS DATA
-  // ============================================================
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && tab !== activeTab) {
+      if (tab === 'rooms') {
+        navigate('/business/rooms');
+        return;
+      }
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (business) {
@@ -94,14 +98,9 @@ export default function BusinessDashboard() {
     }
   }, [business]);
 
-  // ============================================================
-  // DETERMINE SUBSCRIPTION TIER
-  // ============================================================
-
   const subscriptionTier = useMemo((): SubscriptionTier => {
     if (!business) return 'starter';
 
-    // 1. Check for explicit plan fields
     const planFields = [
       business.current_plan,
       business.plan,
@@ -117,7 +116,6 @@ export default function BusinessDashboard() {
       }
     }
 
-    // 2. Check subscription_tier
     const tier = business.subscription_tier?.toLowerCase() || '';
     
     if (['monthly', 'annual', 'trial', 'complimentary'].includes(tier)) {
@@ -132,17 +130,12 @@ export default function BusinessDashboard() {
       return tier as SubscriptionTier;
     }
 
-    // 3. Fallback: determine from total_rooms
     const rooms = business.total_rooms || 0;
     if (rooms >= 16) return 'business';
     if (rooms >= 11) return 'pro';
     if (rooms >= 6) return 'growth';
     return 'starter';
   }, [business]);
-
-  // ============================================================
-  // HELPER FUNCTIONS
-  // ============================================================
 
   const displayTotalBookings = apiTotalBookings || localTotalBookingsCount || 0;
   const displayTotalPages = apiTotalPages || localTotalPages || 1;
@@ -157,10 +150,6 @@ export default function BusinessDashboard() {
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
-
-  // ============================================================
-  // FILTERED BOOKINGS FOR CHECK-INS TAB
-  // ============================================================
 
   const filteredCheckinsBookings = useMemo(() => {
     if (activeTab !== 'checkins') return bookings;
@@ -194,64 +183,6 @@ export default function BusinessDashboard() {
 
     return filtered;
   }, [bookings, activeTab, currentFilters]);
-
-  // ============================================================
-  // EXPORT TO CSV
-  // ============================================================
-
-  const exportToCSV = useCallback(() => {
-    const dataToExport = activeTab === 'reports' ? bookings : filteredCheckinsBookings;
-
-    if (dataToExport.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    const firstRow = dataToExport[0] || {};
-    const headers = [
-      'Guest Name', 'Email', 'Phone', 'ID Number', 'Country',
-      'Province', 'City', 'Check-in Date', 'Check-out Date',
-      'Nights', 'Total Amount', 'Status', 'Referral Source',
-      ...(firstRow.arriving_from ? ['Arriving From'] : []),
-      ...(firstRow.next_destination ? ['Next Destination'] : [])
-    ];
-
-    const rows = dataToExport.map(b => {
-      const baseRow = [
-        `"${b.guest_name || ''}"`,
-        `"${b.guest_email || ''}"`,
-        `"${b.guest_phone || ''}"`,
-        `"${b.guest_id_number || ''}"`,
-        `"${b.guest_country || ''}"`,
-        `"${b.guest_province || ''}"`,
-        `"${b.guest_city || ''}"`,
-        b.check_in_date || '',
-        b.check_out_date || '',
-        b.nights || 1,
-        b.total_amount || 0,
-        b.status || 'pending',
-        `"${(b.booking_source || b.referral_source || '').replace(/\.$/, '').trim()}"`
-      ];
-
-      if (b.arriving_from) baseRow.push(`"${b.arriving_from}"`);
-      if (b.next_destination) baseRow.push(`"${b.next_destination}"`);
-
-      return baseRow;
-    });
-
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${business?.trading_name || 'bookings'}_export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [activeTab === 'reports' ? bookings : filteredCheckinsBookings, business, activeTab]);
-
-  // ============================================================
-  // SAVE BUSINESS PROFILE
-  // ============================================================
 
   const saveBusinessProfile = useCallback(async () => {
     if (!business?.id) {
@@ -295,10 +226,6 @@ export default function BusinessDashboard() {
     }
   }, [business, profileForm, setEditingProfile, refreshData, setSavingProfile]);
 
-  // ============================================================
-  // SAVE NEWSLETTER SETTINGS - ✅ FULLY IMPLEMENTED
-  // ============================================================
-
   const saveNewsletterSettings = useCallback(async () => {
     if (!business?.id) {
       alert('Business ID not available');
@@ -318,8 +245,6 @@ export default function BusinessDashboard() {
         newsletter_draw_date: newsletterDrawDate || null,
         newsletter_share_text: newsletterShareText
       };
-
-      console.log('📝 Saving newsletter settings:', newsletterData);
 
       const response = await fetch('/.netlify/functions/update-business-profile', {
         method: 'POST',
@@ -354,21 +279,31 @@ export default function BusinessDashboard() {
     setSavingNewsletter
   ]);
 
-  // ============================================================
-  // TABS CONFIGURATION
-  // ============================================================
-
-  const tabs = [
+  const principal = businessOwnerPrincipal();
+  const allTabs = [
     { id: 'overview', name: 'Overview' },
     { id: 'checkins', name: 'Check-ins' },
     { id: 'reports', name: 'Reports' },
+    { id: 'rooms', name: 'Rooms' },
+    { id: 'housekeeping', name: 'Housekeeping' },
     { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
+  const tabs = filterTabs(principal, allTabs);
 
-  // ============================================================
-  // LOADING STATE
-  // ============================================================
+  const handleTabChange = useCallback((tabId: string) => {
+    if (tabId === 'rooms') {
+      navigate('/business/rooms');
+      return;
+    }
+    setActiveTab(tabId);
+    setCurrentPage(1);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tabId);
+      return next;
+    });
+  }, [navigate, setActiveTab, setCurrentPage, setSearchParams]);
 
   if (loading) {
     return (
@@ -381,13 +316,8 @@ export default function BusinessDashboard() {
     );
   }
 
-  // ============================================================
-  // RENDER
-  // ============================================================
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <Header
         business={business}
         refreshing={refreshing}
@@ -396,22 +326,15 @@ export default function BusinessDashboard() {
         onShowQRModal={() => setShowQRModal(true)}
       />
 
-      {/* Trial Banner */}
       <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
 
-      {/* Navigation */}
       <NavigationTabs
         tabs={tabs}
         activeTab={activeTab}
-        onTabChange={(tabId) => {
-          setActiveTab(tabId);
-          setCurrentPage(1);
-        }}
+        onTabChange={handleTabChange}
       />
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Overview Tab */}
         {activeTab === 'overview' && (
           <OverviewTab
             business={business}
@@ -424,7 +347,6 @@ export default function BusinessDashboard() {
           />
         )}
 
-        {/* Check-ins Tab */}
         {activeTab === 'checkins' && (
           <CheckinsTab
             bookings={bookings}
@@ -449,20 +371,32 @@ export default function BusinessDashboard() {
           />
         )}
 
-        {/* Reports Tab */}
         {activeTab === 'reports' && (
           <ReportsTab
             bookings={bookings}
             totalBookings={displayTotalBookings}
           />
         )}
+
+        {activeTab === 'housekeeping' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/business/housekeeping-settings')}
+                className="text-sm font-medium text-orange-600 hover:text-orange-700"
+              >
+                Housekeeping Settings →
+              </button>
+            </div>
+            <HousekeepingTab businessId={business?.id || getBusinessId() || ''} />
+          </div>
+        )}
         
-        {/* Staff Portal Tab - ADD THIS HERE */}
         {activeTab === 'staff' && (
-        <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
+          <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
         )}
 
-        {/* Settings Tab */}
         {activeTab === 'settings' && (
           <SettingsTab
             business={business}
@@ -494,7 +428,6 @@ export default function BusinessDashboard() {
         )}
       </main>
 
-      {/* Modals */}
       <DashboardModals
         showQRModal={showQRModal}
         showImportModal={showImportModal}
