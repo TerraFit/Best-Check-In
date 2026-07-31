@@ -9,6 +9,7 @@ import type {
   CreateLostFoundPayload,
   UpdateLostFoundPayload,
   ContactGuestPayload,
+  CollectItemPayload,
 } from '../types/lostFound';
 
 async function parseJson(response: Response) {
@@ -50,6 +51,7 @@ export async function fetchLostFoundItems(params: {
   tagNumber?: string;
   bookingReference?: string;
   employee?: string;
+  storage?: string;
   dateFrom?: string;
   dateTo?: string;
   limit?: number;
@@ -62,6 +64,7 @@ export async function fetchLostFoundItems(params: {
   if (params.tagNumber) qs.set('tagNumber', params.tagNumber);
   if (params.bookingReference) qs.set('bookingReference', params.bookingReference);
   if (params.employee) qs.set('employee', params.employee);
+  if (params.storage) qs.set('storage', params.storage);
   if (params.dateFrom) qs.set('dateFrom', params.dateFrom);
   if (params.dateTo) qs.set('dateTo', params.dateTo);
   if (params.limit) qs.set('limit', String(params.limit));
@@ -98,9 +101,31 @@ export async function fetchLostFoundItem(
   return { item: data.item, activity: data.activity || [] };
 }
 
+/** Upload compressed base64 images to Supabase Storage bucket lost-found-photos */
+export async function uploadLostFoundPhotos(params: {
+  businessId: string;
+  images: string[];
+  tagNumber?: string;
+}): Promise<string[]> {
+  const res = await fetch('/.netlify/functions/upload-lost-found-photo', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      businessId: params.businessId,
+      images: params.images,
+      tagNumber: params.tagNumber || 'pending',
+    }),
+  });
+  const data = await parseJson(res);
+  return data.urls || [];
+}
+
 export async function createLostFoundItem(
   payload: CreateLostFoundPayload
 ): Promise<LostFoundItem> {
+  if (!payload.photo_urls || payload.photo_urls.length === 0) {
+    throw new Error('At least one photo is required');
+  }
   const res = await fetch('/.netlify/functions/create-lost-found-item', {
     method: 'POST',
     headers: authHeaders(),
@@ -132,6 +157,18 @@ export async function contactLostFoundGuest(
   });
   const data = await parseJson(res);
   return { item: data.item, activity: data.activity };
+}
+
+export async function collectLostFoundItem(
+  payload: CollectItemPayload
+): Promise<LostFoundItem> {
+  const res = await fetch('/.netlify/functions/collect-lost-found-item', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson(res);
+  return data.item;
 }
 
 export async function fetchLostFoundMeta(businessId: string): Promise<{
@@ -175,7 +212,6 @@ export async function addLostFoundStorage(payload: {
   return data.storage;
 }
 
-/** Resolve guest details from room/booking when creating an item */
 export async function resolveGuestFromRoom(params: {
   businessId: string;
   roomId?: string;
