@@ -1,98 +1,47 @@
 // src/services/entitlementService.ts
-import { 
-  SubscriptionEntitlement, 
-  BusinessSubscription, 
-  PlanType, 
-  EntitlementType,
-  PromotionCode 
+// Programme 1 finalisation: pricing from src/config/packages only
+
+import {
+  SubscriptionEntitlement,
+  BusinessSubscription,
+  PlanType,
+  PromotionCode,
 } from '../types/entitlements';
+import { getPackage, normalizePlanId, PACKAGES } from '../config/packages';
+import { featuresForPackageDisplay } from '../config/featureRegistry';
 
-// ============================================================
-// PLAN PRICING
-// ============================================================
+function planPricing(plan: PlanType): { monthly: number; yearly: number } {
+  const pkg = getPackage(plan);
+  return { monthly: pkg.priceMonthly, yearly: pkg.priceYearly };
+}
 
-const PLAN_PRICING: Record<PlanType, { monthly: number; yearly: number }> = {
-  starter: { monthly: 349, yearly: 3490 },
-  growth: { monthly: 649, yearly: 6490 },
-  pro: { monthly: 949, yearly: 9490 },
-  business: { monthly: 1290, yearly: 12900 },
-  enterprise: { monthly: 0, yearly: 0 } // Custom pricing
-};
-
-const PLAN_FEATURES: Record<PlanType, string[]> = {
-  starter: [
-    'Digital guest check-in forms',
-    'Booking dashboard',
-    'Guest data export (CSV)',
-    'Basic branding',
-    'Email support'
-  ],
-  growth: [
-    'Everything in Starter',
-    'Automated email confirmations',
-    'Guest history tracking',
-    'Regional data auto-fill',
-    'Priority email support',
-    'Guest Origins by Country',
-    'How Guests Found You'
-  ],
-  pro: [
-    'Everything in Growth',
-    'Custom branding (logo + colors)',
-    'Analytics dashboard',
-    'Multi-user access',
-    'Export to integrations',
-    'Travel Pattern Tracking',
-    'Country-level Drill-down',
-    'Province/Region Analytics'
-  ],
-  business: [
-    'Everything in Pro',
-    'Advanced analytics',
-    'Priority support (fast response)',
-    'Early access to new features',
-    'Dedicated account manager',
-    'City-level Analytics',
-    'Full Geographic Drill-down'
-  ],
-  enterprise: [
-    'Everything in Business',
-    'Unlimited rooms',
-    'Custom integrations',
-    'Multi-property support',
-    'Dedicated onboarding',
-    'API access',
-    'Custom reporting'
-  ]
-};
-
-// ============================================================
-// ENTITLEMENT SERVICE
-// ============================================================
+/** Feature names for a plan from Feature Registry (display helper). */
+export function getPlanFeatureNames(plan: PlanType): string[] {
+  return featuresForPackageDisplay(normalizePlanId(plan)).map((f) => f.name);
+}
 
 export class EntitlementService {
-  
-  /**
-   * Calculate the effective plan and charges for a business
-   */
   calculateSubscription(
     businessId: string,
     billingPlan: PlanType,
     billingCycle: 'monthly' | 'yearly',
     entitlements: SubscriptionEntitlement[]
   ): BusinessSubscription {
-    // Find active entitlements
     const now = new Date();
-    const activeEntitlements = entitlements.filter(e => 
-      e.isActive && 
-      e.startsAt <= now &&
-      (e.lifetime || !e.endsAt || e.endsAt > now)
+    const activeEntitlements = entitlements.filter(
+      (e) =>
+        e.isActive &&
+        e.startsAt <= now &&
+        (e.lifetime || !e.endsAt || e.endsAt > now)
     );
 
-    // Check for complimentary plan (highest priority)
-    const complimentary = activeEntitlements.find(e => e.type === 'complimentary_plan');
+    const complimentary = activeEntitlements.find(
+      (e) => e.type === 'complimentary_plan'
+    );
     if (complimentary && complimentary.complimentaryPlan) {
-      const effectivePlan = complimentary.complimentaryPlan;
+      const effectivePlan = normalizePlanId(
+        complimentary.complimentaryPlan
+      ) as PlanType;
       return {
         businessId,
         billingPlan,
@@ -104,13 +53,12 @@ export class EntitlementService {
         isComplimentary: true,
         isOnTrial: false,
         status: 'complimentary',
-        statusMessage: `Complimentary ${effectivePlan} plan until ${complimentary.endsAt?.toLocaleDateString() || 'permanently'}`,
-        validUntil: complimentary.endsAt
+        statusMessage: `Complimentary ${getPackage(effectivePlan).name} plan until ${complimentary.endsAt?.toLocaleDateString() || 'permanently'}`,
+        validUntil: complimentary.endsAt,
       };
     }
 
-    // Check for active trial (second priority)
-    const trial = activeEntitlements.find(e => e.type === 'trial');
+    const trial = activeEntitlements.find((e) => e.type === 'trial');
     if (trial) {
       return {
         businessId,
@@ -124,47 +72,45 @@ export class EntitlementService {
         isOnTrial: true,
         status: 'trial',
         statusMessage: `Free trial until ${trial.endsAt?.toLocaleDateString()}`,
-        validUntil: trial.endsAt
+        validUntil: trial.endsAt,
       };
     }
 
-    // Calculate base price
-    const pricing = PLAN_PRICING[billingPlan];
+    const pricing = planPricing(normalizePlanId(billingPlan) as PlanType);
     let monthlyPrice = pricing.monthly;
     let yearlyPrice = pricing.yearly;
 
-    // Apply discounts
-    const percentageDiscounts = activeEntitlements.filter(e => e.type === 'discount_percentage');
-    const fixedDiscounts = activeEntitlements.filter(e => e.type === 'discount_fixed');
+    const percentageDiscounts = activeEntitlements.filter(
+      (e) => e.type === 'discount_percentage'
+    );
+    const fixedDiscounts = activeEntitlements.filter(
+      (e) => e.type === 'discount_fixed'
+    );
 
-    // Apply percentage discounts
     for (const discount of percentageDiscounts) {
       const multiplier = 1 - (discount.value || 0) / 100;
       monthlyPrice *= multiplier;
       yearlyPrice *= multiplier;
     }
 
-    // Apply fixed discounts
     for (const discount of fixedDiscounts) {
       monthlyPrice = Math.max(0, monthlyPrice - (discount.value || 0));
       yearlyPrice = Math.max(0, yearlyPrice - (discount.value || 0) * 12);
     }
 
-    // Round to 2 decimal places
     monthlyPrice = Math.round(monthlyPrice * 100) / 100;
     yearlyPrice = Math.round(yearlyPrice * 100) / 100;
 
-    // Determine status
     let status: 'active' | 'expired' | 'suspended' = 'active';
     let statusMessage: string | undefined;
     let validUntil: Date | undefined;
 
-    // Check if any discount has an end date
-    const activeDiscounts = activeEntitlements.filter(e => 
-      e.type === 'discount_percentage' || e.type === 'discount_fixed'
+    const activeDiscounts = activeEntitlements.filter(
+      (e) =>
+        e.type === 'discount_percentage' || e.type === 'discount_fixed'
     );
     const earliestEnd = activeDiscounts
-      .filter(e => e.endsAt)
+      .filter((e) => e.endsAt)
       .sort((a, b) => a.endsAt!.getTime() - b.endsAt!.getTime())[0];
 
     if (earliestEnd?.endsAt) {
@@ -172,15 +118,13 @@ export class EntitlementService {
       validUntil = earliestEnd.endsAt;
     }
 
-    // Check if there's a promo code applied
-    const promo = activeEntitlements.find(e => e.type === 'promo_code');
+    const promo = activeEntitlements.find((e) => e.type === 'promo_code');
     if (promo) {
       statusMessage = `Promo code applied: ${promo.promoCode}`;
     }
 
-    // Check if expired
-    const hasExpiredEntitlement = entitlements.some(e => 
-      e.isActive && e.endsAt && e.endsAt < now
+    const hasExpiredEntitlement = entitlements.some(
+      (e) => e.isActive && e.endsAt && e.endsAt < now
     );
     if (hasExpiredEntitlement && !activeEntitlements.length) {
       status = 'expired';
@@ -199,28 +143,17 @@ export class EntitlementService {
       isOnTrial: false,
       status,
       statusMessage,
-      validUntil
+      validUntil,
     };
   }
 
-  /**
-   * Grant a complimentary plan to a business
-   */
   grantComplimentaryPlan(
     businessId: string,
     plan: PlanType,
     adminId: string,
-    options?: {
-      endsAt?: Date;
-      lifetime?: boolean;
-      notes?: string;
-    }
+    options?: { endsAt?: Date; lifetime?: boolean; notes?: string }
   ): SubscriptionEntitlement {
     const now = new Date();
-    
-    // Deactivate existing complimentary plans
-    // This would be handled by the database layer
-    
     return {
       id: `comp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       business_id: businessId,
@@ -233,26 +166,18 @@ export class EntitlementService {
       createdAt: now,
       updatedAt: now,
       notes: options?.notes,
-      isActive: true
+      isActive: true,
     };
   }
 
-  /**
-   * Apply a discount to a business
-   */
   applyDiscount(
     businessId: string,
     type: 'discount_percentage' | 'discount_fixed',
     value: number,
     adminId: string,
-    options?: {
-      endsAt?: Date;
-      lifetime?: boolean;
-      notes?: string;
-    }
+    options?: { endsAt?: Date; lifetime?: boolean; notes?: string }
   ): SubscriptionEntitlement {
     const now = new Date();
-    
     return {
       id: `disc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       business_id: businessId,
@@ -265,19 +190,18 @@ export class EntitlementService {
       createdAt: now,
       updatedAt: now,
       notes: options?.notes,
-      isActive: true
+      isActive: true,
     };
   }
 
-  /**
-   * Validate and apply a promo code
-   */
   validatePromoCode(
     code: string,
     businessId: string
-  ): { valid: boolean; entitlement?: SubscriptionEntitlement; message?: string } {
-    // This would query the database for the promo code
-    // For now, return a placeholder
+  ): {
+    valid: boolean;
+    entitlement?: SubscriptionEntitlement;
+    message?: string;
+  } {
     const promo: PromotionCode = {
       code: 'EXPO2026',
       type: 'discount_percentage',
@@ -288,17 +212,15 @@ export class EntitlementService {
       isActive: true,
       createdBy: 'admin',
       createdAt: new Date(),
-      notes: 'Expo 2026 special discount'
+      notes: 'Expo 2026 special discount',
     };
 
     if (!promo.isActive) {
       return { valid: false, message: 'Promo code is inactive' };
     }
-
     if (promo.expiresAt && promo.expiresAt < new Date()) {
       return { valid: false, message: 'Promo code has expired' };
     }
-
     if (promo.maxUses && promo.usedCount >= promo.maxUses) {
       return { valid: false, message: 'Promo code has reached maximum uses' };
     }
@@ -317,15 +239,12 @@ export class EntitlementService {
       createdAt: now,
       updatedAt: now,
       notes: `Promo code: ${promo.code}`,
-      isActive: true
+      isActive: true,
     };
 
     return { valid: true, entitlement };
   }
 
-  /**
-   * Get a business's current subscription status
-   */
   getSubscriptionStatus(
     businessId: string,
     billingPlan: PlanType,
@@ -344,15 +263,24 @@ export class EntitlementService {
       billingCycle,
       entitlements
     );
-
     return {
       status: subscription.status,
       message: subscription.statusMessage || 'Active subscription',
       charge: subscription.monthlyCharge,
       plan: subscription.effectivePlan,
-      validUntil: subscription.validUntil
+      validUntil: subscription.validUntil,
     };
   }
 }
 
 export const entitlementService = new EntitlementService();
+
+/** @deprecated use getPackage from config — retained for import safety */
+export function getPlanPricingSnapshot() {
+  return Object.fromEntries(
+    Object.values(PACKAGES).map((p) => [
+      p.id,
+      { monthly: p.priceMonthly, yearly: p.priceYearly },
+    ])
+  );
+}
