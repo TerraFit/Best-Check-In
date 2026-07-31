@@ -1,6 +1,6 @@
 -- 008_employee_role_hierarchy.sql
 -- Normalise employees.role / staff_role to authority hierarchy only.
--- Department remains separate. Full backwards-compatible data conversion.
+-- Department remains separate. Idempotent where possible.
 
 -- Drop existing role CHECK constraint(s) if present
 ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_role_check;
@@ -50,7 +50,7 @@ UPDATE employees
 SET staff_role = role
 WHERE staff_role IS DISTINCT FROM role;
 
--- New CHECK: only hierarchy authority levels on role
+-- Recreate hierarchy CHECK constraints (dropped above → safe to re-add)
 ALTER TABLE employees
   ADD CONSTRAINT employees_role_check
   CHECK (
@@ -65,7 +65,6 @@ ALTER TABLE employees
     )
   );
 
--- Optional matching constraint on staff_role (nullable for partial backfills)
 ALTER TABLE employees
   ADD CONSTRAINT employees_staff_role_check
   CHECK (
