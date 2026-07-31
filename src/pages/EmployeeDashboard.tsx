@@ -7,6 +7,7 @@ import { LogOut, User } from 'lucide-react';
 import Logo from '../components/Logo';
 import QRCodeModal from '../components/QRCodeModal';
 import { GuestOverviewTab } from '../components/staff/GuestOverviewTab';
+import LostFoundTab from './tabs/LostFoundTab';
 import {
   employeePrincipal,
   getEmployeeMenu,
@@ -95,7 +96,6 @@ export default function EmployeeDashboard() {
     }
   }, []);
 
-  // Ensure active menu is allowed
   useEffect(() => {
     if (menu.length === 0) return;
     if (!menu.some((m) => m.id === activeMenu)) {
@@ -294,7 +294,6 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {/* Permission-driven navigation */}
         <div className="flex border-b border-stone-200 overflow-x-auto gap-4 text-sm">
           {menu.map((item) => (
             <button
@@ -405,10 +404,17 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {activeMenu === 'lost_found' && hasPermission(principal, 'canViewLostFound') && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-            Lost &amp; Found log will appear here. You may create items when the module is enabled.
-          </div>
+        {activeMenu === 'lost_found' && hasPermission(principal, 'canViewLostFound') && businessId && (
+          <LostFoundTab
+            mode="employee"
+            businessId={businessId}
+            businessName={businessName}
+            employeeId={employee?.id}
+            employeeName={employee?.full_name}
+            canCreate={hasPermission(principal, 'canCreateLostFound')}
+            canEdit={hasPermission(principal, 'canEditLostFound')}
+            canDispose={hasPermission(principal, 'canDisposeLostFound')}
+          />
         )}
 
         {activeMenu === 'reports' &&

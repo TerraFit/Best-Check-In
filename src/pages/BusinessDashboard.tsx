@@ -10,6 +10,7 @@ import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
+import LostFoundTab from './tabs/LostFoundTab';
 import { businessOwnerPrincipal, filterTabs } from '../services/rbacService';
 
 export default function BusinessDashboard() {
@@ -286,6 +287,7 @@ export default function BusinessDashboard() {
     { id: 'reports', name: 'Reports' },
     { id: 'rooms', name: 'Rooms' },
     { id: 'housekeeping', name: 'Housekeeping' },
+    { id: 'lost_found', name: 'Lost & Found' },
     { id: 'staff', name: 'Staff Portal' },
     { id: 'settings', name: 'Settings' },
   ];
@@ -391,6 +393,17 @@ export default function BusinessDashboard() {
             </div>
             <HousekeepingTab businessId={business?.id || getBusinessId() || ''} />
           </div>
+        )}
+
+        {activeTab === 'lost_found' && (
+          <LostFoundTab
+            mode="business"
+            businessId={business?.id || getBusinessId() || ''}
+            businessName={business?.trading_name || business?.name || ''}
+            canCreate
+            canEdit
+            canDispose
+          />
         )}
         
         {activeTab === 'staff' && (
