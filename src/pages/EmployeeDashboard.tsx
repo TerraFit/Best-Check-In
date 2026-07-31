@@ -1,5 +1,6 @@
 // src/pages/EmployeeDashboard.tsx
 // RBAC: menus generated entirely from resolvePermissions / getEmployeeMenu
+// Preview: Business Owner temporary session shows banner; Exit returns to Business Dashboard
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -48,6 +49,32 @@ interface EmployeeUser {
   status?: string;
 }
 
+const PREVIEW_FLAG_KEY = 'fastcheckin_employee_preview';
+
+function readIsPreviewSession(): boolean {
+  try {
+    const flag = localStorage.getItem(PREVIEW_FLAG_KEY);
+    if (flag) {
+      const parsed = JSON.parse(flag);
+      if (parsed?.preview) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const authStr =
+      localStorage.getItem('fastcheckin_employee_auth') ||
+      localStorage.getItem('fastcheckin_auth');
+    if (authStr) {
+      const auth = JSON.parse(authStr);
+      if (auth?.preview === true) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState<string>('overview');
@@ -59,6 +86,7 @@ export default function EmployeeDashboard() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [denied, setDenied] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
 
   const principal: PermissionPrincipal = useMemo(() => {
     if (!employee) return { actorType: 'employee', role: 'EmployeeOverview', active: true };
@@ -68,6 +96,7 @@ export default function EmployeeDashboard() {
   const menu = useMemo(() => getEmployeeMenu(principal), [principal]);
 
   useEffect(() => {
+    setIsPreview(readIsPreviewSession());
     try {
       const authStr =
         localStorage.getItem('fastcheckin_employee_auth') ||
@@ -106,7 +135,9 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const authStr = localStorage.getItem('fastcheckin_auth');
+        const authStr =
+          localStorage.getItem('fastcheckin_employee_auth') ||
+          localStorage.getItem('fastcheckin_auth');
         const auth = authStr ? JSON.parse(authStr) : null;
         const token = auth?.token;
         const businessIdFromAuth =
@@ -177,10 +208,33 @@ export default function EmployeeDashboard() {
     fetchData();
   }, [employee?.business_id, principal]);
 
+  const handleExitPreview = () => {
+    // Destroy temporary preview session only; restore business auth as primary.
+    localStorage.removeItem('fastcheckin_employee_auth');
+    localStorage.removeItem(PREVIEW_FLAG_KEY);
+
+    try {
+      const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
+      if (businessAuthStr) {
+        localStorage.setItem('fastcheckin_auth', businessAuthStr);
+      } else {
+        localStorage.removeItem('fastcheckin_auth');
+      }
+    } catch {
+      localStorage.removeItem('fastcheckin_auth');
+    }
+
+    window.location.href = '/business/dashboard?tab=staff';
+  };
+
   const handleLogout = () => {
+    if (isPreview) {
+      handleExitPreview();
+      return;
+    }
     localStorage.removeItem('fastcheckin_employee_auth');
     localStorage.removeItem('fastcheckin_auth');
-    localStorage.removeItem('fastcheckin_business_auth');
+    localStorage.removeItem(PREVIEW_FLAG_KEY);
     navigate('/employee/login');
   };
 
@@ -249,7 +303,43 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 shadow-sm">
+      {isPreview && (
+        <div className="bg-violet-700 text-white sticky top-0 z-50 shadow-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="text-xl leading-none" aria-hidden>
+                🧪
+              </span>
+              <div className="text-sm">
+                <p className="font-bold tracking-tight">Preview Mode</p>
+                <p className="text-violet-100 mt-0.5">
+                  Viewing Employee Portal as{' '}
+                  <span className="font-semibold text-white">
+                    {employee?.full_name || 'Staff'}
+                  </span>
+                  <span className="mx-1.5 text-violet-300">·</span>
+                  <span className="font-medium">{displayRole}</span>
+                  <span className="mx-1.5 text-violet-300">·</span>
+                  <span className="text-violet-200">Business Owner Preview</span>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleExitPreview}
+              className="inline-flex items-center justify-center px-4 py-2 bg-white text-violet-800 font-bold text-xs rounded-lg hover:bg-violet-50 transition-colors shadow-sm whitespace-nowrap"
+            >
+              Exit Preview
+            </button>
+          </div>
+        </div>
+      )}
+
+      <header
+        className={`bg-white border-b border-stone-200 sticky z-40 shadow-sm ${
+          isPreview ? 'top-[72px] sm:top-[56px]' : 'top-0'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-3">
@@ -274,13 +364,13 @@ export default function EmployeeDashboard() {
 
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline-block px-3 py-1 bg-amber-50 rounded-lg text-xs font-bold text-amber-700 border border-amber-200">
-                Staff Portal
+                {isPreview ? 'Preview · Staff Portal' : 'Staff Portal'}
               </span>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 hover:border-red-200 text-stone-600 hover:text-red-600 rounded-xl text-xs font-semibold"
               >
-                <LogOut size={12} /> Logout
+                <LogOut size={12} /> {isPreview ? 'Exit Preview' : 'Logout'}
               </button>
             </div>
           </div>
