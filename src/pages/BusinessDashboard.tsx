@@ -397,6 +397,7 @@ export default function BusinessDashboard() {
 
         {activeTab === 'lost_found' && (
           <LostFoundTab
+            mode="business"
             businessId={business?.id || getBusinessId() || ''}
             businessName={business?.trading_name || business?.name || ''}
             canCreate
