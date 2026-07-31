@@ -1,5 +1,6 @@
 // src/components/staff/StaffPortalWrapper.tsx
 // Fixed: audit logs fetch once on mount + 30s poll — no unstable useEffect loop
+// Preview: Business Owner can open Employee Portal as first Active employee (no employee login)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
@@ -28,6 +29,7 @@ interface StaffPortalWrapperProps {
 }
 
 const LAST_VIEWED_KEY = 'fastcheckin_audit_last_viewed';
+const PREVIEW_FLAG_KEY = 'fastcheckin_employee_preview';
 
 export function StaffPortalWrapper({
   session,
@@ -45,6 +47,8 @@ export function StaffPortalWrapper({
   const [showNotification, setShowNotification] = useState(false);
   const [latestLogs, setLatestLogs] = useState<any[]>([]);
   const [showPopup, setShowPopup] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const isEmployee = session.user.role === 'EmployeeOverview';
   const activeTabRef = useRef(activeTab);
@@ -234,8 +238,102 @@ export function StaffPortalWrapper({
     handleTabChange('audit');
   }, [handleTabChange]);
 
-  const openEmployeePortal = useCallback(() => {
-    window.open('/employee/login', '_blank', 'noopener,noreferrer');
+  /** One-click Employee Portal preview as first Active employee (Business Owner only). */
+  const handlePreviewEmployeePortal = useCallback(async () => {
+    setPreviewError(null);
+    setPreviewLoading(true);
+
+    try {
+      let token: string | null = null;
+      try {
+        const businessAuthStr =
+          localStorage.getItem('fastcheckin_business_auth') ||
+          localStorage.getItem('fastcheckin_auth');
+        if (businessAuthStr) {
+          const auth = JSON.parse(businessAuthStr);
+          if (auth?.type === 'business' || auth?.token) {
+            token = auth.token;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (!token) {
+        setPreviewError('Business session required. Please sign in again.');
+        setPreviewLoading(false);
+        return;
+      }
+
+      const response = await fetch('/.netlify/functions/preview-employee-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 404 || data.code === 'NO_ACTIVE_EMPLOYEE') {
+        setPreviewError(
+          data.message ||
+            'No active employee exists.\n\nPlease create an employee first.'
+        );
+        setPreviewLoading(false);
+        return;
+      }
+
+      if (!response.ok || !data.success || !data.token || !data.employee) {
+        setPreviewError(data.error || 'Unable to start preview session.');
+        setPreviewLoading(false);
+        return;
+      }
+
+      const emp = data.employee;
+      const authData = {
+        type: 'employee' as const,
+        token: data.token,
+        token_expiry: data.token_expiry || '2h',
+        preview: true,
+        user: {
+          id: emp.id,
+          email: emp.phone_number,
+          name: emp.full_name,
+          full_name: emp.full_name,
+          businessId: emp.business_id,
+          business_id: emp.business_id,
+          role: emp.staff_role || emp.role,
+          staff_role: emp.staff_role || emp.role,
+          department: emp.department || null,
+          permission_set: emp.permission_set || null,
+          active: emp.active !== false,
+          status: emp.status || 'Active',
+          phone_number: emp.phone_number,
+        },
+      };
+
+      // Temporary employee session only — business auth keys are left intact.
+      localStorage.setItem('fastcheckin_employee_auth', JSON.stringify(authData));
+      localStorage.setItem('fastcheckin_auth', JSON.stringify(authData));
+      localStorage.setItem(
+        PREVIEW_FLAG_KEY,
+        JSON.stringify({
+          preview: true,
+          employeeId: emp.id,
+          full_name: emp.full_name,
+          staff_role: emp.staff_role || emp.role,
+          startedAt: new Date().toISOString(),
+        })
+      );
+
+      window.location.href = '/employee/dashboard';
+    } catch (err) {
+      console.error('Preview employee portal error:', err);
+      setPreviewError('An error occurred starting preview. Please try again.');
+      setPreviewLoading(false);
+    }
   }, []);
 
   if (isEmployee) {
@@ -291,7 +389,7 @@ export function StaffPortalWrapper({
         </div>
       </div>
 
-      {/* Employee Portal entry — dedicated login for staff daily work */}
+      {/* Employee Portal Preview — Business Owner QA / demo only */}
       <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-2xl flex-shrink-0">
@@ -300,18 +398,42 @@ export function StaffPortalWrapper({
           <div>
             <h2 className="text-lg font-bold text-stone-950">Employee Portal</h2>
             <p className="text-sm text-stone-600 mt-1 max-w-xl">
-              Employees log in here to perform their daily work — housekeeping tasks, check-ins,
-              and room operations according to their role.
+              Employees log in here to perform their daily work — housekeeping tasks, check-ins and
+              room operations according to their role.
             </p>
+            <p className="text-sm text-stone-500 mt-3 max-w-xl">
+              Preview the Employee Portal using a temporary employee session.
+              <br />
+              No employee login is required.
+              <br />
+              <span className="text-amber-800 font-medium">
+                For testing, demonstrations and QA only.
+              </span>
+            </p>
+            {previewError && (
+              <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 whitespace-pre-line">
+                {previewError}
+              </div>
+            )}
           </div>
         </div>
         <button
           type="button"
-          onClick={openEmployeePortal}
-          className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 hover:bg-stone-800 text-white font-bold text-sm rounded-xl shadow-md transition-colors whitespace-nowrap flex-shrink-0"
+          onClick={handlePreviewEmployeePortal}
+          disabled={previewLoading}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 hover:bg-stone-800 disabled:opacity-60 text-white font-bold text-sm rounded-xl shadow-md transition-colors whitespace-nowrap flex-shrink-0"
         >
-          Open Employee Portal
-          <span aria-hidden>→</span>
+          {previewLoading ? (
+            <>
+              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              Starting preview…
+            </>
+          ) : (
+            <>
+              Preview Employee Portal
+              <span aria-hidden>→</span>
+            </>
+          )}
         </button>
       </div>
 
