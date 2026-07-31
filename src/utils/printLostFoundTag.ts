@@ -17,6 +17,14 @@ export async function printLostFoundTag(
   if (!win) return;
 
   const storage = [item.storage_location, item.storage_detail].filter(Boolean).join(' · ') || '—';
+  const printedAt = new Date().toLocaleString('en-ZA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   win.document.write(`<!DOCTYPE html>
 <html><head><title>${item.tag_number || 'Lost & Found'}</title>
@@ -39,7 +47,7 @@ export async function printLostFoundTag(
   }
 </style></head><body>
   <div class="tag">
-    <div class="brand">FastCheckIn Lost &amp; Found</div>
+    <div class="brand">FastCheckIn Lost & Found</div>
     <h1>${item.tag_number || '—'}</h1>
     ${businessName ? `<div class="biz">${escapeHtml(businessName)}</div>` : ''}
     <img class="qr" src="${qrUrl}" alt="QR Code" />
@@ -51,7 +59,7 @@ export async function printLostFoundTag(
       <div><span class="label">Date Found</span><span class="val">${escapeHtml(item.found_date || '—')}</span></div>
       <div><span class="label">Storage</span><span class="val">${escapeHtml(storage)}</span></div>
     </div>
-    <div class="footer">Scan QR to open this record</div>
+    <div class="footer">Scan QR to open this record<br/>Printed ${escapeHtml(printedAt)}</div>
   </div>
   <p style="text-align:center;margin-top:16px">
     <button onclick="window.print()" style="padding:8px 16px;font-size:14px">Print</button>
@@ -63,8 +71,8 @@ export async function printLostFoundTag(
 
 function escapeHtml(s: string): string {
   return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"');
 }
