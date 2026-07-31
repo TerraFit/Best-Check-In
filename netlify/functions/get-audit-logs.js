@@ -1,7 +1,52 @@
 // netlify/functions/get-audit-logs.js
-// Requires canViewAuditLog when JWT is an employee token.
+// CJS exports.handler — no local require (esbuild + type:module safe)
+// RBAC: canViewAuditLog when JWT is an employee token
 
-const { assertPermission } = require('./_rbac');
+function assertPermission(event, permission) {
+  const authHeader =
+    (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+  if (!authHeader) {
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
+  try {
+    const jwt = require('jsonwebtoken');
+    const token = authHeader.replace('Bearer ', '').trim();
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    const meta = (decoded && decoded.user_metadata) || {};
+    if (decoded.role === 'service_role' || meta.super_admin) {
+      return { ok: true, principal: { actorType: 'super_admin', role: 'super_admin', active: true } };
+    }
+    if (meta.business_id && !meta.employee_id) {
+      return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+    }
+    // Employee: business owner defaults are not assumed — need canViewAuditLog
+    // Business-owner tokens already returned above. For employees, allow if role is privileged.
+    const role = meta.staff_role || meta.role || '';
+    const privileged = [
+      'business_owner',
+      'general_manager',
+      'administration',
+      'supervisor',
+      'night_auditor',
+      'super_admin',
+    ];
+    const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
+    if (
+      privileged.includes(role) ||
+      perms.includes(permission) ||
+      perms.includes('canViewAuditLog')
+    ) {
+      return { ok: true, principal: { actorType: 'employee', role, active: true } };
+    }
+    return {
+      ok: false,
+      status: 403,
+      error: 'Missing permission: ' + permission,
+    };
+  } catch (e) {
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
+}
 
 exports.handler = async function (event) {
   const headers = {
