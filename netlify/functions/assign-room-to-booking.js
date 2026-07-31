@@ -1,5 +1,7 @@
 // netlify/functions/assign-room-to-booking.js
-// Allocate or clear room on a booking. Reversible. Writes audit + room_events.
+// Allocate or clear room. Requires canAllocateRooms when JWT is an employee token.
+
+const { assertPermission } = require('./_rbac');
 
 exports.handler = async (event) => {
   const headers = {
@@ -17,6 +19,15 @@ exports.handler = async (event) => {
   }
 
   try {
+    const gate = assertPermission(event, 'canAllocateRooms');
+    if (!gate.ok) {
+      return {
+        statusCode: gate.status || 403,
+        headers,
+        body: JSON.stringify({ error: gate.error }),
+      };
+    }
+
     const body = JSON.parse(event.body || '{}');
     const { bookingId, roomId, businessId } = body;
 
@@ -42,7 +53,6 @@ exports.handler = async (event) => {
       Prefer: 'return=representation',
     };
 
-    // Current booking
     const bookingRes = await fetch(
       `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,business_id,guest_name,room_id,room_number,room_name,check_in_date,check_out_date,nights,status`,
       {
@@ -117,7 +127,6 @@ exports.handler = async (event) => {
     const updated = await updateRes.json();
     const updatedBooking = updated[0];
 
-    // Update occupancy on previous room if released
     if (previousRoomId && previousRoomId !== roomId) {
       await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${previousRoomId}`, {
         method: 'PATCH',
@@ -150,7 +159,6 @@ exports.handler = async (event) => {
       }).catch(() => {});
     }
 
-    // Update occupancy on new room
     if (newRoom) {
       const today = new Date().toISOString().split('T')[0];
       const checkIn = booking.check_in_date || today;
@@ -191,7 +199,6 @@ exports.handler = async (event) => {
       }).catch(() => {});
     }
 
-    // Audit log
     try {
       await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
         method: 'POST',

@@ -1,7 +1,7 @@
 // netlify/functions/get-housekeeping-tasks.js
-// Stats:
-//   Ready / Not Ready / Cleaning / Inspection → from rooms only
-//   Refresh Due / Full Service Due → today's pending|in_progress tasks ONLY
+// Stats + tasks list. Requires canViewHousekeeping when JWT present.
+
+const { assertPermission } = require('./_rbac');
 
 function isReadyStatus(s) {
   return ['ready', 'clean', 'inspected'].includes(s);
@@ -36,6 +36,15 @@ exports.handler = async (event) => {
   }
 
   try {
+    const gate = assertPermission(event, 'canViewHousekeeping');
+    if (!gate.ok) {
+      return {
+        statusCode: gate.status || 403,
+        headers,
+        body: JSON.stringify({ error: gate.error }),
+      };
+    }
+
     const q = event.queryStringParameters || {};
     const { businessId, view, date, roomId, status } = q;
     if (!businessId) {
@@ -89,7 +98,6 @@ exports.handler = async (event) => {
     );
     const rooms = roomsRes.ok ? await roomsRes.json() : [];
 
-    // Today-only open tasks for Due counters (exact equality on scheduled_date)
     const todayTasksRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=eq.${todayStr}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
@@ -108,7 +116,6 @@ exports.handler = async (event) => {
     );
     const overdueTasks = overdueRes.ok ? await overdueRes.json() : [];
 
-    // Readiness counts from rooms only
     let roomsReady = 0;
     let roomsNotReady = 0;
     let roomsCleaning = 0;
@@ -137,7 +144,6 @@ exports.handler = async (event) => {
         roomsReady += 1;
         continue;
       }
-      // default unknown → ready
       roomsReady += 1;
     }
 
