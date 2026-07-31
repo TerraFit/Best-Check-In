@@ -1,8 +1,19 @@
 // netlify/functions/manage-employees.js
-// RBAC-aware employee CRUD — staff_role, department, permission_set
+// CJS exports.handler — no local require of _rbac (esbuild + type:module safe)
 
 const jwt = require('jsonwebtoken');
-const { requirePermission, principalFromJwt } = require('./_rbac');
+
+function canManageStaff(decoded) {
+  const meta = (decoded && decoded.user_metadata) || {};
+  if (decoded.role === 'service_role' || meta.super_admin) return true;
+  if (meta.business_id && !meta.employee_id) return true;
+  const role = meta.staff_role || meta.role || '';
+  if (['business_owner', 'general_manager', 'administration', 'supervisor', 'super_admin'].includes(role)) {
+    return true;
+  }
+  const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
+  return perms.includes('canManageStaff');
+}
 
 exports.handler = async function (event) {
   const headers = {
@@ -41,15 +52,12 @@ exports.handler = async function (event) {
       };
     }
 
-    const principal = principalFromJwt(decoded);
-    if (!requirePermission(principal, 'canManageStaff') && principal.actorType !== 'business') {
-      if (principal.actorType !== 'business' && principal.role !== 'business_owner') {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({ error: 'Missing permission: canManageStaff' }),
-        };
-      }
+    if (!canManageStaff(decoded)) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ error: 'Missing permission: canManageStaff' }),
+      };
     }
 
     const businessId = decoded.user_metadata?.business_id;
