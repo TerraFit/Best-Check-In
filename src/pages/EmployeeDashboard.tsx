@@ -96,7 +96,6 @@ export default function EmployeeDashboard() {
     }
   }, []);
 
-  // Ensure active menu is allowed
   useEffect(() => {
     if (menu.length === 0) return;
     if (!menu.some((m) => m.id === activeMenu)) {
@@ -295,7 +294,6 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {/* Permission-driven navigation */}
         <div className="flex border-b border-stone-200 overflow-x-auto gap-4 text-sm">
           {menu.map((item) => (
             <button
@@ -409,6 +407,7 @@ export default function EmployeeDashboard() {
         {activeMenu === 'lost_found' && hasPermission(principal, 'canViewLostFound') && businessId && (
           <LostFoundTab
             businessId={businessId}
+            businessName={businessName}
             employeeId={employee?.id}
             employeeName={employee?.full_name}
             canCreate={hasPermission(principal, 'canCreateLostFound')}
