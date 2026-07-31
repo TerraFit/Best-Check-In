@@ -38,6 +38,7 @@ import {
 } from '../../types/lostFound';
 import LostFoundCreateForm from '../../components/lostFound/LostFoundCreateForm';
 import CollectionConfirmModal from '../../components/lostFound/CollectionConfirmModal';
+import DetailPhotosEditor from '../../components/lostFound/DetailPhotosEditor';
 import { printLostFoundTag } from '../../utils/printLostFoundTag';
 
 interface Props {
@@ -62,7 +63,10 @@ const emptyStats: LostFoundDashboardStats = {
   recently_returned: 0,
 };
 
-/** Map current status onto the simplified guest timeline index */
+function hasPhotos(item: { photo_urls?: string[] | null }) {
+  return Array.isArray(item.photo_urls) && item.photo_urls.some(Boolean);
+}
+
 function timelineIndex(status: LostFoundStatus): number {
   const order: LostFoundStatus[] = [
     'newly_found',
@@ -77,12 +81,12 @@ function timelineIndex(status: LostFoundStatus): number {
     'archived',
   ];
   const i = order.indexOf(status);
-  if (i <= 0) return 0; // Found
-  if (i <= 2) return 1; // Guest Contacted
-  if (i === 3) return 2; // Guest Replied
-  if (i <= 5) return 3; // Collection Scheduled
-  if (i <= 7) return 4; // Collected
-  return 5; // Archived / unclaimed treated as end
+  if (i <= 0) return 0;
+  if (i <= 2) return 1;
+  if (i === 3) return 2;
+  if (i <= 5) return 3;
+  if (i <= 7) return 4;
+  return 5;
 }
 
 export default function LostFoundTab({
@@ -111,7 +115,6 @@ export default function LostFoundTab({
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [contactMethod, setContactMethod] = useState<CommunicationMethod>('email');
   const [contactNotes, setContactNotes] = useState('');
@@ -233,6 +236,13 @@ export default function LostFoundTab({
     }
   };
 
+  const onPhotosUpdated = async (item: LostFoundItem) => {
+    setDetail(item);
+    await load();
+    const { activity: act } = await fetchLostFoundItem(businessId, item.id);
+    setActivity(act);
+  };
+
   const statCards = useMemo(
     () => [
       { label: 'Total', value: stats.total, color: 'bg-stone-100 text-stone-800' },
@@ -263,7 +273,6 @@ export default function LostFoundTab({
     [stats]
   );
 
-  const photos = detail?.photo_urls?.filter(Boolean) || [];
   const tIdx = detail ? timelineIndex(detail.status) : 0;
 
   return (
@@ -385,10 +394,21 @@ export default function LostFoundTab({
                             alt=""
                             className="w-8 h-8 rounded-lg object-cover border border-stone-100"
                           />
-                        ) : null}
+                        ) : (
+                          <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                            No photo
+                          </span>
+                        )}
                         <div>
                           <div className="font-semibold text-stone-900">{item.item_name}</div>
-                          <div className="text-[11px] text-stone-400">{item.category}</div>
+                          <div className="text-[11px] text-stone-400 flex items-center gap-1.5 flex-wrap">
+                            <span>{item.category}</span>
+                            {!hasPhotos(item) && (
+                              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
+                                Photo Missing
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -476,6 +496,11 @@ export default function LostFoundTab({
                   >
                     {LOST_FOUND_STATUS_LABELS[detail.status]}
                   </span>
+                  {!hasPhotos(detail) && (
+                    <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                      Photo Missing
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => handlePrint(detail)}
@@ -494,7 +519,6 @@ export default function LostFoundTab({
                   )}
                 </div>
 
-                {/* Guest timeline strip */}
                 <div className="bg-stone-50 rounded-2xl border border-stone-100 p-3">
                   <h4 className="text-[10px] font-bold uppercase text-stone-400 mb-2">
                     Guest timeline
@@ -529,24 +553,15 @@ export default function LostFoundTab({
                   </div>
                 </div>
 
-                {/* Photo gallery */}
-                {photos.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-bold uppercase text-stone-400 mb-2">Photos</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {photos.map((src, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setPhotoPreview(src)}
-                          className="w-20 h-20 rounded-xl overflow-hidden border border-stone-200 hover:ring-2 hover:ring-amber-400"
-                        >
-                          <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <DetailPhotosEditor
+                  key={detail.id + String((detail.photo_urls || []).length)}
+                  businessId={businessId}
+                  item={detail}
+                  canEdit={canEdit}
+                  employeeId={employeeId}
+                  employeeName={employeeName}
+                  onUpdated={onPhotosUpdated}
+                />
 
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -767,27 +782,6 @@ export default function LostFoundTab({
             setActivity(act);
           }}
         />
-      )}
-
-      {photoPreview && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setPhotoPreview(null)}
-        >
-          <button
-            type="button"
-            className="absolute top-4 right-4 text-white p-2"
-            onClick={() => setPhotoPreview(null)}
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={photoPreview}
-            alt="Preview"
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
       )}
     </div>
   );
