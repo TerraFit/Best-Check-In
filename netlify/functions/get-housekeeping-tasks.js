@@ -1,8 +1,7 @@
 // netlify/functions/get-housekeeping-tasks.js
-// Stats use readiness terminology:
-//   Ready     = ready | clean | inspected
-//   Not Ready = not_ready | dirty | full_service_required | refresh_required
-// cleaning_in_progress / awaiting_inspection are neither Ready nor Not Ready counts.
+// Stats:
+//   Ready / Not Ready / Cleaning / Inspection → from rooms only
+//   Refresh Due / Full Service Due → today's pending|in_progress tasks ONLY
 
 function isReadyStatus(s) {
   return ['ready', 'clean', 'inspected'].includes(s);
@@ -10,6 +9,15 @@ function isReadyStatus(s) {
 
 function isNotReadyStatus(s) {
   return ['not_ready', 'dirty', 'full_service_required', 'refresh_required'].includes(s);
+}
+
+function isMaintenanceRoom(r) {
+  return (
+    !r.active ||
+    r.availability_status === 'out_of_order' ||
+    r.availability_status === 'maintenance' ||
+    r.availability_status === 'unavailable'
+  );
 }
 
 exports.handler = async (event) => {
@@ -76,51 +84,78 @@ exports.handler = async (event) => {
     const tasks = await res.json();
 
     const roomsRes = await fetch(
-      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status,occupancy_status`,
+      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     const rooms = roomsRes.ok ? await roomsRes.json() : [];
 
-    const allTasksRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&select=id,task_type,status,scheduled_date,is_checkout`,
+    // Today-only open tasks for Due counters (exact equality on scheduled_date)
+    const todayTasksRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=eq.${todayStr}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
-    const allTasks = allTasksRes.ok ? await allTasksRes.json() : [];
+    const todayOpenTasks = todayTasksRes.ok ? await todayTasksRes.json() : [];
 
-    const roomsReady = rooms.filter((r) => isReadyStatus(r.housekeeping_status)).length;
-    const roomsNotReady = rooms.filter((r) => isNotReadyStatus(r.housekeeping_status)).length;
+    const completedTodayRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=eq.${todayStr}&status=eq.completed&select=id`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+    );
+    const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
+
+    const overdueRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=lt.${todayStr}&status=in.(pending,in_progress)&select=id`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+    );
+    const overdueTasks = overdueRes.ok ? await overdueRes.json() : [];
+
+    // Readiness counts from rooms only
+    let roomsReady = 0;
+    let roomsNotReady = 0;
+    let roomsCleaning = 0;
+    let roomsAwaiting = 0;
+    let roomsMaintenance = 0;
+
+    for (const r of rooms) {
+      if (isMaintenanceRoom(r)) {
+        roomsMaintenance += 1;
+        continue;
+      }
+      if (r.housekeeping_status === 'do_not_disturb') continue;
+      if (r.housekeeping_status === 'cleaning_in_progress') {
+        roomsCleaning += 1;
+        continue;
+      }
+      if (r.housekeeping_status === 'awaiting_inspection') {
+        roomsAwaiting += 1;
+        continue;
+      }
+      if (isNotReadyStatus(r.housekeeping_status)) {
+        roomsNotReady += 1;
+        continue;
+      }
+      if (isReadyStatus(r.housekeeping_status)) {
+        roomsReady += 1;
+        continue;
+      }
+      // default unknown → ready
+      roomsReady += 1;
+    }
+
+    const refreshDue = todayOpenTasks.filter((t) => t.task_type === 'refresh').length;
+    const fullServiceDue = todayOpenTasks.filter((t) => t.task_type === 'full_service').length;
 
     const stats = {
       rooms_ready: roomsReady,
       rooms_not_ready: roomsNotReady,
-      // Backward-compatible aliases
       rooms_clean: roomsReady,
       rooms_dirty: roomsNotReady,
-      rooms_cleaning: rooms.filter((r) => r.housekeeping_status === 'cleaning_in_progress').length,
-      rooms_awaiting_inspection: rooms.filter((r) => r.housekeeping_status === 'awaiting_inspection')
-        .length,
-      refresh_due: allTasks.filter(
-        (t) =>
-          t.task_type === 'refresh' &&
-          ['pending', 'in_progress'].includes(t.status) &&
-          String(t.scheduled_date).slice(0, 10) <= todayStr
-      ).length,
-      full_service_due: allTasks.filter(
-        (t) =>
-          t.task_type === 'full_service' &&
-          ['pending', 'in_progress'].includes(t.status) &&
-          String(t.scheduled_date).slice(0, 10) <= todayStr
-      ).length,
-      completed_today: allTasks.filter(
-        (t) =>
-          t.status === 'completed' &&
-          String(t.scheduled_date).slice(0, 10) === todayStr
-      ).length,
-      overdue: allTasks.filter(
-        (t) =>
-          ['pending', 'in_progress'].includes(t.status) &&
-          String(t.scheduled_date).slice(0, 10) < todayStr
-      ).length,
+      rooms_cleaning: roomsCleaning,
+      rooms_awaiting_inspection: roomsAwaiting,
+      rooms_maintenance: roomsMaintenance,
+      refresh_due: refreshDue,
+      full_service_due: fullServiceDue,
+      completed_today: completedToday.length,
+      overdue: overdueTasks.length,
     };
 
     return {
