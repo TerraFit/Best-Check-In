@@ -1,6 +1,7 @@
 // src/types/analytics.ts
+// Programme 1: limits derived via featureAccessService.getAnalyticsLimits — do not duplicate prices here.
 
-export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business';
+export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
 
 export type DrillLevel = 'world' | 'continent' | 'country' | 'region' | 'city';
 
@@ -50,45 +51,14 @@ export interface AnalyticsData {
 }
 
 export interface SubscriptionLimits {
-  maxDrillLevel: DrillLevel;
+  maxDrillLevel: DrillLevel | string;
   canViewCountries: boolean;
   canViewRegions: boolean;
   canViewCities: boolean;
-  canViewTravelPatterns: boolean;
-  canExportData: boolean;
+  canViewTravelPatterns?: boolean;
+  canExportData?: boolean;
+  subscriptionTier?: SubscriptionTier;
 }
 
-export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> = {
-  starter: {
-    maxDrillLevel: 'world',
-    canViewCountries: false,
-    canViewRegions: false,
-    canViewCities: false,
-    canViewTravelPatterns: false,
-    canExportData: false,
-  },
-  growth: {
-    maxDrillLevel: 'continent',
-    canViewCountries: true,
-    canViewRegions: false,
-    canViewCities: false,
-    canViewTravelPatterns: false,
-    canExportData: true,
-  },
-  pro: {
-    maxDrillLevel: 'country',
-    canViewCountries: true,
-    canViewRegions: true,
-    canViewCities: false,
-    canViewTravelPatterns: true,
-    canExportData: true,
-  },
-  business: {
-    maxDrillLevel: 'city',
-    canViewCountries: true,
-    canViewRegions: true,
-    canViewCities: true,
-    canViewTravelPatterns: true,
-    canExportData: true,
-  }
-};
+/** @deprecated Use getAnalyticsLimits from featureAccessService */
+export const SUBSCRIPTION_LIMITS: Record<string, SubscriptionLimits> = {};
