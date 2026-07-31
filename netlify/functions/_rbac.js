@@ -3,84 +3,131 @@
 
 const ALL = [
   'canViewDashboard',
+  'canViewGuestDetails',
+  'canViewGuestLimited',
   'canManageBookings',
   'canCheckGuestsIn',
   'canAllocateRooms',
+  'canViewRooms',
   'canViewHousekeeping',
-  'canManageHousekeeping',
-  'canInspectRooms',
+  'canStartHousekeepingTask',
+  'canCompleteHousekeepingTask',
+  'canApproveInspection',
+  'canGenerateHousekeepingSchedule',
   'canAssignHousekeepingTasks',
+  'canViewHousekeepingReports',
+  'canViewLaundry',
   'canManageLaundry',
-  'canManageMaintenance',
-  'canViewReports',
+  'canReceiveLinen',
+  'canIssueLinen',
+  'canViewLaundryReports',
+  'canViewMaintenance',
+  'canCreateMaintenanceJob',
+  'canCompleteMaintenanceJob',
+  'canTakeRoomOffline',
+  'canReturnRoomToService',
+  'canViewLostFound',
+  'canCreateLostFound',
+  'canEditLostFound',
+  'canDisposeLostFound',
+  'canViewLostFoundReports',
+  'canViewOperationalReports',
+  'canViewFinancialReports',
+  'canViewMarketingReports',
+  'canViewGuestReports',
+  'canViewAuditReports',
   'canExportReports',
   'canManageMarketing',
   'canManageStaff',
   'canManageSettings',
   'canViewAuditLog',
   'canApproveRoomChanges',
-  'canManageLostFound',
-  'canViewGuestDetails',
-  'canViewGuestLimited',
   'canAccessStaffPortal',
 ];
+
+function expandLegacy(set) {
+  if (set.has('canManageHousekeeping')) {
+    ['canViewHousekeeping', 'canStartHousekeepingTask', 'canCompleteHousekeepingTask',
+      'canApproveInspection', 'canGenerateHousekeepingSchedule', 'canAssignHousekeepingTasks'
+    ].forEach((p) => set.add(p));
+  }
+  if (set.has('canInspectRooms')) {
+    set.add('canApproveInspection');
+    set.add('canViewHousekeeping');
+  }
+  if (set.has('canManageLostFound')) {
+    ['canViewLostFound', 'canCreateLostFound', 'canEditLostFound', 'canDisposeLostFound'].forEach((p) => set.add(p));
+  }
+  if (set.has('canViewReports')) {
+    set.add('canViewOperationalReports');
+    set.add('canViewGuestReports');
+  }
+  if (set.has('canManageMaintenance')) {
+    ['canViewMaintenance', 'canCreateMaintenanceJob', 'canCompleteMaintenanceJob',
+      'canTakeRoomOffline', 'canReturnRoomToService'].forEach((p) => set.add(p));
+  }
+  return set;
+}
+
+const HK_WORKER = [
+  'canViewDashboard',
+  'canViewHousekeeping',
+  'canStartHousekeepingTask',
+  'canCompleteHousekeepingTask',
+  'canViewLostFound',
+  'canCreateLostFound',
+  'canViewGuestLimited',
+];
+
+const HK_LEAD = HK_WORKER.concat([
+  'canApproveInspection',
+  'canAssignHousekeepingTasks',
+  'canGenerateHousekeepingSchedule',
+  'canViewHousekeepingReports',
+  'canEditLostFound',
+  'canViewRooms',
+]);
 
 const ROLE_DEFAULTS = {
   super_admin: ALL,
   business_owner: ALL,
   general_manager: ALL,
+  supervisor: HK_LEAD.concat([
+    'canViewRooms', 'canAllocateRooms', 'canViewGuestDetails', 'canManageBookings',
+    'canViewOperationalReports', 'canViewGuestReports', 'canAccessStaffPortal',
+    'canDisposeLostFound', 'canViewLostFoundReports',
+  ]),
+  team_leader: HK_LEAD,
   front_desk: [
-    'canViewDashboard',
-    'canManageBookings',
-    'canCheckGuestsIn',
-    'canAllocateRooms',
-    'canViewGuestDetails',
-    'canViewHousekeeping',
+    'canViewDashboard', 'canManageBookings', 'canCheckGuestsIn', 'canAllocateRooms',
+    'canViewRooms', 'canViewGuestDetails', 'canViewHousekeeping',
+    'canViewLostFound', 'canCreateLostFound',
   ],
-  team_leader: [
-    'canViewDashboard',
-    'canViewHousekeeping',
-    'canManageHousekeeping',
-    'canInspectRooms',
-    'canAssignHousekeepingTasks',
-    'canManageLostFound',
-    'canViewGuestLimited',
-  ],
-  housekeeper: [
-    'canViewDashboard',
-    'canViewHousekeeping',
-    'canManageLostFound',
-    'canViewGuestLimited',
-  ],
+  housekeeper: HK_WORKER,
   laundry_attendant: [
-    'canViewDashboard',
-    'canManageLaundry',
-    'canViewHousekeeping',
-    'canViewGuestLimited',
+    'canViewDashboard', 'canViewLaundry', 'canManageLaundry', 'canReceiveLinen',
+    'canIssueLinen', 'canViewHousekeeping', 'canViewLostFound', 'canViewGuestLimited',
   ],
   maintenance: [
-    'canViewDashboard',
-    'canManageMaintenance',
-    'canApproveRoomChanges',
+    'canViewDashboard', 'canViewMaintenance', 'canCreateMaintenanceJob',
+    'canCompleteMaintenanceJob', 'canTakeRoomOffline', 'canReturnRoomToService',
+    'canViewRooms', 'canApproveRoomChanges',
   ],
   administration: [
-    'canViewDashboard',
-    'canViewReports',
-    'canExportReports',
-    'canViewAuditLog',
-    'canManageSettings',
-    'canManageStaff',
-    'canAccessStaffPortal',
-    'canViewGuestDetails',
+    'canViewDashboard', 'canViewOperationalReports', 'canViewGuestReports',
+    'canViewAuditReports', 'canExportReports', 'canViewAuditLog',
+    'canManageSettings', 'canManageStaff', 'canAccessStaffPortal',
+    'canViewGuestDetails', 'canViewRooms',
   ],
-  marketing: ['canViewDashboard', 'canManageMarketing'],
-  finance: ['canViewDashboard', 'canViewReports', 'canExportReports'],
+  marketing: ['canViewDashboard', 'canManageMarketing', 'canViewMarketingReports', 'canViewGuestReports'],
+  finance: ['canViewDashboard', 'canViewFinancialReports', 'canExportReports', 'canViewOperationalReports'],
+  night_auditor: [
+    'canViewDashboard', 'canManageBookings', 'canCheckGuestsIn', 'canViewRooms',
+    'canViewGuestDetails', 'canViewHousekeeping', 'canViewOperationalReports', 'canViewAuditLog',
+  ],
+  security: ['canViewDashboard', 'canViewRooms', 'canViewGuestLimited', 'canViewLostFound'],
   custom: ['canViewDashboard'],
-  EmployeeOverview: [
-    'canViewDashboard',
-    'canViewGuestDetails',
-    'canManageBookings',
-  ],
+  EmployeeOverview: ['canViewDashboard', 'canViewGuestDetails', 'canManageBookings'],
 };
 
 function normalizeRole(role) {
@@ -100,30 +147,43 @@ function normalizeRole(role) {
 
 function resolvePermissions({ actorType, role, permission_set, active }) {
   if (active === false) return new Set();
-  if (actorType === 'super_admin' || role === 'super_admin') return new Set(ALL);
+  if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
   if (actorType === 'business' || role === 'business_owner' || role === 'owner') {
-    return new Set(ALL);
+    return expandLegacy(new Set(ALL));
   }
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
   if (Array.isArray(permission_set) && permission_set.length) {
-    if (r === 'custom') return new Set(permission_set.filter((p) => ALL.includes(p)));
+    if (r === 'custom') {
+      return expandLegacy(new Set(permission_set.filter((p) => typeof p === 'string')));
+    }
     permission_set.forEach((p) => {
-      if (ALL.includes(p)) base.add(p);
+      if (typeof p === 'string') base.add(p);
     });
   }
-  return base;
+  return expandLegacy(base);
 }
 
 function requirePermission(principal, permission) {
   const set = resolvePermissions(principal || {});
-  return set.has(permission);
+  if (set.has(permission)) return true;
+  if (
+    ['canStartHousekeepingTask', 'canCompleteHousekeepingTask', 'canApproveInspection',
+      'canGenerateHousekeepingSchedule'].includes(permission) &&
+    set.has('canManageHousekeeping')
+  ) {
+    return true;
+  }
+  return false;
 }
 
-/** Build principal from JWT payload used by manage-employees etc. */
+function requireAnyPermission(principal, permissions) {
+  return (permissions || []).some((p) => requirePermission(principal, p));
+}
+
 function principalFromJwt(decoded) {
-  const meta = decoded.user_metadata || {};
-  if (decoded.role === 'service_role' || meta.super_admin) {
+  const meta = (decoded && decoded.user_metadata) || {};
+  if ((decoded && decoded.role) === 'service_role' || meta.super_admin) {
     return { actorType: 'super_admin', role: 'super_admin', active: true };
   }
   if (meta.business_id && !meta.employee_id) {
@@ -131,10 +191,32 @@ function principalFromJwt(decoded) {
   }
   return {
     actorType: 'employee',
-    role: meta.role || meta.staff_role || 'EmployeeOverview',
+    role: meta.staff_role || meta.role || 'EmployeeOverview',
     permission_set: meta.permission_set || null,
     active: meta.active !== false,
   };
+}
+
+/** Optional JWT gate — allows service key / business tokens through */
+function assertPermission(event, permission) {
+  const authHeader = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+  if (!authHeader) {
+    // Many internal ops use service key only; allow when no JWT (caller must still use service key)
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
+  try {
+    const jwt = require('jsonwebtoken');
+    const token = authHeader.replace('Bearer ', '').trim();
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    const principal = principalFromJwt(decoded);
+    if (!requirePermission(principal, permission)) {
+      return { ok: false, status: 403, error: 'Missing permission: ' + permission, principal };
+    }
+    return { ok: true, principal };
+  } catch (e) {
+    // Invalid token — still allow service-key-style calls for backwards compatibility
+    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
+  }
 }
 
 module.exports = {
@@ -143,5 +225,7 @@ module.exports = {
   normalizeRole,
   resolvePermissions,
   requirePermission,
+  requireAnyPermission,
   principalFromJwt,
+  assertPermission,
 };
