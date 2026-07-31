@@ -27,6 +27,7 @@ import type {
   LostFoundDashboardStats,
   LostFoundStatus,
   CommunicationMethod,
+  LostFoundViewMode,
 } from '../../types/lostFound';
 import {
   LOST_FOUND_STATUS_LABELS,
@@ -41,6 +42,14 @@ import CollectionConfirmModal from '../../components/lostFound/CollectionConfirm
 import DetailPhotosEditor from '../../components/lostFound/DetailPhotosEditor';
 import { printLostFoundTag } from '../../utils/printLostFoundTag';
 
+type QuickFilter =
+  | ''
+  | 'missing_photos'
+  | 'awaiting_contact'
+  | 'ready_for_collection'
+  | 'overdue'
+  | 'archived';
+
 interface Props {
   businessId: string;
   businessName?: string | null;
@@ -49,6 +58,8 @@ interface Props {
   canCreate?: boolean;
   canEdit?: boolean;
   canDispose?: boolean;
+  /** employee = operational portal; business = full management console */
+  mode?: LostFoundViewMode;
 }
 
 const emptyStats: LostFoundDashboardStats = {
@@ -61,10 +72,24 @@ const emptyStats: LostFoundDashboardStats = {
   unclaimed: 0,
   recently_found: 0,
   recently_returned: 0,
+  missing_photos: 0,
+  ready_for_collection: 0,
+  overdue: 0,
 };
 
 function hasPhotos(item: { photo_urls?: string[] | null }) {
   return Array.isArray(item.photo_urls) && item.photo_urls.some(Boolean);
+}
+
+function isOpenStatus(status: LostFoundStatus) {
+  return [
+    'newly_found',
+    'awaiting_contact',
+    'guest_contacted',
+    'guest_replied',
+    'collection_arranged',
+    'courier_booked',
+  ].includes(status);
 }
 
 function timelineIndex(status: LostFoundStatus): number {
@@ -97,13 +122,17 @@ export default function LostFoundTab({
   canCreate = true,
   canEdit = true,
   canDispose = true,
+  mode = 'business',
 }: Props) {
+  const isBusiness = mode === 'business';
+
   const [items, setItems] = useState<LostFoundItem[]>([]);
   const [stats, setStats] = useState<LostFoundDashboardStats>(emptyStats);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
   const [categories, setCategories] = useState<string[]>([...BUILTIN_CATEGORIES]);
   const [storageOptions, setStorageOptions] = useState<string[]>([...BUILTIN_STORAGE]);
 
@@ -152,6 +181,29 @@ export default function LostFoundTab({
   useEffect(() => {
     load();
   }, [load]);
+
+  const displayedItems = useMemo(() => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    if (!quickFilter) return items;
+    if (quickFilter === 'missing_photos') {
+      return items.filter((i) => isOpenStatus(i.status) && !hasPhotos(i));
+    }
+    if (quickFilter === 'awaiting_contact') {
+      return items.filter((i) => ['newly_found', 'awaiting_contact'].includes(i.status));
+    }
+    if (quickFilter === 'ready_for_collection') {
+      return items.filter((i) => ['collection_arranged', 'courier_booked'].includes(i.status));
+    }
+    if (quickFilter === 'overdue') {
+      return items.filter(
+        (i) => isOpenStatus(i.status) && i.found_date && i.found_date < thirtyDaysAgo
+      );
+    }
+    if (quickFilter === 'archived') {
+      return items.filter((i) => i.status === 'archived');
+    }
+    return items;
+  }, [items, quickFilter]);
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -243,53 +295,122 @@ export default function LostFoundTab({
     setActivity(act);
   };
 
-  const statCards = useMemo(
-    () => [
-      { label: 'Total', value: stats.total, color: 'bg-stone-100 text-stone-800' },
+  const toggleQuick = (key: QuickFilter) => {
+    setQuickFilter((prev) => (prev === key ? '' : key));
+  };
+
+  /** Operational task cards (both portals) + management extras (business only) */
+  const statCards = useMemo(() => {
+    const operational = [
       {
-        label: 'Awaiting Contact',
-        value: stats.awaiting_contact + stats.newly_found,
+        id: 'awaiting_contact' as QuickFilter,
+        label: 'Awaiting Guest Contact',
+        value: stats.awaiting_contact ?? 0,
         color: 'bg-amber-50 text-amber-800',
       },
       {
-        label: 'Awaiting Collection',
-        value: stats.awaiting_collection,
-        color: 'bg-blue-50 text-blue-800',
-      },
-      { label: 'Returned', value: stats.returned, color: 'bg-green-50 text-green-800' },
-      { label: 'Unclaimed', value: stats.unclaimed, color: 'bg-red-50 text-red-800' },
-      { label: 'Archived', value: stats.archived, color: 'bg-stone-50 text-stone-600' },
-      {
-        label: 'This Month',
-        value: stats.found_this_month ?? stats.recently_found,
-        color: 'bg-orange-50 text-orange-800',
+        id: 'missing_photos' as QuickFilter,
+        label: 'Missing Photos',
+        value: stats.missing_photos ?? 0,
+        color: 'bg-rose-50 text-rose-800',
       },
       {
-        label: 'Outstanding',
-        value: stats.outstanding ?? stats.awaiting_collection + stats.newly_found,
+        id: 'ready_for_collection' as QuickFilter,
+        label: 'Ready for Collection',
+        value: stats.ready_for_collection ?? 0,
         color: 'bg-indigo-50 text-indigo-800',
       },
-    ],
-    [stats]
-  );
+      {
+        id: 'overdue' as QuickFilter,
+        label: 'Overdue',
+        value: stats.overdue ?? 0,
+        color: 'bg-orange-50 text-orange-800',
+      },
+    ];
+
+    if (!isBusiness) return operational;
+
+    return [
+      ...operational,
+      {
+        id: 'archived' as QuickFilter,
+        label: 'Archived',
+        value: stats.archived,
+        color: 'bg-stone-50 text-stone-600',
+      },
+      {
+        id: '' as QuickFilter,
+        label: 'Returned',
+        value: stats.returned,
+        color: 'bg-green-50 text-green-800',
+        clickable: false,
+      },
+      {
+        id: '' as QuickFilter,
+        label: 'Outstanding',
+        value: stats.outstanding ?? 0,
+        color: 'bg-blue-50 text-blue-800',
+        clickable: false,
+      },
+      {
+        id: '' as QuickFilter,
+        label: 'This Month',
+        value: stats.found_this_month ?? stats.recently_found,
+        color: 'bg-stone-100 text-stone-800',
+        clickable: false,
+      },
+    ];
+  }, [stats, isBusiness]);
 
   const tIdx = detail ? timelineIndex(detail.status) : 0;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        {statCards.map((c) => (
-          <div
-            key={c.label}
-            className={`rounded-2xl border border-stone-200 px-3 py-3 ${c.color}`}
-          >
-            <div className="text-2xl font-bold">{c.value}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
-              {c.label}
-            </div>
-          </div>
-        ))}
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-4 ${isBusiness ? 'lg:grid-cols-8' : 'lg:grid-cols-4'} gap-3`}
+      >
+        {statCards.map((c) => {
+          const clickable = c.id !== '';
+          const active = clickable && quickFilter === c.id;
+          return (
+            <button
+              key={c.label}
+              type="button"
+              disabled={!clickable}
+              onClick={() => clickable && toggleQuick(c.id)}
+              className={`rounded-2xl border px-3 py-3 text-left transition ${
+                c.color
+              } ${
+                active
+                  ? 'border-amber-400 ring-2 ring-amber-300'
+                  : 'border-stone-200'
+              } ${clickable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
+              title={clickable ? (active ? 'Clear filter' : `Filter: ${c.label}`) : undefined}
+            >
+              <div className="text-2xl font-bold">{c.value}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                {c.label}
+              </div>
+            </button>
+          );
+        })}
       </div>
+
+      {quickFilter && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-stone-500">Filtered:</span>
+          <span className="font-semibold text-stone-800">
+            {statCards.find((c) => c.id === quickFilter)?.label || quickFilter}
+          </span>
+          <button
+            type="button"
+            onClick={() => setQuickFilter('')}
+            className="text-xs font-semibold text-amber-700 hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex flex-1 gap-2 flex-wrap">
@@ -315,18 +436,20 @@ export default function LostFoundTab({
               </option>
             ))}
           </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white"
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          {isBusiness && (
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={load}
@@ -356,10 +479,12 @@ export default function LostFoundTab({
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-stone-400 text-sm">Loading Lost & Found…</div>
-        ) : items.length === 0 ? (
+        ) : displayedItems.length === 0 ? (
           <div className="p-12 text-center text-stone-400 text-sm">
             <Package className="mx-auto mb-3 opacity-40" size={36} />
-            No items found. Record a newly found item to get started.
+            {quickFilter
+              ? 'No items match this filter.'
+              : 'No items found. Record a newly found item to get started.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -377,7 +502,7 @@ export default function LostFoundTab({
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {displayedItems.map((item) => (
                   <tr
                     key={item.id}
                     className="border-b border-stone-50 hover:bg-stone-50/80 cursor-pointer"
@@ -519,39 +644,44 @@ export default function LostFoundTab({
                   )}
                 </div>
 
-                <div className="bg-stone-50 rounded-2xl border border-stone-100 p-3">
-                  <h4 className="text-[10px] font-bold uppercase text-stone-400 mb-2">
-                    Guest timeline
-                  </h4>
-                  <div className="flex items-start justify-between gap-1">
-                    {GUEST_TIMELINE.map((step, i) => {
-                      const done = i <= tIdx;
-                      const current = i === tIdx;
-                      return (
-                        <div key={step} className="flex-1 flex flex-col items-center text-center min-w-0">
+                {isBusiness && (
+                  <div className="bg-stone-50 rounded-2xl border border-stone-100 p-3">
+                    <h4 className="text-[10px] font-bold uppercase text-stone-400 mb-2">
+                      Guest timeline
+                    </h4>
+                    <div className="flex items-start justify-between gap-1">
+                      {GUEST_TIMELINE.map((step, i) => {
+                        const done = i <= tIdx;
+                        const current = i === tIdx;
+                        return (
                           <div
-                            className={`mb-1 ${
-                              done ? 'text-emerald-600' : 'text-stone-300'
-                            } ${current ? 'scale-110' : ''}`}
+                            key={step}
+                            className="flex-1 flex flex-col items-center text-center min-w-0"
                           >
-                            {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                            <div
+                              className={`mb-1 ${
+                                done ? 'text-emerald-600' : 'text-stone-300'
+                              } ${current ? 'scale-110' : ''}`}
+                            >
+                              {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                            </div>
+                            <span
+                              className={`text-[9px] leading-tight font-semibold ${
+                                current
+                                  ? 'text-amber-800'
+                                  : done
+                                    ? 'text-stone-700'
+                                    : 'text-stone-400'
+                              }`}
+                            >
+                              {LOST_FOUND_STATUS_LABELS[step]}
+                            </span>
                           </div>
-                          <span
-                            className={`text-[9px] leading-tight font-semibold ${
-                              current
-                                ? 'text-amber-800'
-                                : done
-                                  ? 'text-stone-700'
-                                  : 'text-stone-400'
-                            }`}
-                          >
-                            {LOST_FOUND_STATUS_LABELS[step]}
-                          </span>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <DetailPhotosEditor
                   key={detail.id + String((detail.photo_urls || []).length)}
@@ -668,6 +798,7 @@ export default function LostFoundTab({
                   </div>
                 )}
 
+                {/* Guest contact — available when canEdit (both portals) */}
                 {canEdit && (
                   <div className="border border-stone-100 rounded-2xl p-4 space-y-3">
                     <h4 className="text-xs font-bold uppercase text-stone-400">Contact guest</h4>
