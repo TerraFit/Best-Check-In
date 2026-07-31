@@ -10,7 +10,6 @@ import {
   MessageCircle,
   X,
   RefreshCw,
-  ChevronRight,
   CheckCircle2,
   Circle,
 } from 'lucide-react';
@@ -498,15 +497,26 @@ export default function LostFoundTab({
                   <th className="px-4 py-3 font-semibold">Found</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Storage</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-4 py-3 font-semibold text-right">
+                    <span className="sr-only">Open</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {displayedItems.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-stone-50 hover:bg-stone-50/80 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View details for ${item.tag_number || 'item'} ${item.item_name || ''}`}
+                    className="border-b border-stone-50 cursor-pointer transition-colors hover:bg-amber-50/70 focus-visible:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 group"
                     onClick={() => openDetail(item.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openDetail(item.id);
+                      }
+                    }}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold text-amber-700">
                       {item.tag_number || '—'}
@@ -563,8 +573,10 @@ export default function LostFoundTab({
                       {[item.storage_location, item.storage_detail].filter(Boolean).join(' · ') ||
                         '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <ChevronRight size={16} className="inline text-stone-300" />
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700 opacity-70 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
+                        View Details →
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -593,17 +605,23 @@ export default function LostFoundTab({
       {selectedId && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
           <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-white border-b border-stone-100 px-5 py-4 flex items-center justify-between z-10">
-              <div>
-                <div className="font-mono text-xs font-bold text-amber-700">
-                  {detail?.tag_number || '…'}
+            <div className="sticky top-0 bg-white border-b border-stone-100 px-5 py-4 flex items-start justify-between z-10 gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">
+                  Lost & Found Item
                 </div>
-                <h3 className="font-bold text-stone-900">{detail?.item_name || 'Loading…'}</h3>
+                <div className="font-mono text-sm font-bold text-amber-700 mt-0.5">
+                  {detail?.tag_number || (detailLoading ? '…' : '—')}
+                </div>
+                <h3 className="font-bold text-stone-900 text-base leading-snug mt-0.5 truncate">
+                  {detail?.item_name || (detailLoading ? 'Loading…' : '—')}
+                </h3>
               </div>
               <button
                 type="button"
                 onClick={closeDetail}
-                className="p-1.5 rounded-lg hover:bg-stone-100"
+                className="p-1.5 rounded-lg hover:bg-stone-100 shrink-0"
+                aria-label="Close details"
               >
                 <X size={18} />
               </button>
@@ -798,7 +816,6 @@ export default function LostFoundTab({
                   </div>
                 )}
 
-                {/* Guest contact — available when canEdit (both portals) */}
                 {canEdit && (
                   <div className="border border-stone-100 rounded-2xl p-4 space-y-3">
                     <h4 className="text-xs font-bold uppercase text-stone-400">Contact guest</h4>
