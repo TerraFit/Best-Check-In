@@ -1,5 +1,6 @@
 // src/services/rbacService.ts
 // Resolve Role → Permission Set → UI / API decisions
+// Role = authority hierarchy. Department is organisational only.
 
 import {
   ALL_PERMISSIONS,
@@ -9,6 +10,7 @@ import {
   DEPARTMENT_LABELS,
   TAB_REQUIRED_PERMISSION,
   expandLegacyPermissions,
+  normalizeHierarchyRole,
   type EmployeeMenuItem,
   type Permission,
   type StaffDepartment,
@@ -24,20 +26,11 @@ export interface PermissionPrincipal {
 }
 
 export function normalizeRole(role: string | null | undefined): StaffRole {
-  if (!role) return 'EmployeeOverview';
-  if (role in ROLE_DEFAULT_PERMISSIONS) return role as StaffRole;
-  const aliases: Record<string, StaffRole> = {
-    owner: 'business_owner',
-    business: 'business_owner',
-    gm: 'general_manager',
-    receptionist: 'front_desk',
-    reception: 'front_desk',
-    hk: 'housekeeper',
-    housekeeping: 'housekeeper',
-    supervisor: 'supervisor',
-    lead: 'team_leader',
-  };
-  return aliases[role.toLowerCase()] || 'custom';
+  if (!role) return 'Employee (Legacy)';
+  if (role === 'super_admin' || role === 'business_owner' || role === 'owner') {
+    return role === 'owner' ? 'business_owner' : (role as StaffRole);
+  }
+  return normalizeHierarchyRole(role);
 }
 
 export function normalizeDepartment(
@@ -65,24 +58,13 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
   }
 
   const role = normalizeRole(principal.role);
-  let base = new Set(ROLE_DEFAULT_PERMISSIONS[role] || []);
+  let base = new Set(ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] || []);
 
+  // Optional permission_set still merges (e.g. historical custom sets) without rewriting RBAC
   if (principal.permission_set && Array.isArray(principal.permission_set)) {
-    if (role === 'custom' || principal.permission_set.length > 0) {
-      const custom = new Set<Permission>();
-      for (const p of principal.permission_set) {
-        if ((ALL_PERMISSIONS as string[]).includes(p as string) || p in ROLE_DEFAULT_PERMISSIONS) {
-          custom.add(p as Permission);
-        }
-        // Accept any known permission string
-        if (typeof p === 'string' && p.startsWith('can')) {
-          custom.add(p as Permission);
-        }
-      }
-      if (role === 'custom') {
-        base = custom.size ? custom : base;
-      } else {
-        for (const p of custom) base.add(p);
+    for (const p of principal.permission_set) {
+      if (typeof p === 'string' && p.startsWith('can')) {
+        base.add(p as Permission);
       }
     }
   }
@@ -96,7 +78,6 @@ export function hasPermission(
 ): boolean {
   const set = resolvePermissions(principal);
   if (set.has(permission)) return true;
-  // Soft compatibility: legacy canManageHousekeeping covers split flags
   if (
     (permission === 'canStartHousekeepingTask' ||
       permission === 'canCompleteHousekeepingTask' ||
@@ -139,7 +120,6 @@ export function filterTabs<
   return tabs.filter((t) => canAccessTab(principal, t.id));
 }
 
-/** Build employee portal menu purely from permissions */
 export function getEmployeeMenu(principal: PermissionPrincipal): EmployeeMenuItem[] {
   return EMPLOYEE_MENU_ITEMS.filter((item) => {
     if (Array.isArray(item.required)) {
@@ -151,7 +131,7 @@ export function getEmployeeMenu(principal: PermissionPrincipal): EmployeeMenuIte
 
 export function roleLabel(role: string | null | undefined): string {
   const r = normalizeRole(role);
-  return ROLE_LABELS[r] || role || 'Staff';
+  return ROLE_LABELS[r] || ROLE_LABELS[String(role)] || role || 'Staff';
 }
 
 export function departmentLabel(dept: string | null | undefined): string {
