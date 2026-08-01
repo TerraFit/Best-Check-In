@@ -7,11 +7,6 @@ import { getAuthToken } from '../utils/auth';
 
 export type DrillLevel = 'world' | 'continent' | 'country' | 'region' | 'city';
 
-export interface AnalyticsDateRange {
-  dateFrom?: string;
-  dateTo?: string;
-}
-
 export interface OriginNode {
   key: string;
   name: string;
@@ -120,7 +115,7 @@ export interface AnalyticsSummaryResponse {
 }
 
 function authHeaders(): HeadersInit {
-  const token = getAuthToken?.() || localStorage.getItem('token') || localStorage.getItem('authToken');
+  const token = getAuthToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
@@ -192,7 +187,7 @@ export async function downloadAnalyticsSnapshot(options: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Snapshot failed (${res.status})`);
+    throw new Error((err as any).error || `Snapshot failed (${res.status})`);
   }
   return res.blob();
 }
@@ -212,12 +207,12 @@ export async function downloadBiReport(options: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `BI report failed (${res.status})`);
+    throw new Error((err as any).error || `BI report failed (${res.status})`);
   }
   return res.blob();
 }
 
-/** Default 90-day window ending today (local date). */
+/** Default 90-day window ending today (UTC date string). */
 export function defaultAnalyticsRange(): { dateFrom: string; dateTo: string } {
   const to = new Date();
   const dateTo = to.toISOString().split('T')[0];
