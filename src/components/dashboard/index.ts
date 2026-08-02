@@ -19,4 +19,3 @@ export { SettingsView } from './SettingsView';
 export { TodayActivityCards } from './TodayActivityCards';
 export { TrialBanner } from './TrialBanner';
 export { TravelPatternsCard } from '../analytics/TravelPatternsCard';
-export { UpgradePreview } from '../analytics/UpgradePreview';
