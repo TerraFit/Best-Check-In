@@ -10,6 +10,7 @@ import {
   normalizeCity,
   isSouthAfrica,
 } from './geoHierarchy.js';
+import { resolvePlaceAlias } from './locationAliases.js';
 
 export function parseDateOnly(value) {
   if (!value) return null;
@@ -64,10 +65,6 @@ export function hasMarketingConsent(b) {
   return v === true || v === 'true' || v === 1 || v === '1';
 }
 
-/**
- * Occupancy rate (%) for period.
- * roomNightsSold / (sellableRooms × days in period)
- */
 export function calculateOccupancy(bookings, sellableRooms, dateFrom, dateTo) {
   const rooms = Math.max(1, Number(sellableRooms) || 1);
   const days = daysInclusive(dateFrom, dateTo);
@@ -149,11 +146,6 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
     }
   });
 
-  let returningBookings = 0;
-  emailSeen.forEach((c) => {
-    if (c > 1) returningBookings += c - 1; // subsequent stays after first
-  });
-  // Alternative rate: share of bookings whose email appears more than once
   let multiEmailBookings = 0;
   bookings.forEach((b) => {
     const email = (b.guest_email || b.email || '').toString().toLowerCase().trim();
@@ -207,7 +199,6 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
   };
 }
 
-/** City-level insight panel metrics for a filtered booking set */
 export function cityDashboard(bookings) {
   const s = summarizeBookings(
     bookings,
@@ -234,5 +225,7 @@ export function enrichBookingGeo(b) {
     _continent: getContinent(country),
     _region: normalizeRegion(b.guest_province || b.province),
     _city: normalizeCity(b.guest_city || b.city),
+    _arriving_from: resolvePlaceAlias(b.arriving_from || ''),
+    _next_destination: resolvePlaceAlias(b.next_destination || ''),
   };
 }
