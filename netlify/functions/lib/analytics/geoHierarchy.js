@@ -3,6 +3,12 @@
  * Single source of truth — do not duplicate continent/ISO maps elsewhere.
  */
 
+import {
+  resolveCountryAlias,
+  resolveProvinceAlias,
+  resolveCityAlias,
+} from './locationAliases.js';
+
 export const CONTINENTS = [
   'Africa',
   'Europe',
@@ -192,7 +198,8 @@ export const SA_PROVINCES = [
 
 export function normalizeCountry(name) {
   if (!name || typeof name !== 'string') return 'Unknown';
-  return name.replace(/\.$/, '').trim() || 'Unknown';
+  const resolved = resolveCountryAlias(name);
+  return resolved || 'Unknown';
 }
 
 export function getContinent(country) {
@@ -212,12 +219,14 @@ export function isSouthAfrica(country) {
 
 export function normalizeRegion(region) {
   if (!region || typeof region !== 'string') return 'Unknown';
-  return region.replace(/\.$/, '').trim() || 'Unknown';
+  const resolved = resolveProvinceAlias(region);
+  return resolved || 'Unknown';
 }
 
 export function normalizeCity(city) {
   if (!city || typeof city !== 'string') return 'Unknown';
-  return city.replace(/\.$/, '').trim() || 'Unknown';
+  const resolved = resolveCityAlias(city);
+  return resolved || 'Unknown';
 }
 
 /** Drill levels used by API + package gates */
@@ -227,7 +236,6 @@ export function nextDrillLevel(level, country) {
   if (level === 'world') return 'continent';
   if (level === 'continent') return 'country';
   if (level === 'country') {
-    // SA always has provinces; other countries may jump to city if no region data
     return 'region';
   }
   if (level === 'region') return 'city';
