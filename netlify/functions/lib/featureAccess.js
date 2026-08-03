@@ -3,7 +3,6 @@
  * Mirror of src/services/featureAccessService.ts logic.
  */
 
-import { createClient } from '@supabase/supabase-js';
 import {
   normalizePlanId,
   planSatisfies,
@@ -11,6 +10,7 @@ import {
   getPackage,
   getPlanPricing,
 } from './packages.js';
+import { supabaseFetch } from './supabase-rest.js';
 import { getFeature } from './featureRegistry.js';
 import { getFeatureFlag } from './featureFlags.js';
 
@@ -146,36 +146,52 @@ export function getAnalyticsLimits(effectivePlan) {
 }
 
 /**
- * Resolve effective plan for a business from Supabase.
+ * Resolve effective plan via Supabase REST (no supabase-js / Realtime).
+ * First argument is ignored (kept for call-site compatibility).
+ * Package SSOT: current_plan → subscription_tier (no businesses.plan column).
  */
-export async function resolveEffectivePlan(supabase, businessId) {
-  const { data: business, error } = await supabase
-    .from('businesses')
-    .select(
-      'id, subscription_tier, current_plan, subscription_status, trial_end, billing_cycle'
-    )
-    .eq('id', businessId)
-    .single();
-
-  if (error || !business) {
+export async function resolveEffectivePlan(_supabaseIgnored, businessId) {
+  const id = businessId || _supabaseIgnored;
+  if (!id || typeof id !== 'string') {
     return {
       effectivePlan: 'starter',
       status: 'unknown',
       business: null,
-      error: error?.message || 'Business not found',
+      error: 'Business ID required',
+    };
+  }
+
+  let business = null;
+  try {
+    const rows = await supabaseFetch(
+      `businesses?id=eq.${encodeURIComponent(id)}&select=id,subscription_tier,current_plan,subscription_status,trial_end,billing_cycle&limit=1`
+    );
+    business = rows?.[0] || null;
+  } catch (err) {
+    return {
+      effectivePlan: 'starter',
+      status: 'unknown',
+      business: null,
+      error: err?.message || 'Business not found',
+    };
+  }
+
+  if (!business) {
+    return {
+      effectivePlan: 'starter',
+      status: 'unknown',
+      business: null,
+      error: 'Business not found',
     };
   }
 
   let entitlements = [];
   try {
     const now = new Date().toISOString();
-    const { data } = await supabase
-      .from('entitlements')
-      .select('*')
-      .eq('business_id', businessId)
-      .eq('is_active', true);
-    entitlements = data || [];
-    entitlements = entitlements.filter((e) => {
+    const rows = await supabaseFetch(
+      `entitlements?business_id=eq.${encodeURIComponent(id)}&is_active=eq.true&select=*`
+    );
+    entitlements = (rows || []).filter((e) => {
       if (e.lifetime) return true;
       if (e.starts_at && e.starts_at > now) return false;
       if (e.ends_at && e.ends_at < now) return false;
@@ -244,8 +260,11 @@ export async function assertFeatureAccess(supabase, businessId, featureId) {
   };
 }
 
+/** @deprecated Prefer supabaseFetch from supabase-rest.js — avoids Realtime/WebSocket on Netlify. */
 export function createSupabaseServiceClient() {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  throw new Error(
+    'createSupabaseServiceClient is disabled on Netlify Node 20; use supabaseFetch from lib/supabase-rest.js'
+  );
 }
 
 export { getPlanPricing, normalizePlanId, getPackage, planSatisfies, recommendUpgrade };
