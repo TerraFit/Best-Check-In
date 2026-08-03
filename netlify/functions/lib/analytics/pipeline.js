@@ -10,6 +10,7 @@ import {
   normalizeCountry,
   isSouthAfrica,
 } from './geoHierarchy.js';
+import { resolvePlaceAlias } from './locationAliases.js';
 import {
   resolveDateRange,
   enrichBookingGeo,
@@ -47,29 +48,25 @@ const BOOKING_SELECT = [
  */
 export async function fetchBusiness(businessId) {
   const rows = await supabaseFetch(
-    `businesses?id=eq.${encodeURIComponent(businessId)}&select=id,trading_name,registered_name,logo_url,total_rooms,subscription_tier,current_plan,plan,subscription_plan,subscription_status`
+    `businesses?id=eq.${encodeURIComponent(businessId)}&select=id,trading_name,registered_name,logo_url,total_rooms,subscription_tier,current_plan,subscription_status,billing_cycle,trial_end`
   );
   return rows?.[0] || null;
 }
 
+/**
+ * Resolve package from production business columns only.
+ * SSOT fields: current_plan, then subscription_tier (same as resolveEffectivePlan).
+ * Never reference businesses.plan — column does not exist in production.
+ */
 export function resolveBusinessPlan(business) {
   if (!business) return 'starter';
-  const candidates = [
-    business.current_plan,
-    business.plan,
-    business.subscription_plan,
-    business.subscription_tier,
-  ];
+  const candidates = [business.current_plan, business.subscription_tier];
   for (const c of candidates) {
     if (!c) continue;
     const n = String(c).toLowerCase().trim();
     if (['starter', 'growth', 'pro', 'business', 'enterprise'].includes(n)) return n;
+    if (n === 'annual' || n === 'monthly') continue;
   }
-  // billing cycle strings → infer from rooms if needed
-  const rooms = Number(business.total_rooms) || 0;
-  if (rooms >= 16) return 'business';
-  if (rooms >= 11) return 'pro';
-  if (rooms >= 6) return 'growth';
   return 'starter';
 }
 
@@ -96,7 +93,7 @@ export async function fetchBookingsForAnalytics(businessId, dateFrom, dateTo) {
     all.push(...batch);
     if (batch.length < pageSize) break;
     offset += pageSize;
-    if (offset > 50000) break; // hard safety cap
+    if (offset > 50000) break;
   }
 
   return { bookings: all, dateFrom: from, dateTo: to };
@@ -180,7 +177,6 @@ function aggregateAtLevel(enriched, level, parent) {
       ...n,
       hasChildren: true,
     }));
-    // If no meaningful region data, signal skip-to-city
     const onlyUnknown =
       nodes.length === 0 || (nodes.length === 1 && nodes[0].name === 'Unknown');
     return {
@@ -192,7 +188,6 @@ function aggregateAtLevel(enriched, level, parent) {
     };
   }
 
-  // city
   const map = {};
   filtered.forEach((b) => {
     const k = b._city || 'Unknown';
@@ -205,9 +200,6 @@ function aggregateAtLevel(enriched, level, parent) {
   return { level: 'city', nodes, filtered, total };
 }
 
-/**
- * Build visitor-origins response for a drill level.
- */
 export async function buildVisitorOrigins({
   businessId,
   dateFrom,
@@ -273,9 +265,6 @@ export async function buildVisitorOrigins({
   };
 }
 
-/**
- * Full analytics summary for Reports tab + PDFs.
- */
 export async function buildAnalyticsSummary({
   businessId,
   dateFrom,
@@ -302,7 +291,6 @@ export async function buildAnalyticsSummary({
     to
   );
 
-  // Continent + country rollups for charts
   const continentMap = {};
   const countryMap = {};
   enriched.forEach((b) => {
@@ -317,12 +305,11 @@ export async function buildAnalyticsSummary({
     continent: getContinent(n.name),
   }));
 
-  // Travel patterns (top 10)
   const arrivingMap = {};
   const goingMap = {};
   enriched.forEach((b) => {
-    const af = (b.arriving_from || '').toString().trim();
-    const nd = (b.next_destination || '').toString().trim();
+    const af = resolvePlaceAlias(b.arriving_from || b._arriving_from || '');
+    const nd = resolvePlaceAlias(b.next_destination || b._next_destination || '');
     if (af) arrivingMap[af] = (arrivingMap[af] || 0) + 1;
     if (nd) goingMap[nd] = (goingMap[nd] || 0) + 1;
   });
@@ -344,7 +331,6 @@ export async function buildAnalyticsSummary({
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // LOS buckets
   const losBuckets = { '1': 0, '2-3': 0, '4-7': 0, '8+': 0 };
   enriched.forEach((b) => {
     const n = Number(b.nights) || 1;
