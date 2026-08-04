@@ -6,6 +6,8 @@ import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
 import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
 import { UpgradePromptModal } from './UpgradePromptModal';
 import { CityInsightPanel } from './CityInsightPanel';
+import { GeographicMapViewport } from './geo/GeographicMapViewport';
+import { MAP_ENGINE } from './geo/mapConfig';
 import { SubscriptionTier, SubscriptionLimits } from '../../types';
 import { Globe2, Layers, Zap, ArrowLeft } from 'lucide-react';
 import {
@@ -37,6 +39,79 @@ function toApiLevel(ui: UiLevel): DrillLevel {
   return 'city';
 }
 
+/** Display-side country → continent for choropleth join (does not mutate server data). */
+const COUNTRY_TO_CONTINENT: Record<string, string> = {
+  'South Africa': 'Africa',
+  Namibia: 'Africa',
+  Botswana: 'Africa',
+  Zimbabwe: 'Africa',
+  Mozambique: 'Africa',
+  Lesotho: 'Africa',
+  Eswatini: 'Africa',
+  Kenya: 'Africa',
+  Nigeria: 'Africa',
+  Egypt: 'Africa',
+  Morocco: 'Africa',
+  Tanzania: 'Africa',
+  Ghana: 'Africa',
+  'United Kingdom': 'Europe',
+  Germany: 'Europe',
+  France: 'Europe',
+  Netherlands: 'Europe',
+  Switzerland: 'Europe',
+  Italy: 'Europe',
+  Spain: 'Europe',
+  Portugal: 'Europe',
+  Austria: 'Europe',
+  Belgium: 'Europe',
+  Sweden: 'Europe',
+  Norway: 'Europe',
+  Denmark: 'Europe',
+  Finland: 'Europe',
+  Greece: 'Europe',
+  Ireland: 'Europe',
+  Poland: 'Europe',
+  Russia: 'Europe',
+  Turkey: 'Europe',
+  Czechia: 'Europe',
+  Hungary: 'Europe',
+  Romania: 'Europe',
+  Bulgaria: 'Europe',
+  Croatia: 'Europe',
+  Ukraine: 'Europe',
+  'United States': 'North America',
+  Canada: 'North America',
+  Mexico: 'North America',
+  Brazil: 'South America',
+  Argentina: 'South America',
+  Chile: 'South America',
+  Colombia: 'South America',
+  Peru: 'South America',
+  Australia: 'Oceania',
+  'New Zealand': 'Oceania',
+  Fiji: 'Oceania',
+  China: 'Asia',
+  India: 'Asia',
+  Japan: 'Asia',
+  'South Korea': 'Asia',
+  Singapore: 'Asia',
+  Malaysia: 'Asia',
+  Indonesia: 'Asia',
+  Thailand: 'Asia',
+  Vietnam: 'Asia',
+  Philippines: 'Asia',
+  'United Arab Emirates': 'Asia',
+  'Saudi Arabia': 'Asia',
+  Israel: 'Asia',
+  Pakistan: 'Asia',
+  Bangladesh: 'Asia',
+};
+
+function continentOfCountryName(country: string): string {
+  if (!country) return 'Other';
+  return COUNTRY_TO_CONTINENT[country] || COUNTRY_TO_CONTINENT[country.trim()] || 'Other';
+}
+
 export function VisitorOriginExplorer({
   businessId,
   dateFrom,
@@ -64,14 +139,18 @@ export function VisitorOriginExplorer({
   const [modalFeatureName, setModalFeatureName] = useState('');
 
   const interactive = canInteractiveMap && limits.subscriptionTier !== 'starter';
+  const useGeoMap = MAP_ENGINE === 'geo';
 
   const loadLevel = useCallback(
-    async (uiLevel: UiLevel, parent: {
-      continent?: string | null;
-      country?: string | null;
-      region?: string | null;
-      city?: string | null;
-    }) => {
+    async (
+      uiLevel: UiLevel,
+      parent: {
+        continent?: string | null;
+        country?: string | null;
+        region?: string | null;
+        city?: string | null;
+      }
+    ) => {
       if (!businessId) return;
       if (!interactive && uiLevel !== 'world') {
         setShowUpgradeModal(true);
@@ -116,7 +195,6 @@ export function VisitorOriginExplorer({
           if (uiLevel === 'regions' && res.skipToCity && parent.country) {
             setCurrentLevel('cities');
             setSelectedRegion(null);
-            // reload cities for country
             const cityRes = await fetchVisitorOrigins({
               businessId,
               level: 'city',
@@ -140,7 +218,6 @@ export function VisitorOriginExplorer({
   useEffect(() => {
     if (!businessId) return;
     if (!interactive) {
-      // Starter: still show locked world teaser counts via summary path if allowed
       setCurrentLevel('world');
       return;
     }
@@ -339,6 +416,17 @@ export function VisitorOriginExplorer({
     percentage: n.percentage,
   }));
 
+  const geoNodes = nodes.map((n) => ({
+    name: n.name,
+    count: n.count,
+    percentage: n.percentage,
+  }));
+
+  const geoLevel =
+    currentLevel === 'cityDetail'
+      ? 'cities'
+      : (currentLevel as 'world' | 'continents' | 'countries' | 'regions' | 'cities');
+
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden transition-all duration-300">
       <div className="px-6 py-5 border-b border-stone-100 bg-stone-50/50 flex flex-wrap items-center justify-between gap-4">
@@ -351,7 +439,8 @@ export function VisitorOriginExplorer({
               Visitor Origin Explorer
             </h3>
             <p className="text-xs text-stone-400 mt-0.5">
-              {totalVisitors} visitors · SA {domesticCount} · International {internationalCount}
+              {totalVisitors} guest check-ins · SA {domesticCount} · International{' '}
+              {internationalCount}
             </p>
           </div>
         </div>
@@ -367,28 +456,44 @@ export function VisitorOriginExplorer({
       </div>
 
       <div className="bg-stone-100/40 px-6 py-2 border-b border-stone-100 flex flex-wrap items-center gap-2 text-xs font-mono text-stone-400">
-        <button type="button" className={currentLevel === 'world' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('world')}>
+        <button
+          type="button"
+          className={currentLevel === 'world' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'}
+          onClick={() => jumpTo('world')}
+        >
           World
         </button>
         {selectedContinent && (
           <>
-            <span>&gt;</span>
-            <button type="button" className={currentLevel === 'countries' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('countries')}>
+            <span>></span>
+            <button
+              type="button"
+              className={
+                currentLevel === 'countries' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'
+              }
+              onClick={() => jumpTo('countries')}
+            >
               {selectedContinent}
             </button>
           </>
         )}
         {selectedCountry && (
           <>
-            <span>&gt;</span>
-            <button type="button" className={currentLevel === 'regions' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('regions')}>
+            <span>></span>
+            <button
+              type="button"
+              className={
+                currentLevel === 'regions' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'
+              }
+              onClick={() => jumpTo('regions')}
+            >
               {selectedCountry}
             </button>
           </>
         )}
         {selectedRegion && (
           <>
-            <span>&gt;</span>
+            <span>></span>
             <span className={currentLevel === 'cities' ? 'text-orange-500 font-bold' : ''}>
               {selectedRegion}
             </span>
@@ -396,7 +501,7 @@ export function VisitorOriginExplorer({
         )}
         {selectedCity && (
           <>
-            <span>&gt;</span>
+            <span>></span>
             <span className="text-orange-500 font-bold">{selectedCity}</span>
           </>
         )}
@@ -409,66 +514,118 @@ export function VisitorOriginExplorer({
           </div>
         )}
 
-        {currentLevel === 'world' && (
-          <VisitorOriginWorldMap
-            totalVisitors={totalVisitors}
-            onExplore={handleWorldExplore}
-            isLoading={isBusy}
-          />
-        )}
+        {useGeoMap && currentLevel !== 'cityDetail' ? (
+          <div className="space-y-4">
+            <div className="h-[380px] md:h-[440px]">
+              <GeographicMapViewport
+                level={geoLevel}
+                nodes={geoNodes}
+                selectedContinent={selectedContinent}
+                selectedCountry={selectedCountry}
+                selectedRegion={selectedRegion}
+                isLoading={isBusy}
+                interactive={interactive}
+                onContinentClick={handleContinentClick}
+                onCountryClick={handleCountryClick}
+                onRegionClick={handleRegionClick}
+                onCityClick={handleCityClick}
+                continentOfCountry={continentOfCountryName}
+              />
+            </div>
 
-        {currentLevel === 'continents' && (
-          <VisitorOriginContinentMap
-            data={continentData}
-            onContinentClick={handleContinentClick}
-            onBack={handleBack}
-            isLoading={isBusy}
-          />
-        )}
+            {/* Side list for regions / cities when geo province coverage is limited */}
+            {(currentLevel === 'regions' || currentLevel === 'cities') && nodes.length > 0 && (
+              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-2">
+                  {currentLevel === 'regions' ? 'Provinces & states' : 'Cities'}
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
+                  {nodes.map((n) => (
+                    <li key={n.name}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          currentLevel === 'regions'
+                            ? handleRegionClick(n.name)
+                            : handleCityClick(n.name)
+                        }
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-700 hover:bg-white hover:shadow-sm border border-transparent hover:border-stone-200 transition-all"
+                      >
+                        <span className="font-semibold">{n.name}</span>
+                        <span className="text-stone-400 ml-2">
+                          {n.count.toLocaleString()} · {n.percentage}%
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {currentLevel === 'world' && (
+              <VisitorOriginWorldMap
+                totalVisitors={totalVisitors}
+                onExplore={handleWorldExplore}
+                isLoading={isBusy}
+              />
+            )}
 
-        {currentLevel === 'countries' && (
-          <VisitorOriginCountryMap
-            data={nodes.map((n) => ({
-              country: n.name,
-              continent: selectedContinent || n.continent || '',
-              count: n.count,
-              percentage: n.percentage,
-            }))}
-            continentName={selectedContinent || ''}
-            onCountryClick={handleCountryClick}
-            onBack={handleBack}
-            isLoading={isBusy}
-          />
-        )}
+            {currentLevel === 'continents' && (
+              <VisitorOriginContinentMap
+                data={continentData}
+                onContinentClick={handleContinentClick}
+                onBack={handleBack}
+                isLoading={isBusy}
+              />
+            )}
 
-        {currentLevel === 'regions' && (
-          <VisitorOriginRegionMap
-            data={nodes.map((n) => ({
-              region: n.name,
-              country: selectedCountry || '',
-              count: n.count,
-              percentage: n.percentage,
-            }))}
-            countryName={selectedCountry || ''}
-            onRegionClick={handleRegionClick}
-            onBack={handleBack}
-            isLoading={isBusy}
-          />
-        )}
+            {currentLevel === 'countries' && (
+              <VisitorOriginCountryMap
+                data={nodes.map((n) => ({
+                  country: n.name,
+                  continent: selectedContinent || n.continent || '',
+                  count: n.count,
+                  percentage: n.percentage,
+                }))}
+                continentName={selectedContinent || ''}
+                onCountryClick={handleCountryClick}
+                onBack={handleBack}
+                isLoading={isBusy}
+              />
+            )}
 
-        {currentLevel === 'cities' && (
-          <VisitorOriginCityGrid
-            data={nodes.map((n) => ({
-              city: n.name,
-              region: selectedRegion || '',
-              count: n.count,
-              percentage: n.percentage,
-            }))}
-            regionName={selectedRegion || selectedCountry || ''}
-            onBack={handleBack}
-            isLoading={isBusy}
-            onCityClick={handleCityClick}
-          />
+            {currentLevel === 'regions' && (
+              <VisitorOriginRegionMap
+                data={nodes.map((n) => ({
+                  region: n.name,
+                  country: selectedCountry || '',
+                  count: n.count,
+                  percentage: n.percentage,
+                }))}
+                countryName={selectedCountry || ''}
+                onRegionClick={handleRegionClick}
+                onBack={handleBack}
+                isLoading={isBusy}
+              />
+            )}
+
+            {currentLevel === 'cities' && (
+              <VisitorOriginCityGrid
+                data={nodes.map((n) => ({
+                  city: n.name,
+                  region: selectedRegion || '',
+                  count: n.count,
+                  percentage: n.percentage,
+                }))}
+                regionName={selectedRegion || selectedCountry || ''}
+                onBack={handleBack}
+                isLoading={isBusy}
+                onCityClick={handleCityClick}
+              />
+            )}
+          </>
         )}
 
         {currentLevel === 'cityDetail' && selectedCity && (
