@@ -1,6 +1,8 @@
 /**
  * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
  * Single map instance; layers update on drill-down. No API keys.
+ *
+ * TEMP: pipeline instrumentation (STEP 1–12) — remove after diagnosis.
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
@@ -85,6 +87,7 @@ function GeographicMapViewportInner({
   );
 
   useEffect(() => {
+    console.log('STEP 1 - component mounted');
     let cancelled = false;
     let ro: ResizeObserver | null = null;
 
@@ -93,6 +96,7 @@ function GeographicMapViewportInner({
         const maplibregl = await loadMapLibre();
         if (cancelled || !containerRef.current) return;
 
+        console.log('STEP 2 - creating map');
         const map = new maplibregl.Map({
           container: containerRef.current,
           style: BASEMAP_STYLE,
@@ -110,9 +114,13 @@ function GeographicMapViewportInner({
         }
 
         map.on('load', async () => {
+          console.log('STEP 3 - style loaded');
           if (cancelled) return;
           try {
+            console.log('STEP 4 - loading countries');
             const fc = await loadCountries110m();
+            console.log('STEP 5 - feature count', fc.features.length);
+
             const enriched = {
               type: 'FeatureCollection' as const,
               features: fc.features.map((f, i) => {
@@ -135,10 +143,22 @@ function GeographicMapViewportInner({
               }),
             };
 
+            console.log('STEP 5b - first feature geometry', enriched.features[0]?.geometry?.type);
+            console.log('STEP 5c - first feature properties', enriched.features[0]?.properties);
+
             if (!map.getSource(SOURCE_ID)) {
+              console.log('STEP 6 - addSource');
               map.addSource(SOURCE_ID, { type: 'geojson', data: enriched });
+              console.log('STEP 7 - source added');
+              const srcAfter = map.getSource(SOURCE_ID) as {
+                _data?: { features?: unknown[] };
+                serialize?: () => unknown;
+              } | undefined;
+              console.log('STEP 7b - getSource after add', !!srcAfter);
+              console.log('STEP 7c - source feature count', enriched.features.length);
             }
             if (!map.getLayer(FILL_LAYER)) {
+              console.log('STEP 8 - add fill layer');
               map.addLayer({
                 id: FILL_LAYER,
                 type: 'fill',
@@ -153,8 +173,10 @@ function GeographicMapViewportInner({
                   'fill-opacity': 0.82,
                 },
               });
+              console.log('STEP 9 - fill layer added');
             }
             if (!map.getLayer(LINE_LAYER)) {
+              console.log('STEP 10 - add line layer');
               map.addLayer({
                 id: LINE_LAYER,
                 type: 'line',
@@ -165,12 +187,70 @@ function GeographicMapViewportInner({
                   'line-opacity': 0.7,
                 },
               });
+              console.log('STEP 11 - line layer added');
             }
+
+            // PHASE 2–6 diagnostics
+            try {
+              const anyMap = map as unknown as {
+                isStyleLoaded?: () => boolean;
+                getStyle?: () => { layers?: unknown[] };
+                getSource?: (id: string) => unknown;
+                getLayoutProperty?: (layer: string, prop: string) => unknown;
+                getPaintProperty?: (layer: string, prop: string) => unknown;
+                queryRenderedFeatures?: () => unknown[];
+                getCanvas?: () => HTMLCanvasElement;
+                getBounds?: () => { toArray?: () => unknown };
+              };
+              console.log('PHASE2 isStyleLoaded', anyMap.isStyleLoaded?.());
+              console.log('PHASE2 layers.length', anyMap.getStyle?.()?.layers?.length);
+              console.log('PHASE2 getSource', anyMap.getSource?.(SOURCE_ID));
+              console.log(
+                'PHASE4 visibility',
+                anyMap.getLayoutProperty?.(FILL_LAYER, 'visibility')
+              );
+              console.log(
+                'PHASE4 fill-opacity',
+                anyMap.getPaintProperty?.(FILL_LAYER, 'fill-opacity')
+              );
+              console.log(
+                'PHASE4 fill-color',
+                anyMap.getPaintProperty?.(FILL_LAYER, 'fill-color')
+              );
+              const canvas = anyMap.getCanvas?.();
+              console.log('PHASE6 canvas width', canvas?.width);
+              console.log('PHASE6 canvas height', canvas?.height);
+              console.log('PHASE6 devicePixelRatio', typeof window !== 'undefined' ? window.devicePixelRatio : undefined);
+              console.log('PHASE6 bounds', anyMap.getBounds?.()?.toArray?.() ?? anyMap.getBounds?.());
+
+              // queryRenderedFeatures after a short settle
+              setTimeout(() => {
+                try {
+                  const rendered = anyMap.queryRenderedFeatures?.() ?? [];
+                  console.log('PHASE5 queryRenderedFeatures count', rendered.length);
+                  const fillRendered =
+                    anyMap.queryRenderedFeatures?.({ layers: [FILL_LAYER] } as never) ??
+                    [];
+                  console.log('PHASE5 fill-layer rendered count', (fillRendered as unknown[]).length);
+                } catch (qe) {
+                  console.log('PHASE5 queryRenderedFeatures error', qe);
+                }
+              }, 800);
+            } catch (diagErr) {
+              console.log('PHASE diagnostics error', diagErr);
+            }
+
+            console.log('STEP 12 - map ready');
             setMapReady(true);
             setGeoError(null);
           } catch (e) {
+            console.log('PIPELINE EXCEPTION after STEP 3', e);
             setGeoError(e instanceof Error ? e.message : 'Failed to load map data');
           }
+        });
+
+        map.on('error', (e: unknown) => {
+          console.log('MAP ERROR EVENT', e);
         });
 
         mapRef.current = map;
@@ -185,6 +265,7 @@ function GeographicMapViewportInner({
           ro.observe(containerRef.current);
         }
       } catch (e) {
+        console.log('PIPELINE EXCEPTION before/at map create', e);
         if (!cancelled) setGeoError(e instanceof Error ? e.message : 'Map failed to initialise');
       }
     })();
@@ -252,6 +333,9 @@ function GeographicMapViewportInner({
       const src = map.getSource(SOURCE_ID);
       if (src?.setData) {
         src.setData({ type: 'FeatureCollection', features });
+        console.log('UPDATE setData features', features.length);
+      } else {
+        console.log('UPDATE setData skipped — source missing');
       }
 
       if (level === 'world' || level === 'continents') {
@@ -262,7 +346,10 @@ function GeographicMapViewportInner({
       }
 
       setProvinceUnavailable(level === 'regions' && !!selectedCountry);
-    })().catch((e) => setGeoError(e instanceof Error ? e.message : 'Layer update failed'));
+    })().catch((e) => {
+      console.log('UPDATE EXCEPTION', e);
+      setGeoError(e instanceof Error ? e.message : 'Layer update failed');
+    });
   }, [mapReady, nodes, level, selectedContinent, selectedCountry, nodeByCanonical, getContinent]);
 
   useEffect(() => {
