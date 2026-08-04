@@ -2,7 +2,7 @@
  * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
  * Single map instance; layers update on drill-down. No API keys.
  *
- * TEMP: pipeline instrumentation (STEP 1–12) — remove after diagnosis.
+ * TEMP: pipeline + visibility DIAG instrumentation — remove after diagnosis.
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
@@ -85,6 +85,269 @@ function GeographicMapViewportInner({
     (country: string) => (continentOfCountry ? continentOfCountry(country) : 'Other'),
     [continentOfCountry]
   );
+
+  /** TEMP diagnostics — filter console by "DIAG:" — remove after diagnosis */
+  const runVisibilityDiagnostics = useCallback((map: MapLibreMap, label: string) => {
+    try {
+      const anyMap = map as unknown as {
+        getCenter?: () => unknown;
+        getZoom?: () => unknown;
+        getBounds?: () => { toArray?: () => unknown };
+        getPitch?: () => unknown;
+        getBearing?: () => unknown;
+        isStyleLoaded?: () => boolean;
+        getStyle?: () => { layers?: Array<Record<string, unknown>>; sources?: Record<string, unknown> };
+        getLayer?: (id: string) => unknown;
+        getLayoutProperty?: (layer: string, prop: string) => unknown;
+        getPaintProperty?: (layer: string, prop: string) => unknown;
+        getSource?: (id: string) => unknown;
+        querySourceFeatures?: (id: string, opts?: unknown) => unknown[];
+        queryRenderedFeatures?: (opts?: unknown) => unknown[];
+        setPaintProperty?: (layer: string, prop: string, value: unknown) => void;
+        fitBounds?: (bounds: number[][], opts?: unknown) => void;
+        getCanvas?: () => HTMLCanvasElement;
+      };
+
+      console.log('DIAG: ===== runVisibilityDiagnostics', label, '=====');
+
+      console.log('DIAG: camera center', anyMap.getCenter?.());
+      console.log('DIAG: camera zoom', anyMap.getZoom?.());
+      console.log('DIAG: camera bounds', anyMap.getBounds?.()?.toArray?.() ?? anyMap.getBounds?.());
+      console.log('DIAG: camera pitch', anyMap.getPitch?.());
+      console.log('DIAG: camera bearing', anyMap.getBearing?.());
+
+      console.log('DIAG: isStyleLoaded', anyMap.isStyleLoaded?.());
+      const style = anyMap.getStyle?.();
+      console.log('DIAG: style.layers count', style?.layers?.length);
+      console.log('DIAG: style.layer ids', style?.layers?.map((l) => l.id));
+      console.log('DIAG: style.sources keys', style?.sources ? Object.keys(style.sources) : null);
+
+      for (const layerId of [FILL_LAYER, LINE_LAYER]) {
+        console.log('DIAG: layer def', layerId, anyMap.getLayer?.(layerId));
+        console.log('DIAG: layer visibility', layerId, anyMap.getLayoutProperty?.(layerId, 'visibility'));
+        console.log('DIAG: layer paint fill-color', layerId, anyMap.getPaintProperty?.(layerId, 'fill-color'));
+        console.log('DIAG: layer paint fill-opacity', layerId, anyMap.getPaintProperty?.(layerId, 'fill-opacity'));
+        console.log('DIAG: layer paint line-color', layerId, anyMap.getPaintProperty?.(layerId, 'line-color'));
+        console.log('DIAG: layer paint line-width', layerId, anyMap.getPaintProperty?.(layerId, 'line-width'));
+        console.log('DIAG: layer paint line-opacity', layerId, anyMap.getPaintProperty?.(layerId, 'line-opacity'));
+      }
+      if (style?.layers) {
+        const ids = style.layers.map((l) => String(l.id));
+        console.log('DIAG: fill layer index', ids.indexOf(FILL_LAYER));
+        console.log('DIAG: line layer index', ids.indexOf(LINE_LAYER));
+        console.log('DIAG: layer order (last 8)', ids.slice(-8));
+      }
+
+      const src = anyMap.getSource?.(SOURCE_ID);
+      console.log('DIAG: getSource', SOURCE_ID, !!src, src);
+      try {
+        const qsf = anyMap.querySourceFeatures?.(SOURCE_ID) ?? [];
+        console.log('DIAG: querySourceFeatures count', Array.isArray(qsf) ? qsf.length : qsf);
+      } catch (e) {
+        console.log('DIAG: querySourceFeatures error', e);
+      }
+
+      try {
+        const all = anyMap.queryRenderedFeatures?.() ?? [];
+        console.log('DIAG: queryRenderedFeatures all count', Array.isArray(all) ? all.length : all);
+        const fillR = anyMap.queryRenderedFeatures?.({ layers: [FILL_LAYER] }) ?? [];
+        console.log('DIAG: queryRenderedFeatures fill count', Array.isArray(fillR) ? fillR.length : fillR);
+        if (Array.isArray(fillR) && fillR[0]) console.log('DIAG: first fill rendered feature', fillR[0]);
+        const lineR = anyMap.queryRenderedFeatures?.({ layers: [LINE_LAYER] }) ?? [];
+        console.log('DIAG: queryRenderedFeatures line count', Array.isArray(lineR) ? lineR.length : lineR);
+      } catch (e) {
+        console.log('DIAG: queryRenderedFeatures error', e);
+      }
+
+      const container = containerRef.current;
+      if (container) {
+        const cs = window.getComputedStyle(container);
+        const rect = container.getBoundingClientRect();
+        console.log('DIAG: container client', container.clientWidth, container.clientHeight);
+        console.log('DIAG: container offset', container.offsetWidth, container.offsetHeight);
+        console.log('DIAG: container rect', { x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+        console.log('DIAG: container computed', {
+          display: cs.display,
+          opacity: cs.opacity,
+          visibility: cs.visibility,
+          overflow: cs.overflow,
+          position: cs.position,
+          zIndex: cs.zIndex,
+          transform: cs.transform,
+          clipPath: cs.clipPath,
+          pointerEvents: cs.pointerEvents,
+        });
+        let el: HTMLElement | null = container;
+        let depth = 0;
+        while (el && depth < 12) {
+          const pcs = window.getComputedStyle(el);
+          const prect = el.getBoundingClientRect();
+          console.log('DIAG: ancestor', depth, el.tagName, String(el.className || '').slice(0, 80), {
+            w: prect.width,
+            h: prect.height,
+            display: pcs.display,
+            opacity: pcs.opacity,
+            visibility: pcs.visibility,
+            overflow: pcs.overflow,
+            position: pcs.position,
+            zIndex: pcs.zIndex,
+            transform: pcs.transform,
+            clipPath: pcs.clipPath,
+            pointerEvents: pcs.pointerEvents,
+          });
+          el = el.parentElement;
+          depth += 1;
+        }
+      } else {
+        console.log('DIAG: containerRef null');
+      }
+
+      try {
+        const canvas = anyMap.getCanvas?.();
+        if (canvas) {
+          const crect = canvas.getBoundingClientRect();
+          console.log('DIAG: canvas attrs', canvas.width, canvas.height);
+          console.log('DIAG: canvas client', canvas.clientWidth, canvas.clientHeight);
+          console.log('DIAG: canvas rect', { x: crect.x, y: crect.y, w: crect.width, h: crect.height });
+          console.log('DIAG: devicePixelRatio', window.devicePixelRatio);
+          const ccs = window.getComputedStyle(canvas);
+          console.log('DIAG: canvas computed', {
+            display: ccs.display,
+            opacity: ccs.opacity,
+            visibility: ccs.visibility,
+            transform: ccs.transform,
+            zIndex: ccs.zIndex,
+            pointerEvents: ccs.pointerEvents,
+          });
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            console.log('DIAG: canvas toDataURL length', dataUrl.length);
+            console.log('DIAG: canvas toDataURL prefix', dataUrl.slice(0, 64));
+          } catch (be) {
+            console.log('DIAG: canvas toDataURL error', be);
+          }
+        } else {
+          console.log('DIAG: getCanvas returned null');
+        }
+      } catch (e) {
+        console.log('DIAG: canvas error', e);
+      }
+
+      try {
+        const root = containerRef.current?.parentElement;
+        if (root) {
+          Array.from(root.querySelectorAll('*')).forEach((node, i) => {
+            if (!(node instanceof HTMLElement)) return;
+            const ncs = window.getComputedStyle(node);
+            if (ncs.position === 'absolute' || ncs.position === 'fixed') {
+              const nr = node.getBoundingClientRect();
+              console.log('DIAG: overlay', i, node.tagName, String(node.className || '').slice(0, 100), {
+                zIndex: ncs.zIndex,
+                opacity: ncs.opacity,
+                display: ncs.display,
+                visibility: ncs.visibility,
+                pointerEvents: ncs.pointerEvents,
+                background: ncs.backgroundColor,
+                rect: { x: nr.x, y: nr.y, w: nr.width, h: nr.height },
+              });
+            }
+          });
+          for (const cls of [
+            'maplibregl-map',
+            'maplibregl-canvas-container',
+            'maplibregl-canvas',
+            'maplibregl-control-container',
+          ]) {
+            const el = root.querySelector('.' + cls) as HTMLElement | null;
+            if (!el) {
+              console.log('DIAG: missing', cls);
+              continue;
+            }
+            const r = el.getBoundingClientRect();
+            const cs = window.getComputedStyle(el);
+            console.log('DIAG: maplibre el', cls, {
+              w: r.width,
+              h: r.height,
+              display: cs.display,
+              opacity: cs.opacity,
+              visibility: cs.visibility,
+              zIndex: cs.zIndex,
+              transform: cs.transform,
+              overflow: cs.overflow,
+            });
+          }
+        }
+      } catch (e) {
+        console.log('DIAG: overlay error', e);
+      }
+
+      try {
+        const prevFill = anyMap.getPaintProperty?.(FILL_LAYER, 'fill-color');
+        const prevFillOp = anyMap.getPaintProperty?.(FILL_LAYER, 'fill-opacity');
+        const prevLine = anyMap.getPaintProperty?.(LINE_LAYER, 'line-color');
+        const prevLineW = anyMap.getPaintProperty?.(LINE_LAYER, 'line-width');
+        console.log('DIAG: paint-test BEFORE fill-color', prevFill);
+        anyMap.setPaintProperty?.(FILL_LAYER, 'fill-color', '#ff0000');
+        anyMap.setPaintProperty?.(FILL_LAYER, 'fill-opacity', 1);
+        anyMap.setPaintProperty?.(LINE_LAYER, 'line-color', '#000000');
+        anyMap.setPaintProperty?.(LINE_LAYER, 'line-width', 3);
+        console.log('DIAG: paint-test FORCED red fill / black line width 3');
+        console.log('DIAG: paint-test AFTER fill-color', anyMap.getPaintProperty?.(FILL_LAYER, 'fill-color'));
+        setTimeout(() => {
+          try {
+            anyMap.setPaintProperty?.(FILL_LAYER, 'fill-color', prevFill);
+            anyMap.setPaintProperty?.(FILL_LAYER, 'fill-opacity', prevFillOp ?? 0.82);
+            anyMap.setPaintProperty?.(LINE_LAYER, 'line-color', prevLine ?? '#a8a29e');
+            anyMap.setPaintProperty?.(LINE_LAYER, 'line-width', prevLineW ?? 0.6);
+            console.log('DIAG: paint-test RESTORED original paint');
+          } catch (re) {
+            console.log('DIAG: paint-test restore error', re);
+          }
+        }, 3000);
+      } catch (e) {
+        console.log('DIAG: paint-test error', e);
+      }
+
+      try {
+        const before = {
+          center: anyMap.getCenter?.(),
+          zoom: anyMap.getZoom?.(),
+          bounds: anyMap.getBounds?.()?.toArray?.() ?? anyMap.getBounds?.(),
+        };
+        console.log('DIAG: fitBounds BEFORE', before);
+        anyMap.fitBounds?.(
+          [
+            [-170, -55],
+            [170, 75],
+          ],
+          { padding: 20, duration: 0 }
+        );
+        const after = {
+          center: anyMap.getCenter?.(),
+          zoom: anyMap.getZoom?.(),
+          bounds: anyMap.getBounds?.()?.toArray?.() ?? anyMap.getBounds?.(),
+        };
+        console.log('DIAG: fitBounds AFTER', after);
+        setTimeout(() => {
+          try {
+            const fillAfter = anyMap.queryRenderedFeatures?.({ layers: [FILL_LAYER] }) ?? [];
+            console.log(
+              'DIAG: after fitBounds fill rendered count',
+              Array.isArray(fillAfter) ? fillAfter.length : fillAfter
+            );
+          } catch (e) {
+            console.log('DIAG: after fitBounds query error', e);
+          }
+        }, 500);
+      } catch (e) {
+        console.log('DIAG: fitBounds error', e);
+      }
+
+      console.log('DIAG: ===== end', label, '=====');
+    } catch (e) {
+      console.log('DIAG: runVisibilityDiagnostics fatal', e);
+    }
+  }, []);
 
   useEffect(() => {
     console.log('STEP 1 - component mounted');
@@ -243,6 +506,13 @@ function GeographicMapViewportInner({
             console.log('STEP 12 - map ready');
             setMapReady(true);
             setGeoError(null);
+            setTimeout(() => {
+              try {
+                runVisibilityDiagnostics(map, 'after-load');
+              } catch (e) {
+                console.log('DIAG: after-load schedule error', e);
+              }
+            }, 1200);
           } catch (e) {
             console.log('PIPELINE EXCEPTION after STEP 3', e);
             setGeoError(e instanceof Error ? e.message : 'Failed to load map data');
@@ -334,6 +604,13 @@ function GeographicMapViewportInner({
       if (src?.setData) {
         src.setData({ type: 'FeatureCollection', features });
         console.log('UPDATE setData features', features.length);
+        setTimeout(() => {
+          try {
+            runVisibilityDiagnostics(map, 'after-setData');
+          } catch (e) {
+            console.log('DIAG: after-setData schedule error', e);
+          }
+        }, 1000);
       } else {
         console.log('UPDATE setData skipped — source missing');
       }
