@@ -465,7 +465,7 @@ export function VisitorOriginExplorer({
         </button>
         {selectedContinent && (
           <>
-            <span>></span>
+            <span>{'>'}</span>
             <button
               type="button"
               className={
@@ -479,7 +479,7 @@ export function VisitorOriginExplorer({
         )}
         {selectedCountry && (
           <>
-            <span>></span>
+            <span>{'>'}</span>
             <button
               type="button"
               className={
@@ -493,7 +493,7 @@ export function VisitorOriginExplorer({
         )}
         {selectedRegion && (
           <>
-            <span>></span>
+            <span>{'>'}</span>
             <span className={currentLevel === 'cities' ? 'text-orange-500 font-bold' : ''}>
               {selectedRegion}
             </span>
@@ -501,7 +501,7 @@ export function VisitorOriginExplorer({
         )}
         {selectedCity && (
           <>
-            <span>></span>
+            <span>{'>'}</span>
             <span className="text-orange-500 font-bold">{selectedCity}</span>
           </>
         )}
