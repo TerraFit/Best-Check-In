@@ -2,7 +2,7 @@
  * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
  * Single map instance; layers update on drill-down. No API keys.
  *
- * TEMP: visual isolation test (no overlays, magenta container, canvas PNG download).
+ * TEMP: DOM/layout isolation (PNG proven good). Filter console by "DOM:".
  * Remove after diagnosis.
  */
 
@@ -87,98 +87,174 @@ function GeographicMapViewportInner({
     [continentOfCountry]
   );
 
-  /** TEMP: force resize + PNG download + elementsFromPoint */
+  /** TEMP: DOM/layout isolation — canvas PNG is known good; find why page hides it */
   const runIsolationTest = useCallback((map: MapLibreMap) => {
     const anyMap = map as unknown as {
       resize?: () => void;
       getCanvas?: () => HTMLCanvasElement;
-      setPaintProperty?: (layer: string, prop: string, value: unknown) => void;
       queryRenderedFeatures?: (opts?: unknown) => unknown[];
     };
 
-    try {
-      anyMap.resize?.();
-      requestAnimationFrame(() => {
-        try {
-          anyMap.resize?.();
-        } catch {
-          /* ignore */
-        }
-      });
-      setTimeout(() => {
-        try {
-          anyMap.resize?.();
-        } catch {
-          /* ignore */
-        }
-      }, 100);
-    } catch (e) {
-      console.log('ISOLATION: resize error', e);
-    }
-
-    // Force highly visible paint for the isolation test
-    try {
-      anyMap.setPaintProperty?.(FILL_LAYER, 'fill-color', '#ff0000');
-      anyMap.setPaintProperty?.(FILL_LAYER, 'fill-opacity', 1);
-      anyMap.setPaintProperty?.(LINE_LAYER, 'line-color', '#000000');
-      anyMap.setPaintProperty?.(LINE_LAYER, 'line-width', 2);
-      console.log('ISOLATION: forced red fill / black line');
-    } catch (e) {
-      console.log('ISOLATION: paint force error', e);
-    }
-
     setTimeout(() => {
       try {
+        const root = containerRef.current?.parentElement;
         const canvas = anyMap.getCanvas?.();
-        if (!canvas) {
-          console.log('ISOLATION: no canvas');
-          return;
+        console.log('DOM: ===== layout isolation =====');
+
+        // 1–2: maplibre element counts
+        const canvases = document.querySelectorAll('.maplibregl-canvas');
+        const containers = document.querySelectorAll('.maplibregl-canvas-container');
+        const maps = document.querySelectorAll('.maplibregl-map');
+        console.log('DOM: .maplibregl-canvas count', canvases.length);
+        console.log('DOM: .maplibregl-canvas-container count', containers.length);
+        console.log('DOM: .maplibregl-map count', maps.length);
+
+        // 4–5: canvas buffer vs CSS
+        if (canvas) {
+          const crect = canvas.getBoundingClientRect();
+          const ccs = window.getComputedStyle(canvas);
+          console.log('DOM: canvas drawingBuffer', { width: canvas.width, height: canvas.height });
+          console.log('DOM: canvas client', { width: canvas.clientWidth, height: canvas.clientHeight });
+          console.log('DOM: canvas CSS', {
+            width: ccs.width,
+            height: ccs.height,
+            zIndex: ccs.zIndex,
+            opacity: ccs.opacity,
+            visibility: ccs.visibility,
+            display: ccs.display,
+            transform: ccs.transform,
+            filter: ccs.filter,
+            mixBlendMode: ccs.mixBlendMode,
+            pointerEvents: ccs.pointerEvents,
+            position: ccs.position,
+          });
+          console.log('DOM: canvas boundingRect', {
+            left: crect.left,
+            top: crect.top,
+            width: crect.width,
+            height: crect.height,
+          });
+
+          // 7: elementsFromPoint at exact center
+          const midX = crect.left + crect.width / 2;
+          const midY = crect.top + crect.height / 2;
+          const stack = document.elementsFromPoint(midX, midY);
+          console.log(
+            'DOM: elementsFromPoint center',
+            { midX, midY },
+            stack.map((el, i) => {
+              const h = el as HTMLElement;
+              const s = window.getComputedStyle(h);
+              return {
+                i,
+                tag: el.tagName,
+                class: String(h.className || '').slice(0, 100),
+                id: h.id,
+                zIndex: s.zIndex,
+                opacity: s.opacity,
+                pointerEvents: s.pointerEvents,
+                background: s.backgroundColor,
+                position: s.position,
+              };
+            })
+          );
+
+          // Is canvas first in stack?
+          console.log(
+            'DOM: top element is canvas?',
+            stack[0] === canvas,
+            'canvas index in stack',
+            stack.indexOf(canvas)
+          );
+        } else {
+          console.log('DOM: getCanvas() returned null');
         }
-        const rect = canvas.getBoundingClientRect();
-        console.log('ISOLATION: canvas rect', {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-        });
-        console.log('ISOLATION: canvas attrs', canvas.width, canvas.height);
 
-        const midX = rect.left + rect.width / 2;
-        const midY = rect.top + rect.height / 2;
-        const stack = document.elementsFromPoint(midX, midY);
-        console.log(
-          'ISOLATION: elementsFromPoint center',
-          stack.map((el) => ({
-            tag: el.tagName,
-            class: String((el as HTMLElement).className || '').slice(0, 80),
-            id: (el as HTMLElement).id,
-          }))
-        );
+        // 3: every ancestor computed styles
+        let el: HTMLElement | null = containerRef.current;
+        let depth = 0;
+        while (el && depth < 16) {
+          const s = window.getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          console.log('DOM: ancestor', depth, el.tagName, String(el.className || '').slice(0, 90), {
+            width: s.width,
+            height: s.height,
+            clientW: el.clientWidth,
+            clientH: el.clientHeight,
+            rectW: r.width,
+            rectH: r.height,
+            overflow: s.overflow,
+            overflowX: s.overflowX,
+            overflowY: s.overflowY,
+            transform: s.transform,
+            opacity: s.opacity,
+            visibility: s.visibility,
+            display: s.display,
+            clipPath: s.clipPath,
+            clip: s.clip,
+            filter: s.filter,
+            contain: s.contain,
+            isolation: s.isolation,
+            zIndex: s.zIndex,
+            position: s.position,
+            pointerEvents: s.pointerEvents,
+            background: s.backgroundColor,
+          });
+          el = el.parentElement;
+          depth += 1;
+        }
 
-        const dataUrl = canvas.toDataURL('image/png');
-        console.log('ISOLATION: toDataURL length', dataUrl.length);
-        console.log('ISOLATION: toDataURL prefix', dataUrl.slice(0, 48));
+        // 6: absolute/fixed siblings that could cover canvas
+        if (root) {
+          Array.from(root.querySelectorAll('*')).forEach((node) => {
+            if (!(node instanceof HTMLElement)) return;
+            if (node === canvas) return;
+            const s = window.getComputedStyle(node);
+            if (s.position !== 'absolute' && s.position !== 'fixed') return;
+            const r = node.getBoundingClientRect();
+            if (r.width < 2 || r.height < 2) return;
+            console.log('DOM: positioned sibling/overlay', node.tagName, String(node.className || '').slice(0, 90), {
+              zIndex: s.zIndex,
+              opacity: s.opacity,
+              pointerEvents: s.pointerEvents,
+              background: s.backgroundColor,
+              display: s.display,
+              visibility: s.visibility,
+              rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+            });
+          });
+        }
 
-        // Auto-download PNG
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = 'maplibre-isolation-test.png';
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        console.log('ISOLATION: PNG download triggered (maplibre-isolation-test.png)');
+        // maplibre internal nodes sizes
+        for (const cls of [
+          'maplibregl-map',
+          'maplibregl-canvas-container',
+          'maplibregl-canvas',
+          'maplibregl-control-container',
+        ]) {
+          document.querySelectorAll('.' + cls).forEach((node, i) => {
+            const h = node as HTMLElement;
+            const s = window.getComputedStyle(h);
+            const r = h.getBoundingClientRect();
+            console.log('DOM: maplibre', cls, i, {
+              rectW: r.width,
+              rectH: r.height,
+              zIndex: s.zIndex,
+              opacity: s.opacity,
+              visibility: s.visibility,
+              display: s.display,
+              transform: s.transform,
+              overflow: s.overflow,
+              position: s.position,
+            });
+          });
+        }
 
-        const fillCount =
-          anyMap.queryRenderedFeatures?.({ layers: [FILL_LAYER] }) ?? [];
-        console.log(
-          'ISOLATION: fill rendered count',
-          Array.isArray(fillCount) ? fillCount.length : fillCount
-        );
+        console.log('DOM: ===== end layout isolation =====');
       } catch (e) {
-        console.log('ISOLATION: canvas/export error', e);
+        console.log('DOM: isolation error', e);
       }
-    }, 1500);
+    }, 1200);
   }, []);
 
   useEffect(() => {
@@ -287,7 +363,7 @@ function GeographicMapViewportInner({
 
             setMapReady(true);
             setGeoError(null);
-            console.log('ISOLATION: map ready — scheduling isolation test');
+            console.log('DOM: map ready — scheduling layout isolation');
             setTimeout(() => runIsolationTest(map), 800);
           } catch (e) {
             setGeoError(e instanceof Error ? e.message : 'Failed to load map data');
