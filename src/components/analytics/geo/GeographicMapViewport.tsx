@@ -1,9 +1,6 @@
 /**
  * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
  * Single map instance; layers update on drill-down. No API keys.
- *
- * TEMP: DOM/layout isolation (PNG proven good). Filter console by "DOM:".
- * Remove after diagnosis.
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
@@ -87,176 +84,6 @@ function GeographicMapViewportInner({
     [continentOfCountry]
   );
 
-  /** TEMP: DOM/layout isolation — canvas PNG is known good; find why page hides it */
-  const runIsolationTest = useCallback((map: MapLibreMap) => {
-    const anyMap = map as unknown as {
-      resize?: () => void;
-      getCanvas?: () => HTMLCanvasElement;
-      queryRenderedFeatures?: (opts?: unknown) => unknown[];
-    };
-
-    setTimeout(() => {
-      try {
-        const root = containerRef.current?.parentElement;
-        const canvas = anyMap.getCanvas?.();
-        console.log('DOM: ===== layout isolation =====');
-
-        // 1–2: maplibre element counts
-        const canvases = document.querySelectorAll('.maplibregl-canvas');
-        const containers = document.querySelectorAll('.maplibregl-canvas-container');
-        const maps = document.querySelectorAll('.maplibregl-map');
-        console.log('DOM: .maplibregl-canvas count', canvases.length);
-        console.log('DOM: .maplibregl-canvas-container count', containers.length);
-        console.log('DOM: .maplibregl-map count', maps.length);
-
-        // 4–5: canvas buffer vs CSS
-        if (canvas) {
-          const crect = canvas.getBoundingClientRect();
-          const ccs = window.getComputedStyle(canvas);
-          console.log('DOM: canvas drawingBuffer', { width: canvas.width, height: canvas.height });
-          console.log('DOM: canvas client', { width: canvas.clientWidth, height: canvas.clientHeight });
-          console.log('DOM: canvas CSS', {
-            width: ccs.width,
-            height: ccs.height,
-            zIndex: ccs.zIndex,
-            opacity: ccs.opacity,
-            visibility: ccs.visibility,
-            display: ccs.display,
-            transform: ccs.transform,
-            filter: ccs.filter,
-            mixBlendMode: ccs.mixBlendMode,
-            pointerEvents: ccs.pointerEvents,
-            position: ccs.position,
-          });
-          console.log('DOM: canvas boundingRect', {
-            left: crect.left,
-            top: crect.top,
-            width: crect.width,
-            height: crect.height,
-          });
-
-          // 7: elementsFromPoint at exact center
-          const midX = crect.left + crect.width / 2;
-          const midY = crect.top + crect.height / 2;
-          const stack = document.elementsFromPoint(midX, midY);
-          console.log(
-            'DOM: elementsFromPoint center',
-            { midX, midY },
-            stack.map((el, i) => {
-              const h = el as HTMLElement;
-              const s = window.getComputedStyle(h);
-              return {
-                i,
-                tag: el.tagName,
-                class: String(h.className || '').slice(0, 100),
-                id: h.id,
-                zIndex: s.zIndex,
-                opacity: s.opacity,
-                pointerEvents: s.pointerEvents,
-                background: s.backgroundColor,
-                position: s.position,
-              };
-            })
-          );
-
-          // Is canvas first in stack?
-          console.log(
-            'DOM: top element is canvas?',
-            stack[0] === canvas,
-            'canvas index in stack',
-            stack.indexOf(canvas)
-          );
-        } else {
-          console.log('DOM: getCanvas() returned null');
-        }
-
-        // 3: every ancestor computed styles
-        let el: HTMLElement | null = containerRef.current;
-        let depth = 0;
-        while (el && depth < 16) {
-          const s = window.getComputedStyle(el);
-          const r = el.getBoundingClientRect();
-          console.log('DOM: ancestor', depth, el.tagName, String(el.className || '').slice(0, 90), {
-            width: s.width,
-            height: s.height,
-            clientW: el.clientWidth,
-            clientH: el.clientHeight,
-            rectW: r.width,
-            rectH: r.height,
-            overflow: s.overflow,
-            overflowX: s.overflowX,
-            overflowY: s.overflowY,
-            transform: s.transform,
-            opacity: s.opacity,
-            visibility: s.visibility,
-            display: s.display,
-            clipPath: s.clipPath,
-            clip: s.clip,
-            filter: s.filter,
-            contain: s.contain,
-            isolation: s.isolation,
-            zIndex: s.zIndex,
-            position: s.position,
-            pointerEvents: s.pointerEvents,
-            background: s.backgroundColor,
-          });
-          el = el.parentElement;
-          depth += 1;
-        }
-
-        // 6: absolute/fixed siblings that could cover canvas
-        if (root) {
-          Array.from(root.querySelectorAll('*')).forEach((node) => {
-            if (!(node instanceof HTMLElement)) return;
-            if (node === canvas) return;
-            const s = window.getComputedStyle(node);
-            if (s.position !== 'absolute' && s.position !== 'fixed') return;
-            const r = node.getBoundingClientRect();
-            if (r.width < 2 || r.height < 2) return;
-            console.log('DOM: positioned sibling/overlay', node.tagName, String(node.className || '').slice(0, 90), {
-              zIndex: s.zIndex,
-              opacity: s.opacity,
-              pointerEvents: s.pointerEvents,
-              background: s.backgroundColor,
-              display: s.display,
-              visibility: s.visibility,
-              rect: { left: r.left, top: r.top, width: r.width, height: r.height },
-            });
-          });
-        }
-
-        // maplibre internal nodes sizes
-        for (const cls of [
-          'maplibregl-map',
-          'maplibregl-canvas-container',
-          'maplibregl-canvas',
-          'maplibregl-control-container',
-        ]) {
-          document.querySelectorAll('.' + cls).forEach((node, i) => {
-            const h = node as HTMLElement;
-            const s = window.getComputedStyle(h);
-            const r = h.getBoundingClientRect();
-            console.log('DOM: maplibre', cls, i, {
-              rectW: r.width,
-              rectH: r.height,
-              zIndex: s.zIndex,
-              opacity: s.opacity,
-              visibility: s.visibility,
-              display: s.display,
-              transform: s.transform,
-              overflow: s.overflow,
-              position: s.position,
-            });
-          });
-        }
-
-        console.log('DOM: ===== end layout isolation =====');
-      } catch (e) {
-        console.log('DOM: isolation error', e);
-      }
-    }, 1200);
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     let ro: ResizeObserver | null = null;
@@ -276,7 +103,7 @@ function GeographicMapViewportInner({
 
         try {
           if (map.addControl && maplibregl.NavigationControl) {
-            map.addControl(new maplibregl.NavigationControl({ showCompass: true }));
+            map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
           }
         } catch {
           /* optional */
@@ -340,31 +167,14 @@ function GeographicMapViewportInner({
               });
             }
 
-            // Explicit resize sequence after load
             try {
               map.resize();
-              requestAnimationFrame(() => {
-                try {
-                  map.resize();
-                } catch {
-                  /* ignore */
-                }
-              });
-              setTimeout(() => {
-                try {
-                  map.resize();
-                } catch {
-                  /* ignore */
-                }
-              }, 100);
             } catch {
               /* ignore */
             }
 
             setMapReady(true);
             setGeoError(null);
-            console.log('DOM: map ready — scheduling layout isolation');
-            setTimeout(() => runIsolationTest(map), 800);
           } catch (e) {
             setGeoError(e instanceof Error ? e.message : 'Failed to load map data');
           }
@@ -396,7 +206,7 @@ function GeographicMapViewportInner({
       }
       mapRef.current = null;
     };
-  }, [runIsolationTest]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -542,25 +352,75 @@ function GeographicMapViewportInner({
     getContinent,
   ]);
 
-  // TEMP isolation UI: no legend/tooltip/loading overlays; obvious container chrome
   return (
-    <div
-      className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden"
-      style={{ background: 'magenta', border: '5px solid lime' }}
-    >
+    <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200">
+      {/*
+        MapLibre applies .maplibregl-map { position: relative } on this node.
+        Do NOT use absolute inset-0 here — that is overridden and collapses height to 0.
+        Use explicit w-full h-full so the map fills the sized parent (h-[380px] wrapper).
+      */}
       <div
         ref={containerRef}
-        className="absolute inset-0"
+        className="w-full h-full"
         role="application"
         aria-label="Geographic visitor origin map"
-        style={{ background: 'magenta' }}
       />
-      {/* TEMP: all custom overlays removed for isolation test */}
-      {geoError ? (
-        <p className="absolute bottom-2 left-2 z-50 text-xs text-white bg-black/80 px-2 py-1">
-          {geoError}
+
+      {(isLoading || !mapReady) && !geoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
+          <div className="text-sm font-medium text-stone-500">Loading map…</div>
+        </div>
+      )}
+
+      {geoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-stone-50 z-10 p-4">
+          <p className="text-sm text-stone-600 text-center max-w-sm">{geoError}</p>
+        </div>
+      )}
+
+      {provinceUnavailable && level === 'regions' && (
+        <div className="absolute bottom-3 left-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-3 py-2 shadow-sm">
+          <p className="text-xs text-stone-600">
+            Province-level geographic data is not currently available for this country. Use the
+            list of provinces to continue, or go back to the country view.
+          </p>
+        </div>
+      )}
+
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-30 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[200px]"
+          style={{
+            left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 160),
+            top: Math.max(8, hover.y - 8),
+          }}
+          role="tooltip"
+        >
+          <p className="font-bold text-sm">{hover.name}</p>
+          <p className="text-orange-300 mt-0.5">
+            {hover.count.toLocaleString()} guest check-ins
+          </p>
+          {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+          {interactive && hover.count > 0 && (
+            <p className="text-stone-400 mt-1">Click to explore</p>
+          )}
+        </div>
+      )}
+
+      <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">
+          Guest density
         </p>
-      ) : null}
+        <div className="flex items-center gap-0.5">
+          {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((c) => (
+            <span key={c} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: c }} aria-hidden />
+          ))}
+        </div>
+        <div className="flex justify-between text-[9px] text-stone-400 mt-0.5">
+          <span>None</span>
+          <span>High</span>
+        </div>
+      </div>
     </div>
   );
 }
