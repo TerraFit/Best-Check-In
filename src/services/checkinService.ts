@@ -90,7 +90,11 @@ export class CheckInService {
         })
       });
       const result = await response.json();
-      return result.access_token || null;
+      if (!response.ok || !result.success || !result.access_token) {
+        console.error('Error saving indemnity record:', result);
+        return null;
+      }
+      return result.access_token as string;
     } catch (error) {
       console.error('Error saving indemnity record:', error);
       return null;
