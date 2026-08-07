@@ -1,84 +1,177 @@
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+function headers(extra: Record<string, string> = {}) {
+  return {
+    apikey: SUPABASE_KEY || '',
+    Authorization: `Bearer ${SUPABASE_KEY || ''}`,
+    'Content-Type': 'application/json',
+    ...extra
+  };
+}
 
 export const handler: Handler = async (event) => {
-  const headers = {
+  const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json'
   };
 
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return { statusCode: 204, headers: cors, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers,
+      headers: cors,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    const { business_id, email, guest_name } = JSON.parse(event.body || '{}');
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+      return {
+        statusCode: 500,
+        headers: cors,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+
+    const body = JSON.parse(event.body || '{}');
+    const {
+      business_id,
+      email,
+      guest_name,
+      first_name,
+      last_name,
+      referred_by,
+      source
+    } = body;
 
     if (!business_id || !email) {
       return {
         statusCode: 400,
-        headers,
+        headers: cors,
         body: JSON.stringify({ error: 'Business ID and email are required' })
       };
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const resolvedGuestName =
+      guest_name ||
+      (first_name || last_name
+        ? [first_name, last_name].filter(Boolean).join(' ').trim()
+        : null);
+
+    // Business name (non-throwing)
+    let businessName: string | null = null;
+    try {
+      const bizRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/businesses?id=eq.${encodeURIComponent(business_id)}&select=trading_name`,
+        { method: 'GET', headers: headers() }
+      );
+      if (bizRes.ok) {
+        const rows = await bizRes.json();
+        businessName = rows?.[0]?.trading_name || null;
+      }
+    } catch (e) {
+      console.warn('Could not fetch business name:', e);
+    }
+
+    const accessToken = randomUUID();
+
+    // Minimal row — columns known to be used by send-confirmation-email
+    const minimalRow: Record<string, unknown> = {
+      business_id,
+      email: normalizedEmail,
+      guest_name: resolvedGuestName,
+      source: source || 'email',
+      created_at: new Date().toISOString()
+    };
+
+    // Extended row — optional columns (may not exist yet)
+    const extendedRow: Record<string, unknown> = {
+      ...minimalRow,
+      access_token: accessToken
+    };
+    if (first_name) extendedRow.first_name = first_name;
+    if (last_name) extendedRow.last_name = last_name;
+    if (referred_by) extendedRow.referred_by = referred_by;
+
+    const prefer =
+      'resolution=merge-duplicates,return=representation';
+
+    // Try extended first; fall back to minimal if schema rejects unknown columns
+    let upsertRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/newsletter_subscribers`,
+      {
+        method: 'POST',
+        headers: headers({ Prefer: prefer }),
+        body: JSON.stringify(extendedRow)
+      }
     );
 
-    // Get business name for response
-    const { data: business } = await supabase
-      .from('businesses')
-      .select('trading_name')
-      .eq('id', business_id)
-      .single();
+    let upsertBody = await upsertRes.text();
 
-    // Insert or ignore duplicate
-    const { error } = await supabase
-      .from('newsletter_subscribers')
-      .upsert({
-        business_id,
-        email: email.toLowerCase(),
-        guest_name: guest_name || null,
-        source: 'email'
-      }, {
-        onConflict: 'business_id,email'
-      });
+    if (!upsertRes.ok) {
+      console.warn('Extended upsert failed:', upsertRes.status, upsertBody);
 
-    if (error) {
-      console.error('Database error:', error);
+      upsertRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/newsletter_subscribers`,
+        {
+          method: 'POST',
+          headers: headers({ Prefer: prefer }),
+          body: JSON.stringify(minimalRow)
+        }
+      );
+      upsertBody = await upsertRes.text();
+    }
+
+    if (!upsertRes.ok) {
+      console.error('Newsletter upsert failed:', upsertRes.status, upsertBody);
       return {
         statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to subscribe' })
+        headers: cors,
+        body: JSON.stringify({
+          error: 'Failed to subscribe',
+          details: upsertBody
+        })
       };
+    }
+
+    // Prefer DB-returned access_token if column exists; otherwise use generated one
+    let returnedToken = accessToken;
+    try {
+      const parsed = upsertBody ? JSON.parse(upsertBody) : null;
+      const row = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (row?.access_token) returnedToken = row.access_token;
+    } catch {
+      // ignore parse errors
     }
 
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        success: true, 
-        business_name: business?.trading_name 
+      headers: cors,
+      body: JSON.stringify({
+        success: true,
+        business_name: businessName,
+        access_token: returnedToken
       })
     };
-
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      headers: cors,
+      body: JSON.stringify({
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      })
     };
   }
 };
