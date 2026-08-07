@@ -13,6 +13,10 @@ function headers(extra: Record<string, string> = {}) {
   };
 }
 
+function isDuplicateKeyError(body: string): boolean {
+  return body.includes('23505') || body.includes('newsletter_subscribers_business_id_email_key');
+}
+
 export const handler: Handler = async (event) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
@@ -103,33 +107,58 @@ export const handler: Handler = async (event) => {
     if (last_name) extendedRow.last_name = last_name;
     if (referred_by) extendedRow.referred_by = referred_by;
 
+    // Explicit conflict target so PostgREST performs a real upsert
+    const upsertUrl =
+      `${SUPABASE_URL}/rest/v1/newsletter_subscribers?on_conflict=business_id,email`;
     const prefer =
       'resolution=merge-duplicates,return=representation';
 
     // Try extended first; fall back to minimal if schema rejects unknown columns
-    let upsertRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/newsletter_subscribers`,
-      {
-        method: 'POST',
-        headers: headers({ Prefer: prefer }),
-        body: JSON.stringify(extendedRow)
-      }
-    );
+    let upsertRes = await fetch(upsertUrl, {
+      method: 'POST',
+      headers: headers({ Prefer: prefer }),
+      body: JSON.stringify(extendedRow)
+    });
 
     let upsertBody = await upsertRes.text();
 
-    if (!upsertRes.ok) {
+    if (!upsertRes.ok && !isDuplicateKeyError(upsertBody)) {
       console.warn('Extended upsert failed:', upsertRes.status, upsertBody);
 
-      upsertRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/newsletter_subscribers`,
-        {
-          method: 'POST',
-          headers: headers({ Prefer: prefer }),
-          body: JSON.stringify(minimalRow)
-        }
-      );
+      upsertRes = await fetch(upsertUrl, {
+        method: 'POST',
+        headers: headers({ Prefer: prefer }),
+        body: JSON.stringify(minimalRow)
+      });
       upsertBody = await upsertRes.text();
+    }
+
+    // Idempotent: already subscribed is success
+    if (!upsertRes.ok && isDuplicateKeyError(upsertBody)) {
+      let existingToken = accessToken;
+      try {
+        const existingRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/newsletter_subscribers?business_id=eq.${encodeURIComponent(business_id)}&email=eq.${encodeURIComponent(normalizedEmail)}&select=access_token&limit=1`,
+          { method: 'GET', headers: headers() }
+        );
+        if (existingRes.ok) {
+          const rows = await existingRes.json();
+          if (rows?.[0]?.access_token) existingToken = rows[0].access_token;
+        }
+      } catch {
+        // ignore — still return success
+      }
+
+      return {
+        statusCode: 200,
+        headers: cors,
+        body: JSON.stringify({
+          success: true,
+          business_name: businessName,
+          access_token: existingToken,
+          already_subscribed: true
+        })
+      };
     }
 
     if (!upsertRes.ok) {
