@@ -11,18 +11,6 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-/** TEMP diagnostic: redact large base64 signature fields for log safety */
-function redactSignatures<T extends Record<string, unknown>>(obj: T): T {
-  const out = { ...obj } as Record<string, unknown>;
-  for (const key of ['signature_data', 'guest_signature', 'signature']) {
-    const v = out[key];
-    if (typeof v === 'string' && v.length > 80) {
-      out[key] = `[redacted base64 length=${v.length}]`;
-    }
-  }
-  return out as T;
-}
-
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -50,9 +38,6 @@ export const handler: Handler = async (event) => {
       indemnity_text,
       signed_at
     } = body;
-
-    // TEMP DIAG: 1) incoming request payload (signatures redacted)
-    console.log('[DIAG create-indemnity-record] 1) incoming payload:', JSON.stringify(redactSignatures(body as Record<string, unknown>)));
 
     if (!booking_id || !business_id) {
       return {
@@ -100,7 +85,8 @@ export const handler: Handler = async (event) => {
       null;
     const userAgent = event.headers['user-agent'] || null;
 
-    const record: Record<string, unknown> = {
+    // Only columns that exist on public.indemnity_records (columns match live schema only)
+    const record = {
       booking_id,
       business_id,
       guest_name: guest_name || null,
@@ -108,27 +94,15 @@ export const handler: Handler = async (event) => {
       guest_last_name: guest_last_name || null,
       passport_or_id: passport_or_id || null,
       signature_data: resolvedSignature,
-      guest_signature: guest_signature || resolvedSignature,
-      indemnity_text: indemnity_text || null,
       signed_at: signed_at || new Date().toISOString(),
       access_token: accessToken,
       ip_address: ipAddress,
       user_agent: userAgent,
-      created_at: new Date().toISOString()
+      indemnity_text: indemnity_text || null,
+      guest_signature: guest_signature || resolvedSignature
     };
 
-    console.log('💾 Inserting indemnity_records for booking:', booking_id);
-
-    // TEMP DIAG: 2) exact record object POSTed (signatures redacted)
-    console.log('[DIAG create-indemnity-record] 2) record to POST:', JSON.stringify(redactSignatures(record)));
-    // TEMP DIAG: 3) Supabase REST endpoint host only
-    let supabaseHost = 'unknown';
-    try {
-      supabaseHost = new URL(supabaseUrl).host;
-    } catch {
-      supabaseHost = '(invalid SUPABASE_URL)';
-    }
-    console.log('[DIAG create-indemnity-record] 3) Supabase REST host:', supabaseHost, 'path: /rest/v1/indemnity_records');
+    console.log('💾 Inserting indemnity_records for booking:', booking_id, 'business:', business_id);
 
     const response = await fetch(`${supabaseUrl}/rest/v1/indemnity_records`, {
       method: 'POST',
@@ -142,61 +116,69 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify([record])
     });
 
-    // TEMP DIAG: 4) HTTP status  6) response.ok
-    console.log('[DIAG create-indemnity-record] 4) Supabase HTTP status:', response.status);
-    console.log('[DIAG create-indemnity-record] 6) response.ok:', response.ok);
+    console.log('📡 Supabase INSERT status:', response.status, 'ok:', response.ok);
 
     if (!response.ok) {
       const errorText = await response.text();
-      // TEMP DIAG: 5) complete Supabase response body
-      console.error('[DIAG create-indemnity-record] 5) Supabase response body:', errorText);
       console.error('❌ Failed to insert indemnity_records:', response.status, errorText);
-      const clientBody = {
-        success: false,
-        error: 'Failed to persist indemnity record',
-        details: errorText.substring(0, 300)
-      };
-      // TEMP DIAG: 7) exact JSON returned to frontend
-      console.log('[DIAG create-indemnity-record] 7) JSON returned to frontend:', JSON.stringify(clientBody));
       return {
         statusCode: 500,
         headers: corsHeaders,
-        body: JSON.stringify(clientBody)
+        body: JSON.stringify({
+          success: false,
+          error: 'Failed to persist indemnity record',
+          details: errorText.substring(0, 300)
+        })
       };
     }
 
     const inserted = await response.json();
-    // TEMP DIAG: 5) complete Supabase response body
-    console.log('[DIAG create-indemnity-record] 5) Supabase response body:', JSON.stringify(inserted));
-    const saved = Array.isArray(inserted) ? inserted[0] : inserted;
-    const returnedToken = saved?.access_token || accessToken;
 
-    console.log('✅ Indemnity record saved for booking:', booking_id, 'token:', returnedToken);
+    if (!Array.isArray(inserted) || inserted.length === 0) {
+      console.error('❌ Supabase returned no inserted indemnity record');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          success: false,
+          error: 'Indemnity record was not confirmed as inserted'
+        })
+      };
+    }
 
-    const clientBody = {
-      success: true,
-      access_token: returnedToken
-    };
-    // TEMP DIAG: 7) exact JSON returned to frontend
-    console.log('[DIAG create-indemnity-record] 7) JSON returned to frontend:', JSON.stringify(clientBody));
+    const persistedToken = inserted[0]?.access_token;
+    if (!persistedToken) {
+      console.error('❌ Inserted row missing access_token');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          success: false,
+          error: 'Inserted indemnity record missing access_token'
+        })
+      };
+    }
+
+    console.log('✅ Indemnity record saved for booking:', booking_id, '(token confirmed from Supabase)');
+
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify(clientBody)
+      body: JSON.stringify({
+        success: true,
+        access_token: persistedToken
+      })
     };
   } catch (error) {
     console.error('❌ create-indemnity-record error:', error);
-    const clientBody = {
-      success: false,
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : String(error)
-    };
-    // TEMP DIAG: 7) exact JSON returned to frontend
-    console.log('[DIAG create-indemnity-record] 7) JSON returned to frontend:', JSON.stringify(clientBody));
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify(clientBody)
+      body: JSON.stringify({
+        success: false,
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      })
     };
   }
 };
