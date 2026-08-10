@@ -72,7 +72,8 @@ export class CheckInService {
     firstName: string,
     lastName: string,
     passportOrId: string,
-    signature: string
+    signature: string,
+    indemnityText?: string
   ): Promise<string | null> {
     try {
       const response = await fetch(`${this.baseUrl}/create-indemnity-record`, {
@@ -86,6 +87,7 @@ export class CheckInService {
           guest_last_name: lastName,
           passport_or_id: passportOrId,
           signature_data: signature,
+          indemnity_text: indemnityText || null,
           signed_at: new Date().toISOString()
         })
       });

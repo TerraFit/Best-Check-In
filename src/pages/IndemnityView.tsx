@@ -8,6 +8,7 @@ interface IndemnityData {
   passport_or_id: string;
   signature_data: string;
   signed_at: string;
+  indemnity_text: string | null;
   business_name: string;
   business_logo?: string;
 }
@@ -99,25 +100,29 @@ export default function IndemnityView() {
         {/* Indemnity Content */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-8 md:p-12">
-            <div className="text-center space-y-3 mb-8">
-              <p className="font-bold text-2xl text-stone-900 font-serif">{indemnity?.business_name}</p>
-              <p className="font-bold text-xs tracking-widest uppercase border-y border-stone-200 py-3">
-                GUEST ACKNOWLEDGEMENT OF INHERENT RISK, WAIVER OF CLAIMS, AND INDEMNITY AGREEMENT
-              </p>
-            </div>
-            
-            <div className="bg-amber-50 p-6 border-l-4 border-amber-600 text-stone-900 font-bold leading-relaxed rounded-r-2xl mb-8">
-              ⚠️ WARNING: THIS IS A LEGALLY BINDING AND IMPORTANT DOCUMENT THAT LIMITS AND EXCLUDES LEGAL RIGHTS. BY SIGNING IT, YOU ASSUME RISKS AND WAIVE CERTAIN RIGHTS, INCLUDING THE RIGHT TO SUE OR CLAIM COMPENSATION UNDER CERTAIN CIRCUMSTANCES.
-            </div>
-
-            {/* Full indemnity text - same as in CheckInForm */}
+            {/* Stored signed agreement snapshot — authoritative document content */}
             <div className="prose prose-sm max-w-none text-stone-700">
-              <h4 className="font-bold underline uppercase text-stone-900 mb-4">PART A: WARNING AND NOTICE</h4>
-              <p className="mb-4">
-                DO NOT SIGN THIS DOCUMENT UNLESS YOU HAVE READ IT, UNDERSTOOD IT, AND VOLUNTARILY ACCEPT ITS TERMS. 
-                IF YOU ARE UNCERTAIN ABOUT ITS MEANING OR EFFECT, YOU SHOULD SEEK INDEPENDENT LEGAL ADVICE BEFORE SIGNING.
-              </p>
-              {/* ... rest of the indemnity text ... */}
+              {indemnity?.indemnity_text ? (
+                <div className="whitespace-pre-wrap leading-relaxed text-stone-700">
+                  {indemnity.indemnity_text}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center space-y-3">
+                    <p className="font-bold text-2xl text-stone-900 font-serif">{indemnity?.business_name}</p>
+                    <p className="font-bold text-xs tracking-widest uppercase border-y border-stone-200 py-3">
+                      GUEST ACKNOWLEDGEMENT OF INHERENT RISK, WAIVER OF CLAIMS, AND INDEMNITY AGREEMENT
+                    </p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-stone-700">
+                    <p className="font-semibold text-stone-900 mb-2">Complete agreement text unavailable</p>
+                    <p className="text-sm">
+                      This record was created before the full indemnity text was stored with the signature.
+                      Signature and guest details below remain valid for this signing event.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Signature Section */}
