@@ -29,8 +29,8 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     if (resetOnMount) {
       return 1;
     }
-    const saved = sessionStorage.getItem('checkin_step');
-    return saved ? parseInt(saved, 10) : 1;
+    const savedStep = sessionStorage.getItem('checkin_step');
+    return savedStep ? parseInt(savedStep, 10) : 1;
   });
 
   const [formData, setFormData] = useState<CheckInFormData>(() => {
@@ -53,7 +53,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         restrictions: DEFAULT_RESTRICTIONS,
       };
     }
-    const saved = sessionStorage.getItem('checkin_form');
+    const saved = sessionStorage.getItem('checkin_formData');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -99,7 +99,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
   useEffect(() => {
     if (!resetOnMount) {
       sessionStorage.setItem('checkin_step', String(step));
-      sessionStorage.setItem('checkin_form', JSON.stringify(formData));
+      sessionStorage.setItem('checkin_formData', JSON.stringify(formData));
     }
   }, [step, formData, resetOnMount]);
 
@@ -145,42 +145,71 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setTouched(prev => ({ ...prev, firstName: true, lastName: true }));
   }, []);
 
-  const validateStep = useCallback((currentStep: number): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (currentStep === 1) {
-      if (!formData.firstName.trim()) newErrors.firstName = t('error_required');
-      if (!formData.lastName.trim()) newErrors.lastName = t('error_required');
-      if (!formData.email.trim() || !formData.email.includes('@')) newErrors.email = t('error_invalid_email');
-      if (!formData.phone.trim()) newErrors.phone = t('error_required');
-      if (!formData.passportOrId.trim()) newErrors.passportOrId = t('error_required');
-      if (!formData.nationality.trim()) newErrors.nationality = t('error_required');
-    } else if (currentStep === 2) {
-      if (!formData.checkInDate) newErrors.checkInDate = t('error_required');
-      if (!formData.checkOutDate) newErrors.checkOutDate = t('error_required');
-      if (formData.checkInDate && formData.checkOutDate && formData.checkOutDate <= formData.checkInDate) {
-        newErrors.checkOutDate = t('error_checkout_after_checkin');
-      }
-      if (!formData.roomType) newErrors.roomType = t('error_required');
-      if (formData.numberOfGuests < 1) newErrors.numberOfGuests = t('error_required');
-    } else if (currentStep === 3) {
-      // restrictions optional
-    } else if (currentStep === 4) {
-      if (!formData.signature) newErrors.signature = t('error_signature_required');
-      if (!formData.idPhoto) newErrors.idPhoto = t('error_photo_required');
+  const validateStep2 = (): string[] => {
+    const errs: string[] = [];
+    if (!formData.firstName.trim()) errs.push('firstName');
+    if (!formData.lastName.trim()) errs.push('lastName');
+    if (!formData.email.trim() || !formData.email.includes('@')) errs.push('email');
+    if (!formData.phone.trim()) errs.push('phone');
+    if (!formData.passportOrId.trim()) errs.push('passportOrId');
+    if (!formData.nationality.trim()) errs.push('nationality');
+    return errs;
+  };
+
+  const validateStep3 = (): string[] => {
+    const errs: string[] = [];
+    if (!formData.checkInDate) errs.push('checkInDate');
+    if (!formData.checkOutDate) errs.push('checkOutDate');
+    if (formData.checkInDate && formData.checkOutDate && formData.checkOutDate <= formData.checkInDate) {
+      errs.push('checkOutDate');
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formData, t]);
+    if (!formData.roomType) errs.push('roomType');
+    if (formData.numberOfGuests < 1) errs.push('numberOfGuests');
+    return errs;
+  };
 
   const getErrorClass = useCallback((field: string) => {
     return errors[field] && touched[field] ? 'border-red-500' : '';
   }, [errors, touched]);
 
   const nextStep = useCallback(() => {
-    if (validateStep(step)) {
-      setStep(s => Math.min(s + 1, 4));
+    if (step === 1) {
+      const errs = validateStep2();
+      if (errs.length) {
+        const newErrors: Record<string, string> = {};
+        errs.forEach(f => { newErrors[f] = t('error_required'); });
+        setErrors(newErrors);
+        setTouched(prev => {
+          const next = { ...prev };
+          errs.forEach(f => { next[f as keyof TouchedFields] = true; });
+          return next;
+        });
+        return;
+      }
+    } else if (step === 2) {
+      const errs = validateStep3();
+      if (errs.length) {
+        const newErrors: Record<string, string> = {};
+        errs.forEach(f => { newErrors[f] = t('error_required'); });
+        setErrors(newErrors);
+        setTouched(prev => {
+          const next = { ...prev };
+          errs.forEach(f => { next[f as keyof TouchedFields] = true; });
+          return next;
+        });
+        return;
+      }
+    } else if (step === 4) {
+      if (!formData.signature || !formData.idPhoto) {
+        const newErrors: Record<string, string> = {};
+        if (!formData.signature) newErrors.signature = t('error_signature_required');
+        if (!formData.idPhoto) newErrors.idPhoto = t('error_photo_required');
+        setErrors(newErrors);
+        return;
+      }
     }
-  }, [step, validateStep]);
+    setStep(s => Math.min(s + 1, 4));
+  }, [step, formData, t]);
 
   const prevStep = useCallback(() => {
     setStep(s => Math.max(s - 1, 1));
@@ -230,7 +259,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     setNotification(null);
     setGuestProfileLoaded(false);
     sessionStorage.removeItem('checkin_step');
-    sessionStorage.removeItem('checkin_form');
+    sessionStorage.removeItem('checkin_formData');
   }, []);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
@@ -239,7 +268,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       e.stopPropagation();
     }
     if (isSubmitting.current || loading) return;
-    if (!validateStep(4)) {
+    if (!formData.signature || !formData.idPhoto) {
       setNotification({ type: 'error', message: t('error_complete_all_fields') });
       return;
     }
@@ -364,7 +393,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       setLoading(false);
       isSubmitting.current = false;
     }
-  }, [formData, businessId, branding, loading, t, validateStep, onComplete, resetForm, saveGuestProfile]);
+  }, [formData, businessId, branding, loading, t, onComplete, resetForm, saveGuestProfile]);
 
   return {
     step,
