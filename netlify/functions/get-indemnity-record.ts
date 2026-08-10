@@ -114,6 +114,7 @@ export const handler: Handler = async (event) => {
         passport_or_id: record.passport_or_id,
         signature_data: record.signature_data,
         signed_at: record.signed_at,
+        indemnity_text: record.indemnity_text || null,
         business_name: businessName,
         business_logo: businessLogo
       })
