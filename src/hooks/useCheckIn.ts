@@ -528,10 +528,17 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         formData.passportOrId,
         formData.signature
       );
+
+      if (!accessToken) {
+        console.error('🔴 submitBooking: Indemnity record save failed');
+        setNotification({ type: 'error', message: t('error_unexpected') });
+        setLoading(false);
+        return;
+      }
       console.log('🔍 submitBooking: Indemnity record saved');
 
       console.log('🔍 submitBooking: Sending confirmation email...');
-      checkinService.sendConfirmationEmail(dbBooking, accessToken || undefined);
+      checkinService.sendConfirmationEmail(dbBooking, accessToken);
       
       if (formData.saveDetails) {
         console.log('🔍 submitBooking: Saving guest profile...');
