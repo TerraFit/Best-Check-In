@@ -1,5 +1,6 @@
 // Staff / business Housekeeping workflow
 // Counters: readiness from rooms; Due counts = today's open tasks only
+// i18n: presentation labels via t()
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
@@ -13,6 +14,7 @@ import type {
   HousekeepingTask,
   HousekeepingDashboardStats,
 } from '../../types/housekeeping';
+import { t } from '../../i18n';
 
 interface Props {
   businessId: string;
@@ -39,7 +41,7 @@ export function HousekeepingTab({ businessId }: Props) {
       setTasks(data.tasks);
       setStats(data.stats);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load tasks');
+      setError(e instanceof Error ? e.message : t('housekeeping_failed_load'));
     } finally {
       setLoading(false);
     }
@@ -58,10 +60,10 @@ export function HousekeepingTab({ businessId }: Props) {
         businessId,
         regenerate: true,
       });
-      setMessage(result.message || `Generated ${result.created ?? 0} task(s).`);
+      setMessage(result.message || t('housekeeping_generated', { count: result.created ?? 0 }));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Generate failed');
+      setError(e instanceof Error ? e.message : t('housekeeping_generate_failed'));
     } finally {
       setBusyId(null);
     }
@@ -110,17 +112,17 @@ export function HousekeepingTab({ businessId }: Props) {
       }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
+      setError(e instanceof Error ? e.message : t('housekeeping_update_failed'));
     } finally {
       setBusyId(null);
     }
   };
 
   const views: { id: ViewFilter; label: string }[] = [
-    { id: 'today', label: 'Today' },
-    { id: 'pending', label: 'Pending' },
-    { id: 'completed', label: 'Completed' },
-    { id: 'all', label: 'All' },
+    { id: 'today', label: t('housekeeping_view_today') },
+    { id: 'pending', label: t('housekeeping_view_pending') },
+    { id: 'completed', label: t('housekeeping_view_completed') },
+    { id: 'all', label: t('housekeeping_view_all') },
   ];
 
   const readyCount = stats?.rooms_ready ?? stats?.rooms_clean ?? 0;
@@ -130,8 +132,8 @@ export function HousekeepingTab({ businessId }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Housekeeping</h2>
-          <p className="text-sm text-gray-500">Room readiness · today's operational tasks</p>
+          <h2 className="text-lg font-bold text-gray-900">{t('housekeeping_title')}</h2>
+          <p className="text-sm text-gray-500">{t('housekeeping_subtitle')}</p>
         </div>
         <button
           type="button"
@@ -139,7 +141,7 @@ export function HousekeepingTab({ businessId }: Props) {
           disabled={busyId === 'generate'}
           className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
         >
-          {busyId === 'generate' ? 'Generating…' : 'Generate / Refresh Schedule'}
+          {busyId === 'generate' ? t('housekeeping_generating') : t('housekeeping_generate_refresh')}
         </button>
       </div>
 
@@ -147,12 +149,12 @@ export function HousekeepingTab({ businessId }: Props) {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {(
             [
-              ['Ready', readyCount, 'bg-green-50 text-green-800'],
-              ['Not Ready', notReadyCount, 'bg-orange-50 text-orange-800'],
-              ['Refresh Due', stats.refresh_due, 'bg-yellow-50 text-yellow-800'],
-              ['Full Service Due', stats.full_service_due, 'bg-blue-50 text-blue-800'],
-              ['Done Today', stats.completed_today, 'bg-emerald-50 text-emerald-800'],
-              ['Overdue', stats.overdue, 'bg-gray-100 text-gray-800'],
+              [t('housekeeping_ready'), readyCount, 'bg-green-50 text-green-800'],
+              [t('housekeeping_not_ready'), notReadyCount, 'bg-orange-50 text-orange-800'],
+              [t('housekeeping_refresh_due'), stats.refresh_due, 'bg-yellow-50 text-yellow-800'],
+              [t('housekeeping_full_service_due'), stats.full_service_due, 'bg-blue-50 text-blue-800'],
+              [t('housekeeping_done_today'), stats.completed_today, 'bg-emerald-50 text-emerald-800'],
+              [t('housekeeping_overdue'), stats.overdue, 'bg-gray-100 text-gray-800'],
             ] as const
           ).map(([label, value, cls]) => (
             <div key={label} className={`rounded-xl border border-gray-100 p-3 ${cls}`}>
@@ -192,13 +194,11 @@ export function HousekeepingTab({ businessId }: Props) {
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12 text-sm">Loading tasks…</p>
+        <p className="text-center text-gray-400 py-12 text-sm">{t('housekeeping_loading')}</p>
       ) : tasks.length === 0 ? (
         <div className="text-center py-12 text-sm text-gray-500 bg-white rounded-2xl border border-gray-200">
-          <p className="mb-2">No tasks in this view.</p>
-          <p className="text-xs text-gray-400">
-            Assign rooms to bookings, then click Generate / Refresh Schedule.
-          </p>
+          <p className="mb-2">{t('housekeeping_no_tasks')}</p>
+          <p className="text-xs text-gray-400">{t('housekeeping_no_tasks_help')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -239,24 +239,24 @@ export function HousekeepingTab({ businessId }: Props) {
 
                 <div className="text-sm space-y-1">
                   <p>
-                    <span className="text-gray-400 text-xs">Service</span>
+                    <span className="text-gray-400 text-xs">{t('housekeeping_service')}</span>
                     <br />
                     <span className="font-medium">
                       {taskTypeLabel(task.task_type, task.is_checkout)}
                     </span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Scheduled:{' '}
+                    {t('housekeeping_scheduled')}:{' '}
                     <span className="font-medium text-gray-700">{task.scheduled_date}</span>
                     {' · '}
-                    Priority: <span className="capitalize">{task.priority}</span>
+                    {t('housekeeping_priority')}: <span className="capitalize">{task.priority}</span>
                   </p>
                   {task.assigned_staff_name && (
-                    <p className="text-xs text-gray-500">Staff: {task.assigned_staff_name}</p>
+                    <p className="text-xs text-gray-500">{t('housekeeping_staff')}: {task.assigned_staff_name}</p>
                   )}
                   {task.inspection_status && (
                     <p className="text-xs text-gray-500">
-                      Inspection: <span className="capitalize">{task.inspection_status}</span>
+                      {t('housekeeping_inspection')}: <span className="capitalize">{task.inspection_status}</span>
                     </p>
                   )}
                 </div>
@@ -266,7 +266,7 @@ export function HousekeepingTab({ businessId }: Props) {
                   onChange={(e) =>
                     setNoteDraft((d) => ({ ...d, [task.id]: e.target.value }))
                   }
-                  placeholder="Notes"
+                  placeholder={t('rooms_notes')}
                   rows={2}
                   className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none"
                 />
@@ -279,7 +279,7 @@ export function HousekeepingTab({ businessId }: Props) {
                       onClick={() => act(task, 'start')}
                       className="px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded-lg disabled:opacity-50"
                     >
-                      Start
+                      {t('housekeeping_start')}
                     </button>
                   )}
                   {(task.status === 'pending' || task.status === 'in_progress') && (
@@ -289,7 +289,7 @@ export function HousekeepingTab({ businessId }: Props) {
                       onClick={() => act(task, 'complete')}
                       className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg disabled:opacity-50"
                     >
-                      Complete
+                      {t('housekeeping_complete')}
                     </button>
                   )}
                   {task.status === 'pending' && task.task_type === 'refresh' && (
@@ -299,7 +299,7 @@ export function HousekeepingTab({ businessId }: Props) {
                       onClick={() => act(task, 'skip')}
                       className="px-3 py-1.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-lg disabled:opacity-50"
                     >
-                      Skip
+                      {t('housekeeping_skip')}
                     </button>
                   )}
                   {task.status === 'completed' && task.inspection_status === 'pending' && (
@@ -310,7 +310,7 @@ export function HousekeepingTab({ businessId }: Props) {
                         onClick={() => act(task, 'approve')}
                         className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg disabled:opacity-50"
                       >
-                        Approve inspection
+                        {t('housekeeping_approve')}
                       </button>
                       <button
                         type="button"
@@ -318,7 +318,7 @@ export function HousekeepingTab({ businessId }: Props) {
                         onClick={() => act(task, 'reject')}
                         className="px-3 py-1.5 text-xs font-medium bg-red-100 text-red-700 rounded-lg disabled:opacity-50"
                       >
-                        Reject
+                        {t('housekeeping_reject')}
                       </button>
                     </>
                   )}
