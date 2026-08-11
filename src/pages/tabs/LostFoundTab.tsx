@@ -1,4 +1,5 @@
 // src/pages/tabs/LostFoundTab.tsx
+// i18n: primary presentation labels via t(); status identifiers unchanged
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Search,
@@ -40,6 +41,7 @@ import LostFoundCreateForm from '../../components/lostFound/LostFoundCreateForm'
 import CollectionConfirmModal from '../../components/lostFound/CollectionConfirmModal';
 import DetailPhotosEditor from '../../components/lostFound/DetailPhotosEditor';
 import { printLostFoundTag } from '../../utils/printLostFoundTag';
+import { t } from '../../i18n';
 
 type QuickFilter =
   | ''
@@ -113,6 +115,13 @@ function timelineIndex(status: LostFoundStatus): number {
   return 5;
 }
 
+/** Translate status label at presentation boundary; identifiers stay unchanged */
+function statusLabel(status: LostFoundStatus): string {
+  const key = `lost_found_status_${status}`;
+  const translated = t(key);
+  return translated !== key ? translated : (LOST_FOUND_STATUS_LABELS[status] || status);
+}
+
 export default function LostFoundTab({
   businessId,
   businessName,
@@ -166,12 +175,12 @@ export default function LostFoundTab({
       setStats(s);
       if (meta.categories.length) {
         setCategories(meta.categories.map((c) => c.name));
-      }
+           }
       if (meta.storageLocations.length) {
         setStorageOptions(meta.storageLocations.map((loc) => loc.name));
       }
     } catch (e: any) {
-      setError(e.message || 'Failed to load Lost & Found');
+      setError(e.message || t('lost_found_failed_load'));
     } finally {
       setLoading(false);
     }
@@ -283,7 +292,7 @@ export default function LostFoundTab({
     try {
       await printLostFoundTag(item, businessName || undefined);
     } catch (e: any) {
-      setError(e.message || 'Failed to print tag');
+      setError(e.message || t('lost_found_print_failed'));
     }
   };
 
@@ -298,30 +307,29 @@ export default function LostFoundTab({
     setQuickFilter((prev) => (prev === key ? '' : key));
   };
 
-  /** Operational task cards (both portals) + management extras (business only) */
   const statCards = useMemo(() => {
     const operational = [
       {
         id: 'awaiting_contact' as QuickFilter,
-        label: 'Awaiting Guest Contact',
+        label: t('lost_found_awaiting_contact'),
         value: stats.awaiting_contact ?? 0,
         color: 'bg-amber-50 text-amber-800',
       },
       {
         id: 'missing_photos' as QuickFilter,
-        label: 'Missing Photos',
+        label: t('lost_found_missing_photos'),
         value: stats.missing_photos ?? 0,
         color: 'bg-rose-50 text-rose-800',
       },
       {
         id: 'ready_for_collection' as QuickFilter,
-        label: 'Ready for Collection',
+        label: t('lost_found_ready_collection'),
         value: stats.ready_for_collection ?? 0,
         color: 'bg-indigo-50 text-indigo-800',
       },
       {
         id: 'overdue' as QuickFilter,
-        label: 'Overdue',
+        label: t('lost_found_overdue'),
         value: stats.overdue ?? 0,
         color: 'bg-orange-50 text-orange-800',
       },
@@ -333,27 +341,27 @@ export default function LostFoundTab({
       ...operational,
       {
         id: 'archived' as QuickFilter,
-        label: 'Archived',
+        label: t('lost_found_archived'),
         value: stats.archived,
         color: 'bg-stone-50 text-stone-600',
       },
       {
         id: '' as QuickFilter,
-        label: 'Returned',
+        label: t('lost_found_returned'),
         value: stats.returned,
         color: 'bg-green-50 text-green-800',
         clickable: false,
       },
       {
         id: '' as QuickFilter,
-        label: 'Outstanding',
+        label: t('lost_found_outstanding'),
         value: stats.outstanding ?? 0,
         color: 'bg-blue-50 text-blue-800',
         clickable: false,
       },
       {
         id: '' as QuickFilter,
-        label: 'This Month',
+        label: t('lost_found_this_month'),
         value: stats.found_this_month ?? stats.recently_found,
         color: 'bg-stone-100 text-stone-800',
         clickable: false,
@@ -384,7 +392,7 @@ export default function LostFoundTab({
                   ? 'border-amber-400 ring-2 ring-amber-300'
                   : 'border-stone-200'
               } ${clickable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
-              title={clickable ? (active ? 'Clear filter' : `Filter: ${c.label}`) : undefined}
+              title={clickable ? (active ? t('common_clear') : `${t('common_filter')}: ${c.label}`) : undefined}
             >
               <div className="text-2xl font-bold">{c.value}</div>
               <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
@@ -397,7 +405,7 @@ export default function LostFoundTab({
 
       {quickFilter && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-stone-500">Filtered:</span>
+          <span className="text-stone-500">{t('lost_found_filtered')}:</span>
           <span className="font-semibold text-stone-800">
             {statCards.find((c) => c.id === quickFilter)?.label || quickFilter}
           </span>
@@ -406,7 +414,7 @@ export default function LostFoundTab({
             onClick={() => setQuickFilter('')}
             className="text-xs font-semibold text-amber-700 hover:underline"
           >
-            Clear
+            {t('common_clear')}
           </button>
         </div>
       )}
@@ -417,7 +425,7 @@ export default function LostFoundTab({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
             <input
               type="text"
-              placeholder="Search tag, guest, phone, email, room, category…"
+              placeholder={t('lost_found_search_placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-400 outline-none"
@@ -428,10 +436,10 @@ export default function LostFoundTab({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white"
           >
-            <option value="">All statuses</option>
+            <option value="">{t('filters_all_statuses')}</option>
             {STATUS_WORKFLOW.map((s) => (
               <option key={s} value={s}>
-                {LOST_FOUND_STATUS_LABELS[s]}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
@@ -441,7 +449,7 @@ export default function LostFoundTab({
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white"
             >
-              <option value="">All categories</option>
+              <option value="">{t('lost_found_all_categories')}</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -453,7 +461,7 @@ export default function LostFoundTab({
             type="button"
             onClick={load}
             className="p-2 border border-stone-200 rounded-xl hover:bg-stone-50"
-            title="Refresh"
+            title={t('housekeeping_refresh')}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -464,7 +472,7 @@ export default function LostFoundTab({
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl shadow-sm"
           >
-            <Plus size={16} /> New Item
+            <Plus size={16} /> {t('lost_found_new_item')}
           </button>
         )}
       </div>
@@ -477,28 +485,28 @@ export default function LostFoundTab({
 
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-stone-400 text-sm">Loading Lost & Found…</div>
+          <div className="p-12 text-center text-stone-400 text-sm">{t('lost_found_loading')}</div>
         ) : displayedItems.length === 0 ? (
           <div className="p-12 text-center text-stone-400 text-sm">
             <Package className="mx-auto mb-3 opacity-40" size={36} />
             {quickFilter
-              ? 'No items match this filter.'
-              : 'No items found. Record a newly found item to get started.'}
+              ? t('lost_found_no_match')
+              : t('lost_found_empty')}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stone-100 text-left text-[11px] uppercase tracking-wide text-stone-400">
-                  <th className="px-4 py-3 font-semibold">Tag</th>
-                  <th className="px-4 py-3 font-semibold">Item</th>
-                  <th className="px-4 py-3 font-semibold">Room</th>
-                  <th className="px-4 py-3 font-semibold">Guest</th>
-                  <th className="px-4 py-3 font-semibold">Found</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Storage</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_tag')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_item')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_room')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_guest')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_found')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('rooms_status')}</th>
+                  <th className="px-4 py-3 font-semibold">{t('lost_found_storage')}</th>
                   <th className="px-4 py-3 font-semibold text-right">
-                    <span className="sr-only">Open</span>
+                    <span className="sr-only">{t('lost_found_open')}</span>
                   </th>
                 </tr>
               </thead>
@@ -508,7 +516,7 @@ export default function LostFoundTab({
                     key={item.id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`View details for ${item.tag_number || 'item'} ${item.item_name || ''}`}
+                    aria-label={`${t('lost_found_view_details')} ${item.tag_number || 'item'} ${item.item_name || ''}`}
                     className="border-b border-stone-50 cursor-pointer transition-colors hover:bg-amber-50/70 focus-visible:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 group"
                     onClick={() => openDetail(item.id)}
                     onKeyDown={(e) => {
@@ -531,7 +539,7 @@ export default function LostFoundTab({
                           />
                         ) : (
                           <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
-                            No photo
+                            {t('lost_found_no_photo')}
                           </span>
                         )}
                         <div>
@@ -540,7 +548,7 @@ export default function LostFoundTab({
                             <span>{item.category}</span>
                             {!hasPhotos(item) && (
                               <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
-                                Photo Missing
+                                {t('lost_found_photo_missing')}
                               </span>
                             )}
                           </div>
@@ -566,7 +574,7 @@ export default function LostFoundTab({
                           LOST_FOUND_STATUS_COLORS[item.status] || 'bg-stone-100'
                         }`}
                       >
-                        {LOST_FOUND_STATUS_LABELS[item.status] || item.status}
+                        {statusLabel(item.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-stone-500 text-xs">
@@ -575,7 +583,7 @@ export default function LostFoundTab({
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700 opacity-70 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
-                        View Details →
+                        {t('lost_found_view_details')} →
                       </span>
                     </td>
                   </tr>
@@ -608,27 +616,27 @@ export default function LostFoundTab({
             <div className="sticky top-0 bg-white border-b border-stone-100 px-5 py-4 flex items-start justify-between z-10 gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">
-                  Lost & Found Item
+                  {t('lost_found_item_detail')}
                 </div>
                 <div className="font-mono text-sm font-bold text-amber-700 mt-0.5">
                   {detail?.tag_number || (detailLoading ? '…' : '—')}
                 </div>
                 <h3 className="font-bold text-stone-900 text-base leading-snug mt-0.5 truncate">
-                  {detail?.item_name || (detailLoading ? 'Loading…' : '—')}
+                  {detail?.item_name || (detailLoading ? t('common_loading') : '—')}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={closeDetail}
                 className="p-1.5 rounded-lg hover:bg-stone-100 shrink-0"
-                aria-label="Close details"
+                aria-label={t('common_close')}
               >
                 <X size={18} />
               </button>
             </div>
 
             {detailLoading || !detail ? (
-              <div className="p-8 text-center text-stone-400 text-sm">Loading…</div>
+              <div className="p-8 text-center text-stone-400 text-sm">{t('common_loading')}</div>
             ) : (
               <div className="p-5 space-y-6">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -637,11 +645,11 @@ export default function LostFoundTab({
                       LOST_FOUND_STATUS_COLORS[detail.status]
                     }`}
                   >
-                    {LOST_FOUND_STATUS_LABELS[detail.status]}
+                    {statusLabel(detail.status)}
                   </span>
                   {!hasPhotos(detail) && (
                     <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                      Photo Missing
+                      {t('lost_found_photo_missing')}
                     </span>
                   )}
                   <button
@@ -649,7 +657,7 @@ export default function LostFoundTab({
                     onClick={() => handlePrint(detail)}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-stone-600 border border-stone-200 rounded-lg px-2.5 py-1 hover:bg-stone-50"
                   >
-                    <Printer size={12} /> Print tag
+                    <Printer size={12} /> {t('lost_found_print_tag')}
                   </button>
                   {canEdit && detail.status !== 'collected' && detail.status !== 'archived' && (
                     <button
@@ -657,7 +665,7 @@ export default function LostFoundTab({
                       onClick={() => setShowCollect(true)}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100"
                     >
-                      Record collection
+                      {t('lost_found_record_collection')}
                     </button>
                   )}
                 </div>
@@ -665,7 +673,7 @@ export default function LostFoundTab({
                 {isBusiness && (
                   <div className="bg-stone-50 rounded-2xl border border-stone-100 p-3">
                     <h4 className="text-[10px] font-bold uppercase text-stone-400 mb-2">
-                      Guest timeline
+                      {t('lost_found_guest_timeline')}
                     </h4>
                     <div className="flex items-start justify-between gap-1">
                       {GUEST_TIMELINE.map((step, i) => {
@@ -692,7 +700,7 @@ export default function LostFoundTab({
                                     : 'text-stone-400'
                               }`}
                             >
-                              {LOST_FOUND_STATUS_LABELS[step]}
+                              {statusLabel(step)}
                             </span>
                           </div>
                         );
@@ -713,29 +721,29 @@ export default function LostFoundTab({
 
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Category</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_category')}</dt>
                     <dd>{detail.category || '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Condition</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_condition')}</dt>
                     <dd className="capitalize">{detail.condition || '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Room</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_room')}</dt>
                     <dd>
                       {detail.room_number || '—'}
                       {detail.room_name ? ` · ${detail.room_name}` : ''}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Found</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_found')}</dt>
                     <dd>
                       {detail.found_date}
                       {detail.time_found ? ` ${detail.time_found}` : ''}
                     </dd>
                   </div>
                   <div className="col-span-2">
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Guest</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_guest')}</dt>
                     <dd>
                       {detail.guest_name || '—'}
                       {detail.guest_email && (
@@ -747,28 +755,28 @@ export default function LostFoundTab({
                     </dd>
                   </div>
                   <div className="col-span-2">
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Storage</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_storage')}</dt>
                     <dd>
                       {[detail.storage_location, detail.storage_detail].filter(Boolean).join(' · ') ||
                         '—'}
                     </dd>
                   </div>
                   <div className="col-span-2">
-                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">Found by</dt>
+                    <dt className="text-[10px] uppercase text-stone-400 font-semibold">{t('lost_found_found_by')}</dt>
                     <dd>{detail.found_by_staff_name || '—'}</dd>
                   </div>
                   {detail.collected_by_name && (
                     <div className="col-span-2 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                       <dt className="text-[10px] uppercase text-emerald-700 font-semibold">
-                        Collection
+                        {t('lost_found_collection')}
                       </dt>
                       <dd className="text-sm text-emerald-900 whitespace-pre-line">
-                        {`Collected by: ${detail.collected_by_name}`}
+                        {`${t('lost_found_collected_by')}: ${detail.collected_by_name}`}
                         {detail.collected_by_id_number
                           ? `\nID: ${detail.collected_by_id_number}`
                           : ''}
                         {detail.released_by_staff_name
-                          ? `\nReleased by: ${detail.released_by_staff_name}`
+                          ? `\n${t('lost_found_released_by')}: ${detail.released_by_staff_name}`
                           : ''}
                         {detail.returned_at
                           ? `\n${new Date(detail.returned_at).toLocaleString()}`
@@ -777,7 +785,7 @@ export default function LostFoundTab({
                       {detail.collection_signature_url && (
                         <img
                           src={detail.collection_signature_url}
-                          alt="Signature"
+                          alt={t('checkin_signature')}
                           className="mt-2 max-h-16 border border-emerald-100 rounded bg-white"
                         />
                       )}
@@ -786,7 +794,7 @@ export default function LostFoundTab({
                   {detail.description && (
                     <div className="col-span-2">
                       <dt className="text-[10px] uppercase text-stone-400 font-semibold">
-                        Description
+                        {t('lost_found_description')}
                       </dt>
                       <dd className="text-stone-600">{detail.description}</dd>
                     </div>
@@ -795,7 +803,7 @@ export default function LostFoundTab({
 
                 {canEdit && (
                   <div>
-                    <h4 className="text-xs font-bold uppercase text-stone-400 mb-2">Update status</h4>
+                    <h4 className="text-xs font-bold uppercase text-stone-400 mb-2">{t('lost_found_update_status')}</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {STATUS_WORKFLOW.map((s) => (
                         <button
@@ -809,7 +817,7 @@ export default function LostFoundTab({
                               : 'border-stone-200 text-stone-600 hover:bg-stone-50'
                           } disabled:opacity-40`}
                         >
-                          {LOST_FOUND_STATUS_LABELS[s]}
+                          {statusLabel(s)}
                         </button>
                       ))}
                     </div>
@@ -818,14 +826,14 @@ export default function LostFoundTab({
 
                 {canEdit && (
                   <div className="border border-stone-100 rounded-2xl p-4 space-y-3">
-                    <h4 className="text-xs font-bold uppercase text-stone-400">Contact guest</h4>
+                    <h4 className="text-xs font-bold uppercase text-stone-400">{t('lost_found_contact_guest')}</h4>
                     <div className="flex gap-2">
                       {(
                         [
-                          { id: 'email' as const, icon: Mail, label: 'Email' },
+                          { id: 'email' as const, icon: Mail, label: t('checkin_email') },
                           { id: 'sms' as const, icon: MessageCircle, label: 'SMS' },
                           { id: 'whatsapp' as const, icon: Phone, label: 'WhatsApp' },
-                          { id: 'phone' as const, icon: Phone, label: 'Phone' },
+                          { id: 'phone' as const, icon: Phone, label: t('dashboard_phone') },
                         ]
                       ).map((m) => (
                         <button
@@ -845,20 +853,19 @@ export default function LostFoundTab({
                     </div>
                     {(contactMethod === 'sms' || contactMethod === 'whatsapp') && (
                       <p className="text-[11px] text-stone-400">
-                        {contactMethod === 'sms' ? 'SMS' : 'WhatsApp'} integration is a placeholder —
-                        contact will be logged for history.
+                        {t('lost_found_contact_placeholder')}
                       </p>
                     )}
                     <input
                       value={contactOutcome}
                       onChange={(e) => setContactOutcome(e.target.value)}
-                      placeholder="Outcome (optional)"
+                      placeholder={t('lost_found_outcome_placeholder')}
                       className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
                     />
                     <textarea
                       value={contactNotes}
                       onChange={(e) => setContactNotes(e.target.value)}
-                      placeholder="Notes"
+                      placeholder={t('rooms_notes')}
                       rows={2}
                       className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
                     />
@@ -868,15 +875,15 @@ export default function LostFoundTab({
                       onClick={handleContact}
                       className="w-full py-2.5 text-sm font-semibold bg-stone-900 text-white rounded-xl disabled:opacity-50"
                     >
-                      Record contact
+                      {t('lost_found_record_contact')}
                     </button>
                   </div>
                 )}
 
                 <div>
-                  <h4 className="text-xs font-bold uppercase text-stone-400 mb-3">History</h4>
+                  <h4 className="text-xs font-bold uppercase text-stone-400 mb-3">{t('lost_found_history')}</h4>
                   {activity.length === 0 ? (
-                    <p className="text-xs text-stone-400">No activity yet.</p>
+                    <p className="text-xs text-stone-400">{t('lost_found_no_activity')}</p>
                   ) : (
                     <ul className="space-y-3">
                       {activity.map((a) => (
