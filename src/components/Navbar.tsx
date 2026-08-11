@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
+import { t } from '../i18n';
 
 interface NavbarProps {
   currentView: ViewState;
@@ -27,26 +28,26 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate, onLogout }) =>
                 onClick={() => onNavigate('HOME')}
                 className={`${currentView === 'HOME' ? 'text-amber-700 font-semibold' : 'text-stone-600'} hover:text-amber-600 px-3 py-2 rounded-md text-sm transition-colors`}
               >
-                Home
+                {t('nav_home')}
               </button>
               <button
                 onClick={() => onNavigate('CHECKIN')}
                 className={`${currentView === 'CHECKIN' ? 'text-amber-700 font-semibold' : 'text-stone-600'} hover:text-amber-600 px-3 py-2 rounded-md text-sm transition-colors`}
               >
-                Guest Check-In
+                {t('nav_guest_checkin')}
               </button>
               <button
                 onClick={() => onNavigate('ADMIN_DASHBOARD')}
                 className={`${currentView === 'ADMIN_DASHBOARD' || currentView === 'REPORTS' || currentView === 'IMPORT' ? 'text-amber-700 font-semibold' : 'text-stone-600'} hover:text-amber-600 px-3 py-2 rounded-md text-sm transition-colors`}
               >
-                Management
+                {t('nav_management')}
               </button>
               {onLogout && (
                 <button
                   onClick={onLogout}
                   className="text-stone-400 hover:text-red-600 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors border border-stone-100"
                 >
-                  Logout
+                  {t('nav_logout')}
                 </button>
               )}
             </div>
