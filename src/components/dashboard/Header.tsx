@@ -55,7 +55,7 @@ export function Header({
               )}
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold text-gray-900 truncate">
-                  {business?.trading_name || 'Business Dashboard'}
+                  {business?.trading_name || t('dashboard_title')}
                 </h1>
                 {business?.slogan && (
                   <p className="text-xs text-gray-500 italic truncate hidden sm:block">
