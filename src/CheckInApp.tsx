@@ -8,9 +8,9 @@ import { Booking } from './types';
 import { useTranslation } from './i18n';
 
 export default function CheckInApp() {
-  const { t } = useTranslation();
   const { businessId } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // ✅ DEBUG: Log when component mounts/unmounts
   useEffect(() => {
