@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from '../i18n';
 
 interface IndemnityData {
   guest_name: string;
@@ -14,6 +15,7 @@ interface IndemnityData {
 }
 
 export default function IndemnityView() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [indemnity, setIndemnity] = useState<IndemnityData | null>(null);
@@ -22,7 +24,7 @@ export default function IndemnityView() {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid indemnity link');
+      setError(t('indemnity_view_invalid_link'));
       setLoading(false);
       return;
     }
@@ -35,25 +37,25 @@ export default function IndemnityView() {
         if (response.ok) {
           setIndemnity(data);
         } else {
-          setError(data.error || 'Indemnity record not found');
+          setError(data.error || t('indemnity_view_not_found'));
         }
       } catch (err) {
         console.error('Error fetching indemnity:', err);
-        setError('Failed to load indemnity form');
+        setError(t('indemnity_view_failed'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchIndemnity();
-  }, [token]);
+  }, [token, t]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p className="text-white">Loading indemnity form...</p>
+          <p className="text-white">{t('indemnity_view_loading')}</p>
         </div>
       </div>
     );
@@ -64,13 +66,13 @@ export default function IndemnityView() {
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
         <div className="bg-white rounded-2xl p-8 max-w-md text-center">
           <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('indemnity_view_invalid')}</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
           >
-            Return to Home
+            {t('indemnity_view_return_home')}
           </button>
         </div>
       </div>
@@ -93,7 +95,7 @@ export default function IndemnityView() {
               <span className="text-white font-bold text-2xl">F</span>
             </div>
           )}
-          <h1 className="text-3xl font-bold text-white">Signed Indemnity Form</h1>
+          <h1 className="text-3xl font-bold text-white">{t('indemnity_view_title')}</h1>
           <p className="text-stone-400 mt-2">{indemnity?.business_name}</p>
         </div>
 
@@ -115,10 +117,9 @@ export default function IndemnityView() {
                     </p>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-stone-700">
-                    <p className="font-semibold text-stone-900 mb-2">Complete agreement text unavailable</p>
+                    <p className="font-semibold text-stone-900 mb-2">{t('indemnity_view_unavailable_title')}</p>
                     <p className="text-sm">
-                      This record was created before the full indemnity text was stored with the signature.
-                      Signature and guest details below remain valid for this signing event.
+                      {t('indemnity_view_unavailable_body')}
                     </p>
                   </div>
                 </div>
@@ -127,22 +128,22 @@ export default function IndemnityView() {
 
             {/* Signature Section */}
             <div className="mt-12 pt-8 border-t border-stone-200">
-              <h3 className="text-lg font-bold text-stone-900 mb-6">Electronic Signature</h3>
+              <h3 className="text-lg font-bold text-stone-900 mb-6">{t('indemnity_view_electronic_signature')}</h3>
               
               <div className="bg-stone-50 rounded-xl p-6 mb-6">
-                <p className="text-sm text-stone-500 mb-2">Signed by:</p>
+                <p className="text-sm text-stone-500 mb-2">{t('indemnity_view_signed_by')}</p>
                 <p className="text-xl font-semibold text-stone-900">{indemnity?.guest_name}</p>
-                <p className="text-sm text-stone-500 mt-2">ID/Passport Number: {indemnity?.passport_or_id}</p>
-                <p className="text-sm text-stone-500">Date Signed: {new Date(indemnity!.signed_at).toLocaleString()}</p>
+                <p className="text-sm text-stone-500 mt-2">{t('indemnity_view_id_passport')} {indemnity?.passport_or_id}</p>
+                <p className="text-sm text-stone-500">{t('indemnity_view_date_signed')} {new Date(indemnity!.signed_at).toLocaleString()}</p>
               </div>
 
               {/* Signature Image */}
               {indemnity?.signature_data && (
                 <div className="bg-stone-50 rounded-xl p-6">
-                  <p className="text-sm text-stone-500 mb-3">Digital Signature:</p>
+                  <p className="text-sm text-stone-500 mb-3">{t('indemnity_view_digital_signature')}</p>
                   <img 
                     src={indemnity.signature_data} 
-                    alt="Guest Signature" 
+                    alt={t('indemnity_view_signature_alt')} 
                     className="border border-stone-300 rounded-lg p-4 bg-white"
                     style={{ maxHeight: '150px' }}
                   />
@@ -150,8 +151,8 @@ export default function IndemnityView() {
               )}
 
               <div className="mt-8 text-center text-sm text-stone-400">
-                <p>This is an electronically signed document. It is legally binding and enforceable.</p>
-                <p className="mt-2">Signed via FastCheckin • {new Date(indemnity!.signed_at).toLocaleString()}</p>
+                <p>{t('indemnity_view_legally_binding')}</p>
+                <p className="mt-2">{t('indemnity_view_signed_via', { date: new Date(indemnity!.signed_at).toLocaleString() })}</p>
               </div>
             </div>
           </div>
@@ -167,13 +168,13 @@ export default function IndemnityView() {
             onClick={() => window.print()}
             className="px-6 py-2 bg-stone-700 text-white rounded-lg hover:bg-stone-600 transition-colors"
           >
-            🖨️ Print / Save as PDF
+            {t('indemnity_view_print')}
           </button>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 border border-stone-600 text-stone-300 rounded-lg hover:bg-stone-800 transition-colors"
           >
-            Return to Home
+            {t('indemnity_view_return_home')}
           </button>
         </div>
       </div>
