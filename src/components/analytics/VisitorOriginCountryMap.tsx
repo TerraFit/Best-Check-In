@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { CountryData } from '../../types';
 import { Map, Users, Globe2 } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface VisitorOriginCountryMapProps {
   data: any[];
@@ -139,7 +140,7 @@ export function VisitorOriginCountryMap({
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
         <Globe2 size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">No country-level details loaded</h3>
+        <h3 className="text-base font-bold text-stone-700">{t('analytics_no_country_details')}</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No records associated with {continentName} were found in the selected filter period.
         </p>
@@ -341,7 +342,7 @@ export function VisitorOriginCountryMap({
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
         <div className="flex items-center gap-1.5 mb-2">
           <Users size={12} className="text-orange-500" />
-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Markets</h4>
+          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('analytics_top_markets')}</h4>
         </div>
         <div className="space-y-1">
           {countryList.slice(0, 4).map((country) => (

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { fetchAvailableRooms, assignRoomToBooking } from '../../services/roomApi';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
 import type { Room } from '../../types/room';
+import { t } from '../../i18n';
 
 interface RoomAllocationSelectProps {
   businessId: string;
@@ -111,7 +112,7 @@ export default function RoomAllocationSelect({
           disabled={loading || missingDates || saving}
           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-100"
         >
-          <option value="">Not allocated</option>
+          <option value="">{t('rooms_not_allocated')}</option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
               {getRoomDisplayName(r)}
@@ -129,12 +130,12 @@ export default function RoomAllocationSelect({
         </button>
       </div>
 
-      {loading && <p className="text-xs text-gray-400">Loading available rooms…</p>}
+      {loading && <p className="text-xs text-gray-400">{t('rooms_loading_available')}</p>}
       {!loading && !missingDates && rooms.length === 0 && (
-        <p className="text-xs text-gray-500">No rooms available for these dates.</p>
+        <p className="text-xs text-gray-500">{t('rooms_none_available_dates')}</p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {success && <p className="text-xs text-green-600">Room assignment saved.</p>}
+      {success && <p className="text-xs text-green-600">{t('rooms_assignment_saved')}</p>}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   type StaffRole,
 } from '../../types/permissions';
 import { roleLabel } from '../../services/rbacService';
+import { t } from '../../i18n';
 
 interface Employee {
   id: string;
@@ -408,12 +409,12 @@ export function EmployeeManagementTab({
           <table className="w-full text-left text-xs">
             <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
               <tr>
-                <th className="px-4 py-4">Name</th>
-                <th className="px-4 py-4">Department</th>
-                <th className="px-4 py-4">Role</th>
-                <th className="px-4 py-4">Status</th>
-                <th className="px-4 py-4">Last Login</th>
-                <th className="px-4 py-4 text-center">Actions</th>
+                <th className="px-4 py-4">{t('employee_col_name')}</th>
+                <th className="px-4 py-4">{t('employee_col_department')}</th>
+                <th className="px-4 py-4">{t('employee_col_role')}</th>
+                <th className="px-4 py-4">{t('employee_col_status')}</th>
+                <th className="px-4 py-4">{t('employee_col_last_login')}</th>
+                <th className="px-4 py-4 text-center">{t('employee_col_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">

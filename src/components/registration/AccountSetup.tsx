@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
+import { t } from '../../i18n';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY!);
 
@@ -7,7 +8,7 @@ interface AccountSetupProps {
   data: {
     email: string;
     password: string;
-    confirmPassword: string;
+    confirm{t('login_password_label')}: string;
     subscriptionTier: 'monthly' | 'annual';
     paymentMethod: 'card' | 'eft';
   };
@@ -55,13 +56,13 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (data.password !== data.confirmPassword) {
-      alert("Passwords don't match");
+    if (data.password !== data.confirm{t('login_password_label')}) {
+      alert("{t('login_password_label')}s don't match");
       return;
     }
     
     if (data.password.length < 8) {
-      alert("Password must be at least 8 characters");
+      alert("{t('login_password_label')} must be at least 8 characters");
       return;
     }
     
@@ -130,7 +131,7 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
       <div className="grid md:grid-cols-2 gap-6">
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Email Address <span className="text-amber-600">*</span>
+            {t('login_email_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="email"
@@ -153,7 +154,7 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Password <span className="text-amber-600">*</span>
+            {t('login_password_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="password"
@@ -167,13 +168,13 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Confirm Password <span className="text-amber-600">*</span>
+            Confirm {t('login_password_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="password"
             required
-            value={data.confirmPassword}
-            onChange={e => onChange('confirmPassword', e.target.value)}
+            value={data.confirm{t('login_password_label')}}
+            onChange={e => onChange('confirm{t('login_password_label')}', e.target.value)}
             className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
             placeholder="••••••••"
           />
@@ -313,8 +314,8 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
             className="w-5 h-5 mt-0.5 rounded border-stone-300 text-amber-600"
           />
           <span className="text-sm text-stone-600">
-            I agree to the <a href="#" className="text-amber-700 font-bold hover:underline">Terms of Service</a> and 
-            <a href="#" className="text-amber-700 font-bold hover:underline ml-1">Privacy Policy</a>. I understand that 
+            {t('reg_agree_to')} <a href="#" className="text-amber-700 font-bold hover:underline">{t('reg_terms')}</a> and 
+            <a href="#" className="text-amber-700 font-bold hover:underline ml-1">{t('reg_privacy')}</a>. I understand that 
             my subscription will automatically renew unless cancelled.
           </span>
         </label>

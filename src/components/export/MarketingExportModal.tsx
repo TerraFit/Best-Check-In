@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { X, Download, FileSpreadsheet } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface MarketingExportModalProps {
   isOpen: boolean;
@@ -126,11 +127,11 @@ export default function MarketingExportModal({
                 onChange={(e) => setFilters({ ...filters, marketingConsent: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
               >
-                <option value="all">All Guests</option>
+                <option value="all">{t('export_all_guests')}</option>
                 <option value="subscribed">✅ Subscribed</option>
-                <option value="consent_given">Consent Given (Email Not Confirmed)</option>
+                <option value="consent_given">{t('export_consent_unconfirmed')}</option>
                 <option value="unsubscribed">❌ Unsubscribed</option>
-                <option value="no_consent">No Consent</option>
+                <option value="no_consent">{t('export_no_consent')}</option>
               </select>
             </div>
 

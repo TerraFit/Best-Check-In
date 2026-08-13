@@ -3,6 +3,7 @@
 
 import React, { useMemo } from 'react';
 import { 
+import { t } from '../../i18n';
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Cell, AreaChart, Area
 } from 'recharts';
@@ -91,27 +92,27 @@ export function BusinessOverviewTab({ bookings, totalRooms }: BusinessOverviewTa
       {/* Stat Widget Blocks */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-stone-200">
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Total Registrations</p>
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('staff_total_registrations')}</p>
           <p className="text-3xl font-serif font-black text-stone-950 mt-1">{totalCheckinsCount}</p>
-          <p className="text-[10px] text-stone-400 mt-2">Historically recorded check-ins</p>
+          <p className="text-[10px] text-stone-400 mt-2">{t('staff_hist_checkins')}</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-stone-200">
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Active Stays Today</p>
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('staff_active_stays')}</p>
           <p className="text-3xl font-serif font-black text-emerald-600 mt-1">{activeStaysCount}</p>
-          <p className="text-[10px] text-stone-400 mt-2">Currently checked-in on property</p>
+          <p className="text-[10px] text-stone-400 mt-2">{t('staff_checked_in_on_property')}</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-stone-200">
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Average Length of Stay</p>
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('staff_avg_length_stay')}</p>
           <p className="text-3xl font-serif font-black text-stone-950 mt-1">{avgNights} Nights</p>
-          <p className="text-[10px] text-stone-400 mt-2">Average duration per booking</p>
+          <p className="text-[10px] text-stone-400 mt-2">{t('staff_avg_duration')}</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-stone-200">
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Kitchen Alerts (Dietaries)</p>
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('staff_kitchen_alerts')}</p>
           <p className="text-3xl font-serif font-black text-amber-500 mt-1">{activeDietaries} Active</p>
-          <p className="text-[10px] text-stone-400 mt-2">Guests with dietary warnings</p>
+          <p className="text-[10px] text-stone-400 mt-2">{t('staff_dietary_warnings')}</p>
         </div>
       </div>
 
@@ -134,7 +135,7 @@ export function BusinessOverviewTab({ bookings, totalRooms }: BusinessOverviewTa
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-stone-400">No data loaded</div>
+              <div className="h-full flex items-center justify-center text-xs text-stone-400">{t('staff_no_data_loaded')}</div>
             )}
           </div>
         </div>
@@ -190,7 +191,7 @@ export function BusinessOverviewTab({ bookings, totalRooms }: BusinessOverviewTa
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-stone-400">No bookings loaded</div>
+              <div className="h-full flex items-center justify-center text-xs text-stone-400">{t('staff_no_bookings_loaded')}</div>
             )}
           </div>
         </div>

@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { scaleQuantize } from 'd3-scale';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
+import { t } from '../../i18n';
 
 // World map data - using a reliable GeoJSON source
 // We'll fetch this from a CDN or embed it
@@ -240,7 +241,7 @@ export function WorldMap({
         <div className="h-[450px] flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-            <p className="text-stone-400">Loading map data...</p>
+            <p className="text-stone-400">{t('analytics_loading_map')}</p>
           </div>
         </div>
       </div>
@@ -254,7 +255,7 @@ export function WorldMap({
         <div className="h-[450px] flex items-center justify-center">
           <div className="text-center max-w-md px-6">
             <div className="text-5xl mb-4">🌍</div>
-            <h3 className="text-lg font-semibold text-stone-900 mb-2">No visitor origin data available yet</h3>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2">{t('analytics_no_origin_data')}</h3>
             <p className="text-stone-400 text-sm">
               As guests check in, this map will highlight where they come from around the world.
             </p>

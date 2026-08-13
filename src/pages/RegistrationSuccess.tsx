@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { t } from '../i18n'
 
 export default function RegistrationSuccess() {
   const location = useLocation();
@@ -28,8 +29,8 @@ export default function RegistrationSuccess() {
         
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-amber-800 font-semibold">✨ Your 14-Day Free Trial Has Started ✨</p>
-          <p className="text-sm text-amber-700 mt-1">Trial ends on: <strong>{trialEnd}</strong></p>
-          <p className="text-xs text-amber-600 mt-2">No payment required until your trial ends</p>
+          <p className="text-sm text-amber-700 mt-1">{t('reg_trial_ends_on')}: <strong>{trialEnd}</strong></p>
+          <p className="text-xs text-amber-600 mt-2">{t('reg_no_payment_until')}</p>
         </div>
         
         <p className="text-stone-600 mb-6">
@@ -41,30 +42,30 @@ export default function RegistrationSuccess() {
         </div>
         
         <div className="space-y-4 text-left bg-stone-50 rounded-xl p-6 mb-6">
-          <h2 className="font-bold text-stone-900">What happens next?</h2>
+          <h2 className="font-bold text-stone-900">{t('reg_what_next')}</h2>
           <ol className="space-y-3 text-sm text-stone-600">
             <li className="flex gap-3">
               <span className="bg-amber-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
-              <span>Check your email for your login credentials</span>
+              <span>{t('reg_check_email')}</span>
             </li>
             <li className="flex gap-3">
               <span className="bg-amber-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
-              <span>Log in to your dashboard to complete your profile</span>
+              <span>{t('reg_login_complete')}</span>
             </li>
             <li className="flex gap-3">
               <span className="bg-amber-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
-              <span>Download your QR code and display it at reception</span>
+              <span>{t('reg_download_qr')}</span>
             </li>
             <li className="flex gap-3">
               <span className="bg-amber-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
-              <span>Start accepting guest check-ins immediately!</span>
+              <span>{t('reg_start_checkins')}</span>
             </li>
           </ol>
         </div>
         
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-sm text-amber-800">
-            💡 <strong>Pro tip:</strong> Log in now to set up your property and download your QR code.
+            💡 <strong>{t('reg_pro_tip')}:</strong> Log in now to set up your property and download your QR code.
           </p>
         </div>
         

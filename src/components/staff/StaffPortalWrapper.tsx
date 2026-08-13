@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EmployeeManagementTab } from './EmployeeManagementTab';
 import { AuditTrailTab } from './AuditTrailTab';
+import { t } from '../../i18n';
 
 interface StaffPortalWrapperProps {
   session: {
@@ -340,15 +341,15 @@ export function StaffPortalWrapper({
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🔒</div>
-        <h3 className="text-lg font-semibold text-stone-700 mb-2">Access Restricted</h3>
+        <h3 className="text-lg font-semibold text-stone-700 mb-2">{t('staff_access_restricted')}</h3>
         <p className="text-stone-500 text-sm">
-          Employees should use the <strong>Employee Dashboard</strong> for guest management.
+          {t('staff_use_employee_dashboard')}
         </p>
         <button
           onClick={() => (window.location.href = '/employee/dashboard')}
           className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
         >
-          Go to Employee Dashboard →
+          {t('staff_go_employee_dashboard')}
         </button>
       </div>
     );
@@ -396,13 +397,13 @@ export function StaffPortalWrapper({
             👷
           </div>
           <div>
-            <h2 className="text-lg font-bold text-stone-950">Employee Portal</h2>
+            <h2 className="text-lg font-bold text-stone-950">{t('login_employee_title')}</h2>
             <p className="text-sm text-stone-600 mt-1 max-w-xl">
               Employees log in here to perform their daily work — housekeeping tasks, check-ins and
               room operations according to their role.
             </p>
             <p className="text-sm text-stone-500 mt-3 max-w-xl">
-              Preview the Employee Portal using a temporary employee session.
+              {t('staff_preview_employee_desc')}
               <br />
               No employee login is required.
               <br />
@@ -430,7 +431,7 @@ export function StaffPortalWrapper({
             </>
           ) : (
             <>
-              Preview Employee Portal
+              {t('staff_preview_employee')}
               <span aria-hidden>→</span>
             </>
           )}
@@ -483,13 +484,13 @@ export function StaffPortalWrapper({
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-4" />
-                <p className="text-sm text-stone-500">Loading audit logs...</p>
+                <p className="text-sm text-stone-500">{t('staff_loading_audit')}</p>
               </div>
             </div>
           ) : fetchError ? (
             <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-center">
               <div className="text-red-500 text-4xl mb-4">⚠️</div>
-              <h3 className="text-lg font-semibold text-red-700 mb-2">Failed to Load Audit Logs</h3>
+              <h3 className="text-lg font-semibold text-red-700 mb-2">{t('staff_audit_load_failed')}</h3>
               <p className="text-sm text-red-600">{fetchError}</p>
               <button
                 onClick={fetchAuditLogs}
@@ -513,7 +514,7 @@ export function StaffPortalWrapper({
                   <span className="text-xl">🔔</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">New Audit Logs</h3>
+                  <h3 className="text-lg font-bold text-gray-900">{t('staff_new_audit_logs')}</h3>
                   <p className="text-xs text-gray-500">
                     {newLogCount} new entr{newLogCount > 1 ? 'ies' : 'y'} since your last visit
                   </p>

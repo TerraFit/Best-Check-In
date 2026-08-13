@@ -137,7 +137,7 @@ export default function LostFoundCreateForm({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-          <h3 className="font-bold text-stone-900">New Lost & Found Item</h3>
+          <h3 className="font-bold text-stone-900">{t('lost_found_new_item')}</h3>
           <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100">
             <X size={18} />
           </button>
@@ -149,7 +149,7 @@ export default function LostFoundCreateForm({
           </p>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">Item name *</label>
+            <label className="text-xs font-semibold text-stone-500">{t('lost_found_item_name')} *</label>
             <input
               required
               value={form.item_name}
@@ -161,7 +161,7 @@ export default function LostFoundCreateForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">Category</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_category')}</label>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -175,7 +175,7 @@ export default function LostFoundCreateForm({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">Condition</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_condition')}</label>
               <select
                 value={form.condition}
                 onChange={(e) =>
@@ -193,7 +193,7 @@ export default function LostFoundCreateForm({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">Description</label>
+            <label className="text-xs font-semibold text-stone-500">{t('lost_found_description')}</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -204,7 +204,7 @@ export default function LostFoundCreateForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">Date found</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_date_found')}</label>
               <input
                 type="date"
                 value={form.found_date}
@@ -213,7 +213,7 @@ export default function LostFoundCreateForm({
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">Time found</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_time_found')}</label>
               <input
                 type="time"
                 value={form.time_found}
@@ -224,19 +224,19 @@ export default function LostFoundCreateForm({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">Room number</label>
+            <label className="text-xs font-semibold text-stone-500">{t('lost_found_room_number')}</label>
             <input
               value={form.room_number}
               onChange={(e) => setForm({ ...form, room_number: e.target.value })}
               onBlur={onRoomBlur}
               className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-              placeholder="Auto-fills guest if booking exists"
+              placeholder={t("lost_found_autofill_guest")}
             />
           </div>
 
           {(form.guest_name || form.guest_email) && (
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs space-y-1">
-              <div className="font-semibold text-amber-900">Guest linked</div>
+              <div className="font-semibold text-amber-900">{t('lost_found_guest_linked')}</div>
               <div>{form.guest_name}</div>
               {form.guest_email && <div className="text-stone-600">{form.guest_email}</div>}
               {form.guest_phone && <div className="text-stone-600">{form.guest_phone}</div>}
@@ -245,7 +245,7 @@ export default function LostFoundCreateForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">Storage</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_storage')}</label>
               <select
                 value={form.storage_location}
                 onChange={(e) => setForm({ ...form, storage_location: e.target.value })}
@@ -259,7 +259,7 @@ export default function LostFoundCreateForm({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">Box / detail</label>
+              <label className="text-xs font-semibold text-stone-500">{t('lost_found_box_detail')}</label>
               <input
                 value={form.storage_detail}
                 onChange={(e) => setForm({ ...form, storage_detail: e.target.value })}
@@ -270,7 +270,7 @@ export default function LostFoundCreateForm({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">Internal notes</label>
+            <label className="text-xs font-semibold text-stone-500">{t('lost_found_internal_notes')}</label>
             <textarea
               value={form.internal_notes}
               onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}

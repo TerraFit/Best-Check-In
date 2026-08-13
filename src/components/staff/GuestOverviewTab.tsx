@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import GuestDetailsModal from '../dashboard/GuestDetailsModal';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
+import { t } from '../../i18n';
 
 interface GuestOverviewTabProps {
   bookings: any[];
@@ -98,7 +99,7 @@ export function GuestOverviewTab({
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {hasDietaryRestrictions(guest) && (
-            <span className="text-amber-500" title="Has dietary restrictions">⚠️</span>
+            <span className="text-amber-500" title={t("dashboard_dietary_restrictions")}>⚠️</span>
           )}
           <ChevronRight size={16} className="text-stone-400" />
         </div>
@@ -113,14 +114,14 @@ export function GuestOverviewTab({
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-green-50 px-4 py-3 border-b border-green-100 flex items-center gap-2">
               <UserCheck size={18} className="text-green-600" />
-              <h3 className="font-bold text-sm text-green-800">Arrivals Today</h3>
+              <h3 className="font-bold text-sm text-green-800">{t('dashboard_today_arrivals')}</h3>
               <span className="ml-auto bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
                 {todayArrivals.length}
               </span>
             </div>
             <div className="p-4">
               {todayArrivals.length === 0 ? (
-                <p className="text-stone-400 text-sm text-center py-4">No arrivals today</p>
+                <p className="text-stone-400 text-sm text-center py-4">{t('dashboard_no_arrivals')}</p>
               ) : (
                 <div className="space-y-2">
                   {todayArrivals.map(guest => renderGuestRow(guest, 'hover:bg-green-50'))}
@@ -132,14 +133,14 @@ export function GuestOverviewTab({
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
               <Bed size={18} className="text-blue-600" />
-              <h3 className="font-bold text-sm text-blue-800">Stayovers</h3>
+              <h3 className="font-bold text-sm text-blue-800">{t('housekeeping_stayover')}</h3>
               <span className="ml-auto bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">
                 {todayStayovers.length}
               </span>
             </div>
             <div className="p-4">
               {todayStayovers.length === 0 ? (
-                <p className="text-stone-400 text-sm text-center py-4">No current stayovers</p>
+                <p className="text-stone-400 text-sm text-center py-4">{t('dashboard_no_stayovers')}</p>
               ) : (
                 <div className="space-y-2">
                   {todayStayovers.map(guest => (
@@ -161,7 +162,7 @@ export function GuestOverviewTab({
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {hasDietaryRestrictions(guest) && (
-                          <span className="text-amber-500" title="Has dietary restrictions">⚠️</span>
+                          <span className="text-amber-500" title={t("dashboard_dietary_restrictions")}>⚠️</span>
                         )}
                         <ChevronRight size={16} className="text-stone-400" />
                       </div>
@@ -175,14 +176,14 @@ export function GuestOverviewTab({
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="bg-amber-50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
               <UserX size={18} className="text-amber-600" />
-              <h3 className="font-bold text-sm text-amber-800">Check-outs Today</h3>
+              <h3 className="font-bold text-sm text-amber-800">{t('dashboard_today_checkouts')}</h3>
               <span className="ml-auto bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
                 {todayCheckouts.length}
               </span>
             </div>
             <div className="p-4">
               {todayCheckouts.length === 0 ? (
-                <p className="text-stone-400 text-sm text-center py-4">No check-outs today</p>
+                <p className="text-stone-400 text-sm text-center py-4">{t('dashboard_no_checkouts')}</p>
               ) : (
                 <div className="space-y-2">
                   {todayCheckouts.map(guest => renderGuestRow(guest, 'hover:bg-amber-50'))}
@@ -205,8 +206,8 @@ export function GuestOverviewTab({
                 <UserPlus size={18} />
               </div>
               <div>
-                <p className="font-medium text-sm text-stone-900">New Check-in</p>
-                <p className="text-xs text-stone-500">Quick check-in</p>
+                <p className="font-medium text-sm text-stone-900">{t('dashboard_new_checkin')}</p>
+                <p className="text-xs text-stone-500">{t('dashboard_new_checkin_desc')}</p>
               </div>
             </button>
             
@@ -218,8 +219,8 @@ export function GuestOverviewTab({
                 <QrCode size={18} />
               </div>
               <div>
-                <p className="font-medium text-sm text-stone-900">QR Code</p>
-                <p className="text-xs text-stone-500">Display QR code</p>
+                <p className="font-medium text-sm text-stone-900">{t('dashboard_qr_code')}</p>
+                <p className="text-xs text-stone-500">{t('dashboard_qr_code_desc')}</p>
               </div>
             </button>
             
@@ -231,8 +232,8 @@ export function GuestOverviewTab({
                 <Printer size={18} />
               </div>
               <div>
-                <p className="font-medium text-sm text-stone-900">Print</p>
-                <p className="text-xs text-stone-500">Guest list</p>
+                <p className="font-medium text-sm text-stone-900">{t('dashboard_print')}</p>
+                <p className="text-xs text-stone-500">{t('staff_guest_list')}</p>
               </div>
             </button>
           </div>

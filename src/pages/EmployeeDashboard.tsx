@@ -17,6 +17,7 @@ import {
   departmentLabel,
 } from '../services/rbacService';
 import type { PermissionPrincipal } from '../services/rbacService';
+import { t } from '../i18n';
 
 interface Booking {
   id: string;
@@ -292,7 +293,7 @@ export default function EmployeeDashboard() {
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
-          <p className="text-stone-400 text-sm">Loading employee dashboard...</p>
+          <p className="text-stone-400 text-sm">{t('employee_dashboard_loading')}</p>
         </div>
       </div>
     );
@@ -311,7 +312,7 @@ export default function EmployeeDashboard() {
                 🧪
               </span>
               <div className="text-sm">
-                <p className="font-bold tracking-tight">Preview Mode</p>
+                <p className="font-bold tracking-tight">{t('employee_preview_mode')}</p>
                 <p className="text-violet-100 mt-0.5">
                   Viewing Employee Portal as{' '}
                   <span className="font-semibold text-white">
@@ -320,7 +321,7 @@ export default function EmployeeDashboard() {
                   <span className="mx-1.5 text-violet-300">·</span>
                   <span className="font-medium">{displayRole}</span>
                   <span className="mx-1.5 text-violet-300">·</span>
-                  <span className="text-violet-200">Business Owner Preview</span>
+                  <span className="text-violet-200">{t('employee_owner_preview')}</span>
                 </p>
               </div>
             </div>
@@ -329,7 +330,7 @@ export default function EmployeeDashboard() {
               onClick={handleExitPreview}
               className="inline-flex items-center justify-center px-4 py-2 bg-white text-violet-800 font-bold text-xs rounded-lg hover:bg-violet-50 transition-colors shadow-sm whitespace-nowrap"
             >
-              Exit Preview
+              {t('employee_exit_preview')}
             </button>
           </div>
         </div>
@@ -346,7 +347,7 @@ export default function EmployeeDashboard() {
               <Logo size="sm" />
               <div>
                 <h1 className="text-sm font-bold text-stone-900">
-                  {businessName || 'Employee Portal'}
+                  {businessName || t('login_employee_title')}
                 </h1>
                 <p className="text-[10px] text-stone-400 flex items-center gap-1">
                   <User size={10} /> {employee?.full_name || 'Staff'}
@@ -364,13 +365,13 @@ export default function EmployeeDashboard() {
 
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline-block px-3 py-1 bg-amber-50 rounded-lg text-xs font-bold text-amber-700 border border-amber-200">
-                {isPreview ? 'Preview · Staff Portal' : 'Staff Portal'}
+                {isPreview ? 'Preview · Staff Portal' : t('nav_staff')}
               </span>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 hover:border-red-200 text-stone-600 hover:text-red-600 rounded-xl text-xs font-semibold"
               >
-                <LogOut size={12} /> {isPreview ? 'Exit Preview' : 'Logout'}
+                <LogOut size={12} /> {isPreview ? '{t('employee_exit_preview')}' : 'Logout'}
               </button>
             </div>
           </div>
@@ -421,7 +422,7 @@ export default function EmployeeDashboard() {
           hasPermission(principal, 'canViewHousekeeping') && (
             <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6">
               <h3 className="font-bold text-sm text-stone-900 mb-4">
-                {activeMenu === 'todays_tasks' ? "Today's Housekeeping Tasks" : 'My Rooms'}
+                {activeMenu === 'todays_tasks' ? "Today's Housekeeping Tasks" : t('employee_my_rooms')}
               </h3>
               {hkTasks.length === 0 ? (
                 <p className="text-sm text-stone-400">
@@ -524,22 +525,22 @@ export default function EmployeeDashboard() {
         {activeMenu === 'profile' && (
           <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-2 text-sm">
             <p>
-              <span className="text-stone-400">Name</span>
+              <span className="text-stone-400">{t('employee_col_name')}</span>
               <br />
               <span className="font-semibold">{employee?.full_name}</span>
             </p>
             <p>
-              <span className="text-stone-400">Role</span>
+              <span className="text-stone-400">{t('employee_col_role')}</span>
               <br />
               <span className="font-semibold">{displayRole}</span>
             </p>
             <p>
-              <span className="text-stone-400">Department</span>
+              <span className="text-stone-400">{t('employee_col_department')}</span>
               <br />
               <span className="font-semibold">{displayDept}</span>
             </p>
             <p>
-              <span className="text-stone-400">Phone</span>
+              <span className="text-stone-400">{t('guest_details_phone')}</span>
               <br />
               <span className="font-mono">{employee?.phone_number}</span>
             </p>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { HotelConfig } from '../types';
+import { t } from '../i18n'
 
 export default function HotelSetup() {
   const { token } = useParams();
@@ -105,7 +106,7 @@ export default function HotelSetup() {
                     </h3>
                     <div className="grid md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs text-stone-500">Start Date</label>
+                        <label className="text-xs text-stone-500">{t('setup_start_date')}</label>
                         <input
                           type="text"
                           value={config.seasons[season].start}
@@ -124,7 +125,7 @@ export default function HotelSetup() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-stone-500">End Date</label>
+                        <label className="text-xs text-stone-500">{t('setup_end_date')}</label>
                         <input
                           type="text"
                           value={config.seasons[season].end}
@@ -143,7 +144,7 @@ export default function HotelSetup() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-stone-500">Price Multiplier</label>
+                        <label className="text-xs text-stone-500">{t('setup_price_multiplier')}</label>
                         <input
                           type="number"
                           step="0.1"
@@ -171,7 +172,7 @@ export default function HotelSetup() {
 
             <div className="border-t border-stone-100 pt-8">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                <h3 className="font-bold text-amber-900 mb-3">Import Existing Data (Optional)</h3>
+                <h3 className="font-bold text-amber-900 mb-3">{t('setup_import_optional')}</h3>
                 <p className="text-sm text-amber-800 mb-4">
                   Would you like to download a CSV template for importing your existing guest data?
                 </p>

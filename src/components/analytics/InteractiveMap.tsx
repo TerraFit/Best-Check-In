@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { loadGeoData } from '../../services/geoLoader';
 import { VisitorData, MapState, MapPermissions } from '../../types/map';
 import { COUNTRY_TO_CONTINENT } from '../../data/mappings/countryToContinent';
+import { t } from '../../i18n';
 
 interface InteractiveMapProps {
   data: VisitorData[];
@@ -144,7 +145,7 @@ export function InteractiveMap({
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-stone-400 text-sm">
-            {loadingGeo ? 'Loading map data...' : 'Loading visitor data...'}
+            {loadingGeo ? '{t('analytics_loading_map')}' : 'Loading visitor data...'}
           </p>
         </div>
       </div>
@@ -156,7 +157,7 @@ export function InteractiveMap({
       <div className="flex items-center justify-center h-[450px] bg-slate-50 rounded-xl">
         <div className="text-center max-w-md px-6">
           <div className="text-5xl mb-4">🌍</div>
-          <h3 className="text-lg font-semibold text-stone-900 mb-2">No visitor origin data available yet</h3>
+          <h3 className="text-lg font-semibold text-stone-900 mb-2">{t('analytics_no_origin_data')}</h3>
           <p className="text-stone-400 text-sm">
             As guests check in, this map will highlight where they come from around the world.
           </p>
@@ -202,13 +203,13 @@ export function InteractiveMap({
 
       {/* Legend */}
       <div className="absolute bottom-4 left-4 flex items-center gap-3 bg-white/90 px-3 py-2 rounded-lg shadow-sm border border-stone-200">
-        <span className="text-[10px] text-stone-500">Low</span>
+        <span className="text-[10px] text-stone-500">{t('analytics_low')}</span>
         <div className="flex gap-0.5">
           {COLOR_SCALE.map((color, i) => (
             <div key={i} className="w-5 h-3 rounded-sm" style={{ backgroundColor: color }} />
           ))}
         </div>
-        <span className="text-[10px] text-stone-500">High</span>
+        <span className="text-[10px] text-stone-500">{t('analytics_high')}</span>
         <span className="text-[10px] text-stone-400 mx-1">|</span>
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: NO_DATA_COLOR }} />

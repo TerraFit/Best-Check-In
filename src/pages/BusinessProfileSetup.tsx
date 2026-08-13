@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccess } from '../context/AccessContext';
+import { t } from '../i18n'
 
 export default function BusinessProfileSetup() {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export default function BusinessProfileSetup() {
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-center">Loading...</div>
+        <div className="text-center">{t('common_loading')}</div>
       </div>
     );
   }
@@ -84,30 +85,30 @@ export default function BusinessProfileSetup() {
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 space-y-8">
           {/* Business Info Summary */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-            <h3 className="font-bold text-amber-900 mb-3">Business Information</h3>
+            <h3 className="font-bold text-amber-900 mb-3">{t('dashboard_business_info')}</h3>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-stone-500">Trading Name:</span>
+                <span className="text-stone-500">{t('dashboard_trading_name')}:</span>
                 <p className="font-medium text-stone-900">{business?.trading_name}</p>
               </div>
               <div>
-                <span className="text-stone-500">Registered Name:</span>
+                <span className="text-stone-500">{t('settings_registered_name')}:</span>
                 <p className="font-medium text-stone-900">{business?.registered_name}</p>
               </div>
               <div>
-                <span className="text-stone-500">Email:</span>
+                <span className="text-stone-500">{t('dashboard_email')}:</span>
                 <p className="font-medium text-stone-900">{business?.email}</p>
               </div>
               <div>
-                <span className="text-stone-500">Phone:</span>
+                <span className="text-stone-500">{t('dashboard_phone')}:</span>
                 <p className="font-medium text-stone-900">{business?.phone}</p>
               </div>
             </div>
           </div>
 
-          {/* Property Details */}
+          {/* {t('settings_property_details')} */}
           <div>
-            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Property Details</h2>
+            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">{t('settings_property_details')}</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
@@ -140,9 +141,9 @@ export default function BusinessProfileSetup() {
             </div>
           </div>
 
-          {/* Seasonal Pricing */}
+          {/* {t('profile_seasonal_pricing')} */}
           <div>
-            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">Seasonal Pricing</h2>
+            <h2 className="text-2xl font-serif font-bold text-stone-900 mb-6">{t('profile_seasonal_pricing')}</h2>
             <p className="text-stone-500 mb-6">
               Set your seasonal rates. Medium season is required as your baseline.
             </p>
@@ -179,7 +180,7 @@ export default function BusinessProfileSetup() {
                 {formData.seasons[season].enabled && (
                   <div className="grid md:grid-cols-3 gap-4 mt-4">
                     <div>
-                      <label className="text-xs text-stone-500">Start Date</label>
+                      <label className="text-xs text-stone-500">{t('setup_start_date')}</label>
                       <input
                         type="text"
                         value={formData.seasons[season].start}
@@ -198,7 +199,7 @@ export default function BusinessProfileSetup() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-stone-500">End Date</label>
+                      <label className="text-xs text-stone-500">{t('setup_end_date')}</label>
                       <input
                         type="text"
                         value={formData.seasons[season].end}
@@ -214,7 +215,7 @@ export default function BusinessProfileSetup() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-stone-500">Price Multiplier</label>
+                      <label className="text-xs text-stone-500">{t('setup_price_multiplier')}</label>
                       <input
                         type="number"
                         step="0.1"
@@ -247,7 +248,7 @@ export default function BusinessProfileSetup() {
                 QR Code
               </div>
             </div>
-            <h3 className="font-bold text-amber-900 text-lg mb-2">Your Check-in QR Code</h3>
+            <h3 className="font-bold text-amber-900 text-lg mb-2">{t('profile_your_qr')}</h3>
             <p className="text-amber-700 text-sm mb-4">
               After completing setup, you can download and print this QR code
             </p>
@@ -256,7 +257,7 @@ export default function BusinessProfileSetup() {
               <span>•</span>
               <span className="font-medium">{business?.trading_name}</span>
               <span>•</span>
-              <span>Scan Me</span>
+              <span>{t('profile_scan_me')}</span>
             </div>
           </div>
 

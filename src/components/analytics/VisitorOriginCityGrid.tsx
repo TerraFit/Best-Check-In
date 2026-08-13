@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Award, Compass, HelpCircle, ArrowLeft, Building2 } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface CityData {
   name: string;
@@ -68,7 +69,7 @@ export function VisitorOriginCityGrid({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading city breakdown...</p>
+          <p className="text-stone-400 text-sm font-medium">{t('analytics_loading_cities')}</p>
         </div>
       </div>
     );
@@ -78,7 +79,7 @@ export function VisitorOriginCityGrid({
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
         <Building2 size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">No city details loaded</h3>
+        <h3 className="text-base font-bold text-stone-700">{t('analytics_no_city_details')}</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No city records were linked to {regionName} in this dataset.
         </p>

@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { collectLostFoundItem, uploadLostFoundPhotos } from '../../services/lostFoundApi';
 import type { LostFoundItem } from '../../types/lostFound';
+import { t } from '../../i18n';
 
 interface Props {
   businessId: string;
@@ -119,7 +120,7 @@ export default function CollectionConfirmModal({
     <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-stone-900">Collection confirmation</h3>
+          <h3 className="font-bold text-stone-900">{t('lost_found_collection_confirm')}</h3>
           <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100">
             <X size={18} />
           </button>
@@ -129,7 +130,7 @@ export default function CollectionConfirmModal({
           {item.item_name}
         </p>
         <div>
-          <label className="text-xs font-semibold text-stone-500">Collected by (name) *</label>
+          <label className="text-xs font-semibold text-stone-500">{t('lost_found_collected_by')} *</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -137,7 +138,7 @@ export default function CollectionConfirmModal({
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-stone-500">ID number (optional)</label>
+          <label className="text-xs font-semibold text-stone-500">{t('lost_found_id_optional')}</label>
           <input
             value={idNumber}
             onChange={(e) => setIdNumber(e.target.value)}
@@ -146,7 +147,7 @@ export default function CollectionConfirmModal({
         </div>
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-xs font-semibold text-stone-500">Signature</label>
+            <label className="text-xs font-semibold text-stone-500">{t('lost_found_signature')}</label>
             <button type="button" onClick={clearSig} className="text-[10px] text-stone-400">
               Clear
             </button>

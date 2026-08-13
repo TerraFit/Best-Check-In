@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
+import { t } from '../../i18n';
   Calendar, User, FileText, Filter, Search, Clock, 
   ChevronDown, Utensils, Edit2, CheckCircle, XCircle,
   ArrowRight, Eye
@@ -174,7 +175,7 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
   // Render details preview
   const renderDetailsPreview = (log: AuditLog) => {
     if (!log.details || Object.keys(log.details).length === 0) {
-      return <span className="text-stone-400">No details</span>;
+      return <span className="text-stone-400">{t('staff_audit_no_details')}</span>;
     }
 
     const entries = Object.entries(log.details);
@@ -226,10 +227,10 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
             onChange={(e) => setDateRange(e.target.value as any)}
             className="px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
           >
-            <option value="all">All Time</option>
-            <option value="today">Today</option>
-            <option value="week">Last 7 Days</option>
-            <option value="month">Last 30 Days</option>
+            <option value="all">{t('filters_all_time')}</option>
+            <option value="today">{t('staff_audit_today')}</option>
+            <option value="week">{t('filters_last_7_days')}</option>
+            <option value="month">{t('filters_last_30_days')}</option>
           </select>
 
           {/* Action Filter */}
@@ -238,7 +239,7 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
             onChange={(e) => setFilter(e.target.value)}
             className="px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
           >
-            <option value="all">All Actions</option>
+            <option value="all">{t('staff_audit_all_actions')}</option>
             {actionTypes.map(action => (
               <option key={action} value={action}>
                 {getActionLabel(action)}
@@ -251,7 +252,7 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
-              placeholder="Search logs..."
+              placeholder={t("staff_audit_search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none w-48 bg-white"
@@ -263,23 +264,23 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
-          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Total Logs</p>
+          <p className="text-[10px] text-stone-400 uppercase tracking-wider">{t('staff_audit_total_logs')}</p>
           <p className="text-2xl font-bold text-stone-900">{auditLogs.length}</p>
         </div>
         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
-          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Unique Users</p>
+          <p className="text-[10px] text-stone-400 uppercase tracking-wider">{t('staff_audit_unique_users')}</p>
           <p className="text-2xl font-bold text-stone-900">
             {new Set(auditLogs.map(log => log.user_id)).size}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
-          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Food Restriction Updates</p>
+          <p className="text-[10px] text-stone-400 uppercase tracking-wider">{t('staff_audit_food_updates')}</p>
           <p className="text-2xl font-bold text-stone-900">
             {auditLogs.filter(log => log.action === 'UPDATE_FOOD_RESTRICTIONS').length}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
-          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Stay Updates</p>
+          <p className="text-[10px] text-stone-400 uppercase tracking-wider">{t('staff_audit_stay_updates')}</p>
           <p className="text-2xl font-bold text-stone-900">
             {auditLogs.filter(log => log.action === 'UPDATE_STAY_DETAILS').length}
           </p>
@@ -292,12 +293,12 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
           <table className="w-full text-left text-xs">
             <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
               <tr>
-                <th className="px-6 py-4">Timestamp</th>
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Guest</th>
-                <th className="px-6 py-4">Action</th>
-                <th className="px-6 py-4">Changes</th>
-                <th className="px-6 py-4">IP Address</th>
+                <th className="px-6 py-4">{t('staff_audit_timestamp')}</th>
+                <th className="px-6 py-4">{t('staff_audit_user')}</th>
+                <th className="px-6 py-4">{t('lost_found_guest')}</th>
+                <th className="px-6 py-4">{t('staff_audit_action')}</th>
+                <th className="px-6 py-4">{t('staff_audit_changes')}</th>
+                <th className="px-6 py-4">{t('staff_audit_ip')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">
@@ -306,7 +307,7 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
                   <td colSpan={6} className="px-6 py-12 text-center text-stone-400">
                     <div className="flex flex-col items-center gap-2">
                       <FileText size={32} className="text-stone-300" />
-                      <p>No audit logs found</p>
+                      <p>{t('staff_audit_none')}</p>
                       {search || filter !== 'all' ? (
                         <button
                           onClick={() => { setSearch(''); setFilter('all'); }}
@@ -372,7 +373,7 @@ export function AuditTrailTab({ auditLogs, businessId }: AuditTrailTabProps) {
                       {renderDetailsPreview(log)}
                     </td>
 
-                    {/* IP Address */}
+                    {/* {t('staff_audit_ip')} */}
                     <td className="px-6 py-4">
                       <span className="text-stone-400 font-mono text-[10px]">
                         {log.ip_address || 'unknown'}

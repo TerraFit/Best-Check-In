@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ExportService } from '../../services/exportService';
 import { OfficialExportRequest } from '../../types/export';
 import { X, Download, Shield, AlertTriangle, Lock, ArrowLeft } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface OfficialRegisterExportModalProps {
   isOpen: boolean;
@@ -115,7 +116,7 @@ export default function OfficialRegisterExportModal({
         <div className="p-2 bg-red-100 rounded-full">
           <Shield size={24} className="text-red-600" />
         </div>
-        <h3 className="text-xl font-semibold text-gray-900">Official Guest Register Export</h3>
+        <h3 className="text-xl font-semibold text-gray-900">{t('export_official_title')}</h3>
       </div>
 
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -123,16 +124,16 @@ export default function OfficialRegisterExportModal({
           ⚠️ This export contains protected personal information.
         </p>
         <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
-          <li>You are authorised to access this information</li>
-          <li>The request is lawful</li>
-          <li>The information will be used only for legitimate purposes</li>
+          <li>{t('export_authorised')}</li>
+          <li>{t('export_lawful')}</li>
+          <li>{t('export_legitimate_use')}</li>
         </ul>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-amber-800">
-          <strong>Business:</strong> {businessName}<br />
-          <strong>Date:</strong> {new Date().toLocaleString()}
+          <strong>{t('export_business')}:</strong> {businessName}<br />
+          <strong>{t('export_date')}:</strong> {new Date().toLocaleString()}
         </p>
       </div>
 
@@ -312,7 +313,7 @@ export default function OfficialRegisterExportModal({
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-amber-800">
-          <strong>This export will be permanently audited.</strong><br />
+          <strong>{t('export_audited')}</strong><br />
           All details will be recorded in the export audit log.
         </p>
       </div>
@@ -349,7 +350,7 @@ export default function OfficialRegisterExportModal({
             className="mt-1 w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
           />
           <label htmlFor="acceptTerms" className="text-sm text-gray-700">
-            <strong>I AUTHORISE THIS EXPORT</strong><br />
+            <strong>{t('export_i_authorise')}</strong><br />
             <span className="text-xs text-gray-500">
               I confirm that I am authorised to access this information and that this export is for legitimate purposes.
             </span>
@@ -357,20 +358,20 @@ export default function OfficialRegisterExportModal({
         </div>
 
         <div className="bg-stone-50 rounded-lg p-3 text-sm">
-          <p className="font-medium text-stone-700 mb-1">Export Summary:</p>
+          <p className="font-medium text-stone-700 mb-1">{t('export_summary')}:</p>
           <div className="grid grid-cols-2 gap-1 text-stone-600">
-            <span>Business:</span>
+            <span>{t('export_business')}:</span>
             <span className="font-medium">{businessName}</span>
-            <span>Reason:</span>
+            <span>{t('export_reason')}:</span>
             <span className="font-medium capitalize">{request.reason.replace('_', ' ')}</span>
             {request.caseNumber && (
               <>
-                <span>Case Number:</span>
+                <span>{t('export_case_number')}:</span>
                 <span className="font-medium">{request.caseNumber}</span>
               </>
             )}
-            <span>Format:</span>
-            <span className="font-medium uppercase">HTML (Printable PDF)</span>
+            <span>{t('export_format')}:</span>
+            <span className="font-medium uppercase">{t('export_html_printable')}</span>
           </div>
         </div>
       </div>

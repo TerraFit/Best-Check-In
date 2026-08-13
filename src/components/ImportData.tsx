@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { Booking, MonthlyData } from '../types';
 import { ImportPreview, mapRowToBooking, mergeMonthlyData } from '../services/importService';
+import { t } from '../i18n';
 
 interface ImportDataProps {
   onImport: (bookings: Booking[], monthlyData: MonthlyData[]) => void;
@@ -110,9 +111,9 @@ const ImportData: React.FC<ImportDataProps> = ({
     <div className="p-8 max-w-6xl mx-auto animate-fade-in">
       <div className="bg-white rounded-[2.5rem] shadow-2xl border border-stone-100 overflow-hidden">
         <div className="bg-gradient-to-r from-stone-900 to-stone-800 px-10 py-8 text-white">
-          <h2 className="text-3xl font-serif font-bold">Legacy Data Import</h2>
+          <h2 className="text-3xl font-serif font-bold">{t('import_legacy_title')}</h2>
           <p className="text-stone-400 text-sm mt-2 max-w-2xl">
-            Import guest history from CSV. Duplicate detection will match existing guests by ID/Passport or normalized name + country.
+            Import guest history from CSV. Duplicate detection will match existing guests by {t('import_id_passport')} or normalized name + country.
           </p>
         </div>
 
@@ -161,20 +162,20 @@ const ImportData: React.FC<ImportDataProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-900">FULL NAME</span>
-                    <span className="text-stone-500 block text-[10px]">Required</span>
+                    <span className="font-bold text-amber-900">{t('import_full_name')}</span>
+                    <span className="text-stone-500 block text-[10px]">{t('import_required')}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-900">DATE OF ARRIVAL</span>
-                    <span className="text-stone-500 block text-[10px]">DD/MM/YYYY</span>
+                    <span className="font-bold text-amber-900">{t('import_date_arrival')}</span>
+                    <span className="text-stone-500 block text-[10px]">{t('import_date_format')}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-900">COUNTRY OF RESIDENCE</span>
-                    <span className="text-stone-500 block text-[10px]">Auto-normalized</span>
+                    <span className="font-bold text-amber-900">{t('import_country_residence')}</span>
+                    <span className="text-stone-500 block text-[10px]">{t('import_auto_normalized')}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-900">ID NUMBER</span>
-                    <span className="text-stone-500 block text-[10px]">For matching</span>
+                    <span className="font-bold text-amber-900">{t('import_id_number')}</span>
+                    <span className="text-stone-500 block text-[10px]">{t('import_for_matching')}</span>
                   </div>
                 </div>
               </div>
@@ -185,19 +186,19 @@ const ImportData: React.FC<ImportDataProps> = ({
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200">
-                  <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Total Records</p>
+                  <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">{t('import_total_records')}</p>
                   <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{preview.stats.total}</p>
                 </div>
                 <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">New Guests</p>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">{t('import_new_guests')}</p>
                   <p className="text-4xl font-serif font-bold text-emerald-800 mt-2">{preview.stats.new}</p>
                 </div>
                 <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200">
-                  <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Duplicate Stays</p>
+                  <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">{t('import_duplicate_stays')}</p>
                   <p className="text-4xl font-serif font-bold text-amber-800 mt-2">{preview.stats.duplicates}</p>
                 </div>
                 <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200">
-                  <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Skipped</p>
+                  <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">{t('import_skipped')}</p>
                   <p className="text-4xl font-serif font-bold text-stone-900 mt-2">{preview.stats.skipped}</p>
                 </div>
               </div>
@@ -211,7 +212,7 @@ const ImportData: React.FC<ImportDataProps> = ({
                       </svg>
                     </div>
                     <div>
-                      <h4 className="font-bold text-amber-900">Duplicate Detection</h4>
+                      <h4 className="font-bold text-amber-900">{t('import_duplicate_detection')}</h4>
                       <p className="text-sm text-amber-800 mt-1">
                         Found {preview.duplicateBookings.length} stay(s) matching existing guests. These will be added as new stays for those guests.
                       </p>
@@ -231,12 +232,12 @@ const ImportData: React.FC<ImportDataProps> = ({
                   <table className="w-full text-left">
                     <thead className="text-[10px] uppercase text-stone-500 font-bold border-b border-stone-200">
                       <tr>
-                        <th className="pb-3">Guest Name</th>
-                        <th className="pb-3">ID/Passport</th>
-                        <th className="pb-3">Country</th>
-                        <th className="pb-3">Check-In</th>
-                        <th className="pb-3">Nights</th>
-                        <th className="pb-3">Status</th>
+                        <th className="pb-3">{t('checkin_guest_name')}</th>
+                        <th className="pb-3">{t('import_id_passport')}</th>
+                        <th className="pb-3">{t('import_country')}</th>
+                        <th className="pb-3">{t('guest_details_checkin')}</th>
+                        <th className="pb-3">{t('guest_details_nights')}</th>
+                        <th className="pb-3">{t('employee_col_status')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
@@ -248,7 +249,7 @@ const ImportData: React.FC<ImportDataProps> = ({
                           <td className="py-3">{b.checkInDate}</td>
                           <td className="py-3">{b.nights}</td>
                           <td className="py-3">
-                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold">New Guest</span>
+                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold">{t('import_new_guest')}</span>
                           </td>
                         </tr>
                       ))}
