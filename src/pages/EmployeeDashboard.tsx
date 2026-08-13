@@ -371,7 +371,7 @@ export default function EmployeeDashboard() {
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 hover:border-red-200 text-stone-600 hover:text-red-600 rounded-xl text-xs font-semibold"
               >
-                <LogOut size={12} /> {isPreview ? '{t('employee_exit_preview')}' : 'Logout'}
+                <LogOut size={12} /> {isPreview ? t('employee_exit_preview') : t('nav_logout')}
               </button>
             </div>
           </div>
