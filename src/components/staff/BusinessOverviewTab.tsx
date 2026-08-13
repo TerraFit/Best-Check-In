@@ -2,8 +2,8 @@
 // Extracted from AI Studio prototype - BusinessOverviewTab function
 
 import React, { useMemo } from 'react';
-import { 
 import { t } from '../../i18n';
+import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Cell, AreaChart, Area
 } from 'recharts';

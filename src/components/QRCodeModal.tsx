@@ -166,17 +166,17 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     // {t('qr_scan_to_checkin')}
     ctx.font = '700 22px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#f97316';
-    ctx.fillText('{t('qr_scan_to_checkin')}', canvas.width / 2, QR_Y - 40);
+    ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
     // Instruction line 1
     ctx.font = '400 16px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#374151';
-    ctx.fillText('{t('qr_camera_instruction')}', canvas.width / 2, QR_Y + QR_SIZE + 50);
+    ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
     // Instruction line 2
     ctx.font = '400 13px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#9ca3af';
-    ctx.fillText('{t('qr_no_app')}', canvas.width / 2, QR_Y + QR_SIZE + 80);
+    ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
     // ============================================================
     // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
@@ -203,7 +203,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = '{t('common_powered_by')}';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
@@ -281,17 +281,17 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       // {t('qr_scan_to_checkin')}
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
-      ctx.fillText('{t('qr_scan_to_checkin')}', canvas.width / 2, QR_Y - 40);
+      ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
       // Instruction line 1
       ctx.font = '400 16px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#374151';
-      ctx.fillText('{t('qr_camera_instruction')}', canvas.width / 2, QR_Y + QR_SIZE + 50);
+      ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
       // Instruction line 2
       ctx.font = '400 13px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
-      ctx.fillText('{t('qr_no_app')}', canvas.width / 2, QR_Y + QR_SIZE + 80);
+      ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
       // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
@@ -317,7 +317,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = '{t('common_powered_by')}';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
@@ -408,17 +408,17 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
-      ctx.fillText('{t('qr_scan_to_checkin')}', canvas.width / 2, QR_Y - 40);
+      ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
       ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
       ctx.font = '400 16px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#374151';
-      ctx.fillText('{t('qr_camera_instruction')}', canvas.width / 2, QR_Y + QR_SIZE + 50);
+      ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
       ctx.font = '400 13px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
-      ctx.fillText('{t('qr_no_app')}', canvas.width / 2, QR_Y + QR_SIZE + 80);
+      ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
       // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
@@ -444,7 +444,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = '{t('common_powered_by')}';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';

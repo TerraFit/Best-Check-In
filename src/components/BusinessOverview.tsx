@@ -1,7 +1,7 @@
 // src/components/BusinessOverview.tsx
 import { useState, useEffect } from 'react';
-import { 
 import { t } from '../i18n';
+import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer 
 } from 'recharts';

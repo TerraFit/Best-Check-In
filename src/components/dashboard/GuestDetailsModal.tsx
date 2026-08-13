@@ -545,7 +545,7 @@ export default function GuestDetailsModal({
                 <section className="pt-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-100 pt-4">
                     <span className="flex items-center gap-1"><Hash size={12} /> {t('guest_details_booking_id')}: {guestDetails.id?.substring(0, 8) || t('common_na')}</span>
-                    <span className="flex items-center gap-1"><Clock size={12} />{guestDetails.check_in_date ? `${t('guest_details_checked_in')}: ${formatDate(guestDetails.check_in_date)}` : '{t('guest_details_not_checked_in')}'}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} />{guestDetails.check_in_date ? `${t('guest_details_checked_in')}: ${formatDate(guestDetails.check_in_date)}` : t('guest_details_not_checked_in')}</span>
                   </div>
                 </section>
               </div>

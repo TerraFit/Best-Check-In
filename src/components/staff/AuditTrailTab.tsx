@@ -2,8 +2,8 @@
 // ✅ FULL IMPLEMENTATION: Audit Trail with food restrictions, stay details, and all actions
 
 import React, { useState, useMemo } from 'react';
-import { 
 import { t } from '../../i18n';
+import { 
   Calendar, User, FileText, Filter, Search, Clock, 
   ChevronDown, Utensils, Edit2, CheckCircle, XCircle,
   ArrowRight, Eye

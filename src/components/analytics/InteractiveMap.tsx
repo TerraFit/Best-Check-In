@@ -145,7 +145,7 @@ export function InteractiveMap({
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-stone-400 text-sm">
-            {loadingGeo ? '{t('analytics_loading_map')}' : 'Loading visitor data...'}
+            {loadingGeo ? t('analytics_loading_map') : t('analytics_loading_map')}
           </p>
         </div>
       </div>

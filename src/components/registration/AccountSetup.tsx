@@ -8,7 +8,7 @@ interface AccountSetupProps {
   data: {
     email: string;
     password: string;
-    confirm{t('login_password_label')}: string;
+    confirmPassword: string;
     subscriptionTier: 'monthly' | 'annual';
     paymentMethod: 'card' | 'eft';
   };
@@ -56,13 +56,13 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (data.password !== data.confirm{t('login_password_label')}) {
-      alert("{t('login_password_label')}s don't match");
+    if (data.password !== data.confirmPassword) {
+      alert(t('error_passwords_mismatch'));
       return;
     }
     
     if (data.password.length < 8) {
-      alert("{t('login_password_label')} must be at least 8 characters");
+      alert(t('error_min_length').replace('{min}', '8'));
       return;
     }
     
@@ -173,8 +173,8 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
           <input
             type="password"
             required
-            value={data.confirm{t('login_password_label')}}
-            onChange={e => onChange('confirm{t('login_password_label')}', e.target.value)}
+            value={data.confirmPassword}
+            onChange={e => onChange('confirmPassword', e.target.value)}
             className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500"
             placeholder="••••••••"
           />

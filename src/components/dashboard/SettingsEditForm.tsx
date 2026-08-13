@@ -11,11 +11,11 @@ interface SettingsEditFormProps {
     logo_url: string
   }
   onSave: (formData: any) => void
-  on{t('common_cancel')}: () => void
+  onCancel: () => void
   saving: boolean
 }
 
-export function SettingsEditForm({ initialForm, onSave, on{t('common_cancel')}, saving }: SettingsEditFormProps) {
+export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: SettingsEditFormProps) {
   const [profileForm, setProfileForm] = useState(initialForm)
   const [uploadingLogo, setUploadingLogo] = useState(false)
 
@@ -137,10 +137,10 @@ export function SettingsEditForm({ initialForm, onSave, on{t('common_cancel')}, 
           disabled={saving}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? '{t('common_saving')}' : '{t('common_save')}'}
+          {saving ? t('common_saving') : t('common_save')}
         </button>
         <button
-          onClick={on{t('common_cancel')}}
+          onClick={onCancel}
           className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
         >
           {t('common_cancel')}
