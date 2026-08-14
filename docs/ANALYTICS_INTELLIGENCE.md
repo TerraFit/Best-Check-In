@@ -35,8 +35,22 @@ roomNightsSold / (total_rooms × daysInPeriod) × 100
 - Model label: `mvp_total_rooms`
 
 ## Single calculation path
-Server modules under `netlify/functions/lib/analytics/` own metrics.
-UI consumes APIs (`get-analytics-summary`, `get-visitor-origins`, `get-room-performance`).
+Server modules under `netlify/functions/lib/analytics/` own metrics using `businessRules.js`.
+
+```
+bookings → businessRules → pipeline / roomPerformance → Netlify API → UI
+```
+
+UI components **render** API results only:
+- KPI cards ← `get-analytics-summary.summary`
+- Guest origins chart ← `originCountries`
+- Referral chart ← `referralData`
+- Length of stay chart ← `lengthOfStay`
+- Travel patterns ← `arrivingFrom` / `goingTo`
+- Geography ← `get-visitor-origins`
+- Room Performance ← `get-room-performance`
+
+Charts must **not** re-aggregate raw bookings for business metrics.
 
 ## Room Performance
 - Historical key: `bookings.room_id`
