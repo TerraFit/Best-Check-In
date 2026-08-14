@@ -52,8 +52,10 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
     handleSubmit,
     handleIndemnityScroll,
     getErrorClass,
-    ErrorMessage,
   } = checkIn;
+
+  const ErrorMessage: React.FC<{ field: string; message: string }> = ({ message }) =>
+    message ? <p className="text-red-500 text-xs mt-1">{message}</p> : null;
 
   useEffect(() => {
     // ensure scroll top on step change
