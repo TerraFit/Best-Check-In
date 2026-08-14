@@ -3,14 +3,21 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, CartesianG
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
 
+/** Canonical series from get-analytics-summary (server). No client-side booking aggregation. */
+export interface ReferralSeriesItem {
+  name: string
+  count: number
+  percentage: number
+}
+
 interface ReferralSourcesChartProps {
-  bookings: any[]
+  referralData: ReferralSeriesItem[]
   chartType: 'donut' | 'bar'
   onChartTypeChange: (type: 'donut' | 'bar') => void
 }
 
-export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }: ReferralSourcesChartProps) {
-  if (bookings.length === 0) {
+export function ReferralSourcesChart({ referralData: series, chartType, onChartTypeChange }: ReferralSourcesChartProps) {
+  if (!series || series.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-4">
@@ -27,23 +34,11 @@ export function ReferralSourcesChart({ bookings, chartType, onChartTypeChange }:
     )
   }
 
-  // Calculate percentages instead of raw counts
-  const totalBookings = bookings.length
-
-  const referralData = Object.entries(
-    bookings.reduce((acc, b) => {
-      const source = b.booking_source || b.referral_source
-      if (source && source !== 'NULL' && source !== 'null' && source.trim() !== '') {
-        const cleanSource = source.replace(/\.$/, '').trim()
-        acc[cleanSource] = (acc[cleanSource] || 0) + 1
-      }
-      return acc
-    }, {} as Record<string, number>)
-  )
-    .map(([name, count]) => ({ 
-      name, 
-      count,
-      percentage: ((count / totalBookings) * 100).toFixed(1)
+  const referralData = series
+    .map((r) => ({
+      name: r.name,
+      count: r.count,
+      percentage: typeof r.percentage === 'number' ? r.percentage.toFixed(1) : String(r.percentage),
     }))
     .sort((a, b) => b.count - a.count)
 
