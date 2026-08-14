@@ -24,7 +24,7 @@ interface ReportsTabProps {
   totalBookings: number;
 }
 
-export function ReportsTab({ bookings }: ReportsTabProps) {
+export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
   const { t } = useTranslation();
   const [effectivePlan, setEffectivePlan] = useState<SubscriptionTier>('starter');
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
@@ -133,11 +133,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
     }
   };
 
-  // Charts still accept bookings for compatibility; prefer summary when available
-  // NOTE: GuestOriginsChart / LengthOfStayChart still aggregate from bookings (dual path).
-  // KPI cards and Room Performance use canonical server APIs.
-  const chartBookings = bookings || [];
-
+  // Charts consume canonical series from get-analytics-summary (no client aggregation).
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 bg-white rounded-lg shadow-sm border border-stone-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -251,6 +247,19 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
         />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GuestOriginsChart
+          countries={summary?.originCountries || []}
+          chartType={guestChartType}
+          onChartTypeChange={setGuestChartType}
+        />
+        <ReferralSourcesChart
+          referralData={summary?.referralData || []}
+          chartType={referralChartType}
+          onChartTypeChange={setReferralChartType}
+        />
+      </div>
+
       {businessId && (
         <RoomPerformancePanel
           businessId={businessId}
@@ -258,19 +267,6 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           dateTo={dateTo}
         />
       )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GuestOriginsChart
-          bookings={chartBookings}
-          chartType={guestChartType}
-          onChartTypeChange={setGuestChartType}
-        />
-        <ReferralSourcesChart
-          bookings={chartBookings}
-          chartType={referralChartType}
-          onChartTypeChange={setReferralChartType}
-        />
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TravelPatternsCard
@@ -291,7 +287,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           isLoading={loading}
           title={t('reports_travel_patterns')}
         />
-        <LengthOfStayChart bookings={chartBookings} />
+        <LengthOfStayChart lengthOfStay={summary?.lengthOfStay || []} />
       </div>
     </div>
   );
