@@ -1,5 +1,6 @@
 // src/components/dashboard/TrialBanner.tsx
 import { useNavigate } from 'react-router-dom'
+import { t } from '../../i18n'
 
 interface TrialBannerProps {
   subscriptionStatus: string | null
@@ -26,10 +27,10 @@ export function TrialBanner({ subscriptionStatus, trialDaysLeft }: TrialBannerPr
             </svg>
             <div>
               <p className={`font-semibold ${isUrgent ? 'text-red-800' : 'text-amber-800'}`}>
-                {isUrgent ? '⚠️ Your free trial ends soon!' : `Your free trial ends in ${trialDaysLeft} days`}
+                {isUrgent ? t('trial_ends_soon') : t('trial_ends_in_days', { days: trialDaysLeft })}
               </p>
               <p className={`text-sm ${isUrgent ? 'text-red-700' : 'text-amber-700'}`}>
-                Upgrade now to continue using FastCheckin without interruption.
+                {t('trial_upgrade_continue')}
               </p>
             </div>
           </div>
@@ -37,7 +38,7 @@ export function TrialBanner({ subscriptionStatus, trialDaysLeft }: TrialBannerPr
             onClick={() => navigate('/business/billing')}
             className={`px-4 py-2 text-white rounded-lg text-sm font-medium ${isUrgent ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
           >
-            Upgrade Now →
+            {t('trial_upgrade_now')} →
           </button>
         </div>
       </div>

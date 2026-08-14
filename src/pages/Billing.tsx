@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getBusinessId } from '../utils/auth';
 import SubscriptionStatus from '../components/Billing/SubscriptionStatus';
 import { PlanType } from '../types/entitlements';
+import { t } from '../i18n'
 
 // ============================================================
 // TYPES
@@ -424,8 +425,8 @@ export default function Billing() {
         
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-stone-900">Billing & Subscription</h1>
-          <p className="text-stone-600 mt-2">Manage your plan and payment method</p>
+          <h1 className="text-3xl font-bold text-stone-900">{t('billing_title')}</h1>
+          <p className="text-stone-600 mt-2">{t('billing_subtitle')}</p>
         </div>
 
         {/* Subscription Status Card */}
@@ -452,7 +453,7 @@ export default function Billing() {
         {/* Current Plan Status */}
         {currentPlan && (
           <div className="max-w-md mx-auto mb-8 bg-white rounded-lg shadow p-4 text-center border border-stone-200">
-            <p className="text-stone-600">Current Plan:</p>
+            <p className="text-stone-600">{t('subscription_current_plan')}:</p>
             <p className="text-2xl font-bold text-amber-600 capitalize">{currentPlan}</p>
             {business?.subscription_status === 'trial' && (
               <p className="text-sm text-green-600 mt-1">✨ Free Trial Active</p>
@@ -485,7 +486,7 @@ export default function Billing() {
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Yearly <span className="text-xs ml-1 text-green-600">Save 17%</span>
+                Yearly <span className="text-xs ml-1 text-green-600">{t('billing_save_17')}</span>
               </button>
             </div>
           </div>
@@ -626,9 +627,9 @@ export default function Billing() {
 
         {/* Enterprise Tier */}
         <div className="mt-12 bg-white rounded-2xl shadow-lg p-8 text-center border border-stone-200">
-          <h3 className="text-2xl font-bold text-stone-900 mb-2">Enterprise</h3>
-          <p className="text-amber-600 font-semibold mb-4">Custom Pricing</p>
-          <p className="text-stone-600 mb-6">For properties with 20+ rooms or multi-property groups</p>
+          <h3 className="text-2xl font-bold text-stone-900 mb-2">{t('billing_enterprise')}</h3>
+          <p className="text-amber-600 font-semibold mb-4">{t('billing_custom_pricing')}</p>
+          <p className="text-stone-600 mb-6">{t('billing_enterprise_desc')}</p>
           <ul className="flex flex-wrap justify-center gap-6 mb-6 text-stone-600 text-sm">
             <li>✓ 20+ rooms</li>
             <li>✓ Multi-property support</li>
@@ -650,17 +651,17 @@ export default function Billing() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div className="bg-green-50 p-3 rounded-lg border border-green-200">
               <p className="font-semibold text-green-800">⬆️ Upgrade</p>
-              <p className="text-green-700">You can upgrade to any higher plan at any time.</p>
-              <p className="text-xs text-green-600 mt-1">Even if it's above your room count.</p>
+              <p className="text-green-700">{t('billing_upgrade_anytime')}</p>
+              <p className="text-xs text-green-600 mt-1">{t('billing_above_room_count')}</p>
             </div>
             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
               <p className="font-semibold text-amber-800">⬇️ Downgrade</p>
               <p className="text-amber-700">You can only downgrade to the plan that matches your room count.</p>
-              <p className="text-xs text-amber-600 mt-1">Example: 6 rooms → minimum Growth plan.</p>
+              <p className="text-xs text-amber-600 mt-1">{t('billing_example_growth')}</p>
             </div>
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
               <p className="font-semibold text-blue-800">🏠 Room-Based Minimum</p>
-              <p className="text-blue-700">Your minimum plan is determined by your number of rooms.</p>
+              <p className="text-blue-700">{t('billing_min_plan_rooms')}.</p>
               <p className="text-xs text-blue-600 mt-1">1-5 rooms: Starter • 6-10 rooms: Growth • etc.</p>
             </div>
           </div>
@@ -668,30 +669,30 @@ export default function Billing() {
 
         {/* FAQ Section */}
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
-          <h3 className="text-xl font-bold text-stone-900 mb-6 text-center">Frequently Asked Questions</h3>
+          <h3 className="text-xl font-bold text-stone-900 mb-6 text-center">{t('billing_faq')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">Can I change plans later?</h4>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_change')}</h4>
               <p className="text-sm text-stone-600">Yes, you can upgrade or downgrade your plan at any time. Upgrades are immediate, downgrades take effect at the next billing cycle.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">What happens when my trial ends?</h4>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_trial')}</h4>
               <p className="text-sm text-stone-600">Your account will automatically be assigned to the minimum plan for your room count. Upgrade to continue enjoying full features.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">Do you offer discounts for annual billing?</h4>
-              <p className="text-sm text-stone-600">Yes, annual billing saves you 17% compared to monthly.</p>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_annual')}</h4>
+              <p className="text-sm text-stone-600">{t('billing_faq_annual_a')}</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">Is there a setup fee?</h4>
-              <p className="text-sm text-stone-600">No, there are no hidden fees or setup costs.</p>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_setup')}</h4>
+              <p className="text-sm text-stone-600">{t('billing_faq_setup_a')}</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">Can I downgrade below my room count?</h4>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_downgrade')}</h4>
               <p className="text-sm text-stone-600">No. The minimum plan is based on your number of rooms. For example, a 6-room property cannot downgrade to Starter.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-stone-900 mb-2">Can I upgrade above my room count?</h4>
+              <h4 className="font-semibold text-stone-900 mb-2">{t('billing_faq_upgrade')}</h4>
               <p className="text-sm text-stone-600">Yes! You can upgrade to any higher plan regardless of your room count to access advanced features.</p>
             </div>
           </div>

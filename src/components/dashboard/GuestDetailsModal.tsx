@@ -10,6 +10,7 @@ import {
 import { useGuestDetails } from '../../hooks/useGuestDetails';
 import { FoodRestrictions } from '../../types/guest';
 import GuestDetailsRoomSection from './GuestDetailsRoomSection';
+import { t } from '../../i18n';
 
 interface GuestDetailsModalProps {
   isOpen: boolean;
@@ -35,24 +36,24 @@ const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   other_text: ''
 };
 
-const DIETARY_OPTIONS = [
-  { key: 'vegetarian', label: 'Vegetarian', icon: '🥬' },
-  { key: 'vegan', label: 'Vegan', icon: '🌱' },
-  { key: 'pescatarian', label: 'Pescatarian', icon: '🐟' },
-  { key: 'halal', label: 'Halal', icon: '☪️' },
-  { key: 'kosher', label: 'Kosher', icon: '✡️' },
-  { key: 'gluten_free', label: 'Gluten-Free', icon: '🌾' },
-  { key: 'lactose_free', label: 'Lactose-Free', icon: '🥛' },
-  { key: 'nut_allergy', label: 'Nut Allergy', icon: '🥜' },
-  { key: 'seafood_allergy', label: 'Seafood Allergy', icon: '🦐' },
-  { key: 'diabetic', label: 'Diabetic', icon: '💉' },
-  { key: 'no_pork', label: 'No Pork', icon: '🐷' },
-  { key: 'carnivore', label: 'Carnivore', icon: '🥩' },
-  { key: 'other', label: 'Other', icon: '📝' }
-];
+const DIETARY_OPTION_KEYS = [
+  { key: 'vegetarian', labelKey: 'dietary_vegetarian', icon: '🥬' },
+  { key: 'vegan', labelKey: 'dietary_vegan', icon: '🌱' },
+  { key: 'pescatarian', labelKey: 'dietary_pescatarian', icon: '🐟' },
+  { key: 'halal', labelKey: 'dietary_halal', icon: '☪️' },
+  { key: 'kosher', labelKey: 'dietary_kosher', icon: '✡️' },
+  { key: 'gluten_free', labelKey: 'dietary_gluten_free', icon: '🌾' },
+  { key: 'lactose_free', labelKey: 'dietary_lactose_free', icon: '🥛' },
+  { key: 'nut_allergy', labelKey: 'dietary_nut_allergy', icon: '🥜' },
+  { key: 'seafood_allergy', labelKey: 'dietary_seafood_allergy', icon: '🦐' },
+  { key: 'diabetic', labelKey: 'dietary_diabetic', icon: '💉' },
+  { key: 'no_pork', labelKey: 'dietary_no_pork', icon: '🐷' },
+  { key: 'carnivore', labelKey: 'dietary_carnivore', icon: '🥩' },
+  { key: 'other', labelKey: 'dietary_other', icon: '📝' }
+] as const;
 
 const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return 'N/A';
+  if (!dateStr) return t('common_na');
   try {
     return new Date(dateStr).toLocaleDateString('en-ZA', {
       year: 'numeric',
@@ -245,7 +246,7 @@ export default function GuestDetailsModal({
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
-      setError('Failed to save food restrictions. Please try again.');
+      setError(t('guest_details_save_food_error'));
     } finally {
       setSaving(false);
     }
@@ -272,7 +273,7 @@ export default function GuestDetailsModal({
         setTimeout(() => setSaveSuccess(false), 2000);
       }
     } catch (err) {
-      setError('Failed to save stay details. Please try again.');
+      setError(t('guest_details_save_stay_error'));
     } finally {
       setSavingStay(false);
     }
@@ -280,12 +281,12 @@ export default function GuestDetailsModal({
 
   const getActiveRestrictionsWithIcons = (): string[] => {
     const active: string[] = [];
-    DIETARY_OPTIONS.forEach(({ key, icon }) => {
+    DIETARY_OPTION_KEYS.forEach(({ key, icon, labelKey }) => {
       if (key === 'other') {
-        if (restrictions.other && restrictions.other_text) active.push(`📝 OTHER (${restrictions.other_text})`);
-        else if (restrictions.other) active.push('📝 OTHER');
+        if (restrictions.other && restrictions.other_text) active.push(`${icon} ${t(labelKey)} (${restrictions.other_text})`);
+        else if (restrictions.other) active.push(`${icon} ${t(labelKey)}`);
       } else if (restrictions[key as keyof FoodRestrictions] === true) {
-        active.push(`${icon} ${key.replace('_', ' ').toUpperCase()}`);
+        active.push(`${icon} ${t(labelKey)}`);
       }
     });
     return active;
@@ -310,14 +311,14 @@ export default function GuestDetailsModal({
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {loading ? 'Loading...' : guestDetails?.guest_name || 'Guest Details'}
+                  {loading ? t('common_loading') : guestDetails?.guest_name || t('guest_details_title')}
                 </h2>
                 {guestDetails?.booking_reference && (
-                  <p className="text-xs text-gray-400 font-mono">Ref: {guestDetails.booking_reference}</p>
+                  <p className="text-xs text-gray-400 font-mono">{t('guest_details_ref')}: {guestDetails.booking_reference}</p>
                 )}
               </div>
             </div>
-            <button onClick={handleClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600" aria-label="Close">
+            <button onClick={handleClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600" aria-label={t("common_close")}>
               <X size={20} />
             </button>
           </div>
@@ -327,7 +328,7 @@ export default function GuestDetailsModal({
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4" />
-                  <p className="text-sm text-gray-400">Loading guest details...</p>
+                  <p className="text-sm text-gray-400">{t('guest_details_loading')}</p>
                 </div>
               </div>
             )}
@@ -335,8 +336,8 @@ export default function GuestDetailsModal({
             {!loading && !guestDetails && (
               <div className="text-center py-16">
                 <User size={48} className="mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium text-gray-700 mb-1">Guest Not Found</h3>
-                <p className="text-sm text-gray-400">No details available for this booking</p>
+                <h3 className="text-lg font-medium text-gray-700 mb-1">{t('guest_details_not_found')}</h3>
+                <p className="text-sm text-gray-400">{t('guest_details_no_details')}</p>
               </div>
             )}
 
@@ -345,44 +346,44 @@ export default function GuestDetailsModal({
                 <section>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="h-px flex-1 bg-gray-200"></span>
-                    <span>Guest Information</span>
+                    <span>{t('guest_details_info')}</span>
                     <span className="h-px flex-1 bg-gray-200"></span>
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <User size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400">Full Name</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">{guestDetails.guest_name || 'N/A'}</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_full_name')}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{guestDetails.guest_name || t('common_na')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Phone size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400">Phone</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_phone')}</p>
                         {guestDetails.guest_phone ? (
                           <a href={`tel:${guestDetails.guest_phone}`} className="text-sm font-medium text-blue-600 hover:underline truncate block">{guestDetails.guest_phone}</a>
                         ) : (
-                          <p className="text-sm text-gray-400">N/A</p>
+                          <p className="text-sm text-gray-400">{t('common_na')}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Mail size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400">Email</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_email')}</p>
                         {guestDetails.guest_email ? (
                           <a href={`mailto:${guestDetails.guest_email}`} className="text-sm font-medium text-blue-600 hover:underline truncate block">{guestDetails.guest_email}</a>
                         ) : (
-                          <p className="text-sm text-gray-400">N/A</p>
+                          <p className="text-sm text-gray-400">{t('common_na')}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Globe size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400">Country of Origin</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">{guestDetails.guest_country || 'N/A'}</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_country')}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{guestDetails.guest_country || t('common_na')}</p>
                       </div>
                     </div>
                   </div>
@@ -391,22 +392,22 @@ export default function GuestDetailsModal({
                 <section>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="h-px flex-1 bg-gray-200"></span>
-                    <span>Travel Details</span>
+                    <span>{t('guest_details_travel')}</span>
                     <span className="h-px flex-1 bg-gray-200"></span>
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
                       <MapPin size={16} className="text-blue-500 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-blue-500 font-medium">Arriving From</p>
-                        <p className="text-sm font-semibold text-blue-700 truncate">{guestDetails.arriving_from || 'N/A'}</p>
+                        <p className="text-xs text-blue-500 font-medium">{t('guest_details_arriving_from')}</p>
+                        <p className="text-sm font-semibold text-blue-700 truncate">{guestDetails.arriving_from || t('common_na')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
                       <ArrowRight size={16} className="text-green-500 flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs text-green-500 font-medium">Next Destination</p>
-                        <p className="text-sm font-semibold text-green-700 truncate">{guestDetails.next_destination || 'N/A'}</p>
+                        <p className="text-xs text-green-500 font-medium">{t('guest_details_next_destination')}</p>
+                        <p className="text-sm font-semibold text-green-700 truncate">{guestDetails.next_destination || t('common_na')}</p>
                       </div>
                     </div>
                   </div>
@@ -416,18 +417,18 @@ export default function GuestDetailsModal({
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                       <span className="h-px flex-1 bg-gray-200"></span>
-                      <span className="flex items-center gap-2"><Calendar size={14} className="text-blue-500" /> Stay Details</span>
+                      <span className="flex items-center gap-2"><Calendar size={14} className="text-blue-500" /> {t('guest_details_stay')}</span>
                       <span className="h-px flex-1 bg-gray-200"></span>
                     </h3>
                     {!isEditingStay ? (
                       <button onClick={() => setIsEditingStay(true)} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
-                        <Edit2 size={12} /> Edit
+                        <Edit2 size={12} /> {t('common_edit')}
                       </button>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setIsEditingStay(false)} className="text-xs text-gray-500 font-medium">Cancel</button>
+                        <button onClick={() => setIsEditingStay(false)} className="text-xs text-gray-500 font-medium">{t('common_cancel')}</button>
                         <button onClick={handleSaveStay} disabled={savingStay} className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1">
-                          {savingStay ? 'Saving...' : (<><Check size={12} /> Save</>)}
+                          {savingStay ? t('common_saving') : (<><Check size={12} /> {t('common_save')}</>)}
                         </button>
                       </div>
                     )}
@@ -436,7 +437,7 @@ export default function GuestDetailsModal({
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-400">Check-in</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_checkin')}</p>
                         {isEditingStay ? (
                           <input type="date" value={stayEditData.check_in_date} onChange={(e) => setStayEditData(prev => ({ ...prev, check_in_date: e.target.value }))} className="w-full text-sm font-medium bg-transparent border-b outline-none" />
                         ) : (
@@ -447,7 +448,7 @@ export default function GuestDetailsModal({
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Calendar size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-400">Check-out</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_checkout')}</p>
                         {isEditingStay ? (
                           <input type="date" value={stayEditData.check_out_date} onChange={(e) => setStayEditData(prev => ({ ...prev, check_out_date: e.target.value }))} className="w-full text-sm font-medium bg-transparent border-b outline-none" />
                         ) : (
@@ -458,7 +459,7 @@ export default function GuestDetailsModal({
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <Users size={16} className="text-gray-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-400">Nights</p>
+                        <p className="text-xs text-gray-400">{t('guest_details_nights')}</p>
                         {isEditingStay ? (
                           <input type="number" min={1} max={365} value={stayEditData.nights} onChange={(e) => setStayEditData(prev => ({ ...prev, nights: parseInt(e.target.value) || 1 }))} className="w-full text-sm font-medium bg-transparent border-b outline-none" />
                         ) : (
@@ -491,7 +492,7 @@ export default function GuestDetailsModal({
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                       <span className="h-px flex-1 bg-gray-200"></span>
-                      <span className="flex items-center gap-2"><Utensils size={14} className="text-orange-500" /> Food Restrictions</span>
+                      <span className="flex items-center gap-2"><Utensils size={14} className="text-orange-500" /> {t('guest_details_dietary')}</span>
                       <span className="h-px flex-1 bg-gray-200"></span>
                     </h3>
                     <div className="flex items-center gap-2">
@@ -506,32 +507,32 @@ export default function GuestDetailsModal({
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                       >
-                        {saving ? 'Saving...' : (<><Save size={13} /> Save</>)}
+                        {saving ? t('common_saving') : (<><Save size={13} /> {t('common_save')}</>)}
                       </button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {DIETARY_OPTIONS.map(({ key, label, icon }) => {
+                    {DIETARY_OPTION_KEYS.map(({ key, labelKey, icon }) => {
                       const isChecked = restrictions[key as keyof FoodRestrictions] as boolean;
                       return (
                         <label key={key} className={`flex items-center gap-2 text-sm cursor-pointer rounded-lg px-3 py-2 border ${
                           isChecked ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-gray-50 border-gray-200 text-gray-700'
                         }`}>
                           <input type="checkbox" checked={isChecked} onChange={(e) => handleRestrictionChange(key as keyof FoodRestrictions, e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-orange-500" />
-                          <span className="truncate">{icon} {label}</span>
+                          <span className="truncate">{icon} {t(labelKey)}</span>
                         </label>
                       );
                     })}
                   </div>
                   {restrictions.other && (
                     <div className="mt-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Specify dietary requirement:</label>
-                      <input type="text" value={restrictions.other_text || ''} onChange={(e) => handleOtherTextChange(e.target.value)} placeholder="Please specify..." className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{t('guest_details_specify_dietary')}</label>
+                      <input type="text" value={restrictions.other_text || ''} onChange={(e) => handleOtherTextChange(e.target.value)} placeholder={t("guest_details_specify_placeholder")} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
                     </div>
                   )}
                   {getActiveRestrictionsWithIcons().length > 0 && (
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="text-xs font-medium text-amber-800 mb-2">Current Restrictions:</p>
+                      <p className="text-xs font-medium text-amber-800 mb-2">{t('guest_details_current_restrictions')}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {getActiveRestrictionsWithIcons().map((item, index) => (
                           <span key={index} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-medium">{item}</span>
@@ -543,8 +544,8 @@ export default function GuestDetailsModal({
 
                 <section className="pt-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-100 pt-4">
-                    <span className="flex items-center gap-1"><Hash size={12} /> Booking ID: {guestDetails.id?.substring(0, 8) || 'N/A'}</span>
-                    <span className="flex items-center gap-1"><Clock size={12} />{guestDetails.check_in_date ? `Checked in: ${formatDate(guestDetails.check_in_date)}` : 'Not checked in'}</span>
+                    <span className="flex items-center gap-1"><Hash size={12} /> {t('guest_details_booking_id')}: {guestDetails.id?.substring(0, 8) || t('common_na')}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} />{guestDetails.check_in_date ? `${t('guest_details_checked_in')}: ${formatDate(guestDetails.check_in_date)}` : t('guest_details_not_checked_in')}</span>
                   </div>
                 </section>
               </div>
@@ -552,7 +553,7 @@ export default function GuestDetailsModal({
           </div>
 
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-            <button onClick={handleClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">Close</button>
+            <button onClick={handleClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">{t('common_close')}</button>
           </div>
         </div>
       </div>
@@ -563,13 +564,13 @@ export default function GuestDetailsModal({
             <div className="flex items-start gap-4 mb-4">
               <div className="p-2 bg-yellow-100 rounded-full"><AlertCircle size={24} className="text-yellow-600" /></div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Unsaved Changes</h3>
-                <p className="text-sm text-gray-600 mt-1">You have unsaved changes. What would you like to do?</p>
+                <h3 className="text-lg font-semibold text-gray-900">{t('guest_details_unsaved_title')}</h3>
+                <p className="text-sm text-gray-600 mt-1">{t('guest_details_unsaved_message')}</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={handleContinue} className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium">Continue Editing</button>
-              <button onClick={handleDiscard} className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium">Discard Changes</button>
+              <button onClick={handleContinue} className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium">{t('guest_details_continue_editing')}</button>
+              <button onClick={handleDiscard} className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium">{t('guest_details_discard')}</button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 // Full implementation extracted from AI Studio prototype
 
 import React, { useState } from 'react';
+import { t } from '../../i18n';
 
 interface BusinessConfig {
   id: string;
@@ -55,7 +56,7 @@ export function ResortSettingsTab({ business, onUpdateBusiness }: ResortSettings
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Resort Name</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('staff_resort_name')}</label>
           <input
             type="text"
             required
@@ -66,7 +67,7 @@ export function ResortSettingsTab({ business, onUpdateBusiness }: ResortSettings
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Resort Slogan</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('staff_resort_slogan')}</label>
           <input
             type="text"
             value={slogan}
@@ -76,7 +77,7 @@ export function ResortSettingsTab({ business, onUpdateBusiness }: ResortSettings
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Total Rooms</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('dashboard_total_rooms')}</label>
           <input
             type="number"
             min="1"
@@ -88,7 +89,7 @@ export function ResortSettingsTab({ business, onUpdateBusiness }: ResortSettings
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Average Room Price (ZAR)</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('settings_avg_price_label')}</label>
           <input
             type="number"
             min="0"
@@ -100,7 +101,7 @@ export function ResortSettingsTab({ business, onUpdateBusiness }: ResortSettings
         </div>
 
         <div className="space-y-1 col-span-full">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Welcome Message</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('settings_welcome_message')}</label>
           <textarea
             rows={3}
             value={welcomeMsg}

@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, LockKeyhole, CheckCircle, ShieldAlert, Smartphone, User, Calendar, Clock } from 'lucide-react';
 import Logo from '../components/Logo';
+import { t } from '../i18n'
 
 interface Employee {
   id: string;
@@ -181,7 +182,7 @@ function EmployeeOnboardingPage() {
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
-          <p className="text-stone-400 text-sm">Verifying invitation...</p>
+          <p className="text-stone-400 text-sm">{t('onboard_verifying')}</p>
         </div>
       </div>
     );
@@ -197,7 +198,7 @@ function EmployeeOnboardingPage() {
           <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
             <ShieldAlert size={32} />
           </div>
-          <h2 className="text-2xl font-serif font-black text-stone-900">Invitation Invalid</h2>
+          <h2 className="text-2xl font-serif font-black text-stone-900">{t('onboard_invalid')}</h2>
           <p className="text-stone-500 text-sm leading-relaxed">{error}</p>
           
           <button
@@ -229,7 +230,7 @@ function EmployeeOnboardingPage() {
             <CheckCircle size={44} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-serif font-black text-stone-900">Account successfully activated!</h2>
+            <h2 className="text-3xl font-serif font-black text-stone-900">{t('onboard_activated')}</h2>
             <p className="text-stone-500 text-sm">
               Welcome aboard, <strong>{employee.full_name}</strong>. You are now authorized to access the {businessName} Business Overview.
             </p>
@@ -237,20 +238,20 @@ function EmployeeOnboardingPage() {
 
           <div className="bg-stone-50 rounded-xl p-4 grid grid-cols-2 gap-4 text-left text-xs">
             <div>
-              <p className="text-stone-400 font-medium uppercase tracking-wider">Employee</p>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">{t('onboard_employee')}</p>
               <p className="font-semibold text-stone-800">{employee.full_name}</p>
             </div>
             <div>
-              <p className="text-stone-400 font-medium uppercase tracking-wider">Phone</p>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">{t('guest_details_phone')}</p>
               <p className="font-mono text-stone-700">{employee.phone_number}</p>
             </div>
             <div>
-              <p className="text-stone-400 font-medium uppercase tracking-wider">Role</p>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">{t('employee_col_role')}</p>
               <p className="text-stone-700 capitalize">{employee.role || 'Employee'}</p>
             </div>
             <div>
-              <p className="text-stone-400 font-medium uppercase tracking-wider">Status</p>
-              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">Active</span>
+              <p className="text-stone-400 font-medium uppercase tracking-wider">{t('employee_col_status')}</p>
+              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">{t('onboard_active')}</span>
             </div>
           </div>
 
@@ -341,18 +342,18 @@ function EmployeeOnboardingPage() {
           {employee && (
             <div className="bg-stone-50 p-3 rounded-xl grid grid-cols-2 gap-2 text-[11px]">
               <div>
-                <span className="text-stone-400">Phone</span>
+                <span className="text-stone-400">{t('guest_details_phone')}</span>
                 <p className="font-mono text-stone-700">{employee.phone_number}</p>
               </div>
               <div>
-                <span className="text-stone-400">Invited</span>
+                <span className="text-stone-400">{t('onboard_invited')}</span>
                 <p className="text-stone-700 flex items-center gap-1">
                   <Calendar size={12} />
                   {new Date(employee.invited_at).toLocaleDateString('en-ZA')}
                 </p>
               </div>
               <div className="col-span-2">
-                <span className="text-stone-400">Expires</span>
+                <span className="text-stone-400">{t('onboard_expires')}</span>
                 <p className="text-stone-700 flex items-center gap-1">
                   <Clock size={12} />
                   {new Date(employee.invitation_expiry).toLocaleDateString('en-ZA')}
@@ -389,7 +390,7 @@ function EmployeeOnboardingPage() {
               {password && (
                 <div className="space-y-1.5 pt-1">
                   <div className="flex justify-between text-[10px] font-semibold text-stone-500">
-                    <span>Password Strength:</span>
+                    <span>{t('onboard_password_strength')}:</span>
                     <span className="text-stone-700">{passwordStrength.label}</span>
                   </div>
                   <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">

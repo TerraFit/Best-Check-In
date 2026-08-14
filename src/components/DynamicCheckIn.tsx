@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import CheckInForm from '../components/CheckInForm';
+import { useTranslation } from '../i18n';
 
 interface BusinessBranding {
   id: string;
@@ -30,6 +31,7 @@ function SuccessModal({ booking, businessName, onClose }: {
   businessName: string; 
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
@@ -56,39 +58,39 @@ function SuccessModal({ booking, businessName, onClose }: {
         </div>
         
         <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">
-          Check-in Complete! 🎉
+          {t('success_checkin_complete')}
         </h2>
         
         <p className="text-stone-600 mb-4">
-          Welcome to <span className="font-semibold text-amber-600">{businessName}</span>,<br />
+          {t('success_welcome', { businessName })} ,<br />
           <span className="font-medium">{booking?.guestName}</span>!
         </p>
         
         <div className="bg-amber-50 rounded-xl p-4 mb-6 text-left">
-          <p className="text-sm text-amber-800 font-semibold mb-2">✨ Booking Summary</p>
+          <p className="text-sm text-amber-800 font-semibold mb-2">{t('success_booking_summary')}</p>
           <div className="space-y-1 text-sm">
-            <p><span className="text-stone-600">Check-in:</span> {booking?.checkInDate}</p>
-            <p><span className="text-stone-600">Nights:</span> {booking?.nights}</p>
-            <p><span className="text-stone-600">Guests:</span> {booking?.adults} Adult(s), {booking?.kids} Child(ren)</p>
+            <p><span className="text-stone-600">{t('checkin_checkin_date_label')}:</span> {booking?.checkInDate}</p>
+            <p><span className="text-stone-600">{t('checkin_nights_label')}:</span> {booking?.nights}</p>
+            <p><span className="text-stone-600">{t('checkin_guest_label')}:</span> {t('checkin_adults_count', { count: booking?.adults })} , {t('checkin_children_count', { count: booking?.kids })}</p>
           </div>
         </div>
         
         <p className="text-sm text-stone-500 mb-4">
-          A confirmation email has been sent to your email address.
+          {t('success_email_details_sent')}
         </p>
         
         <button
           onClick={onClose}
           className="w-full bg-amber-500 text-white py-3 rounded-xl font-semibold hover:bg-amber-600 transition-colors"
         >
-          New Check-in ({countdown}s)
+          {t('checkin_new_checkin')} ({countdown}s)
         </button>
         
         <button
           onClick={() => window.location.href = '/'}
           className="w-full mt-3 text-stone-500 text-sm hover:text-stone-700 transition-colors"
         >
-          Return to Home
+          {t('common_return_home')}
         </button>
       </div>
     </div>
@@ -96,13 +98,14 @@ function SuccessModal({ booking, businessName, onClose }: {
 }
 
 export default function DynamicCheckIn() {
+  const { t } = useTranslation();
   const { businessId } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
   
   const [business, setBusiness] = useState<BusinessBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingMessage, setLoadingMessage] = useState('Loading check-in system...');
+  const [loadingMessage, setLoadingMessage] = useState(t('checkin_loading'));
   const [error, setError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -110,17 +113,17 @@ export default function DynamicCheckIn() {
 
   useEffect(() => {
     if (!businessId) {
-      setError('No business specified');
+      setError(t('checkin_no_business_specified'));
       setLoading(false);
       return;
     }
 
     // Progress simulation for better UX
     const progressSteps = [
-      { progress: 20, message: 'Connecting to secure server...', time: 300 },
-      { progress: 40, message: 'Loading business information...', time: 600 },
-      { progress: 60, message: 'Preparing secure check-in form...', time: 900 },
-      { progress: 80, message: 'Almost ready...', time: 1200 },
+      { progress: 20, message: t('checkin_loading_connect'), time: 300 },
+      { progress: 40, message: t('checkin_loading_business'), time: 600 },
+      { progress: 60, message: t('checkin_loading_form'), time: 900 },
+      { progress: 80, message: t('checkin_loading_ready'), time: 1200 },
     ];
 
     let stepIndex = 0;
@@ -135,14 +138,14 @@ export default function DynamicCheckIn() {
     // Fetch business branding - API returns business object directly
     fetch(`/.netlify/functions/get-business-branding?id=${businessId}`)
       .then(res => {
-        if (!res.ok) throw new Error('Business not found');
+        if (!res.ok) throw new Error(t('checkin_business_not_found'));
         return res.json();
       })
       .then(data => {
         console.log('✅ DynamicCheckIn - Business branding received:', data);
         console.log('✅ DynamicCheckIn - Trading name:', data.trading_name);
         setLoadingProgress(100);
-        setLoadingMessage('Ready!');
+        setLoadingMessage(t('checkin_loading_done'));
         setBusiness(data);
         // Update browser tab title dynamically
         document.title = `${data.trading_name} - Check-In | FastCheckin`;
@@ -160,7 +163,7 @@ export default function DynamicCheckIn() {
       });
 
     return () => clearInterval(progressInterval);
-  }, [businessId, refreshKey]);
+  }, [businessId, refreshKey, t]);
 
   const handleCheckinComplete = (booking: any, accessToken?: string) => {
     console.log('✅ Check-in complete!', booking);
@@ -199,7 +202,7 @@ export default function DynamicCheckIn() {
             {loadingMessage}
           </p>
           <p className="text-stone-500 text-xs mt-2">
-            Please wait while we prepare your secure check-in
+            {t('checkin_loading_wait')}
           </p>
           
           <div className="mt-6 flex justify-center space-x-1">
@@ -218,12 +221,12 @@ export default function DynamicCheckIn() {
       <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center">
           <div className="text-6xl mb-4">🔒</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Check-in Link</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('checkin_invalid_link_title')}</h1>
           <p className="text-gray-600 mb-6">
-            {error || 'This check-in link is invalid or the business no longer exists.'}
+            {error || t('checkin_invalid_link_body')}
           </p>
           <a href="/" className="inline-block bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-600 transition-colors">
-            Return to Home
+            {t('common_return_home')}
           </a>
         </div>
       </div>
@@ -264,8 +267,8 @@ export default function DynamicCheckIn() {
                 </p>
               )}
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 inline-block">
-                <p className="text-amber-400 font-semibold mb-2">✨ Fast Digital Check-in</p>
-                <p className="text-white">Complete your registration in under 2 minutes</p>
+                <p className="text-amber-400 font-semibold mb-2">{t('checkin_fast_digital')}</p>
+                <p className="text-white">{t('checkin_complete_under_2min')}</p>
               </div>
             </div>
           </div>

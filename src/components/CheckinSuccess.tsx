@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '../i18n';
 
 interface CheckinSuccessProps {
   booking: any;
@@ -13,18 +14,20 @@ interface CheckinSuccessProps {
 }
 
 const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onClose }) => {
+  const { t } = useTranslation();
   const [emailSent, setEmailSent] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [unsubscribe, setUnsubscribe] = useState(false);
   
   const primaryColor = business?.primary_color || '#f59e0b';
   const secondaryColor = business?.secondary_color || '#1e1e1e';
-  const businessName = business?.trading_name || 'the lodge';
+  const businessName = business?.trading_name || t('success_guest_fallback');
   const guestEmail = booking?.email || booking?.guest_email;
+  const guestFirst = (booking?.guestName || booking?.guest_name || '').split(' ')[0] || t('success_guest_fallback');
 
   const sendConfirmationEmail = async () => {
     if (!guestEmail) {
-      alert('No email address provided');
+      alert(t('success_no_email'));
       return;
     }
     
@@ -50,7 +53,7 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
       }
     } catch (error) {
       console.error('Error sending email:', error);
-      alert('Could not send confirmation email. Please contact reception.');
+      alert(t('success_email_failed'));
     } finally {
       setSendingEmail(false);
     }
@@ -68,28 +71,27 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
 
       {/* Success Message */}
       <h1 className="text-3xl font-serif font-bold text-stone-900 mb-4">
-        Check-in Complete!
+        {t('success_checkin_complete')}
       </h1>
       <p className="text-stone-600 text-lg mb-2">
-        Welcome to {businessName}, {booking?.guestName?.split(' ')[0] || booking?.guest_name?.split(' ')[0] || 'Guest'}.
+        {t('success_welcome', { businessName })}, {guestFirst}.
       </p>
       <p className="text-stone-500 mb-8">
-        Your registration has been recorded. We hope you enjoy your stay.
+        {t('success_registration_recorded')}
       </p>
 
       {/* Booking Summary */}
       <div className="bg-stone-50 rounded-2xl p-6 mb-8 text-left max-w-md mx-auto">
-        <h3 className="font-bold text-stone-900 mb-3">Booking Summary</h3>
+        <h3 className="font-bold text-stone-900 mb-3">{t('success_booking_summary')}</h3>
         <div className="space-y-2 text-sm">
-          <p><span className="text-stone-500">Check-in:</span> {booking?.checkInDate || booking?.check_in_date}</p>
-          <p><span className="text-stone-500">Nights:</span> {booking?.nights}</p>
-          <p><span className="text-stone-500">Guests:</span> {booking?.adults || booking?.adults} Adult(s), {booking?.kids || booking?.children} Child(ren)</p>
-          {/* ✅ NEW: Travel Pattern Data */}
+          <p><span className="text-stone-500">{t('checkin_checkin_date_label')}:</span> {booking?.checkInDate || booking?.check_in_date}</p>
+          <p><span className="text-stone-500">{t('checkin_nights_label')}:</span> {booking?.nights}</p>
+          <p><span className="text-stone-500">{t('checkin_guest_label')}:</span> {t('checkin_adults_count', { count: booking?.adults || booking?.adults })} , {t('checkin_children_count', { count: booking?.kids || booking?.children })}</p>
           {booking?.arriving_from && (
-            <p><span className="text-stone-500">Arriving From:</span> {booking.arriving_from}</p>
+            <p><span className="text-stone-500">{t('checkin_arriving_from')}:</span> {booking.arriving_from}</p>
           )}
           {booking?.next_destination && (
-            <p><span className="text-stone-500">Next Destination:</span> {booking.next_destination}</p>
+            <p><span className="text-stone-500">{t('checkin_next_destination')}:</span> {booking.next_destination}</p>
           )}
         </div>
       </div>
@@ -105,8 +107,8 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
             className="mt-1 w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
           />
           <label htmlFor="marketingConsent" className="text-sm text-amber-800">
-            <span className="font-semibold">Get exclusive offers and updates from {businessName}</span>
-            <span className="block text-xs text-amber-600 mt-1">Unsubscribe anytime. We'll never share your email.</span>
+            <span className="font-semibold">{t('success_marketing_offers', { businessName })}</span>
+            <span className="block text-xs text-amber-600 mt-1">{t('success_marketing_privacy')}</span>
           </label>
         </div>
         
@@ -115,12 +117,12 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
           disabled={sendingEmail || emailSent}
           className="w-full mt-2 py-3 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 transition-colors disabled:opacity-50"
         >
-          {sendingEmail ? 'Sending...' : emailSent ? 'Confirmation Sent ✓' : 'Send Confirmation Email'}
+          {sendingEmail ? t('success_sending') : emailSent ? t('success_email_sent_btn') : t('success_send_email')}
         </button>
         
         {emailSent && (
           <p className="text-xs text-amber-700 text-center mt-3">
-            A confirmation email with your waiver and check-in details has been sent.
+            {t('success_email_details_sent')}
           </p>
         )}
       </div>
@@ -134,7 +136,7 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
           className="px-8 py-4 rounded-xl font-semibold transition-all hover:-translate-y-1 shadow-md text-center"
           style={{ backgroundColor: secondaryColor, color: 'white' }}
         >
-          Visit {businessName} Website
+          {t('success_visit_website', { businessName })}
         </a>
         
         <a
@@ -143,7 +145,7 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
           rel="noopener noreferrer"
           className="px-8 py-4 bg-stone-200 text-stone-700 rounded-xl font-semibold hover:bg-stone-300 transition-all text-center"
         >
-          Get FastCheckin App
+          {t('success_get_app')}
         </a>
       </div>
 
@@ -153,7 +155,7 @@ const CheckinSuccess: React.FC<CheckinSuccessProps> = ({ booking, business, onCl
           onClick={onClose}
           className="mt-6 text-sm text-stone-400 hover:text-stone-600 transition-colors"
         >
-          Return to Welcome Screen
+          {t('success_return_welcome')}
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 // src/components/dashboard/SettingsEditForm.tsx
 import { useState } from 'react'
+import { t } from '../../i18n';
 
 interface SettingsEditFormProps {
   initialForm: {
@@ -53,7 +54,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Total Number of Rooms</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_total_rooms_label')}</label>
           <input
             type="number"
             value={profileForm.total_rooms}
@@ -62,7 +63,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Average Room Price (ZAR)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_avg_price_label')}</label>
           <input
             type="number"
             value={profileForm.avg_price}
@@ -71,7 +72,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Slogan</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_slogan')}</label>
           <input
             type="text"
             value={profileForm.slogan}
@@ -80,7 +81,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_welcome_message')}</label>
           <input
             type="text"
             value={profileForm.welcome_message}
@@ -89,7 +90,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Business Logo</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_business_logo')}</label>
           <div className="flex items-center gap-4">
             {profileForm.logo_url ? (
               <img src={profileForm.logo_url} alt="Logo Preview" className="h-16 w-16 object-contain border rounded-lg p-1 bg-white" />
@@ -116,7 +117,7 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
               >
                 {uploadingLogo ? 'Uploading...' : 'Choose Image'}
               </button>
-              <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF up to 2MB</p>
+              <p className="text-xs text-gray-400 mt-1">{t('settings_logo_hint')}</p>
             </div>
             {profileForm.logo_url && (
               <button
@@ -136,13 +137,13 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           disabled={saving}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? 'Saving...' : 'Save Changes'}
+          {saving ? t('common_saving') : t('common_save')}
         </button>
         <button
           onClick={onCancel}
           className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
         >
-          Cancel
+          {t('common_cancel')}
         </button>
       </div>
     </div>

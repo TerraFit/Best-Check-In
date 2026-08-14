@@ -1,5 +1,7 @@
 // src/components/dashboard/ReportFilters.tsx
 
+import { t } from '../../i18n';
+
 interface ReportFiltersProps {
   filters: {
     dateRange: string
@@ -24,7 +26,7 @@ export function ReportFilters({
           <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span className="text-sm font-medium text-gray-700">Report Period:</span>
+          <span className="text-sm font-medium text-gray-700">{t('reports_period')}:</span>
           <select
             value={filters.dateRange}
             onChange={(e) => {
@@ -34,16 +36,16 @@ export function ReportFilters({
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           >
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-            <option value="90days">Last 90 days</option>
-            <option value="12months">Last 12 months</option>
-            <option value="all">All time</option>
+            <option value="7days">{t('filters_last_7_days')}</option>
+            <option value="30days">{t('filters_last_30_days')}</option>
+            <option value="90days">{t('filters_last_90_days')}</option>
+            <option value="12months">{t('filters_last_12_months')}</option>
+            <option value="all">{t('filters_all_time')}</option>
           </select>
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Custom:</span>
+          <span className="text-sm text-gray-500">{t('filters_custom')}:</span>
           <input
             type="date"
             value={filters.startDate}
@@ -52,9 +54,9 @@ export function ReportFilters({
               updateFilter('dateRange', 'all');
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-            placeholder="From"
+            placeholder={t('filters_from')}
           />
-          <span className="text-gray-500">to</span>
+          <span className="text-gray-500">{t('filters_to')}</span>
           <input
             type="date"
             value={filters.endDate}
@@ -63,7 +65,7 @@ export function ReportFilters({
               updateFilter('dateRange', 'all');
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
-            placeholder="To"
+            placeholder={t('filters_to')}
           />
         </div>
         
@@ -72,7 +74,7 @@ export function ReportFilters({
             onClick={clearCurrentFilters}
             className="text-sm text-orange-600 hover:text-orange-700"
           >
-            Clear filters
+            {t('filters_clear')}
           </button>
         )}
       </div>

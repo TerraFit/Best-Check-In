@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ContinentData } from '../../types';
 import { Compass, HelpCircle } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface VisitorOriginContinentMapProps {
   data: ContinentData[];
@@ -44,7 +45,7 @@ export function VisitorOriginContinentMap({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading continent analytics...</p>
+          <p className="text-stone-400 text-sm font-medium">{t('analytics_loading_continents')}</p>
         </div>
       </div>
     );
@@ -81,7 +82,7 @@ export function VisitorOriginContinentMap({
       </div>
 
       <div className="absolute top-4 right-4 z-10 bg-stone-900/90 text-white px-3 py-1.5 rounded-lg text-xs font-mono shadow-md border border-stone-800">
-        REGION_LEVEL: <span className="text-orange-400 font-bold">CONTINENTS</span>
+        REGION_LEVEL: <span className="text-orange-400 font-bold">{t('analytics_continents')}</span>
       </div>
 
       <svg

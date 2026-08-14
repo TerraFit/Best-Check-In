@@ -1,4 +1,7 @@
 // src/i18n/types.ts
+// Aligned with actual translation resources. Index signature allows new keys
+// while preserving known-key autocomplete and documentation.
+
 export type SupportedLanguage = 'en' | 'af' | 'de' | 'fr' | 'nl' | 'pt' | 'es' | 'ru' | 'zh' | 'ar' | 'he' | 'it';
 
 export interface LanguageOption {
@@ -9,6 +12,9 @@ export interface LanguageOption {
 }
 
 export interface TranslationKeys {
+  // Allow any key present in the JSON resources (canonical source of truth)
+  [key: string]: string;
+
   // Common
   common_welcome: string;
   common_loading: string;
@@ -29,8 +35,106 @@ export interface TranslationKeys {
   common_take_new_photo: string;
   common_powered_by: string;
   common_clear: string;
-  
-  // Check-in Form
+  common_not_set: string;
+  common_edit: string;
+  common_add: string;
+  common_search: string;
+  common_filter: string;
+  common_export: string;
+  common_import: string;
+  common_yes: string;
+  common_no: string;
+  common_confirm: string;
+  common_close: string;
+  common_error: string;
+  common_success: string;
+  common_warning: string;
+  common_info: string;
+  common_no_data: string;
+  common_try_again: string;
+  common_please_wait: string;
+
+  // Navigation
+  nav_home: string;
+  nav_guest_checkin: string;
+  nav_management: string;
+  nav_logout: string;
+  nav_dashboard: string;
+  nav_checkins: string;
+  nav_guests: string;
+  nav_rooms: string;
+  nav_housekeeping: string;
+  nav_lost_found: string;
+  nav_newsletter: string;
+  nav_analytics: string;
+  nav_settings: string;
+  nav_staff: string;
+  nav_super_admin: string;
+  nav_back_to_dashboard: string;
+
+  // Rooms
+  rooms_title: string;
+  rooms_subtitle: string;
+  rooms_licensed_capacity: string;
+  rooms_licensed_rooms: string;
+  rooms_licensed_help: string;
+  rooms_list_title: string;
+  rooms_room: string;
+  rooms_room_number: string;
+  rooms_room_name: string;
+  rooms_room_type: string;
+  rooms_capacity: string;
+  rooms_adults: string;
+  rooms_children: string;
+  rooms_infants: string;
+  rooms_available_for_allocation: string;
+  rooms_available: string;
+  rooms_unavailable: string;
+  rooms_edit_room: string;
+  rooms_status: string;
+  rooms_actions: string;
+  rooms_loading: string;
+  rooms_no_rooms: string;
+  rooms_no_rooms_help: string;
+  rooms_notes: string;
+  rooms_reason: string;
+  rooms_select_reason: string;
+  rooms_placeholder_name: string;
+  rooms_placeholder_notes: string;
+  rooms_save: string;
+  rooms_saving: string;
+  rooms_cancel: string;
+  rooms_close: string;
+  rooms_shown_as: string;
+  rooms_allocation_help: string;
+  rooms_failed_load: string;
+  rooms_failed_save: string;
+  rooms_saved: string;
+
+  // Housekeeping
+  housekeeping_title: string;
+  housekeeping_refresh: string;
+  housekeeping_full_service: string;
+  housekeeping_stayover: string;
+  housekeeping_checkout: string;
+  housekeeping_task_status: string;
+
+  // Lost & Found
+  lost_found_title: string;
+  lost_found_found_item: string;
+  lost_found_item_photo: string;
+  lost_found_guest: string;
+  lost_found_room: string;
+  lost_found_date_time: string;
+  lost_found_contact_status: string;
+  lost_found_follow_up: string;
+  lost_found_1_day: string;
+  lost_found_3_day: string;
+  lost_found_7_day: string;
+  lost_found_unclaimed: string;
+  lost_found_disposal: string;
+
+  // Check-in (existing)
   checkin_title: string;
   checkin_personal_details: string;
   checkin_first_name: string;
@@ -72,8 +176,8 @@ export interface TranslationKeys {
   checkin_signature_instruction: string;
   checkin_adults: string;
   checkin_children: string;
-  
-  // Errors
+
+  // Errors, warnings, indemnity, success, language (existing keys retained)
   error_required: string;
   error_invalid_email: string;
   error_passwords_mismatch: string;
@@ -102,11 +206,7 @@ export interface TranslationKeys {
   error_booking_failed: string;
   error_unexpected: string;
   error_email_failed: string;
-  
-  // Warnings
   warning_duplicate_booking: string;
-  
-  // Indemnity
   indemnity_warning: string;
   indemnity_title: string;
   indemnity_accept: string;
@@ -117,8 +217,6 @@ export interface TranslationKeys {
   indemnity_part_e: string;
   indemnity_scroll_to_accept: string;
   indemnity_scroll_bottom: string;
-  
-  // Success
   success_checkin_complete: string;
   success_welcome: string;
   success_email_sent: string;
@@ -128,8 +226,6 @@ export interface TranslationKeys {
   success_step_checkin_recorded: string;
   success_step_email_sent: string;
   success_step_keys: string;
-  
-  // Language Selector
   language_selector_title: string;
   language_english: string;
   language_afrikaans: string;

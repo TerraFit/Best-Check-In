@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
+import { t } from '../i18n';
 
 interface Props {
   businessId: string;
@@ -162,23 +163,23 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     ctx.fillStyle = '#111827';
     ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
-    // SCAN TO CHECK IN
+    // {t('qr_scan_to_checkin')}
     ctx.font = '700 22px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#f97316';
-    ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y - 40);
+    ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
     // Instruction line 1
     ctx.font = '400 16px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#374151';
-    ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 50);
+    ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
     // Instruction line 2
     ctx.font = '400 13px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#9ca3af';
-    ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
+    ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
     // ============================================================
-    // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
+    // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
     // ============================================================
     
     const fastcheckinLogo = new Image();
@@ -202,7 +203,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = 'Powered by';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
@@ -213,7 +214,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       const startX = (canvas.width - totalWidth) / 2;
       const logoY = QR_Y + QR_SIZE + 110;
       
-      // Draw "Powered by" text
+      // Draw "{t('common_powered_by')}" text
       ctx.fillText(poweredByText, startX, logoY + 7);
       
       // Draw logo at its natural size (preserving aspect ratio)
@@ -277,23 +278,23 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       ctx.fillStyle = '#111827';
       ctx.fillText(businessName, canvas.width / 2, businessNameY);
 
-      // SCAN TO CHECK IN
+      // {t('qr_scan_to_checkin')}
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
-      ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y - 40);
+      ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
       // Instruction line 1
       ctx.font = '400 16px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#374151';
-      ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 50);
+      ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
       // Instruction line 2
       ctx.font = '400 13px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
-      ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
+      ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
+      // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
       // ============================================================
       
       const fastcheckinLogo = await loadImage('/fastcheckin-logo.png');
@@ -316,7 +317,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = 'Powered by';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
@@ -327,7 +328,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       const startX = (canvas.width - totalWidth) / 2;
       const logoY = QR_Y + QR_SIZE + 110;
       
-      // Draw "Powered by" text
+      // Draw "{t('common_powered_by')}" text
       ctx.fillText(poweredByText, startX, logoY + 7);
       
       // Draw logo at its natural size (preserving aspect ratio)
@@ -407,20 +408,20 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
       ctx.font = '700 22px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
-      ctx.fillText('SCAN TO CHECK IN', canvas.width / 2, QR_Y - 40);
+      ctx.fillText(t('qr_scan_to_checkin'), canvas.width / 2, QR_Y - 40);
 
       ctx.drawImage(qrImg, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
       ctx.font = '400 16px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#374151';
-      ctx.fillText('Open your camera and point it at the QR code', canvas.width / 2, QR_Y + QR_SIZE + 50);
+      ctx.fillText(t('qr_camera_instruction'), canvas.width / 2, QR_Y + QR_SIZE + 50);
 
       ctx.font = '400 13px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
-      ctx.fillText('No app required • Takes less than 1 minute', canvas.width / 2, QR_Y + QR_SIZE + 80);
+      ctx.fillText(t('qr_no_app'), canvas.width / 2, QR_Y + QR_SIZE + 80);
 
       // ============================================================
-      // BRANDING SECTION - "Powered by" + FastCheckin Logo (actual size)
+      // BRANDING SECTION - "{t('common_powered_by')}" + FastCheckin Logo (actual size)
       // ============================================================
       
       const fastcheckinLogo = await loadImage('/fastcheckin-logo.png');
@@ -443,7 +444,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
         logoWidth = maxLogoWidth;
       }
       
-      const poweredByText = 'Powered by';
+      const poweredByText = t('common_powered_by');
       
       ctx.font = '400 12px "Inter", system-ui, sans-serif';
       ctx.fillStyle = '#9ca3af';
@@ -589,7 +590,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl p-6">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-center mt-3 text-gray-500 text-sm">Preparing your QR code...</p>
+          <p className="text-center mt-3 text-gray-500 text-sm">{t('qr_preparing')}</p>
         </div>
       </div>
     );
@@ -600,9 +601,9 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl max-w-sm w-full p-5 text-center">
           <div className="text-red-500 text-3xl mb-3">⚠️</div>
-          <h3 className="text-md font-semibold text-gray-900 mb-2">Error</h3>
+          <h3 className="text-md font-semibold text-gray-900 mb-2">{t('common_error')}</h3>
           <p className="text-gray-600 text-sm mb-4">{error}</p>
-          <button onClick={onClose} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm">Close</button>
+          <button onClick={onClose} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm">{t('common_close')}</button>
         </div>
       </div>
     );
@@ -622,12 +623,12 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
 
         <div className="p-6">
           <div className="text-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-900">Print-Ready QR Poster</h3>
-            <p className="text-sm text-gray-500">A4 size (210 x 297mm) • HD Logo Support</p>
+            <h3 className="text-xl font-semibold text-gray-900">{t('qr_print_ready')}</h3>
+            <p className="text-sm text-gray-500">{t('qr_a4_hd')}</p>
           </div>
 
           <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (HD Recommended)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('qr_logo_hd')}</label>
             <div className="flex items-center gap-4">
               {localLogo ? (
                 <img src={localLogo} alt="Logo" className="h-16 w-auto object-contain border rounded-lg p-1 bg-white" />
@@ -655,7 +656,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
                 <p className="text-xs text-gray-400 mt-1">PNG with transparency • Up to 5MB • Preserves quality</p>
               </div>
               {localLogo && (
-                <button onClick={() => setLocalLogo('')} className="text-red-500 hover:text-red-700 text-sm">Remove</button>
+                <button onClick={() => setLocalLogo('')} className="text-red-500 hover:text-red-700 text-sm">{t('common_delete')}</button>
               )}
             </div>
           </div>
