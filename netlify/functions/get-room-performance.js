@@ -57,8 +57,11 @@ exports.handler = async (event) => {
     const dateFrom = q.dateFrom || q.startDate || null;
     const dateTo = q.dateTo || q.endDate || null;
 
-    const { buildRoomPerformance, resolveBusinessPlan, fetchBusiness } = await import(
+    const { resolveBusinessPlan, fetchBusiness } = await import(
       './lib/analytics/pipeline.js'
+    );
+    const { buildRoomPerformance } = await import(
+      './lib/analytics/roomPerformance.js'
     );
     const { getAnalyticsPlanLimits } = await import('./lib/analytics/packageGates.js');
 
