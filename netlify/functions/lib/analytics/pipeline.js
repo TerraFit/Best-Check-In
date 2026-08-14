@@ -403,5 +403,3 @@ export async function buildAnalyticsSummary({
     })),
   };
 }
-
-export { buildRoomPerformance } from './roomPerformance.js';
