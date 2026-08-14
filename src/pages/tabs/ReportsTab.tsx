@@ -4,6 +4,7 @@ import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart'
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
 import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
+import { RoomPerformancePanel } from '../../components/analytics/RoomPerformancePanel';
 import { SubscriptionTier, SubscriptionLimits, Booking } from '../../types';
 import { Sparkles, FileDown, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
@@ -133,6 +134,8 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
   };
 
   // Charts still accept bookings for compatibility; prefer summary when available
+  // NOTE: GuestOriginsChart / LengthOfStayChart still aggregate from bookings (dual path).
+  // KPI cards and Room Performance use canonical server APIs.
   const chartBookings = bookings || [];
 
   return (
@@ -219,7 +222,7 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           <p className="text-2xl font-bold text-gray-900">
             {loading ? '—' : `${occupancyRate}%`}
           </p>
-          <p className="text-[10px] text-stone-400 mt-1">Room nights / sellable nights</p>
+          <p className="text-[10px] text-stone-400 mt-1">Room nights / sellable nights (MVP)</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">SA / International</p>
@@ -247,6 +250,14 @@ export function ReportsTab({ bookings }: ReportsTabProps) {
           isLoading={loading}
         />
       </div>
+
+      {businessId && (
+        <RoomPerformancePanel
+          businessId={businessId}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GuestOriginsChart
