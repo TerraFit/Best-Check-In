@@ -3,6 +3,7 @@
 // Dietary option IDs preserved for storage; labels translated
 
 import React from 'react';
+import { Check, X } from 'lucide-react';
 import { FoodRestrictions } from '../../types/checkin';
 import { useTranslation } from '../../i18n';
 
@@ -85,7 +86,10 @@ export function Step3DietaryRestrictions({
                 }`}
                 style={hasDietaryRestrictions === true ? { borderColor: primaryColor } : {}}
               >
-                {t('common_yes')}
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Check size={18} className="text-green-600" strokeWidth={2.5} aria-hidden />
+                  {t('common_yes')}
+                </span>
               </button>
               <button
                 type="button"
@@ -97,7 +101,10 @@ export function Step3DietaryRestrictions({
                 }`}
                 style={hasDietaryRestrictions === false ? { borderColor: primaryColor } : {}}
               >
-                {t('common_no')}
+                <span className="inline-flex items-center justify-center gap-2">
+                  <X size={18} className="text-red-600" strokeWidth={2.5} aria-hidden />
+                  {t('common_no')}
+                </span>
               </button>
             </div>
           </div>
