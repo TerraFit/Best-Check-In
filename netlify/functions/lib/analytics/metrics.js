@@ -1,6 +1,7 @@
 /**
  * Shared metrics for Analytics Intelligence pipeline.
- * Occupancy uses room-nights sold / sellable room-nights — never bookings/30.
+ * Occupancy uses overlapping room-nights sold / sellable room-nights — never bookings/30.
+ * Eligibility and night rules live in businessRules.js (canonical).
  */
 
 import {
@@ -11,46 +12,28 @@ import {
   isSouthAfrica,
 } from './geoHierarchy.js';
 import { resolvePlaceAlias } from './locationAliases.js';
+import {
+  resolveDateRange,
+  defaultDateRange,
+  bookingNights,
+  overlappingNights,
+  daysInclusive,
+  toDateOnly,
+  ANALYTICS_TIMEZONE,
+} from './businessRules.js';
+
+export {
+  resolveDateRange,
+  defaultDateRange,
+  bookingNights,
+  overlappingNights,
+  daysInclusive,
+  toDateOnly,
+  ANALYTICS_TIMEZONE,
+};
 
 export function parseDateOnly(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
-}
-
-export function daysInclusive(fromStr, toStr) {
-  const from = new Date(fromStr);
-  const to = new Date(toStr);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 1;
-  const ms = to.getTime() - from.getTime();
-  return Math.max(1, Math.floor(ms / (1000 * 60 * 60 * 24)) + 1);
-}
-
-/** Default analytics window: last 90 days inclusive ending today (UTC date). */
-export function defaultDateRange() {
-  const to = new Date();
-  const toStr = to.toISOString().split('T')[0];
-  const from = new Date(to);
-  from.setDate(from.getDate() - 89);
-  return { dateFrom: from.toISOString().split('T')[0], dateTo: toStr };
-}
-
-export function resolveDateRange(dateFrom, dateTo) {
-  const defaults = defaultDateRange();
-  const from = parseDateOnly(dateFrom) || defaults.dateFrom;
-  const to = parseDateOnly(dateTo) || defaults.dateTo;
-  if (from > to) return { dateFrom: to, dateTo: from };
-  return { dateFrom: from, dateTo: to };
-}
-
-export function bookingNights(b) {
-  const n = Number(b.nights);
-  if (n > 0) return n;
-  if (b.check_in_date && b.check_out_date) {
-    return Math.max(1, daysInclusive(b.check_in_date, b.check_out_date) - 1 || 1);
-  }
-  return 1;
+  return toDateOnly(value);
 }
 
 export function bookingGuests(b) {
@@ -65,11 +48,19 @@ export function hasMarketingConsent(b) {
   return v === true || v === 'true' || v === 1 || v === '1';
 }
 
+/**
+ * Occupancy for a set of already-eligible, period-relevant bookings.
+ * Uses overlapping nights within [dateFrom, dateTo], not full booking nights.
+ * MVP sellable nights = sellableRooms × daysInPeriod (not maintenance-adjusted).
+ */
 export function calculateOccupancy(bookings, sellableRooms, dateFrom, dateTo) {
   const rooms = Math.max(1, Number(sellableRooms) || 1);
   const days = daysInclusive(dateFrom, dateTo);
   const sellableNights = rooms * days;
-  const sold = bookings.reduce((sum, b) => sum + bookingNights(b), 0);
+  const sold = (bookings || []).reduce(
+    (sum, b) => sum + overlappingNights(b, dateFrom, dateTo),
+    0
+  );
   const rate = sellableNights > 0 ? Math.min(100, (sold / sellableNights) * 100) : 0;
   return {
     roomNightsSold: sold,
@@ -77,6 +68,8 @@ export function calculateOccupancy(bookings, sellableRooms, dateFrom, dateTo) {
     sellableRooms: rooms,
     daysInPeriod: days,
     occupancyRate: Math.round(rate * 100) / 100,
+    occupancyModel: 'mvp_total_rooms',
+    timezone: ANALYTICS_TIMEZONE,
   };
 }
 
@@ -101,6 +94,10 @@ export function buildOriginNodes(countMap, total) {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Summarise eligible overlapping stays.
+ * totalNights = sum of overlapping nights in period (not full booking length outside period).
+ */
 export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
   const total = bookings.length;
   let domestic = 0;
@@ -120,7 +117,7 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
     else if (country !== 'Unknown') international++;
     if (country !== 'Unknown') countrySet.add(country);
 
-    totalNights += bookingNights(b);
+    totalNights += overlappingNights(b, dateFrom, dateTo);
     totalGuests += bookingGuests(b);
     totalRevenue += Number(b.total_amount || b.totalAmount || 0) || 0;
     if (hasMarketingConsent(b)) consentYes++;
@@ -163,7 +160,7 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
     .map(([name, count]) => ({
       name,
       count,
-      percentage: Math.round((count / total) * 10000) / 100,
+      percentage: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 15);
@@ -200,12 +197,11 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
 }
 
 export function cityDashboard(bookings) {
-  const s = summarizeBookings(
-    bookings,
-    1,
-    bookings[0]?.check_in_date || defaultDateRange().dateFrom,
-    bookings[bookings.length - 1]?.check_in_date || defaultDateRange().dateTo
-  );
+  const from =
+    bookings[0]?.check_in_date || defaultDateRange().dateFrom;
+  const to =
+    bookings[bookings.length - 1]?.check_in_date || defaultDateRange().dateTo;
+  const s = summarizeBookings(bookings, 1, from, to);
   return {
     visitors: s.totalBookings,
     averageStay: s.averageStay,
