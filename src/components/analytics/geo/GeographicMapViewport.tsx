@@ -53,6 +53,56 @@ const CONTINENT_NAMES = new Set([
   'Africa', 'Europe', 'North America', 'South America', 'Asia', 'Oceania', 'Other',
 ]);
 
+/** Compute [west, south, east, north] bbox from a GeoJSON geometry. */
+function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null {
+  if (!geometry) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  const walk = (coords: unknown): void => {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      const x = coords[0] as number;
+      const y = coords[1] as number;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+      return;
+    }
+    for (const c of coords) walk(c);
+  };
+
+  if (geometry.type === 'GeometryCollection') {
+    for (const g of geometry.geometries || []) walk((g as GeoJSON.Geometry).coordinates as unknown);
+  } else {
+    walk((geometry as GeoJSON.Geometry & { coordinates: unknown }).coordinates);
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return [minX, minY, maxX, maxY];
+}
+
+function findFeatureForCountry(
+  features: Array<{ properties?: Record<string, unknown>; geometry?: GeoJSON.Geometry }>,
+  countryName: string
+) {
+  const target = canonicalCountryName(countryName).toLowerCase();
+  return (
+    features.find((f) => {
+      const name = featureCountryName(
+        f.properties || {},
+        (f as { id?: string | number }).id ?? (f.properties as { id?: string })?.id
+      );
+      return canonicalCountryName(name).toLowerCase() === target;
+    }) || null
+  );
+}
+
 function GeographicMapViewportInner({
   level,
   nodes,
@@ -221,17 +271,23 @@ function GeographicMapViewportInner({
       const nodesAreContinents =
         nodes.length > 0 && nodes.every((n) => CONTINENT_NAMES.has(n.name));
 
+      const selectedCanon = selectedCountry
+        ? canonicalCountryName(selectedCountry).toLowerCase()
+        : null;
+
       const features = fc.features.map((f, i) => {
         const name = featureCountryName(
           f.properties || {},
           f.id ?? (f.properties as { id?: string })?.id
         );
+        const nameCanon = canonicalCountryName(name).toLowerCase();
         const countryNode =
           findNodeForFeature(name, nodes) ||
-          nodeByCanonical.get(canonicalCountryName(name).toLowerCase()) ||
+          nodeByCanonical.get(nameCanon) ||
           null;
         let count = countryNode?.count ?? 0;
         let percentage = countryNode?.percentage ?? 0;
+        const isSelected = !!selectedCanon && nameCanon === selectedCanon;
 
         if (nodesAreContinents || level === 'world' || level === 'continents') {
           const cont = getContinent(name);
@@ -242,6 +298,11 @@ function GeographicMapViewportInner({
           }
         }
 
+        // Keep selected country visually present when list nodes are regions/cities
+        if (isSelected && (level === 'regions' || level === 'cities') && count === 0) {
+          count = 1;
+        }
+
         return {
           ...f,
           id: f.id ?? i,
@@ -250,8 +311,9 @@ function GeographicMapViewportInner({
             name,
             count,
             percentage,
-            hasGuests: count > 0,
-            fillColor: heatColor(count),
+            hasGuests: count > 0 || isSelected,
+            isSelected,
+            fillColor: isSelected ? '#f97316' : heatColor(count),
           },
         };
       });
@@ -261,11 +323,38 @@ function GeographicMapViewportInner({
         src.setData({ type: 'FeatureCollection', features });
       }
 
+      // Viewport: world → continent → country (fitBounds). Region/city keep country frame.
       if (level === 'world' || level === 'continents') {
         map.flyTo({ center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, duration: 800 });
-      } else if (level === 'countries' && selectedContinent) {
+      } else if (level === 'countries' && selectedContinent && !selectedCountry) {
         const view = CONTINENT_VIEWS[selectedContinent] || WORLD_VIEW;
         map.flyTo({ center: view.center, zoom: view.zoom, duration: 900 });
+      } else if (
+        (level === 'countries' || level === 'regions' || level === 'cities') &&
+        selectedCountry
+      ) {
+        const match = findFeatureForCountry(features, selectedCountry);
+        const bounds = match ? geometryBounds(match.geometry) : null;
+        if (bounds) {
+          try {
+            map.fitBounds(
+              [
+                [bounds[0], bounds[1]],
+                [bounds[2], bounds[3]],
+              ],
+              { padding: 48, duration: 900, maxZoom: 7 }
+            );
+          } catch {
+            // Fallback: continent view if fitBounds fails
+            const cont = selectedContinent || getContinent(selectedCountry);
+            const view = CONTINENT_VIEWS[cont] || WORLD_VIEW;
+            map.flyTo({ center: view.center, zoom: Math.max(view.zoom, 3.5), duration: 900 });
+          }
+        } else {
+          const cont = selectedContinent || getContinent(selectedCountry);
+          const view = CONTINENT_VIEWS[cont] || WORLD_VIEW;
+          map.flyTo({ center: view.center, zoom: Math.max(view.zoom, 3.5), duration: 900 });
+        }
       }
 
       setProvinceUnavailable(level === 'regions' && !!selectedCountry);
