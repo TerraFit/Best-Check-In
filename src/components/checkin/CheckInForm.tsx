@@ -155,12 +155,18 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
             businessName={businessName}
             guestName={`${formData.firstName || ''} ${formData.lastName || ''}`.trim()}
             passportOrId={formData.passportOrId || ''}
-            idPhoto={idPhoto}
-            onIdPhotoChange={setIdPhoto}
-            signature={signature}
-            onSignatureChange={setSignature}
-            acceptLegal={acceptLegal}
-            onAcceptLegalChange={setAcceptLegal}
+            idPhoto={formData.idPhoto || null}
+            onIdPhotoChange={(photo) =>
+              setFormData(prev => ({ ...prev, idPhoto: photo || '' }))
+            }
+            signature={formData.signature || ''}
+            onSignatureChange={(sig) =>
+              setFormData(prev => ({ ...prev, signature: sig }))
+            }
+            acceptLegal={!!formData.acceptLegal}
+            onAcceptLegalChange={(accepted) =>
+              setFormData(prev => ({ ...prev, acceptLegal: accepted }))
+            }
             hasScrolledToBottom={hasScrolledToBottom}
             onIndemnityScroll={handleIndemnityScroll}
             loading={loading}
