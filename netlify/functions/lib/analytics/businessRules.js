@@ -30,6 +30,9 @@ const INCLUDE_STATUSES = new Set([
   'checkedout',
   'complete',
   'completed',
+  'in_house',
+  'inhouse',
+  'staying',
 ]);
 
 /**
@@ -206,9 +209,6 @@ export function buildQualityMeta(allBookings, eligible, dateFrom, dateTo) {
         ? Math.round((missingCountry / list.length) * 10000) / 100
         : 0,
     allocationCoveragePct,
-    allocatedStays: allocated,
-    periodTimezone: ANALYTICS_TIMEZONE,
-    occupancyModel: 'mvp_total_rooms',
     dateFrom: toDateOnly(dateFrom),
     dateTo: toDateOnly(dateTo),
   };
