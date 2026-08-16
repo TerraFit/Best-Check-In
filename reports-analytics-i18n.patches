@@ -1,0 +1,2548 @@
+From 1109bd6b7c3a6fc27bcced214d49de8d057ffee7 Mon Sep 17 00:00:00 2001
+From: TerraFit <inquiry@aemaragroup.com>
+Date: Sun, 16 Aug 2026 11:01:55 +0000
+Subject: [PATCH 1/2] fix(i18n): complete Report/Analytics UI translations
+
+---
+ .../lib/analytics/roomPerformance.js          | 16 +++-
+ scripts/i18n-validate.cjs                     | 73 +++++++++++++++++++
+ .../analytics/RoomPerformancePanel.tsx        | 53 ++++++++------
+ .../analytics/TravelPatternsCard.tsx          | 14 ++--
+ .../analytics/VisitorOriginExplorer.tsx       | 32 ++++----
+ .../analytics/geo/GeographicMapViewport.tsx   | 13 ++--
+ .../dashboard/GuestOriginsChart.tsx           | 16 ++--
+ .../dashboard/LengthOfStayChart.tsx           | 39 ++++++----
+ .../dashboard/ReferralSourcesChart.tsx        | 16 ++--
+ src/i18n/translations/af.json                 | 60 ++++++++++++++-
+ src/i18n/translations/ar.json                 | 60 ++++++++++++++-
+ src/i18n/translations/de.json                 | 60 ++++++++++++++-
+ src/i18n/translations/en.json                 | 60 ++++++++++++++-
+ src/i18n/translations/es.json                 | 60 ++++++++++++++-
+ src/i18n/translations/fr.json                 | 60 ++++++++++++++-
+ src/i18n/translations/he.json                 | 60 ++++++++++++++-
+ src/i18n/translations/it.json                 | 60 ++++++++++++++-
+ src/i18n/translations/nl.json                 | 60 ++++++++++++++-
+ src/i18n/translations/pt.json                 | 60 ++++++++++++++-
+ src/i18n/translations/ru.json                 | 60 ++++++++++++++-
+ src/i18n/translations/zh.json                 | 60 ++++++++++++++-
+ src/pages/tabs/ReportsTab.tsx                 | 18 ++---
+ src/services/analyticsApi.ts                  |  2 +-
+ 23 files changed, 911 insertions(+), 101 deletions(-)
+
+diff --git a/netlify/functions/lib/analytics/roomPerformance.js b/netlify/functions/lib/analytics/roomPerformance.js
+index 2797889..5a34d43 100644
+--- a/netlify/functions/lib/analytics/roomPerformance.js
++++ b/netlify/functions/lib/analytics/roomPerformance.js
+@@ -177,24 +177,38 @@ export async function buildRoomPerformance({ businessId, dateFrom, dateTo }) {
+       .map((r) => r.roomId),
+   };
+ 
++  // Structured insight codes for client-side i18n (calculations unchanged)
+   const insights = [];
+   const top = withData.find((r) => rankings.highestUtilisation[0] === r.roomId);
+   if (top && top.meaningful) {
++    const propertyPct = Math.round(propertyOccupancyRate * 100) / 100;
++    const signed = `${top.vsPropertyUtilisationPp >= 0 ? '+' : ''}${top.vsPropertyUtilisationPp}`;
+     insights.push({
+       level: 'fact',
+-      text: `${top.roomName} has ${top.utilisation}% utilisation versus property ${Math.round(propertyOccupancyRate * 100) / 100}% (${top.vsPropertyUtilisationPp >= 0 ? '+' : ''}${top.vsPropertyUtilisationPp} percentage points).`,
++      code: 'top_vs_property',
++      params: {
++        room: top.roomName,
++        utilisation: top.utilisation,
++        property: propertyPct,
++        signed,
++      },
++      text: `${top.roomName} has ${top.utilisation}% utilisation versus property ${propertyPct}% (${signed} percentage points).`,
+     });
+   }
+   const low = withData.find((r) => rankings.lowestUtilisation[0] === r.roomId);
+   if (low && low.meaningful && low.roomId !== top?.roomId) {
+     insights.push({
+       level: 'fact',
++      code: 'lowest_util',
++      params: { room: low.roomName, utilisation: low.utilisation },
+       text: `${low.roomName} is among the lowest utilisation rooms at ${low.utilisation}% in this period.`,
+     });
+   }
+   if (quality.allocationCoveragePct < 100) {
+     insights.push({
+       level: 'fact',
++      code: 'allocation_basis',
++      params: { pct: quality.allocationCoveragePct },
+       text: `Room utilisation is based on ${quality.allocationCoveragePct}% of eligible stays with room allocation.`,
+     });
+   }
+diff --git a/scripts/i18n-validate.cjs b/scripts/i18n-validate.cjs
+index 9324d40..0ebd220 100644
+--- a/scripts/i18n-validate.cjs
++++ b/scripts/i18n-validate.cjs
+@@ -56,6 +56,68 @@ function loadLanguageKeys(lang) {
+   }
+ }
+ 
++
++// Target Report/Analytics UI files for residual hard-coded English labels.
++// This is intentionally narrow to avoid false positives across the whole app.
++const REPORT_ANALYTICS_GLOBS = [
++  'src/pages/tabs/ReportsTab.tsx',
++  'src/components/analytics/RoomPerformancePanel.tsx',
++  'src/components/analytics/TravelPatternsCard.tsx',
++  'src/components/analytics/VisitorOriginExplorer.tsx',
++  'src/components/analytics/geo/GeographicMapViewport.tsx',
++  'src/components/dashboard/GuestOriginsChart.tsx',
++  'src/components/dashboard/ReferralSourcesChart.tsx',
++  'src/components/dashboard/LengthOfStayChart.tsx',
++];
++
++// High-signal phrases that must not appear as raw JSX text in Report UI.
++const FORBIDDEN_PHRASES = [
++  'Room Performance',
++  'Guest Origins by Country',
++  'How Guests Found You',
++  'Length of Stay Distribution',
++  'Visitor Origin Explorer',
++  'Interactive Map Engine',
++  'Property utilisation',
++  'Guest density',
++  'Arriving From',
++  'Going To',
++  'Most guests stay',
++  'nights sold',
++  'of property nights',
++  'historical name',
++  'limited sample',
++  'pp vs property',
++  'Room nights / sellable nights',
++  'SA / International',
++  'Snapshot PDF',
++  'BI Report',
++];
++
++function scanReportHardcoded() {
++  const hits = [];
++  for (const rel of REPORT_ANALYTICS_GLOBS) {
++    const file = path.join(ROOT, rel);
++    if (!fs.existsSync(file)) continue;
++    const content = fs.readFileSync(file, 'utf8');
++    const lines = content.split(/\r?\n/);
++    lines.forEach((line, idx) => {
++      // skip pure imports and comments
++      const trimmed = line.trim();
++      if (trimmed.startsWith('import ') || trimmed.startsWith('//') || trimmed.startsWith('*')) return;
++      // skip lines that already go through t(
++      if (/\bt\s*\(/.test(line)) return;
++      for (const phrase of FORBIDDEN_PHRASES) {
++        if (line.includes(phrase)) {
++          hits.push({ file: rel, line: idx + 1, phrase, sample: trimmed.slice(0, 120) });
++        }
++      }
++    });
++  }
++  return hits;
++}
++
++
+ function main() {
+   console.log('🔍 FastCheckIn i18n validation\n');
+ 
+@@ -88,6 +150,17 @@ function main() {
+     console.log(`\nℹ️  Orphaned keys in en.json (present but not referenced): ${orphans.length}`);
+   }
+ 
++  const hardHits = scanReportHardcoded();
++  if (hardHits.length) {
++    console.log(`\n❌ Report/Analytics hard-coded UI phrases: ${hardHits.length}`);
++    hardHits.slice(0, 30).forEach(h => {
++      console.log(`   - ${h.file}:${h.line} “${h.phrase}”`);
++    });
++    totalMissing += hardHits.length;
++  } else {
++    console.log('\n✅ Report/Analytics targeted hard-coded phrase scan: clean');
++  }
++
+   console.log('\n---');
+   if (totalMissing === 0) {
+     console.log('✅ RESULT: 0 missing translation keys across all 12 languages');
+diff --git a/src/components/analytics/RoomPerformancePanel.tsx b/src/components/analytics/RoomPerformancePanel.tsx
+index c9cc664..fc623c4 100644
+--- a/src/components/analytics/RoomPerformancePanel.tsx
++++ b/src/components/analytics/RoomPerformancePanel.tsx
+@@ -5,6 +5,7 @@ import {
+   type RoomPerformanceResponse,
+   type RoomPerformanceRow,
+ } from '../../services/analyticsApi';
++import { useTranslation } from '../../i18n';
+ 
+ interface Props {
+   businessId: string;
+@@ -26,6 +27,7 @@ function bandIcon(band: RoomPerformanceRow['performanceBand']) {
+ }
+ 
+ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
++  const { t } = useTranslation();
+   const [data, setData] = useState<RoomPerformanceResponse | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+@@ -40,13 +42,13 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+     try {
+       const res = await fetchRoomPerformance({ businessId, dateFrom, dateTo });
+       if (!res.success) {
+-        setError(res.error || 'Failed to load room performance');
++        setError(res.error || t('reports_failed_load'));
+         setData(null);
+       } else {
+         setData(res);
+       }
+     } catch (e: any) {
+-      setError(e?.message || 'Failed to load room performance');
++      setError(e?.message || t('reports_failed_load'));
+       setData(null);
+     } finally {
+       setLoading(false);
+@@ -68,22 +70,19 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+         <div>
+           <h3 className="text-sm font-extrabold text-stone-800 uppercase tracking-wider flex items-center gap-2">
+             <BedDouble size={16} className="text-orange-500" />
+-            Room Performance
++            {t('reports_room_performance')}
+           </h3>
+           <p className="text-xs text-stone-500 mt-1 max-w-xl">
+-            How each room performed relative to the property in this period. Utilisation is room
+-            nights sold divided by days in period (not maintenance-adjusted). Labels prefer the
+-            room name recorded on the booking.
++            {t('reports_room_performance_desc')}
+           </p>
+         </div>
+         <div className="text-right text-xs text-stone-500">
+           <div>
+-            Property utilisation:{' '}
+-            <span className="font-semibold text-stone-800">{propertyRate}%</span>
++            {t('reports_property_utilisation', { rate: propertyRate })}
+           </div>
+           {coverage !== undefined && coverage < 100 && (
+             <div className="mt-1 text-amber-700">
+-              Based on {coverage}% of eligible stays with room allocation
++              {t('reports_allocation_coverage', { pct: coverage })}
+             </div>
+           )}
+         </div>
+@@ -91,7 +90,7 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+ 
+       {loading && (
+         <div className="flex items-center justify-center gap-2 py-12 text-stone-500 text-sm">
+-          <Loader2 size={16} className="animate-spin" /> Loading room metrics…
++          <Loader2 size={16} className="animate-spin" /> {t('reports_loading_room_metrics')}
+         </div>
+       )}
+ 
+@@ -103,7 +102,7 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+ 
+       {!loading && !error && rooms.length === 0 && (
+         <div className="px-5 py-10 text-center text-sm text-stone-500">
+-          No room data for this period. Assign rooms to stays to see performance.
++          {t('reports_no_room_data')}
+         </div>
+       )}
+ 
+@@ -116,9 +115,15 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+                   <Info size={12} className="mt-0.5 shrink-0 text-stone-400" />
+                   <span>
+                     <span className="uppercase text-[10px] font-bold text-stone-400 mr-1">
+-                      {ins.level}
++                      {ins.level === 'fact' ? t('reports_insight_level_fact') : ins.level}
+                     </span>
+-                    {ins.text}
++                    {ins.code === 'top_vs_property'
++                      ? t('reports_insight_top_vs_property', ins.params || {})
++                      : ins.code === 'lowest_util'
++                        ? t('reports_insight_lowest_util', ins.params || {})
++                        : ins.code === 'allocation_basis'
++                          ? t('reports_insight_allocation_basis', ins.params || {})
++                          : ins.text}
+                   </span>
+                 </p>
+               ))}
+@@ -140,17 +145,18 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+                         {r.roomName}
+                       </p>
+                       <p className="text-[10px] opacity-70">
+-                        {r.roomType || 'Room'}
+-                        {r.labelSource === 'snapshot' ? ' · historical name' : ''}
+-                        {!r.meaningful && r.stays > 0 ? ' · limited sample' : ''}
++                        {r.roomType || t('reports_room_generic')}
++                        {r.labelSource === 'snapshot' ? ` · ${t('reports_historical_name')}` : ''}
++                        {!r.meaningful && r.stays > 0 ? ` · ${t('reports_limited_sample')}` : ''}
+                       </p>
+                     </div>
+                   </div>
+                   <div className="text-right shrink-0">
+                     <p className="text-sm font-bold">{r.utilisation}%</p>
+                     <p className="text-[10px] opacity-70">
+-                      {r.vsPropertyUtilisationPp >= 0 ? '+' : ''}
+-                      {r.vsPropertyUtilisationPp} pp vs property
++                      {t('reports_pp_vs_property', {
++                        signed: `${r.vsPropertyUtilisationPp >= 0 ? '+' : ''}${r.vsPropertyUtilisationPp}`,
++                      })}
+                     </p>
+                   </div>
+                 </div>
+@@ -161,18 +167,17 @@ export function RoomPerformancePanel({ businessId, dateFrom, dateTo }: Props) {
+                   />
+                 </div>
+                 <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] opacity-80">
+-                  <span>{r.stays} stays</span>
+-                  <span>{r.roomNightsSold} nights sold</span>
+-                  <span>{r.shareOfPropertyNights}% of property nights</span>
+-                  <span>Avg stay {r.averageStay}</span>
++                  <span>{t('reports_stays_count', { count: r.stays })}</span>
++                  <span>{t('reports_nights_sold', { count: r.roomNightsSold })}</span>
++                  <span>{t('reports_of_property_nights', { pct: r.shareOfPropertyNights })}</span>
++                  <span>{t('reports_avg_stay', { nights: r.averageStay })}</span>
+                 </div>
+               </div>
+             ))}
+           </div>
+ 
+           <div className="px-5 py-3 border-t border-stone-100 text-[10px] text-stone-400">
+-            Rankings require at least 3 stays or 7 room-nights for comparative language. Price and
+-            maintenance-adjusted utilisation are not included.
++            {t('reports_rankings_footnote')}
+           </div>
+         </>
+       )}
+diff --git a/src/components/analytics/TravelPatternsCard.tsx b/src/components/analytics/TravelPatternsCard.tsx
+index 5e5833b..14d72fd 100644
+--- a/src/components/analytics/TravelPatternsCard.tsx
++++ b/src/components/analytics/TravelPatternsCard.tsx
+@@ -1,5 +1,6 @@
+ // src/components/analytics/TravelPatternsCard.tsx
+-import { useState } from 'react';
++import { useState } from 'react'
++import { useTranslation } from '../../i18n';
+ import { TravelPattern } from '../../types/analytics';
+ 
+ interface TravelPatternsCardProps {
+@@ -10,6 +11,7 @@ interface TravelPatternsCardProps {
+ }
+ 
+ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: TravelPatternsCardProps) {
++  const { t } = useTranslation();
+   const [view, setView] = useState<'arrivingFrom' | 'goingTo'>('arrivingFrom');
+ 
+   // ✅ Get the current data based on view
+@@ -39,7 +41,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }:
+           <div className="flex gap-2">
+             <button
+               onClick={() => {
+-                console.log('🔄 Switching to Arriving From view');
++                console.log('🔄 Switching to arrivingFrom view');
+                 setView('arrivingFrom');
+               }}
+               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+@@ -48,11 +50,11 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }:
+                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+               }`}
+             >
+-              Arriving From
++              {t('reports_arriving_from')}
+             </button>
+             <button
+               onClick={() => {
+-                console.log('🔄 Switching to Going To view');
++                console.log('🔄 Switching to goingTo view');
+                 setView('goingTo');
+               }}
+               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+@@ -61,7 +63,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }:
+                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+               }`}
+             >
+-              Going To
++              {t('reports_going_to')}
+             </button>
+           </div>
+         </div>
+@@ -71,7 +73,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }:
+       <div className="p-6">
+         {currentData.length === 0 ? (
+           <div className="h-64 flex items-center justify-center text-stone-400">
+-            No travel data available
++            {t('reports_no_travel_data')}
+           </div>
+         ) : (
+           <div className="space-y-3">
+diff --git a/src/components/analytics/VisitorOriginExplorer.tsx b/src/components/analytics/VisitorOriginExplorer.tsx
+index 00c01d2..84b4093 100644
+--- a/src/components/analytics/VisitorOriginExplorer.tsx
++++ b/src/components/analytics/VisitorOriginExplorer.tsx
+@@ -10,6 +10,7 @@ import { GeographicMapViewport } from './geo/GeographicMapViewport';
+ import { MAP_ENGINE } from './geo/mapConfig';
+ import { SubscriptionTier, SubscriptionLimits } from '../../types';
+ import { Globe2, Layers, Zap, ArrowLeft } from 'lucide-react';
++import { useTranslation } from '../../i18n';
+ import {
+   fetchVisitorOrigins,
+   type OriginNode,
+@@ -120,6 +121,7 @@ export function VisitorOriginExplorer({
+   canInteractiveMap = true,
+   isLoading: parentLoading = false,
+ }: VisitorOriginExplorerProps) {
++  const { t } = useTranslation();
+   const [currentLevel, setCurrentLevel] = useState<UiLevel>('world');
+   const [selectedContinent, setSelectedContinent] = useState<string | null>(null);
+   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+@@ -156,7 +158,7 @@ export function VisitorOriginExplorer({
+       if (!interactive && uiLevel !== 'world') {
+         setShowUpgradeModal(true);
+         setModalTargetTier('growth');
+-        setModalFeatureName('Interactive Visitor Origin Explorer');
++        setModalFeatureName(t('reports_visitor_origin_explorer'));
+         return;
+       }
+ 
+@@ -203,11 +205,14 @@ export function VisitorOriginExplorer({
+             | undefined;
+           if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) {
+             setQualityNote(
+-              `No eligible stays in this period. ${q.excludedByStatus} booking(s) excluded by status (confirmed/pending/cancelled are not sold-stay analytics). Only checked-in / checked-out / completed stays are included.`
++              t('reports_quality_no_eligible', { count: q.excludedByStatus })
+             );
+           } else if (q && (q.excludedByStatus || 0) > 0) {
+             setQualityNote(
+-              `Showing ${q.eligibleStays ?? 0} eligible stays; ${q.excludedByStatus} excluded by status (pre-arrival or cancelled).`
++              t('reports_quality_partial_eligible', {
++                eligible: q.eligibleStays ?? 0,
++                excluded: q.excludedByStatus,
++              })
+             );
+           } else {
+             setQualityNote(null);
+@@ -249,7 +254,7 @@ export function VisitorOriginExplorer({
+   const handleWorldExplore = () => {
+     if (!interactive) {
+       setModalTargetTier('growth');
+-      setModalFeatureName('Interactive Visitor Origin Explorer');
++      setModalFeatureName(t('reports_visitor_origin_explorer'));
+       setShowUpgradeModal(true);
+       return;
+     }
+@@ -389,10 +394,10 @@ export function VisitorOriginExplorer({
+           </div>
+           <div>
+             <h3 className="text-lg font-extrabold text-stone-900 tracking-tight">
+-              Visitor Origin Explorer
++              {t('reports_visitor_origin_explorer')}
+             </h3>
+             <p className="text-xs text-stone-400 mt-0.5">
+-              Interactive map available on Growth and higher
++              {t('reports_upgrade_map_growth')}
+             </p>
+           </div>
+         </div>
+@@ -405,12 +410,12 @@ export function VisitorOriginExplorer({
+             type="button"
+             onClick={() => {
+               setModalTargetTier('growth');
+-              setModalFeatureName('Interactive Visitor Origin Explorer');
++              setModalFeatureName(t('reports_visitor_origin_explorer'));
+               setShowUpgradeModal(true);
+             }}
+             className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-bold shadow-md"
+           >
+-            <Zap size={14} className="fill-white" /> Upgrade to Growth
++            <Zap size={14} className="fill-white" /> {t('reports_upgrade_to_growth')}
+           </button>
+         </div>
+         <UpgradePromptModal
+@@ -458,11 +463,10 @@ export function VisitorOriginExplorer({
+           </div>
+           <div>
+             <h3 className="text-lg font-extrabold text-stone-900 tracking-tight">
+-              Visitor Origin Explorer
++              {t('reports_visitor_origin_explorer')}
+             </h3>
+             <p className="text-xs text-stone-400 mt-0.5">
+-              {totalVisitors} guest check-ins · SA {domesticCount} · International{' '}
+-              {internationalCount}
++              {t('reports_guest_checkins_summary', { count: totalVisitors, domestic: domesticCount, international: internationalCount })}
+             </p>
+           </div>
+         </div>
+@@ -672,8 +676,10 @@ export function VisitorOriginExplorer({
+         <div className="flex items-center gap-2.5">
+           <Layers size={16} className="text-orange-500" />
+           <span className="text-xs text-stone-600 font-medium">
+-            Plan: <strong className="capitalize text-stone-900">{limits.subscriptionTier}</strong>
+-            {limits.maxDrillLevel ? ` · max depth ${limits.maxDrillLevel}` : ''}
++            {t('reports_plan_label', { plan: String(limits.subscriptionTier) })}
++            {limits.maxDrillLevel
++              ? ` · ${t('reports_max_depth', { level: String(limits.maxDrillLevel) })}`
++              : ''}
+           </span>
+         </div>
+       </div>
+diff --git a/src/components/analytics/geo/GeographicMapViewport.tsx b/src/components/analytics/geo/GeographicMapViewport.tsx
+index dcb50b9..6c89d70 100644
+--- a/src/components/analytics/geo/GeographicMapViewport.tsx
++++ b/src/components/analytics/geo/GeographicMapViewport.tsx
+@@ -3,7 +3,8 @@
+  * Single map instance; layers update on drill-down. No API keys.
+  */
+ 
+-import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
++import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react'
++import { useTranslation } from '../../../i18n';
+ import {
+   BASEMAP_STYLE,
+   CONTINENT_VIEWS,
+@@ -457,7 +458,7 @@ function GeographicMapViewportInner({
+ 
+       {(isLoading || !mapReady) && !geoError && (
+         <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
+-          <div className="text-sm font-medium text-stone-500">Loading map…</div>
++          <div className="text-sm font-medium text-stone-500">{t('reports_loading_map_short')}</div>
+         </div>
+       )}
+ 
+@@ -491,14 +492,14 @@ function GeographicMapViewportInner({
+           </p>
+           {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+           {interactive && hover.count > 0 && (
+-            <p className="text-stone-400 mt-1">Click to explore</p>
++            <p className="text-stone-400 mt-1">{t('reports_map_click_explore')}</p>
+           )}
+         </div>
+       )}
+ 
+       <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
+         <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">
+-          Guest density
++          {t('reports_guest_density')}
+         </p>
+         <div className="flex items-center gap-0.5">
+           {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((c) => (
+@@ -506,8 +507,8 @@ function GeographicMapViewportInner({
+           ))}
+         </div>
+         <div className="flex justify-between text-[9px] text-stone-400 mt-0.5">
+-          <span>None</span>
+-          <span>High</span>
++          <span>{t('reports_density_none')}</span>
++          <span>{t('reports_density_high')}</span>
+         </div>
+       </div>
+     </div>
+diff --git a/src/components/dashboard/GuestOriginsChart.tsx b/src/components/dashboard/GuestOriginsChart.tsx
+index 512f90d..d7bf0dc 100644
+--- a/src/components/dashboard/GuestOriginsChart.tsx
++++ b/src/components/dashboard/GuestOriginsChart.tsx
+@@ -1,3 +1,4 @@
++import { useTranslation } from '../../i18n'
+ // src/components/dashboard/GuestOriginsChart.tsx
+ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts'
+ 
+@@ -61,18 +62,19 @@ interface GuestOriginsChartProps {
+ }
+ 
+ export function GuestOriginsChart({ countries, chartType, onChartTypeChange }: GuestOriginsChartProps) {
++  const { t } = useTranslation();
+   if (!countries || countries.length === 0) {
+     return (
+       <div className="bg-white rounded-lg shadow p-6">
+         <div className="flex justify-between items-center mb-4">
+-          <h3 className="text-lg font-semibold text-gray-900">Guest Origins by Country</h3>
++          <h3 className="text-lg font-semibold text-gray-900">{t('reports_guest_origins_title')}</h3>
+           <div className="flex gap-2">
+-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Donut</button>
+-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Bar</button>
++            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_donut')}</button>
++            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_bar')}</button>
+           </div>
+         </div>
+         <div className="h-64 flex items-center justify-center text-gray-400">
+-          No data available for selected period
++          {t('reports_no_data_period')}
+         </div>
+       </div>
+     )
+@@ -110,14 +112,14 @@ export function GuestOriginsChart({ countries, chartType, onChartTypeChange }: G
+   return (
+     <div className="bg-white rounded-lg shadow p-6">
+       <div className="flex justify-between items-center mb-4">
+-        <h3 className="text-lg font-semibold text-gray-900">Guest Origins by Country</h3>
++        <h3 className="text-lg font-semibold text-gray-900">{t('reports_guest_origins_title')}</h3>
+         <div className="flex gap-2">
+           <button
+             onClick={() => onChartTypeChange('donut')}
+             className={`p-2 rounded-lg transition-colors ${
+               chartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+             }`}
+-            title="Donut Chart"
++            title={t('reports_chart_donut')}
+           >
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+@@ -128,7 +130,7 @@ export function GuestOriginsChart({ countries, chartType, onChartTypeChange }: G
+             className={`p-2 rounded-lg transition-colors ${
+               chartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+             }`}
+-            title="Bar Chart"
++            title={t('reports_chart_bar')}
+           >
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+diff --git a/src/components/dashboard/LengthOfStayChart.tsx b/src/components/dashboard/LengthOfStayChart.tsx
+index e93c28f..764fac8 100644
+--- a/src/components/dashboard/LengthOfStayChart.tsx
++++ b/src/components/dashboard/LengthOfStayChart.tsx
+@@ -3,6 +3,7 @@
+ // Does NOT aggregate bookings client-side.
+ 
+ import { useMemo } from 'react'
++import { useTranslation, t as tStatic } from '../../i18n'
+ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, TooltipProps } from 'recharts'
+ 
+ export interface LengthOfStaySeriesItem {
+@@ -44,10 +45,18 @@ const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+     return (
+       <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+         <p className="font-semibold text-gray-900">
+-          {dataPoint.label === '1' ? '1 night' : `${dataPoint.label} nights`}
++          {dataPoint.label === '1'
++            ? tStatic('reports_los_1_night')
++            : dataPoint.label === '2-3'
++              ? tStatic('reports_los_2_3_nights')
++              : dataPoint.label === '4-7'
++                ? tStatic('reports_los_4_7_nights')
++                : dataPoint.label === '8+'
++                  ? tStatic('reports_los_8_plus_nights')
++                  : String(dataPoint.label)}
+         </p>
+         <p className="text-sm text-gray-600">
+-          <span className="font-medium">{dataPoint.count.toLocaleString()}</span> bookings
++          {tStatic('reports_bookings_count', { count: dataPoint.count.toLocaleString() })}
+         </p>
+         <p className="text-sm text-orange-600 font-medium">
+           {formatPercentage(dataPoint.percentage)}
+@@ -59,6 +68,7 @@ const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+ }
+ 
+ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
++  const { t } = useTranslation();
+   const chartData = useMemo((): StayData[] => {
+     if (!lengthOfStay || lengthOfStay.length === 0) return []
+     return [...lengthOfStay]
+@@ -74,9 +84,9 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+   if (chartData.length === 0) {
+     return (
+       <div className="bg-white rounded-lg shadow p-6">
+-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Length of Stay Distribution</h3>
++        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('reports_length_of_stay_title')}</h3>
+         <div className="h-64 flex items-center justify-center text-gray-400">
+-          No data available for selected period
++          {t('reports_no_data_period')}
+         </div>
+       </div>
+     )
+@@ -93,13 +103,12 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+   return (
+     <div className="bg-white rounded-lg shadow p-6">
+       <div className="mb-4">
+-        <h3 className="text-lg font-semibold text-gray-900">Length of Stay Distribution</h3>
++        <h3 className="text-lg font-semibold text-gray-900">{t('reports_length_of_stay_title')}</h3>
+         {mostCommon && (
+           <p className="text-sm text-gray-500 mt-1">
+-            Most guests stay{' '}
+-            <span className="font-medium text-orange-600">
+-              {mostCommon.label === '1' ? '1 night' : `${mostCommon.label} nights`}
+-            </span>
++            {t('reports_most_guests_stay', {
++              nights: mostCommon.label === '1' ? '1' : mostCommon.label,
++            })}
+           </p>
+         )}
+       </div>
+@@ -110,7 +119,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+           <XAxis
+             dataKey="label"
+             label={{
+-              value: 'Length of stay (nights)',
++              value: t('reports_los_axis_nights'),
+               position: 'bottom',
+               offset: 0,
+               style: { fill: '#6b7280', fontSize: 12 },
+@@ -118,7 +127,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+           />
+           <YAxis
+             label={{
+-              value: 'Number of Bookings',
++              value: t('reports_los_axis_bookings'),
+               angle: -90,
+               position: 'insideLeft',
+               style: { fill: '#6b7280', fontSize: 12 },
+@@ -135,7 +144,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+ 
+       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
+         <div className="bg-gray-50 rounded-lg p-2">
+-          <p className="text-gray-500">1-night stays</p>
++          <p className="text-gray-500">{t('reports_los_1_night')}</p>
+           <p className="font-bold text-gray-900">
+             {(one?.count || 0).toLocaleString()}
+             <span className="text-xs text-gray-400 ml-1">
+@@ -144,7 +153,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+           </p>
+         </div>
+         <div className="bg-gray-50 rounded-lg p-2">
+-          <p className="text-gray-500">2-3 nights</p>
++          <p className="text-gray-500">{t('reports_los_2_3_nights')}</p>
+           <p className="font-bold text-gray-900">
+             {(twoThree?.count || 0).toLocaleString()}
+             <span className="text-xs text-gray-400 ml-1">
+@@ -153,7 +162,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+           </p>
+         </div>
+         <div className="bg-gray-50 rounded-lg p-2">
+-          <p className="text-gray-500">4-7 nights</p>
++          <p className="text-gray-500">{t('reports_los_4_7_nights')}</p>
+           <p className="font-bold text-gray-900">
+             {(fourSeven?.count || 0).toLocaleString()}
+             <span className="text-xs text-gray-400 ml-1">
+@@ -162,7 +171,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+           </p>
+         </div>
+         <div className="bg-gray-50 rounded-lg p-2">
+-          <p className="text-gray-500">8+ nights</p>
++          <p className="text-gray-500">{t('reports_los_8_plus_nights')}</p>
+           <p className="font-bold text-gray-900">
+             {(eightPlus?.count || 0).toLocaleString()}
+             <span className="text-xs text-gray-400 ml-1">
+diff --git a/src/components/dashboard/ReferralSourcesChart.tsx b/src/components/dashboard/ReferralSourcesChart.tsx
+index f1023f7..a33293b 100644
+--- a/src/components/dashboard/ReferralSourcesChart.tsx
++++ b/src/components/dashboard/ReferralSourcesChart.tsx
+@@ -1,3 +1,4 @@
++import { useTranslation } from '../../i18n'
+ // src/components/dashboard/ReferralSourcesChart.tsx
+ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts'
+ 
+@@ -17,18 +18,19 @@ interface ReferralSourcesChartProps {
+ }
+ 
+ export function ReferralSourcesChart({ referralData: series, chartType, onChartTypeChange }: ReferralSourcesChartProps) {
++  const { t } = useTranslation();
+   if (!series || series.length === 0) {
+     return (
+       <div className="bg-white rounded-lg shadow p-6">
+         <div className="flex justify-between items-center mb-4">
+-          <h3 className="text-lg font-semibold text-gray-900">How Guests Found You</h3>
++          <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
+           <div className="flex gap-2">
+-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Donut</button>
+-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Bar</button>
++            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_donut')}</button>
++            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_bar')}</button>
+           </div>
+         </div>
+         <div className="h-64 flex items-center justify-center text-gray-400">
+-          No data available for selected period
++          {t('reports_no_data_period')}
+         </div>
+       </div>
+     )
+@@ -45,14 +47,14 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
+   return (
+     <div className="bg-white rounded-lg shadow p-6">
+       <div className="flex justify-between items-center mb-4">
+-        <h3 className="text-lg font-semibold text-gray-900">How Guests Found You</h3>
++        <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
+         <div className="flex gap-2">
+           <button
+             onClick={() => onChartTypeChange('donut')}
+             className={`p-2 rounded-lg transition-colors ${
+               chartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+             }`}
+-            title="Donut Chart"
++            title={t('reports_chart_donut')}
+           >
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+@@ -63,7 +65,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
+             className={`p-2 rounded-lg transition-colors ${
+               chartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+             }`}
+-            title="Bar Chart"
++            title={t('reports_chart_bar')}
+           >
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+diff --git a/src/i18n/translations/af.json b/src/i18n/translations/af.json
+index 08db805..9564c91 100644
+--- a/src/i18n/translations/af.json
++++ b/src/i18n/translations/af.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Registreer hier",
+   "reg_select_establishment": "Kies tipe inrigting",
+   "reg_select_country": "Kies land",
+-  "reg_basic_dashboard": "Basiese kontroleskerm"
++  "reg_basic_dashboard": "Basiese kontroleskerm",
++  "reports_date_from": "Van",
++  "reports_date_to": "Tot",
++  "reports_occupancy": "Besetting",
++  "reports_occupancy_mvp_note": "Kamer-nagte / verkoopbare nagte (MVP)",
++  "reports_sa_international": "SA / Internasionaal",
++  "reports_snapshot_pdf": "Momentopname-PDF",
++  "reports_bi_report": "BI-verslag",
++  "reports_failed_load": "Kon nie analise laai nie",
++  "reports_guest_origins_title": "Gasherkoms per land",
++  "reports_how_guests_found": "Hoe gaste jou gevind het",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Staf",
++  "reports_no_data_period": "Geen data vir gekose tydperk nie",
++  "reports_bookings_count": "{count} besprekings",
++  "reports_bookings_pct": "{pct}% ({count} besprekings)",
++  "reports_room_performance": "Kamerprestasie",
++  "reports_room_performance_desc": "Hoe elke kamer gevaar het teenoor die eiendom in hierdie tydperk. Benutting is kamer-nagte verkoop gedeel deur dae in die tydperk (nie instandhouding-aangepas nie). Etikette verkies die kamernaam op die bespreking.",
++  "reports_property_utilisation": "Eiendombenutting: {rate}%",
++  "reports_allocation_coverage": "Gebaseer op {pct}% van in aanmerking komende verblywe met kamerstoewysing",
++  "reports_loading_room_metrics": "Laai kamer-metrieke…",
++  "reports_no_room_data": "Geen kamerdata vir hierdie tydperk nie. Ken kamers aan verblywe toe om prestasie te sien.",
++  "reports_historical_name": "historiese naam",
++  "reports_limited_sample": "beperkte steekproef",
++  "reports_stays_count": "{count} verblywe",
++  "reports_nights_sold": "{count} nagte verkoop",
++  "reports_of_property_nights": "{pct}% van eiendom-nagte",
++  "reports_avg_stay": "Gem. verblyf {nights}",
++  "reports_pp_vs_property": "{signed} pp vs eiendom",
++  "reports_room_generic": "Kamer",
++  "reports_rankings_footnote": "Ranglys vereis minstens 3 verblywe of 7 kamer-nagte vir vergelykende taal. Prys- en instandhouding-aangepaste benutting is nie ingesluit nie.",
++  "reports_insight_top_vs_property": "{room} het {utilisation}% benutting teenoor eiendom {property}% ({signed} persentasiepunte).",
++  "reports_insight_lowest_util": "{room} is onder die laagste benutting-kamers teen {utilisation}% in hierdie tydperk.",
++  "reports_insight_allocation_basis": "Kamerbenutting is gebaseer op {pct}% van in aanmerking komende verblywe met kamerstoewysing.",
++  "reports_insight_level_fact": "feit",
++  "reports_arriving_from": "Aankoms vanaf",
++  "reports_going_to": "Op pad na",
++  "reports_no_travel_data": "Geen reisdata beskikbaar nie",
++  "reports_length_of_stay_title": "Verspreiding van verblyfduur",
++  "reports_most_guests_stay": "Die meeste gaste bly {nights} nagte",
++  "reports_los_axis_nights": "Verblyfduur (nagte)",
++  "reports_los_axis_bookings": "Aantal besprekings",
++  "reports_los_1_night": "1-nag verblywe",
++  "reports_los_2_3_nights": "2–3 nagte",
++  "reports_los_4_7_nights": "4–7 nagte",
++  "reports_los_8_plus_nights": "8+ nagte",
++  "reports_visitor_origin_explorer": "Besoeker-oorsprong-verkenner",
++  "reports_guest_checkins_summary": "{count} gas-intjekke · SA {domestic} · Internasionaal {international}",
++  "reports_plan_label": "Plan: {plan}",
++  "reports_max_depth": "maks. diepte {level}",
++  "reports_guest_density": "Gasdigtheid",
++  "reports_density_none": "Geen",
++  "reports_density_high": "Hoog",
++  "reports_map_click_explore": "Klik om te verken",
++  "reports_loading_map_short": "Laai kaart…",
++  "reports_upgrade_map_growth": "Interaktiewe kaart beskikbaar vanaf Growth",
++  "reports_upgrade_to_growth": "Gradeer op na Growth",
++  "reports_quality_no_eligible": "Geen in aanmerking komende verblywe in hierdie tydperk nie. {count} bespreking(s) uitgesluit volgens status. Slegs ingetjek / uitgecheck / voltooi.",
++  "reports_quality_partial_eligible": "Wys {eligible} in aanmerking komende verblywe; {excluded} uitgesluit volgens status (voor aankoms of gekanselleer)."
+ }
+diff --git a/src/i18n/translations/ar.json b/src/i18n/translations/ar.json
+index 7534178..125d299 100644
+--- a/src/i18n/translations/ar.json
++++ b/src/i18n/translations/ar.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "سجّل هنا",
+   "reg_select_establishment": "حدد نوع المنشأة",
+   "reg_select_country": "حدد البلد",
+-  "reg_basic_dashboard": "لوحة تحكم أساسية"
++  "reg_basic_dashboard": "لوحة تحكم أساسية",
++  "reports_date_from": "من",
++  "reports_date_to": "إلى",
++  "reports_occupancy": "الإشغال",
++  "reports_occupancy_mvp_note": "ليالي الغرف / الليالي القابلة للبيع (MVP)",
++  "reports_sa_international": "جنوب أفريقيا / دولي",
++  "reports_snapshot_pdf": "لقطة PDF",
++  "reports_bi_report": "تقرير BI",
++  "reports_failed_load": "فشل تحميل التحليلات",
++  "reports_guest_origins_title": "أصول الضيوف حسب البلد",
++  "reports_how_guests_found": "كيف وجدك الضيوف",
++  "reports_chart_donut": "دونات",
++  "reports_chart_bar": "أعمدة",
++  "reports_no_data_period": "لا توجد بيانات للفترة المحددة",
++  "reports_bookings_count": "{count} حجوزات",
++  "reports_bookings_pct": "{pct}٪ ({count} حجوزات)",
++  "reports_room_performance": "أداء الغرف",
++  "reports_room_performance_desc": "أداء كل غرفة مقارنة بالعقار في هذه الفترة. الاستخدام = ليالي الغرف المباعة مقسومة على أيام الفترة (غير معدّل للصيانة). تُفضَّل التسميات المسجّلة في الحجز.",
++  "reports_property_utilisation": "استخدام العقار: {rate}٪",
++  "reports_allocation_coverage": "بناءً على {pct}٪ من الإقامات المؤهلة مع تخصيص غرفة",
++  "reports_loading_room_metrics": "جاري تحميل مقاييس الغرف…",
++  "reports_no_room_data": "لا توجد بيانات غرف لهذه الفترة. خصّص غرفًا للإقامات لعرض الأداء.",
++  "reports_historical_name": "اسم تاريخي",
++  "reports_limited_sample": "عينة محدودة",
++  "reports_stays_count": "{count} إقامات",
++  "reports_nights_sold": "{count} ليالٍ مباعة",
++  "reports_of_property_nights": "{pct}٪ من ليالي العقار",
++  "reports_avg_stay": "متوسط الإقامة {nights}",
++  "reports_pp_vs_property": "{signed} نقطة مئوية مقابل العقار",
++  "reports_room_generic": "غرفة",
++  "reports_rankings_footnote": "تتطلب التصنيفات 3 إقامات أو 7 ليالي غرف على الأقل للغة المقارنة. لا يشمل الاستخدام المعدّل للسعر والصيانة.",
++  "reports_insight_top_vs_property": "{room} لديه استخدام {utilisation}٪ مقابل {property}٪ للعقار ({signed} نقطة مئوية).",
++  "reports_insight_lowest_util": "{room} من أقل الغرف استخدامًا بنسبة {utilisation}٪ في هذه الفترة.",
++  "reports_insight_allocation_basis": "يعتمد استخدام الغرف على {pct}٪ من الإقامات المؤهلة مع تخصيص غرفة.",
++  "reports_insight_level_fact": "حقيقة",
++  "reports_arriving_from": "قادمون من",
++  "reports_going_to": "متجهون إلى",
++  "reports_no_travel_data": "لا توجد بيانات سفر",
++  "reports_length_of_stay_title": "توزيع مدة الإقامة",
++  "reports_most_guests_stay": "معظم الضيوف يبقون {nights} ليالٍ",
++  "reports_los_axis_nights": "مدة الإقامة (ليالٍ)",
++  "reports_los_axis_bookings": "عدد الحجوزات",
++  "reports_los_1_night": "إقامات ليلة واحدة",
++  "reports_los_2_3_nights": "2–3 ليالٍ",
++  "reports_los_4_7_nights": "4–7 ليالٍ",
++  "reports_los_8_plus_nights": "8 ليالٍ فأكثر",
++  "reports_visitor_origin_explorer": "مستكشف أصل الزوار",
++  "reports_guest_checkins_summary": "{count} تسجيلات وصول · جنوب أفريقيا {domestic} · دولي {international}",
++  "reports_plan_label": "الخطة: {plan}",
++  "reports_max_depth": "أقصى عمق {level}",
++  "reports_guest_density": "كثافة الضيوف",
++  "reports_density_none": "لا شيء",
++  "reports_density_high": "مرتفعة",
++  "reports_map_click_explore": "انقر للاستكشاف",
++  "reports_loading_map_short": "جاري تحميل الخريطة…",
++  "reports_upgrade_map_growth": "الخريطة التفاعلية متاحة من باقة Growth فأعلى",
++  "reports_upgrade_to_growth": "الترقية إلى Growth",
++  "reports_quality_no_eligible": "لا إقامات مؤهلة في هذه الفترة. استُبعد {count} حجزًا حسب الحالة. يُدرَج فقط تسجيل الوصول / المغادرة / المكتمل.",
++  "reports_quality_partial_eligible": "عرض {eligible} إقامات مؤهلة؛ استُبعد {excluded} حسب الحالة (قبل الوصول أو ملغى)."
+ }
+diff --git a/src/i18n/translations/de.json b/src/i18n/translations/de.json
+index 772be9c..ffbe725 100644
+--- a/src/i18n/translations/de.json
++++ b/src/i18n/translations/de.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Hier registrieren",
+   "reg_select_establishment": "Einrichtungstyp wählen",
+   "reg_select_country": "Land auswählen",
+-  "reg_basic_dashboard": "Basis-Dashboard"
++  "reg_basic_dashboard": "Basis-Dashboard",
++  "reports_date_from": "Von",
++  "reports_date_to": "Bis",
++  "reports_occupancy": "Auslastung",
++  "reports_occupancy_mvp_note": "Zimmer-Nächte / verkaufbare Nächte (MVP)",
++  "reports_sa_international": "SA / International",
++  "reports_snapshot_pdf": "Snapshot-PDF",
++  "reports_bi_report": "BI-Bericht",
++  "reports_failed_load": "Analysen konnten nicht geladen werden",
++  "reports_guest_origins_title": "Gästeherkunft nach Land",
++  "reports_how_guests_found": "Wie Gäste Sie gefunden haben",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Balken",
++  "reports_no_data_period": "Keine Daten für den gewählten Zeitraum",
++  "reports_bookings_count": "{count} Buchungen",
++  "reports_bookings_pct": "{pct} % ({count} Buchungen)",
++  "reports_room_performance": "Zimmerleistung",
++  "reports_room_performance_desc": "Leistung jedes Zimmers im Verhältnis zur gesamten Unterkunft in diesem Zeitraum. Auslastung = verkaufte Zimmernächte geteilt durch Tage im Zeitraum (nicht wartungsbereinigt). Bezeichnungen bevorzugen den auf der Buchung erfassten Zimmernamen.",
++  "reports_property_utilisation": "Auslastung der Unterkunft: {rate} %",
++  "reports_allocation_coverage": "Basierend auf {pct} % der berechtigten Aufenthalte mit Zimmerzuweisung",
++  "reports_loading_room_metrics": "Zimmermetriken werden geladen…",
++  "reports_no_room_data": "Keine Zimmerdaten für diesen Zeitraum. Weisen Sie Aufenthalten Zimmer zu, um die Leistung zu sehen.",
++  "reports_historical_name": "historischer Name",
++  "reports_limited_sample": "begrenzte Stichprobe",
++  "reports_stays_count": "{count} Aufenthalte",
++  "reports_nights_sold": "{count} Nächte verkauft",
++  "reports_of_property_nights": "{pct} % der Nächte der Unterkunft",
++  "reports_avg_stay": "Ø Aufenthalt {nights}",
++  "reports_pp_vs_property": "{signed} Pp. vs. Unterkunft",
++  "reports_room_generic": "Zimmer",
++  "reports_rankings_footnote": "Rankings erfordern mindestens 3 Aufenthalte oder 7 Zimmernächte für vergleichende Aussagen. Preis- und wartungsbereinigte Auslastung ist nicht enthalten.",
++  "reports_insight_top_vs_property": "{room} hat {utilisation} % Auslastung gegenüber {property} % der Unterkunft ({signed} Prozentpunkte).",
++  "reports_insight_lowest_util": "{room} gehört mit {utilisation} % zu den Zimmern mit der niedrigsten Auslastung in diesem Zeitraum.",
++  "reports_insight_allocation_basis": "Die Zimmerauslastung basiert auf {pct} % der berechtigten Aufenthalte mit Zimmerzuweisung.",
++  "reports_insight_level_fact": "Fakt",
++  "reports_arriving_from": "Ankunft von",
++  "reports_going_to": "Reiseziel",
++  "reports_no_travel_data": "Keine Reisedaten verfügbar",
++  "reports_length_of_stay_title": "Verteilung der Aufenthaltsdauer",
++  "reports_most_guests_stay": "Die meisten Gäste bleiben {nights} Nächte",
++  "reports_los_axis_nights": "Aufenthaltsdauer (Nächte)",
++  "reports_los_axis_bookings": "Anzahl Buchungen",
++  "reports_los_1_night": "1-Nacht-Aufenthalte",
++  "reports_los_2_3_nights": "2–3 Nächte",
++  "reports_los_4_7_nights": "4–7 Nächte",
++  "reports_los_8_plus_nights": "8+ Nächte",
++  "reports_visitor_origin_explorer": "Besucherherkunft-Explorer",
++  "reports_guest_checkins_summary": "{count} Check-ins · SA {domestic} · International {international}",
++  "reports_plan_label": "Paket: {plan}",
++  "reports_max_depth": "max. Tiefe {level}",
++  "reports_guest_density": "Gästedichte",
++  "reports_density_none": "Keine",
++  "reports_density_high": "Hoch",
++  "reports_map_click_explore": "Zum Erkunden klicken",
++  "reports_loading_map_short": "Karte wird geladen…",
++  "reports_upgrade_map_growth": "Interaktive Karte ab Growth verfügbar",
++  "reports_upgrade_to_growth": "Upgrade auf Growth",
++  "reports_quality_no_eligible": "Keine berechtigten Aufenthalte in diesem Zeitraum. {count} Buchung(en) nach Status ausgeschlossen (bestätigt/ausstehend/storniert zählen nicht). Nur eingecheckt / ausgecheckt / abgeschlossen.",
++  "reports_quality_partial_eligible": "{eligible} berechtigte Aufenthalte; {excluded} nach Status ausgeschlossen (vor Anreise oder storniert)."
+ }
+diff --git a/src/i18n/translations/en.json b/src/i18n/translations/en.json
+index 180ef45..76bf843 100644
+--- a/src/i18n/translations/en.json
++++ b/src/i18n/translations/en.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Register here",
+   "reg_select_establishment": "Select Establishment Type",
+   "reg_select_country": "Select Country",
+-  "reg_basic_dashboard": "Basic Dashboard"
++  "reg_basic_dashboard": "Basic Dashboard",
++  "reports_date_from": "From",
++  "reports_date_to": "To",
++  "reports_occupancy": "Occupancy",
++  "reports_occupancy_mvp_note": "Room nights / sellable nights (MVP)",
++  "reports_sa_international": "SA / International",
++  "reports_snapshot_pdf": "Snapshot PDF",
++  "reports_bi_report": "BI Report",
++  "reports_failed_load": "Failed to load analytics",
++  "reports_guest_origins_title": "Guest Origins by Country",
++  "reports_how_guests_found": "How Guests Found You",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Bar",
++  "reports_no_data_period": "No data available for selected period",
++  "reports_bookings_count": "{count} bookings",
++  "reports_bookings_pct": "{pct}% ({count} bookings)",
++  "reports_room_performance": "Room Performance",
++  "reports_room_performance_desc": "How each room performed relative to the property in this period. Utilisation is room nights sold divided by days in period (not maintenance-adjusted). Labels prefer the room name recorded on the booking.",
++  "reports_property_utilisation": "Property utilisation: {rate}%",
++  "reports_allocation_coverage": "Based on {pct}% of eligible stays with room allocation",
++  "reports_loading_room_metrics": "Loading room metrics…",
++  "reports_no_room_data": "No room data for this period. Assign rooms to stays to see performance.",
++  "reports_historical_name": "historical name",
++  "reports_limited_sample": "limited sample",
++  "reports_stays_count": "{count} stays",
++  "reports_nights_sold": "{count} nights sold",
++  "reports_of_property_nights": "{pct}% of property nights",
++  "reports_avg_stay": "Avg stay {nights}",
++  "reports_pp_vs_property": "{signed} pp vs property",
++  "reports_room_generic": "Room",
++  "reports_rankings_footnote": "Rankings require at least 3 stays or 7 room-nights for comparative language. Price and maintenance-adjusted utilisation are not included.",
++  "reports_insight_top_vs_property": "{room} has {utilisation}% utilisation versus property {property}% ({signed} percentage points).",
++  "reports_insight_lowest_util": "{room} is among the lowest utilisation rooms at {utilisation}% in this period.",
++  "reports_insight_allocation_basis": "Room utilisation is based on {pct}% of eligible stays with room allocation.",
++  "reports_insight_level_fact": "fact",
++  "reports_arriving_from": "Arriving From",
++  "reports_going_to": "Going To",
++  "reports_no_travel_data": "No travel data available",
++  "reports_length_of_stay_title": "Length of Stay Distribution",
++  "reports_most_guests_stay": "Most guests stay {nights} nights",
++  "reports_los_axis_nights": "Length of stay (nights)",
++  "reports_los_axis_bookings": "Number of Bookings",
++  "reports_los_1_night": "1-night stays",
++  "reports_los_2_3_nights": "2-3 nights",
++  "reports_los_4_7_nights": "4-7 nights",
++  "reports_los_8_plus_nights": "8+ nights",
++  "reports_visitor_origin_explorer": "Visitor Origin Explorer",
++  "reports_guest_checkins_summary": "{count} guest check-ins · SA {domestic} · International {international}",
++  "reports_plan_label": "Plan: {plan}",
++  "reports_max_depth": "max depth {level}",
++  "reports_guest_density": "Guest density",
++  "reports_density_none": "None",
++  "reports_density_high": "High",
++  "reports_map_click_explore": "Click to explore",
++  "reports_loading_map_short": "Loading map…",
++  "reports_upgrade_map_growth": "Interactive map available on Growth and higher",
++  "reports_upgrade_to_growth": "Upgrade to Growth",
++  "reports_quality_no_eligible": "No eligible stays in this period. {count} booking(s) excluded by status (confirmed/pending/cancelled are not sold-stay analytics). Only checked-in / checked-out / completed stays are included.",
++  "reports_quality_partial_eligible": "Showing {eligible} eligible stays; {excluded} excluded by status (pre-arrival or cancelled)."
+ }
+diff --git a/src/i18n/translations/es.json b/src/i18n/translations/es.json
+index 032152c..da3251e 100644
+--- a/src/i18n/translations/es.json
++++ b/src/i18n/translations/es.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Regístrese aquí",
+   "reg_select_establishment": "Seleccionar tipo de establecimiento",
+   "reg_select_country": "Seleccionar país",
+-  "reg_basic_dashboard": "Panel básico"
++  "reg_basic_dashboard": "Panel básico",
++  "reports_date_from": "Desde",
++  "reports_date_to": "Hasta",
++  "reports_occupancy": "Ocupación",
++  "reports_occupancy_mvp_note": "Noches de habitación / noches vendibles (MVP)",
++  "reports_sa_international": "SA / Internacional",
++  "reports_snapshot_pdf": "PDF instantáneo",
++  "reports_bi_report": "Informe BI",
++  "reports_failed_load": "Error al cargar análisis",
++  "reports_guest_origins_title": "Origen de huéspedes por país",
++  "reports_how_guests_found": "Cómo le encontraron los huéspedes",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Barras",
++  "reports_no_data_period": "No hay datos para el período seleccionado",
++  "reports_bookings_count": "{count} reservas",
++  "reports_bookings_pct": "{pct} % ({count} reservas)",
++  "reports_room_performance": "Rendimiento de habitaciones",
++  "reports_room_performance_desc": "Rendimiento de cada habitación respecto a la propiedad en este período. La utilización es noches vendidas divididas por los días del período (sin ajuste por mantenimiento). Las etiquetas priorizan el nombre registrado en la reserva.",
++  "reports_property_utilisation": "Utilización de la propiedad: {rate} %",
++  "reports_allocation_coverage": "Basado en el {pct} % de estancias elegibles con habitación asignada",
++  "reports_loading_room_metrics": "Cargando métricas de habitaciones…",
++  "reports_no_room_data": "No hay datos de habitaciones para este período. Asigne habitaciones a las estancias para ver el rendimiento.",
++  "reports_historical_name": "nombre histórico",
++  "reports_limited_sample": "muestra limitada",
++  "reports_stays_count": "{count} estancias",
++  "reports_nights_sold": "{count} noches vendidas",
++  "reports_of_property_nights": "{pct} % de las noches de la propiedad",
++  "reports_avg_stay": "Estancia media {nights}",
++  "reports_pp_vs_property": "{signed} pp vs propiedad",
++  "reports_room_generic": "Habitación",
++  "reports_rankings_footnote": "Las clasificaciones requieren al menos 3 estancias o 7 noches de habitación para lenguaje comparativo. No se incluye la utilización ajustada por precio y mantenimiento.",
++  "reports_insight_top_vs_property": "{room} tiene {utilisation} % de utilización frente al {property} % de la propiedad ({signed} puntos porcentuales).",
++  "reports_insight_lowest_util": "{room} está entre las habitaciones de menor utilización con {utilisation} % en este período.",
++  "reports_insight_allocation_basis": "La utilización de habitaciones se basa en el {pct} % de estancias elegibles con habitación asignada.",
++  "reports_insight_level_fact": "dato",
++  "reports_arriving_from": "Procedencia",
++  "reports_going_to": "Destino",
++  "reports_no_travel_data": "No hay datos de viaje",
++  "reports_length_of_stay_title": "Distribución de la duración de la estancia",
++  "reports_most_guests_stay": "La mayoría de huéspedes se quedan {nights} noches",
++  "reports_los_axis_nights": "Duración de la estancia (noches)",
++  "reports_los_axis_bookings": "Número de reservas",
++  "reports_los_1_night": "Estancias de 1 noche",
++  "reports_los_2_3_nights": "2–3 noches",
++  "reports_los_4_7_nights": "4–7 noches",
++  "reports_los_8_plus_nights": "8+ noches",
++  "reports_visitor_origin_explorer": "Explorador de origen de visitantes",
++  "reports_guest_checkins_summary": "{count} check-ins · SA {domestic} · Internacional {international}",
++  "reports_plan_label": "Plan: {plan}",
++  "reports_max_depth": "profundidad máx. {level}",
++  "reports_guest_density": "Densidad de huéspedes",
++  "reports_density_none": "Ninguna",
++  "reports_density_high": "Alta",
++  "reports_map_click_explore": "Clic para explorar",
++  "reports_loading_map_short": "Cargando mapa…",
++  "reports_upgrade_map_growth": "Mapa interactivo disponible desde Growth",
++  "reports_upgrade_to_growth": "Mejorar a Growth",
++  "reports_quality_no_eligible": "No hay estancias elegibles en este período. {count} reserva(s) excluidas por estado. Solo se incluyen checked-in / checked-out / completadas.",
++  "reports_quality_partial_eligible": "Mostrando {eligible} estancias elegibles; {excluded} excluidas por estado (prellegada o canceladas)."
+ }
+diff --git a/src/i18n/translations/fr.json b/src/i18n/translations/fr.json
+index 6191263..1959e07 100644
+--- a/src/i18n/translations/fr.json
++++ b/src/i18n/translations/fr.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "S'inscrire ici",
+   "reg_select_establishment": "Sélectionner le type d'établissement",
+   "reg_select_country": "Sélectionner le pays",
+-  "reg_basic_dashboard": "Tableau de bord de base"
++  "reg_basic_dashboard": "Tableau de bord de base",
++  "reports_date_from": "Du",
++  "reports_date_to": "Au",
++  "reports_occupancy": "Occupation",
++  "reports_occupancy_mvp_note": "Nuits-chambre / nuits vendables (MVP)",
++  "reports_sa_international": "AF / International",
++  "reports_snapshot_pdf": "PDF instantané",
++  "reports_bi_report": "Rapport BI",
++  "reports_failed_load": "Échec du chargement des analyses",
++  "reports_guest_origins_title": "Origines des clients par pays",
++  "reports_how_guests_found": "Comment les clients vous ont trouvé",
++  "reports_chart_donut": "Anneau",
++  "reports_chart_bar": "Barres",
++  "reports_no_data_period": "Aucune donnée pour la période sélectionnée",
++  "reports_bookings_count": "{count} réservations",
++  "reports_bookings_pct": "{pct} % ({count} réservations)",
++  "reports_room_performance": "Performance des chambres",
++  "reports_room_performance_desc": "Performance de chaque chambre par rapport à l’établissement sur la période. L’utilisation est le nombre de nuits vendues divisé par les jours de la période (non ajusté pour la maintenance). Les libellés privilégient le nom enregistré sur la réservation.",
++  "reports_property_utilisation": "Utilisation de l’établissement : {rate} %",
++  "reports_allocation_coverage": "Basé sur {pct} % des séjours éligibles avec attribution de chambre",
++  "reports_loading_room_metrics": "Chargement des indicateurs de chambre…",
++  "reports_no_room_data": "Aucune donnée de chambre pour cette période. Attribuez des chambres aux séjours pour voir les performances.",
++  "reports_historical_name": "nom historique",
++  "reports_limited_sample": "échantillon limité",
++  "reports_stays_count": "{count} séjours",
++  "reports_nights_sold": "{count} nuits vendues",
++  "reports_of_property_nights": "{pct} % des nuits de l’établissement",
++  "reports_avg_stay": "Séjour moy. {nights}",
++  "reports_pp_vs_property": "{signed} pts vs établissement",
++  "reports_room_generic": "Chambre",
++  "reports_rankings_footnote": "Les classements exigent au moins 3 séjours ou 7 nuits-chambre pour un langage comparatif. L’utilisation ajustée au prix et à la maintenance n’est pas incluse.",
++  "reports_insight_top_vs_property": "{room} a une utilisation de {utilisation} % contre {property} % pour l’établissement ({signed} points de pourcentage).",
++  "reports_insight_lowest_util": "{room} figure parmi les chambres à plus faible utilisation avec {utilisation} % sur cette période.",
++  "reports_insight_allocation_basis": "L’utilisation des chambres est basée sur {pct} % des séjours éligibles avec attribution de chambre.",
++  "reports_insight_level_fact": "fait",
++  "reports_arriving_from": "En provenance de",
++  "reports_going_to": "Destination",
++  "reports_no_travel_data": "Aucune donnée de voyage disponible",
++  "reports_length_of_stay_title": "Répartition de la durée de séjour",
++  "reports_most_guests_stay": "La plupart des clients restent {nights} nuits",
++  "reports_los_axis_nights": "Durée de séjour (nuits)",
++  "reports_los_axis_bookings": "Nombre de réservations",
++  "reports_los_1_night": "Séjours d’1 nuit",
++  "reports_los_2_3_nights": "2–3 nuits",
++  "reports_los_4_7_nights": "4–7 nuits",
++  "reports_los_8_plus_nights": "8 nuits et plus",
++  "reports_visitor_origin_explorer": "Explorateur d’origine des visiteurs",
++  "reports_guest_checkins_summary": "{count} enregistrements clients · AF {domestic} · International {international}",
++  "reports_plan_label": "Offre : {plan}",
++  "reports_max_depth": "profondeur max. {level}",
++  "reports_guest_density": "Densité des clients",
++  "reports_density_none": "Aucune",
++  "reports_density_high": "Élevée",
++  "reports_map_click_explore": "Cliquer pour explorer",
++  "reports_loading_map_short": "Chargement de la carte…",
++  "reports_upgrade_map_growth": "Carte interactive disponible à partir de l’offre Growth",
++  "reports_upgrade_to_growth": "Passer à Growth",
++  "reports_quality_no_eligible": "Aucun séjour éligible sur cette période. {count} réservation(s) exclue(s) selon le statut (confirmé/en attente/annulé hors analyses de séjours vendus). Seuls les séjours enregistrés / partis / terminés sont inclus.",
++  "reports_quality_partial_eligible": "Affichage de {eligible} séjours éligibles ; {excluded} exclus selon le statut (pré-arrivée ou annulés)."
+ }
+diff --git a/src/i18n/translations/he.json b/src/i18n/translations/he.json
+index d011d79..c094469 100644
+--- a/src/i18n/translations/he.json
++++ b/src/i18n/translations/he.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "הירשם כאן",
+   "reg_select_establishment": "בחר סוג מוסד",
+   "reg_select_country": "בחר מדינה",
+-  "reg_basic_dashboard": "לוח בקרה בסיסי"
++  "reg_basic_dashboard": "לוח בקרה בסיסי",
++  "reports_date_from": "מ-",
++  "reports_date_to": "עד",
++  "reports_occupancy": "תפוסה",
++  "reports_occupancy_mvp_note": "לילות חדר / לילות למכירה (MVP)",
++  "reports_sa_international": "דרום אפריקה / בינלאומי",
++  "reports_snapshot_pdf": "PDF תצוגה",
++  "reports_bi_report": "דוח BI",
++  "reports_failed_load": "טעינת הניתוחים נכשלה",
++  "reports_guest_origins_title": "מקורות אורחים לפי מדינה",
++  "reports_how_guests_found": "איך האורחים מצאו אתכם",
++  "reports_chart_donut": "דונאט",
++  "reports_chart_bar": "עמודות",
++  "reports_no_data_period": "אין נתונים לתקופה שנבחרה",
++  "reports_bookings_count": "{count} הזמנות",
++  "reports_bookings_pct": "{pct}% ({count} הזמנות)",
++  "reports_room_performance": "ביצועי חדרים",
++  "reports_room_performance_desc": "ביצועי כל חדר ביחס לנכס בתקופה. ניצולת = לילות חדר שנמכרו חלקי ימי התקופה (ללא התאמת תחזוקה). התוויות מעדיפות את שם החדר מההזמנה.",
++  "reports_property_utilisation": "ניצולת הנכס: {rate}%",
++  "reports_allocation_coverage": "מבוסס על {pct}% מהשהיות הזכאיות עם שיוך חדר",
++  "reports_loading_room_metrics": "טוען מדדי חדרים…",
++  "reports_no_room_data": "אין נתוני חדרים לתקופה זו. שייכו חדרים לשהיות כדי לראות ביצועים.",
++  "reports_historical_name": "שם היסטורי",
++  "reports_limited_sample": "מדגם מוגבל",
++  "reports_stays_count": "{count} שהיות",
++  "reports_nights_sold": "{count} לילות נמכרו",
++  "reports_of_property_nights": "{pct}% מלילות הנכס",
++  "reports_avg_stay": "שהייה ממוצעת {nights}",
++  "reports_pp_vs_property": "{signed} נק׳ מול הנכס",
++  "reports_room_generic": "חדר",
++  "reports_rankings_footnote": "דירוגים דורשים לפחות 3 שהיות או 7 לילות חדר לשפה השוואתית. ניצולת מותאמת מחיר ותחזוקה אינה כלולה.",
++  "reports_insight_top_vs_property": "ל{room} ניצולת {utilisation}% מול {property}% בנכס ({signed} נקודות אחוז).",
++  "reports_insight_lowest_util": "{room} בין החדרים עם הניצולת הנמוכה ביותר ב־{utilisation}% בתקופה זו.",
++  "reports_insight_allocation_basis": "ניצולת חדרים מבוססת על {pct}% מהשהיות הזכאיות עם שיוך חדר.",
++  "reports_insight_level_fact": "עובדה",
++  "reports_arriving_from": "מגיעים מ-",
++  "reports_going_to": "יוצאים אל",
++  "reports_no_travel_data": "אין נתוני נסיעה",
++  "reports_length_of_stay_title": "התפלגות משך שהייה",
++  "reports_most_guests_stay": "רוב האורחים שוהים {nights} לילות",
++  "reports_los_axis_nights": "משך שהייה (לילות)",
++  "reports_los_axis_bookings": "מספר הזמנות",
++  "reports_los_1_night": "שהיות לילה אחד",
++  "reports_los_2_3_nights": "2–3 לילות",
++  "reports_los_4_7_nights": "4–7 לילות",
++  "reports_los_8_plus_nights": "8+ לילות",
++  "reports_visitor_origin_explorer": "חוקר מקורות מבקרים",
++  "reports_guest_checkins_summary": "{count} צ’ק-אינים · דא״פ {domestic} · בינלאומי {international}",
++  "reports_plan_label": "תוכנית: {plan}",
++  "reports_max_depth": "עומק מרבי {level}",
++  "reports_guest_density": "צפיפות אורחים",
++  "reports_density_none": "אין",
++  "reports_density_high": "גבוהה",
++  "reports_map_click_explore": "לחצו לחקירה",
++  "reports_loading_map_short": "טוען מפה…",
++  "reports_upgrade_map_growth": "מפה אינטראקטיבית זמינה מ-Growth ומעלה",
++  "reports_upgrade_to_growth": "שדרוג ל-Growth",
++  "reports_quality_no_eligible": "אין שהיות זכאיות בתקופה זו. {count} הזמנות הוחרגו לפי סטטוס. רק צ’ק-אין / צ’ק-אאוט / הושלם.",
++  "reports_quality_partial_eligible": "מוצגות {eligible} שהיות זכאיות; {excluded} הוחרגו לפי סטטוס (לפני הגעה או בוטל)."
+ }
+diff --git a/src/i18n/translations/it.json b/src/i18n/translations/it.json
+index 8f16267..fbb9508 100644
+--- a/src/i18n/translations/it.json
++++ b/src/i18n/translations/it.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Registrati qui",
+   "reg_select_establishment": "Seleziona tipo di struttura",
+   "reg_select_country": "Seleziona paese",
+-  "reg_basic_dashboard": "Dashboard di base"
++  "reg_basic_dashboard": "Dashboard di base",
++  "reports_date_from": "Da",
++  "reports_date_to": "A",
++  "reports_occupancy": "Occupazione",
++  "reports_occupancy_mvp_note": "Notti camera / notti vendibili (MVP)",
++  "reports_sa_international": "SA / Internazionale",
++  "reports_snapshot_pdf": "PDF snapshot",
++  "reports_bi_report": "Report BI",
++  "reports_failed_load": "Caricamento analytics non riuscito",
++  "reports_guest_origins_title": "Origine ospiti per paese",
++  "reports_how_guests_found": "Come gli ospiti ti hanno trovato",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Barre",
++  "reports_no_data_period": "Nessun dato per il periodo selezionato",
++  "reports_bookings_count": "{count} prenotazioni",
++  "reports_bookings_pct": "{pct}% ({count} prenotazioni)",
++  "reports_room_performance": "Prestazioni camere",
++  "reports_room_performance_desc": "Come ogni camera si è comportata rispetto alla struttura in questo periodo. L’utilizzo è notti camera vendute divise per i giorni del periodo (non corretto per la manutenzione). Le etichette preferiscono il nome registrato sulla prenotazione.",
++  "reports_property_utilisation": "Utilizzo struttura: {rate}%",
++  "reports_allocation_coverage": "Basato sul {pct}% dei soggiorni idonei con camera assegnata",
++  "reports_loading_room_metrics": "Caricamento metriche camere…",
++  "reports_no_room_data": "Nessun dato camere per questo periodo. Assegna camere ai soggiorni per vedere le prestazioni.",
++  "reports_historical_name": "nome storico",
++  "reports_limited_sample": "campione limitato",
++  "reports_stays_count": "{count} soggiorni",
++  "reports_nights_sold": "{count} notti vendute",
++  "reports_of_property_nights": "{pct}% delle notti della struttura",
++  "reports_avg_stay": "Soggiorno medio {nights}",
++  "reports_pp_vs_property": "{signed} pp vs struttura",
++  "reports_room_generic": "Camera",
++  "reports_rankings_footnote": "Le classifiche richiedono almeno 3 soggiorni o 7 notti camera per un linguaggio comparativo. L’utilizzo corretto per prezzo e manutenzione non è incluso.",
++  "reports_insight_top_vs_property": "{room} ha un utilizzo del {utilisation}% rispetto al {property}% della struttura ({signed} punti percentuali).",
++  "reports_insight_lowest_util": "{room} è tra le camere a minor utilizzo con {utilisation}% in questo periodo.",
++  "reports_insight_allocation_basis": "L’utilizzo delle camere si basa sul {pct}% dei soggiorni idonei con camera assegnata.",
++  "reports_insight_level_fact": "fatto",
++  "reports_arriving_from": "In arrivo da",
++  "reports_going_to": "In partenza per",
++  "reports_no_travel_data": "Nessun dato di viaggio",
++  "reports_length_of_stay_title": "Distribuzione della durata del soggiorno",
++  "reports_most_guests_stay": "La maggior parte degli ospiti soggiorna {nights} notti",
++  "reports_los_axis_nights": "Durata del soggiorno (notti)",
++  "reports_los_axis_bookings": "Numero di prenotazioni",
++  "reports_los_1_night": "Soggiorni di 1 notte",
++  "reports_los_2_3_nights": "2–3 notti",
++  "reports_los_4_7_nights": "4–7 notti",
++  "reports_los_8_plus_nights": "8+ notti",
++  "reports_visitor_origin_explorer": "Esploratore origine visitatori",
++  "reports_guest_checkins_summary": "{count} check-in · SA {domestic} · Internazionale {international}",
++  "reports_plan_label": "Piano: {plan}",
++  "reports_max_depth": "profondità max {level}",
++  "reports_guest_density": "Densità ospiti",
++  "reports_density_none": "Nessuna",
++  "reports_density_high": "Alta",
++  "reports_map_click_explore": "Clicca per esplorare",
++  "reports_loading_map_short": "Caricamento mappa…",
++  "reports_upgrade_map_growth": "Mappa interattiva disponibile da Growth in su",
++  "reports_upgrade_to_growth": "Passa a Growth",
++  "reports_quality_no_eligible": "Nessun soggiorno idoneo in questo periodo. {count} prenotazione/i escluse per stato. Solo checked-in / checked-out / completati.",
++  "reports_quality_partial_eligible": "Visualizzati {eligible} soggiorni idonei; {excluded} esclusi per stato (pre-arrivo o annullati)."
+ }
+diff --git a/src/i18n/translations/nl.json b/src/i18n/translations/nl.json
+index 29b6a9d..7e5dc29 100644
+--- a/src/i18n/translations/nl.json
++++ b/src/i18n/translations/nl.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Registreer hier",
+   "reg_select_establishment": "Selecteer type vestiging",
+   "reg_select_country": "Selecteer land",
+-  "reg_basic_dashboard": "Basisdashboard"
++  "reg_basic_dashboard": "Basisdashboard",
++  "reports_date_from": "Van",
++  "reports_date_to": "Tot",
++  "reports_occupancy": "Bezetting",
++  "reports_occupancy_mvp_note": "Kamernachten / verkoopbare nachten (MVP)",
++  "reports_sa_international": "ZA / Internationaal",
++  "reports_snapshot_pdf": "Snapshot-PDF",
++  "reports_bi_report": "BI-rapport",
++  "reports_failed_load": "Analytics laden mislukt",
++  "reports_guest_origins_title": "Herkomst gasten per land",
++  "reports_how_guests_found": "Hoe gasten u vonden",
++  "reports_chart_donut": "Donut",
++  "reports_chart_bar": "Staaf",
++  "reports_no_data_period": "Geen gegevens voor geselecteerde periode",
++  "reports_bookings_count": "{count} boekingen",
++  "reports_bookings_pct": "{pct}% ({count} boekingen)",
++  "reports_room_performance": "Kamerprestaties",
++  "reports_room_performance_desc": "Hoe elke kamer presteerde ten opzichte van de accommodatie in deze periode. Benutting is verkochte kamernachten gedeeld door dagen in de periode (niet onderhoudsgecorrigeerd). Labels geven de voorkeur aan de kamernaam op de boeking.",
++  "reports_property_utilisation": "Benutting accommodatie: {rate}%",
++  "reports_allocation_coverage": "Gebaseerd op {pct}% van in aanmerking komende verblijven met kamersoewijzing",
++  "reports_loading_room_metrics": "Kamermetrics laden…",
++  "reports_no_room_data": "Geen kamergegevens voor deze periode. Wijs kamers toe aan verblijven om prestaties te zien.",
++  "reports_historical_name": "historische naam",
++  "reports_limited_sample": "beperkte steekproef",
++  "reports_stays_count": "{count} verblijven",
++  "reports_nights_sold": "{count} nachten verkocht",
++  "reports_of_property_nights": "{pct}% van accommodatienachten",
++  "reports_avg_stay": "Gem. verblijf {nights}",
++  "reports_pp_vs_property": "{signed} pp vs accommodatie",
++  "reports_room_generic": "Kamer",
++  "reports_rankings_footnote": "Ranglijsten vereisen minstens 3 verblijven of 7 kamernachten voor vergelijkende taal. Prijs- en onderhoudsgecorrigeerde benutting is niet inbegrepen.",
++  "reports_insight_top_vs_property": "{room} heeft {utilisation}% benutting versus {property}% van de accommodatie ({signed} procentpunten).",
++  "reports_insight_lowest_util": "{room} behoort met {utilisation}% tot de kamers met de laagste benutting in deze periode.",
++  "reports_insight_allocation_basis": "Kamerbenutting is gebaseerd op {pct}% van in aanmerking komende verblijven met kamersoewijzing.",
++  "reports_insight_level_fact": "feit",
++  "reports_arriving_from": "Aankomst uit",
++  "reports_going_to": "Op weg naar",
++  "reports_no_travel_data": "Geen reisgegevens beschikbaar",
++  "reports_length_of_stay_title": "Verdeling verblijfsduur",
++  "reports_most_guests_stay": "De meeste gasten blijven {nights} nachten",
++  "reports_los_axis_nights": "Verblijfsduur (nachten)",
++  "reports_los_axis_bookings": "Aantal boekingen",
++  "reports_los_1_night": "1-nacht verblijven",
++  "reports_los_2_3_nights": "2–3 nachten",
++  "reports_los_4_7_nights": "4–7 nachten",
++  "reports_los_8_plus_nights": "8+ nachten",
++  "reports_visitor_origin_explorer": "Bezoekerherkomst-verkenner",
++  "reports_guest_checkins_summary": "{count} check-ins · ZA {domestic} · Internationaal {international}",
++  "reports_plan_label": "Pakket: {plan}",
++  "reports_max_depth": "max. diepte {level}",
++  "reports_guest_density": "Gastendichtheid",
++  "reports_density_none": "Geen",
++  "reports_density_high": "Hoog",
++  "reports_map_click_explore": "Klik om te verkennen",
++  "reports_loading_map_short": "Kaart laden…",
++  "reports_upgrade_map_growth": "Interactieve kaart beschikbaar vanaf Growth",
++  "reports_upgrade_to_growth": "Upgraden naar Growth",
++  "reports_quality_no_eligible": "Geen in aanmerking komende verblijven in deze periode. {count} boeking(en) uitgesloten op status. Alleen ingecheckt / uitgecheckt / voltooid.",
++  "reports_quality_partial_eligible": "{eligible} in aanmerking komende verblijven; {excluded} uitgesloten op status (vóór aankomst of geannuleerd)."
+ }
+diff --git a/src/i18n/translations/pt.json b/src/i18n/translations/pt.json
+index c2a3bf3..3ba6c51 100644
+--- a/src/i18n/translations/pt.json
++++ b/src/i18n/translations/pt.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Registe-se aqui",
+   "reg_select_establishment": "Selecionar tipo de estabelecimento",
+   "reg_select_country": "Selecionar país",
+-  "reg_basic_dashboard": "Painel básico"
++  "reg_basic_dashboard": "Painel básico",
++  "reports_date_from": "De",
++  "reports_date_to": "Até",
++  "reports_occupancy": "Ocupação",
++  "reports_occupancy_mvp_note": "Noites de quarto / noites vendáveis (MVP)",
++  "reports_sa_international": "SA / Internacional",
++  "reports_snapshot_pdf": "PDF instantâneo",
++  "reports_bi_report": "Relatório BI",
++  "reports_failed_load": "Falha ao carregar análises",
++  "reports_guest_origins_title": "Origem dos hóspedes por país",
++  "reports_how_guests_found": "Como os hóspedes o encontraram",
++  "reports_chart_donut": "Rosca",
++  "reports_chart_bar": "Barras",
++  "reports_no_data_period": "Sem dados para o período selecionado",
++  "reports_bookings_count": "{count} reservas",
++  "reports_bookings_pct": "{pct}% ({count} reservas)",
++  "reports_room_performance": "Desempenho dos quartos",
++  "reports_room_performance_desc": "Desempenho de cada quarto face à propriedade neste período. A utilização é noites vendidas divididas pelos dias do período (sem ajuste de manutenção). Os rótulos preferem o nome registado na reserva.",
++  "reports_property_utilisation": "Utilização da propriedade: {rate}%",
++  "reports_allocation_coverage": "Com base em {pct}% das estadias elegíveis com quarto atribuído",
++  "reports_loading_room_metrics": "A carregar métricas de quartos…",
++  "reports_no_room_data": "Sem dados de quartos neste período. Atribua quartos às estadias para ver o desempenho.",
++  "reports_historical_name": "nome histórico",
++  "reports_limited_sample": "amostra limitada",
++  "reports_stays_count": "{count} estadias",
++  "reports_nights_sold": "{count} noites vendidas",
++  "reports_of_property_nights": "{pct}% das noites da propriedade",
++  "reports_avg_stay": "Estadia média {nights}",
++  "reports_pp_vs_property": "{signed} pp vs propriedade",
++  "reports_room_generic": "Quarto",
++  "reports_rankings_footnote": "As classificações exigem pelo menos 3 estadias ou 7 noites de quarto para linguagem comparativa. A utilização ajustada a preço e manutenção não está incluída.",
++  "reports_insight_top_vs_property": "{room} tem {utilisation}% de utilização face a {property}% da propriedade ({signed} pontos percentuais).",
++  "reports_insight_lowest_util": "{room} está entre os quartos de menor utilização com {utilisation}% neste período.",
++  "reports_insight_allocation_basis": "A utilização dos quartos baseia-se em {pct}% das estadias elegíveis com quarto atribuído.",
++  "reports_insight_level_fact": "fato",
++  "reports_arriving_from": "A chegar de",
++  "reports_going_to": "A ir para",
++  "reports_no_travel_data": "Sem dados de viagem",
++  "reports_length_of_stay_title": "Distribuição da duração da estadia",
++  "reports_most_guests_stay": "A maioria dos hóspedes fica {nights} noites",
++  "reports_los_axis_nights": "Duração da estadia (noites)",
++  "reports_los_axis_bookings": "Número de reservas",
++  "reports_los_1_night": "Estadias de 1 noite",
++  "reports_los_2_3_nights": "2–3 noites",
++  "reports_los_4_7_nights": "4–7 noites",
++  "reports_los_8_plus_nights": "8+ noites",
++  "reports_visitor_origin_explorer": "Explorador de origem dos visitantes",
++  "reports_guest_checkins_summary": "{count} check-ins · SA {domestic} · Internacional {international}",
++  "reports_plan_label": "Plano: {plan}",
++  "reports_max_depth": "profundidade máx. {level}",
++  "reports_guest_density": "Densidade de hóspedes",
++  "reports_density_none": "Nenhuma",
++  "reports_density_high": "Alta",
++  "reports_map_click_explore": "Clique para explorar",
++  "reports_loading_map_short": "A carregar mapa…",
++  "reports_upgrade_map_growth": "Mapa interativo disponível a partir do Growth",
++  "reports_upgrade_to_growth": "Atualizar para Growth",
++  "reports_quality_no_eligible": "Sem estadias elegíveis neste período. {count} reserva(s) excluídas por estado. Apenas checked-in / checked-out / concluídas.",
++  "reports_quality_partial_eligible": "A mostrar {eligible} estadias elegíveis; {excluded} excluídas por estado (pré-chegada ou canceladas)."
+ }
+diff --git a/src/i18n/translations/ru.json b/src/i18n/translations/ru.json
+index 5a8350c..e83e347 100644
+--- a/src/i18n/translations/ru.json
++++ b/src/i18n/translations/ru.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "Зарегистрируйтесь здесь",
+   "reg_select_establishment": "Выберите тип заведения",
+   "reg_select_country": "Выберите страну",
+-  "reg_basic_dashboard": "Базовая панель"
++  "reg_basic_dashboard": "Базовая панель",
++  "reports_date_from": "С",
++  "reports_date_to": "По",
++  "reports_occupancy": "Загрузка",
++  "reports_occupancy_mvp_note": "Ночи в номерах / продаваемые ночи (MVP)",
++  "reports_sa_international": "ЮАР / Международные",
++  "reports_snapshot_pdf": "PDF-снимок",
++  "reports_bi_report": "BI-отчёт",
++  "reports_failed_load": "Не удалось загрузить аналитику",
++  "reports_guest_origins_title": "Происхождение гостей по странам",
++  "reports_how_guests_found": "Как гости вас нашли",
++  "reports_chart_donut": "Кольцо",
++  "reports_chart_bar": "Столбцы",
++  "reports_no_data_period": "Нет данных за выбранный период",
++  "reports_bookings_count": "{count} бронирований",
++  "reports_bookings_pct": "{pct}% ({count} бронирований)",
++  "reports_room_performance": "Эффективность номеров",
++  "reports_room_performance_desc": "Как каждый номер работал относительно объекта за период. Загрузка — проданные ночи, делённые на дни периода (без учёта обслуживания). Подписи предпочитают имя номера из бронирования.",
++  "reports_property_utilisation": "Загрузка объекта: {rate}%",
++  "reports_allocation_coverage": "На основе {pct}% подходящих проживаний с назначенным номером",
++  "reports_loading_room_metrics": "Загрузка метрик номеров…",
++  "reports_no_room_data": "Нет данных по номерам за период. Назначьте номера проживаниям, чтобы увидеть показатели.",
++  "reports_historical_name": "историческое имя",
++  "reports_limited_sample": "ограниченная выборка",
++  "reports_stays_count": "{count} проживаний",
++  "reports_nights_sold": "{count} ночей продано",
++  "reports_of_property_nights": "{pct}% ночей объекта",
++  "reports_avg_stay": "Ср. проживание {nights}",
++  "reports_pp_vs_property": "{signed} п.п. к объекту",
++  "reports_room_generic": "Номер",
++  "reports_rankings_footnote": "Для сравнительных формулировок нужно не менее 3 проживаний или 7 ночей. Загрузка с учётом цены и обслуживания не включена.",
++  "reports_insight_top_vs_property": "У {room} загрузка {utilisation}% против {property}% по объекту ({signed} процентных пунктов).",
++  "reports_insight_lowest_util": "{room} входит в номера с наименьшей загрузкой — {utilisation}% за период.",
++  "reports_insight_allocation_basis": "Загрузка номеров основана на {pct}% подходящих проживаний с назначенным номером.",
++  "reports_insight_level_fact": "факт",
++  "reports_arriving_from": "Прибытие из",
++  "reports_going_to": "Направление",
++  "reports_no_travel_data": "Нет данных о поездках",
++  "reports_length_of_stay_title": "Распределение длительности проживания",
++  "reports_most_guests_stay": "Большинство гостей остаётся на {nights} ночей",
++  "reports_los_axis_nights": "Длительность проживания (ночи)",
++  "reports_los_axis_bookings": "Число бронирований",
++  "reports_los_1_night": "Проживания на 1 ночь",
++  "reports_los_2_3_nights": "2–3 ночи",
++  "reports_los_4_7_nights": "4–7 ночей",
++  "reports_los_8_plus_nights": "8+ ночей",
++  "reports_visitor_origin_explorer": "Исследователь происхождения посетителей",
++  "reports_guest_checkins_summary": "{count} заездов · ЮАР {domestic} · Междунар. {international}",
++  "reports_plan_label": "Тариф: {plan}",
++  "reports_max_depth": "макс. глубина {level}",
++  "reports_guest_density": "Плотность гостей",
++  "reports_density_none": "Нет",
++  "reports_density_high": "Высокая",
++  "reports_map_click_explore": "Нажмите, чтобы изучить",
++  "reports_loading_map_short": "Загрузка карты…",
++  "reports_upgrade_map_growth": "Интерактивная карта доступна начиная с Growth",
++  "reports_upgrade_to_growth": "Перейти на Growth",
++  "reports_quality_no_eligible": "Нет подходящих проживаний за период. {count} бронирование(й) исключено по статусу. Только заезд / выезд / завершённые.",
++  "reports_quality_partial_eligible": "Показано {eligible} подходящих проживаний; {excluded} исключено по статусу (до заезда или отменено)."
+ }
+diff --git a/src/i18n/translations/zh.json b/src/i18n/translations/zh.json
+index 1e25805..d8410ae 100644
+--- a/src/i18n/translations/zh.json
++++ b/src/i18n/translations/zh.json
+@@ -970,5 +970,63 @@
+   "reg_register_here": "在此注册",
+   "reg_select_establishment": "选择场所类型",
+   "reg_select_country": "选择国家",
+-  "reg_basic_dashboard": "基础仪表板"
++  "reg_basic_dashboard": "基础仪表板",
++  "reports_date_from": "从",
++  "reports_date_to": "至",
++  "reports_occupancy": "入住率",
++  "reports_occupancy_mvp_note": "间夜 / 可售间夜（MVP）",
++  "reports_sa_international": "南非 / 国际",
++  "reports_snapshot_pdf": "快照 PDF",
++  "reports_bi_report": "BI 报告",
++  "reports_failed_load": "加载分析失败",
++  "reports_guest_origins_title": "宾客来源（按国家）",
++  "reports_how_guests_found": "宾客如何找到您",
++  "reports_chart_donut": "环形图",
++  "reports_chart_bar": "柱状图",
++  "reports_no_data_period": "所选时段暂无数据",
++  "reports_bookings_count": "{count} 笔预订",
++  "reports_bookings_pct": "{pct}%（{count} 笔预订）",
++  "reports_room_performance": "房间表现",
++  "reports_room_performance_desc": "本时段各房间相对整栋物业的表现。利用率=已售间夜÷时段天数（未按维护调整）。标签优先使用预订上记录的房名。",
++  "reports_property_utilisation": "物业利用率：{rate}%",
++  "reports_allocation_coverage": "基于 {pct}% 已分配房间的合格住宿",
++  "reports_loading_room_metrics": "正在加载房间指标…",
++  "reports_no_room_data": "本时段无房间数据。请为住宿分配房间以查看表现。",
++  "reports_historical_name": "历史名称",
++  "reports_limited_sample": "样本有限",
++  "reports_stays_count": "{count} 次住宿",
++  "reports_nights_sold": "已售 {count} 间夜",
++  "reports_of_property_nights": "占物业间夜的 {pct}%",
++  "reports_avg_stay": "平均入住 {nights}",
++  "reports_pp_vs_property": "较物业 {signed} 百分点",
++  "reports_room_generic": "房间",
++  "reports_rankings_footnote": "排名需至少 3 次住宿或 7 间夜才使用比较性表述。未包含按价格与维护调整的利用率。",
++  "reports_insight_top_vs_property": "{room} 利用率为 {utilisation}%，物业为 {property}%（{signed} 个百分点）。",
++  "reports_insight_lowest_util": "{room} 是本时段利用率最低的房间之一（{utilisation}%）。",
++  "reports_insight_allocation_basis": "房间利用率基于 {pct}% 已分配房间的合格住宿。",
++  "reports_insight_level_fact": "事实",
++  "reports_arriving_from": "来自",
++  "reports_going_to": "前往",
++  "reports_no_travel_data": "暂无出行数据",
++  "reports_length_of_stay_title": "入住时长分布",
++  "reports_most_guests_stay": "多数宾客住 {nights} 晚",
++  "reports_los_axis_nights": "入住时长（晚）",
++  "reports_los_axis_bookings": "预订数",
++  "reports_los_1_night": "1 晚住宿",
++  "reports_los_2_3_nights": "2–3 晚",
++  "reports_los_4_7_nights": "4–7 晚",
++  "reports_los_8_plus_nights": "8 晚及以上",
++  "reports_visitor_origin_explorer": "访客来源探索",
++  "reports_guest_checkins_summary": "{count} 次入住登记 · 南非 {domestic} · 国际 {international}",
++  "reports_plan_label": "套餐：{plan}",
++  "reports_max_depth": "最大深度 {level}",
++  "reports_guest_density": "宾客密度",
++  "reports_density_none": "无",
++  "reports_density_high": "高",
++  "reports_map_click_explore": "点击探索",
++  "reports_loading_map_short": "正在加载地图…",
++  "reports_upgrade_map_growth": "互动地图需 Growth 及以上套餐",
++  "reports_upgrade_to_growth": "升级到 Growth",
++  "reports_quality_no_eligible": "本时段无合格住宿。{count} 笔预订因状态被排除。仅含已入住/已退房/已完成。",
++  "reports_quality_partial_eligible": "显示 {eligible} 次合格住宿；{excluded} 因状态排除（到店前或已取消）。"
+ }
+diff --git a/src/pages/tabs/ReportsTab.tsx b/src/pages/tabs/ReportsTab.tsx
+index 9231bf6..36ac0ab 100644
+--- a/src/pages/tabs/ReportsTab.tsx
++++ b/src/pages/tabs/ReportsTab.tsx
+@@ -63,7 +63,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+         dateTo,
+       });
+       if (!data.success) {
+-        setError(data.error || 'Failed to load analytics');
++        setError(data.error || t('reports_failed_load'));
+         setSummary(null);
+       } else {
+         setSummary(data);
+@@ -72,7 +72,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+         }
+       }
+     } catch (e: any) {
+-      setError(e?.message || 'Failed to load analytics');
++      setError(e?.message || t('reports_failed_load'));
+       setSummary(null);
+     } finally {
+       setLoading(false);
+@@ -143,14 +143,14 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+         </div>
+         <div className="flex flex-wrap items-center gap-3">
+           <div className="flex items-center gap-2 text-sm">
+-            <label className="text-stone-500">From</label>
++            <label className="text-stone-500">{t('reports_date_from')}</label>
+             <input
+               type="date"
+               value={dateFrom}
+               onChange={(e) => setDateFrom(e.target.value)}
+               className="rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+             />
+-            <label className="text-stone-500">To</label>
++            <label className="text-stone-500">{t('reports_date_to')}</label>
+             <input
+               type="date"
+               value={dateTo}
+@@ -173,7 +173,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+               ) : (
+                 <FileDown size={12} />
+               )}
+-              Snapshot PDF
++              {t('reports_snapshot_pdf')}
+             </button>
+           )}
+           {analyticsLimits.canBiReport && (
+@@ -188,7 +188,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+               ) : (
+                 <FileDown size={12} />
+               )}
+-              BI Report
++              {t('reports_bi_report')}
+             </button>
+           )}
+         </div>
+@@ -214,14 +214,14 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
+           </p>
+         </div>
+         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Occupancy</p>
++          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_occupancy')}</p>
+           <p className="text-2xl font-bold text-gray-900">
+             {loading ? '—' : `${occupancyRate}%`}
+           </p>
+-          <p className="text-[10px] text-stone-400 mt-1">Room nights / sellable nights (MVP)</p>
++          <p className="text-[10px] text-stone-400 mt-1">{t('reports_occupancy_mvp_note')}</p>
+         </div>
+         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">SA / International</p>
++          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_sa_international')}</p>
+           <p className="text-2xl font-bold text-gray-900">
+             {loading
+               ? '—'
+diff --git a/src/services/analyticsApi.ts b/src/services/analyticsApi.ts
+index 4b4630a..4b94519 100644
+--- a/src/services/analyticsApi.ts
++++ b/src/services/analyticsApi.ts
+@@ -267,7 +267,7 @@ export interface RoomPerformanceResponse {
+     mostNights: string[];
+     longestAverageStay: string[];
+   };
+-  insights?: Array<{ level: string; text: string }>;
++  insights?: Array<{ level: string; text?: string; code?: string; params?: Record<string, string | number> }>;
+   limits?: AnalyticsPlanLimits;
+   error?: string;
+ }
+-- 
+2.43.0
+
+
+From 534c3dbb14c9cacb77dcf531072e21052173b981 Mon Sep 17 00:00:00 2001
+From: TerraFit <inquiry@aemaragroup.com>
+Date: Sun, 16 Aug 2026 11:19:53 +0000
+Subject: [PATCH 2/2] fix(i18n): translate residual Report map drill-down
+ chrome
+
+---
+ src/components/analytics/CityInsightPanel.tsx |  8 +++---
+ .../analytics/UpgradePromptModal.tsx          |  4 ++-
+ .../analytics/VisitorOriginCityGrid.tsx       | 20 ++++++++-------
+ .../analytics/VisitorOriginContinentMap.tsx   | 10 +++++---
+ .../analytics/VisitorOriginCountryMap.tsx     | 14 ++++++-----
+ .../analytics/VisitorOriginExplorer.tsx       |  2 +-
+ .../analytics/VisitorOriginRegionMap.tsx      | 14 ++++++-----
+ .../analytics/VisitorOriginWorldMap.tsx       |  6 +++--
+ .../analytics/geo/GeographicMapViewport.tsx   |  2 +-
+ .../dashboard/TravelPatternsChart.tsx         |  8 +++---
+ src/i18n/translations/af.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/ar.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/de.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/en.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/es.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/fr.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/he.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/it.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/nl.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/pt.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/ru.json                 | 25 ++++++++++++++++++-
+ src/i18n/translations/zh.json                 | 25 ++++++++++++++++++-
+ 22 files changed, 340 insertions(+), 48 deletions(-)
+
+diff --git a/src/components/analytics/CityInsightPanel.tsx b/src/components/analytics/CityInsightPanel.tsx
+index 29469fb..e4a1a02 100644
+--- a/src/components/analytics/CityInsightPanel.tsx
++++ b/src/components/analytics/CityInsightPanel.tsx
+@@ -1,3 +1,4 @@
++import { useTranslation } from '../../i18n';
+ import { ArrowLeft, Users, Calendar, Heart, Share2, UserPlus, MapPin } from 'lucide-react';
+ import type { CityDashboard } from '../../services/analyticsApi';
+ 
+@@ -18,10 +19,11 @@ export function CityInsightPanel({
+   isLoading,
+   onBack,
+ }: CityInsightPanelProps) {
++  const { t } = useTranslation();
+   if (isLoading && !data) {
+     return (
+       <div className="flex items-center justify-center py-16 text-stone-400 text-sm">
+-        Loading city insights…
++        {t('reports_loading_city_insights')}
+       </div>
+     );
+   }
+@@ -52,7 +54,7 @@ export function CityInsightPanel({
+         <div>
+           <div className="flex items-center gap-2 text-orange-500 mb-1">
+             <MapPin size={18} />
+-            <span className="text-xs font-bold uppercase tracking-wider">City insight</span>
++            <span className="text-xs font-bold uppercase tracking-wider">{t('reports_city_insight')}</span>
+           </div>
+           <h4 className="text-2xl font-extrabold text-stone-900">{cityName}</h4>
+           <p className="text-sm text-stone-500">
+@@ -64,7 +66,7 @@ export function CityInsightPanel({
+           onClick={onBack}
+           className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50"
+         >
+-          <ArrowLeft size={12} /> Back
++          <ArrowLeft size={12} /> {t('common_back')}
+         </button>
+       </div>
+ 
+diff --git a/src/components/analytics/UpgradePromptModal.tsx b/src/components/analytics/UpgradePromptModal.tsx
+index b762eaa..6e0380b 100644
+--- a/src/components/analytics/UpgradePromptModal.tsx
++++ b/src/components/analytics/UpgradePromptModal.tsx
+@@ -1,3 +1,4 @@
++import { useTranslation } from '../../i18n';
+ import { X, Check, ArrowRight, Sparkles } from 'lucide-react';
+ import { getPackage, type PlanType } from '../../config/packages';
+ import { getFeature } from '../../config/featureRegistry';
+@@ -26,6 +27,7 @@ export function UpgradePromptModal({
+   onUpgrade,
+   onCompare,
+ }: UpgradePromptModalProps) {
++  const { t } = useTranslation();
+   if (!isOpen) return null;
+ 
+   const feature = featureId ? getFeature(featureId) : null;
+@@ -65,7 +67,7 @@ export function UpgradePromptModal({
+           <button
+             onClick={onClose}
+             className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
+-            aria-label="Close modal"
++            aria-label={t('reports_close_modal')}
+           >
+             <X size={18} />
+           </button>
+diff --git a/src/components/analytics/VisitorOriginCityGrid.tsx b/src/components/analytics/VisitorOriginCityGrid.tsx
+index a443129..66ab162 100644
+--- a/src/components/analytics/VisitorOriginCityGrid.tsx
++++ b/src/components/analytics/VisitorOriginCityGrid.tsx
+@@ -1,4 +1,5 @@
+-import { useState, useMemo } from 'react';
++import { useState, useMemo } from 'react'
++import { useTranslation } from '../../i18n';
+ import { Award, ArrowLeft, Building2 } from 'lucide-react';
+ 
+ interface VisitorOriginCityGridProps {
+@@ -16,6 +17,7 @@ export function VisitorOriginCityGrid({
+   isLoading,
+   onCityClick,
+ }: VisitorOriginCityGridProps) {
++  const { t } = useTranslation();
+   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
+ 
+   const cityList = useMemo(() => {
+@@ -63,7 +65,7 @@ export function VisitorOriginCityGrid({
+       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
+         <div className="text-center">
+           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
+-          <p className="text-stone-400 text-sm font-medium">Loading city breakdown...</p>
++          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_city_breakdown')}</p>
+         </div>
+       </div>
+     );
+@@ -73,15 +75,15 @@ export function VisitorOriginCityGrid({
+     return (
+       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
+         <Building2 size={48} className="text-stone-300 mb-3" />
+-        <h3 className="text-base font-bold text-stone-700">No city details loaded</h3>
++        <h3 className="text-base font-bold text-stone-700">{t('reports_no_city_details')}</h3>
+         <p className="text-stone-400 text-xs mt-1 max-w-sm">
+-          No city records were linked to {regionName} in this dataset.
++          {t('reports_no_city_records_region', { region: regionName })}
+         </p>
+         <button
+           onClick={onBack}
+           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
+         >
+-          ← Back
++          {t('common_back')}
+         </button>
+       </div>
+     );
+@@ -94,7 +96,7 @@ export function VisitorOriginCityGrid({
+           onClick={onBack}
+           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
+         >
+-          <ArrowLeft size={14} /> Back
++          <ArrowLeft size={14} /> {t('common_back')}
+         </button>
+ 
+         <div className="bg-stone-900 text-white px-3 py-1 rounded-lg text-xs font-mono shadow-md">
+@@ -106,7 +108,7 @@ export function VisitorOriginCityGrid({
+         <div className="inline-flex items-center justify-center p-2 bg-orange-100 rounded-xl text-orange-600 mb-2">
+           <Building2 size={20} />
+         </div>
+-        <h3 className="text-lg font-bold text-stone-900 tracking-tight">Cities in {regionName}</h3>
++        <h3 className="text-lg font-bold text-stone-900 tracking-tight">{t('reports_cities_in_region', { region: regionName })}</h3>
+         <p className="text-xs text-stone-500 max-w-md mx-auto mt-0.5">
+           Click a city for average stay, consent, referrals, and more.
+         </p>
+@@ -179,10 +181,10 @@ export function VisitorOriginCityGrid({
+ 
+       <div className="mt-8 pt-4 border-t border-stone-200/60 max-w-2xl mx-auto flex items-center justify-between text-xs text-stone-400 font-mono">
+         <span>
+-          TOTAL: <strong className="text-stone-700 font-bold">{total}</strong>
++          {t('reports_total_label')} <strong className="text-stone-700 font-bold">{total}</strong>
+         </span>
+         <span>
+-          CITIES: <strong className="text-stone-700 font-bold">{cityList.length}</strong>
++          {t('reports_cities_label')} <strong className="text-stone-700 font-bold">{cityList.length}</strong>
+         </span>
+       </div>
+     </div>
+diff --git a/src/components/analytics/VisitorOriginContinentMap.tsx b/src/components/analytics/VisitorOriginContinentMap.tsx
+index 3f103c8..f74585e 100644
+--- a/src/components/analytics/VisitorOriginContinentMap.tsx
++++ b/src/components/analytics/VisitorOriginContinentMap.tsx
+@@ -1,4 +1,5 @@
+-import { useState, useMemo } from 'react';
++import { useState, useMemo } from 'react'
++import { useTranslation } from '../../i18n';
+ import { ContinentData } from '../../types';
+ import { Compass, HelpCircle } from 'lucide-react';
+ 
+@@ -25,6 +26,7 @@ export function VisitorOriginContinentMap({
+   onBack,
+   isLoading
+ }: VisitorOriginContinentMapProps) {
++  const { t } = useTranslation();
+   const [hoveredContinent, setHoveredContinent] = useState<string | null>(null);
+ 
+   const maxCount = useMemo(() => {
+@@ -44,7 +46,7 @@ export function VisitorOriginContinentMap({
+       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
+         <div className="text-center">
+           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
+-          <p className="text-stone-400 text-sm font-medium">Loading continent analytics...</p>
++          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_continents')}</p>
+         </div>
+       </div>
+     );
+@@ -248,7 +250,7 @@ export function VisitorOriginContinentMap({
+       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[220px]">
+         <div className="flex items-center gap-1 mb-2">
+           <Compass size={12} className="text-orange-500" />
+-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Continents</h4>
++          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_continents')}</h4>
+         </div>
+         <div className="space-y-1.5">
+           {normalizedData.slice(0, 4).map((item, index) => (
+@@ -269,7 +271,7 @@ export function VisitorOriginContinentMap({
+       {/* Floating prompt box at bottom-right */}
+       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200 flex items-center gap-3">
+         <div>
+-          <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">World Total Check-ins</span>
++          <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_world_total_checkins')}</span>
+           <span className="text-base font-extrabold text-stone-900">{grandTotal.toLocaleString()}</span>
+         </div>
+       </div>
+diff --git a/src/components/analytics/VisitorOriginCountryMap.tsx b/src/components/analytics/VisitorOriginCountryMap.tsx
+index 8adf6f5..c9ca799 100644
+--- a/src/components/analytics/VisitorOriginCountryMap.tsx
++++ b/src/components/analytics/VisitorOriginCountryMap.tsx
+@@ -1,4 +1,5 @@
+-import { useState, useMemo } from 'react';
++import { useState, useMemo } from 'react'
++import { useTranslation } from '../../i18n';
+ import { CountryData } from '../../types';
+ import { Map, Users, Globe2 } from 'lucide-react';
+ 
+@@ -58,6 +59,7 @@ export function VisitorOriginCountryMap({
+   onBack,
+   isLoading
+ }: VisitorOriginCountryMapProps) {
++  const { t } = useTranslation();
+   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
+ 
+   // Group filtered records to count visitors per country
+@@ -139,7 +141,7 @@ export function VisitorOriginCountryMap({
+     return (
+       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
+         <Globe2 size={48} className="text-stone-300 mb-3" />
+-        <h3 className="text-base font-bold text-stone-700">No country-level details loaded</h3>
++        <h3 className="text-base font-bold text-stone-700">{t('reports_no_country_details')}</h3>
+         <p className="text-stone-400 text-xs mt-1 max-w-sm">
+           No records associated with {continentName} were found in the selected filter period.
+         </p>
+@@ -147,7 +149,7 @@ export function VisitorOriginCountryMap({
+           onClick={onBack}
+           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
+         >
+-          ← Back to Continents
++          {t('reports_back_to_continents')}
+         </button>
+       </div>
+     );
+@@ -161,7 +163,7 @@ export function VisitorOriginCountryMap({
+           onClick={onBack}
+           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
+         >
+-          ← Back to Continents
++          {t('reports_back_to_continents')}
+         </button>
+       </div>
+ 
+@@ -341,7 +343,7 @@ export function VisitorOriginCountryMap({
+       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
+         <div className="flex items-center gap-1.5 mb-2">
+           <Users size={12} className="text-orange-500" />
+-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Markets</h4>
++          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_markets')}</h4>
+         </div>
+         <div className="space-y-1">
+           {countryList.slice(0, 4).map((country) => (
+@@ -359,7 +361,7 @@ export function VisitorOriginCountryMap({
+       </div>
+ 
+       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200">
+-        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">Continent Total</span>
++        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_continent_total')}</span>
+         <span className="text-sm font-extrabold text-stone-900">{continentTotal.toLocaleString()}</span>
+       </div>
+     </div>
+diff --git a/src/components/analytics/VisitorOriginExplorer.tsx b/src/components/analytics/VisitorOriginExplorer.tsx
+index 84b4093..ec7fe34 100644
+--- a/src/components/analytics/VisitorOriginExplorer.tsx
++++ b/src/components/analytics/VisitorOriginExplorer.tsx
+@@ -476,7 +476,7 @@ export function VisitorOriginExplorer({
+             onClick={handleBack}
+             className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50"
+           >
+-            <ArrowLeft size={12} /> Back
++            <ArrowLeft size={12} /> {t('common_back')}
+           </button>
+         )}
+       </div>
+diff --git a/src/components/analytics/VisitorOriginRegionMap.tsx b/src/components/analytics/VisitorOriginRegionMap.tsx
+index 3fac434..7f1535e 100644
+--- a/src/components/analytics/VisitorOriginRegionMap.tsx
++++ b/src/components/analytics/VisitorOriginRegionMap.tsx
+@@ -1,4 +1,5 @@
+-import { useState, useMemo } from 'react';
++import { useState, useMemo } from 'react'
++import { useTranslation } from '../../i18n';
+ import { RegionData } from '../../types';
+ import { Compass, Users, MapPin } from 'lucide-react';
+ 
+@@ -48,6 +49,7 @@ export function VisitorOriginRegionMap({
+   onBack,
+   isLoading
+ }: VisitorOriginRegionMapProps) {
++  const { t } = useTranslation();
+   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+ 
+   // Group filtered records to count visitors per region
+@@ -129,7 +131,7 @@ export function VisitorOriginRegionMap({
+     return (
+       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
+         <MapPin size={48} className="text-stone-300 mb-3" />
+-        <h3 className="text-base font-bold text-stone-700">No regional details available</h3>
++        <h3 className="text-base font-bold text-stone-700">{t('reports_no_regional_details')}</h3>
+         <p className="text-stone-400 text-xs mt-1 max-w-sm">
+           No region records matched for {countryName}. Try adjusting filters or selecting another country.
+         </p>
+@@ -137,7 +139,7 @@ export function VisitorOriginRegionMap({
+           onClick={onBack}
+           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
+         >
+-          ← Back to Countries
++          {t('reports_back_to_countries')}
+         </button>
+       </div>
+     );
+@@ -151,7 +153,7 @@ export function VisitorOriginRegionMap({
+           onClick={onBack}
+           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
+         >
+-          ← Back to Countries
++          {t('reports_back_to_countries')}
+         </button>
+       </div>
+ 
+@@ -329,7 +331,7 @@ export function VisitorOriginRegionMap({
+       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
+         <div className="flex items-center gap-1.5 mb-2">
+           <Compass size={12} className="text-orange-500" />
+-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Regions</h4>
++          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_regions')}</h4>
+         </div>
+         <div className="space-y-1">
+           {regionList.slice(0, 4).map((region) => (
+@@ -347,7 +349,7 @@ export function VisitorOriginRegionMap({
+       </div>
+ 
+       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200">
+-        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">Country Total</span>
++        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_country_total')}</span>
+         <span className="text-sm font-extrabold text-stone-900">{countryTotal.toLocaleString()}</span>
+       </div>
+     </div>
+diff --git a/src/components/analytics/VisitorOriginWorldMap.tsx b/src/components/analytics/VisitorOriginWorldMap.tsx
+index 5517085..1b84068 100644
+--- a/src/components/analytics/VisitorOriginWorldMap.tsx
++++ b/src/components/analytics/VisitorOriginWorldMap.tsx
+@@ -1,4 +1,5 @@
+-import { useState, useRef } from 'react';
++import { useState, useRef } from 'react'
++import { useTranslation } from '../../i18n';
+ 
+ interface VisitorOriginWorldMapProps {
+   totalVisitors: number;
+@@ -11,6 +12,7 @@ export function VisitorOriginWorldMap({
+   onExplore,
+   isLoading
+ }: VisitorOriginWorldMapProps) {
++  const { t } = useTranslation();
+   const [isHovered, setIsHovered] = useState(false);
+   const containerRef = useRef<HTMLDivElement>(null);
+ 
+@@ -19,7 +21,7 @@ export function VisitorOriginWorldMap({
+       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
+         <div className="text-center">
+           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
+-          <p className="text-stone-400 text-sm font-medium">Loading world data...</p>
++          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_world')}</p>
+         </div>
+       </div>
+     );
+diff --git a/src/components/analytics/geo/GeographicMapViewport.tsx b/src/components/analytics/geo/GeographicMapViewport.tsx
+index 6c89d70..fdc9d02 100644
+--- a/src/components/analytics/geo/GeographicMapViewport.tsx
++++ b/src/components/analytics/geo/GeographicMapViewport.tsx
+@@ -488,7 +488,7 @@ function GeographicMapViewportInner({
+         >
+           <p className="font-bold text-sm">{hover.name}</p>
+           <p className="text-orange-300 mt-0.5">
+-            {hover.count.toLocaleString()} guest check-ins
++            {t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}
+           </p>
+           {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+           {interactive && hover.count > 0 && (
+diff --git a/src/components/dashboard/TravelPatternsChart.tsx b/src/components/dashboard/TravelPatternsChart.tsx
+index b7a7b31..89ba184 100644
+--- a/src/components/dashboard/TravelPatternsChart.tsx
++++ b/src/components/dashboard/TravelPatternsChart.tsx
+@@ -1,5 +1,6 @@
+ // src/components/dashboard/TravelPatternsChart.tsx
+-import { useMemo, useState } from 'react';
++import { useMemo, useState } from 'react'
++import { useTranslation } from '../../i18n';;
+ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
+ import { findClosestCity } from '../../services/cityAutocompleteService';
+ 
+@@ -10,12 +11,13 @@ interface TravelPatternsChartProps {
+ const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
+ 
+ export function TravelPatternsChart({ bookings }: TravelPatternsChartProps) {
++  const { t } = useTranslation();
+   const [view, setView] = useState<'comingFrom' | 'goingTo'>('comingFrom');
+ 
+   if (bookings.length === 0) {
+     return (
+       <div className="bg-white rounded-lg shadow p-6">
+-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Travel Patterns</h3>
++        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('reports_travel_patterns')}</h3>
+         <div className="h-64 flex items-center justify-center text-gray-400">
+           No data available for selected period
+         </div>
+@@ -125,7 +127,7 @@ export function TravelPatternsChart({ bookings }: TravelPatternsChartProps) {
+   return (
+     <div className="bg-white rounded-lg shadow p-6">
+       <div className="flex justify-between items-center mb-4">
+-        <h3 className="text-lg font-semibold text-gray-900">Guest Travel Patterns</h3>
++        <h3 className="text-lg font-semibold text-gray-900">{t('reports_travel_patterns')}</h3>
+         <div className="flex gap-2">
+           <button
+             onClick={() => setView('comingFrom')}
+diff --git a/src/i18n/translations/af.json b/src/i18n/translations/af.json
+index 9564c91..a285a96 100644
+--- a/src/i18n/translations/af.json
++++ b/src/i18n/translations/af.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Interaktiewe kaart beskikbaar vanaf Growth",
+   "reports_upgrade_to_growth": "Gradeer op na Growth",
+   "reports_quality_no_eligible": "Geen in aanmerking komende verblywe in hierdie tydperk nie. {count} bespreking(s) uitgesluit volgens status. Slegs ingetjek / uitgecheck / voltooi.",
+-  "reports_quality_partial_eligible": "Wys {eligible} in aanmerking komende verblywe; {excluded} uitgesluit volgens status (voor aankoms of gekanselleer)."
++  "reports_quality_partial_eligible": "Wys {eligible} in aanmerking komende verblywe; {excluded} uitgesluit volgens status (voor aankoms of gekanselleer).",
++  "reports_guest_checkins_count": "{count} gas-intjekke",
++  "reports_loading_city_breakdown": "Laai stadsverdeling…",
++  "reports_no_city_details": "Geen stadsbesonderhede gelaai nie",
++  "reports_no_city_records_region": "Geen stadsrekords is aan {region} gekoppel in hierdie datastel nie.",
++  "reports_total_label": "TOTAAL:",
++  "reports_cities_label": "STEDE:",
++  "reports_loading_continents": "Laai kontinent-analise…",
++  "reports_top_continents": "Top-kontinente",
++  "reports_world_total_checkins": "Wêreldtotale intjekke",
++  "reports_no_country_details": "Geen landvlak-besonderhede gelaai nie",
++  "reports_back_to_continents": "← Terug na kontinente",
++  "reports_top_markets": "Topmarkte",
++  "reports_continent_total": "Kontinent-totaal",
++  "reports_no_regional_details": "Geen streeksbesonderhede beskikbaar nie",
++  "reports_back_to_countries": "← Terug na lande",
++  "reports_top_regions": "Topstreke",
++  "reports_country_total": "Land-totaal",
++  "reports_loading_world": "Laai wêrelddata…",
++  "reports_city_insight": "Stadsinsig",
++  "reports_loading_city_insights": "Laai stadsinsigte…",
++  "reports_close_modal": "Maak modal toe",
++  "reports_region_level": "STREEK_VLAK:",
++  "reports_cities_in_region": "Stede in {region}"
+ }
+diff --git a/src/i18n/translations/ar.json b/src/i18n/translations/ar.json
+index 125d299..a30ded6 100644
+--- a/src/i18n/translations/ar.json
++++ b/src/i18n/translations/ar.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "الخريطة التفاعلية متاحة من باقة Growth فأعلى",
+   "reports_upgrade_to_growth": "الترقية إلى Growth",
+   "reports_quality_no_eligible": "لا إقامات مؤهلة في هذه الفترة. استُبعد {count} حجزًا حسب الحالة. يُدرَج فقط تسجيل الوصول / المغادرة / المكتمل.",
+-  "reports_quality_partial_eligible": "عرض {eligible} إقامات مؤهلة؛ استُبعد {excluded} حسب الحالة (قبل الوصول أو ملغى)."
++  "reports_quality_partial_eligible": "عرض {eligible} إقامات مؤهلة؛ استُبعد {excluded} حسب الحالة (قبل الوصول أو ملغى).",
++  "reports_guest_checkins_count": "{count} تسجيلات وصول للضيوف",
++  "reports_loading_city_breakdown": "جاري تحميل تفصيل المدن…",
++  "reports_no_city_details": "لم تُحمَّل تفاصيل المدن",
++  "reports_no_city_records_region": "لا توجد سجلات مدن مرتبطة بـ {region} في مجموعة البيانات هذه.",
++  "reports_total_label": "الإجمالي:",
++  "reports_cities_label": "المدن:",
++  "reports_loading_continents": "جاري تحميل تحليلات القارات…",
++  "reports_top_continents": "أبرز القارات",
++  "reports_world_total_checkins": "إجمالي تسجيلات الوصول العالمية",
++  "reports_no_country_details": "لم تُحمَّل تفاصيل على مستوى البلد",
++  "reports_back_to_continents": "← العودة إلى القارات",
++  "reports_top_markets": "أبرز الأسواق",
++  "reports_continent_total": "إجمالي القارة",
++  "reports_no_regional_details": "لا تتوفر تفاصيل إقليمية",
++  "reports_back_to_countries": "← العودة إلى البلدان",
++  "reports_top_regions": "أبرز المناطق",
++  "reports_country_total": "إجمالي البلد",
++  "reports_loading_world": "جاري تحميل البيانات العالمية…",
++  "reports_city_insight": "رؤية المدينة",
++  "reports_loading_city_insights": "جاري تحميل رؤى المدينة…",
++  "reports_close_modal": "إغلاق النافذة",
++  "reports_region_level": "مستوى_المنطقة:",
++  "reports_cities_in_region": "مدن في {region}"
+ }
+diff --git a/src/i18n/translations/de.json b/src/i18n/translations/de.json
+index ffbe725..78504b6 100644
+--- a/src/i18n/translations/de.json
++++ b/src/i18n/translations/de.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Interaktive Karte ab Growth verfügbar",
+   "reports_upgrade_to_growth": "Upgrade auf Growth",
+   "reports_quality_no_eligible": "Keine berechtigten Aufenthalte in diesem Zeitraum. {count} Buchung(en) nach Status ausgeschlossen (bestätigt/ausstehend/storniert zählen nicht). Nur eingecheckt / ausgecheckt / abgeschlossen.",
+-  "reports_quality_partial_eligible": "{eligible} berechtigte Aufenthalte; {excluded} nach Status ausgeschlossen (vor Anreise oder storniert)."
++  "reports_quality_partial_eligible": "{eligible} berechtigte Aufenthalte; {excluded} nach Status ausgeschlossen (vor Anreise oder storniert).",
++  "reports_guest_checkins_count": "{count} Check-ins",
++  "reports_loading_city_breakdown": "Stadtaufschlüsselung wird geladen…",
++  "reports_no_city_details": "Keine Stadtdetails geladen",
++  "reports_no_city_records_region": "In diesem Datensatz sind keine Stadtdatensätze mit {region} verknüpft.",
++  "reports_total_label": "GESAMT:",
++  "reports_cities_label": "STÄDTE:",
++  "reports_loading_continents": "Kontinentanalysen werden geladen…",
++  "reports_top_continents": "Top-Kontinente",
++  "reports_world_total_checkins": "Weltweite Check-ins gesamt",
++  "reports_no_country_details": "Keine Details auf Länderebene geladen",
++  "reports_back_to_continents": "← Zurück zu Kontinenten",
++  "reports_top_markets": "Top-Märkte",
++  "reports_continent_total": "Kontinent gesamt",
++  "reports_no_regional_details": "Keine regionalen Details verfügbar",
++  "reports_back_to_countries": "← Zurück zu Ländern",
++  "reports_top_regions": "Top-Regionen",
++  "reports_country_total": "Land gesamt",
++  "reports_loading_world": "Weltdaten werden geladen…",
++  "reports_city_insight": "Stadteinblick",
++  "reports_loading_city_insights": "Stadteinblicke werden geladen…",
++  "reports_close_modal": "Modal schließen",
++  "reports_region_level": "REGIONSEBENE:",
++  "reports_cities_in_region": "Städte in {region}"
+ }
+diff --git a/src/i18n/translations/en.json b/src/i18n/translations/en.json
+index 76bf843..cad992b 100644
+--- a/src/i18n/translations/en.json
++++ b/src/i18n/translations/en.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Interactive map available on Growth and higher",
+   "reports_upgrade_to_growth": "Upgrade to Growth",
+   "reports_quality_no_eligible": "No eligible stays in this period. {count} booking(s) excluded by status (confirmed/pending/cancelled are not sold-stay analytics). Only checked-in / checked-out / completed stays are included.",
+-  "reports_quality_partial_eligible": "Showing {eligible} eligible stays; {excluded} excluded by status (pre-arrival or cancelled)."
++  "reports_quality_partial_eligible": "Showing {eligible} eligible stays; {excluded} excluded by status (pre-arrival or cancelled).",
++  "reports_guest_checkins_count": "{count} guest check-ins",
++  "reports_loading_city_breakdown": "Loading city breakdown...",
++  "reports_no_city_details": "No city details loaded",
++  "reports_no_city_records_region": "No city records were linked to {region} in this dataset.",
++  "reports_total_label": "TOTAL:",
++  "reports_cities_label": "CITIES:",
++  "reports_loading_continents": "Loading continent analytics...",
++  "reports_top_continents": "Top Continents",
++  "reports_world_total_checkins": "World Total Check-ins",
++  "reports_no_country_details": "No country-level details loaded",
++  "reports_back_to_continents": "← Back to Continents",
++  "reports_top_markets": "Top Markets",
++  "reports_continent_total": "Continent Total",
++  "reports_no_regional_details": "No regional details available",
++  "reports_back_to_countries": "← Back to Countries",
++  "reports_top_regions": "Top Regions",
++  "reports_country_total": "Country Total",
++  "reports_loading_world": "Loading world data...",
++  "reports_city_insight": "City insight",
++  "reports_loading_city_insights": "Loading city insights…",
++  "reports_close_modal": "Close modal",
++  "reports_region_level": "REGION_LEVEL:",
++  "reports_cities_in_region": "Cities in {region}"
+ }
+diff --git a/src/i18n/translations/es.json b/src/i18n/translations/es.json
+index da3251e..1e63d27 100644
+--- a/src/i18n/translations/es.json
++++ b/src/i18n/translations/es.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Mapa interactivo disponible desde Growth",
+   "reports_upgrade_to_growth": "Mejorar a Growth",
+   "reports_quality_no_eligible": "No hay estancias elegibles en este período. {count} reserva(s) excluidas por estado. Solo se incluyen checked-in / checked-out / completadas.",
+-  "reports_quality_partial_eligible": "Mostrando {eligible} estancias elegibles; {excluded} excluidas por estado (prellegada o canceladas)."
++  "reports_quality_partial_eligible": "Mostrando {eligible} estancias elegibles; {excluded} excluidas por estado (prellegada o canceladas).",
++  "reports_guest_checkins_count": "{count} check-ins de huéspedes",
++  "reports_loading_city_breakdown": "Cargando desglose por ciudad…",
++  "reports_no_city_details": "No se cargaron detalles de ciudad",
++  "reports_no_city_records_region": "No hay registros de ciudad vinculados a {region} en este conjunto de datos.",
++  "reports_total_label": "TOTAL:",
++  "reports_cities_label": "CIUDADES:",
++  "reports_loading_continents": "Cargando análisis por continente…",
++  "reports_top_continents": "Principales continentes",
++  "reports_world_total_checkins": "Total mundial de check-ins",
++  "reports_no_country_details": "No se cargaron detalles a nivel de país",
++  "reports_back_to_continents": "← Volver a continentes",
++  "reports_top_markets": "Principales mercados",
++  "reports_continent_total": "Total del continente",
++  "reports_no_regional_details": "No hay detalles regionales disponibles",
++  "reports_back_to_countries": "← Volver a países",
++  "reports_top_regions": "Principales regiones",
++  "reports_country_total": "Total del país",
++  "reports_loading_world": "Cargando datos mundiales…",
++  "reports_city_insight": "Información de la ciudad",
++  "reports_loading_city_insights": "Cargando información de la ciudad…",
++  "reports_close_modal": "Cerrar modal",
++  "reports_region_level": "NIVEL_REGIÓN:",
++  "reports_cities_in_region": "Ciudades en {region}"
+ }
+diff --git a/src/i18n/translations/fr.json b/src/i18n/translations/fr.json
+index 1959e07..9715e02 100644
+--- a/src/i18n/translations/fr.json
++++ b/src/i18n/translations/fr.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Carte interactive disponible à partir de l’offre Growth",
+   "reports_upgrade_to_growth": "Passer à Growth",
+   "reports_quality_no_eligible": "Aucun séjour éligible sur cette période. {count} réservation(s) exclue(s) selon le statut (confirmé/en attente/annulé hors analyses de séjours vendus). Seuls les séjours enregistrés / partis / terminés sont inclus.",
+-  "reports_quality_partial_eligible": "Affichage de {eligible} séjours éligibles ; {excluded} exclus selon le statut (pré-arrivée ou annulés)."
++  "reports_quality_partial_eligible": "Affichage de {eligible} séjours éligibles ; {excluded} exclus selon le statut (pré-arrivée ou annulés).",
++  "reports_guest_checkins_count": "{count} enregistrements clients",
++  "reports_loading_city_breakdown": "Chargement de la répartition par ville…",
++  "reports_no_city_details": "Aucun détail de ville chargé",
++  "reports_no_city_records_region": "Aucun enregistrement de ville n’est lié à {region} dans cet ensemble de données.",
++  "reports_total_label": "TOTAL :",
++  "reports_cities_label": "VILLES :",
++  "reports_loading_continents": "Chargement des analyses par continent…",
++  "reports_top_continents": "Principaux continents",
++  "reports_world_total_checkins": "Total mondial des enregistrements",
++  "reports_no_country_details": "Aucun détail au niveau pays chargé",
++  "reports_back_to_continents": "← Retour aux continents",
++  "reports_top_markets": "Principaux marchés",
++  "reports_continent_total": "Total du continent",
++  "reports_no_regional_details": "Aucun détail régional disponible",
++  "reports_back_to_countries": "← Retour aux pays",
++  "reports_top_regions": "Principales régions",
++  "reports_country_total": "Total du pays",
++  "reports_loading_world": "Chargement des données mondiales…",
++  "reports_city_insight": "Aperçu de la ville",
++  "reports_loading_city_insights": "Chargement des aperçus de ville…",
++  "reports_close_modal": "Fermer la fenêtre",
++  "reports_region_level": "NIVEAU_RÉGION :",
++  "reports_cities_in_region": "Villes à {region}"
+ }
+diff --git a/src/i18n/translations/he.json b/src/i18n/translations/he.json
+index c094469..f83ded4 100644
+--- a/src/i18n/translations/he.json
++++ b/src/i18n/translations/he.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "מפה אינטראקטיבית זמינה מ-Growth ומעלה",
+   "reports_upgrade_to_growth": "שדרוג ל-Growth",
+   "reports_quality_no_eligible": "אין שהיות זכאיות בתקופה זו. {count} הזמנות הוחרגו לפי סטטוס. רק צ’ק-אין / צ’ק-אאוט / הושלם.",
+-  "reports_quality_partial_eligible": "מוצגות {eligible} שהיות זכאיות; {excluded} הוחרגו לפי סטטוס (לפני הגעה או בוטל)."
++  "reports_quality_partial_eligible": "מוצגות {eligible} שהיות זכאיות; {excluded} הוחרגו לפי סטטוס (לפני הגעה או בוטל).",
++  "reports_guest_checkins_count": "{count} צ'ק-אינים של אורחים",
++  "reports_loading_city_breakdown": "טוען פירוט ערים…",
++  "reports_no_city_details": "לא נטענו פרטי ערים",
++  "reports_no_city_records_region": "אין רשומות ערים מקושרות ל-{region} במערך נתונים זה.",
++  "reports_total_label": "סה״כ:",
++  "reports_cities_label": "ערים:",
++  "reports_loading_continents": "טוען ניתוח יבשות…",
++  "reports_top_continents": "יבשות מובילות",
++  "reports_world_total_checkins": "סה״כ צ'ק-אינים בעולם",
++  "reports_no_country_details": "לא נטענו פרטים ברמת מדינה",
++  "reports_back_to_continents": "← חזרה ליבשות",
++  "reports_top_markets": "שווקים מובילים",
++  "reports_continent_total": "סה״כ יבשת",
++  "reports_no_regional_details": "אין פרטים אזוריים זמינים",
++  "reports_back_to_countries": "← חזרה למדינות",
++  "reports_top_regions": "אזורים מובילים",
++  "reports_country_total": "סה״כ מדינה",
++  "reports_loading_world": "טוען נתוני עולם…",
++  "reports_city_insight": "תובנת עיר",
++  "reports_loading_city_insights": "טוען תובנות עיר…",
++  "reports_close_modal": "סגור חלון",
++  "reports_region_level": "רמת_אזור:",
++  "reports_cities_in_region": "ערים ב-{region}"
+ }
+diff --git a/src/i18n/translations/it.json b/src/i18n/translations/it.json
+index fbb9508..17e225b 100644
+--- a/src/i18n/translations/it.json
++++ b/src/i18n/translations/it.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Mappa interattiva disponibile da Growth in su",
+   "reports_upgrade_to_growth": "Passa a Growth",
+   "reports_quality_no_eligible": "Nessun soggiorno idoneo in questo periodo. {count} prenotazione/i escluse per stato. Solo checked-in / checked-out / completati.",
+-  "reports_quality_partial_eligible": "Visualizzati {eligible} soggiorni idonei; {excluded} esclusi per stato (pre-arrivo o annullati)."
++  "reports_quality_partial_eligible": "Visualizzati {eligible} soggiorni idonei; {excluded} esclusi per stato (pre-arrivo o annullati).",
++  "reports_guest_checkins_count": "{count} check-in ospiti",
++  "reports_loading_city_breakdown": "Caricamento dettaglio città…",
++  "reports_no_city_details": "Nessun dettaglio città caricato",
++  "reports_no_city_records_region": "Nessun record città collegato a {region} in questo dataset.",
++  "reports_total_label": "TOTALE:",
++  "reports_cities_label": "CITTÀ:",
++  "reports_loading_continents": "Caricamento analytics continenti…",
++  "reports_top_continents": "Principali continenti",
++  "reports_world_total_checkins": "Totale check-in mondiali",
++  "reports_no_country_details": "Nessun dettaglio a livello paese caricato",
++  "reports_back_to_continents": "← Torna ai continenti",
++  "reports_top_markets": "Principali mercati",
++  "reports_continent_total": "Totale continente",
++  "reports_no_regional_details": "Nessun dettaglio regionale disponibile",
++  "reports_back_to_countries": "← Torna ai paesi",
++  "reports_top_regions": "Principali regioni",
++  "reports_country_total": "Totale paese",
++  "reports_loading_world": "Caricamento dati mondiali…",
++  "reports_city_insight": "Insight città",
++  "reports_loading_city_insights": "Caricamento insight città…",
++  "reports_close_modal": "Chiudi finestra",
++  "reports_region_level": "LIVELLO_REGIONE:",
++  "reports_cities_in_region": "Città in {region}"
+ }
+diff --git a/src/i18n/translations/nl.json b/src/i18n/translations/nl.json
+index 7e5dc29..d4a63e7 100644
+--- a/src/i18n/translations/nl.json
++++ b/src/i18n/translations/nl.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Interactieve kaart beschikbaar vanaf Growth",
+   "reports_upgrade_to_growth": "Upgraden naar Growth",
+   "reports_quality_no_eligible": "Geen in aanmerking komende verblijven in deze periode. {count} boeking(en) uitgesloten op status. Alleen ingecheckt / uitgecheckt / voltooid.",
+-  "reports_quality_partial_eligible": "{eligible} in aanmerking komende verblijven; {excluded} uitgesloten op status (vóór aankomst of geannuleerd)."
++  "reports_quality_partial_eligible": "{eligible} in aanmerking komende verblijven; {excluded} uitgesloten op status (vóór aankomst of geannuleerd).",
++  "reports_guest_checkins_count": "{count} gast-check-ins",
++  "reports_loading_city_breakdown": "Stadsuitsplitsing laden…",
++  "reports_no_city_details": "Geen stadsdetails geladen",
++  "reports_no_city_records_region": "Geen stadsrecords gekoppeld aan {region} in deze dataset.",
++  "reports_total_label": "TOTAAL:",
++  "reports_cities_label": "STEDEN:",
++  "reports_loading_continents": "Continentanalytics laden…",
++  "reports_top_continents": "Topcontinenten",
++  "reports_world_total_checkins": "Wereldtotaal check-ins",
++  "reports_no_country_details": "Geen details op landniveau geladen",
++  "reports_back_to_continents": "← Terug naar continenten",
++  "reports_top_markets": "Topmarkten",
++  "reports_continent_total": "Continentaal totaal",
++  "reports_no_regional_details": "Geen regionale details beschikbaar",
++  "reports_back_to_countries": "← Terug naar landen",
++  "reports_top_regions": "Topregio's",
++  "reports_country_total": "Landtotaal",
++  "reports_loading_world": "Wereldgegevens laden…",
++  "reports_city_insight": "Stadsinzicht",
++  "reports_loading_city_insights": "Stadsinzichten laden…",
++  "reports_close_modal": "Modal sluiten",
++  "reports_region_level": "REGIO_NIVEAU:",
++  "reports_cities_in_region": "Steden in {region}"
+ }
+diff --git a/src/i18n/translations/pt.json b/src/i18n/translations/pt.json
+index 3ba6c51..d18de77 100644
+--- a/src/i18n/translations/pt.json
++++ b/src/i18n/translations/pt.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Mapa interativo disponível a partir do Growth",
+   "reports_upgrade_to_growth": "Atualizar para Growth",
+   "reports_quality_no_eligible": "Sem estadias elegíveis neste período. {count} reserva(s) excluídas por estado. Apenas checked-in / checked-out / concluídas.",
+-  "reports_quality_partial_eligible": "A mostrar {eligible} estadias elegíveis; {excluded} excluídas por estado (pré-chegada ou canceladas)."
++  "reports_quality_partial_eligible": "A mostrar {eligible} estadias elegíveis; {excluded} excluídas por estado (pré-chegada ou canceladas).",
++  "reports_guest_checkins_count": "{count} check-ins de hóspedes",
++  "reports_loading_city_breakdown": "A carregar detalhe por cidade…",
++  "reports_no_city_details": "Sem detalhes de cidade carregados",
++  "reports_no_city_records_region": "Nenhum registo de cidade ligado a {region} neste conjunto de dados.",
++  "reports_total_label": "TOTAL:",
++  "reports_cities_label": "CIDADES:",
++  "reports_loading_continents": "A carregar análises por continente…",
++  "reports_top_continents": "Principais continentes",
++  "reports_world_total_checkins": "Total mundial de check-ins",
++  "reports_no_country_details": "Sem detalhes ao nível do país carregados",
++  "reports_back_to_continents": "← Voltar aos continentes",
++  "reports_top_markets": "Principais mercados",
++  "reports_continent_total": "Total do continente",
++  "reports_no_regional_details": "Sem detalhes regionais disponíveis",
++  "reports_back_to_countries": "← Voltar aos países",
++  "reports_top_regions": "Principais regiões",
++  "reports_country_total": "Total do país",
++  "reports_loading_world": "A carregar dados mundiais…",
++  "reports_city_insight": "Insight da cidade",
++  "reports_loading_city_insights": "A carregar insights da cidade…",
++  "reports_close_modal": "Fechar modal",
++  "reports_region_level": "NÍVEL_REGIÃO:",
++  "reports_cities_in_region": "Cidades em {region}"
+ }
+diff --git a/src/i18n/translations/ru.json b/src/i18n/translations/ru.json
+index e83e347..a1a30d6 100644
+--- a/src/i18n/translations/ru.json
++++ b/src/i18n/translations/ru.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "Интерактивная карта доступна начиная с Growth",
+   "reports_upgrade_to_growth": "Перейти на Growth",
+   "reports_quality_no_eligible": "Нет подходящих проживаний за период. {count} бронирование(й) исключено по статусу. Только заезд / выезд / завершённые.",
+-  "reports_quality_partial_eligible": "Показано {eligible} подходящих проживаний; {excluded} исключено по статусу (до заезда или отменено)."
++  "reports_quality_partial_eligible": "Показано {eligible} подходящих проживаний; {excluded} исключено по статусу (до заезда или отменено).",
++  "reports_guest_checkins_count": "{count} заездов гостей",
++  "reports_loading_city_breakdown": "Загрузка разбивки по городам…",
++  "reports_no_city_details": "Детали по городам не загружены",
++  "reports_no_city_records_region": "В этом наборе данных нет записей городов, связанных с {region}.",
++  "reports_total_label": "ИТОГО:",
++  "reports_cities_label": "ГОРОДА:",
++  "reports_loading_continents": "Загрузка аналитики по континентам…",
++  "reports_top_continents": "Ведущие континенты",
++  "reports_world_total_checkins": "Всего заездов в мире",
++  "reports_no_country_details": "Детали на уровне стран не загружены",
++  "reports_back_to_continents": "← Назад к континентам",
++  "reports_top_markets": "Ведущие рынки",
++  "reports_continent_total": "Итого по континенту",
++  "reports_no_regional_details": "Региональные детали недоступны",
++  "reports_back_to_countries": "← Назад к странам",
++  "reports_top_regions": "Ведущие регионы",
++  "reports_country_total": "Итого по стране",
++  "reports_loading_world": "Загрузка мировых данных…",
++  "reports_city_insight": "Обзор города",
++  "reports_loading_city_insights": "Загрузка обзора города…",
++  "reports_close_modal": "Закрыть окно",
++  "reports_region_level": "УРОВЕНЬ_РЕГИОНА:",
++  "reports_cities_in_region": "Города в {region}"
+ }
+diff --git a/src/i18n/translations/zh.json b/src/i18n/translations/zh.json
+index d8410ae..cd66dca 100644
+--- a/src/i18n/translations/zh.json
++++ b/src/i18n/translations/zh.json
+@@ -1028,5 +1028,28 @@
+   "reports_upgrade_map_growth": "互动地图需 Growth 及以上套餐",
+   "reports_upgrade_to_growth": "升级到 Growth",
+   "reports_quality_no_eligible": "本时段无合格住宿。{count} 笔预订因状态被排除。仅含已入住/已退房/已完成。",
+-  "reports_quality_partial_eligible": "显示 {eligible} 次合格住宿；{excluded} 因状态排除（到店前或已取消）。"
++  "reports_quality_partial_eligible": "显示 {eligible} 次合格住宿；{excluded} 因状态排除（到店前或已取消）。",
++  "reports_guest_checkins_count": "{count} 次宾客入住登记",
++  "reports_loading_city_breakdown": "正在加载城市明细…",
++  "reports_no_city_details": "未加载城市详情",
++  "reports_no_city_records_region": "此数据集中没有与 {region} 关联的城市记录。",
++  "reports_total_label": "合计：",
++  "reports_cities_label": "城市：",
++  "reports_loading_continents": "正在加载大洲分析…",
++  "reports_top_continents": "主要大洲",
++  "reports_world_total_checkins": "全球入住登记总计",
++  "reports_no_country_details": "未加载国家级详情",
++  "reports_back_to_continents": "← 返回大洲",
++  "reports_top_markets": "主要市场",
++  "reports_continent_total": "大洲合计",
++  "reports_no_regional_details": "暂无地区详情",
++  "reports_back_to_countries": "← 返回国家",
++  "reports_top_regions": "主要地区",
++  "reports_country_total": "国家合计",
++  "reports_loading_world": "正在加载全球数据…",
++  "reports_city_insight": "城市洞察",
++  "reports_loading_city_insights": "正在加载城市洞察…",
++  "reports_close_modal": "关闭对话框",
++  "reports_region_level": "区域层级：",
++  "reports_cities_in_region": "{region} 的城市"
+ }
+-- 
+2.43.0
+
