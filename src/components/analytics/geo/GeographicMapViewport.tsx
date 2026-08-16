@@ -117,6 +117,7 @@ function GeographicMapViewportInner({
   onCityClick,
   continentOfCountry,
 }: GeographicMapViewportProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
