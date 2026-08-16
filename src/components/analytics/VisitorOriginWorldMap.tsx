@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef } from 'react'
+import { useTranslation } from '../../i18n';
 
 interface VisitorOriginWorldMapProps {
   totalVisitors: number;
@@ -11,6 +12,7 @@ export function VisitorOriginWorldMap({
   onExplore,
   isLoading
 }: VisitorOriginWorldMapProps) {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -19,7 +21,7 @@ export function VisitorOriginWorldMap({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading world data...</p>
+          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_world')}</p>
         </div>
       </div>
     );

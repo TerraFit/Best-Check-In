@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react'
+import { useTranslation } from '../../i18n';
 import { RegionData } from '../../types';
 import { Compass, Users, MapPin } from 'lucide-react';
 
@@ -48,6 +49,7 @@ export function VisitorOriginRegionMap({
   onBack,
   isLoading
 }: VisitorOriginRegionMapProps) {
+  const { t } = useTranslation();
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
 
   // Group filtered records to count visitors per region
@@ -129,7 +131,7 @@ export function VisitorOriginRegionMap({
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
         <MapPin size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">No regional details available</h3>
+        <h3 className="text-base font-bold text-stone-700">{t('reports_no_regional_details')}</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No region records matched for {countryName}. Try adjusting filters or selecting another country.
         </p>
@@ -137,7 +139,7 @@ export function VisitorOriginRegionMap({
           onClick={onBack}
           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
         >
-          ← Back to Countries
+          {t('reports_back_to_countries')}
         </button>
       </div>
     );
@@ -151,7 +153,7 @@ export function VisitorOriginRegionMap({
           onClick={onBack}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
         >
-          ← Back to Countries
+          {t('reports_back_to_countries')}
         </button>
       </div>
 
@@ -329,7 +331,7 @@ export function VisitorOriginRegionMap({
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
         <div className="flex items-center gap-1.5 mb-2">
           <Compass size={12} className="text-orange-500" />
-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Regions</h4>
+          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_regions')}</h4>
         </div>
         <div className="space-y-1">
           {regionList.slice(0, 4).map((region) => (
@@ -347,7 +349,7 @@ export function VisitorOriginRegionMap({
       </div>
 
       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200">
-        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">Country Total</span>
+        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_country_total')}</span>
         <span className="text-sm font-extrabold text-stone-900">{countryTotal.toLocaleString()}</span>
       </div>
     </div>

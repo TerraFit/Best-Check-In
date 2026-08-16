@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react'
+import { useTranslation } from '../../i18n';
 import { Award, ArrowLeft, Building2 } from 'lucide-react';
 
 interface VisitorOriginCityGridProps {
@@ -16,6 +17,7 @@ export function VisitorOriginCityGrid({
   isLoading,
   onCityClick,
 }: VisitorOriginCityGridProps) {
+  const { t } = useTranslation();
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
 
   const cityList = useMemo(() => {
@@ -63,7 +65,7 @@ export function VisitorOriginCityGrid({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading city breakdown...</p>
+          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_city_breakdown')}</p>
         </div>
       </div>
     );
@@ -73,15 +75,15 @@ export function VisitorOriginCityGrid({
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
         <Building2 size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">No city details loaded</h3>
+        <h3 className="text-base font-bold text-stone-700">{t('reports_no_city_details')}</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
-          No city records were linked to {regionName} in this dataset.
+          {t('reports_no_city_records_region', { region: regionName })}
         </p>
         <button
           onClick={onBack}
           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
         >
-          ← Back
+          {t('common_back')}
         </button>
       </div>
     );
@@ -94,7 +96,7 @@ export function VisitorOriginCityGrid({
           onClick={onBack}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
         >
-          <ArrowLeft size={14} /> Back
+          <ArrowLeft size={14} /> {t('common_back')}
         </button>
 
         <div className="bg-stone-900 text-white px-3 py-1 rounded-lg text-xs font-mono shadow-md">
@@ -106,7 +108,7 @@ export function VisitorOriginCityGrid({
         <div className="inline-flex items-center justify-center p-2 bg-orange-100 rounded-xl text-orange-600 mb-2">
           <Building2 size={20} />
         </div>
-        <h3 className="text-lg font-bold text-stone-900 tracking-tight">Cities in {regionName}</h3>
+        <h3 className="text-lg font-bold text-stone-900 tracking-tight">{t('reports_cities_in_region', { region: regionName })}</h3>
         <p className="text-xs text-stone-500 max-w-md mx-auto mt-0.5">
           Click a city for average stay, consent, referrals, and more.
         </p>
@@ -179,10 +181,10 @@ export function VisitorOriginCityGrid({
 
       <div className="mt-8 pt-4 border-t border-stone-200/60 max-w-2xl mx-auto flex items-center justify-between text-xs text-stone-400 font-mono">
         <span>
-          TOTAL: <strong className="text-stone-700 font-bold">{total}</strong>
+          {t('reports_total_label')} <strong className="text-stone-700 font-bold">{total}</strong>
         </span>
         <span>
-          CITIES: <strong className="text-stone-700 font-bold">{cityList.length}</strong>
+          {t('reports_cities_label')} <strong className="text-stone-700 font-bold">{cityList.length}</strong>
         </span>
       </div>
     </div>

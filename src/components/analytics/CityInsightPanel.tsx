@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { ArrowLeft, Users, Calendar, Heart, Share2, UserPlus, MapPin } from 'lucide-react';
 import type { CityDashboard } from '../../services/analyticsApi';
 
@@ -18,10 +19,11 @@ export function CityInsightPanel({
   isLoading,
   onBack,
 }: CityInsightPanelProps) {
+  const { t } = useTranslation();
   if (isLoading && !data) {
     return (
       <div className="flex items-center justify-center py-16 text-stone-400 text-sm">
-        Loading city insights…
+        {t('reports_loading_city_insights')}
       </div>
     );
   }
@@ -52,7 +54,7 @@ export function CityInsightPanel({
         <div>
           <div className="flex items-center gap-2 text-orange-500 mb-1">
             <MapPin size={18} />
-            <span className="text-xs font-bold uppercase tracking-wider">City insight</span>
+            <span className="text-xs font-bold uppercase tracking-wider">{t('reports_city_insight')}</span>
           </div>
           <h4 className="text-2xl font-extrabold text-stone-900">{cityName}</h4>
           <p className="text-sm text-stone-500">
@@ -64,7 +66,7 @@ export function CityInsightPanel({
           onClick={onBack}
           className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50"
         >
-          <ArrowLeft size={12} /> Back
+          <ArrowLeft size={12} /> {t('common_back')}
         </button>
       </div>
 

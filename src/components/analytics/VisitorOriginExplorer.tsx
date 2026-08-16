@@ -476,7 +476,7 @@ export function VisitorOriginExplorer({
             onClick={handleBack}
             className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50"
           >
-            <ArrowLeft size={12} /> Back
+            <ArrowLeft size={12} /> {t('common_back')}
           </button>
         )}
       </div>

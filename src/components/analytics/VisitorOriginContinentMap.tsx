@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react'
+import { useTranslation } from '../../i18n';
 import { ContinentData } from '../../types';
 import { Compass, HelpCircle } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export function VisitorOriginContinentMap({
   onBack,
   isLoading
 }: VisitorOriginContinentMapProps) {
+  const { t } = useTranslation();
   const [hoveredContinent, setHoveredContinent] = useState<string | null>(null);
 
   const maxCount = useMemo(() => {
@@ -44,7 +46,7 @@ export function VisitorOriginContinentMap({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">Loading continent analytics...</p>
+          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_continents')}</p>
         </div>
       </div>
     );
@@ -248,7 +250,7 @@ export function VisitorOriginContinentMap({
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[220px]">
         <div className="flex items-center gap-1 mb-2">
           <Compass size={12} className="text-orange-500" />
-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Top Continents</h4>
+          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_continents')}</h4>
         </div>
         <div className="space-y-1.5">
           {normalizedData.slice(0, 4).map((item, index) => (
@@ -269,7 +271,7 @@ export function VisitorOriginContinentMap({
       {/* Floating prompt box at bottom-right */}
       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200 flex items-center gap-3">
         <div>
-          <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">World Total Check-ins</span>
+          <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_world_total_checkins')}</span>
           <span className="text-base font-extrabold text-stone-900">{grandTotal.toLocaleString()}</span>
         </div>
       </div>

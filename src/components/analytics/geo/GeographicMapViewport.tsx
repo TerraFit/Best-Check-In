@@ -488,7 +488,7 @@ function GeographicMapViewportInner({
         >
           <p className="font-bold text-sm">{hover.name}</p>
           <p className="text-orange-300 mt-0.5">
-            {hover.count.toLocaleString()} guest check-ins
+            {t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}
           </p>
           {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
           {interactive && hover.count > 0 && (
