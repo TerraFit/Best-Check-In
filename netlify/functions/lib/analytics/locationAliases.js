@@ -75,6 +75,11 @@ export const countryAliases = {
   botswana: 'Botswana',
   zimbabwe: 'Zimbabwe',
   mozambique: 'Mozambique',
+  drc: 'Democratic Republic of the Congo',
+  cd: 'Democratic Republic of the Congo',
+  democraticrepublicofcongo: 'Democratic Republic of the Congo',
+  democraticrepublicofthecongo: 'Democratic Republic of the Congo',
+  congodr: 'Democratic Republic of the Congo',
 };
 
 /** Province / state aliases */
