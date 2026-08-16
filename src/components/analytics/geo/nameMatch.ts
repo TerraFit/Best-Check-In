@@ -45,16 +45,21 @@ export function canonicalCountryName(raw: string | null | undefined): string {
   return COUNTRY_ALIASES[key] || t;
 }
 
-/** Match analytics country name to TopoJSON feature properties.name */
+/**
+ * Match country names only after canonicalisation.
+ *
+ * IMPORTANT: do not use substring matching here. A continent node such as
+ * "Africa" otherwise matches "Central African Republic" and "South Africa",
+ * causing the continent's total visitor count to be displayed on a country.
+ */
 export function namesMatch(a: string, b: string): boolean {
   const ca = canonicalCountryName(a).toLowerCase();
   const cb = canonicalCountryName(b).toLowerCase();
   if (!ca || !cb) return false;
-  if (ca === cb) return true;
-  if (ca.includes(cb) || cb.includes(ca)) return true;
-  return false;
+  return ca === cb;
 }
 
+/** Match analytics country name to TopoJSON feature properties.name */
 export function findNodeForFeature(
   featureName: string,
   nodes: { name: string; count: number; percentage?: number }[]
