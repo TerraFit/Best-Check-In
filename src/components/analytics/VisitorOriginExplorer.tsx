@@ -133,6 +133,7 @@ export function VisitorOriginExplorer({
   const [cityPanel, setCityPanel] = useState<CityDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [qualityNote, setQualityNote] = useState<string | null>(null);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [modalTargetTier, setModalTargetTier] = useState<SubscriptionTier>('growth');
@@ -184,12 +185,33 @@ export function VisitorOriginExplorer({
         if (!res.success) {
           setFetchError(res.error || 'Failed to load origins');
           setNodes([]);
+          setQualityNote(null);
         } else {
           setNodes(res.nodes || []);
           setTotalVisitors(res.meta?.totalVisitors || 0);
           setDomesticCount(res.meta?.domesticCount || 0);
           setInternationalCount(res.meta?.internationalCount || 0);
           if (res.cityDashboard) setCityPanel(res.cityDashboard);
+
+          // Surface intentional eligibility so empty maps are explainable (not mock data).
+          const q = res.meta?.quality as
+            | {
+                eligibleStays?: number;
+                excludedByStatus?: number;
+                legacyNull?: number;
+              }
+            | undefined;
+          if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) {
+            setQualityNote(
+              `No eligible stays in this period. ${q.excludedByStatus} booking(s) excluded by status (confirmed/pending/cancelled are not sold-stay analytics). Only checked-in / checked-out / completed stays are included.`
+            );
+          } else if (q && (q.excludedByStatus || 0) > 0) {
+            setQualityNote(
+              `Showing ${q.eligibleStays ?? 0} eligible stays; ${q.excludedByStatus} excluded by status (pre-arrival or cancelled).`
+            );
+          } else {
+            setQualityNote(null);
+          }
 
           // Auto-skip to city when region data is empty
           if (uiLevel === 'regions' && res.skipToCity && parent.country) {
@@ -511,6 +533,12 @@ export function VisitorOriginExplorer({
         {fetchError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {fetchError}
+          </div>
+        )}
+
+        {qualityNote && !fetchError && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {qualityNote}
           </div>
         )}
 
