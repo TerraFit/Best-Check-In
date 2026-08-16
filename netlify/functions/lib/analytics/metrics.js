@@ -49,8 +49,23 @@ export function hasMarketingConsent(b) {
 }
 
 /**
+ * Return a stable analytics code for known referral-source variants.
+ * Unknown/custom sources are preserved exactly as supplied.
+ */
+export function normalizeReferralSource(value) {
+  const source = String(value ?? '').trim();
+  if (!source || source.toLowerCase() === 'null') return '';
+
+  const key = source.toLowerCase().replace(/\s+/g, ' ');
+  if (key === 'word of mouth') return 'word_of_mouth';
+  if (key === 'research engine') return 'research_engine';
+
+  return source;
+}
+
+/**
  * Occupancy for a set of already-eligible, period-relevant bookings.
- * Uses overlapping nights within [dateFrom, dateTo], not full booking nights.
+ * Uses overlapping nights within [dateFrom, dateTo], not full booking length outside period.
  * MVP sellable nights = sellableRooms × daysInPeriod (not maintenance-adjusted).
  */
 export function calculateOccupancy(bookings, sellableRooms, dateFrom, dateTo) {
@@ -122,8 +137,8 @@ export function summarizeBookings(bookings, sellableRooms, dateFrom, dateTo) {
     totalRevenue += Number(b.total_amount || b.totalAmount || 0) || 0;
     if (hasMarketingConsent(b)) consentYes++;
 
-    const source = (b.booking_source || b.referral_source || '').toString().trim();
-    if (source && source.toLowerCase() !== 'null') {
+    const source = normalizeReferralSource(b.booking_source || b.referral_source || '');
+    if (source) {
       referralMap[source] = (referralMap[source] || 0) + 1;
     }
 
