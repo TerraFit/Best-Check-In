@@ -45,6 +45,7 @@ export const COUNTRY_TO_CONTINENT = {
   Uganda: 'Africa',
   Ethiopia: 'Africa',
   Congo: 'Africa',
+  'Democratic Republic of the Congo': 'Africa',
   Sudan: 'Africa',
   Germany: 'Europe',
   France: 'Europe',
@@ -181,6 +182,7 @@ export const COUNTRY_ISO = {
   Australia: 'AU',
   'New Zealand': 'NZ',
   Fiji: 'FJ',
+  'Democratic Republic of the Congo': 'CD',
 };
 
 /** South African provinces (canonical names for drill-down) */
