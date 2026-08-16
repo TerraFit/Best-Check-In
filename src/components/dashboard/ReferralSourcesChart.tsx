@@ -76,7 +76,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
 
       {chartType === 'donut' ? (
         <ResponsiveContainer width="100%" height={350}>
-          <PieChart>
+          <PieChart margin={{ top: 20, right: 70, bottom: 20, left: 70 }}>
             <Pie
               data={referralData}
               cx="50%"
