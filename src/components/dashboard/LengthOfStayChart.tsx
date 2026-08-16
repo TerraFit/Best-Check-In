@@ -3,6 +3,7 @@
 // Does NOT aggregate bookings client-side.
 
 import { useMemo } from 'react'
+import { useTranslation, t as tStatic } from '../../i18n'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, TooltipProps } from 'recharts'
 
 export interface LengthOfStaySeriesItem {
@@ -44,10 +45,18 @@ const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     return (
       <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
         <p className="font-semibold text-gray-900">
-          {dataPoint.label === '1' ? '1 night' : `${dataPoint.label} nights`}
+          {dataPoint.label === '1'
+            ? tStatic('reports_los_1_night')
+            : dataPoint.label === '2-3'
+              ? tStatic('reports_los_2_3_nights')
+              : dataPoint.label === '4-7'
+                ? tStatic('reports_los_4_7_nights')
+                : dataPoint.label === '8+'
+                  ? tStatic('reports_los_8_plus_nights')
+                  : String(dataPoint.label)}
         </p>
         <p className="text-sm text-gray-600">
-          <span className="font-medium">{dataPoint.count.toLocaleString()}</span> bookings
+          {tStatic('reports_bookings_count', { count: dataPoint.count.toLocaleString() })}
         </p>
         <p className="text-sm text-orange-600 font-medium">
           {formatPercentage(dataPoint.percentage)}
@@ -59,6 +68,7 @@ const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
 }
 
 export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
+  const { t } = useTranslation();
   const chartData = useMemo((): StayData[] => {
     if (!lengthOfStay || lengthOfStay.length === 0) return []
     return [...lengthOfStay]
@@ -74,9 +84,9 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
   if (chartData.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Length of Stay Distribution</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('reports_length_of_stay_title')}</h3>
         <div className="h-64 flex items-center justify-center text-gray-400">
-          No data available for selected period
+          {t('reports_no_data_period')}
         </div>
       </div>
     )
@@ -93,13 +103,12 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Length of Stay Distribution</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('reports_length_of_stay_title')}</h3>
         {mostCommon && (
           <p className="text-sm text-gray-500 mt-1">
-            Most guests stay{' '}
-            <span className="font-medium text-orange-600">
-              {mostCommon.label === '1' ? '1 night' : `${mostCommon.label} nights`}
-            </span>
+            {t('reports_most_guests_stay', {
+              nights: mostCommon.label === '1' ? '1' : mostCommon.label,
+            })}
           </p>
         )}
       </div>
@@ -110,7 +119,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
           <XAxis
             dataKey="label"
             label={{
-              value: 'Length of stay (nights)',
+              value: t('reports_los_axis_nights'),
               position: 'bottom',
               offset: 0,
               style: { fill: '#6b7280', fontSize: 12 },
@@ -118,7 +127,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
           />
           <YAxis
             label={{
-              value: 'Number of Bookings',
+              value: t('reports_los_axis_bookings'),
               angle: -90,
               position: 'insideLeft',
               style: { fill: '#6b7280', fontSize: 12 },
@@ -135,7 +144,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
         <div className="bg-gray-50 rounded-lg p-2">
-          <p className="text-gray-500">1-night stays</p>
+          <p className="text-gray-500">{t('reports_los_1_night')}</p>
           <p className="font-bold text-gray-900">
             {(one?.count || 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
@@ -144,7 +153,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
-          <p className="text-gray-500">2-3 nights</p>
+          <p className="text-gray-500">{t('reports_los_2_3_nights')}</p>
           <p className="font-bold text-gray-900">
             {(twoThree?.count || 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
@@ -153,7 +162,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
-          <p className="text-gray-500">4-7 nights</p>
+          <p className="text-gray-500">{t('reports_los_4_7_nights')}</p>
           <p className="font-bold text-gray-900">
             {(fourSeven?.count || 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">
@@ -162,7 +171,7 @@ export function LengthOfStayChart({ lengthOfStay }: LengthOfStayChartProps) {
           </p>
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
-          <p className="text-gray-500">8+ nights</p>
+          <p className="text-gray-500">{t('reports_los_8_plus_nights')}</p>
           <p className="font-bold text-gray-900">
             {(eightPlus?.count || 0).toLocaleString()}
             <span className="text-xs text-gray-400 ml-1">

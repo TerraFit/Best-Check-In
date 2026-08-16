@@ -267,7 +267,7 @@ export interface RoomPerformanceResponse {
     mostNights: string[];
     longestAverageStay: string[];
   };
-  insights?: Array<{ level: string; text: string }>;
+  insights?: Array<{ level: string; text?: string; code?: string; params?: Record<string, string | number> }>;
   limits?: AnalyticsPlanLimits;
   error?: string;
 }

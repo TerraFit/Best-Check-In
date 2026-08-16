@@ -1,5 +1,6 @@
 // src/components/analytics/TravelPatternsCard.tsx
-import { useState } from 'react';
+import { useState } from 'react'
+import { useTranslation } from '../../i18n';
 import { TravelPattern } from '../../types/analytics';
 
 interface TravelPatternsCardProps {
@@ -10,6 +11,7 @@ interface TravelPatternsCardProps {
 }
 
 export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: TravelPatternsCardProps) {
+  const { t } = useTranslation();
   const [view, setView] = useState<'arrivingFrom' | 'goingTo'>('arrivingFrom');
 
   // ✅ Get the current data based on view
@@ -39,7 +41,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: 
           <div className="flex gap-2">
             <button
               onClick={() => {
-                console.log('🔄 Switching to Arriving From view');
+                console.log('🔄 Switching to arrivingFrom view');
                 setView('arrivingFrom');
               }}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
@@ -48,11 +50,11 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: 
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
-              Arriving From
+              {t('reports_arriving_from')}
             </button>
             <button
               onClick={() => {
-                console.log('🔄 Switching to Going To view');
+                console.log('🔄 Switching to goingTo view');
                 setView('goingTo');
               }}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
@@ -61,7 +63,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: 
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
-              Going To
+              {t('reports_going_to')}
             </button>
           </div>
         </div>
@@ -71,7 +73,7 @@ export function TravelPatternsCard({ arrivingFrom, goingTo, isLoading, title }: 
       <div className="p-6">
         {currentData.length === 0 ? (
           <div className="h-64 flex items-center justify-center text-stone-400">
-            No travel data available
+            {t('reports_no_travel_data')}
           </div>
         ) : (
           <div className="space-y-3">

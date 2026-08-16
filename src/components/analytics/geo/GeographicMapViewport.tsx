@@ -3,7 +3,8 @@
  * Single map instance; layers update on drill-down. No API keys.
  */
 
-import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react'
+import { useTranslation } from '../../../i18n';
 import {
   BASEMAP_STYLE,
   CONTINENT_VIEWS,
@@ -457,7 +458,7 @@ function GeographicMapViewportInner({
 
       {(isLoading || !mapReady) && !geoError && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
-          <div className="text-sm font-medium text-stone-500">Loading map…</div>
+          <div className="text-sm font-medium text-stone-500">{t('reports_loading_map_short')}</div>
         </div>
       )}
 
@@ -491,14 +492,14 @@ function GeographicMapViewportInner({
           </p>
           {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
           {interactive && hover.count > 0 && (
-            <p className="text-stone-400 mt-1">Click to explore</p>
+            <p className="text-stone-400 mt-1">{t('reports_map_click_explore')}</p>
           )}
         </div>
       )}
 
       <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
         <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">
-          Guest density
+          {t('reports_guest_density')}
         </p>
         <div className="flex items-center gap-0.5">
           {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((c) => (
@@ -506,8 +507,8 @@ function GeographicMapViewportInner({
           ))}
         </div>
         <div className="flex justify-between text-[9px] text-stone-400 mt-0.5">
-          <span>None</span>
-          <span>High</span>
+          <span>{t('reports_density_none')}</span>
+          <span>{t('reports_density_high')}</span>
         </div>
       </div>
     </div>

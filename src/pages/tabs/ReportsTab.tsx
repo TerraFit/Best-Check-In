@@ -63,7 +63,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
         dateTo,
       });
       if (!data.success) {
-        setError(data.error || 'Failed to load analytics');
+        setError(data.error || t('reports_failed_load'));
         setSummary(null);
       } else {
         setSummary(data);
@@ -72,7 +72,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
         }
       }
     } catch (e: any) {
-      setError(e?.message || 'Failed to load analytics');
+      setError(e?.message || t('reports_failed_load'));
       setSummary(null);
     } finally {
       setLoading(false);
@@ -143,14 +143,14 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <label className="text-stone-500">From</label>
+            <label className="text-stone-500">{t('reports_date_from')}</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
             />
-            <label className="text-stone-500">To</label>
+            <label className="text-stone-500">{t('reports_date_to')}</label>
             <input
               type="date"
               value={dateTo}
@@ -173,7 +173,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
               ) : (
                 <FileDown size={12} />
               )}
-              Snapshot PDF
+              {t('reports_snapshot_pdf')}
             </button>
           )}
           {analyticsLimits.canBiReport && (
@@ -188,7 +188,7 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
               ) : (
                 <FileDown size={12} />
               )}
-              BI Report
+              {t('reports_bi_report')}
             </button>
           )}
         </div>
@@ -214,14 +214,14 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
           </p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Occupancy</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_occupancy')}</p>
           <p className="text-2xl font-bold text-gray-900">
             {loading ? '—' : `${occupancyRate}%`}
           </p>
-          <p className="text-[10px] text-stone-400 mt-1">Room nights / sellable nights (MVP)</p>
+          <p className="text-[10px] text-stone-400 mt-1">{t('reports_occupancy_mvp_note')}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">SA / International</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{t('reports_sa_international')}</p>
           <p className="text-2xl font-bold text-gray-900">
             {loading
               ? '—'

@@ -10,6 +10,7 @@ import { GeographicMapViewport } from './geo/GeographicMapViewport';
 import { MAP_ENGINE } from './geo/mapConfig';
 import { SubscriptionTier, SubscriptionLimits } from '../../types';
 import { Globe2, Layers, Zap, ArrowLeft } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 import {
   fetchVisitorOrigins,
   type OriginNode,
@@ -120,6 +121,7 @@ export function VisitorOriginExplorer({
   canInteractiveMap = true,
   isLoading: parentLoading = false,
 }: VisitorOriginExplorerProps) {
+  const { t } = useTranslation();
   const [currentLevel, setCurrentLevel] = useState<UiLevel>('world');
   const [selectedContinent, setSelectedContinent] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -156,7 +158,7 @@ export function VisitorOriginExplorer({
       if (!interactive && uiLevel !== 'world') {
         setShowUpgradeModal(true);
         setModalTargetTier('growth');
-        setModalFeatureName('Interactive Visitor Origin Explorer');
+        setModalFeatureName(t('reports_visitor_origin_explorer'));
         return;
       }
 
@@ -203,11 +205,14 @@ export function VisitorOriginExplorer({
             | undefined;
           if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) {
             setQualityNote(
-              `No eligible stays in this period. ${q.excludedByStatus} booking(s) excluded by status (confirmed/pending/cancelled are not sold-stay analytics). Only checked-in / checked-out / completed stays are included.`
+              t('reports_quality_no_eligible', { count: q.excludedByStatus })
             );
           } else if (q && (q.excludedByStatus || 0) > 0) {
             setQualityNote(
-              `Showing ${q.eligibleStays ?? 0} eligible stays; ${q.excludedByStatus} excluded by status (pre-arrival or cancelled).`
+              t('reports_quality_partial_eligible', {
+                eligible: q.eligibleStays ?? 0,
+                excluded: q.excludedByStatus,
+              })
             );
           } else {
             setQualityNote(null);
@@ -249,7 +254,7 @@ export function VisitorOriginExplorer({
   const handleWorldExplore = () => {
     if (!interactive) {
       setModalTargetTier('growth');
-      setModalFeatureName('Interactive Visitor Origin Explorer');
+      setModalFeatureName(t('reports_visitor_origin_explorer'));
       setShowUpgradeModal(true);
       return;
     }
@@ -389,10 +394,10 @@ export function VisitorOriginExplorer({
           </div>
           <div>
             <h3 className="text-lg font-extrabold text-stone-900 tracking-tight">
-              Visitor Origin Explorer
+              {t('reports_visitor_origin_explorer')}
             </h3>
             <p className="text-xs text-stone-400 mt-0.5">
-              Interactive map available on Growth and higher
+              {t('reports_upgrade_map_growth')}
             </p>
           </div>
         </div>
@@ -405,12 +410,12 @@ export function VisitorOriginExplorer({
             type="button"
             onClick={() => {
               setModalTargetTier('growth');
-              setModalFeatureName('Interactive Visitor Origin Explorer');
+              setModalFeatureName(t('reports_visitor_origin_explorer'));
               setShowUpgradeModal(true);
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-bold shadow-md"
           >
-            <Zap size={14} className="fill-white" /> Upgrade to Growth
+            <Zap size={14} className="fill-white" /> {t('reports_upgrade_to_growth')}
           </button>
         </div>
         <UpgradePromptModal
@@ -458,11 +463,10 @@ export function VisitorOriginExplorer({
           </div>
           <div>
             <h3 className="text-lg font-extrabold text-stone-900 tracking-tight">
-              Visitor Origin Explorer
+              {t('reports_visitor_origin_explorer')}
             </h3>
             <p className="text-xs text-stone-400 mt-0.5">
-              {totalVisitors} guest check-ins · SA {domesticCount} · International{' '}
-              {internationalCount}
+              {t('reports_guest_checkins_summary', { count: totalVisitors, domestic: domesticCount, international: internationalCount })}
             </p>
           </div>
         </div>
@@ -672,8 +676,10 @@ export function VisitorOriginExplorer({
         <div className="flex items-center gap-2.5">
           <Layers size={16} className="text-orange-500" />
           <span className="text-xs text-stone-600 font-medium">
-            Plan: <strong className="capitalize text-stone-900">{limits.subscriptionTier}</strong>
-            {limits.maxDrillLevel ? ` · max depth ${limits.maxDrillLevel}` : ''}
+            {t('reports_plan_label', { plan: String(limits.subscriptionTier) })}
+            {limits.maxDrillLevel
+              ? ` · ${t('reports_max_depth', { level: String(limits.maxDrillLevel) })}`
+              : ''}
           </span>
         </div>
       </div>

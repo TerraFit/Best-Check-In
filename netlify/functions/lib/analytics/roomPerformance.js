@@ -177,24 +177,38 @@ export async function buildRoomPerformance({ businessId, dateFrom, dateTo }) {
       .map((r) => r.roomId),
   };
 
+  // Structured insight codes for client-side i18n (calculations unchanged)
   const insights = [];
   const top = withData.find((r) => rankings.highestUtilisation[0] === r.roomId);
   if (top && top.meaningful) {
+    const propertyPct = Math.round(propertyOccupancyRate * 100) / 100;
+    const signed = `${top.vsPropertyUtilisationPp >= 0 ? '+' : ''}${top.vsPropertyUtilisationPp}`;
     insights.push({
       level: 'fact',
-      text: `${top.roomName} has ${top.utilisation}% utilisation versus property ${Math.round(propertyOccupancyRate * 100) / 100}% (${top.vsPropertyUtilisationPp >= 0 ? '+' : ''}${top.vsPropertyUtilisationPp} percentage points).`,
+      code: 'top_vs_property',
+      params: {
+        room: top.roomName,
+        utilisation: top.utilisation,
+        property: propertyPct,
+        signed,
+      },
+      text: `${top.roomName} has ${top.utilisation}% utilisation versus property ${propertyPct}% (${signed} percentage points).`,
     });
   }
   const low = withData.find((r) => rankings.lowestUtilisation[0] === r.roomId);
   if (low && low.meaningful && low.roomId !== top?.roomId) {
     insights.push({
       level: 'fact',
+      code: 'lowest_util',
+      params: { room: low.roomName, utilisation: low.utilisation },
       text: `${low.roomName} is among the lowest utilisation rooms at ${low.utilisation}% in this period.`,
     });
   }
   if (quality.allocationCoveragePct < 100) {
     insights.push({
       level: 'fact',
+      code: 'allocation_basis',
+      params: { pct: quality.allocationCoveragePct },
       text: `Room utilisation is based on ${quality.allocationCoveragePct}% of eligible stays with room allocation.`,
     });
   }

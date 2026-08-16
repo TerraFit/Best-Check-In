@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n'
 // src/components/dashboard/ReferralSourcesChart.tsx
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts'
 
@@ -17,18 +18,19 @@ interface ReferralSourcesChartProps {
 }
 
 export function ReferralSourcesChart({ referralData: series, chartType, onChartTypeChange }: ReferralSourcesChartProps) {
+  const { t } = useTranslation();
   if (!series || series.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">How Guests Found You</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
           <div className="flex gap-2">
-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Donut</button>
-            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">Bar</button>
+            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_donut')}</button>
+            <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_bar')}</button>
           </div>
         </div>
         <div className="h-64 flex items-center justify-center text-gray-400">
-          No data available for selected period
+          {t('reports_no_data_period')}
         </div>
       </div>
     )
@@ -45,14 +47,14 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">How Guests Found You</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
         <div className="flex gap-2">
           <button
             onClick={() => onChartTypeChange('donut')}
             className={`p-2 rounded-lg transition-colors ${
               chartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
-            title="Donut Chart"
+            title={t('reports_chart_donut')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -63,7 +65,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
             className={`p-2 rounded-lg transition-colors ${
               chartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
-            title="Bar Chart"
+            title={t('reports_chart_bar')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
