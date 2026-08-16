@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
+import { t } from '../i18n'
 
 interface ImportPreviewRow {
   rowNumber: number;
@@ -439,7 +440,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Import Guest Data</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{t('import_guest_data')}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
@@ -453,8 +454,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
                 onChange={(e) => setDateFormat(e.target.value as 'DMY' | 'MDY')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
               >
-                <option value="DMY">DD/MM/YYYY (Day/Month/Year) - Recommended</option>
-                <option value="MDY">MM/DD/YYYY (Month/Day/Year)</option>
+                <option value="DMY">{t('import_date_ddmmyyyy')}</option>
+                <option value="MDY">{t('import_date_mmddyyyy')}</option>
               </select>
               <p className="text-xs text-gray-500 mt-2">
                 Select the format your dates are in. Most Google Forms exports use DD/MM/YYYY.
@@ -489,8 +490,8 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <h3 className="font-medium text-gray-900 mb-2">📋 Instructions</h3>
               <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
                 <li>Your file can have any column names - you'll map them in the next step</li>
-                <li><strong>Required:</strong> Full Name and Check-in Date</li>
-                <li><strong>Dates must be in the format you selected above</strong></li>
+                <li><strong>{t('import_required')}:</strong> Full Name and Check-in Date</li>
+                <li><strong>{t('import_dates_format_hint')}</strong></li>
                 <li>Recommended: Email or Phone for guest communication</li>
               </ul>
             </div>
@@ -560,7 +561,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
         <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Preview Import Data</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{t('import_preview')}</h2>
               <button onClick={() => setStep('mapping')} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
@@ -646,7 +647,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-md w-full p-8 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Importing Data...</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('import_importing')}</h3>
           <p className="text-gray-500">Please wait while we process your file.</p>
           <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
             <div className="bg-orange-500 h-2 rounded-full transition-all duration-300" style={{ width: `${importProgress}%` }}></div>
@@ -667,7 +668,7 @@ export default function ImportGoogleForms({ businessId, onImportComplete, onClos
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Import Complete!</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('import_complete')}</h3>
           <p className="text-gray-600">
             Successfully imported: <span className="font-bold text-green-600">{importResult.success}</span><br />
             Failed: <span className="font-bold text-red-600">{importResult.failed}</span>

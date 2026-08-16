@@ -1,5 +1,6 @@
 // src/components/BusinessOverview.tsx
 import { useState, useEffect } from 'react';
+import { t } from '../i18n';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer 
@@ -76,7 +77,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
         <div className="bg-white rounded-lg max-w-2xl w-full p-8">
           <div className="text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Business Data</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('biz_overview_load_failed')}</h3>
             <p className="text-gray-500 mb-4">{error}</p>
             <p className="text-sm text-gray-400 mb-6">The analytics service may be temporarily unavailable.</p>
             <div className="flex justify-center gap-3">
@@ -106,7 +107,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
         <div className="bg-white rounded-lg max-w-2xl w-full p-8">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Data Available</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('common_no_data')}</h3>
             <p className="text-gray-500 mb-6">No analytics data is available for this business yet.</p>
             <button
               onClick={onClose}
@@ -164,29 +165,29 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
         <div className="p-6 space-y-8">
           {/* Business Details Section */}
           <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Information</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('dashboard_business_info')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <p className="text-sm text-gray-500">Business Name</p>
+                <p className="text-sm text-gray-500">{t('biz_overview_business_name')}</p>
                 <p className="font-medium">{business.trading_name || 'N/A'}</p>
                 <p className="text-sm text-gray-600">{business.registered_name || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Contact</p>
+                <p className="text-sm text-gray-500">{t('biz_overview_contact')}</p>
                 <p className="font-medium">{business.phone || 'N/A'}</p>
                 <p className="text-sm text-gray-600">{business.email || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Location</p>
+                <p className="text-sm text-gray-500">{t('biz_overview_location')}</p>
                 <p className="font-medium">{business.physical_address?.city || 'N/A'}</p>
                 <p className="text-sm text-gray-600">{business.physical_address?.province || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Registration Date</p>
+                <p className="text-sm text-gray-500">{t('biz_overview_reg_date')}</p>
                 <p className="font-medium">{business.created_at ? new Date(business.created_at).toLocaleDateString() : 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Subscription</p>
+                <p className="text-sm text-gray-500">{t('subscription_status_title')}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     business.subscription_tier === 'annual' 
@@ -216,28 +217,28 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
               onChange={(e) => setDateRange(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
             >
-              <option value="30days">Last 30 Days</option>
-              <option value="90days">Last 90 Days</option>
-              <option value="12months">Last 12 Months</option>
+              <option value="30days">{t('filters_last_30_days')}</option>
+              <option value="90days">{t('filters_last_90_days')}</option>
+              <option value="12months">{t('filters_last_12_months')}</option>
             </select>
           </div>
 
           {/* Performance Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Total Bookings</p>
+              <p className="text-sm text-gray-500">{t('reports_total_bookings')}</p>
               <p className="text-2xl font-bold text-gray-900">{analytics.total_bookings || 0}</p>
             </div>
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Occupancy Rate</p>
+              <p className="text-sm text-gray-500">{t('biz_overview_occupancy')}</p>
               <p className="text-2xl font-bold text-gray-900">{analytics.occupancy_rate || 0}%</p>
             </div>
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Total Revenue</p>
+              <p className="text-sm text-gray-500">{t('reports_total_revenue')}</p>
               <p className="text-2xl font-bold text-gray-900">R {(analytics.total_revenue || 0).toLocaleString()}</p>
             </div>
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Overall Rank</p>
+              <p className="text-sm text-gray-500">{t('biz_overview_rank')}</p>
               <p className="text-2xl font-bold text-gray-900">#{rankings.rank_overall || 'N/A'}</p>
               <p className="text-xs text-gray-500">Top {rankings.percentile_overall || 0}%</p>
             </div>
@@ -247,7 +248,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Monthly Trend */}
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-4">Monthly Booking Trend</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-4">{t('biz_overview_monthly_trend')}</h4>
               {monthlyData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={monthlyData}>
@@ -267,7 +268,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
 
             {/* Guest Origins - Province */}
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-4">Guest Origins by Province</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-4">{t('biz_overview_origins_province')}</h4>
               {provinceData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
@@ -297,7 +298,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
 
             {/* City Breakdown */}
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-4">Top Cities</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-4">{t('biz_overview_top_cities')}</h4>
               {cityData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={cityData}>
@@ -315,9 +316,9 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
               )}
             </div>
 
-            {/* Comparative Performance */}
+            {/* {t('biz_overview_comparative')} */}
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-4">Comparative Performance</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-4">{t('biz_overview_comparative')}</h4>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
@@ -339,7 +340,7 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span>Overall Percentile</span>
+                    <span>{t('biz_overview_percentile')}</span>
                     <span className="font-medium">{rankings.percentile_overall || 0}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">

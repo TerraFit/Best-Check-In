@@ -12,6 +12,7 @@ import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
 import LostFoundTab from './tabs/LostFoundTab';
 import { businessOwnerPrincipal, filterTabs } from '../services/rbacService';
+import { t } from '../i18n';
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
@@ -281,14 +282,14 @@ export default function BusinessDashboard() {
 
   const principal = businessOwnerPrincipal();
   const allTabs = [
-    { id: 'overview', name: 'Overview' },
-    { id: 'checkins', name: 'Check-ins' },
-    { id: 'reports', name: 'Reports' },
-    { id: 'rooms', name: 'Rooms' },
-    { id: 'housekeeping', name: 'Housekeeping' },
-    { id: 'lost_found', name: 'Lost & Found' },
-    { id: 'staff', name: 'Staff Portal' },
-    { id: 'settings', name: 'Settings' },
+    { id: 'overview', name: t('dashboard_overview') },
+    { id: 'checkins', name: t('dashboard_checkins') },
+    { id: 'reports', name: t('dashboard_reports') },
+    { id: 'rooms', name: t('nav_rooms') },
+    { id: 'housekeeping', name: t('nav_housekeeping') },
+    { id: 'lost_found', name: t('nav_lost_found') },
+    { id: 'staff', name: t('nav_staff') },
+    { id: 'settings', name: t('dashboard_settings') },
   ];
   const tabs = filterTabs(principal, allTabs);
 
@@ -311,7 +312,7 @@ export default function BusinessDashboard() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading dashboard...</p>
+          <p className="text-gray-500">{t('common_loading')}</p>
         </div>
       </div>
     );
@@ -387,7 +388,7 @@ export default function BusinessDashboard() {
                 onClick={() => navigate('/business/housekeeping-settings')}
                 className="text-sm font-medium text-orange-600 hover:text-orange-700"
               >
-                Housekeeping Settings →
+                {t('housekeeping_title')} {t('nav_settings')} →
               </button>
             </div>
             <HousekeepingTab businessId={business?.id || getBusinessId() || ''} />

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
+import { t } from '../../i18n';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY!);
 
@@ -56,12 +57,12 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
     e.preventDefault();
     
     if (data.password !== data.confirmPassword) {
-      alert("Passwords don't match");
+      alert(t('error_passwords_mismatch'));
       return;
     }
     
     if (data.password.length < 8) {
-      alert("Password must be at least 8 characters");
+      alert(t('error_min_length').replace('{min}', '8'));
       return;
     }
     
@@ -130,7 +131,7 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
       <div className="grid md:grid-cols-2 gap-6">
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Email Address <span className="text-amber-600">*</span>
+            {t('login_email_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="email"
@@ -153,7 +154,7 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Password <span className="text-amber-600">*</span>
+            {t('login_password_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="password"
@@ -167,7 +168,7 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">
-            Confirm Password <span className="text-amber-600">*</span>
+            Confirm {t('login_password_label')} <span className="text-amber-600">*</span>
           </label>
           <input
             type="password"
@@ -313,8 +314,8 @@ export default function AccountSetup({ data, onChange, onSubmit, onBack }: Accou
             className="w-5 h-5 mt-0.5 rounded border-stone-300 text-amber-600"
           />
           <span className="text-sm text-stone-600">
-            I agree to the <a href="#" className="text-amber-700 font-bold hover:underline">Terms of Service</a> and 
-            <a href="#" className="text-amber-700 font-bold hover:underline ml-1">Privacy Policy</a>. I understand that 
+            {t('reg_agree_to')} <a href="#" className="text-amber-700 font-bold hover:underline">{t('reg_terms')}</a> and 
+            <a href="#" className="text-amber-700 font-bold hover:underline ml-1">{t('reg_privacy')}</a>. I understand that 
             my subscription will automatically renew unless cancelled.
           </span>
         </label>

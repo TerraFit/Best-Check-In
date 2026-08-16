@@ -4,6 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, X, Utensils, Info, Check, AlertCircle } from 'lucide-react';
 import { createAuditLog } from '@/utils/auditLogger';
+import { t } from '../../i18n';
 
 // Types
 interface FoodRestrictions {
@@ -357,19 +358,19 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-1">
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Guest Name</span>
+                    <span className="text-stone-400 text-[10px] block">{t('checkin_guest_name')}</span>
                     <span className="font-semibold text-stone-700 block">{selectedGuest.guest_name}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Room</span>
+                    <span className="text-stone-400 text-[10px] block">{t('nav_rooms')}</span>
                     <span className="font-semibold text-stone-700 block">{selectedGuest.guest_province || 'N/A'}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Check-in</span>
+                    <span className="text-stone-400 text-[10px] block">{t('guest_details_checkin')}</span>
                     <span className="font-semibold text-stone-700 block">{selectedGuest.check_in_date}</span>
                   </div>
                   <div>
-                    <span className="text-stone-400 text-[10px] block">Check-out</span>
+                    <span className="text-stone-400 text-[10px] block">{t('guest_details_checkout')}</span>
                     <span className="font-semibold text-stone-700 block">{selectedGuest.check_out_date || 'N/A'}</span>
                   </div>
                 </div>
@@ -460,7 +461,7 @@ export function GuestDietariesTab({ bookings, session, onSaveDietary }: GuestDie
         ) : (
           <div className="flex-grow flex flex-col items-center justify-center p-8 text-center text-stone-400">
             <Utensils size={48} className="text-stone-200 mb-3" />
-            <h3 className="text-sm font-bold text-stone-800">Select a Guest to Edit</h3>
+            <h3 className="text-sm font-bold text-stone-800">{t('staff_select_guest_edit')}</h3>
             <p className="text-[11px] text-stone-400 mt-1 max-w-xs">
               Click any active guest on the left sidebar to view their profile, existing food restrictions, and to commit updates directly.
             </p>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { t } from '../i18n'
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -695,7 +696,7 @@ export default function BusinessRegistration() {
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest Check-In System</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Digital Registration Forms</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Email Confirmations</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Dashboard</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('reg_basic_dashboard')}</p>
                         </>
                       )}
                       {plan.id === 'growth' && (
@@ -805,7 +806,7 @@ export default function BusinessRegistration() {
               onClick={scrollToRegistration}
               className="text-stone-500 text-sm flex items-center justify-center gap-2 hover:text-stone-400 transition-colors group"
             >
-              <span>Register here</span>
+              <span>{t('reg_register_here')}</span>
               <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
@@ -916,7 +917,7 @@ export default function BusinessRegistration() {
                       className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                       required
                     >
-                      <option value="">Select Establishment Type</option>
+                      <option value="">{t('reg_select_establishment')}</option>
                       {ESTABLISHMENT_TYPES.map(type => (
                         <option key={type} value={type}>{type}</option>
                       ))}
@@ -1005,7 +1006,7 @@ export default function BusinessRegistration() {
                       className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                       required
                     >
-                      <option value="">Select Country</option>
+                      <option value="">{t('reg_select_country')}</option>
                       {SADC_COUNTRIES.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -1133,7 +1134,7 @@ export default function BusinessRegistration() {
                         }}
                         className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                       >
-                        <option value="">Select Country</option>
+                        <option value="">{t('reg_select_country')}</option>
                         {SADC_COUNTRIES.map(c => (
                           <option key={c} value={c}>{c}</option>
                         ))}

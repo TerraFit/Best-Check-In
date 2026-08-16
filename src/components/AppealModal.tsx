@@ -1,6 +1,7 @@
 // src/components/AppealModal.tsx
 
 import { useState, useRef } from 'react';
+import { t } from '../i18n'
 
 interface AppealModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-900">Appeal Change Request</h3>
+          <h3 className="text-xl font-semibold text-gray-900">{t('appeal_title')}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
@@ -112,31 +113,31 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
           {/* Email-style header */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
             <div className="flex">
-              <span className="w-24 font-medium text-gray-600">To:</span>
+              <span className="w-24 font-medium text-gray-600">{t('appeal_to')}:</span>
               <span className="text-gray-900">inquiry@fastcheckin.co.za</span>
             </div>
             <div className="flex">
-              <span className="w-24 font-medium text-gray-600">CC:</span>
+              <span className="w-24 font-medium text-gray-600">{t('appeal_cc')}:</span>
               <span className="text-gray-900">{business.email}</span>
             </div>
             <div className="flex">
-              <span className="w-24 font-medium text-gray-600">Subject:</span>
+              <span className="w-24 font-medium text-gray-600">{t('appeal_subject')}:</span>
               <span className="text-gray-900">Appeal – Change Request – {business.trading_name}</span>
             </div>
           </div>
 
           {/* Pre-filled request details (read-only) */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-3">Original Request Details</h4>
+            <h4 className="font-medium text-gray-900 mb-3">{t('appeal_original_details')}</h4>
             <div className="space-y-2 text-sm">
-              <div><span className="font-medium text-gray-600">Business Name:</span> {business.trading_name}</div>
-              <div><span className="font-medium text-gray-600">Business ID:</span> {business.id}</div>
-              <div><span className="font-medium text-gray-600">Field:</span> {request.field_name}</div>
-              <div><span className="font-medium text-gray-600">Current Value:</span> {request.current_value || '(empty)'}</div>
-              <div><span className="font-medium text-gray-600">Requested Value:</span> {request.requested_value}</div>
-              <div><span className="font-medium text-gray-600">Original Reason:</span> {request.reason}</div>
+              <div><span className="font-medium text-gray-600">{t('biz_overview_business_name')}:</span> {business.trading_name}</div>
+              <div><span className="font-medium text-gray-600">{t('settings_business_id')}:</span> {business.id}</div>
+              <div><span className="font-medium text-gray-600">{t('appeal_field')}:</span> {request.field_name}</div>
+              <div><span className="font-medium text-gray-600">{t('appeal_current_value')}:</span> {request.current_value || '(empty)'}</div>
+              <div><span className="font-medium text-gray-600">{t('appeal_requested_value')}:</span> {request.requested_value}</div>
+              <div><span className="font-medium text-gray-600">{t('appeal_original_reason')}:</span> {request.reason}</div>
               {request.rejection_reason && (
-                <div><span className="font-medium text-red-600">Rejection Reason:</span> {request.rejection_reason}</div>
+                <div><span className="font-medium text-red-600">{t('appeal_rejection_reason')}:</span> {request.rejection_reason}</div>
               )}
             </div>
           </div>
@@ -178,9 +179,9 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
                 <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                <span className="text-sm">Click to upload or drag and drop</span>
+                <span className="text-sm">{t('appeal_upload_hint')}</span>
               </button>
-              <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, DOC up to 10MB</p>
+              <p className="text-xs text-gray-400 mt-1">{t('appeal_file_types')}</p>
             </div>
             
             {attachments.length > 0 && (

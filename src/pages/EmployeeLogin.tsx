@@ -5,9 +5,11 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { Phone, Lock, Eye, EyeOff, AlertCircle, LogIn } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 function EmployeeLogin() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +33,7 @@ function EmployeeLogin() {
     
     // Validate phone length
     if (cleanPhone.length < 9) {
-      setError('Please enter a valid phone number (at least 9 digits)');
+      setError(t('login_error_invalid_phone'));
       setLoading(false);
       return;
     }
@@ -71,11 +73,11 @@ function EmployeeLogin() {
         console.log('✅ Employee login successful, redirecting to dashboard');
         window.location.href = '/employee/dashboard';
       } else {
-        setError(data.error || 'Invalid phone number or password');
+        setError(data.error || t('login_error_invalid_phone_password'));
       }
     } catch (err) {
       console.error('❌ Login error:', err);
-      setError('An error occurred. Please try again.');
+      setError(t('login_error_generic'));
     } finally {
       setLoading(false);
     }
@@ -86,10 +88,10 @@ function EmployeeLogin() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-4">
         <Logo size="lg" className="justify-center" />
         <h2 className="text-3xl font-serif font-black tracking-tight text-white leading-none">
-          Employee Portal
+          {t('login_employee_title')}
         </h2>
         <p className="text-stone-400 text-sm">
-          Sign in with your phone number
+          {t('login_employee_subtitle')}
         </p>
       </div>
 
@@ -106,7 +108,7 @@ function EmployeeLogin() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Phone Number
+                {t('login_phone_label')}
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
@@ -118,21 +120,18 @@ function EmployeeLogin() {
                   value={phone}
                   onChange={handlePhoneChange}
                   className="w-full bg-stone-50 border border-stone-200 py-3 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none font-mono tracking-widest"
-                  placeholder="e.g. 0837789487"
+                  placeholder={t('login_phone_placeholder')}
                   maxLength={10}
                 />
               </div>
               <p className="text-[10px] text-stone-400 mt-1">
-                Enter your phone number without spaces or country codes
-              </p>
-              <p className="text-[10px] text-amber-600 mt-1">
-                💡 Demo: Try 0837789487 (the employee listed above)
+                {t('login_phone_hint')}
               </p>
             </div>
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Password
+                {t('login_password_label')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
@@ -162,11 +161,11 @@ function EmployeeLogin() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-stone-950 border-t-transparent" />
-                  Signing in...
+                  {t('login_signing_in')}
                 </>
               ) : (
                 <>
-                  <LogIn size={16} /> Sign In
+                  <LogIn size={16} /> {t('login_sign_in')}
                 </>
               )}
             </button>
@@ -177,14 +176,14 @@ function EmployeeLogin() {
               to="/business/login" 
               className="text-xs text-stone-500 hover:text-amber-600 transition-colors block"
             >
-              ← Back to Business Login
+              {t('login_back_to_business')}
             </Link>
             
             <Link 
               to="/" 
               className="text-xs text-stone-400 hover:text-stone-500 transition-colors block"
             >
-              Return to Home
+              {t('common_return_home')}
             </Link>
           </div>
         </div>

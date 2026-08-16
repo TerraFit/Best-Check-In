@@ -6,6 +6,7 @@ import {
 import { MonthlyData, SeasonStats, Booking, ViewState } from '../types';
 import { HIGH_SEASON_MONTHS, LOW_SEASON_MONTHS, COLORS, REFERRAL_SOURCES } from '../constants';
 import { getMarketingAdvice } from '../services/geminiService';
+import { t } from '../i18n'
 
 interface DashboardProps {
   data: MonthlyData[];
@@ -169,7 +170,7 @@ Insight generated for Marketing Use.
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-3xl font-serif font-bold text-stone-900">{hotelName} - Guest Registry</h2>
-            <p className="text-stone-500 text-sm mt-1">Immigration Act Section 40 - Daily Register</p>
+            <p className="text-stone-500 text-sm mt-1">{t('dash_immigration_register')}</p>
           </div>
           <div className="relative">
             <input 
@@ -190,14 +191,14 @@ Insight generated for Marketing Use.
             <table className="w-full text-left">
               <thead className="bg-stone-50 text-stone-500 text-[11px] uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4">Guest Name</th>
-                  <th className="px-6 py-4">ID/Passport</th>
-                  <th className="px-6 py-4">Country</th>
-                  <th className="px-6 py-4">Check-In</th>
-                  <th className="px-6 py-4">Check-Out</th>
-                  <th className="px-6 py-4">Nights</th>
-                  <th className="px-6 py-4">Next Destination</th>
-                  <th className="px-6 py-4">Signed</th>
+                  <th className="px-6 py-4">{t('checkin_guest_name')}</th>
+                  <th className="px-6 py-4">{t('import_id_passport')}</th>
+                  <th className="px-6 py-4">{t('import_country')}</th>
+                  <th className="px-6 py-4">{t('guest_details_checkin')}</th>
+                  <th className="px-6 py-4">{t('guest_details_checkout')}</th>
+                  <th className="px-6 py-4">{t('guest_details_nights')}</th>
+                  <th className="px-6 py-4">{t('guest_details_next_destination')}</th>
+                  <th className="px-6 py-4">{t('dash_signed')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -292,7 +293,7 @@ Insight generated for Marketing Use.
             <h4 className="text-[10px] font-bold uppercase text-stone-400 tracking-widest mb-1">{s.season} Season</h4>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl font-serif font-bold text-stone-900">{Math.round(s.occupancy)}%</p>
-              <span className="text-xs text-stone-400">Avg. Occupancy</span>
+              <span className="text-xs text-stone-400">{t('dash_avg_occupancy')}</span>
             </div>
             <p className="text-[10px] text-amber-700 font-bold mt-2 uppercase tracking-widest">R{s.revenue.toLocaleString()} Revenue</p>
           </div>
@@ -315,7 +316,7 @@ Insight generated for Marketing Use.
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Occupancy Percentage Trend</h3>
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">{t('dash_occupancy_trend')}</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.slice(-12)}>
@@ -333,7 +334,7 @@ Insight generated for Marketing Use.
         </div>
 
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Revenue Growth</h3>
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">{t('dash_revenue_growth')}</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.slice(-12)}>
@@ -354,7 +355,7 @@ Insight generated for Marketing Use.
         </div>
 
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Origin of Guests</h3>
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">{t('dash_origin_guests')}</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={countryStats} layout="vertical">
@@ -369,7 +370,7 @@ Insight generated for Marketing Use.
         </div>
 
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">Referral Attribution</h3>
+          <h3 className="font-bold text-sm uppercase tracking-widest mb-6 text-stone-400">{t('dash_referral_attribution')}</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -400,8 +401,8 @@ Insight generated for Marketing Use.
             <div className="p-8 md:p-10">
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <h3 className="text-2xl font-serif font-bold text-stone-900">Collaboration Hub</h3>
-                  <p className="text-stone-500 text-sm mt-1">Export analytics or invite your marketing partner.</p>
+                  <h3 className="text-2xl font-serif font-bold text-stone-900">{t('dash_collab_hub')}</h3>
+                  <p className="text-stone-500 text-sm mt-1">{t('dash_collab_desc')}</p>
                 </div>
                 <button onClick={() => setShowShareModal(false)} className="text-stone-400 hover:text-stone-900 transition-colors p-2">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -410,14 +411,14 @@ Insight generated for Marketing Use.
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                 <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">Internal Assets</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">{t('dash_internal_assets')}</h4>
                   <button 
                     onClick={copyMarketingSummary}
                     className="w-full bg-stone-50 hover:bg-amber-50 border border-stone-200 p-5 rounded-2xl text-left flex items-center justify-between group transition-all"
                   >
                     <div>
-                      <h4 className="font-bold text-stone-900 text-xs">Copy Stats Briefing</h4>
-                      <p className="text-[10px] text-stone-500 mt-0.5">Quick text for agency WhatsApp.</p>
+                      <h4 className="font-bold text-stone-900 text-xs">{t('dash_copy_stats')}</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5">{t('dash_whatsapp_hint')}</p>
                     </div>
                     <span className={`text-[9px] font-bold uppercase tracking-widest ${copySuccess === 'summary' ? 'text-emerald-600' : 'text-stone-400'}`}>
                       {copySuccess === 'summary' ? 'Copied!' : 'Copy'}
@@ -429,15 +430,15 @@ Insight generated for Marketing Use.
                     className="w-full bg-stone-50 hover:bg-amber-50 border border-stone-200 p-5 rounded-2xl text-left flex items-center justify-between group transition-all"
                   >
                     <div>
-                      <h4 className="font-bold text-stone-900 text-xs">Export Marketing CSV</h4>
-                      <p className="text-[10px] text-stone-500 mt-0.5">Raw data for spreadsheets.</p>
+                      <h4 className="font-bold text-stone-900 text-xs">{t('dash_export_marketing')}</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5">{t('dash_raw_data')}</p>
                     </div>
                     <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   </button>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">Invite Marketing Partner</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">{t('dash_invite_partner')}</h4>
                   <form onSubmit={invitePartner} className="space-y-2">
                     <input 
                       type="email" 
@@ -455,7 +456,7 @@ Insight generated for Marketing Use.
                       {partners.map(p => (
                         <div key={p} className="flex justify-between items-center bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
                           <span className="text-[10px] font-medium text-emerald-800 truncate">{p}</span>
-                          <span className="text-[8px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full uppercase font-bold">Authorized</span>
+                          <span className="text-[8px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full uppercase font-bold">{t('dash_authorized')}</span>
                         </div>
                       ))}
                     </div>
@@ -469,8 +470,8 @@ Insight generated for Marketing Use.
                     <svg className="w-5 h-5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.803a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.103-1.103" /></svg>
                   </div>
                   <div>
-                    <h4 className="font-bold text-stone-900 text-sm italic">Direct View Link</h4>
-                    <p className="text-[10px] text-stone-500">Provide temporary restricted access.</p>
+                    <h4 className="font-bold text-stone-900 text-sm italic">{t('dash_direct_view')}</h4>
+                    <p className="text-[10px] text-stone-500">{t('dash_temp_access')}</p>
                   </div>
                 </div>
                 <button 

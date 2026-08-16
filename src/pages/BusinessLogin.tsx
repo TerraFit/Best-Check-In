@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
+import { useTranslation } from '../i18n';
 
 export default function BusinessLogin() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -74,11 +76,11 @@ export default function BusinessLogin() {
         }
       } else {
         console.log('❌ Login failed:', data.error);
-        setError(data.error || 'Invalid email or password');
+        setError(data.error || t('login_error_invalid_credentials'));
       }
     } catch (err) {
       console.error('❌ Login error:', err);
-      setError('An error occurred. Please try again.');
+      setError(t('login_error_generic'));
     } finally {
       setLoading(false);
     }
@@ -105,10 +107,10 @@ export default function BusinessLogin() {
         }, 3000);
       } else {
         const data = await response.json();
-        setError(data.error || 'Failed to send reset email');
+        setError(data.error || t('login_error_reset_failed'));
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(t('login_error_generic'));
     } finally {
       setLoading(false);
     }
@@ -121,10 +123,10 @@ export default function BusinessLogin() {
           <Logo size="lg" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-          Business Admin Portal
+          {t('login_business_title')}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Sign in to manage your business
+          {t('login_business_subtitle')}
         </p>
       </div>
 
@@ -141,7 +143,7 @@ export default function BusinessLogin() {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address
+                  {t('login_email_label')}
                 </label>
                 <div className="mt-1">
                   <input
@@ -153,14 +155,14 @@ export default function BusinessLogin() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="your@business.com"
+                    placeholder={t('login_email_placeholder')}
                   />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password
+                  {t('login_password_label')}
                 </label>
                 <div className="mt-1 relative">
                   <input
@@ -186,7 +188,7 @@ export default function BusinessLogin() {
                     ) : (
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542 7z" />
                       </svg>
                     )}
                   </button>
@@ -202,7 +204,7 @@ export default function BusinessLogin() {
                     className="h-4 w-4 text-orange-500 focus:ring-orange-400 border-gray-300 rounded"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                    Remember me
+                    {t('login_remember_me')}
                   </label>
                 </div>
 
@@ -212,7 +214,7 @@ export default function BusinessLogin() {
                     onClick={() => setShowForgotPassword(true)}
                     className="font-medium text-orange-600 hover:text-orange-500"
                   >
-                    Forgot password?
+                    {t('login_forgot_password')}
                   </button>
                 </div>
               </div>
@@ -223,7 +225,7 @@ export default function BusinessLogin() {
                   disabled={loading}
                   className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50"
                 >
-                  {loading ? 'Signing in...' : 'Sign In'}
+                  {loading ? t('login_signing_in') : t('login_sign_in')}
                 </button>
               </div>
             </form>
@@ -234,15 +236,15 @@ export default function BusinessLogin() {
                   <svg className="mx-auto h-12 w-12 text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <p className="font-medium">Reset email sent!</p>
-                  <p className="text-sm mt-2">Check your inbox for password reset instructions.</p>
+                  <p className="font-medium">{t('login_reset_sent_title')}</p>
+                  <p className="text-sm mt-2">{t('login_reset_sent_body')}</p>
                 </div>
               ) : (
                 <>
                   <div className="text-center mb-6">
-                    <h3 className="text-lg font-medium text-gray-900">Reset your password</h3>
+                    <h3 className="text-lg font-medium text-gray-900">{t('login_reset_title')}</h3>
                     <p className="text-sm text-gray-600 mt-2">
-                      Enter your email address and we'll send you a link to reset your password.
+                      {t('login_reset_instructions')}
                     </p>
                   </div>
 
@@ -254,7 +256,7 @@ export default function BusinessLogin() {
 
                   <div>
                     <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700">
-                      Email Address
+                      {t('login_email_label')}
                     </label>
                     <div className="mt-1">
                       <input
@@ -264,7 +266,7 @@ export default function BusinessLogin() {
                         value={resetEmail}
                         onChange={(e) => setResetEmail(e.target.value)}
                         className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                        placeholder="your@email.com"
+                        placeholder={t('login_email_placeholder')}
                       />
                     </div>
                   </div>
@@ -278,14 +280,14 @@ export default function BusinessLogin() {
                       }}
                       className="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                     >
-                      Back
+                      {t('common_back')}
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
                       className="flex-1 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
                     >
-                      {loading ? 'Sending...' : 'Send Reset Link'}
+                      {loading ? t('login_sending') : t('login_send_reset_link')}
                     </button>
                   </div>
                 </>
@@ -295,23 +297,22 @@ export default function BusinessLogin() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              New business?{' '}
+              {t('login_new_business')}{' '}
               <Link to="/register" className="font-medium text-orange-600 hover:text-orange-500">
-                Register here
+                {t('login_register_here')}
               </Link>
             </p>
           </div>
           
-          {/* ✅ ADD EMPLOYEE LOGIN LINK */}
           <div className="mt-4 text-center">
             <Link to="/employee/login" className="text-xs text-stone-500 hover:text-amber-600 transition-colors">
-              👤 Employee Login
+              👤 {t('login_employee_login')}
             </Link>
           </div>
 
           <div className="mt-2 text-center">
             <Link to="/super-admin-login" className="text-xs text-gray-400 hover:text-gray-500">
-              Super Admin Login
+              {t('login_super_admin_login')}
             </Link>
           </div>
         </div>

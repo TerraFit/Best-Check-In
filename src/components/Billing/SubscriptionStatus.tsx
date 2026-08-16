@@ -1,5 +1,6 @@
 // src/components/billing/SubscriptionStatus.tsx
 import { useState, useEffect } from 'react';
+import { t } from '../../i18n';
 
 interface SubscriptionStatusProps {
   businessId: string;
@@ -51,19 +52,19 @@ export default function SubscriptionStatus({ businessId }: SubscriptionStatusPro
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Subscription Status</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('subscription_status_title')}</h3>
       </div>
 
       <div className="p-6 space-y-4">
-        {/* Current Plan */}
+        {/* {t('subscription_current_plan')} */}
         <div className="flex justify-between items-center">
-          <span className="text-gray-600">Current Plan</span>
+          <span className="text-gray-600">{t('subscription_current_plan')}</span>
           <span className="font-semibold text-gray-900 capitalize">{status.plan}</span>
         </div>
 
         {/* Status */}
         <div className="flex justify-between items-center">
-          <span className="text-gray-600">Status</span>
+          <span className="text-gray-600">{t('subscription_status_label')}</span>
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
             isComplimentary ? 'bg-green-100 text-green-800' :
             isOnTrial ? 'bg-blue-100 text-blue-800' :
@@ -77,18 +78,18 @@ export default function SubscriptionStatus({ businessId }: SubscriptionStatusPro
           </span>
         </div>
 
-        {/* Monthly Charge */}
+        {/* {t('subscription_monthly_charge')} */}
         <div className="flex justify-between items-center">
-          <span className="text-gray-600">Monthly Charge</span>
+          <span className="text-gray-600">{t('subscription_monthly_charge')}</span>
           <span className={`font-bold ${isComplimentary || isOnTrial ? 'text-green-600' : 'text-gray-900'}`}>
             {isComplimentary || isOnTrial ? 'R0.00' : `R${status.charge.toFixed(2)}`}
           </span>
         </div>
 
-        {/* Valid Until */}
+        {/* {t('subscription_valid_until')} */}
         {status.validUntil && (
           <div className="flex justify-between items-center">
-            <span className="text-gray-600">Valid Until</span>
+            <span className="text-gray-600">{t('subscription_valid_until')}</span>
             <span className="text-gray-900">
               {new Date(status.validUntil).toLocaleDateString('en-ZA', {
                 year: 'numeric',
