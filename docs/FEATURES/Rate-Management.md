@@ -1,6 +1,6 @@
 # Rate Management
 
-**Status:** Foundation (Step 5)  
+**Status:** Steps 5–6 complete  
 **Branch:** `feature/rate-management-nightbridge`  
 **Schema:** Migration `013_rate_management.sql` (production applied)
 
@@ -47,6 +47,41 @@ booking_rate_snapshots  →  SUM(resolved_rate)  →  bookings.room_revenue  →
 
 Snapshots are immutable. `bookings.total_amount` and legacy `bookings.season` are unchanged.
 
+## Data access (Step 6)
+
+Architecture:
+
+```
+Frontend rateApi.ts
+        ↓
+Netlify Functions (JWT auth)
+        ↓
+Supabase REST (service role)
+        ↓
+Production tables (RLS + triggers)
+```
+
+### Endpoints
+
+| Function | Methods | Notes |
+|----------|---------|-------|
+| `manage-seasons` | GET, POST, PATCH | Business-scoped seasons |
+| `manage-room-rates` | GET, POST, PATCH | Room + season ownership checked |
+| `manage-rate-specials` | GET, POST, PATCH | applies_to all\|rooms |
+| `manage-rate-provider-mappings` | GET, POST, PATCH | External room identity |
+| `list-booking-rate-snapshots` | GET only | **Read-only** — no writes |
+
+### Authentication
+
+- JWT required (`Authorization: Bearer …`)
+- `user_metadata.business_id` is the authoritative tenant
+- Request `businessId` is consistency-checked only; mismatch → 403
+- All queries filter `business_id = authenticatedBusinessId`
+
+### Snapshots
+
+Read-only in Step 6. No insert/update/delete endpoints. DB triggers still forbid mutation.
+
 ## Out of scope (later steps)
 
 - Booking confirmation integration / snapshot writes  
@@ -62,3 +97,5 @@ Snapshots are immutable. `bookings.total_amount` and legacy `bookings.season` ar
 - Manual provider: `src/services/rates/ManualFastCheckInProvider.ts`  
 - Resolution: `src/services/rates/rateResolutionFoundation.ts`  
 - Validation: `src/services/rates/rateValidation.ts`  
+- Frontend API: `src/services/rates/rateApi.ts`  
+- Netlify: `netlify/functions/manage-*.js`, `list-booking-rate-snapshots.js`  
