@@ -122,6 +122,26 @@ exports.handler = async (event) => {
       city,
     });
 
+    // The map is rendered from country GeoJSON even when the explorer is at
+    // world/continent level. Keep hierarchy nodes for the explorer and expose
+    // real country nodes separately for the map. A country polygon may only
+    // receive a count from an actual country aggregation node.
+    if (level === 'world' || level === 'continent') {
+      const countryData = await buildVisitorOrigins({
+        businessId,
+        dateFrom,
+        dateTo,
+        level: 'country',
+        continent: level === 'continent' ? continent : null,
+        country: null,
+        region: null,
+        city: null,
+      });
+      data.mapNodes = countryData.nodes || [];
+    } else {
+      data.mapNodes = data.nodes || [];
+    }
+
     cache.set(key, { at: Date.now(), data });
 
     return createResponse(200, {
