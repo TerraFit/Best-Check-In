@@ -11,7 +11,7 @@ import { findNodeForFeature, canonicalCountryName } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
 export type GeoLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
-export type GeoNode = { name: string; count: number; percentage: number; intensity?: number };
+export type GeoNode = { name: string; count: number; percentage: number; intensity?: number; code?: string };
 
 type HoverInfo = { name: string; count: number; percentage: number; x: number; y: number };
 
@@ -34,12 +34,12 @@ const SOURCE_ID = 'analytics-countries';
 const FILL_LAYER = 'analytics-countries-fill';
 const LINE_LAYER = 'analytics-countries-line';
 
-function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null {
-  if (!geometry) return null;
+function coordinateBounds(coordinates: unknown): { bounds: [number, number, number, number]; points: number } | null {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
+  let points = 0;
 
   const walk = (value: unknown): void => {
     if (!Array.isArray(value)) return;
@@ -48,20 +48,43 @@ function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number,
       minY = Math.min(minY, value[1]);
       maxX = Math.max(maxX, value[0]);
       maxY = Math.max(maxY, value[1]);
+      points += 1;
       return;
     }
     value.forEach(walk);
   };
 
-  if (geometry.type === 'GeometryCollection') {
-    geometry.geometries.forEach((g) => walk((g as GeoJSON.Geometry & { coordinates?: unknown }).coordinates));
-  } else {
-    walk((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
+  walk(coordinates);
+  return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
+    ? { bounds: [minX, minY, maxX, maxY], points }
+    : null;
+}
+
+function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null {
+  if (!geometry) return null;
+
+  if (geometry.type === 'MultiPolygon') {
+    // Some country features include tiny remote islands. Use the largest polygon
+    // component for the camera so the actual country fills the available map
+    // without losing the real GeoJSON feature used for the join.
+    let best: { bounds: [number, number, number, number]; points: number } | null = null;
+    geometry.coordinates.forEach((polygon) => {
+      const candidate = coordinateBounds(polygon);
+      if (candidate && (!best || candidate.points > best.points)) best = candidate;
+    });
+    return best?.bounds || null;
   }
 
-  return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
-    ? [minX, minY, maxX, maxY]
-    : null;
+  if (geometry.type === 'GeometryCollection') {
+    let best: { bounds: [number, number, number, number]; points: number } | null = null;
+    geometry.geometries.forEach((child) => {
+      const candidate = coordinateBounds((child as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
+      if (candidate && (!best || candidate.points > best.points)) best = candidate;
+    });
+    return best?.bounds || null;
+  }
+
+  return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates)?.bounds || null;
 }
 
 function findFeatureForCountry(
@@ -99,11 +122,28 @@ function GeographicMapViewportInner({
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [provinceUnavailable, setProvinceUnavailable] = useState(false);
 
+  const mapDataNodes = useMemo(() => {
+    const result = [...nodes];
+
+    // At region/city drill levels the list correctly contains child nodes, but
+    // the map still displays the selected country polygon. Reconstruct that
+    // country value from the real child aggregation rather than showing 0.
+    if (selectedCountry && (level === 'regions' || level === 'cities')) {
+      const selectedCanonical = canonicalCountryName(selectedCountry).toLowerCase();
+      const childTotal = nodes.reduce((sum, node) => sum + Math.max(0, Number(node.count) || 0), 0);
+      if (childTotal > 0 && !result.some((node) => canonicalCountryName(node.name).toLowerCase() === selectedCanonical)) {
+        result.push({ name: selectedCountry, count: childTotal, percentage: 100 });
+      }
+    }
+
+    return result;
+  }, [nodes, selectedCountry, level]);
+
   const nodeByCanonical = useMemo(() => {
     const result = new Map<string, GeoNode>();
-    nodes.forEach((node) => result.set(canonicalCountryName(node.name).toLowerCase(), node));
+    mapDataNodes.forEach((node) => result.set(canonicalCountryName(node.name).toLowerCase(), node));
     return result;
-  }, [nodes]);
+  }, [mapDataNodes]);
 
   const getContinent = useCallback(
     (country: string) => continentOfCountry?.(country) || 'Other',
@@ -163,13 +203,8 @@ function GeographicMapViewportInner({
                 type: 'fill',
                 source: SOURCE_ID,
                 paint: {
-                  'fill-color': [
-                    'case',
-                    ['==', ['get', 'hasGuests'], true],
-                    ['get', 'fillColor'],
-                    '#e7e5e4',
-                  ],
-                  'fill-opacity': 0.82,
+                  'fill-color': ['case', ['==', ['get', 'hasGuests'], true], ['get', 'fillColor'], '#e5e7eb'],
+                  'fill-opacity': 0.95,
                 },
               });
             }
@@ -179,9 +214,9 @@ function GeographicMapViewportInner({
                 type: 'line',
                 source: SOURCE_ID,
                 paint: {
-                  'line-color': '#a8a29e',
+                  'line-color': '#9ca3af',
                   'line-width': 0.6,
-                  'line-opacity': 0.7,
+                  'line-opacity': 0.85,
                 },
               });
             }
@@ -229,7 +264,7 @@ function GeographicMapViewportInner({
           feature.id ?? (feature.properties as { id?: string | number } | undefined)?.id
         );
         const canonical = canonicalCountryName(name).toLowerCase();
-        const node = findNodeForFeature(name, nodes) || nodeByCanonical.get(canonical) || null;
+        const node = findNodeForFeature(name, mapDataNodes) || nodeByCanonical.get(canonical) || null;
         const count = node?.count ?? 0;
         const percentage = node?.percentage ?? 0;
         const selected = !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase();
@@ -242,10 +277,9 @@ function GeographicMapViewportInner({
             name,
             count,
             percentage,
-            // A polygon is a guest polygon only when a real country node exists.
-            hasGuests: count > 0 || selected,
+            hasGuests: count > 0,
             isSelected: selected,
-            fillColor: selected ? '#f97316' : heatColor(count),
+            fillColor: heatColor(count),
           },
         };
       });
@@ -253,13 +287,10 @@ function GeographicMapViewportInner({
       const source = map.getSource(SOURCE_ID);
       source?.setData?.({ type: 'FeatureCollection', features });
 
-      // Viewport navigation is geometry-driven for every selected country.
       if (selectedCountry && (level === 'countries' || level === 'regions' || level === 'cities')) {
         const match = findFeatureForCountry(features, selectedCountry);
         const bounds = match ? geometryBounds(match.geometry) : null;
-        if (!bounds) {
-          throw new Error(`No GeoJSON geometry found for ${selectedCountry}`);
-        }
+        if (!bounds) throw new Error(`No GeoJSON geometry found for ${selectedCountry}`);
         map.fitBounds(
           [[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
           { padding: 56, duration: 900, maxZoom: 8 }
@@ -273,7 +304,7 @@ function GeographicMapViewportInner({
 
       setProvinceUnavailable(level === 'regions' && !!selectedCountry);
     })().catch((error) => setGeoError(error instanceof Error ? error.message : 'Layer update failed'));
-  }, [mapReady, nodes, level, selectedContinent, selectedCountry, nodeByCanonical]);
+  }, [mapReady, mapDataNodes, level, selectedContinent, selectedCountry, nodeByCanonical]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -287,9 +318,6 @@ function GeographicMapViewportInner({
       const count = Number(feature?.properties?.count) || 0;
 
       if (level === 'world' || level === 'continents') {
-        // A country with actual visitor data is directly selectable. This avoids
-        // the old behaviour where every country click first drilled only to its
-        // continent and then zoomed to the continent centre.
         if (count > 0 && onCountryClick) {
           onCountryClick(name);
           return;
@@ -381,7 +409,7 @@ function GeographicMapViewportInner({
       <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
         <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">{t('reports_guest_density')}</p>
         <div className="flex items-center gap-0.5">
-          {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((color) => (
+          {['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map((color) => (
             <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden />
           ))}
         </div>
