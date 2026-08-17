@@ -1,36 +1,19 @@
 /**
  * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
- * Single map instance; layers update on drill-down. No API keys.
+ * Country polygons are joined only to real analytics country nodes.
  */
 
-import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
-import {
-  BASEMAP_STYLE,
-  CONTINENT_VIEWS,
-  WORLD_VIEW,
-  heatColor,
-} from './mapConfig';
+import { BASEMAP_STYLE, CONTINENT_VIEWS, WORLD_VIEW, heatColor } from './mapConfig';
 import { loadCountries110m, loadCountries50m, featureCountryName } from './loadGeo';
 import { findNodeForFeature, canonicalCountryName } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
 export type GeoLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
+export type GeoNode = { name: string; count: number; percentage: number; intensity?: number };
 
-export type GeoNode = {
-  name: string;
-  count: number;
-  percentage: number;
-  intensity?: number;
-};
-
-type HoverInfo = {
-  name: string;
-  count: number;
-  percentage: number;
-  x: number;
-  y: number;
-};
+type HoverInfo = { name: string; count: number; percentage: number; x: number; y: number };
 
 export type GeographicMapViewportProps = {
   level: GeoLevel;
@@ -50,11 +33,7 @@ export type GeographicMapViewportProps = {
 const SOURCE_ID = 'analytics-countries';
 const FILL_LAYER = 'analytics-countries-fill';
 const LINE_LAYER = 'analytics-countries-line';
-const CONTINENT_NAMES = new Set([
-  'Africa', 'Europe', 'North America', 'South America', 'Asia', 'Oceania', 'Other',
-]);
 
-/** Compute [west, south, east, north] bbox from a GeoJSON geometry. */
 function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null {
   if (!geometry) return null;
   let minX = Infinity;
@@ -62,46 +41,41 @@ function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number,
   let maxX = -Infinity;
   let maxY = -Infinity;
 
-  const walk = (coords: unknown): void => {
-    if (!Array.isArray(coords)) return;
-    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-      const x = coords[0] as number;
-      const y = coords[1] as number;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
+  const walk = (value: unknown): void => {
+    if (!Array.isArray(value)) return;
+    if (typeof value[0] === 'number' && typeof value[1] === 'number') {
+      minX = Math.min(minX, value[0]);
+      minY = Math.min(minY, value[1]);
+      maxX = Math.max(maxX, value[0]);
+      maxY = Math.max(maxY, value[1]);
       return;
     }
-    for (const c of coords) walk(c);
+    value.forEach(walk);
   };
 
   if (geometry.type === 'GeometryCollection') {
-    for (const g of geometry.geometries || []) walk((g as GeoJSON.Geometry).coordinates as unknown);
+    geometry.geometries.forEach((g) => walk((g as GeoJSON.Geometry & { coordinates?: unknown }).coordinates));
   } else {
-    walk((geometry as GeoJSON.Geometry & { coordinates: unknown }).coordinates);
+    walk((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
   }
 
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-    return null;
-  }
-  return [minX, minY, maxX, maxY];
+  return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
+    ? [minX, minY, maxX, maxY]
+    : null;
 }
 
 function findFeatureForCountry(
-  features: Array<{ properties?: Record<string, unknown>; geometry?: GeoJSON.Geometry }>,
+  features: Array<{ id?: string | number; properties?: Record<string, unknown>; geometry?: GeoJSON.Geometry }>,
   countryName: string
 ) {
   const target = canonicalCountryName(countryName).toLowerCase();
-  return (
-    features.find((f) => {
-      const name = featureCountryName(
-        f.properties || {},
-        (f as { id?: string | number }).id ?? (f.properties as { id?: string })?.id
-      );
-      return canonicalCountryName(name).toLowerCase() === target;
-    }) || null
-  );
+  return features.find((feature) => {
+    const name = featureCountryName(
+      feature.properties || {},
+      feature.id ?? (feature.properties as { id?: string | number } | undefined)?.id
+    );
+    return canonicalCountryName(name).toLowerCase() === target;
+  }) || null;
 }
 
 function GeographicMapViewportInner({
@@ -126,19 +100,19 @@ function GeographicMapViewportInner({
   const [provinceUnavailable, setProvinceUnavailable] = useState(false);
 
   const nodeByCanonical = useMemo(() => {
-    const m = new Map<string, GeoNode>();
-    nodes.forEach((n) => m.set(canonicalCountryName(n.name).toLowerCase(), n));
-    return m;
+    const result = new Map<string, GeoNode>();
+    nodes.forEach((node) => result.set(canonicalCountryName(node.name).toLowerCase(), node));
+    return result;
   }, [nodes]);
 
   const getContinent = useCallback(
-    (country: string) => (continentOfCountry ? continentOfCountry(country) : 'Other'),
+    (country: string) => continentOfCountry?.(country) || 'Other',
     [continentOfCountry]
   );
 
   useEffect(() => {
     let cancelled = false;
-    let ro: ResizeObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     (async () => {
       try {
@@ -158,38 +132,31 @@ function GeographicMapViewportInner({
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
           }
         } catch {
-          /* optional */
+          // Optional control.
         }
 
         map.on('load', async () => {
           if (cancelled) return;
           try {
             const fc = await loadCountries110m();
-            const enriched = {
+            const data = {
               type: 'FeatureCollection' as const,
-              features: fc.features.map((f, i) => {
-                const name = featureCountryName(
-                  f.properties || {},
-                  f.id ?? (f.properties as { id?: string })?.id
-                );
-                return {
-                  ...f,
-                  id: f.id ?? i,
-                  properties: {
-                    ...f.properties,
-                    name,
-                    count: 0,
-                    percentage: 0,
-                    hasGuests: false,
-                    fillColor: heatColor(0),
-                  },
-                };
-              }),
+              features: fc.features.map((feature, index) => ({
+                ...feature,
+                id: feature.id ?? index,
+                properties: {
+                  ...feature.properties,
+                  name: featureCountryName(feature.properties || {}, feature.id),
+                  count: 0,
+                  percentage: 0,
+                  hasGuests: false,
+                  isSelected: false,
+                  fillColor: heatColor(0),
+                },
+              })),
             };
 
-            if (!map.getSource(SOURCE_ID)) {
-              map.addSource(SOURCE_ID, { type: 'geojson', data: enriched });
-            }
+            if (!map.getSource(SOURCE_ID)) map.addSource(SOURCE_ID, { type: 'geojson', data });
             if (!map.getLayer(FILL_LAYER)) {
               map.addLayer({
                 id: FILL_LAYER,
@@ -218,44 +185,30 @@ function GeographicMapViewportInner({
                 },
               });
             }
-
-            try {
-              map.resize();
-            } catch {
-              /* ignore */
-            }
-
+            map.resize();
             setMapReady(true);
             setGeoError(null);
-          } catch (e) {
-            setGeoError(e instanceof Error ? e.message : 'Failed to load map data');
+          } catch (error) {
+            setGeoError(error instanceof Error ? error.message : 'Failed to load map data');
           }
         });
 
         mapRef.current = map;
-        if (containerRef.current && typeof ResizeObserver !== 'undefined') {
-          ro = new ResizeObserver(() => {
-            try {
-              map.resize();
-            } catch {
-              /* ignore */
-            }
+        if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+          resizeObserver = new ResizeObserver(() => {
+            try { map.resize(); } catch { /* ignore */ }
           });
-          ro.observe(containerRef.current);
+          resizeObserver.observe(containerRef.current);
         }
-      } catch (e) {
-        if (!cancelled) setGeoError(e instanceof Error ? e.message : 'Map failed to initialise');
+      } catch (error) {
+        if (!cancelled) setGeoError(error instanceof Error ? error.message : 'Map failed to initialise');
       }
     })();
 
     return () => {
       cancelled = true;
-      ro?.disconnect();
-      try {
-        mapRef.current?.remove();
-      } catch {
-        /* ignore */
-      }
+      resizeObserver?.disconnect();
+      try { mapRef.current?.remove(); } catch { /* ignore */ }
       mapRef.current = null;
     };
   }, []);
@@ -270,111 +223,79 @@ function GeographicMapViewportInner({
         ? await loadCountries50m().catch(() => loadCountries110m())
         : await loadCountries110m();
 
-      const nodesAreContinents =
-        nodes.length > 0 && nodes.every((n) => CONTINENT_NAMES.has(n.name));
-
-      const selectedCanon = selectedCountry
-        ? canonicalCountryName(selectedCountry).toLowerCase()
-        : null;
-
-      const features = fc.features.map((f, i) => {
+      const features = fc.features.map((feature, index) => {
         const name = featureCountryName(
-          f.properties || {},
-          f.id ?? (f.properties as { id?: string })?.id
+          feature.properties || {},
+          feature.id ?? (feature.properties as { id?: string | number } | undefined)?.id
         );
-        const nameCanon = canonicalCountryName(name).toLowerCase();
-        const countryNode =
-          findNodeForFeature(name, nodes) ||
-          nodeByCanonical.get(nameCanon) ||
-          null;
-        let count = countryNode?.count ?? 0;
-        let percentage = countryNode?.percentage ?? 0;
-        const isSelected = !!selectedCanon && nameCanon === selectedCanon;
-
-        // Country polygons may only receive a visitor count from an actual
-        // matching country node. Never derive a country value from a continent
-        // aggregate; that was the source of the original Africa → DRC/CAR/etc.
-        // contamination bug.
-        if (nodesAreContinents || level === 'world' || level === 'continents') {
-          if (!countryNode) {
-            count = 0;
-            percentage = 0;
-          }
-        }
+        const canonical = canonicalCountryName(name).toLowerCase();
+        const node = findNodeForFeature(name, nodes) || nodeByCanonical.get(canonical) || null;
+        const count = node?.count ?? 0;
+        const percentage = node?.percentage ?? 0;
+        const selected = !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase();
 
         return {
-          ...f,
-          id: f.id ?? i,
+          ...feature,
+          id: feature.id ?? index,
           properties: {
-            ...f.properties,
+            ...feature.properties,
             name,
             count,
             percentage,
-            hasGuests: count > 0 || isSelected,
-            isSelected,
-            fillColor: isSelected ? '#f97316' : heatColor(count),
+            // A polygon is a guest polygon only when a real country node exists.
+            hasGuests: count > 0 || selected,
+            isSelected: selected,
+            fillColor: selected ? '#f97316' : heatColor(count),
           },
         };
       });
 
-      const src = map.getSource(SOURCE_ID);
-      if (src?.setData) {
-        src.setData({ type: 'FeatureCollection', features });
-      }
+      const source = map.getSource(SOURCE_ID);
+      source?.setData?.({ type: 'FeatureCollection', features });
 
-      // Viewport: world → continent → country (fitBounds). Region/city keep country frame.
-      if (level === 'world' || level === 'continents') {
-        map.flyTo({ center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, duration: 800 });
-      } else if (level === 'countries' && selectedContinent && !selectedCountry) {
-        const view = CONTINENT_VIEWS[selectedContinent] || WORLD_VIEW;
-        map.flyTo({ center: view.center, zoom: view.zoom, duration: 900 });
-      } else if (
-        (level === 'countries' || level === 'regions' || level === 'cities') &&
-        selectedCountry
-      ) {
+      // Viewport navigation is geometry-driven for every selected country.
+      if (selectedCountry && (level === 'countries' || level === 'regions' || level === 'cities')) {
         const match = findFeatureForCountry(features, selectedCountry);
         const bounds = match ? geometryBounds(match.geometry) : null;
-        if (bounds) {
-          try {
-            map.fitBounds(
-              [
-                [bounds[0], bounds[1]],
-                [bounds[2], bounds[3]],
-              ],
-              { padding: 56, duration: 900, maxZoom: 8 }
-            );
-          } catch {
-            // Fallback: continent view if fitBounds fails
-            const cont = selectedContinent || getContinent(selectedCountry);
-            const view = CONTINENT_VIEWS[cont] || WORLD_VIEW;
-            map.flyTo({ center: view.center, zoom: Math.max(view.zoom, 3.5), duration: 900 });
-          }
-        } else {
-          const cont = selectedContinent || getContinent(selectedCountry);
-          const view = CONTINENT_VIEWS[cont] || WORLD_VIEW;
-          map.flyTo({ center: view.center, zoom: Math.max(view.zoom, 3.5), duration: 900 });
+        if (!bounds) {
+          throw new Error(`No GeoJSON geometry found for ${selectedCountry}`);
         }
+        map.fitBounds(
+          [[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
+          { padding: 56, duration: 900, maxZoom: 8 }
+        );
+      } else if (level === 'countries' && selectedContinent) {
+        const view = CONTINENT_VIEWS[selectedContinent] || WORLD_VIEW;
+        map.flyTo({ center: view.center, zoom: view.zoom, duration: 900 });
+      } else if (level === 'world' || level === 'continents') {
+        map.flyTo({ center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, duration: 800 });
       }
 
       setProvinceUnavailable(level === 'regions' && !!selectedCountry);
-    })().catch((e) => setGeoError(e instanceof Error ? e.message : 'Layer update failed'));
-  }, [mapReady, nodes, level, selectedContinent, selectedCountry, nodeByCanonical, getContinent]);
+    })().catch((error) => setGeoError(error instanceof Error ? error.message : 'Layer update failed'));
+  }, [mapReady, nodes, level, selectedContinent, selectedCountry, nodeByCanonical]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    const onClick = (e: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
+    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       if (!interactive) return;
-      const f = e.features?.[0];
-      if (!f?.properties?.name) return;
-      const name = String(f.properties.name);
-      const count = Number(f.properties.count) || 0;
+      const feature = event.features?.[0];
+      const name = feature?.properties?.name ? String(feature.properties.name) : '';
+      if (!name) return;
+      const count = Number(feature?.properties?.count) || 0;
 
       if (level === 'world' || level === 'continents') {
-        const cont = getContinent(name);
-        if (cont && cont !== 'Other' && onContinentClick) onContinentClick(cont);
-        else if (onCountryClick && count > 0) onCountryClick(name);
+        // A country with actual visitor data is directly selectable. This avoids
+        // the old behaviour where every country click first drilled only to its
+        // continent and then zoomed to the continent centre.
+        if (count > 0 && onCountryClick) {
+          onCountryClick(name);
+          return;
+        }
+        const continent = getContinent(name);
+        if (continent !== 'Other' && onContinentClick) onContinentClick(continent);
       } else if (level === 'countries' && onCountryClick) {
         onCountryClick(name);
       } else if (level === 'regions' && onRegionClick) {
@@ -384,37 +305,25 @@ function GeographicMapViewportInner({
       }
     };
 
-    const onMove = (e: {
-      point?: { x: number; y: number };
-      features?: Array<{ properties?: Record<string, unknown> }>;
-    }) => {
-      const f = e.features?.[0];
-      if (!f?.properties?.name) {
+    const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => {
+      const feature = event.features?.[0];
+      if (!feature?.properties?.name) {
         setHover(null);
         return;
       }
-      const count = Number(f.properties.count) || 0;
       setHover({
-        name: String(f.properties.name),
-        count,
-        percentage: Number(f.properties.percentage) || 0,
-        x: e.point?.x ?? 0,
-        y: e.point?.y ?? 0,
+        name: String(feature.properties.name),
+        count: Number(feature.properties.count) || 0,
+        percentage: Number(feature.properties.percentage) || 0,
+        x: event.point?.x ?? 0,
+        y: event.point?.y ?? 0,
       });
-      try {
-        map.getCanvas().style.cursor = interactive ? 'pointer' : 'default';
-      } catch {
-        /* ignore */
-      }
+      try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* ignore */ }
     };
 
     const onLeave = () => {
       setHover(null);
-      try {
-        map.getCanvas().style.cursor = '';
-      } catch {
-        /* ignore */
-      }
+      try { map.getCanvas().style.cursor = ''; } catch { /* ignore */ }
     };
 
     map.on('click', FILL_LAYER, onClick);
@@ -425,34 +334,13 @@ function GeographicMapViewportInner({
         map.off('click', FILL_LAYER, onClick);
         map.off('mousemove', FILL_LAYER, onMove);
         map.off('mouseleave', FILL_LAYER, onLeave);
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     };
-  }, [
-    mapReady,
-    interactive,
-    level,
-    onContinentClick,
-    onCountryClick,
-    onRegionClick,
-    onCityClick,
-    getContinent,
-  ]);
+  }, [mapReady, interactive, level, onContinentClick, onCountryClick, onRegionClick, onCityClick, getContinent]);
 
   return (
     <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200">
-      {/*
-        MapLibre applies .maplibregl-map { position: relative } on this node.
-        Do NOT use absolute inset-0 here — that is overridden and collapses height to 0.
-        Use explicit w-full h-full so the map fills the sized parent (h-[380px] wrapper).
-      */}
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        role="application"
-        aria-label="Geographic visitor origin map"
-      />
+      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />
 
       {(isLoading || !mapReady) && !geoError && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
@@ -466,11 +354,10 @@ function GeographicMapViewportInner({
         </div>
       )}
 
-      {provinceUnavailable && level === 'regions' && (
+      {provinceUnavailable && (
         <div className="absolute bottom-3 left-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-3 py-2 shadow-sm">
           <p className="text-xs text-stone-600">
-            Province-level geographic data is not currently available for this country. Use the
-            list of provinces to continue, or go back to the country view.
+            Province-level geographic data is not currently available for this country. Use the list of provinces to continue, or go back to the country view.
           </p>
         </div>
       )}
@@ -485,23 +372,17 @@ function GeographicMapViewportInner({
           role="tooltip"
         >
           <p className="font-bold text-sm">{hover.name}</p>
-          <p className="text-orange-300 mt-0.5">
-            {t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}
-          </p>
+          <p className="text-orange-300 mt-0.5">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>
           {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
-          {interactive && hover.count > 0 && (
-            <p className="text-stone-400 mt-1">{t('reports_map_click_explore')}</p>
-          )}
+          {interactive && hover.count > 0 && <p className="text-stone-400 mt-1">{t('reports_map_click_explore')}</p>}
         </div>
       )}
 
       <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
-        <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">
-          {t('reports_guest_density')}
-        </p>
+        <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">{t('reports_guest_density')}</p>
         <div className="flex items-center gap-0.5">
-          {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((c) => (
-            <span key={c} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: c }} aria-hidden />
+          {['#e7e5e4', '#ffedd5', '#fed7aa', '#fb923c', '#ea580c', '#c2410c'].map((color) => (
+            <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden />
           ))}
         </div>
         <div className="flex justify-between text-[9px] text-stone-400 mt-0.5">
