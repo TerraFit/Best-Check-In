@@ -1,6 +1,7 @@
 /**
- * Display-side join between analytics node names and GeoJSON / TopoJSON properties.
- * Does not mutate server aliases or booking data.
+ * Display-side join between analytics country nodes and GeoJSON features.
+ * Matching is exact after canonicalisation, with ISO-code fallback for
+ * datasets whose feature names differ from the analytics display names.
  */
 
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -37,6 +38,12 @@ const COUNTRY_ALIASES: Record<string, string> = {
   'south africa': 'South Africa',
 };
 
+const ISO_TO_COUNTRY: Record<string, string> = {
+  ZA: 'South Africa', CH: 'Switzerland', AR: 'Argentina', AU: 'Australia',
+  DE: 'Germany', NL: 'Netherlands', GB: 'United Kingdom', IT: 'Italy',
+  NA: 'Namibia', BW: 'Botswana', CD: 'Democratic Republic of the Congo',
+};
+
 export function canonicalCountryName(raw: string | null | undefined): string {
   if (!raw) return '';
   const t = String(raw).trim();
@@ -45,13 +52,6 @@ export function canonicalCountryName(raw: string | null | undefined): string {
   return COUNTRY_ALIASES[key] || t;
 }
 
-/**
- * Match country names only after canonicalisation.
- *
- * IMPORTANT: do not use substring matching here. A continent node such as
- * "Africa" otherwise matches "Central African Republic" and "South Africa",
- * causing the continent's total visitor count to be displayed on a country.
- */
 export function namesMatch(a: string, b: string): boolean {
   const ca = canonicalCountryName(a).toLowerCase();
   const cb = canonicalCountryName(b).toLowerCase();
@@ -59,11 +59,26 @@ export function namesMatch(a: string, b: string): boolean {
   return ca === cb;
 }
 
-/** Match analytics country name to TopoJSON feature properties.name */
+/**
+ * Match a GeoJSON feature to an analytics country node.
+ * Name matching is attempted first; ISO code is an exact fallback.
+ */
 export function findNodeForFeature(
   featureName: string,
-  nodes: { name: string; count: number; percentage?: number }[]
-): { name: string; count: number; percentage?: number } | null {
+  nodes: { name: string; count: number; percentage?: number; code?: string }[],
+  featureId?: string | number
+): { name: string; count: number; percentage?: number; code?: string } | null {
   const direct = nodes.find((n) => namesMatch(n.name, featureName));
-  return direct || null;
+  if (direct) return direct;
+
+  const rawCode = String(featureId ?? '').trim().toUpperCase();
+  const iso = ISO_TO_COUNTRY[rawCode];
+  if (iso) {
+    const byIso = nodes.find((n) => String(n.code || '').trim().toUpperCase() === rawCode);
+    if (byIso) return byIso;
+    const byCanonicalIsoName = nodes.find((n) => namesMatch(n.name, iso));
+    if (byCanonicalIsoName) return byCanonicalIsoName;
+  }
+
+  return null;
 }
