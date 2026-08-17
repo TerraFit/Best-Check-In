@@ -122,10 +122,11 @@ exports.handler = async (event) => {
       city,
     });
 
-    // The map is rendered from country GeoJSON even when the explorer is at
-    // world/continent level. Keep hierarchy nodes for the explorer and expose
-    // real country nodes separately for the map. A country polygon may only
-    // receive a count from an actual country aggregation node.
+    // The GeoJSON map is country-based even at world/continent views.
+    // Keep the requested hierarchy level for metadata, but supply real country
+    // nodes to the map so a country polygon receives a value only when that
+    // country actually exists in the analytics aggregation. Never derive a
+    // country value from its continent aggregate.
     if (level === 'world' || level === 'continent') {
       const countryData = await buildVisitorOrigins({
         businessId,
@@ -137,9 +138,7 @@ exports.handler = async (event) => {
         region: null,
         city: null,
       });
-      data.mapNodes = countryData.nodes || [];
-    } else {
-      data.mapNodes = data.nodes || [];
+      data.nodes = countryData.nodes || [];
     }
 
     cache.set(key, { at: Date.now(), data });
