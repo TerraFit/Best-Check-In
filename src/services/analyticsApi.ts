@@ -44,6 +44,8 @@ export interface VisitorOriginsResponse {
   level?: DrillLevel;
   parent?: Record<string, string | null>;
   nodes?: OriginNode[];
+  /** Country-level nodes used exclusively by the GeoJSON map. */
+  mapNodes?: OriginNode[];
   skipToCity?: boolean;
   cityDashboard?: CityDashboard | null;
   limits?: AnalyticsPlanLimits;
@@ -219,71 +221,4 @@ export function defaultAnalyticsRange(): { dateFrom: string; dateTo: string } {
   const from = new Date(to);
   from.setDate(from.getDate() - 89);
   return { dateFrom: from.toISOString().split('T')[0], dateTo };
-}
-
-export interface RoomPerformanceRow {
-  roomId: string;
-  roomNumber: string | null;
-  roomName: string;
-  roomType: string | null;
-  labelSource: string;
-  stays: number;
-  roomNightsSold: number;
-  roomNightsAvailable: number;
-  utilisation: number;
-  shareOfPropertyNights: number;
-  averageStay: number;
-  vsPropertyUtilisationPp: number;
-  performanceBand: 'above' | 'below' | 'average' | 'no_data';
-  meaningful: boolean;
-}
-
-export interface RoomPerformanceResponse {
-  success: boolean;
-  meta?: {
-    businessId: string;
-    businessName?: string | null;
-    dateFrom: string;
-    dateTo: string;
-    plan: string;
-    totalRooms?: number;
-    generatedAt: string;
-    timezone?: string;
-    quality?: {
-      eligibleStays: number;
-      allocationCoveragePct: number;
-      occupancyModel?: string;
-    };
-    propertyRoomNightsSold?: number;
-    propertyOccupancyRate?: number;
-    occupancyModel?: string;
-    note?: string;
-  };
-  rooms?: RoomPerformanceRow[];
-  rankings?: {
-    highestUtilisation: string[];
-    lowestUtilisation: string[];
-    mostStays: string[];
-    mostNights: string[];
-    longestAverageStay: string[];
-  };
-  insights?: Array<{ level: string; text?: string; code?: string; params?: Record<string, string | number> }>;
-  limits?: AnalyticsPlanLimits;
-  error?: string;
-}
-
-export async function fetchRoomPerformance(options: {
-  businessId: string;
-  dateFrom?: string;
-  dateTo?: string;
-}): Promise<RoomPerformanceResponse> {
-  const query = qs({
-    businessId: options.businessId,
-    dateFrom: options.dateFrom,
-    dateTo: options.dateTo,
-  });
-  const res = await fetch(`/.netlify/functions/get-room-performance${query}`, {
-    headers: authHeaders(),
-  });
-  return res.json();
 }
