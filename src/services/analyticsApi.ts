@@ -116,6 +116,66 @@ export interface AnalyticsSummaryResponse {
   error?: string;
 }
 
+export type RoomPerformanceBand = 'above' | 'below' | 'average' | 'no_data';
+
+export interface RoomPerformanceRow {
+  roomId: string;
+  roomNumber: string | null;
+  roomName: string;
+  roomType: string | null;
+  labelSource: 'snapshot' | 'current';
+  stays: number;
+  roomNightsSold: number;
+  roomNightsAvailable: number;
+  utilisation: number;
+  shareOfPropertyNights: number;
+  averageStay: number;
+  vsPropertyUtilisationPp: number;
+  performanceBand: RoomPerformanceBand;
+  meaningful: boolean;
+}
+
+export interface RoomPerformanceResponse {
+  success: boolean;
+  meta?: {
+    businessId: string;
+    businessName?: string | null;
+    dateFrom: string;
+    dateTo: string;
+    plan?: string;
+    totalRooms?: number;
+    generatedAt?: string;
+    timezone?: string;
+    quality?: {
+      allocationCoveragePct?: number;
+      eligibleStays?: number;
+      excludedByStatus?: number;
+      legacyNull?: number;
+      [key: string]: unknown;
+    };
+    propertyRoomNightsSold?: number;
+    propertyOccupancyRate?: number;
+    occupancyModel?: string;
+    note?: string;
+  };
+  rooms?: RoomPerformanceRow[];
+  rankings?: {
+    highestUtilisation: string[];
+    lowestUtilisation: string[];
+    mostStays: string[];
+    mostNights: string[];
+    longestAverageStay: string[];
+  };
+  insights?: Array<{
+    level: string;
+    code?: string;
+    params?: Record<string, string | number>;
+    text: string;
+  }>;
+  limits?: AnalyticsPlanLimits;
+  error?: string;
+}
+
 function authHeaders(): HeadersInit {
   const token = getAuthToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -153,6 +213,22 @@ export async function fetchVisitorOrigins(options: {
     city: options.city,
   });
   const res = await fetch(`/.netlify/functions/get-visitor-origins${query}`, {
+    headers: authHeaders(),
+  });
+  return res.json();
+}
+
+export async function fetchRoomPerformance(options: {
+  businessId: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<RoomPerformanceResponse> {
+  const query = qs({
+    businessId: options.businessId,
+    dateFrom: options.dateFrom,
+    dateTo: options.dateTo,
+  });
+  const res = await fetch(`/.netlify/functions/get-room-performance${query}`, {
     headers: authHeaders(),
   });
   return res.json();
