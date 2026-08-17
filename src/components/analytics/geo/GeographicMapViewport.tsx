@@ -291,18 +291,15 @@ function GeographicMapViewportInner({
         let percentage = countryNode?.percentage ?? 0;
         const isSelected = !!selectedCanon && nameCanon === selectedCanon;
 
+        // Country polygons may only receive a visitor count from an actual
+        // matching country node. Never derive a country value from a continent
+        // aggregate; that was the source of the original Africa → DRC/CAR/etc.
+        // contamination bug.
         if (nodesAreContinents || level === 'world' || level === 'continents') {
-          const cont = getContinent(name);
-          const cNode = nodes.find((n) => n.name === cont);
-          if (cNode) {
-            count = countryNode ? countryNode.count : cNode.count > 0 ? Math.max(count, 1) : 0;
-            percentage = countryNode?.percentage ?? cNode.percentage;
+          if (!countryNode) {
+            count = 0;
+            percentage = 0;
           }
-        }
-
-        // Keep selected country visually present when list nodes are regions/cities
-        if (isSelected && (level === 'regions' || level === 'cities') && count === 0) {
-          count = 1;
         }
 
         return {
@@ -344,7 +341,7 @@ function GeographicMapViewportInner({
                 [bounds[0], bounds[1]],
                 [bounds[2], bounds[3]],
               ],
-              { padding: 48, duration: 900, maxZoom: 7 }
+              { padding: 56, duration: 900, maxZoom: 8 }
             );
           } catch {
             // Fallback: continent view if fitBounds fails
