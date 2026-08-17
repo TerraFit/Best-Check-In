@@ -1,5 +1,5 @@
 /**
- * Rate management public surface (Step 5).
+ * Rate management public surface (Steps 5–6).
  */
 
 export type { RateProvider } from './RateProvider';
@@ -52,3 +52,24 @@ export {
   RateDomainError,
   RateErrorCodes,
 } from '../../types/rates';
+
+// Step 6 — frontend Netlify wrappers (no privileged credentials)
+export {
+  listSeasons,
+  createSeason,
+  updateSeason,
+  setSeasonActive,
+  listRoomRates,
+  createRoomRate,
+  updateRoomRate,
+  setRoomRateActive,
+  listSpecials,
+  createSpecial,
+  updateSpecial,
+  setSpecialActive,
+  listProviderMappings,
+  createProviderMapping,
+  updateProviderMapping,
+  setProviderMappingActive,
+  listBookingRateSnapshots,
+} from './rateApi';
