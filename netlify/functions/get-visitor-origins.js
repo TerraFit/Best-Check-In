@@ -18,7 +18,6 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
-// Simple in-memory cache (cold starts reset)
 const cache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -91,16 +90,7 @@ exports.handler = async (event) => {
       });
     }
 
-    const key = cacheKey({
-      businessId,
-      dateFrom,
-      dateTo,
-      level,
-      continent,
-      country,
-      region,
-      city,
-    });
+    const key = cacheKey({ businessId, dateFrom, dateTo, level, continent, country, region, city });
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
       return createResponse(200, {
@@ -122,9 +112,8 @@ exports.handler = async (event) => {
       city,
     });
 
-    // Keep the requested hierarchy nodes for the explorer UI and expose a
-    // separate country-node collection for the GeoJSON map. A country polygon
-    // may only receive a value from an actual country aggregation node.
+    // The GeoJSON map is country-based. At world/continent level expose the
+    // real country aggregation as the map dataset, never a continent fallback.
     if (level === 'world' || level === 'continent') {
       const countryData = await buildVisitorOrigins({
         businessId,
@@ -136,6 +125,7 @@ exports.handler = async (event) => {
         region: null,
         city: null,
       });
+      data.nodes = countryData.nodes || [];
       data.mapNodes = countryData.nodes || [];
     } else if (level === 'country') {
       data.mapNodes = data.nodes || [];
