@@ -37,13 +37,17 @@ function circleCmd(cx, cy, r, fill = '#ffffff', stroke = null) {
   return out;
 }
 
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+const VISUAL_PDF_FOOTER_Y = 28;
+
 /**
  * Build a visual vector PDF. Pages contain drawing commands in PDF user-space coordinates.
  * @param {Array<{title?: string, subtitle?: string, commands: string[]}>} pages
  */
 export function buildVisualPdf(pages, meta = {}) {
-  const pageWidth = 595;
-  const pageHeight = 842;
+  const pageWidth = PAGE_WIDTH;
+  const pageHeight = PAGE_HEIGHT;
   const objects = [];
   const addObj = (content) => { objects.push(content); return objects.length; };
   const fontId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
@@ -55,13 +59,13 @@ export function buildVisualPdf(pages, meta = {}) {
     const commands = [...(page.commands || [])];
     if (page.title) commands.unshift(textCmd(page.title, 50, 790, 18, '#111827', true));
     if (page.subtitle) commands.splice(page.title ? 1 : 0, 0, textCmd(page.subtitle, 50, 770, 9, '#6b7280'));
-    if (meta.footer) commands.push(textCmd(meta.footer, 50, 28, 7.5, '#9ca3af'));
+    if (meta.footer) commands.push(textCmd(meta.footer, 50, VISUAL_PDF_FOOTER_Y, 7.5, '#9ca3af'));
     const stream = commands.join('\n');
     contentIds.push(addObj(`<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream`));
   });
 
   contentIds.forEach((contentId) => {
-    pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R >> >> >>`));
+    pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} /F2 ${fontBoldId} >> >> >>`));
   });
   const kids = pageIds.map((id) => `${id} 0 R`).join(' ');
   const pagesId = addObj(`<< /Type /Pages /Kids [ ${kids} ] /Count ${pageIds.length} >>`);
@@ -82,8 +86,8 @@ export function buildVisualPdf(pages, meta = {}) {
 }
 
 export function buildSimplePdf(pages, meta = {}) {
-  const pageWidth = 595;
-  const pageHeight = 842;
+  const pageWidth = PAGE_WIDTH;
+  const pageHeight = PAGE_HEIGHT;
   const margin = 50;
   const lineHeight = 14;
   const objects = [];
@@ -112,7 +116,7 @@ export function buildSimplePdf(pages, meta = {}) {
     const stream = lines.join('\n');
     contentIds.push(addObj(`<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream`));
   });
-  contentIds.forEach((contentId) => pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R >> >> >>`)));
+  contentIds.forEach((contentId) => pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} /F2 ${fontBoldId} >> >> >>`)));
   const kids = pageIds.map((id) => `${id} 0 R`).join(' ');
   const pagesId = addObj(`<< /Type /Pages /Kids [ ${kids} ] /Count ${pageIds.length} >>`);
   pageIds.forEach((pid) => { objects[pid - 1] = objects[pid - 1].replace('/Parent 0 0 R', `/Parent ${pagesId} 0 R`); });
