@@ -56,12 +56,12 @@ exports.handler = async (event) => {
       console.warn('Snapshot room-performance unavailable:', roomError?.message || roomError);
     }
 
-    const pdf = buildSnapshotPdfPayload({ ...summary, roomPerformance });
+    const pdf = await buildSnapshotPdfPayload({ ...summary, roomPerformance });
     const filename = `FastCheckIn-Snapshot-${summary.meta.dateFrom}-${summary.meta.dateTo}.pdf`;
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${filename}"`, 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename=\"${filename}\"`, 'Access-Control-Allow-Origin': '*' },
       isBase64Encoded: true,
       body: pdf.toString('base64'),
     };
