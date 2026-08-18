@@ -1,5 +1,4 @@
 import { useTranslation } from '../../i18n'
-// src/components/dashboard/ReferralSourcesChart.tsx
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
@@ -17,43 +16,52 @@ interface ReferralSourcesChartProps {
   onChartTypeChange: (type: 'donut' | 'bar') => void
 }
 
+function displayReferralName(name: string): string {
+  const labels: Record<string, string> = {
+    word_of_mouth: 'Word of Mouth',
+    research_engine: 'Research Engine',
+    facebook_instagram: 'Facebook / Instagram',
+    facebook_instagram: 'Facebook / Instagram',
+    booking_com: 'Booking.com',
+    travel_agency: 'Travel Agency',
+  }
+  return labels[name.toLowerCase()] ?? name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export function ReferralSourcesChart({ referralData: series, chartType, onChartTypeChange }: ReferralSourcesChartProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
+
   if (!series || series.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
           <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
           <div className="flex gap-2">
             <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_donut')}</button>
             <button className="p-2 rounded-lg bg-gray-100 text-gray-500">{t('reports_chart_bar')}</button>
           </div>
         </div>
-        <div className="h-64 flex items-center justify-center text-gray-400">
-          {t('reports_no_data_period')}
-        </div>
+        <div className="h-64 flex items-center justify-center text-gray-400">{t('reports_no_data_period')}</div>
       </div>
     )
   }
 
   const referralData = series
     .map((r) => ({
-      name: r.name,
-      count: r.count,
-      percentage: typeof r.percentage === 'number' ? r.percentage.toFixed(1) : String(r.percentage),
+      ...r,
+      name: displayReferralName(r.name),
+      percentage: typeof r.percentage === 'number' ? Number(r.percentage.toFixed(1)) : Number(r.percentage) || 0,
     }))
     .sort((a, b) => b.count - a.count)
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex justify-between items-center mb-4">
+    <div className="bg-white rounded-lg shadow p-4 sm:p-6 overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-end sm:self-auto shrink-0">
           <button
             onClick={() => onChartTypeChange('donut')}
-            className={`p-2 rounded-lg transition-colors ${
-              chartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${chartType === 'donut' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
             title={t('reports_chart_donut')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -62,9 +70,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
           </button>
           <button
             onClick={() => onChartTypeChange('bar')}
-            className={`p-2 rounded-lg transition-colors ${
-              chartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${chartType === 'bar' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
             title={t('reports_chart_bar')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,59 +81,73 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
       </div>
 
       {chartType === 'donut' ? (
-        <ResponsiveContainer width="100%" height={350}>
-          <PieChart margin={{ top: 20, right: 70, bottom: 20, left: 70 }}>
-            <Pie
-              data={referralData}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={100}
-              paddingAngle={3}
-              dataKey="count"
-              label={({ name, percent }) => percent > 0.03 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''}
-              labelLine={false}
-            >
-              {referralData.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip 
-              formatter={(value, name, props) => {
-                const item = referralData.find(d => d.name === name)
-                return [`${item?.percentage}% (${value} bookings)`, name]
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)] gap-5 items-center min-w-0">
+          <div className="h-[280px] sm:h-[320px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={referralData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="38%"
+                  outerRadius="68%"
+                  paddingAngle={2}
+                  dataKey="count"
+                  label={false}
+                  labelLine={false}
+                >
+                  {referralData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => {
+                    const item = referralData.find((d) => d.name === name)
+                    return [`${item?.percentage ?? 0}% (${value} bookings)`, name]
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="min-w-0 w-full space-y-2" aria-label="Guest referral sources">
+            {referralData.map((item, index) => (
+              <div key={item.name} className="flex items-start gap-2 min-w-0 rounded-md px-1 py-1">
+                <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} aria-hidden="true" />
+                <span className="min-w-0 flex-1 break-words text-sm leading-5 text-gray-700">{item.name}</span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-gray-900">{item.percentage}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart 
-            data={referralData} 
-            layout="vertical" 
-            margin={{ left: 120, right: 20 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-            <XAxis type="number" tickFormatter={(value) => `${value}%`} domain={[0, 100]} />
-            <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
-            <Tooltip 
-              formatter={(value, name, props) => {
-                const item = referralData.find(d => d.name === props.payload.name)
-                return [`${item?.percentage}% (${item?.count} bookings)`, 'Percentage']
-              }}
-            />
-            <Bar 
-              dataKey="percentage" 
-              fill="#3b82f6" 
-              radius={[0, 8, 8, 0]}
-              label={{ 
-                position: 'right', 
-                formatter: (value: number) => `${value}%`,
-                fontSize: 11
-              }}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="w-full min-w-0 overflow-hidden">
+          <div className="h-[340px] sm:h-[360px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={referralData} layout="vertical" margin={{ top: 8, right: 36, bottom: 8, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} />
+                <XAxis type="number" tickFormatter={(value) => `${value}%`} domain={[0, 100]} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={typeof window !== 'undefined' && window.innerWidth < 640 ? 92 : 132}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)}
+                />
+                <Tooltip
+                  formatter={(value, _name, props) => {
+                    const item = referralData.find((d) => d.name === props.payload.name)
+                    return [`${item?.percentage ?? 0}% (${item?.count ?? 0} bookings)`, 'Percentage']
+                  }}
+                />
+                <Bar
+                  dataKey="percentage"
+                  fill="#3b82f6"
+                  radius={[0, 8, 8, 0]}
+                  label={{ position: 'right', formatter: (value: number) => `${value}%`, fontSize: 11 }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       )}
     </div>
   )
