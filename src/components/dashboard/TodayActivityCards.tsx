@@ -60,7 +60,13 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
     return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
   };
 
-  const renderGuestList = (guests: Guest[], title: string, bgColor: string, icon: JSX.Element) => (
+  const renderGuestList = (
+    guests: Guest[],
+    title: string,
+    emptyKey: string,
+    bgColor: string,
+    icon: JSX.Element
+  ) => (
     <div className={`bg-white rounded-lg shadow overflow-hidden border-l-4 ${bgColor}`}>
       <div className={`px-6 py-4 ${bgColor.replace('border-', 'bg-').replace('-500', '-50')}`}>
         <h3 className={`font-semibold ${bgColor.replace('border-', 'text-').replace('-500', '-800')} flex items-center gap-2`}>
@@ -70,11 +76,7 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
       </div>
       <div className="p-4">
         {guests.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-4">
-            {title === 'Arrivals' && t('dashboard_no_arrivals')}
-            {title === 'Stayovers' && t('dashboard_no_stayovers')}
-            {title === 'Check-outs' && t('dashboard_no_checkouts')}
-          </p>
+          <p className="text-gray-500 text-sm text-center py-4">{t(emptyKey)}</p>
         ) : (
           <div className="space-y-2">
             {guests.map((guest) => {
@@ -89,7 +91,7 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-900 truncate">{guest.guest_name}</p>
                       {hasDietaryRestrictions(guest) && (
-                        <span className="text-amber-500 text-sm flex-shrink-0" title="Has dietary restrictions">
+                        <span className="text-amber-500 text-sm flex-shrink-0" title={t('dashboard_dietary_restrictions')}>
                           ⚠️
                         </span>
                       )}
@@ -123,7 +125,8 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {renderGuestList(
         arrivals,
-        'Arrivals',
+        t('dashboard_today_arrivals'),
+        'dashboard_no_arrivals',
         'border-green-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -132,7 +135,8 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
 
       {renderGuestList(
         stayovers,
-        'Stayovers',
+        t('dashboard_today_stayovers'),
+        'dashboard_no_stayovers',
         'border-blue-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
@@ -141,7 +145,8 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
 
       {renderGuestList(
         checkouts,
-        'Check-outs',
+        t('dashboard_today_checkouts'),
+        'dashboard_no_checkouts',
         'border-orange-500',
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path

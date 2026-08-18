@@ -29,10 +29,11 @@ export default function NewsletterSubscribe() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             business_id: businessId,
-            email: decodeURIComponent(email),
-            guest_name: firstName && lastName ? `${decodeURIComponent(firstName)} ${decodeURIComponent(lastName)}` : null,
-            first_name: firstName ? decodeURIComponent(firstName) : null,
-            last_name: lastName ? decodeURIComponent(lastName) : null,
+            // useSearchParams already returns decoded values; avoid double-decode (URIError)
+            email: email,
+            guest_name: firstName && lastName ? `${firstName} ${lastName}` : null,
+            first_name: firstName || null,
+            last_name: lastName || null,
             referred_by: referralToken || null,
             source: 'email'
           })
@@ -70,7 +71,7 @@ export default function NewsletterSubscribe() {
 
   // Pre-written message for sharing
   const getShareMessage = () => {
-    const guestName = firstName ? decodeURIComponent(firstName) : 'a guest';
+    const guestName = firstName || 'a guest';
     return `🎁 I just entered to win a FREE stay at ${businessName}! 🎁\n\nJoin me in the draw - subscribe to their newsletter and you could win TWO nights + champagne!\n\n👉 ${generateShareLink()}\n\n*T&C's apply.`;
   };
 

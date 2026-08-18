@@ -1,4 +1,5 @@
 // src/pages/BusinessDashboard.tsx
+// i18n: tab labels and loading text via t()
 import { useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -187,7 +188,7 @@ export default function BusinessDashboard() {
 
   const saveBusinessProfile = useCallback(async () => {
     if (!business?.id) {
-      alert('Business ID not available');
+      alert(t('error_unexpected'));
       return;
     }
 
@@ -215,13 +216,13 @@ export default function BusinessDashboard() {
         throw new Error(errorData.error || 'Failed to update profile');
       }
 
-      alert('✅ Profile updated successfully!');
+      alert(t('common_success'));
       setEditingProfile(false);
       refreshData();
       
     } catch (error) {
-      console.error('❌ Error saving profile:', error);
-      alert('Failed to save profile. Please try again.');
+      console.error('Error saving profile:', error);
+      alert(t('error_unexpected'));
     } finally {
       setSavingProfile(false);
     }
@@ -229,7 +230,7 @@ export default function BusinessDashboard() {
 
   const saveNewsletterSettings = useCallback(async () => {
     if (!business?.id) {
-      alert('Business ID not available');
+      alert(t('error_unexpected'));
       return;
     }
 
@@ -258,12 +259,12 @@ export default function BusinessDashboard() {
         throw new Error(errorData.error || 'Failed to save newsletter settings');
       }
 
-      alert('✅ Newsletter settings saved successfully!');
+      alert(t('common_success'));
       refreshData();
       
     } catch (error) {
-      console.error('❌ Error saving newsletter settings:', error);
-      alert('Failed to save newsletter settings. Please try again.');
+      console.error('Error saving newsletter settings:', error);
+      alert(t('error_unexpected'));
     } finally {
       setSavingNewsletter(false);
     }
