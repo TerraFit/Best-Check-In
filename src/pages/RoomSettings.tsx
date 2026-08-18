@@ -81,9 +81,6 @@ export default function RoomSettings() {
         const branding = await brandingRes.json();
         const total = branding.total_rooms ?? branding.data?.total_rooms ?? null;
         const parsedTotal = typeof total === 'number' ? total : parseInt(total, 10) || 0;
-        // A zero/empty Business Profile value must not make an already configured
-        // licensed property appear to have zero rooms. Use the configured room
-        // population as the safe fallback until the subscription/profile value is repaired.
         setLicensedRooms(parsedTotal > 0 ? parsedTotal : sortedRooms.length || null);
       } else {
         setLicensedRooms(sortedRooms.length || null);
@@ -149,10 +146,14 @@ export default function RoomSettings() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-xl font-bold text-gray-900">{t('rooms_title')}</h1>
-          <p className="text-sm text-gray-500">{t('rooms_subtitle')}</p>
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold text-gray-900 truncate">{t('rooms_title')}</h1>
+              <p className="text-xs text-gray-500 truncate hidden sm:block">{t('rooms_subtitle')}</p>
+            </div>
+          </div>
         </div>
       </header>
 
