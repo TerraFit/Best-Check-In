@@ -1,7 +1,7 @@
 /**
  * Geographic Explorer V2 — MapLibre GL.
  * World/country levels use country polygons; region level uses global Admin-1
- * polygons so provinces/states/cantons/regions are navigable directly on the map.
+ * polygons; city level uses real geocoded city points. Navigation stays on-map.
  */
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
@@ -10,12 +10,13 @@ import {
   loadCountries110m,
   loadCountries50m,
   loadAdmin1,
+  geocodeCities,
   featureCountryName,
   featureRegionName,
   featureRegionCountry,
   featureRegionCode,
 } from './loadGeo';
-import { findNodeForFeature, canonicalCountryName } from './nameMatch';
+import { canonicalCountryName } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
 export type GeoLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
@@ -35,12 +36,16 @@ export type GeographicMapViewportProps = {
   onCountryClick?: (country: string) => void;
   onRegionClick?: (region: string) => void;
   onCityClick?: (city: string) => void;
+  onBack?: () => void;
+  onHome?: () => void;
   continentOfCountry?: (country: string) => string;
 };
 
 const SOURCE_ID = 'analytics-geo';
 const FILL_LAYER = 'analytics-geo-fill';
 const LINE_LAYER = 'analytics-geo-line';
+const CITY_LAYER = 'analytics-geo-cities';
+const CITY_LABEL_LAYER = 'analytics-geo-city-labels';
 
 function coordinateBounds(coordinates: unknown): [number, number, number, number] | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -94,15 +99,19 @@ function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean {
   const props = feature.properties || {};
   const featureCode = featureRegionCode(props).toLowerCase();
   if (node.code && featureCode && node.code.toLowerCase() === featureCode) return true;
-  const a = featureRegionName(props).trim().toLowerCase();
-  const b = node.name.trim().toLowerCase();
-  return a === b;
+  return featureRegionName(props).trim().toLowerCase() === node.name.trim().toLowerCase();
+}
+
+function setLayerVisibility(map: MapLibreMap, layer: string, visible: boolean) {
+  try {
+    map.setLayoutProperty?.(layer, 'visibility', visible ? 'visible' : 'none');
+  } catch { /* layer may not exist yet */ }
 }
 
 function GeographicMapViewportInner({
   level, nodes, selectedContinent, selectedCountry, selectedRegion,
   isLoading = false, interactive = true, onContinentClick, onCountryClick,
-  onRegionClick, onCityClick, continentOfCountry,
+  onRegionClick, onCityClick, onBack, onHome, continentOfCountry,
 }: GeographicMapViewportProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -110,6 +119,7 @@ function GeographicMapViewportInner({
   const [mapReady, setMapReady] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
+  const [cityLoading, setCityLoading] = useState(false);
 
   const nodeByCountry = useMemo(() => {
     const result = new Map<string, GeoNode>();
@@ -132,6 +142,7 @@ function GeographicMapViewportInner({
           center: WORLD_VIEW.center,
           zoom: WORLD_VIEW.zoom,
           attributionControl: true,
+          scrollZoom: true,
         }) as unknown as MapLibreMap;
         try {
           if (map.addControl && maplibregl.NavigationControl) map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
@@ -148,10 +159,7 @@ function GeographicMapViewportInner({
                 properties: {
                   ...feature.properties,
                   name: featureCountryName(feature.properties || {}, feature.id),
-                  count: 0,
-                  percentage: 0,
-                  hasGuests: false,
-                  fillColor: heatColor(0),
+                  count: 0, percentage: 0, hasGuests: false, fillColor: heatColor(0),
                 },
               })),
             };
@@ -160,8 +168,21 @@ function GeographicMapViewportInner({
               'fill-color': ['get', 'fillColor'], 'fill-opacity': 0.95,
             } });
             map.addLayer({ id: LINE_LAYER, type: 'line', source: SOURCE_ID, paint: {
-              'line-color': '#9ca3af', 'line-width': 0.7, 'line-opacity': 0.9,
+              'line-color': '#9ca3af', 'line-width': 0.8, 'line-opacity': 0.95,
             } });
+            map.addLayer({ id: CITY_LAYER, type: 'circle', source: SOURCE_ID, layout: { visibility: 'none' }, paint: {
+              'circle-radius': ['interpolate', ['linear'], ['get', 'count'], 1, 7, 5, 10, 10, 14, 20, 18],
+              'circle-color': ['get', 'fillColor'],
+              'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-opacity': 0.95,
+            } });
+            map.addLayer({ id: CITY_LABEL_LAYER, type: 'symbol', source: SOURCE_ID, layout: {
+              visibility: 'none',
+              'text-field': ['get', 'name'],
+              'text-size': 11,
+              'text-offset': [0, 1.25],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+            }, paint: { 'text-color': '#44403c', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
             map.resize();
             setMapReady(true);
             setGeoError(null);
@@ -192,9 +213,74 @@ function GeographicMapViewportInner({
     let cancelled = false;
     (async () => {
       const regionLevel = level === 'regions' && !!selectedCountry;
+      const cityLevel = level === 'cities';
+      setGeoError(null);
+      setHover(null);
+
+      if (cityLevel) {
+        setCityLoading(true);
+        setLayerVisibility(map, FILL_LAYER, false);
+        setLayerVisibility(map, LINE_LAYER, false);
+        setLayerVisibility(map, CITY_LAYER, true);
+        setLayerVisibility(map, CITY_LABEL_LAYER, true);
+        try {
+          const points = await geocodeCities(nodes, selectedCountry, selectedRegion);
+          if (cancelled) return;
+          const features = points.map((point, index) => ({
+            type: 'Feature' as const,
+            id: `city-${index}-${point.name}`,
+            geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] },
+            properties: {
+              name: point.name,
+              count: point.count,
+              percentage: point.percentage,
+              hasGuests: point.count > 0,
+              fillColor: heatColor(point.count),
+            },
+          }));
+          map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
+
+          if (points.length === 1) {
+            map.flyTo({ center: [points[0].longitude, points[0].latitude], zoom: 10, duration: 800 });
+          } else if (points.length > 1) {
+            const bounds = points.reduce<[number, number, number, number] | null>((acc, point) => {
+              const b: [number, number, number, number] = [point.longitude, point.latitude, point.longitude, point.latitude];
+              return acc
+                ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])]
+                : b;
+            }, null);
+            if (bounds) map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 72, duration: 800, maxZoom: 11 });
+          } else if (selectedRegion) {
+            // No geocodable city returned: keep the selected Admin-1 area visible
+            // rather than showing an empty world map.
+            const admin1 = await loadAdmin1();
+            const matching = admin1.features.filter((feature) => {
+              const country = featureRegionCountry(feature.properties || {});
+              return canonicalCountryName(country).toLowerCase() === canonicalCountryName(selectedCountry || '').toLowerCase()
+                && featureRegionName(feature.properties || {}).toLowerCase() === selectedRegion.toLowerCase();
+            });
+            const bounds = matching.reduce<[number, number, number, number] | null>((acc, feature) => {
+              const b = geometryBounds(feature.geometry);
+              if (!b) return acc;
+              return acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b;
+            }, null);
+            if (bounds) map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 72, duration: 700, maxZoom: 9 });
+          }
+        } finally {
+          if (!cancelled) setCityLoading(false);
+        }
+        return;
+      }
+
+      setCityLoading(false);
+      setLayerVisibility(map, FILL_LAYER, true);
+      setLayerVisibility(map, LINE_LAYER, true);
+      setLayerVisibility(map, CITY_LAYER, false);
+      setLayerVisibility(map, CITY_LABEL_LAYER, false);
+
       const fc = regionLevel
         ? await loadAdmin1()
-        : level === 'countries' || level === 'cities'
+        : level === 'countries'
           ? await loadCountries50m().catch(() => loadCountries110m())
           : await loadCountries110m();
       if (cancelled) return;
@@ -202,29 +288,17 @@ function GeographicMapViewportInner({
       let features: FeatureLike[];
       if (regionLevel) {
         const country = selectedCountry!;
-        const countryFeatures = fc.features.filter((feature) => {
-          const admin = featureRegionCountry(feature.properties || {});
-          return canonicalCountryName(admin).toLowerCase() === canonicalCountryName(country).toLowerCase();
-        });
+        const countryFeatures = fc.features.filter((feature) => canonicalCountryName(featureRegionCountry(feature.properties || '') as string).toLowerCase() === canonicalCountryName(country).toLowerCase());
         if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
         features = countryFeatures.map((feature, index) => {
           const props = feature.properties || {};
           const name = featureRegionName(props) || 'Unknown region';
           const node = nodes.find((candidate) => regionMatchesNode(feature, candidate));
           const count = node?.count ?? 0;
-          return {
-            ...feature,
-            id: feature.id ?? `${country}-${index}`,
-            properties: {
-              ...props,
-              name,
-              count,
-              percentage: node?.percentage ?? 0,
-              hasGuests: count > 0,
-              fillColor: heatColor(count),
-              isSelected: !!selectedRegion && name.toLowerCase() === selectedRegion.toLowerCase(),
-            },
-          };
+          return { ...feature, id: feature.id ?? `${country}-${index}`, properties: {
+            ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0,
+            fillColor: heatColor(count), isSelected: !!selectedRegion && name.toLowerCase() === selectedRegion.toLowerCase(),
+          } };
         });
       } else {
         features = fc.features.map((feature, index) => {
@@ -232,19 +306,10 @@ function GeographicMapViewportInner({
           const canonical = canonicalCountryName(name).toLowerCase();
           const node = nodeByCountry.get(canonical) || null;
           const count = node?.count ?? 0;
-          return {
-            ...feature,
-            id: feature.id ?? index,
-            properties: {
-              ...feature.properties,
-              name,
-              count,
-              percentage: node?.percentage ?? 0,
-              hasGuests: count > 0,
-              fillColor: heatColor(count),
-              isSelected: !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase(),
-            },
-          };
+          return { ...feature, id: feature.id ?? index, properties: {
+            ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0,
+            fillColor: heatColor(count), isSelected: !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase(),
+          } };
         });
       }
 
@@ -254,12 +319,10 @@ function GeographicMapViewportInner({
         const bounds = features.reduce<[number, number, number, number] | null>((acc, feature) => {
           const b = geometryBounds(feature.geometry);
           if (!b) return acc;
-          return acc
-            ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])]
-            : b;
+          return acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b;
         }, null);
         if (bounds) map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, duration: 900, maxZoom: 8 });
-      } else if (selectedCountry && (level === 'countries' || level === 'cities')) {
+      } else if (selectedCountry && level === 'countries') {
         const match = features.find((feature) => countryMatches(feature, selectedCountry));
         const bounds = match ? geometryBounds(match.geometry) : null;
         if (!bounds) throw new Error(`No GeoJSON geometry found for ${selectedCountry}`);
@@ -283,7 +346,9 @@ function GeographicMapViewportInner({
       const name = feature?.properties?.name ? String(feature.properties.name) : '';
       if (!name) return;
       const count = Number(feature.properties?.count) || 0;
-      if (level === 'world' || level === 'continents') {
+      if (level === 'cities') {
+        if (onCityClick && count > 0) onCityClick(name);
+      } else if (level === 'world' || level === 'continents') {
         if (count > 0 && onCountryClick) return onCountryClick(name);
         const continent = getContinent(name);
         if (continent !== 'Other' && onContinentClick) onContinentClick(continent);
@@ -309,14 +374,16 @@ function GeographicMapViewportInner({
     map.on('click', FILL_LAYER, onClick);
     map.on('mousemove', FILL_LAYER, onMove);
     map.on('mouseleave', FILL_LAYER, onLeave);
+    map.on('click', CITY_LAYER, onClick);
+    map.on('mousemove', CITY_LAYER, onMove);
+    map.on('mouseleave', CITY_LAYER, onLeave);
     return () => {
       try {
-        map.off('click', FILL_LAYER, onClick);
-        map.off('mousemove', FILL_LAYER, onMove);
-        map.off('mouseleave', FILL_LAYER, onLeave);
+        map.off('click', FILL_LAYER, onClick); map.off('mousemove', FILL_LAYER, onMove); map.off('mouseleave', FILL_LAYER, onLeave);
+        map.off('click', CITY_LAYER, onClick); map.off('mousemove', CITY_LAYER, onMove); map.off('mouseleave', CITY_LAYER, onLeave);
       } catch { /* ignore */ }
     };
-  }, [mapReady, interactive, level, onContinentClick, onCountryClick, onRegionClick, getContinent]);
+  }, [mapReady, interactive, level, onContinentClick, onCountryClick, onRegionClick, onCityClick, getContinent]);
 
   const cityNodes = useMemo(() => level === 'cities'
     ? [...nodes].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
@@ -325,9 +392,10 @@ function GeographicMapViewportInner({
   return (
     <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200">
       <div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />
-      {(isLoading || !mapReady) && !geoError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
-          <div className="text-sm font-medium text-stone-500">{t('reports_loading_map_short')}</div>
+
+      {(isLoading || !mapReady || cityLoading) && !geoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/45 pointer-events-none z-10">
+          <div className="text-sm font-medium text-stone-500">{cityLoading ? 'Locating cities…' : t('reports_loading_map_short')}</div>
         </div>
       )}
       {geoError && (
@@ -336,18 +404,33 @@ function GeographicMapViewportInner({
         </div>
       )}
 
+      {interactive && level !== 'world' && (onBack || onHome) && (
+        <div className="absolute top-3 left-3 z-40 flex items-center gap-1.5 rounded-xl bg-white/95 border border-stone-200 shadow-lg p-1.5 backdrop-blur-sm">
+          {onBack && (
+            <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100" aria-label="Go back">
+              ← Back
+            </button>
+          )}
+          {onHome && (
+            <button type="button" onClick={onHome} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-600 hover:bg-stone-100" aria-label="Return to world">
+              World
+            </button>
+          )}
+        </div>
+      )}
+
       {cityNodes.length > 0 && (
-        <div className="absolute top-3 left-3 z-20 w-[min(320px,calc(100%-24px))] max-h-[calc(100%-72px)] overflow-y-auto rounded-xl bg-white/95 border border-stone-200 shadow-lg backdrop-blur-sm">
+        <div className="absolute top-16 left-3 z-30 w-[min(300px,calc(100%-24px))] max-h-[calc(100%-88px)] overflow-y-auto rounded-xl bg-white/95 border border-stone-200 shadow-lg backdrop-blur-sm">
           <div className="px-3 py-2 border-b border-stone-200">
-            <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Cities</p>
-            <p className="text-[11px] text-stone-400 mt-0.5">Click a city to explore</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Cities on map</p>
+            <p className="text-[11px] text-stone-400 mt-0.5">Click a marker or city name</p>
           </div>
           <div className="p-1.5">
             {cityNodes.map((node) => (
               <button key={`${node.name}-${node.code || ''}`} type="button" disabled={!interactive || node.count <= 0}
                 onClick={() => onCityClick?.(node.name)}
                 className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition ${node.count <= 0 ? 'opacity-45 cursor-default' : 'cursor-pointer hover:bg-stone-100'}`}>
-                <span className="h-3 w-3 rounded-sm shrink-0 border border-stone-300" style={{ backgroundColor: node.count > 0 ? heatColor(node.count) : '#e5e7eb' }} />
+                <span className="h-3 w-3 rounded-full shrink-0 border border-white shadow-sm" style={{ backgroundColor: node.count > 0 ? heatColor(node.count) : '#e5e7eb' }} />
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{node.name}</span>
                 <span className="text-xs font-bold text-stone-500 tabular-nums">{node.count}</span>
               </button>
@@ -357,7 +440,7 @@ function GeographicMapViewportInner({
       )}
 
       {hover && (
-        <div className="pointer-events-none absolute z-30 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[220px]"
+        <div className="pointer-events-none absolute z-50 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[220px]"
           style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip">
           <p className="font-bold text-sm">{hover.name}</p>
           <p className="text-orange-300 mt-0.5">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>
