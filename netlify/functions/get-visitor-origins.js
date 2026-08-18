@@ -1,62 +1,26 @@
-/**
- * GET /.netlify/functions/get-visitor-origins
- * Query: businessId, dateFrom?, dateTo?, level, continent?, country?, region?, city?
- * Auth: Bearer JWT (business)
- * Package limits enforced server-side.
- */
-
 const jwt = require('jsonwebtoken');
 
-const createResponse = (statusCode, body) => ({
-  statusCode,
-  headers: {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  },
-  body: JSON.stringify(body),
-});
-
+const createResponse = (statusCode, body) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' }, body: JSON.stringify(body) });
 const cache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
-
-function cacheKey(params) {
-  return JSON.stringify(params);
-}
+const cacheKey = (params) => JSON.stringify(params);
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
-  if (event.httpMethod !== 'GET') {
-    return createResponse(405, { success: false, error: 'Method Not Allowed' });
-  }
-
+  if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
   try {
     const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return createResponse(401, { success: false, error: 'No authorization token provided' });
-    }
-
+    if (!token) return createResponse(401, { success: false, error: 'No authorization token provided' });
     let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return createResponse(401, { success: false, error: 'Token has expired' });
-      }
-      return createResponse(401, { success: false, error: 'Invalid token signature' });
-    }
+    try { decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET); }
+    catch (err) { if (err.name === 'TokenExpiredError') return createResponse(401, { success: false, error: 'Token has expired' }); return createResponse(401, { success: false, error: 'Invalid token signature' }); }
 
-    const businessIdFromToken = decoded.user_metadata?.business_id;
-    if (!businessIdFromToken) {
-      return createResponse(403, { success: false, error: 'Token missing business ID' });
-    }
-
+    // Authorize from the signed JWT subject, not editable user_metadata.
+    const businessIdFromToken = decoded.sub;
+    if (!businessIdFromToken || decoded.role !== 'authenticated') return createResponse(403, { success: false, error: 'Token missing authenticated business identity' });
     const q = event.queryStringParameters || {};
     const businessId = q.businessId || businessIdFromToken;
-    if (q.businessId && q.businessId !== businessIdFromToken) {
-      return createResponse(403, { success: false, error: 'Forbidden' });
-    }
+    if (businessId !== businessIdFromToken) return createResponse(403, { success: false, error: 'Forbidden' });
 
     const level = (q.level || 'world').toLowerCase();
     const dateFrom = q.dateFrom || q.startDate || null;
@@ -65,88 +29,28 @@ exports.handler = async (event) => {
     const country = q.country || null;
     const region = q.region || null;
     const city = q.city || null;
-
-    const { buildVisitorOrigins, fetchBusiness, resolveBusinessPlan } = await import(
-      './lib/analytics/pipeline.js'
-    );
-    const { assertDrillAllowed, getAnalyticsPlanLimits } = await import(
-      './lib/analytics/packageGates.js'
-    );
-
+    const { buildVisitorOrigins, fetchBusiness, resolveBusinessPlan } = await import('./lib/analytics/pipeline.js');
+    const { assertDrillAllowed, getAnalyticsPlanLimits } = await import('./lib/analytics/packageGates.js');
     const business = await fetchBusiness(businessId);
-    if (!business) {
-      return createResponse(404, { success: false, error: 'Business not found' });
-    }
+    if (!business) return createResponse(404, { success: false, error: 'Business not found' });
     const plan = resolveBusinessPlan(business);
     const gate = assertDrillAllowed(plan, level);
-
-    if (!gate.allowed) {
-      return createResponse(403, {
-        success: false,
-        error: gate.reason,
-        requiredPlan: gate.requiredPlan,
-        limits: gate.limits,
-        upgradeRequired: true,
-      });
-    }
+    if (!gate.allowed) return createResponse(403, { success: false, error: gate.reason, requiredPlan: gate.requiredPlan, limits: gate.limits, upgradeRequired: true });
 
     const key = cacheKey({ businessId, dateFrom, dateTo, level, continent, country, region, city });
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
-      return createResponse(200, {
-        success: true,
-        ...hit.data,
-        limits: getAnalyticsPlanLimits(plan),
-        cached: true,
-      });
-    }
-
-    const data = await buildVisitorOrigins({
-      businessId,
-      dateFrom,
-      dateTo,
-      level,
-      continent,
-      country,
-      region,
-      city,
-    });
-
-    // The GeoJSON map is country-based. At world/continent level expose the
-    // real country aggregation as the map dataset, never a continent fallback.
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return createResponse(200, { success: true, ...hit.data, limits: getAnalyticsPlanLimits(plan), cached: true });
+    const data = await buildVisitorOrigins({ businessId, dateFrom, dateTo, level, continent, country, region, city });
     if (level === 'world' || level === 'continent') {
-      const countryData = await buildVisitorOrigins({
-        businessId,
-        dateFrom,
-        dateTo,
-        level: 'country',
-        continent: level === 'continent' ? continent : null,
-        country: null,
-        region: null,
-        city: null,
-      });
+      const countryData = await buildVisitorOrigins({ businessId, dateFrom, dateTo, level: 'country', continent: level === 'continent' ? continent : null, country: null, region: null, city: null });
       data.nodes = countryData.nodes || [];
       data.mapNodes = countryData.nodes || [];
-    } else if (level === 'country') {
-      data.mapNodes = data.nodes || [];
-    } else {
-      data.mapNodes = [];
-    }
-
+    } else if (level === 'country') data.mapNodes = data.nodes || [];
+    else data.mapNodes = [];
     cache.set(key, { at: Date.now(), data });
-
-    return createResponse(200, {
-      success: true,
-      ...data,
-      limits: getAnalyticsPlanLimits(plan),
-      cached: false,
-    });
+    return createResponse(200, { success: true, ...data, limits: getAnalyticsPlanLimits(plan), cached: false });
   } catch (err) {
     console.error('get-visitor-origins error:', err);
-    const status = err.statusCode || 500;
-    return createResponse(status, {
-      success: false,
-      error: err.message || 'Internal Server Error',
-    });
+    return createResponse(err.statusCode || 500, { success: false, error: err.message || 'Internal Server Error' });
   }
 };
