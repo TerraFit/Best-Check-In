@@ -22,7 +22,17 @@ type GeoJSONFeatureCollection = {
   }>;
 };
 
+export type CityPoint = {
+  name: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+  percentage: number;
+  code?: string;
+};
+
 const cache = new Map<string, GeoJSONFeatureCollection>();
+const cityCache = new Map<string, CityPoint | null>();
 
 async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url);
@@ -57,6 +67,80 @@ export async function loadAdmin1(): Promise<GeoJSONFeatureCollection> {
   return fc;
 }
 
+/**
+ * Resolve city names to real WGS84 coordinates for the city drill-down.
+ * Open-Meteo's geocoder accepts a city plus country/admin-1 qualifier and
+ * returns latitude/longitude; results are cached for the session.
+ */
+export async function geocodeCities(
+  nodes: Array<{ name: string; count: number; percentage: number; code?: string }>,
+  country?: string | null,
+  region?: string | null,
+): Promise<CityPoint[]> {
+  const unique = nodes.filter((node) => node.name && node.count > 0);
+  const results: CityPoint[] = [];
+  const qualifier = [region, country].filter(Boolean).join(', ');
+
+  for (const node of unique) {
+    const key = `${node.name}|${qualifier}`.toLowerCase();
+    if (cityCache.has(key)) {
+      const cached = cityCache.get(key);
+      if (cached) results.push({ ...cached, count: node.count, percentage: node.percentage, code: node.code });
+      continue;
+    }
+
+    try {
+      const query = encodeURIComponent(qualifier ? `${node.name}, ${qualifier}` : node.name);
+      const response = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=5&language=en&format=json`,
+      );
+      if (!response.ok) {
+        cityCache.set(key, null);
+        continue;
+      }
+      const payload = await response.json() as {
+        results?: Array<{
+          name?: string;
+          latitude?: number;
+          longitude?: number;
+          country?: string;
+          admin1?: string;
+        }>;
+      };
+      const candidates = payload.results || [];
+      const exact = candidates.find((candidate) =>
+        typeof candidate.latitude === 'number' &&
+        typeof candidate.longitude === 'number' &&
+        candidate.name?.toLowerCase() === node.name.toLowerCase() &&
+        (!region || candidate.admin1?.toLowerCase() === region.toLowerCase()) &&
+        (!country || candidate.country?.toLowerCase() === country.toLowerCase()),
+      ) || candidates.find((candidate) =>
+        typeof candidate.latitude === 'number' && typeof candidate.longitude === 'number',
+      );
+
+      if (!exact || typeof exact.latitude !== 'number' || typeof exact.longitude !== 'number') {
+        cityCache.set(key, null);
+        continue;
+      }
+
+      const point: CityPoint = {
+        name: node.name,
+        latitude: exact.latitude,
+        longitude: exact.longitude,
+        count: node.count,
+        percentage: node.percentage,
+        code: node.code,
+      };
+      cityCache.set(key, point);
+      results.push(point);
+    } catch {
+      cityCache.set(key, null);
+    }
+  }
+
+  return results;
+}
+
 export const ISO_NUMERIC_TO_NAME: Record<string, string> = {
   '710': 'South Africa', '756': 'Switzerland', '032': 'Argentina', '036': 'Australia',
   '276': 'Germany', '528': 'Netherlands', '124': 'Canada', '840': 'United States',
@@ -83,7 +167,6 @@ export function featureCountryName(props: Record<string, unknown>, id?: string |
   return sid || 'Unknown';
 }
 
-/** Natural Earth Admin-1 uses `name`, `admin`, `iso_3166_2`, and `adm0_a3`. */
 export function featureRegionName(props: Record<string, unknown>): string {
   const value = props?.name ?? props?.NAME_1 ?? props?.name_en ?? props?.NAME;
   return typeof value === 'string' ? value : '';
