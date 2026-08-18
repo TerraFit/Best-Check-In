@@ -54,10 +54,15 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
     }))
     .sort((a, b) => b.count - a.count)
 
+  const totalBookings = referralData.reduce((sum, item) => sum + item.count, 0)
+
   return (
     <div className="bg-white rounded-lg shadow p-4 sm:p-6 overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">{t('reports_how_guests_found')}</h3>
+          <p className="text-xs text-gray-500 mt-0.5">{totalBookings} bookings · sorted by source</p>
+        </div>
         <div className="flex gap-2 self-end sm:self-auto shrink-0">
           <button
             onClick={() => onChartTypeChange('donut')}
@@ -82,7 +87,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
 
       {chartType === 'donut' ? (
         <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)] gap-5 items-center min-w-0">
-          <div className="h-[280px] sm:h-[320px] min-w-0">
+          <div className="relative h-[280px] sm:h-[320px] min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -106,6 +111,10 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
                 />
               </PieChart>
             </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-gray-900">{totalBookings}</span>
+              <span className="text-xs text-gray-500">bookings</span>
+            </div>
           </div>
 
           <div className="min-w-0 w-full space-y-2" aria-label="Guest referral sources">
@@ -120,17 +129,16 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
         </div>
       ) : (
         <div className="w-full min-w-0 overflow-hidden">
-          <div className="h-[340px] sm:h-[360px] min-w-0">
+          <div className="h-[360px] sm:h-[380px] min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={referralData} layout="vertical" margin={{ top: 8, right: 36, bottom: 8, left: 4 }}>
+              <BarChart data={referralData} layout="vertical" margin={{ top: 8, right: 48, bottom: 8, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} />
-                <XAxis type="number" tickFormatter={(value) => `${value}%`} domain={[0, 100]} />
+                <XAxis type="number" tickFormatter={(value) => `${value}%`} domain={[0, 'dataMax + 8']} />
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={typeof window !== 'undefined' && window.innerWidth < 640 ? 92 : 132}
+                  width={typeof window !== 'undefined' && window.innerWidth < 640 ? 112 : 148}
                   tick={{ fontSize: 11 }}
-                  tickFormatter={(value) => String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)}
                 />
                 <Tooltip
                   formatter={(value, _name, props) => {
@@ -140,7 +148,7 @@ export function ReferralSourcesChart({ referralData: series, chartType, onChartT
                 />
                 <Bar
                   dataKey="percentage"
-                  fill="#3b82f6"
+                  fill="#f97316"
                   radius={[0, 8, 8, 0]}
                   label={{ position: 'right', formatter: (value: number) => `${value}%`, fontSize: 11 }}
                 />
