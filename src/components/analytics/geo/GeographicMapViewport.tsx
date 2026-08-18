@@ -1,13 +1,20 @@
 /**
- * Geographic Explorer V2 — MapLibre GL + static GeoJSON/TopoJSON.
- * Country polygons are joined only to real analytics country nodes.
- * Region/city drill-downs expose the real analytics nodes as an on-map
- * clickable list until matching Admin-1/Admin-2 geometry is available.
+ * Geographic Explorer V2 — MapLibre GL.
+ * World/country levels use country polygons; region level uses global Admin-1
+ * polygons so provinces/states/cantons/regions are navigable directly on the map.
  */
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, CONTINENT_VIEWS, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadCountries110m, loadCountries50m, featureCountryName } from './loadGeo';
+import {
+  loadCountries110m,
+  loadCountries50m,
+  loadAdmin1,
+  featureCountryName,
+  featureRegionName,
+  featureRegionCountry,
+  featureRegionCode,
+} from './loadGeo';
 import { findNodeForFeature, canonicalCountryName } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -31,52 +38,65 @@ export type GeographicMapViewportProps = {
   continentOfCountry?: (country: string) => string;
 };
 
-const SOURCE_ID = 'analytics-countries';
-const FILL_LAYER = 'analytics-countries-fill';
-const LINE_LAYER = 'analytics-countries-line';
+const SOURCE_ID = 'analytics-geo';
+const FILL_LAYER = 'analytics-geo-fill';
+const LINE_LAYER = 'analytics-geo-line';
 
-function coordinateBounds(coordinates: unknown): { bounds: [number, number, number, number]; points: number } | null {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, points = 0;
+function coordinateBounds(coordinates: unknown): [number, number, number, number] | null {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const walk = (value: unknown): void => {
     if (!Array.isArray(value)) return;
     if (typeof value[0] === 'number' && typeof value[1] === 'number') {
       minX = Math.min(minX, value[0]); minY = Math.min(minY, value[1]);
-      maxX = Math.max(maxX, value[0]); maxY = Math.max(maxY, value[1]); points += 1; return;
+      maxX = Math.max(maxX, value[0]); maxY = Math.max(maxY, value[1]);
+      return;
     }
     value.forEach(walk);
   };
   walk(coordinates);
   return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
-    ? { bounds: [minX, minY, maxX, maxY], points } : null;
+    ? [minX, minY, maxX, maxY] : null;
 }
 
 function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null {
   if (!geometry) return null;
   if (geometry.type === 'MultiPolygon') {
-    let best: { bounds: [number, number, number, number]; points: number } | null = null;
+    let best: { bounds: [number, number, number, number]; area: number } | null = null;
     geometry.coordinates.forEach((polygon) => {
-      const candidate = coordinateBounds(polygon);
-      if (candidate && (!best || candidate.points > best.points)) best = candidate;
+      const bounds = coordinateBounds(polygon);
+      if (!bounds) return;
+      const area = Math.abs((bounds[2] - bounds[0]) * (bounds[3] - bounds[1]));
+      if (!best || area > best.area) best = { bounds, area };
     });
     return best?.bounds || null;
   }
   if (geometry.type === 'GeometryCollection') {
-    let best: { bounds: [number, number, number, number]; points: number } | null = null;
+    let result: [number, number, number, number] | null = null;
     geometry.geometries.forEach((child) => {
-      const candidate = coordinateBounds((child as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
-      if (candidate && (!best || candidate.points > best.points)) best = candidate;
+      const bounds = geometryBounds(child);
+      if (!bounds) return;
+      result = result
+        ? [Math.min(result[0], bounds[0]), Math.min(result[1], bounds[1]), Math.max(result[2], bounds[2]), Math.max(result[3], bounds[3])]
+        : bounds;
     });
-    return best?.bounds || null;
+    return result;
   }
-  return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates)?.bounds || null;
+  return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
 }
 
-function findFeatureForCountry(features: FeatureLike[], countryName: string) {
+function countryMatches(feature: FeatureLike, countryName: string): boolean {
   const target = canonicalCountryName(countryName).toLowerCase();
-  return features.find((feature) => {
-    const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined);
-    return canonicalCountryName(name).toLowerCase() === target;
-  }) || null;
+  const featureName = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined);
+  return canonicalCountryName(featureName).toLowerCase() === target;
+}
+
+function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean {
+  const props = feature.properties || {};
+  const featureCode = featureRegionCode(props).toLowerCase();
+  if (node.code && featureCode && node.code.toLowerCase() === featureCode) return true;
+  const a = featureRegionName(props).trim().toLowerCase();
+  const b = node.name.trim().toLowerCase();
+  return a === b;
 }
 
 function GeographicMapViewportInner({
@@ -91,23 +111,11 @@ function GeographicMapViewportInner({
   const [geoError, setGeoError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
 
-  const mapDataNodes = useMemo(() => {
-    const result = [...nodes];
-    if (selectedCountry && (level === 'regions' || level === 'cities')) {
-      const selectedCanonical = canonicalCountryName(selectedCountry).toLowerCase();
-      const childTotal = nodes.reduce((sum, node) => sum + Math.max(0, Number(node.count) || 0), 0);
-      if (childTotal > 0 && !result.some((node) => canonicalCountryName(node.name).toLowerCase() === selectedCanonical)) {
-        result.push({ name: selectedCountry, count: childTotal, percentage: 100 });
-      }
-    }
-    return result;
-  }, [nodes, selectedCountry, level]);
-
-  const nodeByCanonical = useMemo(() => {
+  const nodeByCountry = useMemo(() => {
     const result = new Map<string, GeoNode>();
-    mapDataNodes.forEach((node) => result.set(canonicalCountryName(node.name).toLowerCase(), node));
+    nodes.forEach((node) => result.set(canonicalCountryName(node.name).toLowerCase(), node));
     return result;
-  }, [mapDataNodes]);
+  }, [nodes]);
 
   const getContinent = useCallback((country: string) => continentOfCountry?.(country) || 'Other', [continentOfCountry]);
 
@@ -118,115 +126,254 @@ function GeographicMapViewportInner({
       try {
         const maplibregl = await loadMapLibre();
         if (cancelled || !containerRef.current) return;
-        const map = new maplibregl.Map({ container: containerRef.current, style: BASEMAP_STYLE, center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, attributionControl: true }) as unknown as MapLibreMap;
-        try { if (map.addControl && maplibregl.NavigationControl) map.addControl(new maplibregl.NavigationControl({ showCompass: false })); } catch { /* optional */ }
+        const map = new maplibregl.Map({
+          container: containerRef.current,
+          style: BASEMAP_STYLE,
+          center: WORLD_VIEW.center,
+          zoom: WORLD_VIEW.zoom,
+          attributionControl: true,
+        }) as unknown as MapLibreMap;
+        try {
+          if (map.addControl && maplibregl.NavigationControl) map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+        } catch { /* optional */ }
         map.on('load', async () => {
           if (cancelled) return;
           try {
             const fc = await loadCountries110m();
-            const data = { type: 'FeatureCollection' as const, features: fc.features.map((feature, index) => ({
-              ...feature, id: feature.id ?? index, properties: { ...feature.properties,
-                name: featureCountryName(feature.properties || {}, feature.id), count: 0, percentage: 0,
-                hasGuests: false, isSelected: false, fillColor: heatColor(0),
-              },
-            })) };
-            if (!map.getSource(SOURCE_ID)) map.addSource(SOURCE_ID, { type: 'geojson', data });
-            if (!map.getLayer(FILL_LAYER)) map.addLayer({ id: FILL_LAYER, type: 'fill', source: SOURCE_ID, paint: {
-              'fill-color': ['case', ['==', ['get', 'hasGuests'], true], ['get', 'fillColor'], '#e5e7eb'], 'fill-opacity': 0.95,
+            const data = {
+              type: 'FeatureCollection' as const,
+              features: fc.features.map((feature, index) => ({
+                ...feature,
+                id: feature.id ?? index,
+                properties: {
+                  ...feature.properties,
+                  name: featureCountryName(feature.properties || {}, feature.id),
+                  count: 0,
+                  percentage: 0,
+                  hasGuests: false,
+                  fillColor: heatColor(0),
+                },
+              })),
+            };
+            map.addSource(SOURCE_ID, { type: 'geojson', data });
+            map.addLayer({ id: FILL_LAYER, type: 'fill', source: SOURCE_ID, paint: {
+              'fill-color': ['get', 'fillColor'], 'fill-opacity': 0.95,
             } });
-            if (!map.getLayer(LINE_LAYER)) map.addLayer({ id: LINE_LAYER, type: 'line', source: SOURCE_ID, paint: {
-              'line-color': '#9ca3af', 'line-width': 0.6, 'line-opacity': 0.85,
+            map.addLayer({ id: LINE_LAYER, type: 'line', source: SOURCE_ID, paint: {
+              'line-color': '#9ca3af', 'line-width': 0.7, 'line-opacity': 0.9,
             } });
-            map.resize(); setMapReady(true); setGeoError(null);
-          } catch (error) { setGeoError(error instanceof Error ? error.message : 'Failed to load map data'); }
+            map.resize();
+            setMapReady(true);
+            setGeoError(null);
+          } catch (error) {
+            setGeoError(error instanceof Error ? error.message : 'Failed to load map data');
+          }
         });
         mapRef.current = map;
         if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
           resizeObserver = new ResizeObserver(() => { try { map.resize(); } catch { /* ignore */ } });
           resizeObserver.observe(containerRef.current);
         }
-      } catch (error) { if (!cancelled) setGeoError(error instanceof Error ? error.message : 'Map failed to initialise'); }
+      } catch (error) {
+        if (!cancelled) setGeoError(error instanceof Error ? error.message : 'Map failed to initialise');
+      }
     })();
-    return () => { cancelled = true; resizeObserver?.disconnect(); try { mapRef.current?.remove(); } catch { /* ignore */ } mapRef.current = null; };
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+      try { mapRef.current?.remove(); } catch { /* ignore */ }
+      mapRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    let cancelled = false;
     (async () => {
-      const detail = level === 'countries' || level === 'regions' || level === 'cities';
-      const fc = detail ? await loadCountries50m().catch(() => loadCountries110m()) : await loadCountries110m();
-      const features = fc.features.map((feature, index) => {
-        const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined);
-        const canonical = canonicalCountryName(name).toLowerCase();
-        const node = findNodeForFeature(name, mapDataNodes) || nodeByCanonical.get(canonical) || null;
-        const count = node?.count ?? 0;
-        return { ...feature, id: feature.id ?? index, properties: { ...feature.properties, name, count,
-          percentage: node?.percentage ?? 0, hasGuests: count > 0,
-          isSelected: !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase(), fillColor: heatColor(count),
-        } };
-      });
+      const regionLevel = level === 'regions' && !!selectedCountry;
+      const fc = regionLevel
+        ? await loadAdmin1()
+        : level === 'countries' || level === 'cities'
+          ? await loadCountries50m().catch(() => loadCountries110m())
+          : await loadCountries110m();
+      if (cancelled) return;
+
+      let features: FeatureLike[];
+      if (regionLevel) {
+        const country = selectedCountry!;
+        const countryFeatures = fc.features.filter((feature) => {
+          const admin = featureRegionCountry(feature.properties || {});
+          return canonicalCountryName(admin).toLowerCase() === canonicalCountryName(country).toLowerCase();
+        });
+        if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
+        features = countryFeatures.map((feature, index) => {
+          const props = feature.properties || {};
+          const name = featureRegionName(props) || 'Unknown region';
+          const node = nodes.find((candidate) => regionMatchesNode(feature, candidate));
+          const count = node?.count ?? 0;
+          return {
+            ...feature,
+            id: feature.id ?? `${country}-${index}`,
+            properties: {
+              ...props,
+              name,
+              count,
+              percentage: node?.percentage ?? 0,
+              hasGuests: count > 0,
+              fillColor: heatColor(count),
+              isSelected: !!selectedRegion && name.toLowerCase() === selectedRegion.toLowerCase(),
+            },
+          };
+        });
+      } else {
+        features = fc.features.map((feature, index) => {
+          const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined);
+          const canonical = canonicalCountryName(name).toLowerCase();
+          const node = nodeByCountry.get(canonical) || null;
+          const count = node?.count ?? 0;
+          return {
+            ...feature,
+            id: feature.id ?? index,
+            properties: {
+              ...feature.properties,
+              name,
+              count,
+              percentage: node?.percentage ?? 0,
+              hasGuests: count > 0,
+              fillColor: heatColor(count),
+              isSelected: !!selectedCountry && canonical === canonicalCountryName(selectedCountry).toLowerCase(),
+            },
+          };
+        });
+      }
+
       map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
-      if (selectedCountry && (level === 'countries' || level === 'regions' || level === 'cities')) {
-        const match = findFeatureForCountry(features, selectedCountry); const bounds = match ? geometryBounds(match.geometry) : null;
+
+      if (regionLevel) {
+        const bounds = features.reduce<[number, number, number, number] | null>((acc, feature) => {
+          const b = geometryBounds(feature.geometry);
+          if (!b) return acc;
+          return acc
+            ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])]
+            : b;
+        }, null);
+        if (bounds) map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, duration: 900, maxZoom: 8 });
+      } else if (selectedCountry && (level === 'countries' || level === 'cities')) {
+        const match = features.find((feature) => countryMatches(feature, selectedCountry));
+        const bounds = match ? geometryBounds(match.geometry) : null;
         if (!bounds) throw new Error(`No GeoJSON geometry found for ${selectedCountry}`);
         map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, duration: 900, maxZoom: 8 });
       } else if (level === 'countries' && selectedContinent) {
-        const view = CONTINENT_VIEWS[selectedContinent] || WORLD_VIEW; map.flyTo({ center: view.center, zoom: view.zoom, duration: 900 });
-      } else if (level === 'world' || level === 'continents') map.flyTo({ center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, duration: 800 });
-    })().catch((error) => setGeoError(error instanceof Error ? error.message : 'Layer update failed'));
-  }, [mapReady, mapDataNodes, level, selectedContinent, selectedCountry, nodeByCanonical]);
+        const view = CONTINENT_VIEWS[selectedContinent] || WORLD_VIEW;
+        map.flyTo({ center: view.center, zoom: view.zoom, duration: 900 });
+      } else if (level === 'world' || level === 'continents') {
+        map.flyTo({ center: WORLD_VIEW.center, zoom: WORLD_VIEW.zoom, duration: 800 });
+      }
+    })().catch((error) => { if (!cancelled) setGeoError(error instanceof Error ? error.message : 'Layer update failed'); });
+    return () => { cancelled = true; };
+  }, [mapReady, nodes, level, selectedContinent, selectedCountry, selectedRegion, nodeByCountry]);
 
   useEffect(() => {
-    const map = mapRef.current; if (!map || !mapReady) return;
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
     const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       if (!interactive) return;
-      const feature = event.features?.[0]; const name = feature?.properties?.name ? String(feature.properties.name) : '';
+      const feature = event.features?.[0];
+      const name = feature?.properties?.name ? String(feature.properties.name) : '';
       if (!name) return;
       const count = Number(feature.properties?.count) || 0;
       if (level === 'world' || level === 'continents') {
         if (count > 0 && onCountryClick) return onCountryClick(name);
-        const continent = getContinent(name); if (continent !== 'Other' && onContinentClick) onContinentClick(continent);
-      } else if (level === 'countries' && onCountryClick) onCountryClick(name);
+        const continent = getContinent(name);
+        if (continent !== 'Other' && onContinentClick) onContinentClick(continent);
+      } else if (level === 'countries' && onCountryClick) {
+        onCountryClick(name);
+      } else if (level === 'regions' && onRegionClick) {
+        onRegionClick(name);
+      }
     };
     const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => {
-      const feature = event.features?.[0]; if (!feature?.properties?.name) return setHover(null);
-      setHover({ name: String(feature.properties.name), count: Number(feature.properties.count) || 0,
-        percentage: Number(feature.properties.percentage) || 0, x: event.point?.x ?? 0, y: event.point?.y ?? 0 });
+      const feature = event.features?.[0];
+      if (!feature?.properties?.name) { setHover(null); return; }
+      setHover({
+        name: String(feature.properties.name),
+        count: Number(feature.properties.count) || 0,
+        percentage: Number(feature.properties.percentage) || 0,
+        x: event.point?.x ?? 0,
+        y: event.point?.y ?? 0,
+      });
       try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* ignore */ }
     };
     const onLeave = () => { setHover(null); try { map.getCanvas().style.cursor = ''; } catch { /* ignore */ } };
-    map.on('click', FILL_LAYER, onClick); map.on('mousemove', FILL_LAYER, onMove); map.on('mouseleave', FILL_LAYER, onLeave);
-    return () => { try { map.off('click', FILL_LAYER, onClick); map.off('mousemove', FILL_LAYER, onMove); map.off('mouseleave', FILL_LAYER, onLeave); } catch { /* ignore */ } };
-  }, [mapReady, interactive, level, onContinentClick, onCountryClick, getContinent]);
+    map.on('click', FILL_LAYER, onClick);
+    map.on('mousemove', FILL_LAYER, onMove);
+    map.on('mouseleave', FILL_LAYER, onLeave);
+    return () => {
+      try {
+        map.off('click', FILL_LAYER, onClick);
+        map.off('mousemove', FILL_LAYER, onMove);
+        map.off('mouseleave', FILL_LAYER, onLeave);
+      } catch { /* ignore */ }
+    };
+  }, [mapReady, interactive, level, onContinentClick, onCountryClick, onRegionClick, getContinent]);
 
-  const drillNodes = useMemo(() => level === 'regions' || level === 'cities'
-    ? [...nodes].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) : [], [level, nodes]);
+  const cityNodes = useMemo(() => level === 'cities'
+    ? [...nodes].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    : [], [level, nodes]);
 
-  return <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200">
-    <div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />
-    {(isLoading || !mapReady) && !geoError && <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10"><div className="text-sm font-medium text-stone-500">{t('reports_loading_map_short')}</div></div>}
-    {geoError && <div className="absolute inset-0 flex items-center justify-center bg-stone-50 z-10 p-4"><p className="text-sm text-stone-600 text-center max-w-sm">{geoError}</p></div>}
+  return (
+    <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200">
+      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />
+      {(isLoading || !mapReady) && !geoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 pointer-events-none z-10">
+          <div className="text-sm font-medium text-stone-500">{t('reports_loading_map_short')}</div>
+        </div>
+      )}
+      {geoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-stone-50 z-10 p-4">
+          <p className="text-sm text-stone-600 text-center max-w-sm">{geoError}</p>
+        </div>
+      )}
 
-    {drillNodes.length > 0 && <div className="absolute top-3 left-3 z-20 w-[min(320px,calc(100%-24px))] max-h-[calc(100%-72px)] overflow-y-auto rounded-xl bg-white/95 border border-stone-200 shadow-lg backdrop-blur-sm">
-      <div className="px-3 py-2 border-b border-stone-200"><p className="text-xs font-bold uppercase tracking-wider text-stone-500">{level === 'regions' ? 'Regions / provinces / states' : 'Cities'}</p><p className="text-[11px] text-stone-400 mt-0.5">Click an item to explore</p></div>
-      <div className="p-1.5">{drillNodes.map((node) => {
-        const selected = level === 'regions' && selectedRegion === node.name;
-        return <button key={`${node.name}-${node.code || ''}`} type="button" disabled={!interactive || node.count <= 0}
-          onClick={() => level === 'regions' ? onRegionClick?.(node.name) : onCityClick?.(node.name)}
-          className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition ${selected ? 'bg-orange-100 ring-1 ring-orange-300' : 'hover:bg-stone-100'} ${node.count <= 0 ? 'opacity-45 cursor-default' : 'cursor-pointer'}`}>
-          <span className="h-3 w-3 rounded-sm shrink-0 border border-stone-300" style={{ backgroundColor: node.count > 0 ? heatColor(node.count) : '#e5e7eb' }} />
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{node.name}</span><span className="text-xs font-bold text-stone-500 tabular-nums">{node.count}</span>
-        </button>;
-      })}</div>
-    </div>}
+      {cityNodes.length > 0 && (
+        <div className="absolute top-3 left-3 z-20 w-[min(320px,calc(100%-24px))] max-h-[calc(100%-72px)] overflow-y-auto rounded-xl bg-white/95 border border-stone-200 shadow-lg backdrop-blur-sm">
+          <div className="px-3 py-2 border-b border-stone-200">
+            <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Cities</p>
+            <p className="text-[11px] text-stone-400 mt-0.5">Click a city to explore</p>
+          </div>
+          <div className="p-1.5">
+            {cityNodes.map((node) => (
+              <button key={`${node.name}-${node.code || ''}`} type="button" disabled={!interactive || node.count <= 0}
+                onClick={() => onCityClick?.(node.name)}
+                className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition ${node.count <= 0 ? 'opacity-45 cursor-default' : 'cursor-pointer hover:bg-stone-100'}`}>
+                <span className="h-3 w-3 rounded-sm shrink-0 border border-stone-300" style={{ backgroundColor: node.count > 0 ? heatColor(node.count) : '#e5e7eb' }} />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{node.name}</span>
+                <span className="text-xs font-bold text-stone-500 tabular-nums">{node.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-    {hover && <div className="pointer-events-none absolute z-30 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[200px]" style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 160), top: Math.max(8, hover.y - 8) }} role="tooltip">
-      <p className="font-bold text-sm">{hover.name}</p><p className="text-orange-300 mt-0.5">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>{hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
-    </div>}
+      {hover && (
+        <div className="pointer-events-none absolute z-30 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[220px]"
+          style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip">
+          <p className="font-bold text-sm">{hover.name}</p>
+          <p className="text-orange-300 mt-0.5">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>
+          {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+        </div>
+      )}
 
-    <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm"><p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">{t('reports_guest_density')}</p><div className="flex items-center gap-0.5">{['#e5e7eb','#fed7aa','#fdba74','#fb923c','#ea580c','#c2410c'].map((color) => <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden />)}</div><div className="flex justify-between text-[9px] text-stone-400 mt-0.5"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div></div>
-  </div>;
+      <div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">{t('reports_guest_density')}</p>
+        <div className="flex items-center gap-0.5">
+          {['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map((color) => <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden />)}
+        </div>
+        <div className="flex justify-between text-[9px] text-stone-400 mt-0.5"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div>
+      </div>
+    </div>
+  );
 }
 
 export const GeographicMapViewport = memo(GeographicMapViewportInner);
