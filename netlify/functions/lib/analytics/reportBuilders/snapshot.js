@@ -43,24 +43,43 @@ function drawBarList(commands, items, x, y, w, title, labelFn, maxItems = 8, bar
     const width = Math.max(2, (Number(item.count || 0) / max) * barW); commands.push(rectCmd(barX, yy, barW, 13, '#eef2f7')); commands.push(rectCmd(barX, yy, width, 13, PALETTE[i % PALETTE.length] || barColor));
     commands.push(textCmd(`${item.count ?? 0} · ${pct(item.percentage)}`, x + w - 54, yy + 4, 7, MUTED, true)); });
 }
+
 function drawReferralMatrix(commands, rows, x, y, w) {
-  commands.push(textCmd('Who uses which channel?', x, y, 12, INK, true)); commands.push(textCmd('Share of each guest market by acquisition channel', x, y - 15, 7, MUTED));
-  const displayRows = (rows || []).filter((r) => r.total > 0).slice(0, 6); const topSources = [];
+  commands.push(textCmd('Who uses which channel?', x, y, 12, INK, true));
+  commands.push(textCmd('Share of each guest market by acquisition channel', x, y - 15, 7, MUTED));
+  const displayRows = (rows || []).filter((r) => r.total > 0).slice(0, 6);
+  const topSources = [];
   displayRows.forEach((row) => row.channels.forEach((c) => { if (!topSources.includes(c.source)) topSources.push(c.source); }));
-  const sources = topSources.slice(0, 4); const colW = (w - 120) / Math.max(1, sources.length); const startY = y - 45;
-  commands.push(rectCmd(x, startY - 7, w, 24, LIGHT, BORDER)); commands.push(textCmd('Guest market', x + 8, startY + 2, 7, MUTED, true));
+  const sources = topSources.slice(0, 4);
+  const colW = (w - 120) / Math.max(1, sources.length);
+  const startY = y - 45;
+  commands.push(rectCmd(x, startY - 7, w, 24, LIGHT, BORDER));
+  commands.push(textCmd('Guest market', x + 8, startY + 2, 7, MUTED, true));
   sources.forEach((source, i) => commands.push(textCmd(referralLabel(source), x + 120 + i * colW, startY + 2, 6.5, MUTED, true)));
-  displayRows.forEach((row, r) => { const yy = startY - 31 - r * 31; if (r % 2 === 0) commands.push(rectCmd(x, yy - 6, w, 25, '#ffffff'));
-    commands.push(textCmd(`${row.country} (${row.total})`, x + 8, yy + 2, 7, INK, true)); sources.forEach((source, i) => { const channel = row.channels.find((c) => c.source === source); commands.push(textCmd(channel ? pct(channel.percentage) : '—', x + 120 + i * colW, yy + 2, 7, channel ? PALETTE[i % PALETTE.length] : '#94a3b8', !!channel)); }); });
+  displayRows.forEach((row, r) => {
+    const yy = startY - 31 - r * 27;
+    if (r % 2 === 0) commands.push(rectCmd(x, yy - 6, w, 23, '#ffffff'));
+    commands.push(textCmd(`${row.country} (${row.total})`, x + 8, yy + 2, 7, INK, true));
+    sources.forEach((source, i) => {
+      const channel = row.channels.find((c) => c.source === source);
+      commands.push(textCmd(channel ? pct(channel.percentage) : '—', x + 120 + i * colW, yy + 2, 7, channel ? PALETTE[i % PALETTE.length] : '#94a3b8', !!channel));
+    });
+  });
+  return startY - 31 - displayRows.length * 27 - 8;
 }
+
 function addReferralInsights(commands, rows, x, y) {
   const usable = (rows || []).filter((r) => r.total > 0 && r.dominantSource).slice(0, 4);
   commands.push(textCmd('What the data tells you', x, y, 12, INK, true));
-  usable.forEach((row, i) => { const yy = y - 28 - i * 30;
-    commands.push(rectCmd(x, yy - 7, 5, 24, PALETTE[i % PALETTE.length]));
-    commands.push(textCmd(row.country, x + 14, yy + 8, 7.5, INK, true));
-    commands.push(textCmd(`${referralLabel(row.dominantSource)} leads this market at ${pct(row.dominantPercentage)}.`, x + 85, yy + 8, 7, MUTED)); });
+  usable.forEach((row, i) => {
+    const yy = y - 23 - i * 25;
+    commands.push(rectCmd(x, yy - 5, 5, 20, PALETTE[i % PALETTE.length]));
+    commands.push(textCmd(row.country, x + 14, yy + 7, 7.5, INK, true));
+    commands.push(textCmd(`${referralLabel(row.dominantSource)} leads this market at ${pct(row.dominantPercentage)}.`, x + 85, yy + 7, 7, MUTED));
+  });
+  return y - 23 - usable.length * 25;
 }
+
 function drawRoomPerformance(commands, rooms, topY = 500) {
   const rows = (rooms || []).slice(0, 6); const maxUtil = Math.max(1, ...rows.map((r) => Number(r.utilisation || 0)));
   commands.push(textCmd('Room performance', 50, topY, 14, INK, true)); commands.push(textCmd('Room-night utilisation for the selected reporting period.', 50, topY - 16, 8, MUTED));
@@ -81,9 +100,12 @@ export function buildSnapshotPdfPayload(summary) {
   drawBarList(page1, summary.originCountries || [], 50, 490, 495, 'Visitor origin', (n) => String(n.name || ''), 9, ORANGE, 28); page1.push(textCmd('Countries with no bookings are intentionally omitted from this ranked business view.', 50, 190, 6.5, '#94a3b8'));
 
   const page2 = []; addHeader(page2, businessName, meta, 'Acquisition intelligence'); page2.push(textCmd('How Guests Found You', 50, 730, 18, INK, true)); page2.push(textCmd('Acquisition performance and the relationship between guest market and booking channel.', 50, 712, 8.5, MUTED));
-  drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 8, ORANGE, 29); drawReferralMatrix(page2, summary.referralByCountry || [], 50, 390, 495);
-  addReferralInsights(page2, summary.referralByCountry || [], 50, 195);
-  page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, 47, 6.5, '#94a3b8'));
+  drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 8, ORANGE, 29);
+  const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 390, 495);
+  const insightsY = Math.min(195, matrixBottom - 18);
+  const insightsBottom = addReferralInsights(page2, summary.referralByCountry || [], 50, insightsY);
+  const noteY = Math.max(47, insightsBottom - 16);
+  page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, noteY, 6.5, '#94a3b8'));
 
   const page3 = []; addHeader(page3, businessName, meta, 'Stay and room performance'); page3.push(textCmd('Length of stay', 50, 730, 14, INK, true)); page3.push(textCmd('How long guests are staying during the selected reporting period.', 50, 714, 8, MUTED));
   drawBarList(page3, summary.lengthOfStay || [], 50, 690, 495, '', (n) => `${n.bucket} night${n.bucket === '1' ? '' : 's'}`, 4, BLUE, 32); const roomBottom = drawRoomPerformance(page3, summary.roomPerformance?.rooms || [], 505); const roomY = Math.max(120, roomBottom - 24);
