@@ -57,27 +57,27 @@ function drawReferralMatrix(commands, rows, x, y, w) {
   commands.push(textCmd('Guest market', x + 8, startY + 2, 7, MUTED, true));
   sources.forEach((source, i) => commands.push(textCmd(referralLabel(source), x + 120 + i * colW, startY + 2, 6.5, MUTED, true)));
   displayRows.forEach((row, r) => {
-    const yy = startY - 31 - r * 27;
-    if (r % 2 === 0) commands.push(rectCmd(x, yy - 6, w, 23, '#ffffff'));
+    const yy = startY - 31 - r * 24;
+    if (r % 2 === 0) commands.push(rectCmd(x, yy - 6, w, 21, '#ffffff'));
     commands.push(textCmd(`${row.country} (${row.total})`, x + 8, yy + 2, 7, INK, true));
     sources.forEach((source, i) => {
       const channel = row.channels.find((c) => c.source === source);
       commands.push(textCmd(channel ? pct(channel.percentage) : '—', x + 120 + i * colW, yy + 2, 7, channel ? PALETTE[i % PALETTE.length] : '#94a3b8', !!channel));
     });
   });
-  return startY - 31 - displayRows.length * 27 - 8;
+  return startY - 31 - displayRows.length * 24 - 8;
 }
 
 function addReferralInsights(commands, rows, x, y) {
   const usable = (rows || []).filter((r) => r.total > 0 && r.dominantSource).slice(0, 4);
   commands.push(textCmd('What the data tells you', x, y, 12, INK, true));
   usable.forEach((row, i) => {
-    const yy = y - 23 - i * 25;
-    commands.push(rectCmd(x, yy - 5, 5, 20, PALETTE[i % PALETTE.length]));
-    commands.push(textCmd(row.country, x + 14, yy + 7, 7.5, INK, true));
-    commands.push(textCmd(`${referralLabel(row.dominantSource)} leads this market at ${pct(row.dominantPercentage)}.`, x + 85, yy + 7, 7, MUTED));
+    const yy = y - 20 - i * 20;
+    commands.push(rectCmd(x, yy - 4, 5, 17, PALETTE[i % PALETTE.length]));
+    commands.push(textCmd(row.country, x + 14, yy + 6, 7.5, INK, true));
+    commands.push(textCmd(`${referralLabel(row.dominantSource)} leads this market at ${pct(row.dominantPercentage)}.`, x + 85, yy + 6, 7, MUTED));
   });
-  return y - 23 - usable.length * 25;
+  return y - 20 - usable.length * 20;
 }
 
 function drawRoomPerformance(commands, rooms, topY = 500) {
@@ -101,10 +101,10 @@ export function buildSnapshotPdfPayload(summary) {
 
   const page2 = []; addHeader(page2, businessName, meta, 'Acquisition intelligence'); page2.push(textCmd('How Guests Found You', 50, 730, 18, INK, true)); page2.push(textCmd('Acquisition performance and the relationship between guest market and booking channel.', 50, 712, 8.5, MUTED));
   drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 8, ORANGE, 29);
-  const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 390, 495);
-  const insightsY = Math.min(195, matrixBottom - 18);
+  const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 440, 495);
+  const insightsY = Math.min(185, matrixBottom - 14);
   const insightsBottom = addReferralInsights(page2, summary.referralByCountry || [], 50, insightsY);
-  const noteY = Math.max(47, insightsBottom - 16);
+  const noteY = Math.max(55, insightsBottom - 12);
   page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, noteY, 6.5, '#94a3b8'));
 
   const page3 = []; addHeader(page3, businessName, meta, 'Stay and room performance'); page3.push(textCmd('Length of stay', 50, 730, 14, INK, true)); page3.push(textCmd('How long guests are staying during the selected reporting period.', 50, 714, 8, MUTED));
