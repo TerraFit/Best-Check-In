@@ -55,7 +55,7 @@ export function buildVisualPdf(pages, meta = {}) {
   const contentIds = [];
   const pageIds = [];
 
-  pages.forEach((page, index) => {
+  pages.forEach((page) => {
     const commands = [...(page.commands || [])];
     if (page.title) commands.unshift(textCmd(page.title, 50, 790, 18, '#111827', true));
     if (page.subtitle) commands.splice(page.title ? 1 : 0, 0, textCmd(page.subtitle, 50, 770, 9, '#6b7280'));
@@ -65,7 +65,7 @@ export function buildVisualPdf(pages, meta = {}) {
   });
 
   contentIds.forEach((contentId) => {
-    pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} /F2 ${fontBoldId} >> >> >>`));
+    pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R >> >> >>`));
   });
   const kids = pageIds.map((id) => `${id} 0 R`).join(' ');
   const pagesId = addObj(`<< /Type /Pages /Kids [ ${kids} ] /Count ${pageIds.length} >>`);
@@ -116,7 +116,7 @@ export function buildSimplePdf(pages, meta = {}) {
     const stream = lines.join('\n');
     contentIds.push(addObj(`<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream`));
   });
-  contentIds.forEach((contentId) => pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} /F2 ${fontBoldId} >> >> >>`)));
+  contentIds.forEach((contentId) => pageIds.push(addObj(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R >> >> >>`)));
   const kids = pageIds.map((id) => `${id} 0 R`).join(' ');
   const pagesId = addObj(`<< /Type /Pages /Kids [ ${kids} ] /Count ${pageIds.length} >>`);
   pageIds.forEach((pid) => { objects[pid - 1] = objects[pid - 1].replace('/Parent 0 0 R', `/Parent ${pagesId} 0 R`); });
