@@ -9,6 +9,8 @@ const TEAL = '#0f766e';
 const BLUE = '#2563eb';
 const GREEN = '#16a34a';
 const PALETTE = ['#f97316', '#2563eb', '#0f766e', '#7c3aed', '#db2777', '#0891b2', '#16a34a', '#ea580c'];
+const FOOTER_SAFE_Y = 72;
+const INSIGHT_ROW_H = 16;
 
 function pct(v) { return `${Number(v || 0).toFixed(1)}%`; }
 function money(v) { return `R ${Number(v || 0).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`; }
@@ -72,12 +74,12 @@ function addReferralInsights(commands, rows, x, y) {
   const usable = (rows || []).filter((r) => r.total > 0 && r.dominantSource).slice(0, 4);
   commands.push(textCmd('What the data tells you', x, y, 12, INK, true));
   usable.forEach((row, i) => {
-    const yy = y - 20 - i * 20;
+    const yy = y - 20 - i * INSIGHT_ROW_H;
     commands.push(rectCmd(x, yy - 4, 5, 17, PALETTE[i % PALETTE.length]));
     commands.push(textCmd(row.country, x + 14, yy + 6, 7.5, INK, true));
     commands.push(textCmd(`${referralLabel(row.dominantSource)} leads this market at ${pct(row.dominantPercentage)}.`, x + 85, yy + 6, 7, MUTED));
   });
-  return y - 20 - usable.length * 20;
+  return y - 20 - usable.length * INSIGHT_ROW_H;
 }
 
 function drawRoomPerformance(commands, rooms, topY = 500) {
@@ -104,7 +106,7 @@ export function buildSnapshotPdfPayload(summary) {
   const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 415, 495);
   const insightsY = Math.min(185, matrixBottom - 14);
   const insightsBottom = addReferralInsights(page2, summary.referralByCountry || [], 50, insightsY);
-  const noteY = Math.max(55, insightsBottom - 12);
+  const noteY = Math.max(FOOTER_SAFE_Y + 5, insightsBottom - 12);
   page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, noteY, 6.5, '#94a3b8'));
 
   const page3 = []; addHeader(page3, businessName, meta, 'Stay and room performance'); page3.push(textCmd('Length of stay', 50, 730, 14, INK, true)); page3.push(textCmd('How long guests are staying during the selected reporting period.', 50, 714, 8, MUTED));
