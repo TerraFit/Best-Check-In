@@ -1,5 +1,5 @@
 /**
- * Runtime MapLibre loader (CDN UMD — no API key, no npm install required at build).
+ * Runtime MapLibre loader (CDN UMD — no API key, no npm install required).
  */
 
 import { MAPLIBRE_JS, MAPLIBRE_CSS } from './mapConfig';
@@ -19,6 +19,10 @@ export type MapLibreMap = {
   flyTo: (opts: Record<string, unknown>) => void;
   fitBounds: (bounds: number[][], opts?: Record<string, unknown>) => void;
   getCanvas: () => HTMLCanvasElement;
+  getCenter?: () => { lng: number; lat: number };
+  getZoom?: () => number;
+  getBearing?: () => number;
+  getPitch?: () => number;
   loaded: () => boolean;
   addControl?: (control: unknown, position?: string) => void;
 };
