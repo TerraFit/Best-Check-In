@@ -38,7 +38,33 @@ export async function fetchBusiness(businessId) {
   const rows = await supabaseFetch(
     `businesses?id=eq.${encodeURIComponent(businessId)}&select=id,trading_name,registered_name,logo_url,total_rooms,subscription_tier,current_plan,subscription_status,billing_cycle,trial_end`
   );
-  return rows?.[0] || null;
+  const business = rows?.[0] || null;
+  if (!business) return null;
+
+  // Licensed/configured capacity is authoritative when present. Older
+  // businesses can have total_rooms=0 while the room inventory is populated;
+  // resolve those cases from the active room catalogue instead of defaulting
+  // occupancy to one room.
+  const configuredRooms = Number(business.total_rooms) || 0;
+  if (configuredRooms > 0) {
+    business.total_rooms_source = 'business_configuration';
+    return business;
+  }
+
+  try {
+    const rooms = await supabaseFetch(
+      `rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id`
+    );
+    const activeRooms = Array.isArray(rooms) ? rooms.length : 0;
+    business.total_rooms = activeRooms;
+    business.total_rooms_source = activeRooms > 0 ? 'active_room_inventory' : 'unconfigured';
+  } catch (err) {
+    console.warn('Analytics room-capacity fallback unavailable:', err?.message || err);
+    business.total_rooms = 0;
+    business.total_rooms_source = 'unconfigured';
+  }
+
+  return business;
 }
 
 export function resolveBusinessPlan(business) {
@@ -137,14 +163,14 @@ export async function buildVisitorOrigins({ businessId, dateFrom, dateTo, level 
   const quality = buildQualityMeta(bookings, eligibleRaw, from, to);
   const parent = { continent, country, region, city };
   const agg = aggregateAtLevel(enriched, level, parent);
-  const summary = summarizeBookings(enriched, business.total_rooms || 1, from, to);
+  const summary = summarizeBookings(enriched, business.total_rooms, from, to);
   let cityPanel = null;
   if (level === 'city' && city) {
     const cityBookings = enriched.filter((b) => b._city.toLowerCase() === String(city).toLowerCase() && (!country || b._country.toLowerCase() === String(country).toLowerCase()) && (!region || b._region.toLowerCase() === String(region).toLowerCase()));
     cityPanel = cityDashboard(cityBookings);
   }
   return {
-    meta: { businessId, businessName: business.trading_name || business.registered_name || null, dateFrom: from, dateTo: to, totalVisitors: enriched.length, domesticCount: summary.domesticCount, internationalCount: summary.internationalCount, plan, generatedAt: new Date().toISOString(), timezone: ANALYTICS_TIMEZONE, quality },
+    meta: { businessId, businessName: business.trading_name || business.registered_name || null, dateFrom: from, dateTo: to, totalVisitors: enriched.length, domesticCount: summary.domesticCount, internationalCount: summary.internationalCount, plan, totalRooms: business.total_rooms, totalRoomsSource: business.total_rooms_source, generatedAt: new Date().toISOString(), timezone: ANALYTICS_TIMEZONE, quality },
     level: agg.level, parent, nodes: agg.nodes, skipToCity: agg.skipToCity || false, cityDashboard: cityPanel,
   };
 }
@@ -178,7 +204,7 @@ export async function buildAnalyticsSummary({ businessId, dateFrom, dateTo }) {
   const eligibleRaw = filterEligibleOverlapping(bookings, from, to);
   const enriched = eligibleRaw.map(enrichBookingGeo);
   const quality = buildQualityMeta(bookings, eligibleRaw, from, to);
-  const summary = summarizeBookings(enriched, business.total_rooms || 1, from, to);
+  const summary = summarizeBookings(enriched, business.total_rooms, from, to);
 
   const continentMap = {};
   const countryMap = {};
@@ -208,7 +234,7 @@ export async function buildAnalyticsSummary({ businessId, dateFrom, dateTo }) {
   });
 
   return {
-    meta: { businessId, businessName: business.trading_name || business.registered_name || null, logoUrl: business.logo_url || null, dateFrom: from, dateTo: to, plan, totalRooms: business.total_rooms || 1, generatedAt: new Date().toISOString(), timezone: ANALYTICS_TIMEZONE, quality },
+    meta: { businessId, businessName: business.trading_name || business.registered_name || null, logoUrl: business.logo_url || null, dateFrom: from, dateTo: to, plan, totalRooms: business.total_rooms, totalRoomsSource: business.total_rooms_source, generatedAt: new Date().toISOString(), timezone: ANALYTICS_TIMEZONE, quality },
     summary: {
       totalBookings: summary.totalBookings, totalGuests: summary.totalGuests, totalNights: summary.totalNights, totalRevenue: summary.totalRevenue,
       averageStay: summary.averageStay, averagePartySize: summary.averagePartySize, uniqueCountries: summary.uniqueCountries,
