@@ -33,7 +33,12 @@ export function canonicalCountryName(raw: string | null | undefined): string {
   if (!raw) return '';
   const t = String(raw).trim();
   if (!t) return '';
-  return COUNTRY_ALIASES[t.toLowerCase()] || t;
+  const lower = t.toLowerCase();
+  if (COUNTRY_ALIASES[lower]) return COUNTRY_ALIASES[lower];
+  const upper = t.toUpperCase();
+  if (ISO_TO_COUNTRY[upper]) return ISO_TO_COUNTRY[upper];
+  if (NUMERIC_TO_ISO[t] && ISO_TO_COUNTRY[NUMERIC_TO_ISO[t]]) return ISO_TO_COUNTRY[NUMERIC_TO_ISO[t]];
+  return t;
 }
 
 export function namesMatch(a: string, b: string): boolean {
