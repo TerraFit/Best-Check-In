@@ -19,7 +19,7 @@ export function PhotoUpload({ onUpload, onRemove, currentPhoto, className = '' }
     if (!file) return;
     
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file');
+      alert(t('error_upload_image'));
       return;
     }
 

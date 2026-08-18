@@ -6,6 +6,7 @@ import { CheckInFormData, TouchedFields } from '../../types/checkin';
 import { COUNTRIES } from '../../constants';
 import { getRegionsForCountry, getRegionTypeLabel } from '../../services/countryRegionService';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { useTranslation } from '../../i18n';
 
 interface Step2PersonalDetailsProps {
   formData: CheckInFormData;
@@ -36,48 +37,49 @@ export function Step2PersonalDetails({
   primaryColor = '#f59e0b',
   secondaryColor = '#1e1e1e',
 }: Step2PersonalDetailsProps) {
+  const { t } = useTranslation();
   const availableRegions = formData.country ? getRegionsForCountry(formData.country) : null;
-  const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : 'Province / State';
+  const regionTypeLabel = formData.country ? getRegionTypeLabel(formData.country) : t('checkin_province');
 
   const provinceOptions = React.useMemo(() => {
     if (availableRegions && availableRegions.length > 0) {
       return [
-        { value: '', label: `Select ${regionTypeLabel}` },
+        { value: '', label: t('checkin_select_region', { field: regionTypeLabel }) },
         ...availableRegions.map(region => ({ value: region, label: region }))
       ];
     }
     return [
-      { value: '', label: `Enter ${regionTypeLabel}` }
+      { value: '', label: t('checkin_enter_region', { field: regionTypeLabel }) }
     ];
-  }, [availableRegions, regionTypeLabel]);
+  }, [availableRegions, regionTypeLabel, t]);
 
   const referrals = [
-    { value: '', label: 'Select Referral Source' },
-    { value: 'Word of Mouth', label: 'Word of Mouth' },
-    { value: 'Booking.com', label: 'Booking.com' },
-    { value: 'Airbnb', label: 'Airbnb' },
-    { value: 'Agoda', label: 'Agoda' },
-    { value: 'Expedia', label: 'Expedia' },
-    { value: 'Google', label: 'Google' },
-    { value: 'Facebook / Instagram', label: 'Facebook / Instagram' },
-    { value: 'Travel Agency', label: 'Travel Agency' },
-    { value: 'LinkedIn', label: 'LinkedIn' },
-    { value: 'YouTube', label: 'YouTube' },
-    { value: 'Research Engine', label: 'Research Engine' },
-    { value: 'TikTok', label: 'TikTok' },
-    { value: 'Walk-in', label: 'Walk-in' },
-    { value: 'Other', label: 'Other' },
+    { value: '', label: t('checkin_select_referral') },
+    { value: 'Word of Mouth', label: t('checkin_referral_word_of_mouth') },
+    { value: 'Booking.com', label: t('checkin_referral_booking') },
+    { value: 'Airbnb', label: t('checkin_referral_airbnb') },
+    { value: 'Agoda', label: t('checkin_referral_agoda') },
+    { value: 'Expedia', label: t('checkin_referral_expedia') },
+    { value: 'Google', label: t('checkin_referral_google') },
+    { value: 'Facebook / Instagram', label: t('checkin_referral_social') },
+    { value: 'Travel Agency', label: t('checkin_referral_travel_agency') },
+    { value: 'LinkedIn', label: t('checkin_referral_linkedin') },
+    { value: 'YouTube', label: t('checkin_referral_youtube') },
+    { value: 'Research Engine', label: t('checkin_referral_research') },
+    { value: 'TikTok', label: t('checkin_referral_tiktok') },
+    { value: 'Walk-in', label: t('checkin_referral_walkin') },
+    { value: 'Other', label: t('checkin_referral_other') },
   ];
 
   const settlements = [
-    { value: '', label: 'Select Settlement Method' },
-    { value: 'cash', label: 'Cash' },
-    { value: 'credit_card', label: 'Credit Card' },
-    { value: 'debit_card', label: 'Debit Card' },
-    { value: 'mobile_payment', label: 'Mobile Payment' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'voucher', label: 'Voucher' },
-    { value: 'other', label: 'Other' },
+    { value: '', label: t('checkin_select_settlement') },
+    { value: 'cash', label: t('checkin_settlement_cash') },
+    { value: 'credit_card', label: t('checkin_settlement_credit_card') },
+    { value: 'debit_card', label: t('checkin_settlement_debit_card') },
+    { value: 'mobile_payment', label: t('checkin_settlement_mobile') },
+    { value: 'bank_transfer', label: t('checkin_settlement_bank') },
+    { value: 'voucher', label: t('checkin_settlement_voucher') },
+    { value: 'other', label: t('checkin_settlement_other') },
   ];
 
   const handleFieldChange = (field: string, value: any) => {
@@ -87,7 +89,6 @@ export function Step2PersonalDetails({
     }
   };
 
-  /** Country change must clear province in the same update path (regions depend on country). */
   const handleCountryChange = (country: string) => {
     onFormChange('country', country);
     onFormChange('province', '');
@@ -96,7 +97,7 @@ export function Step2PersonalDetails({
   };
 
   const getValidation = (field: keyof TouchedFields, value: any): boolean => {
-    if (field === 'firstName' || field === 'lastName' || field === 'city' || 
+    if (field === 'firstName' || field === 'lastName' || field === 'city' ||
         field === 'arrivingFrom' || field === 'nextDestination') {
       return value && value.trim().length > 0;
     }
@@ -121,15 +122,14 @@ export function Step2PersonalDetails({
   return (
     <div className="p-10 md:p-16 animate-fade-in">
       <div className="max-w-3xl mx-auto">
-        <h2 className="text-2xl font-bold text-stone-900 mb-2">Personal Details</h2>
-        <p className="text-stone-500 mb-8">Please provide your personal information for check-in</p>
+        <h2 className="text-2xl font-bold text-stone-900 mb-2">{t('checkin_personal_details')}</h2>
+        <p className="text-stone-500 mb-8">{t('checkin_personal_subtitle')}</p>
 
-        <div className="space-y-6">
-          {/* Row: First Name + Last Name */}
+        <form onSubmit={onSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                First Name *
+                {t('checkin_first_name')} *
               </label>
               <input
                 type="text"
@@ -139,14 +139,14 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('firstName', getValidation('firstName', formData.firstName))}`}
                 placeholder="John"
               />
-              <ErrorMessage 
-                field="firstName" 
-                message={submitAttempted && touched.firstName && !getValidation('firstName', formData.firstName) ? 'First name is required' : ''} 
+              <ErrorMessage
+                field="firstName"
+                message={submitAttempted && touched.firstName && !getValidation('firstName', formData.firstName) ? t('error_first_name_required') : ''}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Last Name *
+                {t('checkin_last_name')} *
               </label>
               <input
                 type="text"
@@ -156,18 +156,17 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('lastName', getValidation('lastName', formData.lastName))}`}
                 placeholder="Doe"
               />
-              <ErrorMessage 
-                field="lastName" 
-                message={submitAttempted && touched.lastName && !getValidation('lastName', formData.lastName) ? 'Last name is required' : ''} 
+              <ErrorMessage
+                field="lastName"
+                message={submitAttempted && touched.lastName && !getValidation('lastName', formData.lastName) ? t('error_last_name_required') : ''}
               />
             </div>
           </div>
 
-          {/* Row: Passport/ID + Phone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Passport / ID Number *
+                {t('checkin_passport')} *
               </label>
               <input
                 type="text"
@@ -177,14 +176,14 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('passportOrId', getValidation('passportOrId', formData.passportOrId))}`}
                 placeholder="A1234567"
               />
-              <ErrorMessage 
-                field="passportOrId" 
-                message={submitAttempted && touched.passportOrId && !getValidation('passportOrId', formData.passportOrId) ? 'Passport/ID is required' : ''} 
+              <ErrorMessage
+                field="passportOrId"
+                message={submitAttempted && touched.passportOrId && !getValidation('passportOrId', formData.passportOrId) ? t('error_passport_required') : ''}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Phone Number *
+                {t('checkin_phone')} *
               </label>
               <input
                 type="tel"
@@ -192,20 +191,19 @@ export function Step2PersonalDetails({
                 onChange={(e) => handleFieldChange('phone', e.target.value)}
                 onBlur={() => onTouched('phone')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('phone', getValidation('phone', formData.phone))}`}
-                placeholder="+27 82 123 4567"
+                placeholder={t('checkin_phone_placeholder')}
               />
-              <ErrorMessage 
-                field="phone" 
-                message={submitAttempted && touched.phone && !getValidation('phone', formData.phone) ? 'Valid phone number is required' : ''} 
+              <ErrorMessage
+                field="phone"
+                message={submitAttempted && touched.phone && !getValidation('phone', formData.phone) ? t('error_phone_invalid') : ''}
               />
             </div>
           </div>
 
-          {/* Row: Country + Province */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Country *
+                {t('checkin_country')} *
               </label>
               <select
                 value={formData.country || ''}
@@ -213,14 +211,14 @@ export function Step2PersonalDetails({
                 onBlur={() => onTouched('country')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('country', getValidation('country', formData.country))}`}
               >
-                <option value="">Select Country</option>
+                <option value="">{t('checkin_select_country')}</option>
                 {COUNTRIES.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              <ErrorMessage 
-                field="country" 
-                message={submitAttempted && touched.country && !getValidation('country', formData.country) ? 'Country is required' : ''} 
+              <ErrorMessage
+                field="country"
+                message={submitAttempted && touched.country && !getValidation('country', formData.country) ? t('error_country_required') : ''}
               />
             </div>
             <div>
@@ -245,22 +243,21 @@ export function Step2PersonalDetails({
                   value={formData.province || ''}
                   onChange={(e) => handleFieldChange('province', e.target.value)}
                   onBlur={() => onTouched('province')}
-                  placeholder={`Enter ${regionTypeLabel}`}
+                  placeholder={t('checkin_enter_region', { field: regionTypeLabel })}
                   className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('province', getValidation('province', formData.province))}`}
                   disabled={!formData.country}
                 />
               )}
-              <ErrorMessage 
-                field="province" 
-                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? `${regionTypeLabel} is required` : ''} 
+              <ErrorMessage
+                field="province"
+                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? t('error_province_required', { field: regionTypeLabel }) : ''}
               />
             </div>
           </div>
 
-          {/* City */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              City / Town *
+              {t('checkin_city')} *
             </label>
             <input
               type="text"
@@ -270,9 +267,9 @@ export function Step2PersonalDetails({
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('city', getValidation('city', formData.city))}`}
               placeholder="Cape Town"
             />
-            <ErrorMessage 
-              field="city" 
-              message={submitAttempted && touched.city && !getValidation('city', formData.city) ? 'City is required' : ''} 
+            <ErrorMessage
+              field="city"
+              message={submitAttempted && touched.city && !getValidation('city', formData.city) ? t('error_city_required') : ''}
             />
           </div>
 
@@ -284,14 +281,14 @@ export function Step2PersonalDetails({
               }}
               onBlur={() => {}}
               country={formData.country}
-              placeholder="Where did you sleep last night? (e.g., Cape Town, Johannesburg)"
-              label="Arriving From"
+              placeholder={t('checkin_arriving_from_placeholder')}
+              label={t('checkin_arriving_from')}
               required={true}
-              error={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? 'Please tell us your last location before arriving' : ''}
+              error={submitAttempted && touched.arrivingFrom && !getValidation('arrivingFrom', formData.arrivingFrom) ? t('error_arriving_from_detail') : ''}
               touched={touched.arrivingFrom}
             />
             <p className="text-xs text-stone-400 mt-1">
-              🏨 Tell us the last city/town where you stayed before arriving here
+              {t('checkin_arriving_from_hint')}
             </p>
           </div>
 
@@ -303,22 +300,21 @@ export function Step2PersonalDetails({
               }}
               onBlur={() => {}}
               country={formData.country}
-              placeholder="Where are you heading after your stay? (e.g., Gqeberha, East London)"
-              label="Next Destination"
+              placeholder={t('checkin_next_destination_placeholder')}
+              label={t('checkin_next_destination')}
               required={true}
-              error={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? 'Please tell us your next destination' : ''}
+              error={submitAttempted && touched.nextDestination && !getValidation('nextDestination', formData.nextDestination) ? t('error_next_destination_detail') : ''}
               touched={touched.nextDestination}
             />
             <p className="text-xs text-stone-400 mt-1">
-              🚗 Tell us where you're headed after your stay with us
+              {t('checkin_next_destination_hint')}
             </p>
           </div>
 
-          {/* Arrival Date + Nights */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Arrival Date *
+                {t('checkin_arrival_date')} *
               </label>
               <input
                 type="date"
@@ -327,14 +323,14 @@ export function Step2PersonalDetails({
                 onBlur={() => onTouched('arrivalDate')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivalDate', getValidation('arrivalDate', formData.arrivalDate))}`}
               />
-              <ErrorMessage 
-                field="arrivalDate" 
-                message={submitAttempted && touched.arrivalDate && !getValidation('arrivalDate', formData.arrivalDate) ? 'Arrival date is required' : ''} 
+              <ErrorMessage
+                field="arrivalDate"
+                message={submitAttempted && touched.arrivalDate && !getValidation('arrivalDate', formData.arrivalDate) ? t('error_arrival_date_required') : ''}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Nights *
+                {t('checkin_nights')} *
               </label>
               <input
                 type="number"
@@ -346,18 +342,17 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nights', getValidation('nights', formData.nights))}`}
                 placeholder="1"
               />
-              <ErrorMessage 
-                field="nights" 
-                message={submitAttempted && touched.nights && !getValidation('nights', formData.nights) ? 'Nights must be at least 1' : ''} 
+              <ErrorMessage
+                field="nights"
+                message={submitAttempted && touched.nights && !getValidation('nights', formData.nights) ? t('error_nights_min') : ''}
               />
             </div>
           </div>
 
-          {/* Adults + Kids */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Adults
+                {t('checkin_adults')}
               </label>
               <input
                 type="number"
@@ -371,7 +366,7 @@ export function Step2PersonalDetails({
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                Kids
+                {t('checkin_kids')}
               </label>
               <input
                 type="number"
@@ -385,10 +380,9 @@ export function Step2PersonalDetails({
             </div>
           </div>
 
-          {/* Referral Source */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Referral Source *
+              {t('checkin_referral_source')} *
             </label>
             <select
               value={formData.referral || ''}
@@ -400,16 +394,15 @@ export function Step2PersonalDetails({
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            <ErrorMessage 
-              field="referral" 
-              message={submitAttempted && touched.referral && !getValidation('referral', formData.referral) ? 'Referral source is required' : ''} 
+            <ErrorMessage
+              field="referral"
+              message={submitAttempted && touched.referral && !getValidation('referral', formData.referral) ? t('error_referral_source_required') : ''}
             />
           </div>
 
-          {/* Settlement Method */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Settlement Method *
+              {t('checkin_settlement_method')} *
             </label>
             <select
               value={formData.settlement || ''}
@@ -421,30 +414,29 @@ export function Step2PersonalDetails({
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-            <ErrorMessage 
-              field="settlement" 
-              message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? 'Settlement method is required' : ''} 
+            <ErrorMessage
+              field="settlement"
+              message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? t('error_settlement_method_required') : ''}
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-stone-200">
             <button
               type="button"
               onClick={onBack}
               className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium order-2 sm:order-1"
             >
-              ← Back
+              {t('common_back')}
             </button>
             <button
               type="submit"
               className="px-6 py-3 text-white font-medium rounded-lg transition-colors shadow-sm order-1 sm:order-2 flex-1 hover:opacity-90"
               style={{ backgroundColor: primaryColor || '#f59e0b' }}
             >
-              Continue to Dietary Options →
+              {t('checkin_continue_dietary')}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

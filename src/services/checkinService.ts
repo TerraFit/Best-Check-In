@@ -72,7 +72,8 @@ export class CheckInService {
     firstName: string,
     lastName: string,
     passportOrId: string,
-    signature: string
+    signature: string,
+    indemnityText?: string
   ): Promise<string | null> {
     try {
       const response = await fetch(`${this.baseUrl}/create-indemnity-record`, {
@@ -86,11 +87,16 @@ export class CheckInService {
           guest_last_name: lastName,
           passport_or_id: passportOrId,
           signature_data: signature,
+          indemnity_text: indemnityText || null,
           signed_at: new Date().toISOString()
         })
       });
       const result = await response.json();
-      return result.access_token || null;
+      if (!response.ok || !result.success || !result.access_token) {
+        console.error('Error saving indemnity record:', result);
+        return null;
+      }
+      return result.access_token as string;
     } catch (error) {
       console.error('Error saving indemnity record:', error);
       return null;

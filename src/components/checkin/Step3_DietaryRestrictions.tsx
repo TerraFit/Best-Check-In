@@ -1,8 +1,11 @@
 // src/components/checkin/Step3DietaryRestrictions.tsx
-// ✅ EXACT ORIGINAL RESTORED - Only changed "Other (please specify)" to "Note / Comments"
+// ✅ i18n: all guest-facing strings via t()
+// Dietary option IDs preserved for storage; labels translated
 
 import React from 'react';
+import { Check, X } from 'lucide-react';
 import { FoodRestrictions } from '../../types/checkin';
+import { useTranslation } from '../../i18n';
 
 interface Step3DietaryRestrictionsProps {
   foodRestrictions: FoodRestrictions;
@@ -18,20 +21,6 @@ interface Step3DietaryRestrictionsProps {
   primaryColor?: string;
 }
 
-// ✅ ORIGINAL RESTRICTION OPTIONS WITH EMOJIS
-const dietaryOptions = [
-  { id: 'vegetarian', label: '🥬 Vegetarian' },
-  { id: 'vegan', label: '🌱 Vegan' },
-  { id: 'carnivore', label: '🥩 Carnivore' },
-  { id: 'gluten_free', label: '🌾 Gluten Free' },
-  { id: 'lactose_free', label: '🥛 Lactose Free' },
-  { id: 'nut_allergy', label: '🥜 Nut Allergy' },
-  { id: 'shellfish_allergy', label: '🦐 Shellfish Allergy' },
-  { id: 'diabetic', label: '💉 Diabetic' },
-  { id: 'halal', label: '☪️ Halal' },
-  { id: 'kosher', label: '✡️ Kosher' },
-];
-
 export function Step3DietaryRestrictions({
   foodRestrictions,
   onRestrictionToggle,
@@ -45,13 +34,27 @@ export function Step3DietaryRestrictions({
   onBack,
   primaryColor = '#f59e0b',
 }: Step3DietaryRestrictionsProps) {
+  const { t } = useTranslation();
+
+  const dietaryOptions = [
+    { id: 'vegetarian', label: t('dietary_vegetarian') },
+    { id: 'vegan', label: t('dietary_vegan') },
+    { id: 'carnivore', label: t('dietary_carnivore') },
+    { id: 'gluten_free', label: t('dietary_gluten_free') },
+    { id: 'lactose_free', label: t('dietary_lactose_free') },
+    { id: 'nut_allergy', label: t('dietary_nut_allergy') },
+    { id: 'shellfish_allergy', label: t('dietary_shellfish') },
+    { id: 'diabetic', label: t('dietary_diabetic') },
+    { id: 'halal', label: t('dietary_halal') },
+    { id: 'kosher', label: t('dietary_kosher') },
+  ];
   
   const handleSave = () => {
     const hasSelected = Object.entries(foodRestrictions).some(
       ([key, val]) => val === true && key !== 'other_text'
     );
     if (!hasSelected && !foodRestrictions.other_text) {
-      alert('Please select at least one dietary restriction or add a note.');
+      alert(t('checkin_dietary_alert_select'));
       return;
     }
     onSave();
@@ -60,17 +63,16 @@ export function Step3DietaryRestrictions({
   return (
     <div className="p-10 md:p-16">
       {!showRestrictionsPanel ? (
-        // Step 3a: Ask if they have restrictions
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Dietary Preferences</h2>
-          <p className="text-stone-500 mb-8">Let us know about any dietary requirements</p>
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">{t('checkin_dietary_title')}</h2>
+          <p className="text-stone-500 mb-8">{t('checkin_dietary_subtitle')}</p>
           
           <div className="bg-stone-50 rounded-2xl p-8 border border-stone-200">
             <p className="text-lg font-medium text-stone-800 mb-6">
-              Do you have any dietary restrictions?
+              {t('checkin_dietary_question')}
             </p>
             <p className="text-sm text-stone-500 mb-6">
-              This helps us accommodate your needs during your stay.
+              {t('checkin_dietary_help')}
             </p>
             
             <div className="flex gap-4">
@@ -84,7 +86,10 @@ export function Step3DietaryRestrictions({
                 }`}
                 style={hasDietaryRestrictions === true ? { borderColor: primaryColor } : {}}
               >
-                ✅ Yes
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Check size={18} className="text-green-600" strokeWidth={2.5} aria-hidden />
+                  {t('common_yes')}
+                </span>
               </button>
               <button
                 type="button"
@@ -96,7 +101,10 @@ export function Step3DietaryRestrictions({
                 }`}
                 style={hasDietaryRestrictions === false ? { borderColor: primaryColor } : {}}
               >
-                ❌ No
+                <span className="inline-flex items-center justify-center gap-2">
+                  <X size={18} className="text-red-600" strokeWidth={2.5} aria-hidden />
+                  {t('common_no')}
+                </span>
               </button>
             </div>
           </div>
@@ -107,7 +115,7 @@ export function Step3DietaryRestrictions({
               onClick={onBack}
               className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium shadow-sm hover:shadow-md"
             >
-              ← Back
+              {t('common_back')}
             </button>
             <button
               type="button"
@@ -115,22 +123,21 @@ export function Step3DietaryRestrictions({
               className="flex-1 py-3 px-6 text-white font-medium rounded-lg transition-colors shadow-md hover:shadow-lg hover:opacity-90"
               style={{ backgroundColor: primaryColor }}
             >
-              Continue →
+              {t('common_continue_arrow')}
             </button>
           </div>
         </div>
       ) : (
-        // Step 3b: Show dietary restrictions options
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Dietary Preferences</h2>
-          <p className="text-stone-500 mb-8">Let us know about any dietary requirements</p>
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">{t('checkin_dietary_title')}</h2>
+          <p className="text-stone-500 mb-8">{t('checkin_dietary_subtitle')}</p>
           
           <div className="bg-stone-50 rounded-2xl p-8 border border-stone-200">
             <p className="text-lg font-medium text-stone-800 mb-4">
-              Select your dietary restrictions
+              {t('checkin_dietary_select')}
             </p>
             <p className="text-sm text-stone-500 mb-6">
-              Select all that apply, or add a note below
+              {t('checkin_dietary_select_help')}
             </p>
             
             <div className="grid grid-cols-2 gap-3">
@@ -159,20 +166,19 @@ export function Step3DietaryRestrictions({
               ))}
             </div>
 
-            {/* ✅ ONLY CHANGE: "Other (please specify)" → "📝 Note / Comments" */}
             <div className="mt-6">
               <label className="block text-sm font-medium text-stone-700 mb-2">
-                📝 Note / Comments
+                {t('checkin_dietary_note')}
               </label>
               <input
                 type="text"
                 value={foodRestrictions.other_text || ''}
                 onChange={(e) => onOtherTextChange(e.target.value)}
-                placeholder="e.g., Mr. is a carnivore, Mrs. is lactose & gluten intolerant"
+                placeholder={t('checkin_dietary_note_placeholder')}
                 className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors shadow-sm"
               />
               <p className="text-xs text-stone-400 mt-1">
-                Add any specific dietary notes or comments here
+                {t('checkin_dietary_note_help')}
               </p>
             </div>
           </div>
@@ -183,7 +189,7 @@ export function Step3DietaryRestrictions({
               onClick={onBack}
               className="px-6 py-3 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors font-medium shadow-sm hover:shadow-md"
             >
-              ← Back
+              {t('common_back')}
             </button>
             <button
               type="button"
@@ -191,7 +197,7 @@ export function Step3DietaryRestrictions({
               className="flex-1 py-3 px-6 text-white font-medium rounded-lg transition-colors shadow-md hover:shadow-lg hover:opacity-90"
               style={{ backgroundColor: primaryColor }}
             >
-              Save and Continue →
+              {t('checkin_dietary_save')}
             </button>
           </div>
         </div>

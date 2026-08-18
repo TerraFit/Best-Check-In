@@ -13,6 +13,7 @@ import {
 } from '../types/checkin';
 import { Booking } from '../types';
 import { cleanLocation, formatFullName, parseFullName } from '../utils/checkinHelpers';
+import { buildIndemnityPlainText } from '../components/IndemnityText';
 
 interface UseCheckInProps {
   businessId: string | null;
@@ -519,6 +520,12 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       }
 
       console.log('🔍 submitBooking: Saving indemnity record...');
+      const indemnityText = buildIndemnityPlainText({
+        businessName: branding?.trading_name || 'our establishment',
+        guestName: fullName,
+        passportOrId: formData.passportOrId,
+        includeGuestDetails: true,
+      });
       const accessToken = await checkinService.saveIndemnityRecord(
         result.bookingId!,
         businessId!,
@@ -526,12 +533,20 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
         formData.firstName,
         formData.lastName,
         formData.passportOrId,
-        formData.signature
+        formData.signature,
+        indemnityText
       );
+
+      if (!accessToken) {
+        console.error('🔴 submitBooking: Indemnity record save failed');
+        setNotification({ type: 'error', message: t('error_unexpected') });
+        setLoading(false);
+        return;
+      }
       console.log('🔍 submitBooking: Indemnity record saved');
 
       console.log('🔍 submitBooking: Sending confirmation email...');
-      checkinService.sendConfirmationEmail(dbBooking, accessToken || undefined);
+      checkinService.sendConfirmationEmail(dbBooking, accessToken);
       
       if (formData.saveDetails) {
         console.log('🔍 submitBooking: Saving guest profile...');
