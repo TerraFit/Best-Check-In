@@ -28,7 +28,8 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
   const { t } = useTranslation();
   const [effectivePlan, setEffectivePlan] = useState<SubscriptionTier>('starter');
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
-  const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
+  // Horizontal bars are the most immediately readable representation for referral sources.
+  const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('bar');
   const defaults = defaultAnalyticsRange();
   const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
   const [dateTo, setDateTo] = useState(defaults.dateTo);
