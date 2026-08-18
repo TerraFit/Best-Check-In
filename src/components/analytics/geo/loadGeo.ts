@@ -1,5 +1,5 @@
 /**
- * Lazy-load and cache static TopoJSON → GeoJSON for MapLibre.
+ * Lazy-load and cache static GeoJSON/TopoJSON for MapLibre.
  */
 
 import { feature as topoFeature } from 'topojson-client';
@@ -24,17 +24,16 @@ type GeoJSONFeatureCollection = {
 
 const cache = new Map<string, GeoJSONFeatureCollection>();
 
-async function fetchTopo(url: string): Promise<any> {
+async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load geo ${url}: ${res.status}`);
-  return res.json() as Promise<any>;
+  return res.json();
 }
 
-/** World countries (110m) — default world/continent views */
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
   const key = 'countries-110m';
   if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchTopo(GEO_PATHS.countries110m);
+  const topo = await fetchJson(GEO_PATHS.countries110m);
   const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
   cache.set(key, fc);
   return fc;
@@ -43,15 +42,21 @@ export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
 export async function loadCountries50m(): Promise<GeoJSONFeatureCollection> {
   const key = 'countries-50m';
   if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchTopo(GEO_PATHS.countries50m);
+  const topo = await fetchJson(GEO_PATHS.countries50m);
   const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
   cache.set(key, fc);
   return fc;
 }
 
-/**
- * world-atlas numeric ISO codes → English names (common hospitality markets).
- */
+/** Global first-order administrative boundaries (Natural Earth Admin-1). */
+export async function loadAdmin1(): Promise<GeoJSONFeatureCollection> {
+  const key = 'admin1';
+  if (cache.has(key)) return cache.get(key)!;
+  const fc = await fetchJson(GEO_PATHS.admin1) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
 export const ISO_NUMERIC_TO_NAME: Record<string, string> = {
   '710': 'South Africa', '756': 'Switzerland', '032': 'Argentina', '036': 'Australia',
   '276': 'Germany', '528': 'Netherlands', '124': 'Canada', '840': 'United States',
@@ -68,11 +73,6 @@ export const ISO_NUMERIC_TO_NAME: Record<string, string> = {
   '682': 'Saudi Arabia', '376': 'Israel', '586': 'Pakistan', '050': 'Bangladesh', '242': 'Fiji',
 };
 
-/**
- * Prefer the authoritative world-atlas numeric ISO id when available.
- * Some TopoJSON builds expose a display name that differs from the analytics
- * canonical name; the numeric ISO id is stable and avoids name drift.
- */
 export function featureCountryName(props: Record<string, unknown>, id?: string | number): string {
   const sid = String(id ?? props?.id ?? '').trim();
   const numeric = ISO_NUMERIC_TO_NAME[sid] || ISO_NUMERIC_TO_NAME[sid.padStart(3, '0')];
@@ -81,4 +81,20 @@ export function featureCountryName(props: Record<string, unknown>, id?: string |
   if (props?.NAME && typeof props.NAME === 'string') return props.NAME;
   if (props?.ADMIN && typeof props.ADMIN === 'string') return props.ADMIN;
   return sid || 'Unknown';
+}
+
+/** Natural Earth Admin-1 uses `name`, `admin`, `iso_3166_2`, and `adm0_a3`. */
+export function featureRegionName(props: Record<string, unknown>): string {
+  const value = props?.name ?? props?.NAME_1 ?? props?.name_en ?? props?.NAME;
+  return typeof value === 'string' ? value : '';
+}
+
+export function featureRegionCountry(props: Record<string, unknown>): string {
+  const value = props?.admin ?? props?.ADMIN ?? props?.admin_name ?? props?.NAME_0;
+  return typeof value === 'string' ? value : '';
+}
+
+export function featureRegionCode(props: Record<string, unknown>): string {
+  const value = props?.iso_3166_2 ?? props?.ISO_3166_2 ?? props?.code;
+  return typeof value === 'string' ? value : '';
 }
