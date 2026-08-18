@@ -2,16 +2,14 @@ import { buildVisualPdf, textCmd, rectCmd, circleCmd } from './simplePdf.js';
 
 const INK = '#172033';
 const MUTED = '#64748b';
-const LIGHT = '#f3f4f6';
 const ORANGE = '#f97316';
 const TEAL = '#0f766e';
 const BLUE = '#2563eb';
 const GREEN = '#16a34a';
-const GREY = '#d9dee7';
 const PALETTE = ['#f97316', '#2563eb', '#0f766e', '#7c3aed', '#db2777', '#0891b2', '#16a34a', '#ea580c'];
 
 const CENTROIDS = {
-  'South Africa': [-29, 24], Switzerland: [8, 47], Germany: [10, 51], Netherlands: [5, 52],
+  'South Africa': [-29, -29], Switzerland: [8, 47], Germany: [10, 51], Netherlands: [5, 52],
   Australia: [134, -25], 'United Kingdom': [-3, 55], Italy: [12, 42], Argentina: [-64, -34],
   France: [2, 46], Spain: [-4, 40], Portugal: [-8, 39], Austria: [14, 47], Belgium: [4, 50],
   'United States': [-100, 39], Canada: [-106, 57], Mexico: [-102, 23], Brazil: [-52, -10],
@@ -24,7 +22,7 @@ function money(v) { return `R ${Number(v || 0).toLocaleString('en-ZA', { maximum
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function mapPoint(lon, lat) {
   const x = 50 + ((lon + 180) / 360) * 495;
-  const y = 500 + ((lat - 90) / 180) * 245;
+  const y = 205 + ((lat + 90) / 180) * 245;
   return [x, y];
 }
 
@@ -49,8 +47,6 @@ function kpi(commands, x, y, w, label, value, accent) {
 function drawOriginMap(commands, countries) {
   const x0 = 50, y0 = 205, w = 495, h = 245;
   commands.push(rectCmd(x0, y0, w, h, '#f8fafc', '#e2e8f0'));
-  // A neutral world-grid backdrop keeps zero-booking geography visually quiet while the actual
-  // country nodes remain the only data-bearing marks.
   for (let lon = -150; lon <= 150; lon += 30) {
     const [x] = mapPoint(lon, 0);
     commands.push(`0.88 0.91 0.95 RG 0.4 w ${x} ${y0} m ${x} ${y0 + h} l S`);
@@ -60,7 +56,7 @@ function drawOriginMap(commands, countries) {
     commands.push(`0.88 0.91 0.95 RG 0.4 w ${x0} ${y} m ${x0 + w} ${y} l S`);
   }
   commands.push(textCmd('WORLD VISITOR ORIGIN', x0 + 12, y0 + h - 20, 8, MUTED, true));
-  commands.push(textCmd('Zero-booking countries remain neutral; coloured nodes are actual country aggregates.', x0 + 12, y0 + h - 34, 6.5, '#94a3b8'));
+  commands.push(textCmd('Coloured nodes are actual country aggregates; countries with no bookings remain neutral.', x0 + 12, y0 + h - 34, 6.5, '#94a3b8'));
 
   const max = Math.max(1, ...countries.map((n) => Number(n.count || 0)));
   countries.forEach((n, i) => {
@@ -114,8 +110,7 @@ export function buildSnapshotPdfPayload(summary) {
   commands.push(textCmd(`Average stay: ${s.averageStay ?? 0} nights · Average party: ${s.averagePartySize ?? 0}`, 50, 532, 8, MUTED));
 
   drawOriginMap(commands, summary.originCountries || []);
-
-  const page1 = { commands, title: '', subtitle: '' };
+  const page1 = { commands };
 
   const page2 = [];
   addHeader(page2, businessName, meta);
@@ -141,9 +136,7 @@ export function buildSnapshotPdfPayload(summary) {
     page3.push(rectCmd(190, yy, bar, 14, color));
     page3.push(textCmd(`${pct(room.utilisation)} · ${room.roomNightsSold || 0} nights`, 450, yy + 3, 7, MUTED, true));
   });
-
   if (!rooms.length) page3.push(textCmd('Room performance data was not available for this reporting period.', 50, 650, 9, MUTED));
-
   page3.push(textCmd('Report notes', 50, 110, 11, INK, true));
   page3.push(textCmd(`Occupancy: ${occ.roomNightsSold ?? 0} sold / ${occ.sellableRoomNights ?? 0} sellable room-nights`, 50, 92, 8, MUTED));
   page3.push(textCmd(`Marketing consent: ${pct(s.consentRate)} · Returning guests: ${pct(s.returningRate)}`, 50, 78, 8, MUTED));
