@@ -101,7 +101,7 @@ export function buildSnapshotPdfPayload(summary) {
 
   const page2 = []; addHeader(page2, businessName, meta, 'Acquisition intelligence'); page2.push(textCmd('How Guests Found You', 50, 730, 18, INK, true)); page2.push(textCmd('Acquisition performance and the relationship between guest market and booking channel.', 50, 712, 8.5, MUTED));
   drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 8, ORANGE, 29);
-  const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 440, 495);
+  const matrixBottom = drawReferralMatrix(page2, summary.referralByCountry || [], 50, 415, 495);
   const insightsY = Math.min(185, matrixBottom - 14);
   const insightsBottom = addReferralInsights(page2, summary.referralByCountry || [], 50, insightsY);
   const noteY = Math.max(55, insightsBottom - 12);
