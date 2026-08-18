@@ -27,3 +27,5 @@ jobs:
           git fetch origin main
           git merge --no-edit origin/main -m "chore: sync analytics branch with main"
           git push origin HEAD:feature/analytics-intelligence
+
+# Temporary sync helper; remove after the branch is reconciled.
