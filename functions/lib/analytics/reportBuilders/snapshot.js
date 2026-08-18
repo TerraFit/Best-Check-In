@@ -149,9 +149,8 @@ function decodePng(buffer) {
       bitDepth = data[8];
       colorType = data[9];
       if (data[10] !== 0 || data[11] !== 0 || data[12] !== 0) return null;
-    } else if (type === 'IDAT') {
-      idat.push(data);
-    } else if (type === 'IEND') break;
+    } else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
   }
   if (!width || !height || bitDepth !== 8 || ![2, 6].includes(colorType)) return null;
   const bpp = colorType === 6 ? 4 : 3;
@@ -214,9 +213,7 @@ async function fetchLogoImage(logoUrl) {
     if (!response.ok) return null;
     const buffer = Buffer.from(await response.arrayBuffer());
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-    if (contentType.includes('jpeg') || contentType.includes('jpg') || (buffer[0] === 0xff && buffer[1] === 0xd8)) {
-      return jpegSize(buffer);
-    }
+    if (contentType.includes('jpeg') || contentType.includes('jpg') || (buffer[0] === 0xff && buffer[1] === 0xd8)) return jpegSize(buffer);
     return decodePng(buffer);
   } catch (error) {
     console.warn('Snapshot logo unavailable:', error?.message || error);
@@ -257,8 +254,8 @@ export async function buildSnapshotPdfPayload(summary) {
   page2.push(textCmd('Acquisition performance and the relationship between guest market and booking channel.', 50, 712, 8.5, MUTED));
   drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 7, ORANGE, 27);
   drawReferralMatrix(page2, summary.referralByCountry || [], 50, 420, 495);
-  addReferralInsights(page2, summary.referralByCountry || [], 50, 150);
-  page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, 42, 6.5, '#94a3b8'));
+  addReferralInsights(page2, summary.referralByCountry || [], 50, 185);
+  page2.push(textCmd('Insight percentages are calculated within each guest market, not against the overall booking total.', 50, 62, 6.5, '#94a3b8'));
 
   const page3 = [];
   addHeader(page3, businessName, meta, 'Stay and room performance', logoName);
@@ -270,7 +267,6 @@ export async function buildSnapshotPdfPayload(summary) {
   page3.push(textCmd('Management notes', 50, roomY, 11, INK, true));
   page3.push(textCmd(`Occupancy: ${occ.roomNightsSold ?? 0} sold / ${occ.sellableRoomNights ?? 0} sellable room-nights`, 50, roomY - 18, 7.5, MUTED));
   page3.push(textCmd(`Top referral: ${referralLabel(s.topReferral || 'N/A')} · Top month: ${s.topMonth || 'N/A'}`, 50, roomY - 32, 7.5, MUTED));
-  page3.push(textCmd(`Generated ${meta.generatedAt ? new Date(meta.generatedAt).toLocaleDateString('en-ZA') : ''} · POPIA Compliant · Confidential`, 50, 42, 6.5, '#94a3b8'));
 
   return buildVisualPdf([{ commands: page1 }, { commands: page2 }, { commands: page3 }], {
     images,
