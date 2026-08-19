@@ -4,6 +4,7 @@
 
 import { feature as topoFeature } from 'topojson-client';
 import { GEO_PATHS } from './mapConfig';
+import { canonicalCountryName } from './nameMatch';
 
 export type CountryFeatureProps = {
   name: string;
@@ -113,7 +114,7 @@ export async function geocodeCities(
         typeof candidate.longitude === 'number' &&
         candidate.name?.toLowerCase() === node.name.toLowerCase() &&
         (!region || candidate.admin1?.toLowerCase() === region.toLowerCase()) &&
-        (!country || candidate.country?.toLowerCase() === country.toLowerCase()),
+        (!country || canonicalCountryName(candidate.country).toLowerCase() === canonicalCountryName(country).toLowerCase()),
       ) || candidates.find((candidate) =>
         typeof candidate.latitude === 'number' && typeof candidate.longitude === 'number',
       );
@@ -196,7 +197,7 @@ export function featureRegionName(props: Record<string, unknown>): string {
 
 export function featureRegionCountry(props: Record<string, unknown>): string {
   const value = props?.admin ?? props?.ADMIN ?? props?.admin_name ?? props?.NAME_0;
-  return typeof value === 'string' ? value : '';
+  return typeof value === 'string' ? canonicalCountryName(value) : '';
 }
 
 export function featureRegionCode(props: Record<string, unknown>): string {
