@@ -38,7 +38,8 @@ export const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/
 export const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
 
 export const CONTINENT_VIEWS: Record<string, { center: [number, number]; zoom: number }> = {
-  Africa: { center: [20, 5], zoom: 2.6 },
+  // Keep the full African landmass visible from the Mediterranean to the Cape.
+  Africa: { center: [20, 4], zoom: 2.15 },
   Europe: { center: [15, 50], zoom: 3.2 },
   'North America': { center: [-100, 40], zoom: 2.4 },
   'South America': { center: [-60, -15], zoom: 2.6 },
