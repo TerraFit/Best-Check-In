@@ -221,7 +221,7 @@ export function featureCountryName(props: Record<string, unknown>, id?: string |
 }
 
 export function featureRegionName(props: Record<string, unknown>): string {
-  const value = props?.name ?? props?.NAME_1 ?? props?.name_en ?? props?.NAME;
+  const value = props?.name_en ?? props?.NAME_EN ?? props?.name ?? props?.NAME_1 ?? props?.NAME;
   return typeof value === 'string' ? value : '';
 }
 
