@@ -158,12 +158,34 @@ export const ISO_NUMERIC_TO_NAME: Record<string, string> = {
 };
 
 export function featureCountryName(props: Record<string, unknown>, id?: string | number): string {
+  const propertyCandidates = [
+    props?.name,
+    props?.NAME,
+    props?.name_en,
+    props?.NAME_EN,
+    props?.admin,
+    props?.ADMIN,
+    props?.admin_name,
+    props?.ADMIN_NAME,
+    props?.sovereignt,
+    props?.SOVEREIGNT,
+  ];
+  const named = propertyCandidates.find((value) => typeof value === 'string' && value.trim());
+  if (named) return String(named).trim();
+
   const sid = String(id ?? props?.id ?? '').trim();
   const numeric = ISO_NUMERIC_TO_NAME[sid] || ISO_NUMERIC_TO_NAME[sid.padStart(3, '0')];
   if (numeric) return numeric;
-  if (props?.name && typeof props.name === 'string') return props.name;
-  if (props?.NAME && typeof props.NAME === 'string') return props.NAME;
-  if (props?.ADMIN && typeof props.ADMIN === 'string') return props.ADMIN;
+
+  const iso2 = String(props?.ISO_A2 ?? props?.iso_a2 ?? props?.ISO2 ?? '').trim().toUpperCase();
+  const iso2ToCountry: Record<string, string> = {
+    ZA: 'South Africa', CH: 'Switzerland', AR: 'Argentina', AU: 'Australia', DE: 'Germany', NL: 'Netherlands',
+    GB: 'United Kingdom', IT: 'Italy', NA: 'Namibia', BW: 'Botswana', CD: 'Democratic Republic of the Congo',
+    FR: 'France', ES: 'Spain', BR: 'Brazil', CN: 'China', IN: 'India', JP: 'Japan', US: 'United States',
+    CA: 'Canada', NZ: 'New Zealand', MX: 'Mexico', CL: 'Chile', CO: 'Colombia', PE: 'Peru',
+  };
+  if (iso2ToCountry[iso2]) return iso2ToCountry[iso2];
+
   return sid || 'Unknown';
 }
 
