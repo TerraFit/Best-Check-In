@@ -30,7 +30,7 @@ export const GEO_PATHS = {
   // Natural Earth admin-0 carries reliable CONTINENT attributes. It is used
   // only for the world/continent view; country drill-down continues to use
   // the existing world-atlas geometry and matching logic.
-  world110m: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson',
+  world110m: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson',
   countries110m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   countries50m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json',
   // Natural Earth Admin-1: first-order administrative boundaries worldwide.
@@ -44,7 +44,6 @@ export const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/
 export const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
 
 export const CONTINENT_VIEWS: Record<string, { center: [number, number]; zoom: number }> = {
-  // Keep enough vertical margin to show the Mediterranean and Cape without clipping.
   Africa: { center: [20, 2], zoom: 1.72 },
   Europe: { center: [15, 50], zoom: 3.2 },
   'North America': { center: [-100, 40], zoom: 2.4 },
