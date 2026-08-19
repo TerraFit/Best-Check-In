@@ -31,13 +31,23 @@ function setLayerVisibility(map: MapLibreMap, layer: string, visible: boolean) {
 function levelDepth(level: GeoLevel): number { return level === 'world' ? 0 : level === 'continents' ? 1 : level === 'countries' ? 2 : level === 'regions' ? 3 : 4; }
 
 function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedCountry, selectedRegion, isLoading = false, interactive = true, onContinentClick, onCountryClick, onRegionClick, onCityClick, onBack, onHome, continentOfCountry, overlayInset = 320 }: GeographicMapViewportProps) {
-  const { t } = useTranslation(); const containerRef = useRef<HTMLDivElement>(null); const mapRef = useRef<MapLibreMap | null>(null); const cameraHistoryRef = useRef<CameraSnapshot[]>([]); const stateKeyRef = useRef<string | null>(null); const stateDepthRef = useRef(0); const pendingRestoreKeyRef = useRef<string | null>(null);
-  const [mapReady, setMapReady] = useState(false); const [geoError, setGeoError] = useState<string | null>(null); const [hover, setHover] = useState<HoverInfo | null>(null); const [cityLoading, setCityLoading] = useState(false);
+  const { t } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const cameraHistoryRef = useRef<CameraSnapshot[]>([]);
+  const stateKeyRef = useRef<string | null>(null);
+  const stateDepthRef = useRef(0);
+  const pendingRestoreKeyRef = useRef<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const [cityLoading, setCityLoading] = useState(false);
+
   const stateKey = `${level}|${selectedContinent || ''}|${selectedCountry || ''}|${selectedRegion || ''}`;
   const getContinent = useCallback((country: string) => continentOfCountry?.(country) || 'Other', [continentOfCountry]);
   const nodeByCountry = useMemo(() => { const result = new Map<string, GeoNode>(); nodes.forEach(node => { result.set(canonicalCountryName(node.name).toLowerCase(), node); if (node.code) result.set(canonicalCountryName(node.code).toLowerCase(), node); }); return result; }, [nodes]);
   const nodeByContinent = useMemo(() => { const result = new Map<string, GeoNode>(); if (level === 'world') nodes.forEach(node => result.set(node.name.trim().toLowerCase(), node)); return result; }, [level, nodes]);
-  const fitPadding = useCallback(() => { const width = containerRef.current?.clientWidth || 0; return { top: 42, right: 32, bottom: 42, left: width >= 760 ? overlayInset + 28 : 28 }; }, [overlayInset]);
+  const fitPadding = useCallback(() => { const width = containerRef.current?.clientWidth || 0; const inset = width >= 760 ? Math.min(overlayInset, Math.max(0, width - 120)) : 0; return { top: 48, right: 32, bottom: 48, left: inset + 28 }; }, [overlayInset]);
   const fitBoundsToMap = useCallback((map: MapLibreMap, bounds: [number, number, number, number] | null, duration = 850, maxZoom = 10) => { if (!bounds) return; try { map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: fitPadding(), duration, maxZoom }); } catch { /* optional */ } }, [fitPadding]);
 
   useEffect(() => {
@@ -48,7 +58,8 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       try { (map as MapLibreMap & { setRenderWorldCopies?: (value: boolean) => void }).setRenderWorldCopies?.(false); } catch { /* optional */ }
       try { if (map.addControl && maplibregl.NavigationControl) map.addControl(new maplibregl.NavigationControl({ showCompass: false })); } catch { /* optional */ }
       map.on('load', async () => { if (cancelled) return; try {
-        const fc = await loadCountries110m(); const data = { type: 'FeatureCollection' as const, features: fc.features.map((feature, index) => ({ ...feature, id: feature.id ?? index, properties: { ...feature.properties, name: featureCountryName(feature.properties || {}, feature.id), count: 0, percentage: 0, hasGuests: false, fillColor: heatColor(0) } })) };
+        const fc = await loadCountries110m();
+        const data = { type: 'FeatureCollection' as const, features: fc.features.map((feature, index) => ({ ...feature, id: feature.id ?? index, properties: { ...feature.properties, name: featureCountryName(feature.properties || {}, feature.id), count: 0, percentage: 0, hasGuests: false, fillColor: heatColor(0) } })) };
         map.addSource(SOURCE_ID, { type: 'geojson', data });
         map.addLayer({ id: FILL_LAYER, type: 'fill', source: SOURCE_ID, paint: { 'fill-color': ['get', 'fillColor'], 'fill-opacity': 0.95 } });
         map.addLayer({ id: LINE_LAYER, type: 'line', source: SOURCE_ID, paint: { 'line-color': '#9ca3af', 'line-width': 0.8, 'line-opacity': 0.95 } });
@@ -101,7 +112,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
       if (!preserveCamera) {
         if (regionLevel) fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 900, 8);
-        else if (level === 'countries' && selectedContinent) { const continentFeatures = features.filter(feature => getContinent(String(feature.properties?.name || '')) === selectedContinent); fitBoundsToMap(map, mergeBounds(continentFeatures.map(feature => geometryBounds(feature.geometry))), 900, 2.7); }
+        else if (level === 'countries' && selectedContinent) { const continentFeatures = features.filter(feature => getContinent(String(feature.properties?.name || '')) === selectedContinent); fitBoundsToMap(map, mergeBounds(continentFeatures.map(feature => geometryBounds(feature.geometry))), 900, 3.2); }
         else if (level === 'countries' && selectedCountry) { const match = features.find(feature => countryMatches(feature, selectedCountry)); fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 800, 8); }
         else fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 800, 2.2);
       }
@@ -118,7 +129,42 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
     return () => { try { for (const layer of [FILL_LAYER, CITY_LAYER]) { map.off('click', layer, onClick); map.off('mousemove', layer, onMove); map.off('mouseleave', layer, onLeave); } } catch { /* optional */ } };
   }, [mapReady, interactive, level, onContinentClick, onCountryClick, onRegionClick, onCityClick, getContinent]);
 
-  return <div className="relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-slate-50 border border-stone-200"><div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />{(isLoading || !mapReady || cityLoading) && !geoError && <div className="absolute inset-0 flex items-center justify-center bg-white/45 pointer-events-none z-10"><div className="text-sm font-medium text-stone-500">{cityLoading ? 'Locating cities…' : t('reports_loading_map_short')}</div></div>}{geoError && <div className="absolute inset-0 flex items-center justify-center bg-stone-50 z-10 p-4"><p className="text-sm text-stone-600 text-center max-w-sm">{geoError}</p></div>}{interactive && level !== 'world' && (onBack || onHome) && <div className="absolute top-3 left-3 z-40 flex items-center gap-1.5 rounded-xl bg-white/95 border border-stone-200 shadow-lg p-1.5 backdrop-blur-sm">{onBack && <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100">← Back</button>}{onHome && <button type="button" onClick={onHome} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-600 hover:bg-stone-100">World</button>}</div>}{hover && <div className="pointer-events-none absolute z-50 rounded-lg bg-stone-900 text-white px-3 py-2 text-xs shadow-lg border border-stone-700 max-w-[220px]" style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip"><p className="font-bold text-sm">{hover.name}</p><p className="text-orange-300 mt-0.5">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>{hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}</div>}<div className="absolute bottom-3 right-3 z-20 rounded-lg bg-white/95 border border-stone-200 px-2.5 py-1.5 shadow-sm"><p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">{t('reports_guest_density')}</p><div className="flex items-center gap-0.5">{['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map(color => <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden /></div><div className="flex justify-between text-[9px] text-stone-400 mt-0.5"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div></div></div>;
+  return (
+    <div className="relative w-full h-full min-h-[320px] overflow-hidden rounded-xl border border-stone-200 bg-slate-50">
+      <div ref={containerRef} className="absolute inset-0" role="application" aria-label="Geographic visitor origin map" />
+      {(isLoading || !mapReady || cityLoading) && !geoError && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/45 pointer-events-none">
+          <div className="text-sm font-medium text-stone-500">{cityLoading ? 'Locating cities…' : t('reports_loading_map_short')}</div>
+        </div>
+      )}
+      {geoError && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-stone-50 p-4">
+          <p className="max-w-sm text-center text-sm text-stone-600">{geoError}</p>
+        </div>
+      )}
+      {interactive && (onBack || onHome) && (
+        <div className="absolute left-3 top-3 z-40 flex items-center gap-1 rounded-xl border border-stone-200 bg-white/95 p-1.5 shadow-lg backdrop-blur-sm">
+          {onBack && <button type="button" onClick={onBack} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100">← Back</button>}
+          {onHome && <button type="button" onClick={onHome} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-600 hover:bg-stone-100">World</button>}
+        </div>
+      )}
+      {hover && (
+        <div className="pointer-events-none absolute z-50 max-w-[220px] rounded-lg border border-stone-700 bg-stone-900 px-3 py-2 text-xs text-white shadow-lg" style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip">
+          <p className="text-sm font-bold">{hover.name}</p>
+          <p className="mt-0.5 text-orange-300">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>
+          {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+        </div>
+      )}
+      <div className="absolute bottom-3 right-3 z-20 rounded-lg border border-stone-200 bg-white/95 px-2.5 py-1.5 shadow-sm">
+        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-stone-400">{t('reports_guest_density')}</p>
+        <div className="flex items-center gap-0.5">
+          {['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map(color => <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden="true" />)}
+        </div>
+        <div className="mt-0.5 flex justify-between text-[9px] text-stone-400"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div>
+      </div>
+    </div>
+  );
 }
+
 export const GeographicMapViewport = memo(GeographicMapViewportInner);
 export default GeographicMapViewport;
