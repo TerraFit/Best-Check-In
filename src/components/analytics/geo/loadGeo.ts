@@ -81,6 +81,10 @@ export async function loadAdmin1(): Promise<GeoJSONFeatureCollection> {
  * Resolve city names to real WGS84 coordinates for the city drill-down.
  * Open-Meteo's geocoder accepts a city plus country/admin-1 qualifier and
  * returns latitude/longitude; results are cached for the session.
+ *
+ * Requests are deliberately bounded instead of being sent sequentially or
+ * all at once. This keeps city drill-down responsive without flooding the
+ * geocoder when a property has many cities.
  */
 export async function geocodeCities(
   nodes: Array<{ name: string; count: number; percentage: number; code?: string }>,
@@ -90,15 +94,22 @@ export async function geocodeCities(
   const unique = nodes.filter((node) => node.name && node.count > 0);
   const results: CityPoint[] = [];
   const qualifier = [region, country].filter(Boolean).join(', ');
+  const pending: Array<{
+    node: (typeof unique)[number];
+    key: string;
+  }> = [];
 
   for (const node of unique) {
     const key = `${node.name}|${qualifier}`.toLowerCase();
     if (cityCache.has(key)) {
       const cached = cityCache.get(key);
       if (cached) results.push({ ...cached, count: node.count, percentage: node.percentage, code: node.code });
-      continue;
+    } else {
+      pending.push({ node, key });
     }
+  }
 
+  const resolveCity = async ({ node, key }: (typeof pending)[number]): Promise<CityPoint | null> => {
     try {
       const query = encodeURIComponent(qualifier ? `${node.name}, ${qualifier}` : node.name);
       const response = await fetch(
@@ -106,7 +117,7 @@ export async function geocodeCities(
       );
       if (!response.ok) {
         cityCache.set(key, null);
-        continue;
+        return null;
       }
       const payload = await response.json() as {
         results?: Array<{
@@ -130,7 +141,7 @@ export async function geocodeCities(
 
       if (!exact || typeof exact.latitude !== 'number' || typeof exact.longitude !== 'number') {
         cityCache.set(key, null);
-        continue;
+        return null;
       }
 
       const point: CityPoint = {
@@ -142,10 +153,20 @@ export async function geocodeCities(
         code: node.code,
       };
       cityCache.set(key, point);
-      results.push(point);
+      return point;
     } catch {
       cityCache.set(key, null);
+      return null;
     }
+  };
+
+  const concurrency = 6;
+  for (let start = 0; start < pending.length; start += concurrency) {
+    const batch = pending.slice(start, start + concurrency);
+    const batchResults = await Promise.all(batch.map(resolveCity));
+    batchResults.forEach((point) => {
+      if (point) results.push(point);
+    });
   }
 
   return results;
