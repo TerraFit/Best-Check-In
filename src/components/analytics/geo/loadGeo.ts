@@ -41,13 +41,13 @@ async function fetchJson(url: string): Promise<any> {
   return res.json();
 }
 
-/** Natural Earth admin-0 geometry with a reliable CONTINENT property. */
+/**
+ * World/continent view deliberately uses the same proven world-atlas country
+ * geometry as the country drill-down. This keeps the initial map on the
+ * reliable existing source and avoids a second external GeoJSON dependency.
+ */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  const key = 'world-110m-natural-earth';
-  if (cache.has(key)) return cache.get(key)!;
-  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
-  cache.set(key, fc);
-  return fc;
+  return loadCountries110m();
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
