@@ -30,12 +30,12 @@ export const GEO_PATHS = {
   // Natural Earth admin-0 carries reliable CONTINENT attributes. It is used
   // only for the world/continent view; country drill-down continues to use
   // the existing world-atlas geometry and matching logic.
-  world110m: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson',
+  world110m: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson',
   countries110m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   countries50m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json',
   // Natural Earth Admin-1: first-order administrative boundaries worldwide.
   // Includes provinces, states, regions, cantons, territories, etc.
-  admin1: 'https://raw.githubusercontent.com/datasets/geo-ne-admin1/main/data/admin1.geojson',
+  admin1: 'https://cdn.jsdelivr.net/gh/datasets/geo-ne-admin1@master/data/admin1.geojson',
 } as const;
 
 export const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
