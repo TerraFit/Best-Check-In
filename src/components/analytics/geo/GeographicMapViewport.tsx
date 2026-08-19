@@ -131,7 +131,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
 
   return (
     <div className="relative w-full h-full min-h-[320px] overflow-hidden rounded-xl border border-stone-200 bg-slate-50">
-      <div ref={containerRef} className="absolute inset-0" role="application" aria-label="Geographic visitor origin map" />
+      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Geographic visitor origin map" />
       {(isLoading || !mapReady || cityLoading) && !geoError && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/45 pointer-events-none">
           <div className="text-sm font-medium text-stone-500">{cityLoading ? 'Locating cities…' : t('reports_loading_map_short')}</div>
