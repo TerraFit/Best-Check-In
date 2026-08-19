@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { heatColor } from './geo/mapConfig';
 
 type ContributionNode = { name: string; count: number; percentage?: number; code?: string };
@@ -18,6 +18,7 @@ const LEVEL_LABELS = { continents: 'CONTINENTS', countries: 'COUNTRIES', regions
 
 export function VisitorOriginContributionGrid({ level, nodes, title, subtitle, onBack, onSelect, overlay = false }: VisitorOriginContributionGridProps) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const items = useMemo(() => {
     const cleaned = (nodes || []).filter(node => node.name).map(node => ({ ...node, count: Number(node.count) || 0, percentage: Number(node.percentage) || 0 })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     const total = cleaned.reduce((sum, node) => sum + node.count, 0);
@@ -26,6 +27,16 @@ export function VisitorOriginContributionGrid({ level, nodes, title, subtitle, o
   const maxCount = Math.max(...items.map(item => item.count), 1);
   const total = items.reduce((sum, item) => sum + item.count, 0);
   if (!items.length) return null;
+
+  if (overlay && collapsed) {
+    return (
+      <button type="button" onClick={() => setCollapsed(false)} className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white/95 px-3 py-2 text-xs font-bold text-stone-700 shadow-xl backdrop-blur-md hover:bg-white" aria-label="Expand contribution grid">
+        <BarChart3 size={15} className="text-orange-600" />
+        <span>Show contribution grid</span>
+        <ChevronDown size={15} className="text-stone-500" />
+      </button>
+    );
+  }
 
   return (
     <section className={overlay ? 'rounded-xl border border-stone-200 bg-white/95 p-3 shadow-xl backdrop-blur-md overflow-hidden' : 'rounded-2xl border border-stone-200 bg-gradient-to-b from-stone-50 to-white p-5 md:p-6'}>
@@ -37,7 +48,10 @@ export function VisitorOriginContributionGrid({ level, nodes, title, subtitle, o
             <p className={`${overlay ? 'text-[9px] line-clamp-2' : 'text-xs'} text-stone-500 mt-0.5`}>{subtitle}</p>
           </div>
         </div>
-        {!overlay && onBack && <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm hover:bg-stone-50">Back</button>}
+        <div className="flex shrink-0 items-center gap-1">
+          {!overlay && onBack && <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm hover:bg-stone-50">Back</button>}
+          {overlay && <button type="button" onClick={() => setCollapsed(true)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-800" aria-label="Collapse contribution grid" title="Collapse contribution grid"><ChevronUp size={15} /></button>}
+        </div>
       </div>
       <div className={`grid ${overlay ? 'grid-cols-2 gap-1.5 max-h-[230px] overflow-y-auto pr-0.5' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
         {items.map((item, index) => {
