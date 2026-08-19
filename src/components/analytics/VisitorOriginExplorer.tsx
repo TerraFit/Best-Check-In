@@ -4,6 +4,7 @@ import { VisitorOriginContinentMap } from './VisitorOriginContinentMap';
 import { VisitorOriginCountryMap } from './VisitorOriginCountryMap';
 import { VisitorOriginRegionMap } from './VisitorOriginRegionMap';
 import { VisitorOriginCityGrid } from './VisitorOriginCityGrid';
+import { VisitorOriginContributionGrid } from './VisitorOriginContributionGrid';
 import { UpgradePromptModal } from './UpgradePromptModal';
 import { CityInsightPanel } from './CityInsightPanel';
 import { GeographicMapViewport } from './geo/GeographicMapViewport';
@@ -176,6 +177,17 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   const geoNodes = nodes.map((n) => ({ name: n.name, count: n.count, percentage: n.percentage, code: n.code }));
   const geoLevel = currentLevel === 'cityDetail' ? 'cities' : (currentLevel as 'world' | 'continents' | 'countries' | 'regions' | 'cities');
 
+  const contributionGrid = currentLevel !== 'world' && currentLevel !== 'cityDetail' ? (
+    <VisitorOriginContributionGrid
+      level={currentLevel}
+      nodes={geoNodes}
+      title={currentLevel === 'continents' ? 'Visitor origin by continent' : currentLevel === 'countries' ? `Visitor origin by country · ${selectedContinent || 'World'}` : currentLevel === 'regions' ? `Visitor origin by administrative region · ${selectedCountry || ''}` : `Visitor origin by city · ${selectedRegion || selectedCountry || ''}`}
+      subtitle={currentLevel === 'continents' ? 'See which continent contributes the most to this market.' : currentLevel === 'countries' ? 'Select a country to drill into provinces, states, lands, cantons or regions.' : currentLevel === 'regions' ? 'Administrative labels follow the selected country; select one to see its cities.' : 'Select a city to open the detailed visitor insights.'}
+      onBack={handleBack}
+      onSelect={currentLevel === 'continents' ? handleContinentClick : currentLevel === 'countries' ? handleCountryClick : currentLevel === 'regions' ? handleRegionClick : handleCityClick}
+    />
+  ) : null;
+
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden transition-all duration-300">
       <div className="sticky top-0 z-40 px-6 py-5 border-b border-stone-100 bg-white/95 backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
@@ -214,6 +226,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
                 continentOfCountry={continentOfCountryName}
               />
             </div>
+            {contributionGrid}
           </div>
         ) : (
           <>
