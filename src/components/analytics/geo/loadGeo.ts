@@ -155,26 +155,14 @@ export function featureCountryName(props: Record<string, unknown>, id?: string |
   return sid || 'Unknown';
 }
 
-const REGION_DISPLAY_ALIASES: Record<string, string> = {
-  'north rhine-westphalia': 'North Rine',
-  'north rhine westphalia': 'North Rine',
-  'nordrhein-westfalen': 'North Rine',
-  'nordrhein westfalen': 'North Rine',
-  'baden-württemberg': 'Baden Wurttenberg',
-  'baden wurttemberg': 'Baden Wurttenberg',
-  'baden-wurttemberg': 'Baden Wurttenberg',
-  'bayern': 'Bavaria',
-};
-
 function normalizeRegionLookupKey(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/[–—-]+/g, '-').replace(/\s+/g, ' ');
 }
 
 export function featureRegionName(props: Record<string, unknown>): string {
-  const value = props?.name_en ?? props?.NAME_EN ?? props?.name ?? props?.NAME_1 ?? props?.NAME;
-  if (typeof value !== 'string') return '';
-  const name = value.trim();
-  return REGION_DISPLAY_ALIASES[normalizeRegionLookupKey(name)] || name;
+  const candidates = [props?.name_en, props?.NAME_EN, props?.name, props?.NAME_1, props?.NAME];
+  const named = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof named === 'string' ? named.trim() : '';
 }
 
 export function featureRegionCountry(props: Record<string, unknown>): string {
