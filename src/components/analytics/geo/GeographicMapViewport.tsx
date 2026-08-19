@@ -89,6 +89,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
   const cameraHistoryRef = useRef<CameraSnapshot[]>([]);
   const stateKeyRef = useRef<string | null>(null);
   const stateDepthRef = useRef<number>(0);
+  const pendingRestoreKeyRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -142,8 +143,12 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       const depth = levelDepth(level);
       const previousKey = stateKeyRef.current;
       const previousDepth = stateDepthRef.current;
+      if (pendingRestoreKeyRef.current && pendingRestoreKeyRef.current !== stateKey) {
+        pendingRestoreKeyRef.current = null;
+      }
       const isBack = !!previousKey && depth < previousDepth;
       const restore = isBack ? cameraHistoryRef.current.pop() : null;
+      const restoringExistingState = pendingRestoreKeyRef.current === stateKey;
       if (!isBack && previousKey && depth > previousDepth) {
         try {
           const center = map.getCenter?.();
@@ -156,9 +161,11 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       setGeoError(null); setHover(null);
 
       if (restore) {
+        pendingRestoreKeyRef.current = stateKey;
         try { map.flyTo({ center: restore.center, zoom: restore.zoom, bearing: restore.bearing, pitch: restore.pitch, duration: 650 }); } catch { /* ignore */ }
       }
 
+      const preserveCamera = !!restore || restoringExistingState;
       const regionLevel = level === 'regions' && !!selectedCountry;
       const cityLevel = level === 'cities';
       if (cityLevel) {
@@ -168,7 +175,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           if (cancelled) return;
           const features = points.map((point, index) => ({ type: 'Feature' as const, id: `city-${index}-${point.name}`, geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] }, properties: { name: point.name, count: point.count, percentage: point.percentage, hasGuests: point.count > 0, fillColor: heatColor(point.count) } }));
           map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
-          if (!restore) {
+          if (!preserveCamera) {
             if (points.length === 1) map.flyTo({ center: [points[0].longitude, points[0].latitude], zoom: 10, duration: 800 });
             else if (points.length > 1) {
               const bounds = points.reduce<[number, number, number, number] | null>((acc, p) => acc ? [Math.min(acc[0], p.longitude), Math.min(acc[1], p.latitude), Math.max(acc[2], p.longitude), Math.max(acc[3], p.latitude)] : [p.longitude, p.latitude, p.longitude, p.latitude], null);
@@ -197,7 +204,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
         features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const node = findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; return { ...feature, id: feature.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; });
       }
       map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
-      if (!restore) {
+      if (!preserveCamera) {
         if (regionLevel) {
           const bounds = features.reduce<[number, number, number, number] | null>((acc, feature) => { const b = geometryBounds(feature.geometry); if (!b) return acc; return acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b; }, null);
           if (bounds) map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, duration: 900, maxZoom: 8 });
