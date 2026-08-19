@@ -27,11 +27,11 @@ export interface VisitorOriginExplorerProps {
 
 type UiLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities' | 'cityDetail';
 
-function toApiLevel(ui: UiLevel): DrillLevel {
-  if (ui === 'world') return 'world';
-  if (ui === 'continents') return 'continent';
-  if (ui === 'countries') return 'country';
-  if (ui === 'regions') return 'region';
+function toApiLevel(uiLevel: UiLevel): DrillLevel {
+  if (uiLevel === 'world') return 'world';
+  if (uiLevel === 'continents') return 'continent';
+  if (uiLevel === 'countries') return 'country';
+  if (uiLevel === 'regions') return 'region';
   return 'city';
 }
 
@@ -155,10 +155,19 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   };
 
   const jumpTo = (target: UiLevel) => {
-    if (target === 'world') handleHome();
-    else if (target === 'continents') { setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('continents'); loadLevel('continents', {}); }
-    else if (target === 'countries' && selectedContinent) { setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('countries'); loadLevel('countries', { continent: selectedContinent }); }
-    else if (target === 'regions' && selectedCountry) { setSelectedCity(null); setCurrentLevel('regions'); loadLevel('regions', { continent: selectedContinent, country: selectedCountry }); }
+    if (target === 'world') return handleHome();
+    if (target === 'continents') {
+      setSelectedContinent(null); setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('continents'); loadLevel('continents', {}); return;
+    }
+    if (target === 'countries' && selectedContinent) {
+      setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('countries'); loadLevel('countries', { continent: selectedContinent }); return;
+    }
+    if (target === 'regions' && selectedCountry) {
+      setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('regions'); loadLevel('regions', { continent: selectedContinent, country: selectedCountry }); return;
+    }
+    if (target === 'cities' && selectedRegion) {
+      setSelectedCity(null); setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region: selectedRegion });
+    }
   };
 
   const isBusy = loading || parentLoading;
@@ -177,16 +186,16 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   const geoNodes = nodes.map((n) => ({ name: n.name, count: n.count, percentage: n.percentage, code: n.code }));
   const geoLevel = currentLevel === 'cityDetail' ? 'cities' : (currentLevel as 'world' | 'continents' | 'countries' | 'regions' | 'cities');
 
-  const contributionGrid = currentLevel !== 'world' && currentLevel !== 'cityDetail' ? (
+  const contributionGrid = (
     <VisitorOriginContributionGrid
-      level={currentLevel}
+      level={currentLevel === 'world' ? 'continents' : currentLevel === 'cityDetail' ? 'cities' : currentLevel}
       nodes={geoNodes}
-      title={currentLevel === 'continents' ? 'Visitor origin by continent' : currentLevel === 'countries' ? `Visitor origin by country · ${selectedContinent || 'World'}` : currentLevel === 'regions' ? `Visitor origin by administrative region · ${selectedCountry || ''}` : `Visitor origin by city · ${selectedRegion || selectedCountry || ''}`}
-      subtitle={currentLevel === 'continents' ? 'See which continent contributes the most to this market.' : currentLevel === 'countries' ? 'Select a country to drill into provinces, states, lands, cantons or regions.' : currentLevel === 'regions' ? 'Administrative labels follow the selected country; select one to see its cities.' : 'Select a city to open the detailed visitor insights.'}
-      onBack={handleBack}
-      onSelect={currentLevel === 'continents' ? handleContinentClick : currentLevel === 'countries' ? handleCountryClick : currentLevel === 'regions' ? handleRegionClick : handleCityClick}
+      title={currentLevel === 'world' ? 'Visitor origin by continent' : currentLevel === 'continents' ? 'Visitor origin by country' : currentLevel === 'countries' ? `Visitor origin by province / state / region · ${selectedContinent || 'World'}` : currentLevel === 'regions' ? `Visitor origin by city · ${selectedCountry || ''}` : `Visitor origin by city · ${selectedRegion || selectedCountry || ''}`}
+      subtitle={currentLevel === 'world' ? 'See which continent contributes the most to this market.' : currentLevel === 'continents' ? 'Select a country to drill into provinces, states, lands, cantons or regions.' : currentLevel === 'countries' ? 'Select an administrative area to see its cities.' : 'Select a city to open the detailed visitor insights.'}
+      onBack={currentLevel !== 'world' ? handleBack : undefined}
+      onSelect={currentLevel === 'world' ? handleContinentClick : currentLevel === 'continents' ? handleCountryClick : currentLevel === 'countries' ? handleRegionClick : currentLevel === 'regions' || currentLevel === 'cities' ? handleCityClick : undefined}
     />
-  ) : null;
+  );
 
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden transition-all duration-300">
@@ -194,15 +203,16 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
         <div className="flex items-center gap-3"><div className="p-2 bg-orange-500 rounded-2xl text-white shadow-md shadow-orange-500/20"><Globe2 size={22} /></div><div><h3 className="text-lg font-extrabold text-stone-900 tracking-tight">{t('reports_visitor_origin_explorer')}</h3><p className="text-xs text-stone-400 mt-0.5">{t('reports_guest_checkins_summary', { count: totalVisitors, domestic: domesticCount, international: internationalCount })}</p></div></div>
       </div>
 
-      <div className="bg-stone-100/40 px-6 py-2 border-b border-stone-100 flex flex-wrap items-center gap-2 text-xs font-mono text-stone-400">
+      <div className="bg-stone-100/40 px-6 py-2.5 border-b border-stone-100 flex flex-wrap items-center gap-2 text-xs font-mono text-stone-400">
         <button type="button" className={currentLevel === 'world' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('world')}>World</button>
-        {selectedContinent && <><span>{'>'}</span><button type="button" className={currentLevel === 'countries' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('countries')}>{selectedContinent}</button></>}
-        {selectedCountry && <><span>{'>'}</span><button type="button" className={currentLevel === 'regions' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('regions')}>{selectedCountry}</button></>}
-        {selectedRegion && <><span>{'>'}</span><span className={currentLevel === 'cities' ? 'text-orange-500 font-bold' : ''}>{selectedRegion}</span></>}
-        {selectedCity && <><span>{'>'}</span><span className="text-orange-500 font-bold">{selectedCity}</span></>}
+        {selectedContinent && <><span>›</span><button type="button" className={currentLevel === 'countries' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('countries')}>{selectedContinent}</button></>}
+        {selectedCountry && <><span>›</span><button type="button" className={currentLevel === 'regions' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('regions')}>{selectedCountry}</button></>}
+        {selectedRegion && <><span>›</span><button type="button" className={currentLevel === 'cities' ? 'text-orange-500 font-bold' : 'hover:text-stone-600'} onClick={() => jumpTo('cities')}>{selectedRegion}</button></>}
+        {selectedCity && <><span>›</span><span className="text-orange-500 font-bold">{selectedCity}</span></>}
+        <span className="ml-auto rounded-md bg-stone-900 px-2 py-1 text-[9px] font-bold tracking-wider text-orange-300 uppercase">{currentLevel === 'cityDetail' ? 'CITY INSIGHTS' : currentLevel}</span>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 space-y-6">
         {fetchError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{fetchError}</div>}
         {qualityNote && !fetchError && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{qualityNote}</div>}
 
@@ -226,7 +236,6 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
                 continentOfCountry={continentOfCountryName}
               />
             </div>
-            {contributionGrid}
           </div>
         ) : (
           <>
@@ -238,6 +247,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
           </>
         )}
 
+        {currentLevel !== 'cityDetail' && contributionGrid}
         {currentLevel === 'cityDetail' && selectedCity && <CityInsightPanel cityName={selectedCity} regionName={selectedRegion} countryName={selectedCountry} data={cityPanel} isLoading={isBusy} onBack={handleBack} />}
       </div>
 
