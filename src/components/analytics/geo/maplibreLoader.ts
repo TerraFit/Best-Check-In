@@ -38,10 +38,27 @@ declare global {
 
 let maplibreLoader: Promise<NonNullable<typeof window.maplibregl>> | null = null;
 
+function ensurePreconnect(url: string): void {
+  try {
+    const origin = new URL(url).origin;
+    if (document.querySelector(`link[data-maplibre-preconnect="${origin}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = origin;
+    link.setAttribute('data-maplibre-preconnect', origin);
+    document.head.appendChild(link);
+  } catch {
+    // Optional performance hint; never block map loading.
+  }
+}
+
 export function loadMapLibre(): Promise<NonNullable<typeof window.maplibregl>> {
   if (window.maplibregl) return Promise.resolve(window.maplibregl);
   if (maplibreLoader) return maplibreLoader;
   maplibreLoader = new Promise((resolve, reject) => {
+    ensurePreconnect(MAPLIBRE_JS);
+    ensurePreconnect('https://demotiles.maplibre.org/style.json');
+
     if (!document.querySelector('link[data-maplibre-css]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
