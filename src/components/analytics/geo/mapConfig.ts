@@ -35,7 +35,9 @@ export const GEO_PATHS = {
   countries50m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json',
   // Natural Earth Admin-1: first-order administrative boundaries worldwide.
   // Includes provinces, states, regions, cantons, territories, etc.
-  admin1: 'https://cdn.jsdelivr.net/gh/datasets/geo-ne-admin1@master/data/admin1.geojson',
+  // Use raw.githubusercontent.com directly; jsDelivr intermittently returns 403
+  // for this repository path in production browsers.
+  admin1: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson',
 } as const;
 
 export const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
