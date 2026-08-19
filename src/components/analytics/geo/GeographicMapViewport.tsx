@@ -126,7 +126,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       if (!preserveCamera) {
         if (level === 'world') { const continent = selectedContinent ? normalizeContinent(selectedContinent) : null; fitBoundsToMap(map, continent ? CONTINENT_BOUNDS[continent] : mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 800, continent ? 5 : 2.2); }
         else if (regionLevel) fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 900, 8);
-        else if (level === 'countries' && selectedContinent) { const continentFeatures = features.filter(feature => getContinent(String(feature.properties?.name || '')) === selectedContinent); fitBoundsToMap(map, mergeBounds(continentFeatures.map(feature => geometryBounds(feature.geometry))), 900, 3.2); }
+        else if (level === 'countries' && selectedContinent) { const continent = normalizeContinent(selectedContinent); fitBoundsToMap(map, CONTINENT_BOUNDS[continent], 900, 5.2); }
         else if (level === 'countries' && selectedCountry) { const match = features.find(feature => countryMatches(feature, selectedCountry)); fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 800, 8); }
         else fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 800, 2.2);
       }

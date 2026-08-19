@@ -6,7 +6,7 @@
 
 const COUNTRY_ALIASES: Record<string, string> = {
   'united states of america': 'United States', 'united states': 'United States', usa: 'United States', us: 'United States',
-  uk: 'United Kingdom', 'great britain': 'United Kingdom',
+  uk: 'United Kingdom', 'great britain': 'United Kingdom', 'united kingdom of great britain and northern ireland': 'United Kingdom',
   'russian federation': 'Russia', 'korea, republic of': 'South Korea', 'republic of korea': 'South Korea',
   'czech republic': 'Czechia', czechia: 'Czechia', swaziland: 'Eswatini',
   "côte d'ivoire": 'Ivory Coast', "cote d'ivoire": 'Ivory Coast', 'viet nam': 'Vietnam',
