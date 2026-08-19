@@ -47,7 +47,11 @@ async function fetchJson(url: string): Promise<any> {
  * reliable existing source and avoids a second external GeoJSON dependency.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  return loadCountries110m();
+  const key = 'world-110m-natural-earth';
+  if (cache.has(key)) return cache.get(key)!;
+  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
