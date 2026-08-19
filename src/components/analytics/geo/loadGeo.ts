@@ -41,6 +41,15 @@ async function fetchJson(url: string): Promise<any> {
   return res.json();
 }
 
+/** Natural Earth admin-0 geometry with a reliable CONTINENT property. */
+export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
+  const key = 'world-110m-natural-earth';
+  if (cache.has(key)) return cache.get(key)!;
+  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
   const key = 'countries-110m';
   if (cache.has(key)) return cache.get(key)!;
