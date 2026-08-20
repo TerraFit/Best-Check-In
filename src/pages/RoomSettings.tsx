@@ -2,7 +2,6 @@
 // Final functional spec + status colour coding + i18n
 
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { fetchRooms, updateRoom } from '../services/roomApi';
 import {
@@ -40,7 +39,6 @@ const emptyForm = (room?: Room): EditForm => ({
 
 export default function RoomSettings() {
   const { getBusinessId } = useAuth();
-  const navigate = useNavigate();
   const businessId = getBusinessId() || '';
 
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -131,13 +129,6 @@ export default function RoomSettings() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-4">
-          <button
-            type="button"
-            onClick={() => navigate('/business/dashboard')}
-            className="text-sm text-orange-600 hover:text-orange-700 mb-1"
-          >
-            {t('nav_back_to_dashboard')}
-          </button>
           <h1 className="text-xl font-bold text-gray-900">{t('rooms_title')}</h1>
           <p className="text-sm text-gray-500">{t('rooms_subtitle')}</p>
         </div>
