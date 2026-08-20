@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
@@ -24,7 +24,6 @@ import { LanguageSelector } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeDashboard from './pages/EmployeeDashboard';
-import RoomsDashboardTab from './pages/RoomsDashboardTab';
 import HousekeepingSettings from './pages/HousekeepingSettings';
 
 function UnauthorizedPage() {
@@ -36,15 +35,6 @@ function NotFoundPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-white mb-4">404</h1><p className="text-stone-400 mb-6">Page not found</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>
   );
-}
-
-// Rooms used to be a separate dashboard route. That caused a full dashboard
-// remount when switching tabs, which lost the already-loaded business shell.
-// Keep the legacy URL as a redirect, but render Rooms from the dashboard route
-// so the transition stays inside the same protected SPA session.
-function BusinessDashboardRoute() {
-  const [searchParams] = useSearchParams();
-  return searchParams.get('tab') === 'rooms' ? <RoomsDashboardTab /> : <BusinessDashboard />;
 }
 
 function AppContent() {
@@ -70,7 +60,7 @@ function AppContent() {
         <Route path="/super-admin-login" element={<SuperAdminLogin />} />
         <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
         <Route path="/business/pending" element={<ProtectedRoute requiredRole="business"><BusinessPending /></ProtectedRoute>} />
-        <Route path="/business/dashboard" element={<ProtectedRoute requiredRole="business"><BusinessDashboardRoute /></ProtectedRoute>} />
+        <Route path="/business/dashboard" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
         <Route path="/business/rooms" element={<ProtectedRoute requiredRole="business"><Navigate to="/business/dashboard?tab=rooms" replace /></ProtectedRoute>} />
         <Route path="/business/housekeeping-settings" element={<ProtectedRoute requiredRole="business"><HousekeepingSettings /></ProtectedRoute>} />
         <Route path="/business/messages" element={<ProtectedRoute requiredRole="business"><BusinessMessages /></ProtectedRoute>} />
