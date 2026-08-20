@@ -8,6 +8,7 @@ import { useBusinessData } from '../hooks/useBusinessData';
 import { useFilters } from '../hooks/useFilters';
 import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../components/dashboard';
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
+import RoomsDashboardTab from './RoomsDashboardTab';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
@@ -160,31 +161,105 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
 
-  const filteredCheckinsBookings = useMemo(() => bookings, [bookings]);
+  const filteredCheckinsBookings = useMemo(() => {
+    if (activeTab !== 'checkins') return bookings;
+    return bookings;
+  }, [bookings, activeTab]);
 
   const saveBusinessProfile = useCallback(async () => {
-    if (!business?.id) { alert(t('error_unexpected')); return; }
+    if (!business?.id) {
+      alert(t('error_unexpected'));
+      return;
+    }
+
     setSavingProfile(true);
+    
     try {
-      const updateData = { businessId: business.id, total_rooms: parseInt(profileForm.total_rooms) || 0, avg_price: parseFloat(profileForm.avg_price) || 0, slogan: profileForm.slogan || '', welcome_message: profileForm.welcome_message || '', logo_url: profileForm.logo_url || business.logo_url || '', hero_image_url: profileForm.hero_image_url || business.hero_image_url || '' };
-      const response = await fetch('/.netlify/functions/update-business-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateData) });
-      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to update profile'); }
-      alert(t('common_success')); setEditingProfile(false); refreshData();
-    } catch (error) { console.error('Error saving profile:', error); alert(t('error_unexpected')); }
-    finally { setSavingProfile(false); }
+      const updateData = {
+        businessId: business.id,
+        total_rooms: parseInt(profileForm.total_rooms) || 0,
+        avg_price: parseFloat(profileForm.avg_price) || 0,
+        slogan: profileForm.slogan || '',
+        welcome_message: profileForm.welcome_message || '',
+        logo_url: profileForm.logo_url || business.logo_url || '',
+        hero_image_url: profileForm.hero_image_url || business.hero_image_url || '',
+      };
+
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
+
+      alert(t('common_success'));
+      setEditingProfile(false);
+      refreshData();
+      
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert(t('error_unexpected'));
+    } finally {
+      setSavingProfile(false);
+    }
   }, [business, profileForm, setEditingProfile, refreshData, setSavingProfile]);
 
   const saveNewsletterSettings = useCallback(async () => {
-    if (!business?.id) { alert(t('error_unexpected')); return; }
+    if (!business?.id) {
+      alert(t('error_unexpected'));
+      return;
+    }
+
     setSavingNewsletter(true);
+    
     try {
-      const newsletterData = { businessId: business.id, newsletter_enabled: newsletterEnabled, newsletter_title: newsletterTitle, newsletter_prize: newsletterPrize, newsletter_cta: newsletterCta, newsletter_terms: newsletterTerms, newsletter_draw_date: newsletterDrawDate || null, newsletter_share_text: newsletterShareText };
-      const response = await fetch('/.netlify/functions/update-business-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newsletterData) });
-      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to save newsletter settings'); }
-      alert(t('common_success')); refreshData();
-    } catch (error) { console.error('Error saving newsletter settings:', error); alert(t('error_unexpected')); }
-    finally { setSavingNewsletter(false); }
-  }, [business?.id, newsletterEnabled, newsletterTitle, newsletterPrize, newsletterCta, newsletterTerms, newsletterDrawDate, newsletterShareText, refreshData, setSavingNewsletter]);
+      const newsletterData = {
+        businessId: business.id,
+        newsletter_enabled: newsletterEnabled,
+        newsletter_title: newsletterTitle,
+        newsletter_prize: newsletterPrize,
+        newsletter_cta: newsletterCta,
+        newsletter_terms: newsletterTerms,
+        newsletter_draw_date: newsletterDrawDate || null,
+        newsletter_share_text: newsletterShareText
+      };
+
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newsletterData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save newsletter settings');
+      }
+
+      alert(t('common_success'));
+      refreshData();
+      
+    } catch (error) {
+      console.error('Error saving newsletter settings:', error);
+      alert(t('error_unexpected'));
+    } finally {
+      setSavingNewsletter(false);
+    }
+  }, [
+    business?.id,
+    newsletterEnabled,
+    newsletterTitle,
+    newsletterPrize,
+    newsletterCta,
+    newsletterTerms,
+    newsletterDrawDate,
+    newsletterShareText,
+    refreshData,
+    setSavingNewsletter
+  ]);
 
   const principal = businessOwnerPrincipal();
   const allTabs = [
@@ -210,23 +285,32 @@ export default function BusinessDashboard() {
   }, [setActiveTab, setCurrentPage, setSearchParams]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div><p className="text-gray-500">{t('common_loading')}</p></div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">{t('common_loading')}</p>
+        </div>
+      </div>
+    );
   }
 
-  return <div className="min-h-screen bg-gray-50">
-    <Header business={business} refreshing={refreshing} onRefresh={refreshData} onLogout={handleLogout} onShowQRModal={() => setShowQRModal(true)} />
-    <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
-    <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {activeTab === 'overview' && <OverviewTab business={business} todayArrivals={todayArrivals} todayStayovers={todayStayovers} todayCheckouts={todayCheckouts} businessId={business?.id || getBusinessId() || ''} onShowQRModal={() => setShowQRModal(true)} onShowImportModal={() => setShowImportModal(true)} />}
-      {activeTab === 'checkins' && <CheckinsTab bookings={bookings} filteredBookings={filteredCheckinsBookings} totalBookings={displayTotalBookings} currentPage={currentPage} totalPages={displayTotalPages} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={(size)=>{setPageSize(size);setCurrentPage(1);}} filters={currentFilters} onUpdateFilter={updateFilter} onClearFilters={clearCurrentFilters} isFilterActive={isFilterActive} uniqueProvinces={uniqueProvinces} uniqueCities={uniqueCities} uniqueCountries={uniqueCountries} getStatusBadge={getStatusBadge} isLoading={bookings.length===0} businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || ''} />}
-      {activeTab === 'reports' && <ReportsTab bookings={bookings} totalBookings={displayTotalBookings} />}
-      {activeTab === 'rooms' && <RoomsDashboardTab businessOverride={business} />}
-      {activeTab === 'housekeeping' && <div className="space-y-4"><div className="flex justify-end"><button type="button" onClick={()=>navigate('/business/housekeeping-settings')} className="text-sm font-medium text-orange-600 hover:text-orange-700">{t('housekeeping_title')} {t('nav_settings')} →</button></div><HousekeepingTab businessId={business?.id || getBusinessId() || ''} /></div>}
-      {activeTab === 'lost_found' && <LostFoundTab mode="business" businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || business?.name || ''} canCreate canEdit canDispose />}
-      {activeTab === 'staff' && <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />}
-      {activeTab === 'settings' && <SettingsTab business={business} editingProfile={editingProfile} profileForm={profileForm} savingProfile={savingProfile} businessId={getBusinessId() || ''} onEdit={()=>setEditingProfile(true)} onCancelEdit={()=>setEditingProfile(false)} onSave={saveBusinessProfile} newsletterEnabled={newsletterEnabled} newsletterTitle={newsletterTitle} newsletterPrize={newsletterPrize} newsletterCta={newsletterCta} newsletterTerms={newsletterTerms} newsletterDrawDate={newsletterDrawDate} newsletterShareText={newsletterShareText} savingNewsletter={savingNewsletter} onNewsletterEnabledChange={setNewsletterEnabled} onNewsletterTitleChange={setNewsletterTitle} onNewsletterPrizeChange={setNewsletterPrize} onNewsletterCtaChange={setNewsletterCta} onNewsletterTermsChange={setNewsletterTerms} onNewsletterDrawDateChange={setNewsletterDrawDate} onNewsletterShareTextChange={setNewsletterShareText} onSaveNewsletter={saveNewsletterSettings} onRefreshBusiness={refreshData} />}
-    </main>
-    <DashboardModals showQRModal={showQRModal} showImportModal={showImportModal} showAppealModal={showAppealModal} business={business} rejectedRequest={rejectedRequest} onCloseQR={()=>setShowQRModal(false)} onCloseImport={()=>setShowImportModal(false)} onCloseAppeal={()=>{setShowAppealModal(false);setRejectedRequest(null);}} onImportComplete={()=>{refreshData();setShowImportModal(false);}} onAppealSubmit={refreshData} loadBookings={refreshData} fetchChangeRequests={refreshData} />
-  </div>;
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header business={business} refreshing={refreshing} onRefresh={refreshData} onLogout={handleLogout} onShowQRModal={() => setShowQRModal(true)} />
+      <TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} />
+      <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'overview' && <OverviewTab business={business} todayArrivals={todayArrivals} todayStayovers={todayStayovers} todayCheckouts={todayCheckouts} businessId={business?.id || getBusinessId() || ''} onShowQRModal={() => setShowQRModal(true)} onShowImportModal={() => setShowImportModal(true)} />}
+        {activeTab === 'checkins' && <CheckinsTab bookings={bookings} filteredBookings={filteredCheckinsBookings} totalBookings={displayTotalBookings} currentPage={currentPage} totalPages={displayTotalPages} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={(size)=>{setPageSize(size);setCurrentPage(1);}} filters={currentFilters} onUpdateFilter={updateFilter} onClearFilters={clearCurrentFilters} isFilterActive={isFilterActive} uniqueProvinces={uniqueProvinces} uniqueCities={uniqueCities} uniqueCountries={uniqueCountries} getStatusBadge={getStatusBadge} isLoading={bookings.length===0} businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || ''} />}
+        {activeTab === 'reports' && <ReportsTab bookings={bookings} totalBookings={displayTotalBookings} />}
+        {activeTab === 'rooms' && <RoomsDashboardTab businessOverride={business} />}
+        {activeTab === 'housekeeping' && <div className="space-y-4"><div className="flex justify-end"><button type="button" onClick={()=>navigate('/business/housekeeping-settings')} className="text-sm font-medium text-orange-600 hover:text-orange-700">{t('housekeeping_title')} {t('nav_settings')} →</button></div><HousekeepingTab businessId={business?.id || getBusinessId() || ''} /></div>}
+        {activeTab === 'lost_found' && <LostFoundTab mode="business" businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || business?.name || ''} canCreate canEdit canDispose />}
+        {activeTab === 'staff' && <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />}
+        {activeTab === 'settings' && <SettingsTab business={business} editingProfile={editingProfile} profileForm={profileForm} savingProfile={savingProfile} businessId={getBusinessId() || ''} onEdit={()=>setEditingProfile(true)} onCancelEdit={()=>setEditingProfile(false)} onSave={saveBusinessProfile} newsletterEnabled={newsletterEnabled} newsletterTitle={newsletterTitle} newsletterPrize={newsletterPrize} newsletterCta={newsletterCta} newsletterTerms={newsletterTerms} newsletterDrawDate={newsletterDrawDate} newsletterShareText={newsletterShareText} savingNewsletter={savingNewsletter} onNewsletterEnabledChange={setNewsletterEnabled} onNewsletterTitleChange={setNewsletterTitle} onNewsletterPrizeChange={setNewsletterPrize} onNewsletterCtaChange={setNewsletterCta} onNewsletterTermsChange={setNewsletterTerms} onNewsletterDrawDateChange={setNewsletterDrawDate} onNewsletterShareTextChange={setNewsletterShareText} onSaveNewsletter={saveNewsletterSettings} onRefreshBusiness={refreshData} />}
+      </main>
+      <DashboardModals showQRModal={showQRModal} showImportModal={showImportModal} showAppealModal={showAppealModal} business={business} rejectedRequest={rejectedRequest} onCloseQR={()=>setShowQRModal(false)} onCloseImport={()=>setShowImportModal(false)} onCloseAppeal={()=>{setShowAppealModal(false);setRejectedRequest(null);}} onImportComplete={()=>{refreshData();setShowImportModal(false);}} onAppealSubmit={refreshData} loadBookings={refreshData} fetchChangeRequests={refreshData} />
+    </div>
+  );
 }
