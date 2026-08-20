@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Header, NavigationTabs } from '../components/dashboard';
 import RoomSettings from './RoomSettings';
 import { useAuth } from '../hooks/useAuth';
+import { useBusinessData } from '../hooks/useBusinessData';
 import { t } from '../i18n';
 
 interface BusinessSummary {
@@ -14,28 +15,13 @@ interface BusinessSummary {
   total_rooms?: number;
 }
 
-function getStoredBusinessSummary(): BusinessSummary | null {
+function readCachedBusiness(): BusinessSummary | null {
   try {
-    const stored = localStorage.getItem('business');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
+    const raw = localStorage.getItem('business');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
-
-    const rawTotalRooms = parsed.total_rooms;
-    const totalRooms = typeof rawTotalRooms === 'number'
-      ? rawTotalRooms
-      : Number.isFinite(Number(rawTotalRooms))
-        ? Number(rawTotalRooms)
-        : undefined;
-
-    return {
-      id: parsed.id,
-      trading_name: parsed.trading_name || parsed.name || '',
-      slogan: parsed.slogan || '',
-      logo_url: parsed.logo_url || '',
-      phone: parsed.phone || parsed.mobile_phone || '',
-      total_rooms: totalRooms,
-    };
+    return parsed as BusinessSummary;
   } catch {
     return null;
   }
@@ -44,43 +30,41 @@ function getStoredBusinessSummary(): BusinessSummary | null {
 export default function RoomsDashboardTab() {
   const navigate = useNavigate();
   const { getBusinessId, handleLogout } = useAuth();
-  const [business, setBusiness] = useState<BusinessSummary | null>(() => getStoredBusinessSummary());
+  const cachedBusiness = readCachedBusiness();
+  const [fallbackBusiness, setFallbackBusiness] = useState<BusinessSummary | null>(cachedBusiness);
   const [refreshing, setRefreshing] = useState(false);
-  const businessId = getBusinessId() || business?.id || '';
+
+  // Use the same proven business-profile loader as the main Business Dashboard.
+  // This avoids having Rooms use a separate, subtly different data-loading path.
+  const {
+    business: loadedBusiness,
+    loading: businessLoading,
+    refreshData,
+  } = useBusinessData('rooms', 1, 1, {});
+
+  const business = (loadedBusiness || fallbackBusiness) as BusinessSummary | null;
+  const businessId = business?.id || getBusinessId() || '';
+
+  useEffect(() => {
+    if (loadedBusiness) {
+      const next = loadedBusiness as BusinessSummary;
+      setFallbackBusiness(next);
+      try {
+        localStorage.setItem('business', JSON.stringify(loadedBusiness));
+      } catch {
+        // Cache is an enhancement only; dashboard data remains authoritative.
+      }
+    }
+  }, [loadedBusiness]);
 
   const loadBusiness = useCallback(async () => {
-    if (!businessId) return;
     setRefreshing(true);
     try {
-      const response = await fetch(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const source = data?.data || data || {};
-      const totalRooms = source.total_rooms ?? data?.total_rooms ?? null;
-      const parsedTotalRooms = typeof totalRooms === 'number'
-        ? totalRooms
-        : Number.isFinite(Number(totalRooms))
-          ? Number(totalRooms)
-          : undefined;
-
-      setBusiness((previous) => ({
-        ...(previous || {}),
-        id: source.id || previous?.id || businessId,
-        trading_name: source.trading_name || source.name || previous?.trading_name || '',
-        slogan: source.slogan || previous?.slogan || '',
-        logo_url: source.logo_url || previous?.logo_url || '',
-        phone: source.phone || source.mobile_phone || previous?.phone || '',
-        total_rooms: parsedTotalRooms ?? previous?.total_rooms,
-      }));
-    } catch (error) {
-      console.error('Failed to load business summary for Rooms:', error);
-      setBusiness((previous) => previous || getStoredBusinessSummary() || { id: businessId });
+      await refreshData();
     } finally {
       setRefreshing(false);
     }
-  }, [businessId]);
-
-  useEffect(() => { loadBusiness(); }, [loadBusiness]);
+  }, [refreshData]);
 
   const handleTabChange = (tabId: string) => {
     if (tabId === 'rooms') return;
@@ -93,7 +77,7 @@ export default function RoomsDashboardTab() {
     <div className="min-h-screen bg-gray-50">
       <Header
         business={business}
-        refreshing={refreshing}
+        refreshing={refreshing || businessLoading}
         onRefresh={loadBusiness}
         onLogout={handleLogout}
       />
@@ -115,16 +99,13 @@ export default function RoomsDashboardTab() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
-          <p className="text-2xl font-bold text-gray-900">{t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span></p>
+          <p className="text-2xl font-bold text-gray-900">
+            {t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span>
+          </p>
           <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
         </div>
 
-        <div
-          className="rooms-dashboard-embedded"
-          style={{
-            // RoomSettings is retained as the functional editor. Its legacy shell is hidden below.
-          }}
-        >
+        <div className="rooms-dashboard-embedded">
           <style>{`
             .rooms-dashboard-embedded > .min-h-screen > header { display: none; }
             .rooms-dashboard-embedded > .min-h-screen > main > section:first-child { display: none; }
