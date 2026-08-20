@@ -25,7 +25,7 @@ export function useDashboardState() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false); // ✅ CRITICAL: ADD THIS
+  const [savingProfile, setSavingProfile] = useState(false);
   
   // Chart type states
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
@@ -50,7 +50,12 @@ export function useDashboardState() {
     logo_url: '',
     hero_image_url: '',
     slogan: '',
-    welcome_message: ''
+    welcome_message: '',
+    email: '',
+    secondary_email: '',
+    phone: '',
+    mobile_phone: '',
+    secondary_phone: ''
   });
   
   // Unique filter values
@@ -105,7 +110,6 @@ export function useDashboardState() {
   };
 
   return {
-    // Business data
     business, setBusiness,
     bookings, setBookings,
     todayStayovers, setTodayStayovers,
@@ -114,60 +118,40 @@ export function useDashboardState() {
     loading, setLoading,
     initialLoading, setInitialLoading,
     refreshing, setRefreshing,
-    
-    // Pagination
     currentPage, setCurrentPage,
     pageSize, setPageSize,
     totalBookingsCount, setTotalBookingsCount,
     totalPages, setTotalPages,
-    
-    // UI
     activeTab, setActiveTab,
     showQRModal, setShowQRModal,
     showImportModal, setShowImportModal,
     editingProfile, setEditingProfile,
     uploadingLogo, setUploadingLogo,
     uploadingHero, setUploadingHero,
-    savingProfile, setSavingProfile, // ✅ CRITICAL: ADD THIS
-    
-    // Email/Phone editing
+    savingProfile, setSavingProfile,
     editingEmail, setEditingEmail,
     editingPhone, setEditingPhone,
     newEmail, setNewEmail,
     newPhone, setNewPhone,
     updatingEmail, setUpdatingEmail,
     updatingPhone, setUpdatingPhone,
-    
-    // Charts
     guestChartType, setGuestChartType,
     referralChartType, setReferralChartType,
-    
-    // Trial
     trialDaysLeft, setTrialDaysLeft,
     subscriptionStatus, setSubscriptionStatus,
-    
-    // Profile form
     profileForm, setProfileForm,
-    
-    // Unique values
     uniqueProvinces, setUniqueProvinces,
     uniqueCities, setUniqueCities,
     uniqueCountries, setUniqueCountries,
-    
-    // Request modal
     showRequestModal, setShowRequestModal,
     requestField, setRequestField,
     requestCurrentValue, setRequestCurrentValue,
     requestNewValue, setRequestNewValue,
     requestReason, setRequestReason,
     sendingRequest, setSendingRequest,
-    
-    // Change requests
     showAppealModal, setShowAppealModal,
     rejectedRequest, setRejectedRequest,
     changeRequests, setChangeRequests,
-    
-    // Newsletter
     newsletterEnabled, setNewsletterEnabled,
     newsletterTitle, setNewsletterTitle,
     newsletterPrize, setNewsletterPrize,
@@ -176,13 +160,9 @@ export function useDashboardState() {
     newsletterDrawDate, setNewsletterDrawDate,
     newsletterShareText, setNewsletterShareText,
     savingNewsletter, setSavingNewsletter,
-    
-    // Subscribers
     subscribers, setSubscribers,
     showSubscribers, setShowSubscribers,
     loadingSubscribers, setLoadingSubscribers,
-    
-    // Filters
     filters, setFilters,
     currentFilters
   };
