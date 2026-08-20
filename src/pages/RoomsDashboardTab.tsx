@@ -14,12 +14,39 @@ interface BusinessSummary {
   total_rooms?: number;
 }
 
+function getStoredBusinessSummary(): BusinessSummary | null {
+  try {
+    const stored = localStorage.getItem('business');
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const rawTotalRooms = parsed.total_rooms;
+    const totalRooms = typeof rawTotalRooms === 'number'
+      ? rawTotalRooms
+      : Number.isFinite(Number(rawTotalRooms))
+        ? Number(rawTotalRooms)
+        : undefined;
+
+    return {
+      id: parsed.id,
+      trading_name: parsed.trading_name || parsed.name || '',
+      slogan: parsed.slogan || '',
+      logo_url: parsed.logo_url || '',
+      phone: parsed.phone || parsed.mobile_phone || '',
+      total_rooms: totalRooms,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function RoomsDashboardTab() {
   const navigate = useNavigate();
   const { getBusinessId, handleLogout } = useAuth();
-  const [business, setBusiness] = useState<BusinessSummary | null>(null);
+  const [business, setBusiness] = useState<BusinessSummary | null>(() => getStoredBusinessSummary());
   const [refreshing, setRefreshing] = useState(false);
-  const businessId = getBusinessId() || '';
+  const businessId = getBusinessId() || business?.id || '';
 
   const loadBusiness = useCallback(async () => {
     if (!businessId) return;
@@ -36,17 +63,18 @@ export default function RoomsDashboardTab() {
           ? Number(totalRooms)
           : undefined;
 
-      setBusiness({
-        id: source.id || businessId,
-        trading_name: source.trading_name || source.name || '',
-        slogan: source.slogan || '',
-        logo_url: source.logo_url || '',
-        phone: source.phone || source.mobile_phone || '',
-        total_rooms: parsedTotalRooms,
-      });
+      setBusiness((previous) => ({
+        ...(previous || {}),
+        id: source.id || previous?.id || businessId,
+        trading_name: source.trading_name || source.name || previous?.trading_name || '',
+        slogan: source.slogan || previous?.slogan || '',
+        logo_url: source.logo_url || previous?.logo_url || '',
+        phone: source.phone || source.mobile_phone || previous?.phone || '',
+        total_rooms: parsedTotalRooms ?? previous?.total_rooms,
+      }));
     } catch (error) {
       console.error('Failed to load business summary for Rooms:', error);
-      setBusiness((previous) => previous || { id: businessId });
+      setBusiness((previous) => previous || getStoredBusinessSummary() || { id: businessId });
     } finally {
       setRefreshing(false);
     }
