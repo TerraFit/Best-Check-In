@@ -71,7 +71,11 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       console.log('📡 Loading business profile...');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`, { signal: controller.signal });
+      const cacheBust = force ? `&_=${Date.now()}` : '';
+      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
+        signal: controller.signal,
+        cache: 'no-store'
+      });
       clearTimeout(timeoutId);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
