@@ -23,7 +23,7 @@ const LINE_LAYER = 'analytics-geo-line';
 const CITY_LAYER = 'analytics-geo-cities';
 const CITY_LABEL_LAYER = 'analytics-geo-city-labels';
 const CONTINENT_BOUNDS: Record<string, [number, number, number, number]> = {
-  Africa: [-20, -36, 53, 38], Europe: [-12, 34, 43, 72], 'North America': [-170, 5, -50, 75],
+  Africa: [-20, -36, 53, 38], Europe: [-11, 35, 40, 71], 'North America': [-170, 5, -50, 75],
   'South America': [-86, -57, -30, 14], Asia: [25, -10, 180, 80], Oceania: [105, -50, 180, 5], Other: [-180, -60, 180, 80],
 };
 const normalizeContinent = (value: unknown): string => {
@@ -148,7 +148,28 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
         if (level === 'world') { const continent = selectedContinent ? normalizeContinent(selectedContinent) : null; fitBoundsToMap(map, continent ? CONTINENT_BOUNDS[continent] : mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 800, continent ? 5 : 2.2); }
         else if (regionLevel) fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 900, 8);
         else if (level === 'countries' && selectedContinent) { const continent = normalizeContinent(selectedContinent); fitBoundsToMap(map, CONTINENT_BOUNDS[continent], 900, 5.2); }
-        else if (level === 'countries' && selectedCountry) { const match = features.find(feature => countryMatches(feature, selectedCountry)); fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 800, 8); }
+        else if (level === 'countries' && selectedCountry) {
+          try {
+            const admin1 = await loadAdmin1();
+            const countryKey = canonicalCountryName(selectedCountry).toLowerCase();
+            const adminFeatures = admin1.features.filter(feature =>
+              canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === countryKey
+            );
+            const adminBounds = mergeBounds(adminFeatures.map(feature => geometryBounds(feature.geometry)));
+
+            if (adminBounds) {
+              const span = Math.max(adminBounds[2] - adminBounds[0], adminBounds[3] - adminBounds[1]);
+              const maxZoom = span < 1.5 ? 12 : span < 3 ? 11 : span < 7 ? 10 : 9;
+              fitBoundsToMap(map, adminBounds, 900, maxZoom);
+            } else {
+              const match = features.find(feature => countryMatches(feature, selectedCountry));
+              fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 800, 9);
+            }
+          } catch {
+            const match = features.find(feature => countryMatches(feature, selectedCountry));
+            fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 800, 9);
+          }
+        }
         else fitBoundsToMap(map, mergeBounds(features.map(feature => geometryBounds(feature.geometry))), 800, 2.2);
       }
     })().catch(error => { if (!cancelled) setGeoError(error instanceof Error ? error.message : 'Layer update failed'); });
