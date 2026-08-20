@@ -11,7 +11,6 @@ interface BusinessSummary {
 }
 
 interface RoomsDashboardTabProps {
-  embedded?: boolean;
   businessOverride?: BusinessSummary | null;
 }
 
