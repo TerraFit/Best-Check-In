@@ -8,6 +8,7 @@ import { useBusinessData } from '../hooks/useBusinessData';
 import { useFilters } from '../hooks/useFilters';
 import { Header, TrialBanner, NavigationTabs, DashboardModals } from '../components/dashboard';
 import { OverviewTab, CheckinsTab, ReportsTab, SettingsTab } from './tabs';
+import RoomsDashboardTab from './RoomsDashboardTab';
 import { SubscriptionTier } from '../types/analytics';
 import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
@@ -68,7 +69,6 @@ export default function BusinessDashboard() {
   const { currentFilters, updateFilter: updateFilterBase, clearCurrentFilters, isFilterActive } =
     useFilters(activeTab);
 
-  // Reset to page 1 whenever a filter changes so pagination matches filtered population
   const updateFilter = useCallback(
     (key: string, value: any) => {
       updateFilterBase(key as any, value);
@@ -93,7 +93,6 @@ export default function BusinessDashboard() {
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
 
-  // Prefer server-backed facets from useBusinessData (full business population)
   const uniqueProvinces = dataUniqueProvinces?.length
     ? dataUniqueProvinces
     : _stateUniqueProvinces;
@@ -105,13 +104,9 @@ export default function BusinessDashboard() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab && tab !== activeTab) {
-      if (tab === 'rooms') {
-        navigate('/business/rooms');
-        return;
-      }
       setActiveTab(tab);
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab, setActiveTab]);
 
   useEffect(() => {
     if (business) {
@@ -144,7 +139,6 @@ export default function BusinessDashboard() {
     }
 
     const tier = business.subscription_tier?.toLowerCase() || '';
-    
     if (['monthly', 'annual', 'trial', 'complimentary'].includes(tier)) {
       const rooms = business.total_rooms || 0;
       if (rooms >= 16) return 'business';
@@ -178,9 +172,6 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
 
-  // Server applies status/province/city/country/search BEFORE pagination.
-  // Bookings array is already the filtered page — do not re-filter client-side
-  // or page counts / totals will be wrong.
   const filteredCheckinsBookings = useMemo(() => {
     if (activeTab !== 'checkins') return bookings;
     return bookings;
@@ -193,7 +184,6 @@ export default function BusinessDashboard() {
     }
 
     setSavingProfile(true);
-    
     try {
       const updateData = {
         businessId: business.id,
@@ -219,7 +209,6 @@ export default function BusinessDashboard() {
       alert(t('common_success'));
       setEditingProfile(false);
       refreshData();
-      
     } catch (error) {
       console.error('Error saving profile:', error);
       alert(t('error_unexpected'));
@@ -235,7 +224,6 @@ export default function BusinessDashboard() {
     }
 
     setSavingNewsletter(true);
-    
     try {
       const newsletterData = {
         businessId: business.id,
@@ -261,7 +249,6 @@ export default function BusinessDashboard() {
 
       alert(t('common_success'));
       refreshData();
-      
     } catch (error) {
       console.error('Error saving newsletter settings:', error);
       alert(t('error_unexpected'));
@@ -295,10 +282,6 @@ export default function BusinessDashboard() {
   const tabs = filterTabs(principal, allTabs);
 
   const handleTabChange = useCallback((tabId: string) => {
-    if (tabId === 'rooms') {
-      navigate('/business/rooms');
-      return;
-    }
     setActiveTab(tabId);
     setCurrentPage(1);
     setSearchParams((prev) => {
@@ -306,7 +289,7 @@ export default function BusinessDashboard() {
       next.set('tab', tabId);
       return next;
     });
-  }, [navigate, setActiveTab, setCurrentPage, setSearchParams]);
+  }, [setActiveTab, setCurrentPage, setSearchParams]);
 
   if (loading) {
     return (
@@ -381,6 +364,10 @@ export default function BusinessDashboard() {
           />
         )}
 
+        {activeTab === 'rooms' && (
+          <RoomsDashboardTab embedded businessOverride={business} />
+        )}
+
         {activeTab === 'housekeeping' && (
           <div className="space-y-4">
             <div className="flex justify-end">
@@ -406,7 +393,7 @@ export default function BusinessDashboard() {
             canDispose
           />
         )}
-        
+
         {activeTab === 'staff' && (
           <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />
         )}
