@@ -20,32 +20,26 @@ export default function BusinessDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { getBusinessId, handleLogout, fetchWithAuth } = useAuth();
-
   const {
     currentPage, setCurrentPage, pageSize, setPageSize,
     totalBookingsCount: localTotalBookingsCount, totalPages: localTotalPages,
-    activeTab, setActiveTab,
-    showQRModal, setShowQRModal, showImportModal, setShowImportModal,
+    activeTab, setActiveTab, showQRModal, setShowQRModal, showImportModal, setShowImportModal,
     editingProfile, setEditingProfile, savingProfile, setSavingProfile,
-    editingEmail, setEditingEmail, editingPhone, setEditingPhone,
-    newEmail, setNewEmail, newPhone, setNewPhone,
+    editingEmail, setEditingEmail, editingPhone, setEditingPhone, newEmail, setNewEmail, newPhone, setNewPhone,
     updatingEmail, setUpdatingEmail, updatingPhone, setUpdatingPhone,
     guestChartType, setGuestChartType, referralChartType, setReferralChartType,
     trialDaysLeft, subscriptionStatus, profileForm, setProfileForm,
     uniqueProvinces: _stateUniqueProvinces, uniqueCities: _stateUniqueCities, uniqueCountries: _stateUniqueCountries,
-    showRequestModal, setShowRequestModal, requestField, setRequestField,
-    requestCurrentValue, setRequestCurrentValue, requestNewValue, setRequestNewValue,
-    requestReason, setRequestReason, sendingRequest, setSendingRequest,
+    showRequestModal, setShowRequestModal, requestField, setRequestField, requestCurrentValue, setRequestCurrentValue,
+    requestNewValue, setRequestNewValue, requestReason, setRequestReason, sendingRequest, setSendingRequest,
     showAppealModal, setShowAppealModal, rejectedRequest, setRejectedRequest,
-    newsletterEnabled, setNewsletterEnabled, newsletterTitle, setNewsletterTitle,
-    newsletterPrize, setNewsletterPrize, newsletterCta, setNewsletterCta,
-    newsletterTerms, setNewsletterTerms, newsletterDrawDate, setNewsletterDrawDate,
+    newsletterEnabled, setNewsletterEnabled, newsletterTitle, setNewsletterTitle, newsletterPrize, setNewsletterPrize,
+    newsletterCta, setNewsletterCta, newsletterTerms, setNewsletterTerms, newsletterDrawDate, setNewsletterDrawDate,
     newsletterShareText, setNewsletterShareText, savingNewsletter, setSavingNewsletter,
     subscribers, setSubscribers, showSubscribers, setShowSubscribers, loadingSubscribers, setLoadingSubscribers,
   } = useDashboardState();
 
   const { currentFilters, updateFilter: updateFilterBase, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
-
   const updateFilter = useCallback((key: string, value: any) => {
     updateFilterBase(key as any, value);
     setCurrentPage(1);
@@ -106,13 +100,11 @@ export default function BusinessDashboard() {
 
   const displayTotalBookings = apiTotalBookings || localTotalBookingsCount || 0;
   const displayTotalPages = apiTotalPages || localTotalPages || 1;
-
   const getStatusBadge = useCallback((status: string) => {
     const styles: Record<string, string> = { checked_in: 'bg-green-100 text-green-800', completed: 'bg-blue-100 text-blue-800', confirmed: 'bg-yellow-100 text-yellow-800', cancelled: 'bg-red-100 text-red-800', pending: 'bg-gray-100 text-gray-800' };
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
-
-  const filteredCheckinsBookings = useMemo(() => activeTab !== 'checkins' ? bookings : bookings, [bookings, activeTab]);
+  const filteredCheckinsBookings = useMemo(() => bookings, [bookings]);
 
   const saveBusinessProfile = useCallback(async () => {
     if (!business?.id) { alert(t('error_unexpected')); return; }
@@ -140,8 +132,14 @@ export default function BusinessDashboard() {
 
   const principal = businessOwnerPrincipal();
   const tabs = filterTabs(principal, [
-    { id: 'overview', name: t('dashboard_overview') }, { id: 'checkins', name: t('dashboard_checkins') }, { id: 'reports', name: t('dashboard_reports') },
-    { id: 'rooms', name: t('nav_rooms') }, { id: 'housekeeping', name: t('nav_housekeeping') }, { id: 'lost_found', name: t('nav_lost_found') },\ { id: 'staff', name: t('nav_staff') }, { id: 'settings', name: t('dashboard_settings') }
+    { id: 'overview', name: t('dashboard_overview') },
+    { id: 'checkins', name: t('dashboard_checkins') },
+    { id: 'reports', name: t('dashboard_reports') },
+    { id: 'rooms', name: t('nav_rooms') },
+    { id: 'housekeeping', name: t('nav_housekeeping') },
+    { id: 'lost_found', name: t('nav_lost_found') },
+    { id: 'staff', name: t('nav_staff') },
+    { id: 'settings', name: t('dashboard_settings') },
   ]);
 
   const handleTabChange = useCallback((tabId: string) => {
