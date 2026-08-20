@@ -33,7 +33,9 @@ export default function RoomsDashboardTab({ businessOverride = null }: RoomsDash
   return (
     <div className="rooms-dashboard-embedded">
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
+          {t('rooms_licensed_capacity')}
+        </p>
         <p className="text-2xl font-bold text-gray-900">
           {t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span>
         </p>
