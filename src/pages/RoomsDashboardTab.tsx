@@ -15,6 +15,11 @@ interface BusinessSummary {
   total_rooms?: number;
 }
 
+interface RoomsDashboardTabProps {
+  embedded?: boolean;
+  businessOverride?: BusinessSummary | null;
+}
+
 function readCachedBusiness(): BusinessSummary | null {
   try {
     const raw = localStorage.getItem('business');
@@ -27,35 +32,31 @@ function readCachedBusiness(): BusinessSummary | null {
   }
 }
 
-export default function RoomsDashboardTab() {
+export default function RoomsDashboardTab({ embedded = false, businessOverride = null }: RoomsDashboardTabProps) {
   const navigate = useNavigate();
   const { getBusinessId, handleLogout } = useAuth();
   const cachedBusiness = readCachedBusiness();
-  const [fallbackBusiness, setFallbackBusiness] = useState<BusinessSummary | null>(cachedBusiness);
+  const [fallbackBusiness, setFallbackBusiness] = useState<BusinessSummary | null>(businessOverride || cachedBusiness);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Use the same proven business-profile loader as the main Business Dashboard.
-  // This avoids having Rooms use a separate, subtly different data-loading path.
-  const {
-    business: loadedBusiness,
-    loading: businessLoading,
-    refreshData,
-  } = useBusinessData('rooms', 1, 1, {});
+  const { business: loadedBusiness, loading: businessLoading, refreshData } =
+    useBusinessData('rooms', 1, 1, {});
 
-  const business = (loadedBusiness || fallbackBusiness) as BusinessSummary | null;
-  const businessId = business?.id || getBusinessId() || '';
+  const business = (businessOverride || loadedBusiness || fallbackBusiness) as BusinessSummary | null;
 
   useEffect(() => {
-    if (loadedBusiness) {
+    if (businessOverride) {
+      setFallbackBusiness(businessOverride);
+    } else if (loadedBusiness) {
       const next = loadedBusiness as BusinessSummary;
       setFallbackBusiness(next);
       try {
         localStorage.setItem('business', JSON.stringify(loadedBusiness));
       } catch {
-        // Cache is an enhancement only; dashboard data remains authoritative.
+        // Cache is optional; the in-memory dashboard state remains authoritative.
       }
     }
-  }, [loadedBusiness]);
+  }, [businessOverride, loadedBusiness]);
 
   const loadBusiness = useCallback(async () => {
     setRefreshing(true);
@@ -72,6 +73,30 @@ export default function RoomsDashboardTab() {
   };
 
   const licensedRooms = business?.total_rooms ?? null;
+
+  const roomContent = (
+    <>
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
+        <p className="text-2xl font-bold text-gray-900">
+          {t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span>
+        </p>
+        <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
+      </div>
+
+      <div className="rooms-dashboard-embedded">
+        <style>{`
+          .rooms-dashboard-embedded > .min-h-screen > header { display: none; }
+          .rooms-dashboard-embedded > .min-h-screen > main > section:first-child { display: none; }
+          .rooms-dashboard-embedded > .min-h-screen { min-height: 0; background: transparent; }
+          .rooms-dashboard-embedded > .min-h-screen > main { max-width: none; padding: 0; }
+        `}</style>
+        <RoomSettings />
+      </div>
+    </>
+  );
+
+  if (embedded) return <div>{roomContent}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -95,26 +120,7 @@ export default function RoomsDashboardTab() {
         activeTab="rooms"
         onTabChange={handleTabChange}
       />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span>
-          </p>
-          <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
-        </div>
-
-        <div className="rooms-dashboard-embedded">
-          <style>{`
-            .rooms-dashboard-embedded > .min-h-screen > header { display: none; }
-            .rooms-dashboard-embedded > .min-h-screen > main > section:first-child { display: none; }
-            .rooms-dashboard-embedded > .min-h-screen { min-height: 0; background: transparent; }
-            .rooms-dashboard-embedded > .min-h-screen > main { max-width: none; padding: 0; }
-          `}</style>
-          <RoomSettings />
-        </div>
-      </main>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{roomContent}</main>
     </div>
   );
 }
