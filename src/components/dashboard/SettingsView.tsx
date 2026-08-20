@@ -50,7 +50,13 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
         })()
       : [];
 
-  const renderField = (label: string, value: string | number | undefined, field: string, locked: boolean = true) => {
+  const renderField = (
+    label: string,
+    value: string | number | undefined,
+    field: string,
+    locked: boolean = true,
+    immutable: boolean = false,
+  ) => {
     const displayValue = value || t('common_not_set');
     const isEditable = !locked || editableFields.has(field);
 
@@ -60,7 +66,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           <p className="text-xs text-gray-500">{label}</p>
           <p className="text-sm font-medium text-gray-900 break-words">{displayValue}</p>
         </div>
-        {isEditable ? (
+        {!immutable && (isEditable ? (
           <button type="button" onClick={onEdit} className="shrink-0 text-xs text-green-600 hover:text-green-700 font-medium">
             {t('settings_editable')} · {t('settings_edit_profile')}
           </button>
@@ -71,7 +77,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             </svg>
             {t('settings_request_change')}
           </button>
-        )}
+        ))}
       </div>
     );
   };
@@ -82,7 +88,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm font-medium text-gray-700 mb-3">{t('dashboard_business_info')}</p>
           <div className="space-y-1 text-sm">
-            {renderField(t('settings_business_id'), businessId, 'id', true)}
+            {renderField(t('settings_business_id'), businessId, 'id', true, true)}
             {renderField(t('settings_registered_name'), business.registered_name, 'registered_name', true)}
             {renderField(t('dashboard_trading_name'), business.trading_name, 'trading_name', true)}
             {renderField(t('settings_slogan'), business.slogan, 'slogan', true)}
@@ -121,8 +127,8 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             )}
             <button type="button" onClick={() => onRequestChange('directors', JSON.stringify(directors), t('settings_directors'))} className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536-3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232 18.768 8.768M16.732 3.732a2.5 2.5 0 0 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
               {t('settings_request_change')}
             </button>
           </div>
