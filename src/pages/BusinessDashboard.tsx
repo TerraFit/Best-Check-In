@@ -37,39 +37,63 @@ export default function BusinessDashboard() {
   const getStatusBadge = useCallback((status: string) => { const styles: Record<string,string> = { checked_in:'bg-green-100 text-green-800', completed:'bg-blue-100 text-blue-800', confirmed:'bg-yellow-100 text-yellow-800', cancelled:'bg-red-100 text-red-800', pending:'bg-gray-100 text-gray-800' }; return styles[status] || 'bg-gray-100 text-gray-800'; }, []);
   const filteredCheckinsBookings = useMemo(() => bookings, [bookings]);
 
-  const saveBusinessProfile = useCallback(async () => {
+  const saveBusinessProfile = useCallback(async (formData: typeof profileForm) => {
     if (!business?.id) { alert(t('error_unexpected')); return; }
     setSavingProfile(true);
     try {
+      // IMPORTANT: save the values submitted by SettingsEditForm, not the parent
+      // profileForm state. The child owns the live input state while the editor is open.
       const updateData = {
         businessId: business.id,
-        total_rooms: parseInt(profileForm.total_rooms) || 0,
-        avg_price: parseFloat(profileForm.avg_price) || 0,
-        slogan: profileForm.slogan || '',
-        welcome_message: profileForm.welcome_message || '',
-        logo_url: profileForm.logo_url || business.logo_url || '',
-        hero_image_url: profileForm.hero_image_url || business.hero_image_url || '',
-        email: profileForm.email || '',
-        secondary_email: profileForm.secondary_email || '',
-        phone: profileForm.phone || '',
-        mobile_phone: profileForm.mobile_phone || '',
-        secondary_phone: profileForm.secondary_phone || ''
+        total_rooms: parseInt(formData.total_rooms, 10) || 0,
+        avg_price: parseFloat(formData.avg_price) || 0,
+        slogan: formData.slogan || '',
+        welcome_message: formData.welcome_message || '',
+        logo_url: formData.logo_url || business.logo_url || '',
+        hero_image_url: formData.hero_image_url || business.hero_image_url || '',
+        email: formData.email || '',
+        secondary_email: formData.secondary_email || '',
+        phone: formData.phone || '',
+        mobile_phone: formData.mobile_phone || '',
+        secondary_phone: formData.secondary_phone || ''
       };
-      const response = await fetch('/.netlify/functions/update-business-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updateData) });
-      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to update profile'); }
 
-      // The save is not complete until the dashboard has re-read the database.
-      // Keep the editor open while that happens so the user never sees stale profile data.
+      console.log('📝 Saving business profile fields:', Object.keys(updateData).filter(key => key !== 'businessId'));
+      const response = await fetch('/.netlify/functions/update-business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+      const responseData = await response.json().catch(() => ({}));
+      if (!response.ok || responseData.success !== true) {
+        throw new Error(responseData.error || 'Failed to update profile');
+      }
+
+      // Do not close the editor until the database has been re-read successfully.
       const freshBusiness = await refreshData();
       if (!freshBusiness) throw new Error('Profile was saved but the fresh business profile could not be loaded');
 
+      // Make the submitted values visible immediately as well as after a reload.
+      setProfileForm({
+        total_rooms: String(freshBusiness.total_rooms ?? ''),
+        avg_price: String(freshBusiness.avg_price ?? ''),
+        logo_url: freshBusiness.logo_url || '',
+        hero_image_url: freshBusiness.hero_image_url || '',
+        slogan: freshBusiness.slogan || '',
+        welcome_message: freshBusiness.welcome_message || '',
+        email: freshBusiness.email || '',
+        secondary_email: freshBusiness.secondary_email || '',
+        phone: freshBusiness.phone || '',
+        mobile_phone: freshBusiness.mobile_phone || '',
+        secondary_phone: freshBusiness.secondary_phone || ''
+      });
       setEditingProfile(false);
       alert(t('common_success'));
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert(t('error_unexpected'));
+      alert(error instanceof Error ? error.message : t('error_unexpected'));
     } finally { setSavingProfile(false); }
-  }, [business, profileForm, refreshData, setEditingProfile, setSavingProfile]);
+  }, [business, refreshData, setEditingProfile, setProfileForm, setSavingProfile]);
 
   const saveNewsletterSettings = useCallback(async () => { if (!business?.id) { alert(t('error_unexpected')); return; } setSavingNewsletter(true); try { const newsletterData = { businessId: business.id, newsletter_enabled: newsletterEnabled, newsletter_title: newsletterTitle, newsletter_prize: newsletterPrize, newsletter_cta: newsletterCta, newsletter_terms: newsletterTerms, newsletter_draw_date: newsletterDrawDate || null, newsletter_share_text: newsletterShareText }; const response = await fetch('/.netlify/functions/update-business-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newsletterData) }); if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to save newsletter settings'); } await refreshData(); alert(t('common_success')); } catch (error) { console.error('Error saving newsletter settings:', error); alert(t('error_unexpected')); } finally { setSavingNewsletter(false); } }, [business?.id, newsletterEnabled, newsletterTitle, newsletterPrize, newsletterCta, newsletterTerms, newsletterDrawDate, newsletterShareText, refreshData, setSavingNewsletter]);
 
