@@ -16,7 +16,7 @@ interface SettingsViewProps {
     total_rooms?: number;
     avg_price?: number;
     logo_url?: string;
-    directors?: any[];
+    directors?: unknown;
   } | null;
   businessId: string;
   onEdit: () => void;
@@ -28,7 +28,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
     return (
       <div className="text-center py-8">
         <p className="text-gray-500">{t('settings_no_business_data')}</p>
-        <button onClick={onEdit} className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+        <button type="button" onClick={onEdit} className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
           {t('settings_add_info')}
         </button>
       </div>
@@ -36,6 +36,19 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
   }
 
   const editableFields = new Set(['email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone']);
+
+  const directors = Array.isArray(business.directors)
+    ? business.directors
+    : typeof business.directors === 'string' && business.directors.trim()
+      ? (() => {
+          try {
+            const parsed = JSON.parse(business.directors);
+            return Array.isArray(parsed) ? parsed : [{ name: business.directors }];
+          } catch {
+            return [{ name: business.directors }];
+          }
+        })()
+      : [];
 
   const renderField = (label: string, value: string | number | undefined, field: string, locked: boolean = true) => {
     const displayValue = value || t('common_not_set');
@@ -48,19 +61,11 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           <p className="text-sm font-medium text-gray-900 break-words">{displayValue}</p>
         </div>
         {isEditable ? (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="shrink-0 text-xs text-green-600 hover:text-green-700 font-medium"
-          >
+          <button type="button" onClick={onEdit} className="shrink-0 text-xs text-green-600 hover:text-green-700 font-medium">
             {t('settings_editable')} · {t('settings_edit_profile')}
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={() => onRequestChange(field, String(value || ''), label)}
-            className="shrink-0 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1"
-          >
+          <button type="button" onClick={() => onRequestChange(field, String(value || ''), label)} className="shrink-0 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
@@ -93,19 +98,14 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_property_details')}</p>
           <div className="space-y-1 text-sm">
             {renderField(t('dashboard_total_rooms'), business.total_rooms, 'total_rooms', true)}
-            {renderField(
-              t('dashboard_avg_price'),
-              business.avg_price ? `R ${business.avg_price.toLocaleString()}` : t('common_not_set'),
-              'avg_price',
-              true
-            )}
+            {renderField(t('dashboard_avg_price'), business.avg_price ? `R ${business.avg_price.toLocaleString()}` : t('common_not_set'), 'avg_price', true)}
           </div>
 
           <div className="mt-4 pt-4 border-t border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_directors')}</p>
-            {business.directors && business.directors.length > 0 ? (
+            {directors.length > 0 ? (
               <div className="space-y-2">
-                {business.directors.map((director, idx) => {
+                {directors.map((director: any, idx: number) => {
                   const directorName = typeof director === 'string' ? director : director?.name;
                   const directorId = typeof director === 'string' ? '' : director?.id_number;
                   return (
@@ -119,13 +119,9 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             ) : (
               <p className="text-sm text-gray-500">{t('settings_no_directors')}</p>
             )}
-            <button
-              type="button"
-              onClick={() => onRequestChange('directors', JSON.stringify(business.directors || []), t('settings_directors'))}
-              className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1"
-            >
+            <button type="button" onClick={() => onRequestChange('directors', JSON.stringify(directors), t('settings_directors'))} className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732 3v-3.572L16.732 3.732z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536-3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
               {t('settings_request_change')}
             </button>
