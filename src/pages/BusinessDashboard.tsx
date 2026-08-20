@@ -41,7 +41,9 @@ export default function BusinessDashboard() {
     referralChartType, setReferralChartType,
     trialDaysLeft, subscriptionStatus,
     profileForm, setProfileForm,
-    uniqueProvinces, uniqueCities, uniqueCountries,
+    uniqueProvinces: _stateUniqueProvinces,
+    uniqueCities: _stateUniqueCities,
+    uniqueCountries: _stateUniqueCountries,
     showRequestModal, setShowRequestModal,
     requestField, setRequestField,
     requestCurrentValue, setRequestCurrentValue,
@@ -63,7 +65,17 @@ export default function BusinessDashboard() {
     loadingSubscribers, setLoadingSubscribers,
   } = useDashboardState();
 
-  const { currentFilters, updateFilter, clearCurrentFilters, isFilterActive } = useFilters(activeTab);
+  const { currentFilters, updateFilter: updateFilterBase, clearCurrentFilters, isFilterActive } =
+    useFilters(activeTab);
+
+  // Reset to page 1 whenever a filter changes so pagination matches filtered population
+  const updateFilter = useCallback(
+    (key: string, value: any) => {
+      updateFilterBase(key as any, value);
+      setCurrentPage(1);
+    },
+    [updateFilterBase, setCurrentPage]
+  );
 
   const {
     business,
@@ -75,8 +87,20 @@ export default function BusinessDashboard() {
     todayCheckouts,
     totalBookingsCount: apiTotalBookings,
     totalPages: apiTotalPages,
+    uniqueProvinces: dataUniqueProvinces,
+    uniqueCities: dataUniqueCities,
+    uniqueCountries: dataUniqueCountries,
     refreshData
   } = useBusinessData(activeTab, currentPage, pageSize, currentFilters);
+
+  // Prefer server-backed facets from useBusinessData (full business population)
+  const uniqueProvinces = dataUniqueProvinces?.length
+    ? dataUniqueProvinces
+    : _stateUniqueProvinces;
+  const uniqueCities = dataUniqueCities?.length ? dataUniqueCities : _stateUniqueCities;
+  const uniqueCountries = dataUniqueCountries?.length
+    ? dataUniqueCountries
+    : _stateUniqueCountries;
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -154,38 +178,13 @@ export default function BusinessDashboard() {
     return styles[status] || 'bg-gray-100 text-gray-800';
   }, []);
 
+  // Server applies status/province/city/country/search BEFORE pagination.
+  // Bookings array is already the filtered page — do not re-filter client-side
+  // or page counts / totals will be wrong.
   const filteredCheckinsBookings = useMemo(() => {
     if (activeTab !== 'checkins') return bookings;
-
-    let filtered = [...bookings];
-
-    if (currentFilters.searchTerm) {
-      const term = currentFilters.searchTerm.toLowerCase();
-      filtered = filtered.filter(b =>
-        b.guest_name?.toLowerCase().includes(term) ||
-        b.guest_email?.toLowerCase().includes(term) ||
-        b.guest_phone?.includes(term)
-      );
-    }
-
-    if (currentFilters.statusFilter) {
-      filtered = filtered.filter(b => b.status === currentFilters.statusFilter);
-    }
-
-    if (currentFilters.provinceFilter) {
-      filtered = filtered.filter(b => b.guest_province === currentFilters.provinceFilter);
-    }
-
-    if (currentFilters.cityFilter) {
-      filtered = filtered.filter(b => b.guest_city === currentFilters.cityFilter);
-    }
-
-    if (currentFilters.countryFilter) {
-      filtered = filtered.filter(b => b.guest_country === currentFilters.countryFilter);
-    }
-
-    return filtered;
-  }, [bookings, activeTab, currentFilters]);
+    return bookings;
+  }, [bookings, activeTab]);
 
   const saveBusinessProfile = useCallback(async () => {
     if (!business?.id) {

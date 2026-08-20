@@ -24,44 +24,23 @@ import { LanguageSelector } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeDashboard from './pages/EmployeeDashboard';
-import RoomSettings from './pages/RoomSettings';
+import RoomsDashboardTab from './pages/RoomsDashboardTab';
 import HousekeepingSettings from './pages/HousekeepingSettings';
 
 function UnauthorizedPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-900">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-red-500 mb-4">Unauthorized Access</h1>
-        <p className="text-stone-400 mb-6">You don't have permission to view this page.</p>
-        <a href="/" className="text-amber-500 hover:text-amber-400 underline">
-          Return to Home
-        </a>
-      </div>
-    </div>
+    <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-red-500 mb-4">Unauthorized Access</h1><p className="text-stone-400 mb-6">You don't have permission to view this page.</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>
   );
 }
-
 function NotFoundPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-900">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-white mb-4">404</h1>
-        <p className="text-stone-400 mb-6">Page not found</p>
-        <a href="/" className="text-amber-500 hover:text-amber-400 underline">
-          Return Home
-        </a>
-      </div>
-    </div>
+    <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-white mb-4">404</h1><p className="text-stone-400 mb-6">Page not found</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>
   );
 }
-
 function AppContent() {
   return (
     <>
-      <div className="fixed top-[72px] right-4 z-30">
-        <LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" />
-      </div>
-      
+      <div className="fixed top-[72px] right-4 z-30"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" /></div>
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -70,120 +49,32 @@ function AppContent() {
         <Route path="/registration-pending" element={<RegistrationPending />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/set-password/:token" element={<SetPassword />} />
-        
         <Route path="/checkin" element={<CheckInApp />} />
         <Route path="/checkin/:businessId" element={<CheckInApp />} />
-        
         <Route path="/indemnity/:token" element={<IndemnityView />} />
         <Route path="/subscribe" element={<NewsletterSubscribe />} />
-        
         <Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
         <Route path="/employee/login" element={<EmployeeLogin />} />
-        <Route 
-          path="/employee/dashboard" 
-          element={
-            <ProtectedRoute requiredRole="employee">
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
+        <Route path="/employee/dashboard" element={<ProtectedRoute requiredRole="employee"><EmployeeDashboard /></ProtectedRoute>} />
         <Route path="/business/login" element={<BusinessLogin />} />
         <Route path="/super-admin-login" element={<SuperAdminLogin />} />
         <Route path="/login" element={<Navigate to="/super-admin-login" replace />} />
-        
-        <Route 
-          path="/business/pending" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <BusinessPending />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business/dashboard" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <BusinessDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business/rooms" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <RoomSettings />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business/housekeeping-settings" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <HousekeepingSettings />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business/messages" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <BusinessMessages />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business/billing" 
-          element={
-            <ProtectedRoute requiredRole="business">
-              <Billing />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/super-admin" 
-          element={
-            <ProtectedRoute requiredRole="super_admin">
-              <SuperAdminPortal />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/super-admin/approve" 
-          element={
-            <ProtectedRoute requiredRole="super_admin">
-              <ApproveBusinesses />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/super-admin/messages" 
-          element={
-            <ProtectedRoute requiredRole="super_admin">
-              <AdminMessages />
-            </ProtectedRoute>
-          } 
-        />
-        
+        <Route path="/business/pending" element={<ProtectedRoute requiredRole="business"><BusinessPending /></ProtectedRoute>} />
+        <Route path="/business/dashboard" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
+        <Route path="/business/rooms" element={<ProtectedRoute requiredRole="business"><RoomsDashboardTab /></ProtectedRoute>} />
+        <Route path="/business/housekeeping-settings" element={<ProtectedRoute requiredRole="business"><HousekeepingSettings /></ProtectedRoute>} />
+        <Route path="/business/messages" element={<ProtectedRoute requiredRole="business"><BusinessMessages /></ProtectedRoute>} />
+        <Route path="/business/billing" element={<ProtectedRoute requiredRole="business"><Billing /></ProtectedRoute>} />
+        <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><SuperAdminPortal /></ProtectedRoute>} />
+        <Route path="/super-admin/approve" element={<ProtectedRoute requiredRole="super_admin"><ApproveBusinesses /></ProtectedRoute>} />
+        <Route path="/super-admin/messages" element={<ProtectedRoute requiredRole="super_admin"><AdminMessages /></ProtectedRoute>} />
         <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} />
         <Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} />
-        
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
   );
 }
-
-function App() {
-  return (
-    <AccessProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </AccessProvider>
-  );
-}
-
+function App() { return <AccessProvider><BrowserRouter><AppContent /></BrowserRouter></AccessProvider>; }
 export default App;

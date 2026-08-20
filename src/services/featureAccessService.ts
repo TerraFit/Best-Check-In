@@ -30,10 +30,13 @@ export interface FeatureAccessResult {
 
 export interface AnalyticsLimits {
   subscriptionTier: PlanType;
+  canInteractiveMap: boolean;
   canViewCountries: boolean;
   canViewRegions: boolean;
   canViewCities: boolean;
-  maxDrillLevel: string;
+  maxDrillLevel: string | null;
+  canSnapshotPdf: boolean;
+  canBiReport: boolean;
   maxStaff: number | null;
 }
 
@@ -146,22 +149,35 @@ export function checkFeatureAccess(
   });
 }
 
+/**
+ * Phase 1 matrix:
+ * Starter — locked interactive map
+ * Growth — world → country
+ * Pro+ — region → city + snapshot PDF
+ * Business+ — BI report
+ */
 export function getAnalyticsLimits(effectivePlan?: string | null): AnalyticsLimits {
   const plan = normalizePlanId(effectivePlan);
-  const displayTier: PlanType =
-    plan === 'enterprise' ? 'business' : plan;
+  const displayTier: PlanType = plan === 'enterprise' ? 'business' : plan;
+
+  const canInteractiveMap = planSatisfies(plan, 'growth');
+  const canViewCountries = planSatisfies(plan, 'growth');
+  const canViewRegions = planSatisfies(plan, 'pro');
+  const canViewCities = planSatisfies(plan, 'pro');
+
+  let maxDrillLevel: string | null = null;
+  if (planSatisfies(plan, 'pro')) maxDrillLevel = 'city';
+  else if (planSatisfies(plan, 'growth')) maxDrillLevel = 'country';
+
   return {
     subscriptionTier: displayTier,
-    canViewCountries: planSatisfies(plan, 'growth'),
-    canViewRegions: planSatisfies(plan, 'pro'),
-    canViewCities: planSatisfies(plan, 'business'),
-    maxDrillLevel: planSatisfies(plan, 'business')
-      ? 'cities'
-      : planSatisfies(plan, 'pro')
-        ? 'regions'
-        : planSatisfies(plan, 'growth')
-          ? 'countries'
-          : 'continents',
+    canInteractiveMap,
+    canViewCountries,
+    canViewRegions,
+    canViewCities,
+    maxDrillLevel,
+    canSnapshotPdf: planSatisfies(plan, 'pro'),
+    canBiReport: planSatisfies(plan, 'business'),
     maxStaff: getPackage(plan).maxStaff,
   };
 }

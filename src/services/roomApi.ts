@@ -2,6 +2,7 @@
 // Client-side API wrappers for Room Operations (Phase 1)
 
 import type { Room, RoomUpdatePayload, AssignRoomPayload, SyncRoomsResult } from '../types/room';
+import { getAuthToken } from '../utils/auth';
 
 async function parseJson(response: Response) {
   const data = await response.json().catch(() => ({}));
@@ -14,7 +15,10 @@ async function parseJson(response: Response) {
 export async function fetchRooms(businessId: string, options?: { includeInactive?: boolean }): Promise<Room[]> {
   const params = new URLSearchParams({ businessId });
   if (options?.includeInactive) params.set('includeInactive', 'true');
-  const res = await fetch(`/.netlify/functions/get-rooms?${params}`);
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/.netlify/functions/get-rooms?${params}`, { headers });
   const data = await parseJson(res);
   return data.rooms || data.data || [];
 }

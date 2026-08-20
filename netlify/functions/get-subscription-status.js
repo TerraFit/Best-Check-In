@@ -1,7 +1,6 @@
 // netlify/functions/get-subscription-status.js
 // Programme 1: pricing from lib/packages.js SSOT
 
-import { createClient } from '@supabase/supabase-js';
 import {
   normalizePlanId,
   getPlanPricing,
@@ -41,12 +40,8 @@ export const handler = async function (event) {
       };
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-
-    const resolved = await resolveEffectivePlan(supabase, businessId);
+    // REST-only plan resolution (no supabase-js / Realtime / WebSocket)
+    const resolved = await resolveEffectivePlan(null, businessId);
     if (resolved.error && !resolved.business) {
       return {
         statusCode: 404,
@@ -79,31 +74,17 @@ export const handler = async function (event) {
       validUntil = business.trial_end;
     } else {
       const pricing = getPlanPricing(effectivePlan, billingCycle);
-      let basePrice = pricing.amount || 0;
+      charge = pricing.price;
 
-      for (const discount of percentageDiscounts) {
-        basePrice *= 1 - (discount.value || 0) / 100;
-      }
-      for (const discount of fixedDiscounts) {
-        basePrice = Math.max(0, basePrice - (discount.value || 0));
-      }
+      percentageDiscounts.forEach((d) => {
+        if (d.percentage) charge = charge * (1 - Number(d.percentage) / 100);
+      });
+      fixedDiscounts.forEach((d) => {
+        if (d.amount) charge = Math.max(0, charge - Number(d.amount));
+      });
 
-      charge = Math.round(basePrice * 100) / 100;
-      status = 'active';
       message = 'Active subscription';
-
-      const allDiscounts = [...percentageDiscounts, ...fixedDiscounts];
-      const earliestEnd = allDiscounts
-        .filter((e) => e.ends_at && !e.lifetime)
-        .sort(
-          (a, b) =>
-            new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime()
-        )[0];
-
-      if (earliestEnd?.ends_at) {
-        message = `Discounted pricing until ${new Date(earliestEnd.ends_at).toLocaleDateString()}`;
-        validUntil = earliestEnd.ends_at;
-      }
+      validUntil = business.subscription_end || business.current_period_end || null;
     }
 
     const limits = getAnalyticsLimits(effectivePlan);
@@ -112,14 +93,13 @@ export const handler = async function (event) {
       statusCode: 200,
       headers,
       body: JSON.stringify({
+        success: true,
         plan: effectivePlan,
         status,
         message,
-        charge,
-        validUntil,
+        charge: Math.round(charge * 100) / 100,
         billingCycle,
-        isComplimentary: status === 'complimentary',
-        isOnTrial: status === 'trial',
+        validUntil,
         currency: 'ZAR',
         limits,
         packageMeta: {

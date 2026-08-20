@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { X, Check, ArrowRight, Sparkles } from 'lucide-react';
 import { getPackage, type PlanType } from '../../config/packages';
 import { getFeature } from '../../config/featureRegistry';
@@ -26,6 +27,7 @@ export function UpgradePromptModal({
   onUpgrade,
   onCompare,
 }: UpgradePromptModalProps) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   const feature = featureId ? getFeature(featureId) : null;
@@ -65,7 +67,7 @@ export function UpgradePromptModal({
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
-            aria-label="Close modal"
+            aria-label={t('reports_close_modal')}
           >
             <X size={18} />
           </button>

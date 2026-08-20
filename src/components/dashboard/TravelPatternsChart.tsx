@@ -1,5 +1,6 @@
 // src/components/dashboard/TravelPatternsChart.tsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react'
+import { useTranslation } from '../../i18n';;
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 import { findClosestCity } from '../../services/cityAutocompleteService';
 
@@ -10,12 +11,13 @@ interface TravelPatternsChartProps {
 const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
 
 export function TravelPatternsChart({ bookings }: TravelPatternsChartProps) {
+  const { t } = useTranslation();
   const [view, setView] = useState<'comingFrom' | 'goingTo'>('comingFrom');
 
   if (bookings.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Travel Patterns</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('reports_travel_patterns')}</h3>
         <div className="h-64 flex items-center justify-center text-gray-400">
           No data available for selected period
         </div>
@@ -125,7 +127,7 @@ export function TravelPatternsChart({ bookings }: TravelPatternsChartProps) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Guest Travel Patterns</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('reports_travel_patterns')}</h3>
         <div className="flex gap-2">
           <button
             onClick={() => setView('comingFrom')}

@@ -33,7 +33,7 @@ export default function IndemnityView() {
       try {
         const response = await fetch(`/.netlify/functions/get-indemnity-record?token=${token}`);
         const data = await response.json();
-        
+
         if (response.ok) {
           setIndemnity(data);
         } else {
@@ -85,9 +85,9 @@ export default function IndemnityView() {
         {/* Header */}
         <div className="text-center mb-8">
           {indemnity?.business_logo ? (
-            <img 
-              src={indemnity.business_logo} 
-              alt={indemnity.business_name} 
+            <img
+              src={indemnity.business_logo}
+              alt={indemnity.business_name}
               className="h-16 w-auto mx-auto mb-4 object-contain"
             />
           ) : (
@@ -129,7 +129,7 @@ export default function IndemnityView() {
             {/* Signature Section */}
             <div className="mt-12 pt-8 border-t border-stone-200">
               <h3 className="text-lg font-bold text-stone-900 mb-6">{t('indemnity_view_electronic_signature')}</h3>
-              
+
               <div className="bg-stone-50 rounded-xl p-6 mb-6">
                 <p className="text-sm text-stone-500 mb-2">{t('indemnity_view_signed_by')}</p>
                 <p className="text-xl font-semibold text-stone-900">{indemnity?.guest_name}</p>
@@ -141,9 +141,9 @@ export default function IndemnityView() {
               {indemnity?.signature_data && (
                 <div className="bg-stone-50 rounded-xl p-6">
                   <p className="text-sm text-stone-500 mb-3">{t('indemnity_view_digital_signature')}</p>
-                  <img 
-                    src={indemnity.signature_data} 
-                    alt={t('indemnity_view_signature_alt')} 
+                  <img
+                    src={indemnity.signature_data}
+                    alt={t('indemnity_view_signature_alt')}
                     className="border border-stone-300 rounded-lg p-4 bg-white"
                     style={{ maxHeight: '150px' }}
                   />
@@ -156,7 +156,7 @@ export default function IndemnityView() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-stone-50 px-8 py-4 text-center text-xs text-stone-400 border-t border-stone-200">
             <p>© {new Date().getFullYear()} FastCheckin. All rights reserved.</p>
           </div>

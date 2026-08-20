@@ -56,6 +56,68 @@ function loadLanguageKeys(lang) {
   }
 }
 
+
+// Target Report/Analytics UI files for residual hard-coded English labels.
+// This is intentionally narrow to avoid false positives across the whole app.
+const REPORT_ANALYTICS_GLOBS = [
+  'src/pages/tabs/ReportsTab.tsx',
+  'src/components/analytics/RoomPerformancePanel.tsx',
+  'src/components/analytics/TravelPatternsCard.tsx',
+  'src/components/analytics/VisitorOriginExplorer.tsx',
+  'src/components/analytics/geo/GeographicMapViewport.tsx',
+  'src/components/dashboard/GuestOriginsChart.tsx',
+  'src/components/dashboard/ReferralSourcesChart.tsx',
+  'src/components/dashboard/LengthOfStayChart.tsx',
+];
+
+// High-signal phrases that must not appear as raw JSX text in Report UI.
+const FORBIDDEN_PHRASES = [
+  'Room Performance',
+  'Guest Origins by Country',
+  'How Guests Found You',
+  'Length of Stay Distribution',
+  'Visitor Origin Explorer',
+  'Interactive Map Engine',
+  'Property utilisation',
+  'Guest density',
+  'Arriving From',
+  'Going To',
+  'Most guests stay',
+  'nights sold',
+  'of property nights',
+  'historical name',
+  'limited sample',
+  'pp vs property',
+  'Room nights / sellable nights',
+  'SA / International',
+  'Snapshot PDF',
+  'BI Report',
+];
+
+function scanReportHardcoded() {
+  const hits = [];
+  for (const rel of REPORT_ANALYTICS_GLOBS) {
+    const file = path.join(ROOT, rel);
+    if (!fs.existsSync(file)) continue;
+    const content = fs.readFileSync(file, 'utf8');
+    const lines = content.split(/\r?\n/);
+    lines.forEach((line, idx) => {
+      // skip pure imports and comments
+      const trimmed = line.trim();
+      if (trimmed.startsWith('import ') || trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+      // skip lines that already go through t(
+      if (/\bt\s*\(/.test(line)) return;
+      for (const phrase of FORBIDDEN_PHRASES) {
+        if (line.includes(phrase)) {
+          hits.push({ file: rel, line: idx + 1, phrase, sample: trimmed.slice(0, 120) });
+        }
+      }
+    });
+  }
+  return hits;
+}
+
+
 function main() {
   console.log('🔍 FastCheckIn i18n validation\n');
 
@@ -86,6 +148,17 @@ function main() {
   if (!en.missingFile) {
     const orphans = [...en.keys].filter(k => !usedKeys.has(k)).sort();
     console.log(`\nℹ️  Orphaned keys in en.json (present but not referenced): ${orphans.length}`);
+  }
+
+  const hardHits = scanReportHardcoded();
+  if (hardHits.length) {
+    console.log(`\n❌ Report/Analytics hard-coded UI phrases: ${hardHits.length}`);
+    hardHits.slice(0, 30).forEach(h => {
+      console.log(`   - ${h.file}:${h.line} “${h.phrase}”`);
+    });
+    totalMissing += hardHits.length;
+  } else {
+    console.log('\n✅ Report/Analytics targeted hard-coded phrase scan: clean');
   }
 
   console.log('\n---');

@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react'
+import { useTranslation } from '../../i18n';
 import { CountryData } from '../../types';
 import { Map, Users, Globe2 } from 'lucide-react';
-import { t } from '../../i18n';
 
 interface VisitorOriginCountryMapProps {
   data: any[];
@@ -59,6 +59,7 @@ export function VisitorOriginCountryMap({
   onBack,
   isLoading
 }: VisitorOriginCountryMapProps) {
+  const { t } = useTranslation();
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
 
   // Group filtered records to count visitors per country
@@ -140,7 +141,7 @@ export function VisitorOriginCountryMap({
     return (
       <div className="flex flex-col items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200 p-8 text-center">
         <Globe2 size={48} className="text-stone-300 mb-3" />
-        <h3 className="text-base font-bold text-stone-700">{t('analytics_no_country_details')}</h3>
+        <h3 className="text-base font-bold text-stone-700">{t('reports_no_country_details')}</h3>
         <p className="text-stone-400 text-xs mt-1 max-w-sm">
           No records associated with {continentName} were found in the selected filter period.
         </p>
@@ -148,7 +149,7 @@ export function VisitorOriginCountryMap({
           onClick={onBack}
           className="mt-4 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-all border border-stone-200"
         >
-          ← Back to Continents
+          {t('reports_back_to_continents')}
         </button>
       </div>
     );
@@ -162,7 +163,7 @@ export function VisitorOriginCountryMap({
           onClick={onBack}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-900 rounded-lg text-xs font-semibold shadow-sm border border-stone-200 transition-all"
         >
-          ← Back to Continents
+          {t('reports_back_to_continents')}
         </button>
       </div>
 
@@ -342,7 +343,7 @@ export function VisitorOriginCountryMap({
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 px-4 py-3 rounded-xl shadow-lg border border-stone-200 max-w-[200px]">
         <div className="flex items-center gap-1.5 mb-2">
           <Users size={12} className="text-orange-500" />
-          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('analytics_top_markets')}</h4>
+          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{t('reports_top_markets')}</h4>
         </div>
         <div className="space-y-1">
           {countryList.slice(0, 4).map((country) => (
@@ -360,7 +361,7 @@ export function VisitorOriginCountryMap({
       </div>
 
       <div className="absolute bottom-4 right-4 z-10 bg-white/95 px-4 py-2 rounded-xl shadow-lg border border-stone-200">
-        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">Continent Total</span>
+        <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">{t('reports_continent_total')}</span>
         <span className="text-sm font-extrabold text-stone-900">{continentTotal.toLocaleString()}</span>
       </div>
     </div>

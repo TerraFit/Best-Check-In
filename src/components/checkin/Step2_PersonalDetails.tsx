@@ -97,7 +97,7 @@ export function Step2PersonalDetails({
   };
 
   const getValidation = (field: keyof TouchedFields, value: any): boolean => {
-    if (field === 'firstName' || field === 'lastName' || field === 'city' || 
+    if (field === 'firstName' || field === 'lastName' || field === 'city' ||
         field === 'arrivingFrom' || field === 'nextDestination') {
       return value && value.trim().length > 0;
     }
@@ -139,9 +139,9 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('firstName', getValidation('firstName', formData.firstName))}`}
                 placeholder="John"
               />
-              <ErrorMessage 
-                field="firstName" 
-                message={submitAttempted && touched.firstName && !getValidation('firstName', formData.firstName) ? t('error_first_name_required') : ''} 
+              <ErrorMessage
+                field="firstName"
+                message={submitAttempted && touched.firstName && !getValidation('firstName', formData.firstName) ? t('error_first_name_required') : ''}
               />
             </div>
             <div>
@@ -156,9 +156,9 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('lastName', getValidation('lastName', formData.lastName))}`}
                 placeholder="Doe"
               />
-              <ErrorMessage 
-                field="lastName" 
-                message={submitAttempted && touched.lastName && !getValidation('lastName', formData.lastName) ? t('error_last_name_required') : ''} 
+              <ErrorMessage
+                field="lastName"
+                message={submitAttempted && touched.lastName && !getValidation('lastName', formData.lastName) ? t('error_last_name_required') : ''}
               />
             </div>
           </div>
@@ -176,9 +176,9 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('passportOrId', getValidation('passportOrId', formData.passportOrId))}`}
                 placeholder="A1234567"
               />
-              <ErrorMessage 
-                field="passportOrId" 
-                message={submitAttempted && touched.passportOrId && !getValidation('passportOrId', formData.passportOrId) ? t('error_passport_required') : ''} 
+              <ErrorMessage
+                field="passportOrId"
+                message={submitAttempted && touched.passportOrId && !getValidation('passportOrId', formData.passportOrId) ? t('error_passport_required') : ''}
               />
             </div>
             <div>
@@ -193,9 +193,9 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('phone', getValidation('phone', formData.phone))}`}
                 placeholder={t('checkin_phone_placeholder')}
               />
-              <ErrorMessage 
-                field="phone" 
-                message={submitAttempted && touched.phone && !getValidation('phone', formData.phone) ? t('error_phone_invalid') : ''} 
+              <ErrorMessage
+                field="phone"
+                message={submitAttempted && touched.phone && !getValidation('phone', formData.phone) ? t('error_phone_invalid') : ''}
               />
             </div>
           </div>
@@ -216,9 +216,9 @@ export function Step2PersonalDetails({
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              <ErrorMessage 
-                field="country" 
-                message={submitAttempted && touched.country && !getValidation('country', formData.country) ? t('error_country_required') : ''} 
+              <ErrorMessage
+                field="country"
+                message={submitAttempted && touched.country && !getValidation('country', formData.country) ? t('error_country_required') : ''}
               />
             </div>
             <div>
@@ -248,9 +248,9 @@ export function Step2PersonalDetails({
                   disabled={!formData.country}
                 />
               )}
-              <ErrorMessage 
-                field="province" 
-                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? t('error_province_required', { field: regionTypeLabel }) : ''} 
+              <ErrorMessage
+                field="province"
+                message={submitAttempted && touched.province && !getValidation('province', formData.province) ? t('error_province_required', { field: regionTypeLabel }) : ''}
               />
             </div>
           </div>
@@ -267,9 +267,9 @@ export function Step2PersonalDetails({
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('city', getValidation('city', formData.city))}`}
               placeholder="Cape Town"
             />
-            <ErrorMessage 
-              field="city" 
-              message={submitAttempted && touched.city && !getValidation('city', formData.city) ? t('error_city_required') : ''} 
+            <ErrorMessage
+              field="city"
+              message={submitAttempted && touched.city && !getValidation('city', formData.city) ? t('error_city_required') : ''}
             />
           </div>
 
@@ -323,9 +323,9 @@ export function Step2PersonalDetails({
                 onBlur={() => onTouched('arrivalDate')}
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('arrivalDate', getValidation('arrivalDate', formData.arrivalDate))}`}
               />
-              <ErrorMessage 
-                field="arrivalDate" 
-                message={submitAttempted && touched.arrivalDate && !getValidation('arrivalDate', formData.arrivalDate) ? t('error_arrival_date_required') : ''} 
+              <ErrorMessage
+                field="arrivalDate"
+                message={submitAttempted && touched.arrivalDate && !getValidation('arrivalDate', formData.arrivalDate) ? t('error_arrival_date_required') : ''}
               />
             </div>
             <div>
@@ -342,9 +342,9 @@ export function Step2PersonalDetails({
                 className={`w-full px-4 py-3 rounded-lg border transition-colors ${getErrorClass('nights', getValidation('nights', formData.nights))}`}
                 placeholder="1"
               />
-              <ErrorMessage 
-                field="nights" 
-                message={submitAttempted && touched.nights && !getValidation('nights', formData.nights) ? t('error_nights_min') : ''} 
+              <ErrorMessage
+                field="nights"
+                message={submitAttempted && touched.nights && !getValidation('nights', formData.nights) ? t('error_nights_min') : ''}
               />
             </div>
           </div>
@@ -394,9 +394,9 @@ export function Step2PersonalDetails({
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            <ErrorMessage 
-              field="referral" 
-              message={submitAttempted && touched.referral && !getValidation('referral', formData.referral) ? t('error_referral_source_required') : ''} 
+            <ErrorMessage
+              field="referral"
+              message={submitAttempted && touched.referral && !getValidation('referral', formData.referral) ? t('error_referral_source_required') : ''}
             />
           </div>
 
@@ -414,9 +414,9 @@ export function Step2PersonalDetails({
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-            <ErrorMessage 
-              field="settlement" 
-              message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? t('error_settlement_method_required') : ''} 
+            <ErrorMessage
+              field="settlement"
+              message={submitAttempted && touched.settlement && !getValidation('settlement', formData.settlement) ? t('error_settlement_method_required') : ''}
             />
           </div>
 

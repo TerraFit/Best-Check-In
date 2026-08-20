@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { t } from '../../i18n';
+import { useState, useRef } from 'react'
+import { useTranslation } from '../../i18n';
 
 interface VisitorOriginWorldMapProps {
   totalVisitors: number;
@@ -12,6 +12,7 @@ export function VisitorOriginWorldMap({
   onExplore,
   isLoading
 }: VisitorOriginWorldMapProps) {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -20,7 +21,7 @@ export function VisitorOriginWorldMap({
       <div className="flex items-center justify-center h-[450px] bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-2xl border border-stone-200">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-stone-400 text-sm font-medium">{t('analytics_loading_world')}</p>
+          <p className="text-stone-400 text-sm font-medium">{t('reports_loading_world')}</p>
         </div>
       </div>
     );
@@ -85,12 +86,12 @@ export function VisitorOriginWorldMap({
 
         {/* Text descriptions matching our coordinates */}
         <g opacity="0.3" className="text-[10px] font-mono tracking-widest fill-stone-400">
-          <text x="140" y="210">{t('analytics_region_amer_north')}</text>
-          <text x="250" y="380">{t('analytics_region_amer_south')}</text>
-          <text x="430" y="340">{t('analytics_region_africa_sub')}</text>
-          <text x="360" y="100">{t('analytics_region_euro_zone')}</text>
-          <text x="560" y="110">{t('analytics_region_asia_east')}</text>
-          <text x="610" y="380">{t('analytics_region_oceania')}</text>
+          <text x="140" y="210">AMER_NORTH</text>
+          <text x="250" y="380">AMER_SOUTH</text>
+          <text x="430" y="340">AFRICA_SUB</text>
+          <text x="360" y="100">EURO_ZONE</text>
+          <text x="560" y="110">ASIA_EAST</text>
+          <text x="610" y="380">OCEANIA</text>
         </g>
 
         {/* Central Orange Bubble - BRAND COLOR OF FastCheckin */}

@@ -1,5 +1,8 @@
 // netlify/functions/get-rooms.js
 // List rooms + derive live occupancy from bookings (never trust stale occupancy_status alone)
+// Auth: Bearer JWT required; businessId must match token business_id (tenant isolation)
+
+const jwt = require('jsonwebtoken');
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -99,7 +102,53 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { businessId, includeInactive } = event.queryStringParameters || {};
+    const token = event.headers.authorization?.replace('Bearer ', '') ||
+      event.headers.Authorization?.replace('Bearer ', '');
+    if (!token) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'No authorization token provided' }),
+      };
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Token has expired' }),
+        };
+      }
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token signature' }),
+      };
+    }
+
+    const businessIdFromToken = decoded.user_metadata?.business_id;
+    if (!businessIdFromToken) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ error: 'Token missing business ID' }),
+      };
+    }
+
+    const { businessId: qBusinessId, includeInactive } = event.queryStringParameters || {};
+    const businessId = qBusinessId || businessIdFromToken;
+    if (qBusinessId && qBusinessId !== businessIdFromToken) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ error: 'Forbidden' }),
+      };
+    }
+
     if (!businessId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
     }
@@ -132,7 +181,6 @@ exports.handler = async (event) => {
     const rooms = await response.json();
     const todayStr = todayInJohannesburg();
 
-    // Active/future bookings for occupancy derivation
     let bookings = [];
     try {
       const bRes = await fetch(
@@ -149,7 +197,6 @@ exports.handler = async (event) => {
       const storedOccupancy = deriveOccupancy(room, bookings, todayStr);
       return {
         ...room,
-        // Live occupancy for all consumers — overrides stale DB value for display
         occupancy_status: storedOccupancy,
         derived_occupancy: derivedLabel,
       };

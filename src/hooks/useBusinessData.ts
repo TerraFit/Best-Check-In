@@ -186,16 +186,19 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
 
     try {
       let url = `/.netlify/functions/get-business-bookings?businessId=${businessId}`;
-      
+
       if (activeTab === 'reports') {
         url += `&limit=10000&page=1`;
       } else {
         url += `&limit=${pageSize}&page=${currentPage}`;
       }
-      
+
+      // Always request facets so dropdowns reflect business population (date-scoped).
+      url += `&includeFacets=true`;
+
       if (activeTab === 'reports' || activeTab === 'checkins') {
         if (currentFilters?.startDate && currentFilters?.endDate) {
-          url += `&startDate=${currentFilters.startDate}&endDate=${currentFilters.endDate}`;
+          url += `&startDate=${encodeURIComponent(currentFilters.startDate)}&endDate=${encodeURIComponent(currentFilters.endDate)}`;
         } else if (currentFilters?.dateRange && currentFilters.dateRange !== 'all') {
           const days: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90, '12months': 365 };
           if (days[currentFilters.dateRange]) {
@@ -204,15 +207,32 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
             url += `&startDate=${cutoffDate.toISOString().split('T')[0]}`;
           }
         }
+
+        // Server-side filters (applied BEFORE pagination)
+        if (currentFilters?.statusFilter) {
+          url += `&status=${encodeURIComponent(currentFilters.statusFilter)}`;
+        }
+        if (currentFilters?.provinceFilter) {
+          url += `&province=${encodeURIComponent(currentFilters.provinceFilter)}`;
+        }
+        if (currentFilters?.cityFilter) {
+          url += `&city=${encodeURIComponent(currentFilters.cityFilter)}`;
+        }
+        if (currentFilters?.countryFilter) {
+          url += `&country=${encodeURIComponent(currentFilters.countryFilter)}`;
+        }
+        if (currentFilters?.searchTerm) {
+          url += `&search=${encodeURIComponent(currentFilters.searchTerm)}`;
+        }
       }
-      
+
       console.log('🔗 Fetching bookings:', url);
       const res = await fetchWithAuth(url, { signal: controller.signal });
       const result = await res.json();
-      
+
       if (!isMountedRef.current) return;
-      
-      let rawBookings = [];
+
+      let rawBookings: Booking[] = [];
       if (result.bookings && Array.isArray(result.bookings)) {
         rawBookings = result.bookings;
       } else if (result.success && Array.isArray(result.data)) {
@@ -220,56 +240,73 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       } else if (Array.isArray(result)) {
         rawBookings = result;
       }
-      
-      const validBookings = rawBookings.filter(b => b.business_id === businessId);
+
+      const validBookings = rawBookings.filter((b) => b.business_id === businessId);
       setBookings(validBookings);
-      
+
       if (activeTab !== 'reports') {
-        setTotalBookingsCount(result.total_count || validBookings.length);
-        const calculatedTotalPages = result.total_pages || Math.ceil((result.total_count || validBookings.length) / pageSize);
-        setTotalPages(calculatedTotalPages);
+        setTotalBookingsCount(result.total_count ?? validBookings.length);
+        const calculatedTotalPages =
+          result.total_pages ??
+          Math.ceil((result.total_count ?? validBookings.length) / pageSize);
+        setTotalPages(Math.max(1, calculatedTotalPages));
       } else {
         setTotalBookingsCount(validBookings.length);
         setTotalPages(1);
       }
-      
-      const provinces = [...new Set(validBookings.map(b => b.guest_province).filter(Boolean))];
-      const cities = [...new Set(validBookings.map(b => b.guest_city).filter(Boolean))];
-      const countries = [...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))];
-      
-      setUniqueProvinces(provinces.sort());
-      setUniqueCities(cities.sort());
-      setUniqueCountries(countries.sort());
-      
-      // Today's Activity Calculations
+
+      // Prefer server facets (full population). Fallback to page-derived only if missing.
+      if (result.facets) {
+        setUniqueProvinces(Array.isArray(result.facets.provinces) ? result.facets.provinces : []);
+        setUniqueCities(Array.isArray(result.facets.cities) ? result.facets.cities : []);
+        setUniqueCountries(Array.isArray(result.facets.countries) ? result.facets.countries : []);
+      } else {
+        const provinces = [
+          ...new Set(validBookings.map((b) => b.guest_province).filter(Boolean))
+        ] as string[];
+        const cities = [
+          ...new Set(validBookings.map((b) => b.guest_city).filter(Boolean))
+        ] as string[];
+        const countries = [
+          ...new Set(
+            validBookings
+              .map((b) => b.guest_country?.replace(/\.$/, '').trim())
+              .filter(Boolean)
+          )
+        ] as string[];
+        setUniqueProvinces(provinces.sort());
+        setUniqueCities(cities.sort());
+        setUniqueCountries(countries.sort());
+      }
+
+      // Today's Activity Calculations (from current page — overview cards may be approximate under filters)
       const todayStr = new Date().toISOString().split('T')[0];
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
-      
-      const arrivals = validBookings.filter(b => b.check_in_date === todayStr);
-      const checkouts = validBookings.filter(b => b.check_out_date === todayStr);
-      
-      const stayovers = validBookings.filter(b => {
+
+      const arrivals = validBookings.filter((b) => b.check_in_date === todayStr);
+      const checkouts = validBookings.filter((b) => b.check_out_date === todayStr);
+
+      const stayovers = validBookings.filter((b) => {
         if (!b.check_in_date) return false;
-        
+
         const checkInDate = new Date(b.check_in_date);
         checkInDate.setHours(0, 0, 0, 0);
-        
+
         if (checkInDate.getTime() >= todayDate.getTime()) return false;
         if (!b.check_out_date) return true;
-        
+
         const checkOutDate = new Date(b.check_out_date);
         checkOutDate.setHours(0, 0, 0, 0);
         return checkOutDate > todayDate;
       });
-      
+
       setTodayArrivals(arrivals);
       setTodayStayovers(stayovers);
       setTodayCheckouts(checkouts);
-      
-      console.log(`📦 Loaded ${validBookings.length} bookings`);
+
+      console.log(`📦 Loaded ${validBookings.length} bookings (filtered total: ${result.total_count ?? '?'})`);
       console.log(`📊 Today: ${arrivals.length} arrivals, ${stayovers.length} stayovers, ${checkouts.length} checkouts`);
-      
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMountedRef.current) {
         console.error('❌ Error loading bookings:', err);
@@ -282,12 +319,26 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     }
   }, [activeTab, currentPage, pageSize, currentFilters, fetchWithAuth, getBusinessId, refreshing, business]);
 
-  // ✅ Trigger bookings load ONLY when business is loaded
+  // Trigger bookings load when business is ready or filters/pagination change
   useEffect(() => {
     if (business && initialLoadDoneRef.current) {
       loadBookings();
     }
-  }, [business, currentPage, pageSize, activeTab, currentFilters?.dateRange, currentFilters?.startDate, currentFilters?.endDate, loadBookings]);
+  }, [
+    business,
+    currentPage,
+    pageSize,
+    activeTab,
+    currentFilters?.dateRange,
+    currentFilters?.startDate,
+    currentFilters?.endDate,
+    currentFilters?.statusFilter,
+    currentFilters?.provinceFilter,
+    currentFilters?.cityFilter,
+    currentFilters?.countryFilter,
+    currentFilters?.searchTerm,
+    loadBookings
+  ]);
 
   const refreshData = useCallback(() => {
     if (business) {
