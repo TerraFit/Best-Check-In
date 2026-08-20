@@ -82,7 +82,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm font-medium text-gray-700 mb-3">{t('dashboard_business_info')}</p>
           <div className="space-y-1 text-sm">
-            {renderField(t('settings_business_id'), businessId, 'id', false)}
+            {renderField(t('settings_business_id'), businessId, 'id', true)}
             {renderField(t('settings_registered_name'), business.registered_name, 'registered_name', true)}
             {renderField(t('dashboard_trading_name'), business.trading_name, 'trading_name', true)}
             {renderField(t('settings_slogan'), business.slogan, 'slogan', true)}
