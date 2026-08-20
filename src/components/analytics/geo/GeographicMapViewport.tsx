@@ -35,7 +35,28 @@ function coordinateBounds(coordinates: unknown): [number, number, number, number
 function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null { if (!geometry) return null; if (geometry.type === 'GeometryCollection') return mergeBounds(geometry.geometries.map(geometryBounds)); return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates); }
 function mergeBounds(bounds: Array<[number, number, number, number] | null>): [number, number, number, number] | null { return bounds.reduce<[number, number, number, number] | null>((acc, b) => b ? (acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b) : acc, null); }
 function countryMatches(feature: FeatureLike, countryName: string): boolean { const featureName = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); return !!findNodeForFeature(countryName, [{ name: featureName, count: 0 }], feature.id); }
-function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean { const props = feature.properties || {}; const featureCode = featureRegionCode(props).trim().toLowerCase(); if (node.code && featureCode && node.code.trim().toLowerCase() === featureCode) return true; return regionNamesMatch(featureRegionName(props), node.name); }
+function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean {
+  const props = feature.properties || {};
+  const featureCode = featureRegionCode(props).trim().toLowerCase();
+  const nodeCode = node.code?.trim().toLowerCase();
+
+  if (nodeCode && featureCode && nodeCode === featureCode) return true;
+
+  const regionCandidates = [
+    featureRegionName(props),
+    props.name_en,
+    props.NAME_EN,
+    props.name,
+    props.NAME_1,
+    props.NAME,
+    props.name_alt,
+    props.NAME_ALT,
+    props.name_local,
+    props.NAME_LOCAL,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+  return regionCandidates.some((candidate) => regionNamesMatch(candidate, node.name));
+}
 function featureContinent(feature: FeatureLike, getContinent: (country: string) => string): string { const props = feature.properties || {}; const direct = props.continent ?? props.CONTINENT ?? props.continent_name ?? props.CONTINENT_NAME; const normalized = normalizeContinent(direct); return normalized !== 'Other' ? normalized : normalizeContinent(getContinent(featureCountryName(props, feature.id))); }
 function setLayerVisibility(map: MapLibreMap, layer: string, visible: boolean) { try { map.setLayoutProperty?.(layer, 'visibility', visible ? 'visible' : 'none'); } catch { /* optional */ } }
 function levelDepth(level: GeoLevel): number { return level === 'world' ? 0 : level === 'continents' ? 1 : level === 'countries' ? 2 : level === 'regions' ? 3 : 4; }
