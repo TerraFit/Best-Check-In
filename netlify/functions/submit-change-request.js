@@ -52,71 +52,19 @@ export const handler = async function(event) {
       };
     }
 
-    // IMPORTANT: use Supabase REST only. Do not import @supabase/supabase-js here.
-    // Netlify's Node runtime does not provide the native WebSocket implementation
-    // required by Supabase Realtime, even though this function only needs REST.
+    // Use Supabase REST only. This function must not import @supabase/supabase-js.
     const authHeaders = {
       apikey: supabaseKey,
       Authorization: `Bearer ${supabaseKey}`
     };
 
-    const attachmentUrls = [];
-
-    // Upload attachments through the Storage REST API so this function has no
-    // dependency on Supabase Realtime/WebSocket support.
-    if (Array.isArray(attachments)) {
-      for (const attachment of attachments) {
-        if (!attachment?.data) continue;
-
-        const commaIndex = attachment.data.indexOf(',');
-        const base64 = commaIndex >= 0 ? attachment.data.slice(commaIndex + 1) : attachment.data;
-        const buffer = Buffer.from(base64, 'base64');
-        const safeName = String(attachment.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
-        const fileName = `${businessId}/${Date.now()}-${safeName}`;
-        const uploadUrl = `${supabaseUrl}/storage/v1/object/change-request-attachments/${encodeURIComponent(fileName)}`;
-
-        try {
-          const uploadResponse = await fetch(uploadUrl, {
-            method: 'POST',
-            headers: {
-              ...authHeaders,
-              'Content-Type': attachment.type || 'application/octet-stream',
-              'x-upsert': 'true'
-            },
-            body: buffer
-          });
-
-          if (uploadResponse.ok) {
-            attachmentUrls.push({
-              name: attachment.name,
-              type: attachment.type,
-              size: attachment.size,
-              url: `${supabaseUrl}/storage/v1/object/public/change-request-attachments/${encodeURIComponent(fileName)}`
-            });
-          } else {
-            const uploadError = await uploadResponse.text();
-            console.error('❌ Attachment upload error:', uploadResponse.status, uploadError);
-            // Preserve the previous safe fallback behaviour without storing the full file.
-            attachmentUrls.push({
-              name: attachment.name,
-              type: attachment.type,
-              size: attachment.size,
-              data: attachment.data.substring(0, 200)
-            });
-          }
-        } catch (uploadError) {
-          console.error('❌ Attachment upload exception:', uploadError);
-          attachmentUrls.push({
-            name: attachment.name,
-            type: attachment.type,
-            size: attachment.size,
-            data: attachment.data.substring(0, 200)
-          });
-        }
-      }
-    }
-
+    // The production change_requests table currently contains only the request
+    // metadata columns below. It does not contain attachments or updated_at.
+    // Keep the attachment input accepted for API compatibility, but do not send
+    // unsupported columns to PostgREST.
+    const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
     const now = new Date().toISOString();
+
     const insertResponse = await fetch(`${supabaseUrl}/rest/v1/change_requests`, {
       method: 'POST',
       headers: {
@@ -132,9 +80,7 @@ export const handler = async function(event) {
         requested_value: requestedValue,
         reason,
         status,
-        attachments: attachmentUrls,
-        created_at: now,
-        updated_at: now
+        created_at: now
       })
     });
 
@@ -144,7 +90,10 @@ export const handler = async function(event) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to submit change request' })
+        body: JSON.stringify({
+          error: 'Failed to submit change request',
+          details: `Database insert failed (${insertResponse.status})`
+        })
       };
     }
 
@@ -168,7 +117,7 @@ export const handler = async function(event) {
               <p><strong>Current Value:</strong> ${currentValue || '(empty)'}</p>
               <p><strong>Requested Value:</strong> ${requestedValue}</p>
               <p><strong>Reason:</strong> ${reason}</p>
-              ${attachments.length > 0 ? `<p><strong>Attachments:</strong> ${attachments.length} file(s)</p>` : ''}
+              ${attachmentCount > 0 ? `<p><strong>Attachments:</strong> ${attachmentCount} file(s) supplied by client</p>` : ''}
               <hr>
               <p><a href="https://fastcheckin.co.za/super-admin">Review in Super Admin Portal</a></p>
             </div>
