@@ -1,12 +1,10 @@
 // netlify/functions/submit-change-request.js
 
-import { createClient } from '@supabase/supabase-js';
-
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
@@ -23,16 +21,16 @@ export const handler = async function(event) {
   }
 
   try {
-    const { 
-      businessId, 
-      businessName, 
-      fieldName, 
-      currentValue, 
-      requestedValue, 
-      reason, 
+    const {
+      businessId,
+      businessName,
+      fieldName,
+      currentValue,
+      requestedValue,
+      reason,
       attachments = [],
       status = 'pending'
-    } = JSON.parse(event.body);
+    } = JSON.parse(event.body || '{}');
 
     if (!businessId || !fieldName || !requestedValue || !reason) {
       return {
@@ -45,69 +43,104 @@ export const handler = async function(event) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase environment variables');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
 
-    // Handle attachments - store in storage bucket
+    // IMPORTANT: use Supabase REST only. Do not import @supabase/supabase-js here.
+    // Netlify's Node runtime does not provide the native WebSocket implementation
+    // required by Supabase Realtime, even though this function only needs REST.
+    const authHeaders = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`
+    };
+
     const attachmentUrls = [];
-    if (attachments && attachments.length > 0) {
-      for (const attachment of attachments) {
-        if (attachment.data) {
-          // Upload to storage
-          const fileName = `${businessId}/${Date.now()}-${attachment.name}`;
-          const buffer = Buffer.from(attachment.data.split(',')[1], 'base64');
-          
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('change-request-attachments')
-            .upload(fileName, buffer, {
-              contentType: attachment.type,
-              upsert: true
-            });
 
-          if (!uploadError && uploadData) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('change-request-attachments')
-              .getPublicUrl(fileName);
+    // Upload attachments through the Storage REST API so this function has no
+    // dependency on Supabase Realtime/WebSocket support.
+    if (Array.isArray(attachments)) {
+      for (const attachment of attachments) {
+        if (!attachment?.data) continue;
+
+        const commaIndex = attachment.data.indexOf(',');
+        const base64 = commaIndex >= 0 ? attachment.data.slice(commaIndex + 1) : attachment.data;
+        const buffer = Buffer.from(base64, 'base64');
+        const safeName = String(attachment.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${businessId}/${Date.now()}-${safeName}`;
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/change-request-attachments/${encodeURIComponent(fileName)}`;
+
+        try {
+          const uploadResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              ...authHeaders,
+              'Content-Type': attachment.type || 'application/octet-stream',
+              'x-upsert': 'true'
+            },
+            body: buffer
+          });
+
+          if (uploadResponse.ok) {
             attachmentUrls.push({
               name: attachment.name,
               type: attachment.type,
               size: attachment.size,
-              url: publicUrl
+              url: `${supabaseUrl}/storage/v1/object/public/change-request-attachments/${encodeURIComponent(fileName)}`
             });
           } else {
-            console.error('Upload error:', uploadError);
-            // If upload fails, store base64 directly (fallback)
+            const uploadError = await uploadResponse.text();
+            console.error('❌ Attachment upload error:', uploadResponse.status, uploadError);
+            // Preserve the previous safe fallback behaviour without storing the full file.
             attachmentUrls.push({
               name: attachment.name,
               type: attachment.type,
               size: attachment.size,
-              data: attachment.data.substring(0, 200) // Truncate for safety
+              data: attachment.data.substring(0, 200)
             });
           }
+        } catch (uploadError) {
+          console.error('❌ Attachment upload exception:', uploadError);
+          attachmentUrls.push({
+            name: attachment.name,
+            type: attachment.type,
+            size: attachment.size,
+            data: attachment.data.substring(0, 200)
+          });
         }
       }
     }
 
-    // Save change request to database
-    const { data, error } = await supabase
-      .from('change_requests')
-      .insert({
+    const now = new Date().toISOString();
+    const insertResponse = await fetch(`${supabaseUrl}/rest/v1/change_requests`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation'
+      },
+      body: JSON.stringify({
         business_id: businessId,
         business_name: businessName,
         field_name: fieldName,
         current_value: currentValue || '',
         requested_value: requestedValue,
-        reason: reason,
-        status: status,
+        reason,
+        status,
         attachments: attachmentUrls,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: now,
+        updated_at: now
       })
-      .select()
-      .single();
+    });
 
-    if (error) {
-      console.error('Supabase error:', error);
+    if (!insertResponse.ok) {
+      const errorText = await insertResponse.text();
+      console.error('❌ Supabase change request insert error:', insertResponse.status, errorText);
       return {
         statusCode: 500,
         headers,
@@ -115,12 +148,14 @@ export const handler = async function(event) {
       };
     }
 
-    // If status is 'pending', send email notification to super admin
+    const insertedRows = await insertResponse.json();
+    const data = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+
     if (status === 'pending') {
       try {
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
-        
+
         await resend.emails.send({
           from: 'FastCheckin <notifications@fastcheckin.co.za>',
           to: ['inquiry@fastcheckin.co.za'],
@@ -141,7 +176,7 @@ export const handler = async function(event) {
         });
       } catch (emailError) {
         console.error('Email notification error:', emailError);
-        // Don't fail the request if email fails
+        // Email failure must not make a successfully stored request fail.
       }
     }
 
@@ -150,20 +185,19 @@ export const handler = async function(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
+      body: JSON.stringify({
+        success: true,
         message: status === 'draft' ? 'Change request saved as draft' : 'Change request submitted successfully',
         requestId: data?.id,
         status: data?.status
       })
     };
-
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
+    console.error('🔥 Unhandled change request error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error?.message || 'Failed to submit change request' })
     };
   }
 };
