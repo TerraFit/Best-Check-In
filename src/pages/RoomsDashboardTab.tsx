@@ -29,17 +29,24 @@ export default function RoomsDashboardTab() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       const source = data?.data || data || {};
+      const totalRooms = source.total_rooms ?? data?.total_rooms ?? null;
+      const parsedTotalRooms = typeof totalRooms === 'number'
+        ? totalRooms
+        : Number.isFinite(Number(totalRooms))
+          ? Number(totalRooms)
+          : undefined;
+
       setBusiness({
         id: source.id || businessId,
         trading_name: source.trading_name || source.name || '',
         slogan: source.slogan || '',
         logo_url: source.logo_url || '',
         phone: source.phone || source.mobile_phone || '',
-        total_rooms: Number(source.total_rooms) || 0,
+        total_rooms: parsedTotalRooms,
       });
     } catch (error) {
       console.error('Failed to load business summary for Rooms:', error);
-      setBusiness({ id: businessId, total_rooms: 0 });
+      setBusiness((previous) => previous || { id: businessId });
     } finally {
       setRefreshing(false);
     }
@@ -52,7 +59,7 @@ export default function RoomsDashboardTab() {
     navigate(`/business/dashboard?tab=${encodeURIComponent(tabId)}`);
   };
 
-  const licensedRooms = Number.isFinite(business?.total_rooms) ? Number(business?.total_rooms) : 0;
+  const licensedRooms = business?.total_rooms ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -80,7 +87,7 @@ export default function RoomsDashboardTab() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
-          <p className="text-2xl font-bold text-gray-900">{t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms}</span></p>
+          <p className="text-2xl font-bold text-gray-900">{t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span></p>
           <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
         </div>
 
