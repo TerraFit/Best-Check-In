@@ -1,5 +1,4 @@
 import RoomSettings from './RoomSettings';
-import { t } from '../i18n';
 
 interface BusinessSummary {
   id?: string;
@@ -14,30 +13,17 @@ interface RoomsDashboardTabProps {
   businessOverride?: BusinessSummary | null;
 }
 
-function readCachedBusiness(): BusinessSummary | null {
-  try {
-    const raw = localStorage.getItem('business');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed as BusinessSummary;
-  } catch {
-    return null;
-  }
-}
-
-export default function RoomsDashboardTab({ businessOverride = null }: RoomsDashboardTabProps) {
-  const business = businessOverride || readCachedBusiness();
-  const licensedRooms = business?.total_rooms ?? null;
-
-  return (
-    <div className="rooms-dashboard-embedded">
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{t('rooms_licensed_capacity')}</p>
-        <p className="text-2xl font-bold text-gray-900">{t('rooms_licensed_rooms')} <span className="text-orange-600">{licensedRooms ?? '—'}</span></p>
-        <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
-      </div>
-      <RoomSettings />
-    </div>
-  );
+/**
+ * Dashboard embedding for the Rooms tab.
+ *
+ * RoomSettings is the single source of truth for the licensed-capacity
+ * presentation and room list. Keeping the dashboard wrapper free of a
+ * second capacity card prevents the same "Chambres sous licence" value
+ * from being rendered twice when the tab is embedded in BusinessDashboard.
+ *
+ * businessOverride remains part of the public props contract because
+ * BusinessDashboard supplies the already-loaded business profile.
+ */
+export default function RoomsDashboardTab({ businessOverride: _businessOverride = null }: RoomsDashboardTabProps) {
+  return <RoomSettings />;
 }
