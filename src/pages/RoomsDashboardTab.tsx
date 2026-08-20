@@ -27,7 +27,7 @@ function readCachedBusiness(): BusinessSummary | null {
   }
 }
 
-export default function RoomsDashboardTab({ embedded = true, businessOverride = null }: RoomsDashboardTabProps) {
+export default function RoomsDashboardTab({ businessOverride = null }: RoomsDashboardTabProps) {
   const business = businessOverride || readCachedBusiness();
   const licensedRooms = business?.total_rooms ?? null;
 
