@@ -14,7 +14,12 @@ function auth(event) {
     if (decoded?.role === 'service_role' || meta.super_admin) return { ok: true, superAdmin: true, businessId: meta.business_id || null };
     const businessId = meta.business_id;
     if (!businessId) return { ok: false, status: 403, error: 'Token missing business ID' };
-    const role = meta.staff_role || meta.role || '';
+
+    // Business-owner JWTs are issued without employee_id. Treat them as
+    // management automatically, matching the settings/targets endpoints.
+    if (!meta.employee_id) return { ok: true, superAdmin: false, businessId };
+
+    const role = String(meta.staff_role || meta.role || '').toLowerCase();
     const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
     const roles = ['business_owner', 'general_manager', 'supervisor', 'team_leader', 'administration', 'super_admin'];
     if (!roles.includes(role) && !perms.includes('canManageHousekeeping') && !perms.includes('canViewHousekeepingPerformance')) return { ok: false, status: 403, error: 'Missing permission: canViewHousekeepingPerformance' };
