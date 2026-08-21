@@ -140,6 +140,21 @@ export default function HousekeepingSettings() {
       ...current,
       [key]: { ...(current[key] || {} as Record<HousekeepingServiceType, number>), [serviceType]: minutes },
     }));
+    setTargets((current) => {
+      const existing = findTarget(current, serviceType, roomType);
+      if (existing) {
+        return current.map((row) => row.id === existing.id
+          ? { ...row, target_minutes: minutes, active: true, room_type: roomType }
+          : row);
+      }
+      return [...current, {
+        business_id: businessId,
+        service_type: serviceType,
+        room_type: roomType,
+        target_minutes: minutes,
+        active: true,
+      }];
+    });
   };
 
   const adjustRoomTypeDraft = (roomType: string, serviceType: HousekeepingServiceType, delta: number) => {
@@ -334,11 +349,9 @@ export default function HousekeepingSettings() {
                     <tr key={serviceType} className="border-t border-gray-100">
                       <td className="sticky left-0 z-10 bg-white px-3 py-3 font-medium text-gray-800 border-r border-gray-200 whitespace-nowrap">{SERVICE_LABELS[serviceType]}</td>
                       {roomTypes.map((roomType) => {
-                        const key = roomType.toLowerCase();
-                        const draft = roomTypeDrafts[key];
                         const target = findTarget(targets, serviceType, roomType);
                         const fallback = findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType];
-                        const value = draft?.[serviceType] ?? target?.target_minutes ?? fallback;
+                        const value = getRoomTypeValue(roomType, serviceType);
                         return (
                           <td key={`${roomType}-${serviceType}`} className="px-3 py-2 text-center border-r border-gray-100">
                             <div className="inline-flex items-center">
