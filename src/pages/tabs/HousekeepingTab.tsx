@@ -22,6 +22,8 @@ interface Props {
 
 type ViewFilter = 'today' | 'pending' | 'completed' | 'all';
 
+const AUTO_REFRESH_MS = 20 * 60 * 1000;
+
 export function HousekeepingTab({ businessId }: Props) {
   const [view, setView] = useState<ViewFilter>('today');
   const [tasks, setTasks] = useState<HousekeepingTask[]>([]);
@@ -37,6 +39,12 @@ export function HousekeepingTab({ businessId }: Props) {
     setLoading(true);
     setError(null);
     try {
+      // Generate first so a newly opened Housekeeping tab never depends on
+      // the user pressing the manual Generate / Refresh button.
+      await generateHousekeepingTasks({
+        businessId,
+        regenerate: false,
+      });
       const data = await fetchHousekeepingTasks({ businessId, view });
       setTasks(data.tasks);
       setStats(data.stats);
@@ -49,6 +57,10 @@ export function HousekeepingTab({ businessId }: Props) {
 
   useEffect(() => {
     load();
+    const timer = window.setInterval(() => {
+      load();
+    }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   const runGenerate = async () => {
