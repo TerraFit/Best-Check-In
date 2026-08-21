@@ -79,8 +79,9 @@ export default function HousekeepingPerformancePanel({ businessId }: Props) {
           <Metric label="Completed" value={String(data.summary.count)} />
           <Metric label="Avg actual" value={formatSeconds(data.summary.averageActualSeconds)} />
           <Metric label="Avg target" value={formatSeconds(data.summary.averageTargetSeconds)} />
+          <Metric label="Variance" value={formatSeconds(data.summary.averageVarianceSeconds)} />
           <Metric label="Within target" value={`${data.summary.withinTargetRate}%`} />
-          <Metric label="Issues / service" value={String(data.summary.averageIssues)} />
+          <Metric label="Avg issues" value={String(data.summary.averageIssues)} />
           <Metric label="Checklist" value={data.summary.checklistCompletionRate == null ? '—' : `${data.summary.checklistCompletionRate}%`} />
           <Metric label="Quality pass" value={data.summary.qualityPassRate == null ? '—' : `${data.summary.qualityPassRate}%`} />
         </div>
@@ -118,8 +119,11 @@ export default function HousekeepingPerformancePanel({ businessId }: Props) {
         <div className="flex flex-wrap gap-4 text-xs text-gray-500 border-t border-gray-100 pt-3">
           <span>Over target: {data.summary.overTargetRate}%</span>
           <span>Rework: {data.summary.reworkCount} services</span>
-          <span>Total rework: {formatSeconds(data.summary.totalReworkSeconds)}</span>
-          <span>Skipped timing records: {data.meta.skippedSessionsWithoutValidTiming}</span>
+          <span>Total rework time: {formatSeconds(data.summary.totalReworkSeconds)}</span>
+          <span>Source sessions: {data.meta.completedSessionsReturned}</span>
+          {data.meta.skippedSessionsWithoutValidTiming > 0 && (
+            <span>Skipped invalid timing: {data.meta.skippedSessionsWithoutValidTiming}</span>
+          )}
         </div>
       </>}
     </section>
@@ -127,27 +131,49 @@ export default function HousekeepingPerformancePanel({ businessId }: Props) {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border border-gray-100 bg-gray-50 p-3"><p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p><p className="mt-1 text-lg font-bold text-gray-900">{value}</p></div>;
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-sm font-semibold text-gray-900 mt-0.5">{value}</div>
+    </div>
+  );
 }
 
 function Row({ name, count, variance }: { name: string; count: number; variance: number }) {
-  const positive = variance <= 0;
-  return <div className="flex items-center justify-between gap-3 text-sm"><span className="truncate capitalize text-gray-700">{name}</span><span className="shrink-0 text-xs text-gray-500">{count} · <span className={positive ? 'text-green-700' : 'text-orange-700'}>{variance >= 0 ? '+' : ''}{formatSeconds(variance)}</span></span></div>;
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className="text-gray-800 truncate">{name}</span>
+      <span className="text-gray-500 whitespace-nowrap">{count} · {formatSeconds(variance)}</span>
+    </div>
+  );
 }
 
 function Empty() {
-  return <p className="text-sm text-gray-400">No completed services in this period.</p>;
+  return <div className="text-sm text-gray-400">No completed sessions in range.</div>;
 }
 
 function isManagementUser(): boolean {
   try {
-    const raw = localStorage.getItem('fastcheckin_auth') || localStorage.getItem('fastcheckin_business_auth');
-    if (!raw) return false;
-    const session = JSON.parse(raw);
-    if (session?.type === 'super_admin') return true;
-    if (session?.type === 'business') return true;
-    const role = String(session?.user?.role || session?.role || '').toLowerCase();
-    return MANAGEMENT_ROLES.has(role);
+    const keys = ['fastcheckin_auth', 'fastcheckin_business_auth', 'fastcheckin_employee_auth'];
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const session = JSON.parse(raw);
+      if (session?.type === 'super_admin') return true;
+      // Business-owner login (no employee_id) — always management for performance.
+      if (session?.type === 'business') return true;
+      const role = String(
+        session?.user?.role || session?.user?.staff_role || session?.role || session?.staff_role || ''
+      ).toLowerCase();
+      if (MANAGEMENT_ROLES.has(role)) return true;
+      const perms = session?.user?.permission_set || session?.permission_set || [];
+      if (Array.isArray(perms) && (
+        perms.includes('canViewHousekeepingPerformance') ||
+        perms.includes('canManageHousekeeping') ||
+        perms.includes('canViewHousekeepingReports')
+      )) return true;
+    }
+    return false;
   } catch {
     return false;
   }
