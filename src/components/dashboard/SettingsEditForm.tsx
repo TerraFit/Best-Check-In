@@ -1,5 +1,5 @@
 // src/components/dashboard/SettingsEditForm.tsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { t } from '../../i18n';
 
 interface SettingsEditFormProps {
@@ -24,6 +24,10 @@ interface SettingsEditFormProps {
 export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: SettingsEditFormProps) {
   const [profileForm, setProfileForm] = useState(initialForm)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  useEffect(() => {
+    setProfileForm(initialForm)
+  }, [initialForm])
 
   const handleSave = () => {
     onSave(profileForm)
