@@ -1,59 +1,46 @@
 // netlify/functions/get-business-branding.js
-// ✅ CONVERTED to CommonJS (matching your other functions)
+// Returns the complete business profile required by the business dashboard.
 
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ success: false, error: 'Method Not Allowed' })
-    };
+    return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
   }
 
   try {
     const businessId = event.queryStringParameters?.id;
-    
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ success: false, error: 'Business ID required' })
-      };
-    }
+    if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase environment variables');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ success: false, error: 'Server configuration error' })
-      };
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
 
-    // Fetch ALL business fields needed for branding including logo_url
+    const select = [
+      'id', 'trading_name', 'registered_name', 'legal_name', 'email', 'secondary_email',
+      'phone', 'mobile_phone', 'secondary_phone', 'directors', 'logo_url', 'hero_image_url',
+      'slogan', 'welcome_message', 'total_rooms', 'avg_price', 'physical_address',
+      'postal_address', 'trial_end', 'subscription_status', 'subscription_tier', 'current_plan',
+      'billing_cycle', 'establishment_type', 'tgsa_grading', 'status', 'created_at',
+      'service_paused', 'setup_complete', 'primary_color', 'secondary_color',
+      'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
+      'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text'
+    ].join(',');
+
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=id,trading_name,registered_name,email,phone,logo_url,hero_image_url,slogan,welcome_message,total_rooms,avg_price,physical_address,trial_end,subscription_status,establishment_type,tgsa_grading,status,created_at,service_paused,setup_complete,primary_color,secondary_color`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=${select}`,
+      { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' } }
     );
 
     if (!response.ok) {
@@ -64,32 +51,11 @@ exports.handler = async function(event) {
 
     const data = await response.json();
     const business = data[0];
+    if (!business) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
 
-    if (!business) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ success: false, error: 'Business not found' })
-      };
-    }
-
-    // Return the business data directly
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(business)
-    };
-
+    return { statusCode: 200, headers, body: JSON.stringify(business) };
   } catch (error) {
     console.error('Function error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false, 
-        error: 'Internal server error', 
-        message: error.message 
-      })
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Internal server error', message: error.message }) };
   }
 };
