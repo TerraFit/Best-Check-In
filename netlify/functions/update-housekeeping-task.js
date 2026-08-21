@@ -21,7 +21,6 @@ function assertPermission(event, permission) {
     }
     const role = meta.staff_role || meta.role || '';
     const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
-    // Role defaults (mirrors _rbac)
     const roleAllows = {
       business_owner: true,
       general_manager: true,
@@ -223,7 +222,6 @@ exports.handler = async (event) => {
     const next = updated[0] || { ...task, ...patch };
 
     let roomPatch = null;
-
     if (status === 'in_progress') {
       roomPatch = { housekeeping_status: 'cleaning_in_progress' };
     } else if (status === 'skipped') {
