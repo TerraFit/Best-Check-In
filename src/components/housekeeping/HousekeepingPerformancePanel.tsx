@@ -7,6 +7,7 @@ interface Props {
 }
 
 const MANAGEMENT_ROLES = new Set([
+  'business',
   'business_owner',
   'general_manager',
   'supervisor',
@@ -50,6 +51,7 @@ export default function HousekeepingPerformancePanel({ businessId }: Props) {
   }, [businessId, dateFrom, dateTo]);
 
   useEffect(() => {
+    if (!isManagementUser()) return;
     void load();
   }, [load]);
 
@@ -143,7 +145,8 @@ function isManagementUser(): boolean {
     if (!raw) return false;
     const session = JSON.parse(raw);
     if (session?.type === 'super_admin') return true;
-    const role = String(session?.user?.role || '').toLowerCase();
+    if (session?.type === 'business') return true;
+    const role = String(session?.user?.role || session?.role || '').toLowerCase();
     return MANAGEMENT_ROLES.has(role);
   } catch {
     return false;
