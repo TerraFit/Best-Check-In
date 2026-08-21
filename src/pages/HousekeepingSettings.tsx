@@ -355,21 +355,15 @@ export default function HousekeepingSettings() {
                         return (
                           <td key={`${roomType}-${serviceType}`} className="px-3 py-2 text-center border-r border-gray-100">
                             <div className="inline-flex items-center">
-                              <div className="relative inline-flex items-center">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={1440}
-                                  value={value}
-                                  aria-label={`${SERVICE_LABELS[serviceType]} — ${roomType}`}
-                                  onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
-                                  className="appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none w-[86px] h-9 px-2 pr-6 text-sm text-center border border-gray-300 rounded-md bg-white text-gray-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
-                                />
-                                <div className="pointer-events-none absolute inset-y-0 right-1 flex flex-col justify-center leading-none text-[9px] text-gray-500" aria-hidden="true">
-                                  <span className="-mb-0.5">▲</span>
-                                  <span>▼</span>
-                                </div>
-                              </div>
+                              <input
+                                type="number"
+                                min={1}
+                                max={1440}
+                                value={value}
+                                aria-label={`${SERVICE_LABELS[serviceType]} — ${roomType}`}
+                                onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
+                                className="room-duration-input w-[86px] h-9 px-2 pr-6 text-sm text-center border border-gray-300 rounded-md bg-white text-gray-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 appearance-auto [&::-webkit-inner-spin-button]:opacity-0 [&::-webkit-outer-spin-button]:opacity-0 hover:[&::-webkit-inner-spin-button]:opacity-100 hover:[&::-webkit-outer-spin-button]:opacity-100 focus:[&::-webkit-inner-spin-button]:opacity-100 focus:[&::-webkit-outer-spin-button]:opacity-100"
+                              />
                               <span className="ml-1 text-[11px] text-gray-500">min</span>
                             </div>
                           </td>
