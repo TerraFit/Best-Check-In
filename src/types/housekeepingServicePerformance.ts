@@ -25,6 +25,15 @@ export interface HousekeepingServiceTarget {
   updated_at?: string;
 }
 
+export interface HousekeepingServiceTimerConfig {
+  startedAt: string;
+  targetMinutes: number;
+  warningMinutes: number;
+  finalCountdownSeconds: number;
+  voiceEnabled: boolean;
+  soundEnabled: boolean;
+}
+
 export interface HousekeepingServiceSession {
   id: string;
   business_id: string;
@@ -44,11 +53,13 @@ export interface HousekeepingServiceSession {
   checklist_completed_count: number;
   checklist_total_count: number;
   issues_reported_count: number;
+  checklist_state?: Record<string, boolean>;
   quality_result?: HousekeepingQualityResult | null;
   rework_started_at?: string | null;
   rework_completed_at?: string | null;
   rework_seconds?: number | null;
   notes?: string | null;
+  timer_config?: HousekeepingServiceTimerConfig;
   created_at?: string;
   updated_at?: string;
 }
