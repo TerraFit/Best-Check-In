@@ -2,7 +2,7 @@ const {
   authenticateHousekeepingService,
   resolveBusinessId,
   schemaMissingResponse,
-} = require('./_housekeepingServiceAuth');
+} = require('./_housekeepingServiceAuth.cjs');
 
 const SERVICE_TYPES = ['refresh', 'full_service', 'deep_cleaning', 'mattress_flip_air', 'checkout_inspection'];
 const QUALITY_RESULTS = ['pending', 'passed', 'passed_with_minor_issue', 'failed_rework_required'];
