@@ -5,7 +5,7 @@ const {
   authenticateHousekeepingService,
   resolveBusinessId,
   schemaMissingResponse,
-} = require('./_housekeepingServiceAuth');
+} = require('./_housekeepingServiceAuth.cjs');
 
 const ALLOWED = new Set(['refresh', 'full_service', 'deep_cleaning', 'mattress_flip_air', 'checkout_inspection']);
 
