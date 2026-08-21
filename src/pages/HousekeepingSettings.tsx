@@ -32,6 +32,9 @@ export default function HousekeepingSettings() {
   const [serviceSettings, setServiceSettings] = useState<HousekeepingServiceSettings | null>(null);
   const [targets, setTargets] = useState<HousekeepingServiceTarget[]>([]);
   const [newRoomType, setNewRoomType] = useState('');
+  const [roomTypeDrafts, setRoomTypeDrafts] = useState<Record<string, Record<HousekeepingServiceType, number>>>({});
+  const [roomTypeEditing, setRoomTypeEditing] = useState<Record<string, boolean>>({});
+  const [newRoomTypeKeys, setNewRoomTypeKeys] = useState<Record<string, boolean>>({});
   const [customEditing, setCustomEditing] = useState(false);
   const [customDraft, setCustomDraft] = useState<Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,9 @@ export default function HousekeepingSettings() {
       }
       if (targetsR.status === 'fulfilled') {
         setTargets(targetsR.value);
+        setRoomTypeDrafts({});
+        setRoomTypeEditing({});
+        setNewRoomTypeKeys({});
       } else {
         setTargets([]);
       }
@@ -101,16 +107,74 @@ export default function HousekeepingSettings() {
     });
   };
 
+  const beginRoomTypeEdit = (roomType: string) => {
+    const draft = Object.fromEntries(SERVICE_TYPES.map((serviceType) => [
+      serviceType,
+      findTarget(targets, serviceType, roomType)?.target_minutes ?? findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType],
+    ])) as Record<HousekeepingServiceType, number>;
+    setRoomTypeDrafts((current) => ({ ...current, [roomType.toLowerCase()]: draft }));
+    setRoomTypeEditing((current) => ({ ...current, [roomType.toLowerCase()]: true }));
+  };
+
+  const updateRoomTypeDraft = (roomType: string, serviceType: HousekeepingServiceType, value: string) => {
+    const minutes = Math.max(1, Math.min(1440, Number(value) || 1));
+    const key = roomType.toLowerCase();
+    setRoomTypeDrafts((current) => ({
+      ...current,
+      [key]: { ...(current[key] || {} as Record<HousekeepingServiceType, number>), [serviceType]: minutes },
+    }));
+  };
+
+  const saveRoomTypeEdit = (roomType: string) => {
+    const key = roomType.toLowerCase();
+    const draft = roomTypeDrafts[key];
+    if (!draft) return;
+    setTargets((current) => {
+      let next = [...current];
+      for (const serviceType of SERVICE_TYPES) {
+        const value = draft[serviceType];
+        const existing = findTarget(next, serviceType, roomType);
+        if (existing) {
+          next = next.map((row) => row.id === existing.id ? { ...row, target_minutes: value, active: true, room_type: roomType } : row);
+        } else {
+          next.push({ business_id: businessId, service_type: serviceType, room_type: roomType, target_minutes: value, active: true });
+        }
+      }
+      return next;
+    });
+    setRoomTypeEditing((current) => ({ ...current, [key]: false }));
+    setRoomTypeDrafts((current) => { const next = { ...current }; delete next[key]; return next; });
+    setMessage(`Override « ${roomType} » prêt à être enregistré.`);
+  };
+
+  const cancelRoomTypeEdit = (roomType: string) => {
+    const key = roomType.toLowerCase();
+    if (newRoomTypeKeys[key]) {
+      setTargets((current) => current.filter((row) => (row.room_type?.trim().toLowerCase() || '') !== key));
+      setNewRoomTypeKeys((current) => { const next = { ...current }; delete next[key]; return next; });
+    }
+    setRoomTypeEditing((current) => ({ ...current, [key]: false }));
+    setRoomTypeDrafts((current) => { const next = { ...current }; delete next[key]; return next; });
+  };
+
   const addRoomType = () => {
     const roomType = newRoomType.trim();
     if (!roomType || roomTypes.some((value) => value.toLowerCase() === roomType.toLowerCase())) { setNewRoomType(''); return; }
-    setTargets((current) => [...current, ...SERVICE_TYPES.map((serviceType) => ({ business_id: businessId, service_type: serviceType, room_type: roomType, target_minutes: findTarget(current, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType], active: true }))]);
+    const key = roomType.toLowerCase();
+    const draft = Object.fromEntries(SERVICE_TYPES.map((serviceType) => [serviceType, findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType]])) as Record<HousekeepingServiceType, number>;
+    setRoomTypeDrafts((current) => ({ ...current, [key]: draft }));
+    setRoomTypeEditing((current) => ({ ...current, [key]: true }));
+    setNewRoomTypeKeys((current) => ({ ...current, [key]: true }));
+    setTargets((current) => [...current, ...SERVICE_TYPES.map((serviceType) => ({ business_id: businessId, service_type: serviceType, room_type: roomType, target_minutes: draft[serviceType], active: true }))]);
     setNewRoomType('');
   };
 
   const removeRoomType = (roomType: string) => {
     const normalized = roomType.trim().toLowerCase();
     setTargets((current) => current.filter((row) => (row.room_type?.trim().toLowerCase() || '') !== normalized));
+    setRoomTypeDrafts((current) => { const next = { ...current }; delete next[normalized]; return next; });
+    setRoomTypeEditing((current) => { const next = { ...current }; delete next[normalized]; return next; });
+    setNewRoomTypeKeys((current) => { const next = { ...current }; delete next[normalized]; return next; });
   };
 
   const selectPolicy = (policy: HousekeepingPolicy) => {
@@ -122,26 +186,19 @@ export default function HousekeepingSettings() {
   const beginCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (!settings) return;
-    if (settings.policy !== 'custom') {
-      setSettings((current) => current ? { ...current, policy: 'custom' } : current);
-    }
+    if (settings.policy !== 'custom') setSettings((current) => current ? { ...current, policy: 'custom' } : current);
     setCustomDraft({ custom_refresh_interval: settings.custom_refresh_interval, custom_full_interval: settings.custom_full_interval });
     setCustomEditing(true);
   };
 
   const cancelCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (customDraft) {
-      setSettings((current) => current ? { ...current, ...customDraft } : current);
-    }
-    setCustomEditing(false);
-    setCustomDraft(null);
+    if (customDraft) setSettings((current) => current ? { ...current, ...customDraft } : current);
+    setCustomEditing(false); setCustomDraft(null);
   };
 
   const saveCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    setCustomEditing(false);
-    setCustomDraft(null);
+    event.stopPropagation(); setCustomEditing(false); setCustomDraft(null);
   };
 
   const save = async () => {
@@ -153,155 +210,42 @@ export default function HousekeepingSettings() {
       await Promise.all(targets.map((row) => saveHousekeepingServiceTarget(businessId, { service_type: row.service_type, room_type: row.room_type || null, target_minutes: row.target_minutes, active: row.active })));
       await generateHousekeepingTasks({ businessId, regenerate: true });
       setMessage(t('housekeeping_settings_saved_regen'));
-      setCustomEditing(false);
-      setCustomDraft(null);
+      setCustomEditing(false); setCustomDraft(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('housekeeping_settings_save_failed'));
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div>
-            <button type="button" onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-800">{t('common_back')}</button>
-            <h1 className="text-xl font-bold text-gray-900 mt-1">{t('housekeeping_settings_title')}</h1>
-            <p className="text-sm text-gray-500">{t('housekeeping_settings_subtitle')}</p>
-          </div>
-        </div>
-      </header>
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10"><div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3"><div><button type="button" onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-800">{t('common_back')}</button><h1 className="text-xl font-bold text-gray-900 mt-1">{t('housekeeping_settings_title')}</h1><p className="text-sm text-gray-500">{t('housekeeping_settings_subtitle')}</p></div></div></header>
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {loading && <div className="py-12 text-center text-sm text-gray-400">{t('common_loading')}</div>}
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         {message && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>}
         {settings && serviceSettings && !loading && <>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_policy')}</h2>
-              <p className="text-xs text-gray-500 mt-1">Sélectionnez la politique qui détermine automatiquement le type et la fréquence des services de ménage.</p>
-            </div>
+            <div><h2 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_policy')}</h2><p className="text-xs text-gray-500 mt-1">Sélectionnez la politique qui détermine automatiquement le type et la fréquence des services de ménage.</p></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="radiogroup" aria-label={t('housekeeping_settings_policy')}>
               {POLICY_OPTIONS.map((opt) => {
                 const selected = settings.policy === opt.id;
-                return (
-                  <div
-                    key={opt.id}
-                    role="radio"
-                    aria-checked={selected}
-                    tabIndex={0}
-                    onClick={() => selectPolicy(opt.id)}
-                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPolicy(opt.id); } }}
-                    className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-orange-300 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/40'}`}
-                  >
-                    <div className={`absolute top-3 right-3 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold ${selected ? 'bg-orange-500 text-white' : 'bg-transparent text-transparent border border-gray-300'}`} aria-hidden="true">{selected ? '✓' : ''}</div>
-                    <div className="pr-8 font-semibold text-sm text-gray-900">{opt.icon} {t(`housekeeping_policy_${opt.id}` as any)}</div>
-                    <div className="text-xs text-gray-600 mt-2 leading-5">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
-                    <div className="mt-3 pt-3 border-t border-gray-200/80">
-                      <span className="font-semibold text-xs text-gray-800">Planification :</span>
-                      <span className="text-xs text-gray-600 ml-1">
-                        {opt.id === 'custom'
-                          ? `Rafraîchissement tous les ${settings.custom_refresh_interval} jours · Service complet tous les ${settings.custom_full_interval} jours.`
-                          : POLICY_PLANIFICATION[opt.id]}
-                      </span>
-                    </div>
-                    {opt.id === 'custom' && (
-                      <div className="mt-3 pt-3 border-t border-gray-200/80" onClick={(event) => event.stopPropagation()}>
-                        {!customEditing ? (
-                          <div className="flex items-center justify-between gap-3">
-                            {selected && <span className="text-xs font-semibold text-orange-700">✓ Sélectionné</span>}
-                            <button
-                              type="button"
-                              onClick={beginCustomEdit}
-                              className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
-                            >
-                              Modifier
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_custom')}</h3>
-                              <p className="text-xs text-gray-600 mt-1">Définissez les intervalles utilisés pour planifier les rafraîchissements et les services complets.</p>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <label className="block text-sm text-gray-700">
-                                <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_refresh_interval')}</span>
-                                <div className="flex items-center gap-2">
-                                  <input type="number" min={1} max={14} value={settings.custom_refresh_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_refresh_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
-                                  <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
-                                </div>
-                              </label>
-                              <label className="block text-sm text-gray-700">
-                                <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_full_interval')}</span>
-                                <div className="flex items-center gap-2">
-                                  <input type="number" min={1} max={14} value={settings.custom_full_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_full_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
-                                  <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
-                                </div>
-                              </label>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                              <button
-                                type="button"
-                                onClick={cancelCustomEdit}
-                                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                              >
-                                Annuler
-                              </button>
-                              <button
-                                type="button"
-                                onClick={saveCustomEdit}
-                                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
-                              >
-                                Enregistrer
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
+                return <div key={opt.id} role="radio" aria-checked={selected} tabIndex={0} onClick={() => selectPolicy(opt.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPolicy(opt.id); } }} className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-orange-300 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/40'}`}>
+                  <div className={`absolute top-3 right-3 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold ${selected ? 'bg-orange-500 text-white' : 'bg-transparent text-transparent border border-gray-300'}`} aria-hidden="true">{selected ? '✓' : ''}</div>
+                  <div className="pr-8 font-semibold text-sm text-gray-900">{opt.icon} {t(`housekeeping_policy_${opt.id}` as any)}</div>
+                  <div className="text-xs text-gray-600 mt-2 leading-5">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
+                  <div className="mt-3 pt-3 border-t border-gray-200/80"><span className="font-semibold text-xs text-gray-800">Planification :</span><span className="text-xs text-gray-600 ml-1">{opt.id === 'custom' ? `Rafraîchissement tous les ${settings.custom_refresh_interval} jours · Service complet tous les ${settings.custom_full_interval} jours.` : POLICY_PLANIFICATION[opt.id]}</span></div>
+                  {opt.id === 'custom' && <div className="mt-3 pt-3 border-t border-gray-200/80" onClick={(event) => event.stopPropagation()}>{!customEditing ? <div className="flex items-center justify-between gap-3">{selected && <span className="text-xs font-semibold text-orange-700">✓ Sélectionné</span>}<button type="button" onClick={beginCustomEdit} className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50">Modifier</button></div> : <div className="space-y-4"><div><h3 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_custom')}</h3><p className="text-xs text-gray-600 mt-1">Définissez les intervalles utilisés pour planifier les rafraîchissements et les services complets.</p></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><label className="block text-sm text-gray-700"><span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_refresh_interval')}</span><div className="flex items-center gap-2"><input type="number" min={1} max={14} value={settings.custom_refresh_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_refresh_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" /><span className="text-xs text-gray-500 whitespace-nowrap">jours</span></div></label><label className="block text-sm text-gray-700"><span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_full_interval')}</span><div className="flex items-center gap-2"><input type="number" min={1} max={14} value={settings.custom_full_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_full_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" /><span className="text-xs text-gray-500 whitespace-nowrap">jours</span></div></label></div><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={cancelCustomEdit} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50">Annuler</button><button type="button" onClick={saveCustomEdit} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-500 bg-orange-500 text-white hover:bg-orange-600">Enregistrer</button></div></div>}</div>}
+                </div>;
               })}
             </div>
           </section>
-          <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900">2. Service timer defaults</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="text-sm text-gray-700">Warning (minutes)
-                <input type="number" min={0} max={120} value={serviceSettings.warning_minutes} onChange={(e) => setServiceSettings((s) => s ? { ...s, warning_minutes: Math.max(0, Number(e.target.value) || 0) } : s)} className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              </label>
-              <label className="text-sm text-gray-700">Final countdown (seconds)
-                <input type="number" min={1} max={60} value={serviceSettings.final_countdown_seconds} onChange={(e) => setServiceSettings((s) => s ? { ...s, final_countdown_seconds: Math.max(1, Math.min(60, Number(e.target.value) || 5)) } : s)} className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.voice_enabled} onChange={(e) => setServiceSettings((s) => s ? { ...s, voice_enabled: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Voice prompts</span></label>
-              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.sound_enabled} onChange={(e) => setServiceSettings((s) => s ? { ...s, sound_enabled: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Sound</span></label>
-              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.allow_pause} onChange={(e) => setServiceSettings((s) => s ? { ...s, allow_pause: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Allow pause</span></label>
-            </div>
-          </section>
+          <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4"><h2 className="text-sm font-semibold text-gray-900">2. Service timer defaults</h2><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><label className="text-sm text-gray-700">Warning (minutes)<input type="number" min={0} max={120} value={serviceSettings.warning_minutes} onChange={(e) => setServiceSettings((s) => s ? { ...s, warning_minutes: Math.max(0, Number(e.target.value) || 0) } : s)} className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></label><label className="text-sm text-gray-700">Final countdown (seconds)<input type="number" min={1} max={60} value={serviceSettings.final_countdown_seconds} onChange={(e) => setServiceSettings((s) => s ? { ...s, final_countdown_seconds: Math.max(1, Math.min(60, Number(e.target.value) || 5)) } : s)} className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></label></div><div className="flex flex-wrap gap-4"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.voice_enabled} onChange={(e) => setServiceSettings((s) => s ? { ...s, voice_enabled: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Voice prompts</span></label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.sound_enabled} onChange={(e) => setServiceSettings((s) => s ? { ...s, sound_enabled: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Sound</span></label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={serviceSettings.allow_pause} onChange={(e) => setServiceSettings((s) => s ? { ...s, allow_pause: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Allow pause</span></label></div></section>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold text-gray-900">3. Target durations (minutes)</h2>
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Service</th><th className="text-left px-3 py-2">Default minutes</th></tr></thead>
-                <tbody>{SERVICE_TYPES.map((serviceType) => {
-                  const target = findTarget(targets, serviceType, null);
-                  return <tr key={serviceType} className="border-t border-gray-100"><td className="px-3 py-2 font-medium">{SERVICE_LABELS[serviceType]}</td><td className="px-3 py-2"><input type="number" min={1} max={1440} value={target?.target_minutes ?? SERVICE_DEFAULTS[serviceType]} onChange={(e) => updateTarget(serviceType, e.target.value, null)} className="w-28 px-2 py-1.5 text-sm border border-gray-300 rounded" /></td></tr>;
-                })}</tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="text-sm text-gray-700">Add room-type override
-                <input value={newRoomType} onChange={(e) => setNewRoomType(e.target.value)} placeholder="e.g. Suite" className="mt-1 block w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              </label>
-              <button type="button" onClick={addRoomType} className="px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-900">Add</button>
-            </div>
-            {roomTypes.length === 0 ? <p className="text-xs text-gray-500">No room-type overrides. Defaults apply to all rooms.</p> : <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Type</th>{SERVICE_TYPES.map((serviceType) => <th key={serviceType} className="text-left px-3 py-2 whitespace-nowrap">{SERVICE_LABELS[serviceType]}</th>)}<th /></tr></thead><tbody>{roomTypes.map((roomType) => <tr key={roomType} className="border-t border-gray-100"><td className="px-3 py-2 font-medium whitespace-nowrap">{roomType}</td>{SERVICE_TYPES.map((serviceType) => { const target = findTarget(targets, serviceType, roomType); return <td key={serviceType} className="px-2 py-2"><input type="number" min={1} max={1440} value={target?.target_minutes ?? findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType]} onChange={(e) => updateTarget(serviceType, e.target.value, roomType)} className="w-24 px-2 py-1.5 text-xs border border-gray-300 rounded" /></td>; })}<td className="px-3 py-2 text-right"><button type="button" onClick={() => removeRoomType(roomType)} className="text-xs text-red-600 hover:text-red-700">Supprimer</button></td></tr>)}</tbody></table></div>}
+            <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Service</th><th className="text-left px-3 py-2">Default minutes</th></tr></thead><tbody>{SERVICE_TYPES.map((serviceType) => { const target = findTarget(targets, serviceType, null); return <tr key={serviceType} className="border-t border-gray-100"><td className="px-3 py-2 font-medium">{SERVICE_LABELS[serviceType]}</td><td className="px-3 py-2"><input type="number" min={1} max={1440} value={target?.target_minutes ?? SERVICE_DEFAULTS[serviceType]} onChange={(e) => updateTarget(serviceType, e.target.value, null)} className="w-28 px-2 py-1.5 text-sm border border-gray-300 rounded" /></td></tr>; })}</tbody></table></div>
+            <div className="flex flex-wrap items-end gap-2"><label className="text-sm text-gray-700">Add room-type override<input value={newRoomType} onChange={(e) => setNewRoomType(e.target.value)} placeholder="e.g. Suite" className="mt-1 block w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm" /></label><button type="button" onClick={addRoomType} className="px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-900">Add</button></div>
+            {roomTypes.length === 0 ? <p className="text-xs text-gray-500">No room-type overrides. Defaults apply to all rooms.</p> : <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Type</th>{SERVICE_TYPES.map((serviceType) => <th key={serviceType} className="text-left px-3 py-2 whitespace-nowrap">{SERVICE_LABELS[serviceType]}</th>)}<th className="text-left px-3 py-2">Actions</th></tr></thead><tbody>{roomTypes.map((roomType) => { const key = roomType.toLowerCase(); const editing = Boolean(roomTypeEditing[key]); const draft = roomTypeDrafts[key]; return <tr key={roomType} className="border-t border-gray-100"><td className="px-3 py-2 font-medium whitespace-nowrap">{roomType}</td>{SERVICE_TYPES.map((serviceType) => { const target = findTarget(targets, serviceType, roomType); const fallback = findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType]; const value = editing && draft ? draft[serviceType] : (target?.target_minutes ?? fallback); return <td key={serviceType} className="px-2 py-2"><input type="number" min={1} max={1440} value={value} disabled={!editing} onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)} className={`w-24 px-2 py-1.5 text-xs border rounded ${editing ? 'border-orange-300 bg-white' : 'border-gray-200 bg-gray-50 text-gray-700'}`} /></td>; })}<td className="px-3 py-2 whitespace-nowrap">{editing ? <div className="flex items-center gap-2"><button type="button" onClick={() => cancelRoomTypeEdit(roomType)} className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50">Annuler</button><button type="button" onClick={() => saveRoomTypeEdit(roomType)} className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-orange-500 bg-orange-500 text-white hover:bg-orange-600">Enregistrer</button></div> : <div className="flex items-center gap-2"><button type="button" onClick={() => beginRoomTypeEdit(roomType)} className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50">Modifier</button><button type="button" onClick={() => removeRoomType(roomType)} className="text-xs text-red-600 hover:text-red-700">Supprimer</button></div>}</td></tr>; })}</tbody></table></div>}
           </section>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3"><h2 className="text-sm font-semibold text-gray-900">4. Règles opérationnelles</h2><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={settings.allow_skip_refresh} onChange={(e) => setSettings((s) => s ? { ...s, allow_skip_refresh: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Autoriser le skip d'un Refresh</span></label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={settings.mandatory_checkout_fs} onChange={(e) => setSettings((s) => s ? { ...s, mandatory_checkout_fs: e.target.checked } : s)} className="rounded border-gray-300 text-orange-500" /><span className="text-sm text-gray-800">Full Service obligatoire au checkout</span></label></section>
           <div className="sticky bottom-4 flex justify-end"><button type="button" onClick={() => void save()} disabled={saving} className="px-6 py-3 text-sm font-bold text-white bg-orange-500 rounded-lg shadow-lg hover:bg-orange-600 disabled:opacity-50">{saving ? t('common_saving') : t('housekeeping_settings_save')}</button></div>
