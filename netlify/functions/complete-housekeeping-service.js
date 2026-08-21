@@ -6,7 +6,7 @@ const {
   authenticateHousekeepingService,
   resolveBusinessId,
   schemaMissingResponse,
-} = require('./_housekeepingServiceAuth');
+} = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
   const headers = {
