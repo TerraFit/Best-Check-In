@@ -1,13 +1,11 @@
 // netlify/functions/get-housekeeping-tasks.js
-// CJS exports.handler — no local require (esbuild + type:module safe)
 // RBAC: canViewHousekeeping when JWT present
+// Includes active service sessions so timers survive browser sleep/reload.
 
 function assertPermission(event, permission) {
   const authHeader =
     (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-  if (!authHeader) {
-    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-  }
+  if (!authHeader) return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
   try {
     const jwt = require('jsonwebtoken');
     const token = authHeader.replace('Bearer ', '').trim();
@@ -21,31 +19,14 @@ function assertPermission(event, permission) {
     }
     const role = meta.staff_role || meta.role || '';
     const privileged = [
-      'business_owner',
-      'general_manager',
-      'supervisor',
-      'team_leader',
-      'front_desk',
-      'housekeeper',
-      'laundry_attendant',
-      'administration',
-      'night_auditor',
-      'super_admin',
+      'business_owner', 'general_manager', 'supervisor', 'team_leader', 'front_desk',
+      'housekeeper', 'laundry_attendant', 'administration', 'night_auditor', 'super_admin',
     ];
     const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
-    if (
-      privileged.includes(role) ||
-      perms.includes(permission) ||
-      perms.includes('canViewHousekeeping') ||
-      perms.includes('canManageHousekeeping')
-    ) {
+    if (privileged.includes(role) || perms.includes(permission) || perms.includes('canViewHousekeeping') || perms.includes('canManageHousekeeping')) {
       return { ok: true, principal: { actorType: 'employee', role, active: true } };
     }
-    return {
-      ok: false,
-      status: 403,
-      error: 'Missing permission: ' + permission,
-    };
+    return { ok: false, status: 403, error: 'Missing permission: ' + permission };
   } catch (e) {
     return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
   }
@@ -54,18 +35,11 @@ function assertPermission(event, permission) {
 function isReadyStatus(s) {
   return ['ready', 'clean', 'inspected'].includes(s);
 }
-
 function isNotReadyStatus(s) {
   return ['not_ready', 'dirty', 'full_service_required', 'refresh_required'].includes(s);
 }
-
 function isMaintenanceRoom(r) {
-  return (
-    !r.active ||
-    r.availability_status === 'out_of_order' ||
-    r.availability_status === 'maintenance' ||
-    r.availability_status === 'unavailable'
-  );
+  return !r.active || ['out_of_order', 'maintenance', 'unavailable'].includes(r.availability_status);
 }
 
 exports.handler = async (event) => {
@@ -76,91 +50,100 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   try {
     const gate = assertPermission(event, 'canViewHousekeeping');
-    if (!gate.ok) {
-      return {
-        statusCode: gate.status || 403,
-        headers,
-        body: JSON.stringify({ error: gate.error }),
-      };
-    }
+    if (!gate.ok) return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error }) };
 
     const q = event.queryStringParameters || {};
     const { businessId, view, date, roomId, status } = q;
-    if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
-    }
+    if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
-    }
+    if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
 
-    const todayStr =
-      date ||
-      new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Africa/Johannesburg',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).format(new Date());
+    const restHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
+    const todayStr = date || new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
 
     let filter = `business_id=eq.${businessId}`;
     if (roomId) filter += `&room_id=eq.${roomId}`;
-
     if (view === 'today') {
-      filter += `&scheduled_date=eq.${todayStr}`;
-      filter += `&status=in.(pending,in_progress)`;
+      filter += `&scheduled_date=eq.${todayStr}&status=in.(pending,in_progress)`;
     } else if (view === 'pending') {
-      filter += `&status=in.(pending,in_progress)`;
+      filter += '&status=in.(pending,in_progress)';
     } else if (view === 'completed') {
-      filter += `&status=eq.completed`;
+      filter += '&status=eq.completed';
     } else if (status) {
       filter += `&status=eq.${status}`;
     }
 
-    const url =
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`;
-
-    const res = await fetch(url, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
-    });
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`,
+      { headers: restHeaders }
+    );
     if (!res.ok) {
-      const t = await res.text();
-      return { statusCode: res.status, headers, body: JSON.stringify({ error: t || res.statusText }) };
+      const text = await res.text();
+      return { statusCode: res.status, headers, body: JSON.stringify({ error: text || res.statusText }) };
     }
     const tasks = await res.json();
 
+    // Room type is authoritative from rooms, not a duplicated task snapshot.
+    const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
+    const roomsById = {};
+    if (roomIds.length) {
+      const roomsLookup = await fetch(
+        `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&id=in.(${roomIds.join(',')})&select=id,room_type,housekeeping_status,occupancy_status,availability_status,active`,
+        { headers: restHeaders }
+      );
+      if (roomsLookup.ok) {
+        for (const room of await roomsLookup.json()) roomsById[room.id] = room;
+      }
+    }
+
+    // The active session is the source of truth for a running timer.
+    const activeSessionsByTask = {};
+    const sessionsRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${businessId}&status=eq.active&select=*&order=started_at.desc`,
+      { headers: restHeaders }
+    );
+    if (sessionsRes.ok) {
+      for (const session of await sessionsRes.json()) {
+        if (!activeSessionsByTask[session.task_id]) activeSessionsByTask[session.task_id] = session;
+      }
+    }
+
+    const enrichedTasks = tasks.map((task) => ({
+      ...task,
+      room_type: roomsById[task.room_id]?.room_type || task.room_type || null,
+      active_session: activeSessionsByTask[task.id] || null,
+    }));
+
     const roomsRes = await fetch(
       `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+      { headers: restHeaders }
     );
     const rooms = roomsRes.ok ? await roomsRes.json() : [];
 
     const todayTasksRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=eq.${todayStr}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+      { headers: restHeaders }
     );
     const todayOpenTasks = todayTasksRes.ok ? await todayTasksRes.json() : [];
 
     const completedTodayRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=eq.${todayStr}&status=eq.completed&select=id`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+      { headers: restHeaders }
     );
     const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
 
     const overdueRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${businessId}&scheduled_date=lt.${todayStr}&status=in.(pending,in_progress)&select=id`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+      { headers: restHeaders }
     );
     const overdueTasks = overdueRes.ok ? await overdueRes.json() : [];
 
@@ -169,34 +152,15 @@ exports.handler = async (event) => {
     let roomsCleaning = 0;
     let roomsAwaiting = 0;
     let roomsMaintenance = 0;
-
     for (const r of rooms) {
-      if (isMaintenanceRoom(r)) {
-        roomsMaintenance += 1;
-        continue;
-      }
+      if (isMaintenanceRoom(r)) { roomsMaintenance += 1; continue; }
       if (r.housekeeping_status === 'do_not_disturb') continue;
-      if (r.housekeeping_status === 'cleaning_in_progress') {
-        roomsCleaning += 1;
-        continue;
-      }
-      if (r.housekeeping_status === 'awaiting_inspection') {
-        roomsAwaiting += 1;
-        continue;
-      }
-      if (isNotReadyStatus(r.housekeeping_status)) {
-        roomsNotReady += 1;
-        continue;
-      }
-      if (isReadyStatus(r.housekeeping_status)) {
-        roomsReady += 1;
-        continue;
-      }
+      if (r.housekeeping_status === 'cleaning_in_progress') { roomsCleaning += 1; continue; }
+      if (r.housekeeping_status === 'awaiting_inspection') { roomsAwaiting += 1; continue; }
+      if (isNotReadyStatus(r.housekeeping_status)) { roomsNotReady += 1; continue; }
+      if (isReadyStatus(r.housekeeping_status)) { roomsReady += 1; continue; }
       roomsReady += 1;
     }
-
-    const refreshDue = todayOpenTasks.filter((t) => t.task_type === 'refresh').length;
-    const fullServiceDue = todayOpenTasks.filter((t) => t.task_type === 'full_service').length;
 
     const stats = {
       rooms_ready: roomsReady,
@@ -206,8 +170,8 @@ exports.handler = async (event) => {
       rooms_cleaning: roomsCleaning,
       rooms_awaiting_inspection: roomsAwaiting,
       rooms_maintenance: roomsMaintenance,
-      refresh_due: refreshDue,
-      full_service_due: fullServiceDue,
+      refresh_due: todayOpenTasks.filter((t) => t.task_type === 'refresh').length,
+      full_service_due: todayOpenTasks.filter((t) => t.task_type === 'full_service').length,
       completed_today: completedToday.length,
       overdue: overdueTasks.length,
     };
@@ -215,20 +179,10 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        tasks,
-        stats,
-        today: todayStr,
-        businessId,
-      }),
+      body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, businessId }),
     };
   } catch (error) {
     console.error('get-housekeeping-tasks fatal:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message || 'Failed to fetch housekeeping tasks' }),
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to fetch housekeeping tasks' }) };
   }
 };
