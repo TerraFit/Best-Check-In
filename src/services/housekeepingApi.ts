@@ -8,12 +8,11 @@ import type {
   InspectionStatus,
   HousekeepingServiceSession,
 } from '../types/housekeeping';
+import { DEFAULT_HOUSEKEEPING_SETTINGS } from '../types/housekeeping';
 
 async function parseJson(response: Response) {
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || data.message || `HTTP ${response.status}`);
-  }
+  if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`);
   return data;
 }
 
@@ -55,24 +54,7 @@ export async function generateHousekeepingTasks(payload: {
   bookingId?: string;
   roomId?: string;
   regenerate?: boolean;
-}): Promise<{
-  created: number;
-  stayover_refresh?: number;
-  stayover_full_service?: number;
-  checkout_full_service?: number;
-  stayovers_considered?: number;
-  checkouts_considered?: number;
-  open_tasks_removed?: number;
-  rooms_marked_not_ready?: number;
-  policy?: string;
-  message?: string;
-  today?: string;
-  bookings_processed?: number;
-  bookings_matched?: number;
-  skipped_no_room?: number;
-  skipped_outside_window?: number;
-  regenerate?: boolean;
-}> {
+}): Promise<Record<string, unknown> & { created: number }> {
   const res = await fetch('/.netlify/functions/generate-housekeeping-tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -102,14 +84,16 @@ export async function updateHousekeepingTask(payload: {
   return { ...data.task, active_session: data.service_session || data.task?.active_session || null };
 }
 
-export async function fetchHousekeepingSettings(
-  businessId: string
-): Promise<HousekeepingSettings> {
+export async function fetchHousekeepingSettings(businessId: string): Promise<HousekeepingSettings> {
   const res = await fetch(
     `/.netlify/functions/housekeeping-settings?businessId=${encodeURIComponent(businessId)}`
   );
   const data = await parseJson(res);
-  return data.settings;
+  return {
+    business_id: businessId,
+    ...DEFAULT_HOUSEKEEPING_SETTINGS,
+    ...(data.settings || {}),
+  };
 }
 
 export async function saveHousekeepingSettings(
@@ -122,5 +106,9 @@ export async function saveHousekeepingSettings(
     body: JSON.stringify({ businessId, ...updates }),
   });
   const data = await parseJson(res);
-  return data.settings;
+  return {
+    business_id: businessId,
+    ...DEFAULT_HOUSEKEEPING_SETTINGS,
+    ...(data.settings || {}),
+  };
 }
