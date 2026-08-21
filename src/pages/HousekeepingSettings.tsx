@@ -363,7 +363,7 @@ export default function HousekeepingSettings() {
                                   value={value}
                                   aria-label={`${SERVICE_LABELS[serviceType]} — ${roomType}`}
                                   onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
-                                  className="w-[86px] h-9 px-2 pr-6 text-sm text-center border border-gray-300 rounded-md bg-white text-gray-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                                  className="appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none w-[86px] h-9 px-2 pr-6 text-sm text-center border border-gray-300 rounded-md bg-white text-gray-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
                                 />
                                 <div className="pointer-events-none absolute inset-y-0 right-1 flex flex-col justify-center leading-none text-[9px] text-gray-500" aria-hidden="true">
                                   <span className="-mb-0.5">▲</span>
