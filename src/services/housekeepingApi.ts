@@ -6,6 +6,7 @@ import type {
   HousekeepingDashboardStats,
   HousekeepingTaskStatus,
   InspectionStatus,
+  HousekeepingServiceSession,
 } from '../types/housekeeping';
 
 async function parseJson(response: Response) {
@@ -89,14 +90,16 @@ export async function updateHousekeepingTask(payload: {
   assigned_staff_name?: string | null;
   inspection_status?: InspectionStatus;
   completed_by?: string;
-}): Promise<HousekeepingTask> {
+  checklist_state?: Record<string, boolean>;
+  issue_count?: number;
+}): Promise<HousekeepingTask & { service_session?: HousekeepingServiceSession | null }> {
   const res = await fetch('/.netlify/functions/update-housekeeping-task', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   const data = await parseJson(res);
-  return data.task;
+  return { ...data.task, active_session: data.service_session || data.task?.active_session || null };
 }
 
 export async function fetchHousekeepingSettings(
