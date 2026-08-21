@@ -16,23 +16,20 @@ function auth(event) {
     if (!businessId) return { ok: false, status: 403, error: 'Token missing business ID' };
     const role = meta.staff_role || meta.role || '';
     const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
-    const roles = ['business_owner', 'general_manager', 'supervisor', 'team_leader', 'housekeeper', 'administration', 'super_admin'];
-    if (!roles.includes(role) && !perms.includes('canManageHousekeeping') && !perms.includes('canViewHousekeepingPerformance')) return { ok: false, status: 403, error: 'Missing permission: canManageHousekeeping' };
+    const roles = ['business_owner', 'general_manager', 'supervisor', 'team_leader', 'administration', 'super_admin'];
+    if (!roles.includes(role) && !perms.includes('canManageHousekeeping') && !perms.includes('canViewHousekeepingPerformance')) return { ok: false, status: 403, error: 'Missing permission: canViewHousekeepingPerformance' };
     return { ok: true, superAdmin: false, businessId };
   } catch (error) {
-    return { ok: false, status: error?.name === 'TokenExpiredError' ? 401 : 401, error: error?.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid authorization token' };
+    return { ok: false, status: 401, error: error?.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid authorization token' };
   }
 }
 
 function metric() { return { count: 0, actual: 0, target: 0, within: 0, over: 0, issues: 0, checklistDone: 0, checklistTotal: 0, quality: {} }; }
 function add(m, s) {
-  const actual = Number(s.actual_seconds);
-  const target = Number(s.target_minutes_snapshot) * 60;
+  const actual = Number(s.actual_seconds), target = Number(s.target_minutes_snapshot) * 60;
   if (!Number.isFinite(actual) || !Number.isFinite(target) || target <= 0) return false;
-  m.count++; m.actual += actual; m.target += target; m.within += actual <= target ? 1 : 0; m.over += actual > target ? 1 : 0;
-  m.issues += Math.max(0, Number(s.issues_reported_count) || 0);
-  const total = Math.max(0, Number(s.checklist_total_count) || 0);
-  const done = Math.min(total, Math.max(0, Number(s.checklist_completed_count) || 0));
+  m.count++; m.actual += actual; m.target += target; m.within += actual <= target ? 1 : 0; m.over += actual > target ? 1 : 0; m.issues += Math.max(0, Number(s.issues_reported_count) || 0);
+  const total = Math.max(0, Number(s.checklist_total_count) || 0), done = Math.min(total, Math.max(0, Number(s.checklist_completed_count) || 0));
   m.checklistDone += done; m.checklistTotal += total;
   if (QUALITY_RESULTS.includes(s.quality_result)) m.quality[s.quality_result] = (m.quality[s.quality_result] || 0) + 1;
   return true;
@@ -56,9 +53,8 @@ exports.handler = async (event) => {
     const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
     if (!url || !key) return response(500, { success: false, error: 'Server configuration error' });
 
-    const now = new Date(); const fallback = new Date(now); fallback.setUTCDate(fallback.getUTCDate() - 29);
-    const from = dateOnly(q.dateFrom || q.startDate) || fallback.toISOString().slice(0, 10);
-    const to = dateOnly(q.dateTo || q.endDate) || now.toISOString().slice(0, 10);
+    const now = new Date(), fallback = new Date(now); fallback.setUTCDate(fallback.getUTCDate() - 29);
+    const from = dateOnly(q.dateFrom || q.startDate) || fallback.toISOString().slice(0, 10), to = dateOnly(q.dateTo || q.endDate) || now.toISOString().slice(0, 10);
     if (from > to) return response(400, { success: false, error: 'dateFrom must be on or before dateTo' });
 
     const params = new URLSearchParams();
@@ -86,9 +82,8 @@ exports.handler = async (event) => {
     const byServiceType = [...services.entries()].map(([serviceType, m]) => ({ serviceType, ...out(m) })).sort((a,b) => b.count - a.count);
     const byRoom = [...rooms.values()].map(x => ({ roomId: x.roomId, ...out(x.metric) })).sort((a,b) => b.count - a.count);
     const daily = [...days.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([date,m]) => ({ date, ...out(m) }));
-    const quality = overall.quality; const qualityCount = (quality.passed || 0) + (quality.passed_with_minor_issue || 0) + (quality.failed_rework_required || 0);
-    const reworkCount = quality.failed_rework_required || 0;
-    const reworkSeconds = sessions.reduce((sum, s) => sum + Math.max(0, Number(s.rework_seconds) || 0), 0);
+    const quality = overall.quality, qualityCount = (quality.passed || 0) + (quality.passed_with_minor_issue || 0) + (quality.failed_rework_required || 0);
+    const reworkCount = quality.failed_rework_required || 0, reworkSeconds = sessions.reduce((sum, s) => sum + Math.max(0, Number(s.rework_seconds) || 0), 0);
 
     return response(200, { success: true, meta: { businessId, dateFrom: from, dateTo: to, generatedAt: new Date().toISOString(), source: 'housekeeping_service_sessions', completedSessionsReturned: sessions.length, skippedSessionsWithoutValidTiming: skipped }, summary: { ...out(overall), qualityPassRate: qualityCount ? Math.round((quality.passed || 0) / qualityCount * 10000) / 100 : null, reworkCount, totalReworkSeconds: reworkSeconds }, byEmployee, byServiceType, byRoom, daily });
   } catch (error) {
