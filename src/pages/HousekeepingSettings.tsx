@@ -4,13 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { fetchHousekeepingSettings, saveHousekeepingSettings, generateHousekeepingTasks, fetchHousekeepingServiceSettings, saveHousekeepingServiceSettings, fetchHousekeepingServiceTargets, saveHousekeepingServiceTarget } from '../services/housekeepingApi';
-import { POLICY_OPTIONS, type HousekeepingPolicy, type HousekeepingSettings } from '../types/housekeeping';
+import { POLICY_OPTIONS, DEFAULT_HOUSEKEEPING_SETTINGS, type HousekeepingPolicy, type HousekeepingSettings } from '../types/housekeeping';
 import type { HousekeepingServiceSettings, HousekeepingServiceTarget, HousekeepingServiceType } from '../types/housekeepingServicePerformance';
 import { t } from '../i18n';
 
 const SERVICE_LABELS: Record<HousekeepingServiceType, string> = { refresh: 'Refresh', full_service: 'Full Service', deep_cleaning: 'Deep Cleaning', mattress_flip_air: 'Mattress Flip & Air', checkout_inspection: 'Guest Check-Out Inspection' };
 const SERVICE_DEFAULTS: Record<HousekeepingServiceType, number> = { refresh: 45, full_service: 60, deep_cleaning: 120, mattress_flip_air: 30, checkout_inspection: 10 };
 const SERVICE_TYPES = Object.keys(SERVICE_LABELS) as HousekeepingServiceType[];
+
+const POLICY_PLANIFICATION: Record<HousekeepingPolicy, string> = {
+  eco: 'Rafraîchissement privilégié · Service complet uniquement lorsque nécessaire · Service complet au maximum tous les 5 jours.',
+  standard: 'Rafraîchissement entre les services complets · Service complet aux points médians significatifs · Service complet au maximum tous les 3 jours.',
+  premium: 'Service complet chaque jour d’occupation · Service complet obligatoire au départ.',
+  custom: 'Vos intervalles de rafraîchissement et de service complet déterminent la planification.',
+};
 
 function findTarget(targets: HousekeepingServiceTarget[], serviceType: HousekeepingServiceType, roomType?: string | null) {
   const normalized = roomType?.trim().toLowerCase() || null;
@@ -25,6 +32,7 @@ export default function HousekeepingSettings() {
   const [serviceSettings, setServiceSettings] = useState<HousekeepingServiceSettings | null>(null);
   const [targets, setTargets] = useState<HousekeepingServiceTarget[]>([]);
   const [newRoomType, setNewRoomType] = useState('');
+  const [customEditing, setCustomEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -34,8 +42,6 @@ export default function HousekeepingSettings() {
     if (!businessId) return;
     setLoading(true); setError(null);
     try {
-      // Tolerate partial failure: policy settings can load even if service performance
-      // schema (013/014) is not yet applied. Surface schema errors without blanking the page.
       const results = await Promise.allSettled([
         fetchHousekeepingSettings(businessId),
         fetchHousekeepingServiceSettings(businessId),
@@ -43,7 +49,10 @@ export default function HousekeepingSettings() {
       ]);
       const [policyR, serviceR, targetsR] = results;
       if (policyR.status === 'fulfilled') {
-        setSettings(policyR.value);
+        const loaded = policyR.value;
+        const validPolicy = POLICY_OPTIONS.some((opt) => opt.id === loaded.policy);
+        setSettings(validPolicy ? loaded : { ...loaded, policy: DEFAULT_HOUSEKEEPING_SETTINGS.policy });
+        setCustomEditing(false);
       } else {
         throw policyR.reason instanceof Error ? policyR.reason : new Error(t('housekeeping_settings_load_failed'));
       }
@@ -102,6 +111,11 @@ export default function HousekeepingSettings() {
     setTargets((current) => current.filter((row) => (row.room_type?.trim().toLowerCase() || '') !== normalized));
   };
 
+  const selectPolicy = (policy: HousekeepingPolicy) => {
+    setSettings((current) => current ? { ...current, policy } : current);
+    if (policy !== 'custom') setCustomEditing(false);
+  };
+
   const save = async () => {
     if (!settings || !serviceSettings || !businessId) return;
     setSaving(true); setError(null); setMessage(null);
@@ -111,6 +125,7 @@ export default function HousekeepingSettings() {
       await Promise.all(targets.map((row) => saveHousekeepingServiceTarget(businessId, { service_type: row.service_type, room_type: row.room_type || null, target_minutes: row.target_minutes, active: row.active })));
       await generateHousekeepingTasks({ businessId, regenerate: true });
       setMessage(t('housekeeping_settings_saved_regen'));
+      setCustomEditing(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('housekeeping_settings_save_failed'));
@@ -136,16 +151,69 @@ export default function HousekeepingSettings() {
         {message && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>}
         {settings && serviceSettings && !loading && <>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_policy')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {POLICY_OPTIONS.map((opt) => (
-                <label key={opt.id} className={`border rounded-xl p-3 cursor-pointer transition-colors ${settings.policy === opt.id ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" name="housekeeping-policy" className="sr-only" checked={settings.policy === opt.id} onChange={() => setSettings((s) => s ? { ...s, policy: opt.id as HousekeepingPolicy } : s)} />
-                  <div className="font-medium text-sm text-gray-900">{opt.icon} {t(`housekeeping_policy_${opt.id}` as any)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
-                </label>
-              ))}
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_policy')}</h2>
+              <p className="text-xs text-gray-500 mt-1">Sélectionnez la politique qui détermine automatiquement le type et la fréquence des services de ménage.</p>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="radiogroup" aria-label={t('housekeeping_settings_policy')}>
+              {POLICY_OPTIONS.map((opt) => {
+                const selected = settings.policy === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={0}
+                    onClick={() => selectPolicy(opt.id)}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPolicy(opt.id); } }}
+                    className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-orange-300 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/40'}`}
+                  >
+                    <div className="absolute top-3 right-3 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold ${selected ? 'bg-orange-500 text-white' : 'bg-gray-100 text-transparent'}">✓</div>
+                    <div className="pr-8 font-semibold text-sm text-gray-900">{opt.icon} {t(`housekeeping_policy_${opt.id}` as any)}</div>
+                    <div className="text-xs text-gray-600 mt-2 leading-5">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
+                    <div className="mt-3 pt-3 border-t border-gray-200/80">
+                      <span className="font-semibold text-xs text-gray-800">Planification :</span>
+                      <span className="text-xs text-gray-600 ml-1">{POLICY_PLANIFICATION[opt.id]}</span>
+                    </div>
+                    {opt.id === 'custom' && (
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); if (!selected) selectPolicy('custom'); setCustomEditing((current) => !current); }}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
+                        >
+                          {customEditing ? 'Enregistrer' : 'Modifier'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {settings.policy === 'custom' && customEditing && (
+              <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_custom')}</h3>
+                  <p className="text-xs text-gray-600 mt-1">Définissez les intervalles utilisés pour planifier les rafraîchissements et les services complets.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block text-sm text-gray-700">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_refresh_interval')}</span>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min={1} max={14} value={settings.custom_refresh_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_refresh_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
+                      <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
+                    </div>
+                  </label>
+                  <label className="block text-sm text-gray-700">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_full_interval')}</span>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min={1} max={14} value={settings.custom_full_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_full_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
+                      <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
           </section>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold text-gray-900">2. Service timer defaults</h2>
