@@ -349,8 +349,6 @@ export default function HousekeepingSettings() {
                     <tr key={serviceType} className="border-t border-gray-100">
                       <td className="sticky left-0 z-10 bg-white px-3 py-3 font-medium text-gray-800 border-r border-gray-200 whitespace-nowrap">{SERVICE_LABELS[serviceType]}</td>
                       {roomTypes.map((roomType) => {
-                        const target = findTarget(targets, serviceType, roomType);
-                        const fallback = findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType];
                         const value = getRoomTypeValue(roomType, serviceType);
                         return (
                           <td key={`${roomType}-${serviceType}`} className="px-3 py-2 text-center border-r border-gray-100">
@@ -375,16 +373,34 @@ export default function HousekeepingSettings() {
               </table>
             </div>
 
-            <form onSubmit={(event) => { event.preventDefault(); addRoomType(); }} className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="text-sm text-gray-700">
                   <span className="block text-xs font-medium text-gray-600 mb-1">Ajouter un type de chambre</span>
-                  <input value={newRoomType} onChange={(e) => setNewRoomType(e.target.value)} placeholder="ex. Studio / Presidential Suite" className="block w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" />
+                  <input
+                    value={newRoomType}
+                    onChange={(e) => setNewRoomType(e.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addRoomType();
+                      }
+                    }}
+                    placeholder="ex. Studio / Presidential Suite"
+                    className="block w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
                 </label>
-                <button type="submit" disabled={!newRoomType.trim()} className="px-3 py-2 text-sm font-semibold text-white bg-gray-800 rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">+ Ajouter</button>
+                <button
+                  type="button"
+                  onClick={addRoomType}
+                  disabled={!newRoomType.trim()}
+                  className="px-3 py-2 text-sm font-semibold text-white bg-gray-800 rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + Ajouter
+                </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">Le nouveau type devient immédiatement une colonne indépendante. Ajustez les durées directement dans les cases puis utilisez Enregistrer pour conserver les changements.</p>
-            </form>
+            </div>
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
