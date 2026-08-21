@@ -202,16 +202,21 @@ export default function HousekeepingSettings() {
                     <div className="text-xs text-gray-600 mt-2 leading-5">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
                     <div className="mt-3 pt-3 border-t border-gray-200/80">
                       <span className="font-semibold text-xs text-gray-800">Planification :</span>
-                      <span className="text-xs text-gray-600 ml-1">{POLICY_PLANIFICATION[opt.id]}</span>
+                      <span className="text-xs text-gray-600 ml-1">
+                        {opt.id === 'custom'
+                          ? `Rafraîchissement tous les ${settings.custom_refresh_interval} jours · Service complet tous les ${settings.custom_full_interval} jours.`
+                          : POLICY_PLANIFICATION[opt.id]}
+                      </span>
                     </div>
                     {opt.id === 'custom' && (
                       <div className="mt-3 pt-3 border-t border-gray-200/80" onClick={(event) => event.stopPropagation()}>
                         {!customEditing ? (
-                          <div className="flex justify-end">
+                          <div className="flex items-center justify-between gap-3">
+                            {selected && <span className="text-xs font-semibold text-orange-700">✓ Sélectionné</span>}
                             <button
                               type="button"
                               onClick={beginCustomEdit}
-                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
+                              className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
                             >
                               Modifier
                             </button>
