@@ -46,7 +46,6 @@ export default function HousekeepingSettings() {
   const [targets, setTargets] = useState<HousekeepingServiceTarget[]>([]);
   const [newRoomType, setNewRoomType] = useState('');
   const [roomTypeDrafts, setRoomTypeDrafts] = useState<Record<string, Record<HousekeepingServiceType, number>>>({});
-  const [roomTypeEditing, setRoomTypeEditing] = useState<Record<string, boolean>>({});
   const [newRoomTypeKeys, setNewRoomTypeKeys] = useState<Record<string, boolean>>({});
   const [customEditing, setCustomEditing] = useState(false);
   const [customDraft, setCustomDraft] = useState<Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'> | null>(null);
@@ -86,7 +85,6 @@ export default function HousekeepingSettings() {
       if (targetsR.status === 'fulfilled') {
         setTargets(targetsR.value);
         setRoomTypeDrafts({});
-        setRoomTypeEditing({});
         setNewRoomTypeKeys({});
       } else {
         setTargets([]);
@@ -110,8 +108,6 @@ export default function HousekeepingSettings() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Show the canonical room-type catalogue first, followed by any business-specific
-  // room types already present in housekeeping overrides.
   const roomTypes = useMemo(() => {
     const values = new Map<string, string>();
     ROOM_TYPES.forEach((value) => values.set(value.toLowerCase(), value));
@@ -129,6 +125,14 @@ export default function HousekeepingSettings() {
     return [...canonical, ...custom];
   }, [targets]);
 
+  const getRoomTypeValue = (roomType: string, serviceType: HousekeepingServiceType) => {
+    const key = roomType.toLowerCase();
+    return roomTypeDrafts[key]?.[serviceType]
+      ?? findTarget(targets, serviceType, roomType)?.target_minutes
+      ?? findTarget(targets, serviceType, null)?.target_minutes
+      ?? SERVICE_DEFAULTS[serviceType];
+  };
+
   const updateRoomTypeDraft = (roomType: string, serviceType: HousekeepingServiceType, value: string) => {
     const minutes = Math.max(1, Math.min(1440, Number(value) || 1));
     const key = roomType.toLowerCase();
@@ -139,60 +143,7 @@ export default function HousekeepingSettings() {
   };
 
   const adjustRoomTypeDraft = (roomType: string, serviceType: HousekeepingServiceType, delta: number) => {
-    const key = roomType.toLowerCase();
-    const currentValue = roomTypeDrafts[key]?.[serviceType]
-      ?? findTarget(targets, serviceType, roomType)?.target_minutes
-      ?? findTarget(targets, serviceType, null)?.target_minutes
-      ?? SERVICE_DEFAULTS[serviceType];
-    updateRoomTypeDraft(roomType, serviceType, String(Math.max(1, Math.min(1440, currentValue + delta))));
-  };
-
-  const beginRoomTypeEdit = (roomType: string) => {
-    const draft = Object.fromEntries(SERVICE_TYPES.map((serviceType) => [
-      serviceType,
-      findTarget(targets, serviceType, roomType)?.target_minutes
-        ?? findTarget(targets, serviceType, null)?.target_minutes
-        ?? SERVICE_DEFAULTS[serviceType],
-    ])) as Record<HousekeepingServiceType, number>;
-    const key = roomType.toLowerCase();
-    setRoomTypeDrafts((current) => ({ ...current, [key]: draft }));
-    setRoomTypeEditing((current) => ({ ...current, [key]: true }));
-  };
-
-  const saveRoomTypeEdit = (roomType: string) => {
-    const key = roomType.toLowerCase();
-    const draft = roomTypeDrafts[key];
-    if (!draft) return;
-
-    setTargets((current) => {
-      let next = [...current];
-      for (const serviceType of SERVICE_TYPES) {
-        const value = draft[serviceType];
-        const existing = findTarget(next, serviceType, roomType);
-        if (existing) {
-          next = next.map((row) => row.id === existing.id
-            ? { ...row, target_minutes: value, active: true, room_type: roomType }
-            : row);
-        } else {
-          next.push({ business_id: businessId, service_type: serviceType, room_type: roomType, target_minutes: value, active: true });
-        }
-      }
-      return next;
-    });
-
-    setRoomTypeEditing((current) => ({ ...current, [key]: false }));
-    setRoomTypeDrafts((current) => { const next = { ...current }; delete next[key]; return next; });
-    setMessage(`Type de chambre « ${roomType} » prêt à être enregistré.`);
-  };
-
-  const cancelRoomTypeEdit = (roomType: string) => {
-    const key = roomType.toLowerCase();
-    if (newRoomTypeKeys[key]) {
-      setTargets((current) => current.filter((row) => (row.room_type?.trim().toLowerCase() || '') !== key));
-      setNewRoomTypeKeys((current) => { const next = { ...current }; delete next[key]; return next; });
-    }
-    setRoomTypeEditing((current) => ({ ...current, [key]: false }));
-    setRoomTypeDrafts((current) => { const next = { ...current }; delete next[key]; return next; });
+    updateRoomTypeDraft(roomType, serviceType, String(Math.max(1, Math.min(1440, getRoomTypeValue(roomType, serviceType) + delta))));
   };
 
   const addRoomType = () => {
@@ -218,7 +169,6 @@ export default function HousekeepingSettings() {
       })),
     ]);
     setRoomTypeDrafts((current) => ({ ...current, [key]: draft }));
-    setRoomTypeEditing((current) => ({ ...current, [key]: true }));
     setNewRoomTypeKeys((current) => ({ ...current, [key]: true }));
     setNewRoomType('');
     setError(null);
@@ -229,7 +179,6 @@ export default function HousekeepingSettings() {
     const normalized = roomType.trim().toLowerCase();
     setTargets((current) => current.filter((row) => (row.room_type?.trim().toLowerCase() || '') !== normalized));
     setRoomTypeDrafts((current) => { const next = { ...current }; delete next[normalized]; return next; });
-    setRoomTypeEditing((current) => { const next = { ...current }; delete next[normalized]; return next; });
     setNewRoomTypeKeys((current) => { const next = { ...current }; delete next[normalized]; return next; });
   };
 
@@ -370,20 +319,11 @@ export default function HousekeepingSettings() {
                     <th className="sticky left-0 z-10 bg-gray-50 text-left px-3 py-3 min-w-[190px] border-r border-gray-200">Service</th>
                     {roomTypes.map((roomType) => {
                       const key = roomType.toLowerCase();
-                      const editing = Boolean(roomTypeEditing[key]);
                       const isCustom = !ROOM_TYPES.some((value) => value.toLowerCase() === key);
                       return (
-                        <th key={roomType} className="text-center px-3 py-3 min-w-[170px] align-top border-r border-gray-200">
+                        <th key={roomType} className="text-center px-3 py-3 min-w-[150px] align-top border-r border-gray-200">
                           <div className="font-semibold text-gray-900 whitespace-nowrap">{roomType}</div>
-                          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-                            {editing ? <>
-                              <button type="button" onClick={() => cancelRoomTypeEdit(roomType)} className="px-2 py-1 text-[11px] font-semibold rounded-md border border-gray-300 text-gray-700 bg-white hover:bg-gray-50">Annuler</button>
-                              <button type="button" onClick={() => saveRoomTypeEdit(roomType)} className="px-2 py-1 text-[11px] font-semibold rounded-md border border-orange-500 bg-orange-500 text-white hover:bg-orange-600">Enregistrer</button>
-                            </> : <>
-                              <button type="button" onClick={() => beginRoomTypeEdit(roomType)} className="px-2 py-1 text-[11px] font-semibold rounded-md border border-orange-300 text-orange-700 bg-white hover:bg-orange-50">Modifier</button>
-                              {isCustom && <button type="button" onClick={() => removeRoomType(roomType)} className="px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-red-700">Supprimer</button>}
-                            </>}
-                          </div>
+                          {isCustom && <button type="button" onClick={() => removeRoomType(roomType)} className="mt-2 px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-red-700">Supprimer</button>}
                         </th>
                       );
                     })}
@@ -395,26 +335,29 @@ export default function HousekeepingSettings() {
                       <td className="sticky left-0 z-10 bg-white px-3 py-3 font-medium text-gray-800 border-r border-gray-200 whitespace-nowrap">{SERVICE_LABELS[serviceType]}</td>
                       {roomTypes.map((roomType) => {
                         const key = roomType.toLowerCase();
-                        const editing = Boolean(roomTypeEditing[key]);
                         const draft = roomTypeDrafts[key];
                         const target = findTarget(targets, serviceType, roomType);
                         const fallback = findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType];
-                        const value = editing && draft ? draft[serviceType] : (target?.target_minutes ?? fallback);
+                        const value = draft?.[serviceType] ?? target?.target_minutes ?? fallback;
                         return (
                           <td key={`${roomType}-${serviceType}`} className="px-3 py-2 text-center border-r border-gray-100">
-                            <div className="inline-flex items-center gap-1">
-                              {editing && <button type="button" aria-label={`Diminuer ${SERVICE_LABELS[serviceType]} pour ${roomType}`} onClick={() => adjustRoomTypeDraft(roomType, serviceType, -1)} className="h-7 w-7 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 font-bold" title="Diminuer d'une minute">−</button>}
-                              <input
-                                type="number"
-                                min={1}
-                                max={1440}
-                                value={value}
-                                disabled={!editing}
-                                onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
-                                className={`w-20 px-2 py-1.5 text-sm text-center border rounded-md ${editing ? 'border-orange-300 bg-white text-gray-900 focus:ring-2 focus:ring-orange-200' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
-                              />
-                              {editing && <button type="button" aria-label={`Augmenter ${SERVICE_LABELS[serviceType]} pour ${roomType}`} onClick={() => adjustRoomTypeDraft(roomType, serviceType, 1)} className="h-7 w-7 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 font-bold" title="Augmenter d'une minute">+</button>}
-                              <span className="text-[11px] text-gray-500">min</span>
+                            <div className="inline-flex items-center">
+                              <div className="relative inline-flex items-center">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={1440}
+                                  value={value}
+                                  aria-label={`${SERVICE_LABELS[serviceType]} — ${roomType}`}
+                                  onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
+                                  className="w-[86px] h-9 px-2 pr-6 text-sm text-center border border-gray-300 rounded-md bg-white text-gray-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                                />
+                                <div className="pointer-events-none absolute inset-y-0 right-1 flex flex-col justify-center leading-none text-[9px] text-gray-500" aria-hidden="true">
+                                  <span className="-mb-0.5">▲</span>
+                                  <span>▼</span>
+                                </div>
+                              </div>
+                              <span className="ml-1 text-[11px] text-gray-500">min</span>
                             </div>
                           </td>
                         );
@@ -433,7 +376,7 @@ export default function HousekeepingSettings() {
                 </label>
                 <button type="submit" disabled={!newRoomType.trim()} className="px-3 py-2 text-sm font-semibold text-white bg-gray-800 rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">+ Ajouter</button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Le nouveau type devient immédiatement une colonne indépendante. Ajustez ses durées avec − / + puis utilisez Enregistrer pour conserver les changements.</p>
+              <p className="text-xs text-gray-500 mt-2">Le nouveau type devient immédiatement une colonne indépendante. Ajustez les durées directement dans les cases puis utilisez Enregistrer pour conserver les changements.</p>
             </form>
           </section>
 
