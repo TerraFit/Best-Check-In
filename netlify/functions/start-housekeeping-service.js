@@ -1,13 +1,26 @@
 // Start a measured housekeeping service session.
 // Elapsed time is derived from the persisted server timestamp, not browser ticks.
 
-const DEFAULT_TARGETS = {
-  refresh: 45,
-  full_service: 60,
-  deep_cleaning: 120,
-  mattress_flip_air: 30,
-  checkout_inspection: 10,
-};
+const DEFAULT_TARGETS = { refresh: 45, full_service: 60, deep_cleaning: 120, mattress_flip_air: 30, checkout_inspection: 10 };
+
+function assertPermission(event) {
+  const auth = (event.headers?.authorization || event.headers?.Authorization || '').trim();
+  if (!auth) return { ok: true };
+  try {
+    const jwt = require('jsonwebtoken');
+    const token = auth.replace(/^Bearer\s+/i, '').trim();
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    const meta = decoded?.user_metadata || {};
+    if (decoded?.role === 'service_role' || meta.super_admin || (meta.business_id && !meta.employee_id)) return { ok: true };
+    const role = meta.staff_role || meta.role || '';
+    const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
+    const allowedRoles = ['business_owner', 'general_manager', 'supervisor', 'team_leader', 'housekeeper', 'administration', 'super_admin'];
+    if (allowedRoles.includes(role) || perms.includes('canStartHousekeepingTask') || perms.includes('canManageHousekeeping')) return { ok: true };
+    return { ok: false, status: 403, error: 'Missing permission: canStartHousekeepingTask' };
+  } catch {
+    return { ok: false, status: 401, error: 'Invalid authorization token' };
+  }
+}
 
 function principalFromEvent(event) {
   const auth = (event.headers?.authorization || event.headers?.Authorization || '').trim();
@@ -17,26 +30,18 @@ function principalFromEvent(event) {
     const token = auth.replace(/^Bearer\s+/i, '').trim();
     const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
     const meta = decoded?.user_metadata || {};
-    return {
-      employeeId: meta.employee_id || decoded?.sub || null,
-      employeeName: meta.full_name || meta.name || decoded?.email || null,
-    };
-  } catch {
-    return { employeeId: null, employeeName: null };
-  }
+    return { employeeId: meta.employee_id || decoded?.sub || null, employeeName: meta.full_name || meta.name || decoded?.email || null };
+  } catch { return { employeeId: null, employeeName: null }; }
 }
 
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   try {
+    const gate = assertPermission(event);
+    if (!gate.ok) return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error }) };
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
@@ -63,73 +68,32 @@ exports.handler = async (event) => {
     let settings = null;
     const settingsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_settings?business_id=eq.${q(businessId)}&select=*&limit=1`, { headers: read });
     if (settingsRes.ok) settings = (await settingsRes.json())[0] || null;
-
     const targetsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_targets?business_id=eq.${q(businessId)}&service_type=eq.${q(serviceType)}&active=eq.true&select=*`, { headers: read });
     const targets = targetsRes.ok ? await targetsRes.json() : [];
     const roomType = String(room.room_type || '').trim().toLowerCase();
-    const override = targets.find((t) => String(t.room_type || '').trim().toLowerCase() === roomType);
-    const serviceDefault = targets.find((t) => !t.room_type);
+    const override = targets.find((target) => String(target.room_type || '').trim().toLowerCase() === roomType);
+    const serviceDefault = targets.find((target) => !target.room_type);
     const targetMinutes = Number(override?.target_minutes || serviceDefault?.target_minutes || DEFAULT_TARGETS[serviceType]);
     const warningMinutes = Number(settings?.warning_minutes ?? 15);
     const principal = principalFromEvent(event);
     const startedAt = new Date().toISOString();
 
     const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, {
-      method: 'POST',
-      headers: write,
-      body: JSON.stringify({
-        business_id: businessId,
-        housekeeping_task_id: task.id,
-        room_id: room.id,
-        booking_id: task.booking_id || null,
-        employee_id: principal.employeeId,
-        employee_name: principal.employeeName || task.assigned_staff_name || null,
-        service_type: serviceType,
-        room_type_snapshot: room.room_type || null,
-        target_minutes_snapshot: targetMinutes,
-        warning_minutes_snapshot: warningMinutes,
-        started_at: startedAt,
-        status: 'active',
-        checklist_completed_count: 0,
-        checklist_total_count: 0,
-        issues_reported_count: 0,
-        quality_result: 'pending',
-      }),
+      method: 'POST', headers: write,
+      body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: principal.employeeId, employee_name: principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }),
     });
     if (!sessionRes.ok) return { statusCode: sessionRes.status, headers, body: JSON.stringify({ error: await sessionRes.text() }) };
     const session = (await sessionRes.json())[0];
 
-    const taskRes2 = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(task.id)}&business_id=eq.${q(businessId)}`, {
-      method: 'PATCH',
-      headers: write,
-      body: JSON.stringify({ status: 'in_progress', started_at: startedAt, updated_at: startedAt }),
-    });
+    const taskRes2 = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(task.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'in_progress', started_at: startedAt, updated_at: startedAt }) });
     if (!taskRes2.ok) {
       await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'cancelled', updated_at: new Date().toISOString() }) });
       return { statusCode: taskRes2.status, headers, body: JSON.stringify({ error: await taskRes2.text() }) };
     }
 
-    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}`, {
-      method: 'PATCH', headers: { ...write, Prefer: 'return=minimal' },
-      body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }),
-    });
+    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: { ...write, Prefer: 'return=minimal' }, body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }) });
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        session,
-        timer: {
-          startedAt,
-          targetMinutes,
-          warningMinutes,
-          finalCountdownSeconds: Number(settings?.final_countdown_seconds ?? 5),
-          voiceEnabled: settings?.voice_enabled ?? true,
-          soundEnabled: settings?.sound_enabled ?? true,
-        },
-      }),
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, session, timer: { startedAt, targetMinutes, warningMinutes, finalCountdownSeconds: Number(settings?.final_countdown_seconds ?? 5), voiceEnabled: settings?.voice_enabled ?? true, soundEnabled: settings?.sound_enabled ?? true } }) };
   } catch (error) {
     console.error('start-housekeeping-service fatal:', error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to start housekeeping service' }) };
