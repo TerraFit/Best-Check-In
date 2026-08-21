@@ -10,6 +10,7 @@ import type { HousekeepingTask, HousekeepingDashboardStats } from '../../types/h
 import type { HousekeepingServiceSession } from '../../types/housekeepingServicePerformance';
 import { t } from '../../i18n';
 import HousekeepingServiceModal from '../../components/housekeeping/HousekeepingServiceModal';
+import HousekeepingPerformancePanel from '../../components/housekeeping/HousekeepingPerformancePanel';
 
 interface Props { businessId: string; }
 type ViewFilter = 'today' | 'pending' | 'completed' | 'all';
@@ -124,6 +125,8 @@ export function HousekeepingTab({ businessId }: Props) {
           </div>;
         })}
       </div>}
+
+      <HousekeepingPerformancePanel businessId={businessId} />
 
       {activeTask && activeSession && <HousekeepingServiceModal businessId={businessId} task={activeTask} session={activeSession} onClose={() => { setActiveTask(null); setActiveSession(null); }} onCompleted={async () => { setActiveTask(null); setActiveSession(null); setMessage('Service completed and timing recorded.'); await load(); }} />}
     </div>
