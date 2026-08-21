@@ -33,6 +33,7 @@ export default function HousekeepingSettings() {
   const [targets, setTargets] = useState<HousekeepingServiceTarget[]>([]);
   const [newRoomType, setNewRoomType] = useState('');
   const [customEditing, setCustomEditing] = useState(false);
+  const [customDraft, setCustomDraft] = useState<Pick<HousekeepingSettings, 'custom_refresh_interval' | 'custom_full_interval'> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export default function HousekeepingSettings() {
         const validPolicy = POLICY_OPTIONS.some((opt) => opt.id === loaded.policy);
         setSettings(validPolicy ? loaded : { ...loaded, policy: DEFAULT_HOUSEKEEPING_SETTINGS.policy });
         setCustomEditing(false);
+        setCustomDraft(null);
       } else {
         throw policyR.reason instanceof Error ? policyR.reason : new Error(t('housekeeping_settings_load_failed'));
       }
@@ -113,7 +115,33 @@ export default function HousekeepingSettings() {
 
   const selectPolicy = (policy: HousekeepingPolicy) => {
     setSettings((current) => current ? { ...current, policy } : current);
-    if (policy !== 'custom') setCustomEditing(false);
+    setCustomEditing(false);
+    setCustomDraft(null);
+  };
+
+  const beginCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!settings) return;
+    if (settings.policy !== 'custom') {
+      setSettings((current) => current ? { ...current, policy: 'custom' } : current);
+    }
+    setCustomDraft({ custom_refresh_interval: settings.custom_refresh_interval, custom_full_interval: settings.custom_full_interval });
+    setCustomEditing(true);
+  };
+
+  const cancelCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (customDraft) {
+      setSettings((current) => current ? { ...current, ...customDraft } : current);
+    }
+    setCustomEditing(false);
+    setCustomDraft(null);
+  };
+
+  const saveCustomEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setCustomEditing(false);
+    setCustomDraft(null);
   };
 
   const save = async () => {
@@ -126,6 +154,7 @@ export default function HousekeepingSettings() {
       await generateHousekeepingTasks({ businessId, regenerate: true });
       setMessage(t('housekeeping_settings_saved_regen'));
       setCustomEditing(false);
+      setCustomDraft(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('housekeeping_settings_save_failed'));
@@ -168,7 +197,7 @@ export default function HousekeepingSettings() {
                     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPolicy(opt.id); } }}
                     className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-orange-300 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/40'}`}
                   >
-                    <div className="absolute top-3 right-3 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold ${selected ? 'bg-orange-500 text-white' : 'bg-gray-100 text-transparent'}">✓</div>
+                    <div className={`absolute top-3 right-3 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold ${selected ? 'bg-orange-500 text-white' : 'bg-transparent text-transparent border border-gray-300'}`} aria-hidden="true">{selected ? '✓' : ''}</div>
                     <div className="pr-8 font-semibold text-sm text-gray-900">{opt.icon} {t(`housekeeping_policy_${opt.id}` as any)}</div>
                     <div className="text-xs text-gray-600 mt-2 leading-5">{t(`housekeeping_policy_${opt.id}_desc` as any)}</div>
                     <div className="mt-3 pt-3 border-t border-gray-200/80">
@@ -176,44 +205,63 @@ export default function HousekeepingSettings() {
                       <span className="text-xs text-gray-600 ml-1">{POLICY_PLANIFICATION[opt.id]}</span>
                     </div>
                     {opt.id === 'custom' && (
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={(event) => { event.stopPropagation(); if (!selected) selectPolicy('custom'); setCustomEditing((current) => !current); }}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
-                        >
-                          {customEditing ? 'Enregistrer' : 'Modifier'}
-                        </button>
+                      <div className="mt-3 pt-3 border-t border-gray-200/80" onClick={(event) => event.stopPropagation()}>
+                        {!customEditing ? (
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={beginCustomEdit}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
+                            >
+                              Modifier
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_custom')}</h3>
+                              <p className="text-xs text-gray-600 mt-1">Définissez les intervalles utilisés pour planifier les rafraîchissements et les services complets.</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <label className="block text-sm text-gray-700">
+                                <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_refresh_interval')}</span>
+                                <div className="flex items-center gap-2">
+                                  <input type="number" min={1} max={14} value={settings.custom_refresh_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_refresh_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
+                                </div>
+                              </label>
+                              <label className="block text-sm text-gray-700">
+                                <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_full_interval')}</span>
+                                <div className="flex items-center gap-2">
+                                  <input type="number" min={1} max={14} value={settings.custom_full_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_full_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
+                                </div>
+                              </label>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                              <button
+                                type="button"
+                                onClick={cancelCustomEdit}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                type="button"
+                                onClick={saveCustomEdit}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
+                              >
+                                Enregistrer
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-            {settings.policy === 'custom' && customEditing && (
-              <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">{t('housekeeping_settings_custom')}</h3>
-                  <p className="text-xs text-gray-600 mt-1">Définissez les intervalles utilisés pour planifier les rafraîchissements et les services complets.</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <label className="block text-sm text-gray-700">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_refresh_interval')}</span>
-                    <div className="flex items-center gap-2">
-                      <input type="number" min={1} max={14} value={settings.custom_refresh_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_refresh_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
-                      <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
-                    </div>
-                  </label>
-                  <label className="block text-sm text-gray-700">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">{t('housekeeping_settings_full_interval')}</span>
-                    <div className="flex items-center gap-2">
-                      <input type="number" min={1} max={14} value={settings.custom_full_interval} onChange={(e) => setSettings((s) => s ? { ...s, custom_full_interval: Math.max(1, Math.min(14, parseInt(e.target.value, 10) || 1)) } : s)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" />
-                      <span className="text-xs text-gray-500 whitespace-nowrap">jours</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            )}
           </section>
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold text-gray-900">2. Service timer defaults</h2>
