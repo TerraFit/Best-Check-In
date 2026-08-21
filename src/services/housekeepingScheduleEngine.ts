@@ -117,6 +117,13 @@ export function calculateRequiredNumberOfFullServices(
   return calculateOptimalFullServiceNights(stayLength, policy, settings).length;
 }
 
+function checkoutTaskType(settings?: HousekeepingSettings): HousekeepingTaskType {
+  // Default true: mandatory Full Service on checkout.
+  // When explicitly false, do not force Full Service.
+  if (settings && settings.mandatory_checkout_fs === false) return 'refresh';
+  return 'full_service';
+}
+
 export function generateSchedule(
   checkIn: string,
   checkOut: string,
@@ -128,11 +135,13 @@ export function generateSchedule(
   if (!checkInDate || !checkOutDate) return [];
 
   const stayLength = calculateStayLength(checkInDate, checkOutDate);
+  const coType = checkoutTaskType(settings);
+
   if (stayLength <= 0) {
     return [
       {
         scheduled_date: checkOutDate,
-        task_type: 'full_service',
+        task_type: coType,
         is_checkout: true,
         night_index: 1,
       },
@@ -156,7 +165,7 @@ export function generateSchedule(
 
   tasks.push({
     scheduled_date: checkOutDate,
-    task_type: 'full_service',
+    task_type: coType,
     is_checkout: true,
     night_index: stayLength,
   });
