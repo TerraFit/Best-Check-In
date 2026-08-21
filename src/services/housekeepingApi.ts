@@ -28,7 +28,15 @@ export interface HousekeepingPerformanceResponse {
   daily: Array<HousekeepingPerformanceMetric & { date: string }>;
 }
 
-async function parseJson(response: Response) { const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`); return data; }
+async function parseJson(response: Response) {
+  const data = await response.json().catch(() => ({} as Record<string, unknown>));
+  if (!response.ok) {
+    const code = typeof data.code === 'string' ? data.code : '';
+    const base = (typeof data.error === 'string' && data.error) || (typeof data.message === 'string' && data.message) || `HTTP ${response.status}`;
+    throw new Error(code ? `${base} (${code})` : base);
+  }
+  return data;
+}
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> { const headers: Record<string, string> = { ...extra }; const token = getAuthToken(); if (token) headers.Authorization = `Bearer ${token}`; return headers; }
 
 export async function fetchHousekeepingTasks(params: { businessId: string; view?: 'today' | 'pending' | 'completed' | 'all'; date?: string; roomId?: string; status?: string }): Promise<{ tasks: HousekeepingTask[]; stats: HousekeepingDashboardStats; today?: string }> {
