@@ -1,27 +1,13 @@
 // src/types/housekeeping.ts
-// Phase 2 — Intelligent Housekeeping Engine + Service Performance
+// Phase 2 — Intelligent Housekeeping Engine types
+
+import type { HousekeepingServiceSession } from './housekeepingServicePerformance';
 
 export type HousekeepingPolicy = 'eco' | 'standard' | 'premium' | 'custom';
-
 export type HousekeepingTaskType = 'refresh' | 'full_service';
-
-export type HousekeepingTaskStatus =
-  | 'pending'
-  | 'in_progress'
-  | 'completed'
-  | 'skipped'
-  | 'cancelled';
-
+export type HousekeepingTaskStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'cancelled';
 export type InspectionStatus = 'pending' | 'approved' | 'rejected';
-
-export type HousekeepingPriority =
-  | 'vip'
-  | 'early_arrival'
-  | 'standard'
-  | 'late_checkout'
-  | 'maintenance';
-
-export type HousekeepingServiceSessionStatus = 'active' | 'completed' | 'cancelled';
+export type HousekeepingPriority = 'vip' | 'early_arrival' | 'standard' | 'late_checkout' | 'maintenance';
 
 export interface HousekeepingSettings {
   id?: string;
@@ -32,12 +18,6 @@ export interface HousekeepingSettings {
   allow_skip_refresh: boolean;
   mandatory_checkout_fs: boolean;
   auto_generate: boolean;
-  refresh_target_seconds: number;
-  full_service_target_seconds: number;
-  warning_threshold_seconds: number;
-  final_countdown_seconds: number;
-  warning_sound_enabled: boolean;
-  voice_warning_enabled: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -52,32 +32,6 @@ export interface HousekeepingChecklistSection {
   id: string;
   title: string;
   items: HousekeepingChecklistItem[];
-}
-
-export interface HousekeepingServiceSession {
-  id: string;
-  business_id: string;
-  task_id: string;
-  room_id: string;
-  room_type?: string | null;
-  service_type: HousekeepingTaskType;
-  target_duration_seconds: number;
-  warning_threshold_seconds: number;
-  final_countdown_seconds: number;
-  started_at: string;
-  completed_at?: string | null;
-  actual_duration_seconds?: number | null;
-  status: HousekeepingServiceSessionStatus;
-  started_by?: string | null;
-  completed_by?: string | null;
-  checklist_state: Record<string, boolean>;
-  issue_count: number;
-  rework_required: boolean;
-  rework_started_at?: string | null;
-  rework_completed_at?: string | null;
-  notes?: string | null;
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface HousekeepingTask {
@@ -115,9 +69,7 @@ export interface ScheduledService {
 }
 
 export interface HousekeepingDashboardStats {
-  /** Rooms with readiness = Ready (incl. legacy clean/inspected) */
   rooms_ready: number;
-  /** Rooms with readiness = Not Ready (incl. legacy dirty / *_required) */
   rooms_not_ready: number;
   /** @deprecated use rooms_ready */
   rooms_clean: number;
@@ -136,43 +88,16 @@ export const DEFAULT_HOUSEKEEPING_SETTINGS: Omit<HousekeepingSettings, 'business
   allow_skip_refresh: true,
   mandatory_checkout_fs: true,
   auto_generate: true,
-  refresh_target_seconds: 45 * 60,
-  full_service_target_seconds: 60 * 60,
-  warning_threshold_seconds: 15 * 60,
-  final_countdown_seconds: 5,
-  warning_sound_enabled: true,
-  voice_warning_enabled: true,
 };
 
-/** Policy display order for Settings UI */
 export const POLICY_OPTIONS: Array<{
   id: HousekeepingPolicy;
   label: string;
   icon: string;
   description: string;
 }> = [
-  {
-    id: 'eco',
-    label: 'Eco',
-    icon: '🌱',
-    description: 'Lightest suitable service. Prefers Refresh; Full Service only when hygiene requires it.',
-  },
-  {
-    id: 'standard',
-    label: 'Standard',
-    icon: '🏨',
-    description: 'Balanced comfort. Prefers Full Service at meaningful midpoints.',
-  },
-  {
-    id: 'premium',
-    label: 'Premium',
-    icon: '⭐',
-    description: 'Full Service every occupied day, plus mandatory checkout Full Service.',
-  },
-  {
-    id: 'custom',
-    label: 'Custom',
-    icon: '⚙️',
-    description: 'Configure Refresh and Full Service intervals yourself.',
-  },
+  { id: 'eco', label: 'Eco', icon: '🌱', description: 'Lightest suitable service. Prefers Refresh; Full Service only when hygiene requires it.' },
+  { id: 'standard', label: 'Standard', icon: '🏨', description: 'Balanced comfort. Prefers Full Service at meaningful midpoints.' },
+  { id: 'premium', label: 'Premium', icon: '⭐', description: 'Full Service every occupied day, plus mandatory checkout Full Service.' },
+  { id: 'custom', label: 'Custom', icon: '⚙️', description: 'Configure Refresh and Full Service intervals yourself.' },
 ];
