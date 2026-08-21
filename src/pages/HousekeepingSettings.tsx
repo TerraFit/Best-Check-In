@@ -138,6 +138,15 @@ export default function HousekeepingSettings() {
     }));
   };
 
+  const adjustRoomTypeDraft = (roomType: string, serviceType: HousekeepingServiceType, delta: number) => {
+    const key = roomType.toLowerCase();
+    const currentValue = roomTypeDrafts[key]?.[serviceType]
+      ?? findTarget(targets, serviceType, roomType)?.target_minutes
+      ?? findTarget(targets, serviceType, null)?.target_minutes
+      ?? SERVICE_DEFAULTS[serviceType];
+    updateRoomTypeDraft(roomType, serviceType, String(Math.max(1, Math.min(1440, currentValue + delta))));
+  };
+
   const beginRoomTypeEdit = (roomType: string) => {
     const draft = Object.fromEntries(SERVICE_TYPES.map((serviceType) => [
       serviceType,
@@ -187,9 +196,10 @@ export default function HousekeepingSettings() {
   };
 
   const addRoomType = () => {
-    const roomType = newRoomType.trim();
-    if (!roomType || roomTypes.some((value) => value.toLowerCase() === roomType.toLowerCase())) {
-      setNewRoomType('');
+    const roomType = newRoomType.trim().replace(/\s+/g, ' ');
+    if (!roomType) return;
+    if (roomTypes.some((value) => value.trim().toLowerCase() === roomType.toLowerCase())) {
+      setError(`Le type de chambre « ${roomType} » existe déjà.`);
       return;
     }
     const key = roomType.toLowerCase();
@@ -197,9 +207,6 @@ export default function HousekeepingSettings() {
       serviceType,
       findTarget(targets, serviceType, null)?.target_minutes ?? SERVICE_DEFAULTS[serviceType],
     ])) as Record<HousekeepingServiceType, number>;
-    setRoomTypeDrafts((current) => ({ ...current, [key]: draft }));
-    setRoomTypeEditing((current) => ({ ...current, [key]: true }));
-    setNewRoomTypeKeys((current) => ({ ...current, [key]: true }));
     setTargets((current) => [
       ...current,
       ...SERVICE_TYPES.map((serviceType) => ({
@@ -210,7 +217,12 @@ export default function HousekeepingSettings() {
         active: true,
       })),
     ]);
+    setRoomTypeDrafts((current) => ({ ...current, [key]: draft }));
+    setRoomTypeEditing((current) => ({ ...current, [key]: true }));
+    setNewRoomTypeKeys((current) => ({ ...current, [key]: true }));
     setNewRoomType('');
+    setError(null);
+    setMessage(`Type de chambre « ${roomType} » ajouté. Ajustez les durées puis cliquez sur Enregistrer.`);
   };
 
   const removeRoomType = (roomType: string) => {
@@ -390,7 +402,8 @@ export default function HousekeepingSettings() {
                         const value = editing && draft ? draft[serviceType] : (target?.target_minutes ?? fallback);
                         return (
                           <td key={`${roomType}-${serviceType}`} className="px-3 py-2 text-center border-r border-gray-100">
-                            <div className="inline-flex items-center gap-1.5">
+                            <div className="inline-flex items-center gap-1">
+                              {editing && <button type="button" aria-label={`Diminuer ${SERVICE_LABELS[serviceType]} pour ${roomType}`} onClick={() => adjustRoomTypeDraft(roomType, serviceType, -1)} className="h-7 w-7 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 font-bold" title="Diminuer d'une minute">−</button>}
                               <input
                                 type="number"
                                 min={1}
@@ -400,6 +413,7 @@ export default function HousekeepingSettings() {
                                 onChange={(e) => updateRoomTypeDraft(roomType, serviceType, e.target.value)}
                                 className={`w-20 px-2 py-1.5 text-sm text-center border rounded-md ${editing ? 'border-orange-300 bg-white text-gray-900 focus:ring-2 focus:ring-orange-200' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
                               />
+                              {editing && <button type="button" aria-label={`Augmenter ${SERVICE_LABELS[serviceType]} pour ${roomType}`} onClick={() => adjustRoomTypeDraft(roomType, serviceType, 1)} className="h-7 w-7 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 font-bold" title="Augmenter d'une minute">+</button>}
                               <span className="text-[11px] text-gray-500">min</span>
                             </div>
                           </td>
@@ -411,16 +425,16 @@ export default function HousekeepingSettings() {
               </table>
             </div>
 
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+            <form onSubmit={(event) => { event.preventDefault(); addRoomType(); }} className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="text-sm text-gray-700">
                   <span className="block text-xs font-medium text-gray-600 mb-1">Ajouter un type de chambre</span>
                   <input value={newRoomType} onChange={(e) => setNewRoomType(e.target.value)} placeholder="ex. Studio / Presidential Suite" className="block w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" />
                 </label>
-                <button type="button" onClick={addRoomType} className="px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-900">Ajouter</button>
+                <button type="submit" disabled={!newRoomType.trim()} className="px-3 py-2 text-sm font-semibold text-white bg-gray-800 rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">+ Ajouter</button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Les nouveaux types de chambre deviennent une nouvelle colonne et peuvent recevoir leurs propres durées de service.</p>
-            </div>
+              <p className="text-xs text-gray-500 mt-2">Le nouveau type devient immédiatement une colonne indépendante. Ajustez ses durées avec − / + puis utilisez Enregistrer pour conserver les changements.</p>
+            </form>
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
