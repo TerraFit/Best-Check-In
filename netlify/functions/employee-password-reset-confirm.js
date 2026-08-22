@@ -42,7 +42,8 @@ exports.handler = async (event) => {
     const digits = String(phone).replace(/\D/g, '');
     if (!digits) return json(400, { error: 'A valid phone number is required' });
 
-    const employeesResponse = await supabaseRequest('employees?select=id,phone_number,status,active');
+    // `employees` uses status as the account-state field; there is no `active` column.
+    const employeesResponse = await supabaseRequest('employees?select=id,phone_number,status');
     if (!employeesResponse.ok) return json(500, { error: 'Database error' });
     const employees = await employeesResponse.json();
     const employee = employees.find((candidate) => {
@@ -50,7 +51,7 @@ exports.handler = async (event) => {
       return stored === digits || stored === digits.replace(/^27/, '') || stored === `0${digits.replace(/^27/, '')}`;
     });
 
-    if (!employee || employee.active === false || employee.status === 'Disabled' || employee.status === 'Pending') {
+    if (!employee || employee.status !== 'Active') {
       return json(400, { error: 'Invalid or expired verification code' });
     }
 
