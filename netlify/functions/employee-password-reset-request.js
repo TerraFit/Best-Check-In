@@ -81,7 +81,8 @@ exports.handler = async (event) => {
 
     // Look up by normalized digits so existing +27 / 0xx / local formats all work.
     const digits = normalizedPhone.replace(/\D/g, '');
-    const employeesResponse = await supabaseRequest('employees?select=id,business_id,phone_number,status,active');
+    // `employees` uses status as the account-state field; there is no `active` column.
+    const employeesResponse = await supabaseRequest('employees?select=id,business_id,phone_number,status');
     if (!employeesResponse.ok) return json(500, { error: 'Database error' });
     const employees = await employeesResponse.json();
     const employee = employees.find((candidate) => {
@@ -90,7 +91,7 @@ exports.handler = async (event) => {
     });
 
     // Deliberately return the same response for unknown/inactive accounts.
-    if (!employee || employee.active === false || employee.status === 'Disabled' || employee.status === 'Pending') {
+    if (!employee || employee.status !== 'Active') {
       return json(200, { success: true, message: GENERIC_MESSAGE });
     }
 
