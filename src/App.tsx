@@ -13,6 +13,7 @@ import BusinessPending from './pages/BusinessPending';
 import HomePage from './pages/HomePage';
 import ResetPassword from './pages/ResetPassword';
 import SetPassword from './pages/SetPassword';
+import PasswordRecovery from './pages/PasswordRecovery';
 import BusinessMessages from './pages/business/BusinessMessages';
 import AdminMessages from './pages/admin/AdminMessages';
 import ScrollToTop from './components/ScrollToTop';
@@ -30,7 +31,7 @@ function NotFoundPage() { return <div className="min-h-screen flex items-center 
 function AppContent() {
   return <><div className="fixed top-[72px] right-4 z-30"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
     <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} />
-    <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
+    <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/forgot-password" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
     <Route path="/indemnity/:token" element={<IndemnityView />} /><Route path="/subscribe" element={<NewsletterSubscribe />} /><Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} /><Route path="/employee/login" element={<Login />} /><Route path="/employee/dashboard" element={<ProtectedRoute requiredRole="employee"><EmployeeDashboard /></ProtectedRoute>} />
     <Route path="/business/login" element={<Login />} /><Route path="/login" element={<Login />} /><Route path="/super-admin-login" element={<SuperAdminLogin />} />
     <Route path="/business/pending" element={<ProtectedRoute requiredRole="business"><BusinessPending /></ProtectedRoute>} />
