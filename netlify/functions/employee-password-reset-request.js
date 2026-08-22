@@ -43,7 +43,11 @@ async function sendSms(to, code) {
   const senderId = process.env.ESMS_AFRICA_SENDER_ID;
   const endpoint = process.env.ESMS_AFRICA_API_URL || 'https://sms.esmsafrica.io/api/messages/send';
 
-  if (!apiKey) throw new Error('eSMS Africa SMS provider is not configured');
+  if (!apiKey) {
+    const error = new Error('eSMS Africa SMS provider is not configured');
+    error.code = 'ESMS_CONFIG_MISSING';
+    throw error;
+  }
 
   const payload = {
     to,
@@ -51,19 +55,34 @@ async function sendSms(to, code) {
   };
   if (senderId) payload.sender_id = senderId;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    console.error('eSMS Africa network error:', error?.message || error);
+    const networkError = new Error('SMS provider request failed');
+    networkError.code = 'ESMS_NETWORK_ERROR';
+    throw networkError;
+  }
 
   if (!response.ok) {
     const detail = await response.text();
     console.error('eSMS Africa SMS failed:', response.status, detail);
-    throw new Error('SMS delivery failed');
+    const providerError = new Error('SMS delivery failed');
+    providerError.code =
+      response.status === 400 ? 'ESMS_BAD_REQUEST' :
+      response.status === 401 || response.status === 403 ? 'ESMS_AUTH_FAILED' :
+      response.status === 429 ? 'ESMS_RATE_LIMITED' :
+      response.status >= 500 ? 'ESMS_PROVIDER_ERROR' :
+      'ESMS_REQUEST_REJECTED';
+    throw providerError;
   }
 
   console.log('eSMS Africa SMS accepted for delivery');
@@ -127,11 +146,14 @@ exports.handler = async (event) => {
     try {
       await sendSms(normalizedPhone, code);
     } catch (smsError) {
-      console.error('Employee reset SMS error:', smsError.message);
+      console.error('Employee reset SMS error:', smsError.code || smsError.message);
       await supabaseRequest(`employee_password_resets?employee_id=eq.${encodeURIComponent(employee.id)}&otp_hash=eq.${encodeURIComponent(otpHash)}`, {
         method: 'DELETE',
       }).catch(() => {});
-      return json(503, { error: 'SMS recovery is temporarily unavailable. Please contact your administrator.' });
+      return json(503, {
+        error: 'SMS recovery is temporarily unavailable. Please contact your administrator.',
+        diagnostic: smsError.code || 'ESMS_UNKNOWN_ERROR',
+      });
     }
 
     return json(200, { success: true, message: GENERIC_MESSAGE, expires_in_seconds: 600 });
