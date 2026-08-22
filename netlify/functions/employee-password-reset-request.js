@@ -39,29 +39,30 @@ async function supabaseRequest(path, options = {}) {
 }
 
 async function sendSms(to, code) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_FROM_NUMBER;
-  if (!sid || !token || !from) throw new Error('SMS provider is not configured');
+  // eSMS Africa is used instead of Twilio so the recovery flow can use a
+  // South-African SMS provider. Sandbox credentials can be used for testing.
+  const apiKey = process.env.ESMS_AFRICA_API_KEY;
+  const sender = process.env.ESMS_AFRICA_SENDER_ID;
+  const endpoint = process.env.ESMS_AFRICA_API_URL || 'https://api.esmsafrica.io/v1/sms/send';
 
-  const body = new URLSearchParams({
-    To: to,
-    From: from,
-    Body: `FastCheckIn: your password reset code is ${code}. It expires in 10 minutes. Do not share this code.`,
-  });
+  if (!apiKey || !sender) throw new Error('eSMS Africa SMS provider is not configured');
 
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
-    body,
+    body: JSON.stringify({
+      to,
+      from: sender,
+      message: `FastCheckIn: your password reset code is ${code}. It expires in 10 minutes. Do not share this code.`,
+    }),
   });
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error('Twilio SMS failed:', response.status, detail);
+    console.error('eSMS Africa SMS failed:', response.status, detail);
     throw new Error('SMS delivery failed');
   }
 }
@@ -79,9 +80,7 @@ exports.handler = async (event) => {
       return json(500, { error: 'Server configuration error' });
     }
 
-    // Look up by normalized digits so existing +27 / 0xx / local formats all work.
     const digits = normalizedPhone.replace(/\D/g, '');
-    // `employees` uses status as the account-state field; there is no `active` column.
     const employeesResponse = await supabaseRequest('employees?select=id,business_id,phone_number,status');
     if (!employeesResponse.ok) return json(500, { error: 'Database error' });
     const employees = await employeesResponse.json();
@@ -90,12 +89,10 @@ exports.handler = async (event) => {
       return stored === digits || stored === digits.slice(2) || stored === `0${digits.slice(2)}`;
     });
 
-    // Deliberately return the same response for unknown/inactive accounts.
     if (!employee || employee.status !== 'Active') {
       return json(200, { success: true, message: GENERIC_MESSAGE });
     }
 
-    // Basic abuse protection: max 3 codes per employee in 15 minutes.
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const recentResponse = await supabaseRequest(
       `employee_password_resets?select=id&employee_id=eq.${encodeURIComponent(employee.id)}&created_at=gte.${encodeURIComponent(since)}`
@@ -129,7 +126,6 @@ exports.handler = async (event) => {
       await sendSms(normalizedPhone, code);
     } catch (smsError) {
       console.error('Employee reset SMS error:', smsError.message);
-      // Remove the unusable reset record so a retry can be requested immediately.
       await supabaseRequest(`employee_password_resets?employee_id=eq.${encodeURIComponent(employee.id)}&otp_hash=eq.${encodeURIComponent(otpHash)}`, {
         method: 'DELETE',
       }).catch(() => {});
