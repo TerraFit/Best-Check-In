@@ -75,9 +75,24 @@ exports.handler = async (event) => {
       return json(400, { error: 'Invalid or expired verification code' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    // Atomically claim the challenge before changing the password so the same OTP
+    // cannot be redeemed twice in concurrent requests.
     const now = new Date().toISOString();
+    const claimResponse = await supabaseRequest(
+      `employee_password_resets?id=eq.${encodeURIComponent(reset.id)}&used_at=is.null`,
+      {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ used_at: now }),
+      }
+    );
+    if (!claimResponse.ok) return json(500, { error: 'Could not verify reset request' });
+    const claimed = await claimResponse.json();
+    if (!Array.isArray(claimed) || claimed.length !== 1) {
+      return json(400, { error: 'Invalid or expired verification code' });
+    }
 
+    const passwordHash = await bcrypt.hash(password, 12);
     const updateEmployee = await supabaseRequest(`employees?id=eq.${encodeURIComponent(employee.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
@@ -87,12 +102,6 @@ exports.handler = async (event) => {
       console.error('Employee password update failed:', await updateEmployee.text());
       return json(500, { error: 'Could not update password' });
     }
-
-    await supabaseRequest(`employee_password_resets?id=eq.${encodeURIComponent(reset.id)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ used_at: now }),
-    });
 
     // Invalidate all other outstanding reset challenges for this employee.
     await supabaseRequest(`employee_password_resets?employee_id=eq.${encodeURIComponent(employee.id)}&used_at=is.null&id=neq.${encodeURIComponent(reset.id)}`, {
