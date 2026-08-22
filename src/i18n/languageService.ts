@@ -220,3 +220,27 @@ export const getLanguageDirection = (lang: SupportedLanguage): 'ltr' | 'rtl' => 
 export const getAvailableLanguages = (): LanguageOption[] => {
   return [...LANGUAGE_OPTIONS];
 };
+
+// Get supported language codes
+export const getSupportedLanguageCodes = (): SupportedLanguage[] => {
+  return ['en', 'af', 'de', 'fr', 'nl', 'pt', 'es', 'ru', 'zh', 'ar', 'he', 'it'];
+};
+
+// Check if a language code is supported
+export const isLanguageSupported = (code: string): code is SupportedLanguage => {
+  return getSupportedLanguageCodes().includes(code as SupportedLanguage);
+};
+
+// Auto-detect and set language based on browser preferences
+export const autoDetectLanguage = (): SupportedLanguage => {
+  const detected = detectBrowserLanguage();
+  setLanguage(detected);
+  return detected;
+};
+
+// Reset to browser default language
+export const resetToBrowserLanguage = (): SupportedLanguage => {
+  const browserLang = detectBrowserLanguage();
+  setLanguage(browserLang);
+  return browserLang;
+};
