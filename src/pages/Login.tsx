@@ -147,7 +147,13 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-4 text-center">
+            <button type="button" onClick={() => navigate('/forgot-password')} className="text-sm font-medium text-orange-600 hover:text-orange-500">
+              Forgot password? / Mot de passe oublié ?
+            </button>
+          </div>
+
+          <div className="mt-5 text-center">
             <button type="button" onClick={() => navigate('/register')} className="text-sm font-medium text-orange-600 hover:text-orange-500">
               {t('login_new_business')} {t('login_register_here')}
             </button>
