@@ -42,10 +42,10 @@ async function sendSms(to, code) {
   // eSMS Africa is used instead of Twilio so the recovery flow can use a
   // South-African SMS provider. Sandbox credentials can be used for testing.
   const apiKey = process.env.ESMS_AFRICA_API_KEY;
-  const sender = process.env.ESMS_AFRICA_SENDER_ID;
-  const endpoint = process.env.ESMS_AFRICA_API_URL || 'https://api.esmsafrica.io/v1/sms/send';
+  const senderId = process.env.ESMS_AFRICA_SENDER_ID;
+  const endpoint = process.env.ESMS_AFRICA_API_URL || 'https://sms.esmsafrica.io/api/messages/send';
 
-  if (!apiKey || !sender) throw new Error('eSMS Africa SMS provider is not configured');
+  if (!apiKey || !senderId) throw new Error('eSMS Africa SMS provider is not configured');
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -55,8 +55,8 @@ async function sendSms(to, code) {
     },
     body: JSON.stringify({
       to,
-      from: sender,
-      message: `FastCheckIn: your password reset code is ${code}. It expires in 10 minutes. Do not share this code.`,
+      text: `FastCheckIn: your password reset code is ${code}. It expires in 10 minutes. Do not share this code.`,
+      sender_id: senderId,
     }),
   });
 
@@ -65,6 +65,10 @@ async function sendSms(to, code) {
     console.error('eSMS Africa SMS failed:', response.status, detail);
     throw new Error('SMS delivery failed');
   }
+
+  // Keep provider response details out of logs; only successful HTTP delivery
+  // acceptance is needed by the recovery flow.
+  console.log('eSMS Africa SMS accepted for delivery');
 }
 
 exports.handler = async (event) => {
