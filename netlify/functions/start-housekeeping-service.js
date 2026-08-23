@@ -6,6 +6,7 @@ const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
+  MANAGE_HIERARCHY,
 } = require('./_housekeepingServiceAuth.cjs');
 
 const DEFAULT_TARGETS = {
@@ -77,6 +78,18 @@ exports.handler = async (event) => {
         statusCode: 409,
         headers,
         body: JSON.stringify({ success: false, error: `Task is already ${task.status}`, task }),
+      };
+    }
+
+    const isManagement = gate.principal.actorType === 'business'
+      || gate.principal.actorType === 'super_admin'
+      || MANAGE_HIERARCHY.has(gate.principal.normalizedRole)
+      || gate.principal.permissions?.includes('canManageHousekeeping');
+    if (!isManagement && String(task.assigned_staff_id || '') !== String(gate.principal.employeeId || '')) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Forbidden: housekeeping task is not assigned to this employee' }),
       };
     }
 
