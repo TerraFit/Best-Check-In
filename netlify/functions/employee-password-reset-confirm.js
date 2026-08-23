@@ -25,13 +25,13 @@ exports.handler = async (event) => {
     if (matched.length !== 1) return json(400, { error: 'Invalid or expired verification code' });
     const employee = matched[0];
     if (employee.status !== 'Active' || employee.active === false) return json(400, { error: 'Invalid or expired verification code' });
-    const rr = await sb(`employee_password_resets?select=id,token_hash,expires_at,attempts,used_at&employee_id=eq.${encodeURIComponent(employee.id)}&used_at=is.null&order=created_at.desc&limit=1`);
+    const rr = await sb(`employee_password_resets?select=id,otp_hash,expires_at,attempts,used_at&employee_id=eq.${encodeURIComponent(employee.id)}&used_at=is.null&order=created_at.desc&limit=1`);
     if (!rr.ok) return json(500, { error: 'Database error' });
     const reset = (await rr.json())[0];
     if (!reset || reset.attempts >= 5 || new Date(reset.expires_at).getTime() < Date.now()) return json(400, { error: 'Invalid or expired verification code' });
     const submittedHash = crypto.createHash('sha256').update(submitted).digest('hex');
     let match = false;
-    try { match = crypto.timingSafeEqual(Buffer.from(submittedHash, 'hex'), Buffer.from(String(reset.token_hash), 'hex')); } catch { match = false; }
+    try { match = crypto.timingSafeEqual(Buffer.from(submittedHash, 'hex'), Buffer.from(String(reset.otp_hash), 'hex')); } catch { match = false; }
     if (!match) {
       await sb(`employee_password_resets?id=eq.${encodeURIComponent(reset.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ attempts: reset.attempts + 1 }) });
       return json(400, { error: 'Invalid or expired verification code' });
