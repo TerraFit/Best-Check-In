@@ -3,7 +3,7 @@
 // Auth required (fail closed). business_id is bound from JWT.
 
 const {
-  authenticateHousekeepingService,
+  authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
 } = require('./_housekeepingServiceAuth.cjs');
@@ -20,9 +20,9 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
-    const gate = authenticateHousekeepingService(event, 'execute');
+    const gate = await authenticateHousekeepingServiceLive(event, 'execute');
     if (!gate.ok) {
-      return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error }) };
+      return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error, code: gate.code }) };
     }
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
