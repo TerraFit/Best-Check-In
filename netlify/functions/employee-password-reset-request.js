@@ -39,13 +39,13 @@ exports.handler = async (event) => {
     const recent = await sb(`employee_password_resets?select=id&employee_id=eq.${encodeURIComponent(employee.id)}&created_at=gte.${encodeURIComponent(since)}`);
     if (recent.ok) { const r = await recent.json(); if (Array.isArray(r) && r.length >= 3) return json(200, { success: true, message: GENERIC_MESSAGE }); }
     const code = String(crypto.randomInt(100000, 1000000));
-    const tokenHash = crypto.createHash('sha256').update(code).digest('hex');
-    const ins = await sb('employee_password_resets', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ employee_id: employee.id, business_id: employee.business_id, token_hash: tokenHash, expires_at: new Date(Date.now() + 3600000).toISOString() }) });
+    const otpHash = crypto.createHash('sha256').update(code).digest('hex');
+    const ins = await sb('employee_password_resets', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ employee_id: employee.id, business_id: employee.business_id, otp_hash: otpHash, expires_at: new Date(Date.now() + 3600000).toISOString() }) });
     if (!ins.ok) return json(200, { success: true, message: GENERIC_MESSAGE });
     const digits = String(employee.phone_number || '').replace(/\D/g, '');
     const e164 = digits.startsWith('27') ? digits : digits.startsWith('0') && digits.length === 10 ? `27${digits.slice(1)}` : digits.length === 9 ? `27${digits}` : digits;
     const sms = await trySendSms(e164, code);
-    if (!sms.sent) await sb(`employee_password_resets?employee_id=eq.${encodeURIComponent(employee.id)}&token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'DELETE' }).catch(() => {});
+    if (!sms.sent) await sb(`employee_password_resets?employee_id=eq.${encodeURIComponent(employee.id)}&otp_hash=eq.${encodeURIComponent(otpHash)}`, { method: 'DELETE' }).catch(() => {});
     return json(200, { success: true, message: GENERIC_MESSAGE });
   } catch (e) { console.error(e); return json(500, { error: 'Unable to start password recovery' }); }
 };
