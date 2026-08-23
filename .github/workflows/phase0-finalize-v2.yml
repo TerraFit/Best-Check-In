@@ -1,0 +1,125 @@
+name: Finalize additive Phase 0
+on:
+  push:
+    branches: [feature/housekeeping-phase0-security-v2]
+permissions:
+  contents: write
+jobs:
+  finalize:
+    if: github.event.head_commit.message != 'fix(security): finalize additive Phase 0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply Phase 0 security changes without replacing housekeeping logic
+        env:
+          SOURCE_BRANCH: feature/housekeeping-phase0-security
+        run: |
+          git fetch origin main "$SOURCE_BRANCH"
+          python3 - <<'PY'
+          import json, re, subprocess
+          from pathlib import Path
+
+          source = 'origin/' + __import__('os').environ['SOURCE_BRANCH']
+
+          def source_file(path):
+              return subprocess.check_output(['git','show',f'{source}:{path}'], text=True)
+
+          # Additive/security-only artifacts from the already reviewed Phase 0 work.
+          for p in [
+              'netlify/functions/_housekeepingServiceAuth.cjs',
+              'netlify/functions/employee-login.js',
+              'netlify/functions/employee-password-reset-request.js',
+              'netlify/functions/employee-password-reset-confirm.js',
+              'docs/migrations/015_employee_password_resets.sql',
+              'netlify/functions/__tests__/phase0-security.test.cjs',
+          ]:
+              Path(p).write_text(source_file(p))
+
+          # Generate: preserve the complete main implementation; only add the auth gate and JWT scope.
+          p = Path('netlify/functions/generate-housekeeping-tasks.js')
+          s = p.read_text()
+          if "require('./_housekeepingServiceAuth.cjs')" not in s:
+              s = "const { authenticateHousekeepingServiceLive, resolveBusinessId } = require('./_housekeepingServiceAuth.cjs');\n\n" + s
+          if "authenticateHousekeepingServiceLive(event, 'generate')" not in s:
+              marker = "  if (event.httpMethod !== 'POST') {\n    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };\n  }\n"
+              gate = marker + "\n  const gate = await authenticateHousekeepingServiceLive(event, 'generate');\n  if (!gate.ok) {\n    return { statusCode: gate.status || 401, headers, body: JSON.stringify({ error: gate.error, code: gate.code }) };\n  }\n"
+              if marker not in s: raise SystemExit('generate marker not found')
+              s = s.replace(marker, gate, 1)
+          s = s.replace("const { businessId, bookingId, roomId, regenerate = true } = body;", "const { businessId: clientBusinessId, bookingId, roomId, regenerate = true } = body;\n    const scope = resolveBusinessId(gate.principal, clientBusinessId);\n    if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };\n    const businessId = scope.businessId;", 1)
+          p.write_text(s)
+
+          # GET tasks: replace the legacy fail-open auth helper only; leave all task/stat logic untouched.
+          p = Path('netlify/functions/get-housekeeping-tasks.js'); s = p.read_text()
+          start = s.find('function assertPermission(event, permission) {')
+          end = s.find('\nfunction isReadyStatus', start)
+          if start < 0 or end < 0: raise SystemExit('get-housekeeping-tasks auth block not found')
+          replacement = "const { authenticateHousekeepingServiceLive, resolveBusinessId } = require('./_housekeepingServiceAuth.cjs');\n\n"
+          s = s[:start] + replacement + s[end+1:]
+          s = s.replace("const gate = assertPermission(event, 'canViewHousekeeping');", "const gate = await authenticateHousekeepingServiceLive(event, 'view');", 1)
+          s = s.replace("const { businessId, view, date, roomId, status } = q;", "const { businessId: clientBusinessId, view, date, roomId, status } = q;\n    const scope = resolveBusinessId(gate.principal, clientBusinessId);\n    if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };\n    const businessId = scope.businessId;", 1)
+          p.write_text(s)
+
+          # UPDATE task: remove legacy auth block, map existing action selection to Phase 0 modes, bind tenant.
+          p = Path('netlify/functions/update-housekeeping-task.js'); s = p.read_text()
+          start = s.find('function assertPermission(event, permission) {')
+          end = s.find('\nexports.handler =', start)
+          if start < 0 or end < 0: raise SystemExit('update-housekeeping-task auth block not found')
+          s = s[:start] + "const { authenticateHousekeepingServiceLive, resolveBusinessId } = require('./_housekeepingServiceAuth.cjs');\n\n" + s[end+1:]
+          s = s.replace("      businessId,\n      taskId,", "      businessId: clientBusinessId,\n      taskId,", 1)
+          old = "    const gate = assertPermission(event, needed);\n    if (!gate.ok) {"
+          new = "    const mode = needed === 'canAssignHousekeepingTasks' ? 'assign' : (needed === 'canStartHousekeepingTask' || needed === 'canCompleteHousekeepingTask' ? 'execute' : (needed === 'canApproveInspection' ? 'manage' : 'view'));\n    const gate = await authenticateHousekeepingServiceLive(event, mode);\n    if (!gate.ok) {"
+          if old not in s: raise SystemExit('update gate marker not found')
+          s = s.replace(old, new, 1)
+          marker = "    const restHeaders = {"
+          scope = "    const scope = resolveBusinessId(gate.principal, clientBusinessId);\n    if (!scope.ok) {\n      return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };\n    }\n    const businessId = scope.businessId;\n\n"
+          if marker not in s: raise SystemExit('update scope marker not found')
+          s = s.replace(marker, scope + marker, 1)
+          p.write_text(s)
+
+          # Existing service endpoints already use the shared helper. Switch only to Live auth.
+          for name in ['start-housekeeping-service.js','update-housekeeping-service-progress.js','complete-housekeeping-service.js']:
+              p = Path('netlify/functions') / name; s = p.read_text()
+              s = s.replace('  authenticateHousekeepingService,', '  authenticateHousekeepingServiceLive,')
+              s = s.replace('authenticateHousekeepingService(event,', 'authenticateHousekeepingServiceLive(event,')
+              p.write_text(s)
+
+          # Performance/settings endpoints: same additive Live re-check; retain their existing business logic and modes.
+          for name in ['get-housekeeping-performance.js','housekeeping-settings.js','housekeeping-service-settings.js','housekeeping-service-targets.js']:
+              p = Path('netlify/functions') / name; s = p.read_text()
+              if 'authenticateHousekeepingService' in s:
+                  s = s.replace('authenticateHousekeepingService,', 'authenticateHousekeepingServiceLive,')
+                  s = s.replace('authenticateHousekeepingService(event,', 'authenticateHousekeepingServiceLive(event,')
+              p.write_text(s)
+
+          # Client: preserve existing API implementation; only add disabled-employee session handling.
+          p = Path('src/services/housekeepingApi.ts'); s = p.read_text()
+          if "EMPLOYEE_DISABLED" not in s:
+              old = "  if (!response.ok) {\n    const code = typeof data.code === 'string' ? data.code : '';\n    const base = (typeof data.error === 'string' && data.error) || (typeof data.message === 'string' && data.message) || `HTTP ${response.status}`;"
+              new = "  if (!response.ok) {\n    const code = typeof data.code === 'string' ? data.code : '';\n    if (code === 'EMPLOYEE_DISABLED') {\n      try { localStorage.removeItem('fastcheckin_employee_auth'); } catch {}\n      if (typeof window !== 'undefined' && window.location.pathname !== '/employee/login') window.location.href = '/employee/login';\n    }\n    const base = (typeof data.error === 'string' && data.error) || (typeof data.message === 'string' && data.message) || `HTTP ${response.status}`;"
+              if old not in s: raise SystemExit('housekeepingApi parseJson marker not found')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # package.json: add the Phase 0 test script without changing any other scripts/deps.
+          p = Path('package.json'); data = json.loads(p.read_text())
+          scripts = data.setdefault('scripts', {})
+          scripts.setdefault('test:phase0', 'node --test netlify/functions/__tests__/phase0-security.test.cjs')
+          p.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+
+          npm ci
+          npm run test:phase0
+          npm run build
+          git diff --check
+
+          # Hard scope guard: exactly the approved Phase 0 paths, no workflow retained.
+          git rm .github/workflows/phase0-finalize-v2.yml
+          git diff --name-only origin/main
+          test "$(git diff --name-only origin/main | wc -l | tr -d ' ')" -eq 18
+          git diff --name-only origin/main | grep -vE '^(docs/migrations/015_employee_password_resets.sql|netlify/functions/(__tests__/phase0-security.test.cjs|_housekeepingServiceAuth.cjs|employee-login.js|employee-password-reset-request.js|employee-password-reset-confirm.js|generate-housekeeping-tasks.js|get-housekeeping-tasks.js|update-housekeeping-task.js|start-housekeeping-service.js|update-housekeeping-service-progress.js|complete-housekeeping-service.js|get-housekeeping-performance.js|housekeeping-settings.js|housekeeping-service-settings.js|housekeeping-service-targets.js)|src/services/housekeepingApi.ts|package.json)$' && exit 1 || true
+
+          git add docs/migrations/015_employee_password_resets.sql netlify/functions src/services/housekeepingApi.ts package.json
+          git commit -m 'fix(security): finalize additive Phase 0'
+          git push origin HEAD:feature/housekeeping-phase0-security-v2
