@@ -15,7 +15,7 @@ import type {
 } from '../types/housekeepingServicePerformance';
 import { DEFAULT_HOUSEKEEPING_SETTINGS } from '../types/housekeeping';
 import { DEFAULT_HOUSEKEEPING_SERVICE_SETTINGS } from '../types/housekeepingServicePerformance';
-import { getAuthToken } from '../utils/auth';
+import { clearEmployeeAuth, getAuthToken } from '../utils/auth';
 
 export interface HousekeepingPerformanceMetric { count: number; averageActualSeconds: number; averageTargetSeconds: number; averageVarianceSeconds: number; withinTargetRate: number; overTargetRate: number; averageIssues: number; checklistCompletionRate: number | null; qualityCounts: Record<string, number>; }
 export interface HousekeepingPerformanceResponse {
@@ -32,6 +32,10 @@ async function parseJson(response: Response) {
   const data = await response.json().catch(() => ({} as Record<string, unknown>));
   if (!response.ok) {
     const code = typeof data.code === 'string' ? data.code : '';
+    if (response.status === 403 && code === 'EMPLOYEE_DISABLED') {
+      clearEmployeeAuth();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/employee/login') window.location.assign('/employee/login');
+    }
     const base = (typeof data.error === 'string' && data.error) || (typeof data.message === 'string' && data.message) || `HTTP ${response.status}`;
     throw new Error(code ? `${base} (${code})` : base);
   }
@@ -41,12 +45,12 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
 
 export async function fetchHousekeepingTasks(params: { businessId: string; view?: 'today' | 'pending' | 'completed' | 'all'; date?: string; roomId?: string; status?: string }): Promise<{ tasks: HousekeepingTask[]; stats: HousekeepingDashboardStats; today?: string }> {
   const qs = new URLSearchParams({ businessId: params.businessId }); if (params.view) qs.set('view', params.view); if (params.date) qs.set('date', params.date); if (params.roomId) qs.set('roomId', params.roomId); if (params.status) qs.set('status', params.status);
-  const data = await parseJson(await fetch(`/.netlify/functions/get-housekeeping-tasks?${qs}`)); const raw = data.stats || {}; const roomsReady = raw.rooms_ready ?? raw.rooms_clean ?? 0; const roomsNotReady = raw.rooms_not_ready ?? raw.rooms_dirty ?? 0;
+  const data = await parseJson(await fetch(`/.netlify/functions/get-housekeeping-tasks?${qs}`, { headers: authHeaders() })); const raw = data.stats || {}; const roomsReady = raw.rooms_ready ?? raw.rooms_clean ?? 0; const roomsNotReady = raw.rooms_not_ready ?? raw.rooms_dirty ?? 0;
   return { tasks: data.tasks || [], stats: { rooms_ready: roomsReady, rooms_not_ready: roomsNotReady, rooms_clean: roomsReady, rooms_dirty: roomsNotReady, refresh_due: raw.refresh_due ?? 0, full_service_due: raw.full_service_due ?? 0, completed_today: raw.completed_today ?? 0, overdue: raw.overdue ?? 0 }, today: data.today };
 }
 
-export async function generateHousekeepingTasks(payload: { businessId: string; bookingId?: string; roomId?: string; regenerate?: boolean }): Promise<Record<string, unknown> & { created: number }> { return parseJson(await fetch('/.netlify/functions/generate-housekeeping-tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })); }
-export async function updateHousekeepingTask(payload: { businessId: string; taskId: string; status?: HousekeepingTaskStatus; notes?: string; assigned_staff_id?: string | null; assigned_staff_name?: string | null; inspection_status?: InspectionStatus; completed_by?: string }): Promise<HousekeepingTask> { const data = await parseJson(await fetch('/.netlify/functions/update-housekeeping-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })); return data.task; }
+export async function generateHousekeepingTasks(payload: { businessId: string; bookingId?: string; roomId?: string; regenerate?: boolean }): Promise<Record<string, unknown> & { created: number }> { return parseJson(await fetch('/.netlify/functions/generate-housekeeping-tasks', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })); }
+export async function updateHousekeepingTask(payload: { businessId: string; taskId: string; status?: HousekeepingTaskStatus; notes?: string; assigned_staff_id?: string | null; assigned_staff_name?: string | null; inspection_status?: InspectionStatus; completed_by?: string }): Promise<HousekeepingTask> { const data = await parseJson(await fetch('/.netlify/functions/update-housekeeping-task', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })); return data.task; }
 export async function startHousekeepingService(payload: { businessId: string; taskId: string; serviceType: HousekeepingServiceType }): Promise<{ session: HousekeepingServiceSession; timer: { startedAt: string; targetMinutes: number; warningMinutes: number; finalCountdownSeconds: number; voiceEnabled: boolean; soundEnabled: boolean } }> { return parseJson(await fetch('/.netlify/functions/start-housekeeping-service', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })); }
 export async function updateHousekeepingServiceProgress(payload: { businessId: string; sessionId: string; checklistState: Record<string, boolean>; checklistCompletedCount: number; checklistTotalCount: number; issuesReportedCount: number; notes?: string }): Promise<HousekeepingServiceSession> { const data = await parseJson(await fetch('/.netlify/functions/update-housekeeping-service-progress', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })); return data.session; }
 export async function completeHousekeepingService(payload: { businessId: string; sessionId: string; checklistCompletedCount: number; checklistTotalCount: number; issuesReportedCount: number; notes?: string }): Promise<{ session: HousekeepingServiceSession; performance: { actualSeconds: number; targetSeconds: number; varianceSeconds: number; overTarget: boolean } }> { return parseJson(await fetch('/.netlify/functions/complete-housekeeping-service', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })); }
