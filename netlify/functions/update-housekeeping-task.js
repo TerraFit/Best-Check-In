@@ -1,99 +1,12 @@
 // netlify/functions/update-housekeeping-task.js
 // CJS exports.handler — no local require (esbuild + type:module safe)
 // Room readiness + RBAC by action
+// Phase 0: fail-closed JWT authentication and JWT-bound tenant scope.
 
-function assertPermission(event, permission) {
-  const authHeader =
-    (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-  if (!authHeader) {
-    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-  }
-  try {
-    const jwt = require('jsonwebtoken');
-    const token = authHeader.replace('Bearer ', '').trim();
-    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    const meta = (decoded && decoded.user_metadata) || {};
-    if (decoded.role === 'service_role' || meta.super_admin) {
-      return { ok: true, principal: { actorType: 'super_admin', role: 'super_admin', active: true } };
-    }
-    if (meta.business_id && !meta.employee_id) {
-      return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-    }
-    const role = meta.staff_role || meta.role || '';
-    const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
-    const roleAllows = {
-      business_owner: true,
-      general_manager: true,
-      supervisor: true,
-      team_leader: true,
-      housekeeper: [
-        'canViewHousekeeping',
-        'canStartHousekeepingTask',
-        'canCompleteHousekeepingTask',
-      ].includes(permission),
-      front_desk: permission === 'canViewHousekeeping',
-      laundry_attendant: permission === 'canViewHousekeeping',
-      administration: true,
-      night_auditor: permission === 'canViewHousekeeping',
-      super_admin: true,
-    };
-    if (roleAllows[role] === true) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    if (roleAllows[role] === true || roleAllows[role] === undefined) {
-      /* fall through */
-    }
-    if (roleAllows[role] === true) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    if (
-      perms.includes(permission) ||
-      perms.includes('canManageHousekeeping') ||
-      (typeof roleAllows[role] === 'boolean' && roleAllows[role])
-    ) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    if (typeof roleAllows[role] === 'boolean' && roleAllows[role]) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    if (roleAllows[role] === true || (Array.isArray(roleAllows[role]) && roleAllows[role])) {
-      // handled above for housekeeper
-    }
-    if (role === 'housekeeper') {
-      if (
-        [
-          'canViewHousekeeping',
-          'canStartHousekeepingTask',
-          'canCompleteHousekeepingTask',
-        ].includes(permission)
-      ) {
-        return { ok: true, principal: { actorType: 'employee', role, active: true } };
-      }
-    }
-    if (perms.includes(permission) || perms.includes('canManageHousekeeping')) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    // Default: allow business-compatible roles already covered; deny others
-    const openRoles = [
-      'supervisor',
-      'team_leader',
-      'general_manager',
-      'business_owner',
-      'administration',
-      'super_admin',
-    ];
-    if (openRoles.includes(role)) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    return {
-      ok: false,
-      status: 403,
-      error: 'Missing permission: ' + permission,
-    };
-  } catch (e) {
-    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-  }
-}
+const {
+  authenticateHousekeepingServiceLive,
+  resolveBusinessId,
+} = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
   const headers = {
@@ -111,15 +24,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
-    }
-
     const body = JSON.parse(event.body || '{}');
     const {
-      businessId,
+      businessId: requestedBusinessId,
       taskId,
       status,
       notes,
@@ -129,30 +36,38 @@ exports.handler = async (event) => {
       completed_by,
     } = body;
 
-    if (!businessId || !taskId) {
+    if (!taskId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'businessId and taskId required' }),
+        body: JSON.stringify({ error: 'taskId required' }),
       };
     }
 
-    let needed = 'canViewHousekeeping';
-    if (status === 'in_progress') needed = 'canStartHousekeepingTask';
-    else if (status === 'completed' || status === 'skipped') needed = 'canCompleteHousekeepingTask';
-    else if (inspection_status === 'approved' || inspection_status === 'rejected') {
-      needed = 'canApproveInspection';
-    } else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) {
-      needed = 'canAssignHousekeepingTasks';
-    }
+    let mode = 'view';
+    if (status === 'in_progress' || status === 'completed' || status === 'skipped') mode = 'execute';
+    else if (inspection_status === 'approved' || inspection_status === 'rejected') mode = 'manage';
+    else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) mode = 'assign';
 
-    const gate = assertPermission(event, needed);
+    const gate = await authenticateHousekeepingServiceLive(event, mode);
     if (!gate.ok) {
       return {
         statusCode: gate.status || 403,
         headers,
-        body: JSON.stringify({ error: gate.error }),
+        body: JSON.stringify({ error: gate.error, code: gate.code }),
       };
+    }
+
+    const scope = resolveBusinessId(gate.principal, requestedBusinessId || null);
+    if (!scope.ok) {
+      return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
+    }
+    const businessId = scope.businessId;
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !key) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
     const restHeaders = {
@@ -164,7 +79,7 @@ exports.handler = async (event) => {
     };
 
     const taskRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${taskId}&business_id=eq.${businessId}&select=*`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}&select=*`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
     );
     if (!taskRes.ok) {
@@ -209,11 +124,14 @@ exports.handler = async (event) => {
       }
     }
 
-    const updateRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${taskId}`, {
-      method: 'PATCH',
-      headers: restHeaders,
-      body: JSON.stringify(patch),
-    });
+    const updateRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}`,
+      {
+        method: 'PATCH',
+        headers: restHeaders,
+        body: JSON.stringify(patch),
+      }
+    );
     if (!updateRes.ok) {
       const err = await updateRes.text();
       return { statusCode: updateRes.status, headers, body: JSON.stringify({ error: err }) };
@@ -244,7 +162,7 @@ exports.handler = async (event) => {
 
     if (roomPatch && task.room_id) {
       roomPatch.updated_at = new Date().toISOString();
-      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${task.room_id}`, {
+      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'PATCH',
         headers: {
           apikey: key,
