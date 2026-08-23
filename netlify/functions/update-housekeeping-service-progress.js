@@ -5,6 +5,7 @@ const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
+  MANAGE_HIERARCHY,
 } = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
@@ -64,6 +65,18 @@ exports.handler = async (event) => {
     const session = (await sessionRes.json())[0];
     if (!session) {
       return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Active service session not found' }) };
+    }
+
+    const isManagement = gate.principal.actorType === 'business'
+      || gate.principal.actorType === 'super_admin'
+      || MANAGE_HIERARCHY.has(gate.principal.normalizedRole)
+      || gate.principal.permissions?.includes('canManageHousekeeping');
+    if (!isManagement && String(session.employee_id || '') !== String(gate.principal.employeeId || '')) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Forbidden: service session belongs to another employee' }),
+      };
     }
 
     const patch = {
