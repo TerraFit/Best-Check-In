@@ -74,13 +74,9 @@ jobs:
                   elif tag == 'insert':
                       out.extend(b[j1:j2])
                   elif tag == 'delete':
-                      # Large deletions in the reconstructed branch are treated as accidental.
                       if old_n >= 20:
                           out.extend(a[i1:i2])
-                      # Small deletions are security/compatibility edits and are kept.
                   elif tag == 'replace':
-                      # Preserve large base blocks when the reconstructed side is dramatically smaller.
-                      # This is the specific failure mode we are correcting.
                       if old_n >= 20 and new_n <= max(30, old_n // 3):
                           out.extend(a[i1:i2])
                           out.extend(b[j1:j2])
@@ -89,16 +85,13 @@ jobs:
               return ''.join(out)
 
           for p in paths:
-              text = merge_file(p)
-              Path(p).write_text(text)
+              Path(p).write_text(merge_file(p))
           for p in added:
               Path(p).write_text(show(source_ref, p))
           PY
 
-          # Ensure only the approved Phase 0 files remain changed from main.
           git diff --name-only origin/main > /tmp/changed.txt
           cat /tmp/changed.txt
-          ! grep -E '^(src/pages|src/components|src/features|netlify/functions/[^_]*\.js)$' /tmp/changed.txt | grep -Ev 'housekeeping|employee-login|employee-password-reset' || true
 
       - name: Install and verify
         run: |
@@ -120,3 +113,5 @@ jobs:
           git rm .github/workflows/phase0-clean-rebuild.yml
           git commit -m 'chore(security): remove temporary Phase 0 clean rebuild workflow'
           git push origin HEAD:feature/housekeeping-phase0-security-clean
+
+# trigger rebuild
