@@ -6,6 +6,7 @@ const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
+  MANAGE_HIERARCHY,
 } = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
@@ -73,6 +74,18 @@ exports.handler = async (event) => {
       };
     }
 
+    const isManagement = gate.principal.actorType === 'business'
+      || gate.principal.actorType === 'super_admin'
+      || MANAGE_HIERARCHY.has(gate.principal.normalizedRole)
+      || gate.principal.permissions?.includes('canManageHousekeeping');
+    if (!isManagement && String(session.employee_id || '') !== String(gate.principal.employeeId || '')) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Forbidden: service session belongs to another employee' }),
+      };
+    }
+
     const completedAt = new Date().toISOString();
     const actualSeconds = Math.max(
       0,
@@ -91,7 +104,7 @@ exports.handler = async (event) => {
       updated_at: completedAt,
     };
     const updateSessionRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}`,
+      `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}&status=eq.active`,
       { method: 'PATCH', headers: write, body: JSON.stringify(sessionPatch) }
     );
     if (!updateSessionRes.ok) {
