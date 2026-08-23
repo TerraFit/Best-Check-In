@@ -1,3 +1,4 @@
+# Temporary Phase 0 surgical patch; removed automatically after successful patch.
 name: Phase 0 generator security patch
 
 on:
