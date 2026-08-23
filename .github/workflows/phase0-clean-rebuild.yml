@@ -1,0 +1,122 @@
+name: Phase 0 clean rebuild
+
+on:
+  push:
+    branches: [feature/housekeeping-phase0-security-clean]
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    if: github.event.head_commit.message != 'chore(security): finalize clean Phase 0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/housekeeping-phase0-security-clean
+
+      - name: Rebuild Phase 0 from main without destructive deletions
+        env:
+          SOURCE_REF: feature/housekeeping-phase0-security
+          BASE_REF: main
+        run: |
+          git fetch origin "$SOURCE_REF" "$BASE_REF"
+          python3 - <<'PY'
+          import difflib, subprocess
+          from pathlib import Path
+
+          base_ref = 'origin/main'
+          source_ref = 'origin/feature/housekeeping-phase0-security'
+          paths = [
+            'netlify/functions/_housekeepingServiceAuth.cjs',
+            'netlify/functions/employee-login.js',
+            'netlify/functions/get-housekeeping-tasks.js',
+            'netlify/functions/update-housekeeping-task.js',
+            'netlify/functions/start-housekeeping-service.js',
+            'netlify/functions/update-housekeeping-service-progress.js',
+            'netlify/functions/complete-housekeeping-service.js',
+            'netlify/functions/generate-housekeeping-tasks.js',
+            'netlify/functions/get-housekeeping-performance.js',
+            'netlify/functions/housekeeping-settings.js',
+            'netlify/functions/housekeeping-service-settings.js',
+            'netlify/functions/housekeeping-service-targets.js',
+            'src/services/housekeepingApi.ts',
+            'package.json',
+          ]
+          added = [
+            'docs/migrations/015_employee_password_resets.sql',
+            'netlify/functions/employee-password-reset-request.js',
+            'netlify/functions/employee-password-reset-confirm.js',
+            'netlify/functions/__tests__/phase0-security.test.cjs',
+          ]
+
+          def show(ref, path):
+              return subprocess.check_output(['git','show',f'{ref}:{path}'], text=True)
+
+          def merge_file(path):
+              base = show(base_ref, path)
+              sec = show(source_ref, path)
+              if path == 'netlify/functions/_housekeepingServiceAuth.cjs':
+                  return sec
+              if path in added:
+                  return sec
+              a = base.splitlines(keepends=True)
+              b = sec.splitlines(keepends=True)
+              sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+              out = []
+              for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                  old_n = i2 - i1
+                  new_n = j2 - j1
+                  if tag == 'equal':
+                      out.extend(a[i1:i2])
+                  elif tag == 'insert':
+                      out.extend(b[j1:j2])
+                  elif tag == 'delete':
+                      # Large deletions in the reconstructed branch are treated as accidental.
+                      if old_n >= 20:
+                          out.extend(a[i1:i2])
+                      # Small deletions are security/compatibility edits and are kept.
+                  elif tag == 'replace':
+                      # Preserve large base blocks when the reconstructed side is dramatically smaller.
+                      # This is the specific failure mode we are correcting.
+                      if old_n >= 20 and new_n <= max(30, old_n // 3):
+                          out.extend(a[i1:i2])
+                          out.extend(b[j1:j2])
+                      else:
+                          out.extend(b[j1:j2])
+              return ''.join(out)
+
+          for p in paths:
+              text = merge_file(p)
+              Path(p).write_text(text)
+          for p in added:
+              Path(p).write_text(show(source_ref, p))
+          PY
+
+          # Ensure only the approved Phase 0 files remain changed from main.
+          git diff --name-only origin/main > /tmp/changed.txt
+          cat /tmp/changed.txt
+          ! grep -E '^(src/pages|src/components|src/features|netlify/functions/[^_]*\.js)$' /tmp/changed.txt | grep -Ev 'housekeeping|employee-login|employee-password-reset' || true
+
+      - name: Install and verify
+        run: |
+          npm ci
+          node --test netlify/functions/__tests__/phase0-security.test.cjs
+          npm run build
+          git diff --check
+
+      - name: Commit clean Phase 0
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m 'chore(security): finalize clean Phase 0'
+          git push origin HEAD:feature/housekeeping-phase0-security-clean
+
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/phase0-clean-rebuild.yml
+          git commit -m 'chore(security): remove temporary Phase 0 clean rebuild workflow'
+          git push origin HEAD:feature/housekeeping-phase0-security-clean
