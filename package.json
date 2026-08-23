@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "i18n:validate": "node scripts/i18n-validate.cjs"
+    "i18n:validate": "node scripts/i18n-validate.cjs",
+    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs"
   },
   "dependencies": {
     "react": "^19.2.4",

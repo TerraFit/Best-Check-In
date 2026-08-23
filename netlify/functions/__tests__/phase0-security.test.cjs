@@ -1,0 +1,66 @@
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const jwt = require('jsonwebtoken');
+const { normalizeRole, resolveBusinessId, authenticateHousekeepingService, ASSIGN_HIERARCHY, GENERATE_HIERARCHY } = require('../_housekeepingServiceAuth.cjs');
+const SECRET = 'phase0-test-secret-not-for-production';
+function makeEvent(token) { return { headers: token ? { authorization: `Bearer ${token}` } : {} }; }
+function signEmployee({ employeeId, businessId, role, permissions }) {
+  return jwt.sign({ sub: employeeId, role: 'employee', user_metadata: { employee_id: employeeId, business_id: businessId, staff_role: role, role, permission_set: permissions || [] } }, SECRET, { expiresIn: '1h' });
+}
+function signBusiness(businessId) {
+  return jwt.sign({ sub: businessId, role: 'authenticated', user_metadata: { business_id: businessId } }, SECRET, { expiresIn: '1h' });
+}
+function signSuperAdmin() {
+  return jwt.sign({ sub: 'sa', role: 'authenticated', user_metadata: { super_admin: true } }, SECRET, { expiresIn: '1h' });
+}
+function withSecret(fn) {
+  return () => {
+    const prev = process.env.SUPABASE_JWT_SECRET;
+    process.env.SUPABASE_JWT_SECRET = SECRET;
+    try { return fn(); } finally {
+      if (prev === undefined) delete process.env.SUPABASE_JWT_SECRET;
+      else process.env.SUPABASE_JWT_SECRET = prev;
+    }
+  };
+}
+describe('Phase 0 security', () => {
+  it('aliases', () => assert.equal(normalizeRole('housekeeper'), 'Employee (Legacy)'));
+  it('employee no generate', () => assert.equal(GENERATE_HIERARCHY.has('Employee (Legacy)'), false));
+  it('employee no assign', () => assert.equal(ASSIGN_HIERARCHY.has('Employee (Legacy)'), false));
+  it('mismatch 403', () => assert.equal(resolveBusinessId({ actorType: 'employee', businessId: 'a', employeeId: 'e' }, 'b').status, 403));
+  it('anonymous 401', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(null), 'generate').status, 401)));
+  it('business generate', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(signBusiness('b1')), 'generate').ok, true)));
+  it('employee generate deny', withSecret(() => {
+    const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)', permissions: [] });
+    assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, false);
+  }));
+  it('employee execute', withSecret(() => {
+    const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)' });
+    assert.equal(authenticateHousekeepingService(makeEvent(t), 'execute').ok, true);
+  }));
+  it('manager generate', withSecret(() => {
+    const t = signEmployee({ employeeId: 'm1', businessId: 'b1', role: 'Manager' });
+    assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, true);
+  }));
+  it('super admin generate', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(signSuperAdmin()), 'generate').ok, true)));
+  it('cross business', withSecret(() => {
+    const gate = authenticateHousekeepingService(makeEvent(signBusiness('biz-a')), 'generate');
+    assert.equal(resolveBusinessId(gate.principal, 'biz-b').status, 403);
+  }));
+  it('login no select=*', () => assert.equal(fs.readFileSync(path.join(__dirname, '../employee-login.js'), 'utf8').includes('employees?select=*'), false));
+  it('generate secured', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../generate-housekeeping-tasks.js'), 'utf8');
+    assert.ok(src.includes("authenticateHousekeepingServiceLive(event, 'generate')"));
+  });
+  it('get/update live', () => {
+    assert.ok(fs.readFileSync(path.join(__dirname, '../get-housekeeping-tasks.js'), 'utf8').includes('authenticateHousekeepingServiceLive'));
+    assert.ok(fs.readFileSync(path.join(__dirname, '../update-housekeeping-task.js'), 'utf8').includes('resolveBusinessId'));
+  });
+  it('service live', () => {
+    for (const f of ['start-housekeeping-service.js', 'complete-housekeeping-service.js', 'update-housekeeping-service-progress.js']) {
+      assert.ok(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('await authenticateHousekeepingServiceLive'));
+    }
+  });
+});
