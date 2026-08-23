@@ -63,4 +63,23 @@ describe('Phase 0 security', () => {
       assert.ok(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('await authenticateHousekeepingServiceLive'));
     }
   });
+  it('start enforces assigned employee or management override', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../start-housekeeping-service.js'), 'utf8');
+    assert.ok(src.includes('task.assigned_staff_id'));
+    assert.ok(src.includes('gate.principal.employeeId'));
+    assert.ok(src.includes('MANAGE_HIERARCHY'));
+  });
+  it('progress enforces session employee ownership or management override', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-service-progress.js'), 'utf8');
+    assert.ok(src.includes('session.employee_id'));
+    assert.ok(src.includes('gate.principal.employeeId'));
+    assert.ok(src.includes('MANAGE_HIERARCHY'));
+  });
+  it('complete enforces session employee ownership or management override', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../complete-housekeeping-service.js'), 'utf8');
+    assert.ok(src.includes('session.employee_id'));
+    assert.ok(src.includes('gate.principal.employeeId'));
+    assert.ok(src.includes('MANAGE_HIERARCHY'));
+    assert.ok(src.includes('&status=eq.active'));
+  });
 });
