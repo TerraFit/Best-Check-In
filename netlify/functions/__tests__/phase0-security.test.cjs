@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const { normalizeRole, resolveBusinessId, authenticateHousekeepingService, ASSIGN_HIERARCHY, GENERATE_HIERARCHY } = require('../_housekeepingServiceAuth.cjs');
+const { canOverrideTaskExecution } = require('../update-housekeeping-task.js');
 const SECRET = 'phase0-test-secret-not-for-production';
 function makeEvent(token) { return { headers: token ? { authorization: `Bearer ${token}` } : {} }; }
 function signEmployee({ employeeId, businessId, role, permissions }) {
@@ -81,5 +82,29 @@ describe('Phase 0 security', () => {
     assert.ok(src.includes('gate.principal.employeeId'));
     assert.ok(src.includes('MANAGE_HIERARCHY'));
     assert.ok(src.includes('&status=eq.active'));
+  });
+  it('employee cannot execute another employee task', () => {
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), false);
+  });
+  it('employee can execute own assigned task', () => {
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-a' }), true);
+  });
+  it('employee cannot execute unassigned task', () => {
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: null }), false);
+  });
+  it('management can override task assignment', () => {
+    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Manager', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
+  });
+  it('housekeeping permission can override task assignment', () => {
+    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Employee (Legacy)', permissions: ['canManageHousekeeping'] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
+  });
+  it('business and super admin can override task assignment', () => {
+    assert.equal(canOverrideTaskExecution({ actorType: 'business', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
+    assert.equal(canOverrideTaskExecution({ actorType: 'super_admin', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
   });
 });
