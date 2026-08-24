@@ -8,6 +8,7 @@ import { LogOut, User } from 'lucide-react';
 import Logo from '../components/Logo';
 import QRCodeModal from '../components/QRCodeModal';
 import { GuestOverviewTab } from '../components/staff/GuestOverviewTab';
+import EmployeeHousekeepingTasks from '../components/housekeeping/EmployeeHousekeepingTasks';
 import LostFoundTab from './tabs/LostFoundTab';
 import {
   employeePrincipal,
@@ -80,7 +81,6 @@ export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState<string>('overview');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [hkTasks, setHkTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [businessName, setBusinessName] = useState('');
@@ -178,26 +178,6 @@ export default function EmployeeDashboard() {
         if (bizResponse.ok) {
           const bizData = await bizResponse.json();
           setBusinessName(bizData.trading_name || 'Property');
-        }
-
-        if (hasPermission(principal, 'canViewHousekeeping')) {
-          try {
-            const hkRes = await fetch(
-              `/.netlify/functions/get-housekeeping-tasks?businessId=${businessIdFromAuth}&view=today`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-            if (hkRes.ok) {
-              const hkData = await hkRes.json();
-              setHkTasks(hkData.tasks || hkData.data || []);
-            }
-          } catch {
-            /* optional */
-          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -418,53 +398,20 @@ export default function EmployeeDashboard() {
             />
           )}
 
-        {(activeMenu === 'todays_tasks' || activeMenu === 'my_rooms') &&
+        {activeMenu === 'todays_tasks' &&
+          hasPermission(principal, 'canViewHousekeeping') &&
+          businessId && (
+            <EmployeeHousekeepingTasks
+              businessId={businessId}
+              employeeId={employee?.id}
+              principal={principal}
+            />
+          )}
+
+        {activeMenu === 'my_rooms' &&
           hasPermission(principal, 'canViewHousekeeping') && (
-            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6">
-              <h3 className="font-bold text-sm text-stone-900 mb-4">
-                {activeMenu === 'todays_tasks' ? "Today's Housekeeping Tasks" : t('employee_my_rooms')}
-              </h3>
-              {hkTasks.length === 0 ? (
-                <p className="text-sm text-stone-400">
-                  No tasks in this view. Generate the schedule from the business Housekeeping tab if
-                  needed.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {hkTasks.map((t: any) => (
-                    <li
-                      key={t.id}
-                      className="flex items-center justify-between border border-stone-100 rounded-xl px-4 py-3 text-sm"
-                    >
-                      <div>
-                        <span className="font-semibold text-stone-900">
-                          {t.room_number ? `Room ${t.room_number}` : t.room_id}
-                          {t.room_name ? ` · ${t.room_name}` : ''}
-                        </span>
-                        <span className="text-stone-500 ml-2">
-                          {t.task_type === 'full_service'
-                            ? t.is_checkout
-                              ? '🧺 Full Service (Checkout)'
-                              : '🧺 Full Service'
-                            : '✨ Refresh'}
-                        </span>
-                        {t.guest_name && (
-                          <span className="block text-xs text-stone-400">{t.guest_name}</span>
-                        )}
-                      </div>
-                      <span className="text-[10px] uppercase font-bold text-stone-500">
-                        {t.status}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {(hasPermission(principal, 'canStartHousekeepingTask') ||
-                hasPermission(principal, 'canCompleteHousekeepingTask')) && (
-                <p className="mt-4 text-xs text-stone-400">
-                  Use the business Housekeeping board to Start / Complete / Inspect tasks.
-                </p>
-              )}
+            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
+              My Rooms will be enabled when room allocations are introduced for eligible plans.
             </div>
           )}
 
