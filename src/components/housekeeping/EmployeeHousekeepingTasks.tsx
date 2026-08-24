@@ -51,6 +51,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
 
   const canStart = hasPermission(principal, 'canStartHousekeepingTask');
   const canComplete = hasPermission(principal, 'canCompleteHousekeepingTask');
+  const canOverride = hasPermission(principal, 'canManageHousekeeping');
   const canExecute = canStart || canComplete;
 
   const loadTasks = useCallback(async () => {
@@ -112,7 +113,11 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
     const isAssignedToEmployee = Boolean(
       task.assigned_staff_id && task.assigned_staff_id === employeeId
     );
-    const canStartThisTask = canStart && (isAssignedToEmployee || !task.assigned_staff_id);
+    const canStartThisTask = canStart && (isAssignedToEmployee || !task.assigned_staff_id || canOverride);
+    const canResumeThisTask = Boolean(
+      activeSession &&
+        (activeSession.employee_id === employeeId || canOverride)
+    );
     const statusLabel = bucket === 'behind' ? 'Behind' : bucket === 'completed_today' ? 'Completed Today' : task.status === 'in_progress' ? 'In Progress' : 'Pending';
 
     return (
@@ -141,13 +146,17 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
           {bucket !== 'completed_today' && canExecute && (
             <div className="shrink-0">
               {activeSession && task.status === 'in_progress' ? (
-                <button
-                  type="button"
-                  onClick={() => openSession(task, activeSession)}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600"
-                >
-                  Resume Service
-                </button>
+                canResumeThisTask ? (
+                  <button
+                    type="button"
+                    onClick={() => openSession(task, activeSession)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600"
+                  >
+                    Resume Service
+                  </button>
+                ) : (
+                  <span className="text-xs text-stone-400">In service by another employee</span>
+                )
               ) : canStartThisTask ? (
                 <button
                   type="button"
