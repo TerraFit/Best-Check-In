@@ -82,4 +82,34 @@ describe('Phase 0 security', () => {
     assert.ok(src.includes('MANAGE_HIERARCHY'));
     assert.ok(src.includes('&status=eq.active'));
   });
+  it('employee cannot execute another employee task', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), false);
+  });
+  it('employee can execute own assigned task', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-a' }), true);
+  });
+  it('employee cannot execute unassigned task', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: null }), false);
+  });
+  it('management can override task assignment', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Manager', permissions: [] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
+  });
+  it('housekeeping permission can override task assignment', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Employee (Legacy)', permissions: ['canManageHousekeeping'] };
+    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
+  });
+  it('business and super admin can override task assignment', async () => {
+    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
+    assert.equal(canOverrideTaskExecution({ actorType: 'business', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
+    assert.equal(canOverrideTaskExecution({ actorType: 'super_admin', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
+  });
 });
