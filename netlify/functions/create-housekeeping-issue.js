@@ -27,25 +27,11 @@ exports.handler = async (event) => {
     if (!session) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Service session not found' }) };
     const isManagement = gate.principal.actorType === 'business' || gate.principal.actorType === 'super_admin' || MANAGE_HIERARCHY.has(gate.principal.normalizedRole) || gate.principal.permissions?.includes('canManageHousekeeping');
     if (!isManagement && String(session.employee_id || '') !== String(gate.principal.employeeId || '')) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Forbidden: service session belongs to another employee' }) };
-    const payload = {
-      business_id: scope.businessId,
-      service_session_id: body.sessionId,
-      housekeeping_task_id: body.taskId,
-      room_id: body.roomId,
-      room_number: body.roomNumber || null,
-      employee_id: gate.principal.employeeId || null,
-      employee_name: gate.principal.employeeName || null,
-      checklist_item_id: body.checklistItemId,
-      checklist_item_label: body.checklistItemLabel,
-      category: body.category,
-      issue_type: body.issueType,
-      other_description: body.otherDescription || null,
-      description: body.description || null,
-      priority,
-      maintenance_requested: Boolean(body.maintenanceRequested),
-      maintenance_status: body.maintenanceRequested ? 'pending' : null,
-      photo_url: body.photoUrl || null,
-    };
+    const taskRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(body.taskId)}&business_id=eq.${q(scope.businessId)}&select=id,room_number`, { headers: read });
+    if (!taskRes.ok) return { statusCode: taskRes.status, headers, body: JSON.stringify({ success: false, error: await taskRes.text() }) };
+    const task = (await taskRes.json())[0];
+    if (!task) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Housekeeping task not found' }) };
+    const payload = { business_id: scope.businessId, service_session_id: body.sessionId, housekeeping_task_id: body.taskId, room_id: body.roomId, room_number: body.roomNumber || task.room_number || null, employee_id: gate.principal.employeeId || null, employee_name: gate.principal.employeeName || null, checklist_item_id: body.checklistItemId, checklist_item_label: body.checklistItemLabel, category: body.category, issue_type: body.issueType, other_description: body.otherDescription || null, description: body.description || null, priority, maintenance_requested: Boolean(body.maintenanceRequested), maintenance_status: body.maintenanceRequested ? 'pending' : null, photo_url: body.photoUrl || null };
     const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_issues`, { method: 'POST', headers: write, body: JSON.stringify(payload) });
     if (!res.ok) { const text = await res.text(); const missingSchema = schemaMissingResponse(res.status, text, 'housekeeping_issues'); if (missingSchema) return { statusCode: 503, headers, body: JSON.stringify(missingSchema) }; return { statusCode: res.status, headers, body: JSON.stringify({ success: false, error: text }) }; }
     const issue = (await res.json())[0];
