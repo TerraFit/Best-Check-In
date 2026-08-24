@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS housekeeping_issues (
   service_session_id UUID NOT NULL REFERENCES housekeeping_service_sessions(id) ON DELETE CASCADE,
   housekeeping_task_id UUID NOT NULL REFERENCES housekeeping_tasks(id) ON DELETE CASCADE,
   room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
+  room_number TEXT,
   employee_id UUID,
   employee_name TEXT,
   checklist_item_id TEXT NOT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS housekeeping_issues (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE housekeeping_issues ADD COLUMN IF NOT EXISTS room_number TEXT;
 CREATE INDEX IF NOT EXISTS idx_hk_issues_business_status ON housekeeping_issues(business_id, status, reported_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hk_issues_session ON housekeeping_issues(service_session_id, reported_at ASC);
 CREATE INDEX IF NOT EXISTS idx_hk_issues_task ON housekeeping_issues(housekeeping_task_id, reported_at DESC);
