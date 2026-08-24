@@ -38,6 +38,10 @@ CREATE INDEX IF NOT EXISTS idx_hk_issues_maintenance ON housekeeping_issues(busi
 
 ALTER TABLE housekeeping_issues ENABLE ROW LEVEL SECURITY;
 
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('housekeeping-issue-photos', 'housekeeping-issue-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
 COMMENT ON TABLE housekeeping_issues IS 'Structured issues reported by housekeeping against a specific checklist item. Lost & Found is deliberately separate.';
 COMMENT ON COLUMN housekeeping_issues.other_description IS 'Required when issue_type is Other.';
 COMMENT ON COLUMN housekeeping_issues.maintenance_requested IS 'Whether the issue has explicitly been routed to Maintenance.';
