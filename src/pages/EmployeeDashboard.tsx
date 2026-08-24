@@ -1,441 +1,50 @@
 // src/pages/EmployeeDashboard.tsx
 // RBAC: menus generated entirely from resolvePermissions / getEmployeeMenu
 // Preview: Business Owner temporary session shows banner; Exit returns to Business Dashboard
-
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
 import Logo from '../components/Logo';
 import EmployeeHousekeepingTasks from '../components/housekeeping/EmployeeHousekeepingTasks';
+import EmployeeGuestOverview from '../components/staff/EmployeeGuestOverview';
 import LostFoundTab from './tabs/LostFoundTab';
-import {
-  employeePrincipal,
-  getEmployeeMenu,
-  hasPermission,
-  roleLabel,
-  departmentLabel,
-} from '../services/rbacService';
+import { employeePrincipal,getEmployeeMenu,hasPermission,roleLabel,departmentLabel } from '../services/rbacService';
 import type { PermissionPrincipal } from '../services/rbacService';
 import { t } from '../i18n';
-
-interface EmployeeUser {
-  id: string;
-  full_name: string;
-  phone_number: string;
-  business_id: string;
-  role: string;
-  staff_role?: string;
-  department?: string;
-  permission_set?: string[];
-  active?: boolean;
-  status?: string;
-}
-
-const PREVIEW_FLAG_KEY = 'fastcheckin_employee_preview';
-
-function readIsPreviewSession(): boolean {
-  try {
-    const flag = localStorage.getItem(PREVIEW_FLAG_KEY);
-    if (flag) {
-      const parsed = JSON.parse(flag);
-      if (parsed?.preview) return true;
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    const authStr =
-      localStorage.getItem('fastcheckin_employee_auth') ||
-      localStorage.getItem('fastcheckin_auth');
-    if (authStr) {
-      const auth = JSON.parse(authStr);
-      if (auth?.preview === true) return true;
-    }
-  } catch {
-    /* ignore */
-  }
-  return false;
-}
-
-export default function EmployeeDashboard() {
-  const navigate = useNavigate();
-  const [activeMenu, setActiveMenu] = useState<string>('overview');
-  const [loading, setLoading] = useState(true);
-  const [employee, setEmployee] = useState<EmployeeUser | null>(null);
-  const [businessName, setBusinessName] = useState('');
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [denied, setDenied] = useState(false);
-  const [isPreview, setIsPreview] = useState(false);
-
-  const principal: PermissionPrincipal = useMemo(() => {
-    if (!employee) return { actorType: 'employee', role: 'EmployeeOverview', active: true };
-    return employeePrincipal(employee);
-  }, [employee]);
-
-  const menu = useMemo(() => getEmployeeMenu(principal), [principal]);
-
-  useEffect(() => {
-    setIsPreview(readIsPreviewSession());
-    try {
-      const authStr =
-        localStorage.getItem('fastcheckin_employee_auth') ||
-        localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        const user = auth.user || auth.employee;
-        if (user) {
-          setEmployee({
-            id: user.id,
-            full_name: user.full_name || user.name,
-            phone_number: user.phone_number || '',
-            business_id: user.business_id || user.businessId,
-            role: user.staff_role || user.role || 'EmployeeOverview',
-            staff_role: user.staff_role || user.role,
-            department: user.department,
-            permission_set: user.permission_set,
-            active: user.active !== false,
-            status: user.status || 'Active',
-          });
-          setBusinessId(user.business_id || user.businessId || null);
-        }
-      }
-    } catch (e) {
-      console.error('Error getting employee data:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (menu.length === 0) return;
-    if (!menu.some((m) => m.id === activeMenu)) {
-      setActiveMenu(menu[0].id);
-    }
-  }, [menu, activeMenu]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const authStr =
-          localStorage.getItem('fastcheckin_employee_auth') ||
-          localStorage.getItem('fastcheckin_auth');
-        const auth = authStr ? JSON.parse(authStr) : null;
-        const token = auth?.token;
-        const businessIdFromAuth =
-          auth?.user?.businessId || auth?.user?.business_id || employee?.business_id;
-
-        if (!token || !businessIdFromAuth) {
-          setLoading(false);
-          return;
-        }
-
-        setBusinessId(businessIdFromAuth);
-
-        // The Employee Portal must not depend on the Business Dashboard booking feed.
-        // Housekeeping tasks are loaded by EmployeeHousekeepingTasks from the
-        // authoritative housekeeping_tasks pipeline when Today's Tasks is opened.
-        const bizResponse = await fetch(
-          `/.netlify/functions/get-business-branding?id=${businessIdFromAuth}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        if (bizResponse.ok) {
-          const bizData = await bizResponse.json();
-          setBusinessName(bizData.trading_name || 'Property');
-        }
-      } catch (error) {
-        console.error('Error fetching employee portal data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [employee?.business_id, principal]);
-
-  const handleExitPreview = () => {
-    // Destroy temporary preview session only; restore business auth as primary.
-    localStorage.removeItem('fastcheckin_employee_auth');
-    localStorage.removeItem(PREVIEW_FLAG_KEY);
-
-    try {
-      const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
-      if (businessAuthStr) {
-        localStorage.setItem('fastcheckin_auth', businessAuthStr);
-      } else {
-        localStorage.removeItem('fastcheckin_auth');
-      }
-    } catch {
-      localStorage.removeItem('fastcheckin_auth');
-    }
-
-    window.location.href = '/business/dashboard?tab=staff';
-  };
-
-  const handleLogout = () => {
-    if (isPreview) {
-      handleExitPreview();
-      return;
-    }
-    localStorage.removeItem('fastcheckin_employee_auth');
-    localStorage.removeItem('fastcheckin_auth');
-    localStorage.removeItem(PREVIEW_FLAG_KEY);
-    navigate('/employee/login');
-  };
-
-  const handleMenuClick = (id: string) => {
-    if (!menu.some((m) => m.id === id)) {
-      setDenied(true);
-      setTimeout(() => setDenied(false), 2500);
-      return;
-    }
-    setActiveMenu(id);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4" />
-          <p className="text-stone-400 text-sm">{t('employee_dashboard_loading')}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const displayRole = roleLabel(employee?.staff_role || employee?.role);
-  const displayDept = departmentLabel(employee?.department);
-
-  return (
-    <div className="min-h-screen bg-stone-50">
-      {isPreview && (
-        <div className="bg-violet-700 text-white sticky top-0 z-50 shadow-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className="text-xl leading-none" aria-hidden>
-                🧪
-              </span>
-              <div className="text-sm">
-                <p className="font-bold tracking-tight">{t('employee_preview_mode')}</p>
-                <p className="text-violet-100 mt-0.5">
-                  Viewing Employee Portal as{' '}
-                  <span className="font-semibold text-white">
-                    {employee?.full_name || 'Staff'}
-                  </span>
-                  <span className="mx-1.5 text-violet-300">·</span>
-                  <span className="font-medium">{displayRole}</span>
-                  <span className="mx-1.5 text-violet-300">·</span>
-                  <span className="text-violet-200">{t('employee_owner_preview')}</span>
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleExitPreview}
-              className="inline-flex items-center justify-center px-4 py-2 bg-white text-violet-800 font-bold text-xs rounded-lg hover:bg-violet-50 transition-colors shadow-sm whitespace-nowrap"
-            >
-              {t('employee_exit_preview')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <header
-        className={`bg-white border-b border-stone-200 sticky z-40 shadow-sm ${
-          isPreview ? 'top-[72px] sm:top-[56px]' : 'top-0'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-3">
-              <Logo size="sm" />
-              <div>
-                <h1 className="text-sm font-bold text-stone-900">
-                  {businessName || t('login_employee_title')}
-                </h1>
-                <p className="text-[10px] text-stone-400 flex items-center gap-1">
-                  <User size={10} /> {employee?.full_name || 'Staff'}
-                  <span className="mx-1">·</span>
-                  {displayRole}
-                  {employee?.department && (
-                    <>
-                      <span className="mx-1">·</span>
-                      {displayDept}
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="hidden sm:inline-block px-3 py-1 bg-amber-50 rounded-lg text-xs font-bold text-amber-700 border border-amber-200">
-                {isPreview ? 'Preview · Staff Portal' : t('nav_staff')}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 hover:border-red-200 text-stone-600 hover:text-red-600 rounded-xl text-xs font-semibold"
-              >
-                <LogOut size={12} /> {isPreview ? t('employee_exit_preview') : t('nav_logout')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {denied && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-            Access denied for that section.
-          </div>
-        )}
-
-        <div className="flex border-b border-stone-200 overflow-x-auto gap-4 text-sm">
-          {menu.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleMenuClick(item.id)}
-              className={`pb-3 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                activeMenu === item.id
-                  ? 'border-amber-500 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              {item.icon} {item.label}
-            </button>
-          ))}
-        </div>
-
-        {activeMenu === 'overview' && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
-                Housekeeping today
-              </p>
-              <h2 className="text-xl font-bold text-stone-900 mt-1">Your operational overview</h2>
-              <p className="text-sm text-stone-500 mt-2">
-                Your housekeeping work is managed through Today's Tasks. Open it to see the same
-                tasks used by the Business Dashboard, start your service, and complete it without
-                leaving the Employee Portal.
-              </p>
-            </div>
-            {hasPermission(principal, 'canViewHousekeeping') &&
-              menu.some((item) => item.id === 'todays_tasks') && (
-                <button
-                  type="button"
-                  onClick={() => setActiveMenu('todays_tasks')}
-                  className="inline-flex items-center rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600 transition-colors"
-                >
-                  Open Today's Tasks
-                </button>
-              )}
-          </div>
-        )}
-
-        {activeMenu === 'todays_tasks' &&
-          hasPermission(principal, 'canViewHousekeeping') &&
-          businessId && (
-            <EmployeeHousekeepingTasks
-              businessId={businessId}
-              employeeId={employee?.id}
-              principal={principal}
-            />
-          )}
-
-        {activeMenu === 'my_rooms' &&
-          hasPermission(principal, 'canViewHousekeeping') && (
-            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-              My Rooms will be enabled when room allocations are introduced for eligible plans.
-            </div>
-          )}
-
-        {activeMenu === 'rooms' &&
-          (hasPermission(principal, 'canViewRooms') ||
-            hasPermission(principal, 'canAllocateRooms')) && (
-            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-600">
-              Room status and allocation are available on the business Rooms page for authorised
-              staff. Front Desk can allocate from Guest Details.
-            </div>
-          )}
-
-        {activeMenu === 'laundry_queue' && hasPermission(principal, 'canViewLaundry') && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-            Laundry module coming soon. Your permissions are ready.
-          </div>
-        )}
-
-        {activeMenu === 'linen_inventory' && hasPermission(principal, 'canViewLaundry') && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-            Linen inventory coming soon.
-          </div>
-        )}
-
-        {activeMenu === 'maintenance' && hasPermission(principal, 'canViewMaintenance') && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-            Maintenance module coming soon. Your permissions are ready.
-          </div>
-        )}
-
-        {activeMenu === 'lost_found' && hasPermission(principal, 'canViewLostFound') && businessId && (
-          <LostFoundTab
-            mode="employee"
-            businessId={businessId}
-            businessName={businessName}
-            employeeId={employee?.id}
-            employeeName={employee?.full_name}
-            canCreate={hasPermission(principal, 'canCreateLostFound')}
-            canEdit={hasPermission(principal, 'canEditLostFound')}
-            canDispose={hasPermission(principal, 'canDisposeLostFound')}
-          />
-        )}
-
-        {activeMenu === 'reports' &&
-          (hasPermission(principal, 'canViewOperationalReports') ||
-            hasPermission(principal, 'canViewReports' as any)) && (
-            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-              Operational reports are available from the business Reports tab for authorised roles.
-            </div>
-          )}
-
-        {activeMenu === 'employees' && hasPermission(principal, 'canManageStaff') && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">
-            Staff management is available via the business Staff Portal.
-          </div>
-        )}
-
-        {activeMenu === 'profile' && (
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-2 text-sm">
-            <p>
-              <span className="text-stone-400">{t('employee_col_name')}</span>
-              <br />
-              <span className="font-semibold">{employee?.full_name}</span>
-            </p>
-            <p>
-              <span className="text-stone-400">{t('employee_col_role')}</span>
-              <br />
-              <span className="font-semibold">{displayRole}</span>
-            </p>
-            <p>
-              <span className="text-stone-400">{t('employee_col_department')}</span>
-              <br />
-              <span className="font-semibold">{displayDept}</span>
-            </p>
-            <p>
-              <span className="text-stone-400">{t('guest_details_phone')}</span>
-              <br />
-              <span className="font-mono">{employee?.phone_number}</span>
-            </p>
-          </div>
-        )}
-
-        {menu.length === 0 && (
-          <div className="text-center py-12 text-stone-400 text-sm">
-            No permissions assigned. Contact your administrator.
-          </div>
-        )}
-      </main>
-    </div>
-  );
+interface EmployeeUser { id:string; full_name:string; phone_number:string; business_id:string; role:string; staff_role?:string; department?:string; additional_departments?:string[]; permission_set?:string[]; active?:boolean; status?:string; }
+const PREVIEW_FLAG_KEY='fastcheckin_employee_preview';
+function readIsPreviewSession(){try{const flag=localStorage.getItem(PREVIEW_FLAG_KEY);if(flag){const parsed=JSON.parse(flag);if(parsed?.preview)return true;}}catch{}try{const authStr=localStorage.getItem('fastcheckin_employee_auth')||localStorage.getItem('fastcheckin_auth');if(authStr){const auth=JSON.parse(authStr);if(auth?.preview===true)return true;}}catch{}return false;}
+export default function EmployeeDashboard(){
+  const navigate=useNavigate(); const [activeMenu,setActiveMenu]=useState('overview'); const [loading,setLoading]=useState(true); const [employee,setEmployee]=useState<EmployeeUser|null>(null); const [businessName,setBusinessName]=useState(''); const [businessId,setBusinessId]=useState<string|null>(null); const [denied,setDenied]=useState(false); const [isPreview,setIsPreview]=useState(false);
+  const principal:PermissionPrincipal=useMemo(()=>employee?employeePrincipal(employee):{actorType:'employee',role:'EmployeeOverview',active:true},[employee]);
+  const menu=useMemo(()=>getEmployeeMenu(principal),[principal]);
+  useEffect(()=>{setIsPreview(readIsPreviewSession());try{const authStr=localStorage.getItem('fastcheckin_employee_auth')||localStorage.getItem('fastcheckin_auth');if(authStr){const auth=JSON.parse(authStr),user=auth.user||auth.employee;if(user){setEmployee({id:user.id,full_name:user.full_name||user.name,phone_number:user.phone_number||'',business_id:user.business_id||user.businessId,role:user.staff_role||user.role||'EmployeeOverview',staff_role:user.staff_role||user.role,department:user.department,additional_departments:user.additional_departments,permission_set:user.permission_set,active:user.active!==false,status:user.status||'Active'});setBusinessId(user.business_id||user.businessId||null);}}}catch(e){console.error('Error getting employee data:',e);}},[]);
+  useEffect(()=>{if(menu.length===0)return;if(!menu.some(m=>m.id===activeMenu))setActiveMenu(menu[0].id);},[menu,activeMenu]);
+  useEffect(()=>{const fetchData=async()=>{try{const authStr=localStorage.getItem('fastcheckin_employee_auth')||localStorage.getItem('fastcheckin_auth'),auth=authStr?JSON.parse(authStr):null,token=auth?.token,businessIdFromAuth=auth?.user?.businessId||auth?.user?.business_id||employee?.business_id;if(!token||!businessIdFromAuth){setLoading(false);return;}setBusinessId(businessIdFromAuth);const r=await fetch(`/.netlify/functions/get-business-branding?id=${businessIdFromAuth}`,{headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}});if(r.ok){const d=await r.json();setBusinessName(d.trading_name||'Property');}}catch(error){console.error('Error fetching employee portal data:',error);}finally{setLoading(false);}};fetchData();},[employee?.business_id,principal]);
+  const handleExitPreview=()=>{localStorage.removeItem('fastcheckin_employee_auth');localStorage.removeItem(PREVIEW_FLAG_KEY);try{const s=localStorage.getItem('fastcheckin_business_auth');if(s)localStorage.setItem('fastcheckin_auth',s);else localStorage.removeItem('fastcheckin_auth');}catch{localStorage.removeItem('fastcheckin_auth');}window.location.href='/business/dashboard?tab=staff';};
+  const handleLogout=()=>{if(isPreview){handleExitPreview();return;}localStorage.removeItem('fastcheckin_employee_auth');localStorage.removeItem('fastcheckin_auth');localStorage.removeItem(PREVIEW_FLAG_KEY);navigate('/employee/login');};
+  const handleMenuClick=(id:string)=>{if(!menu.some(m=>m.id===id)){setDenied(true);setTimeout(()=>setDenied(false),2500);return;}setActiveMenu(id);};
+  if(loading)return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"/><p className="text-stone-400 text-sm">{t('employee_dashboard_loading')}</p></div></div>;
+  const displayRole=roleLabel(employee?.staff_role||employee?.role),displayDept=departmentLabel(employee?.department);
+  const authToken=(()=>{try{const a=localStorage.getItem('fastcheckin_employee_auth')||localStorage.getItem('fastcheckin_auth');return a?JSON.parse(a)?.token||'':'';}catch{return '';}})();
+  return <div className="min-h-screen bg-stone-50">
+    {isPreview&&<div className="bg-violet-700 text-white sticky top-0 z-50 shadow-md"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div className="flex items-start gap-3"><span className="text-xl leading-none" aria-hidden>🧪</span><div className="text-sm"><p className="font-bold tracking-tight">{t('employee_preview_mode')}</p><p className="text-violet-100 mt-0.5">Viewing Employee Portal as <span className="font-semibold text-white">{employee?.full_name||'Staff'}</span><span className="mx-1.5 text-violet-300">·</span><span className="font-medium">{displayRole}</span><span className="mx-1.5 text-violet-300">·</span><span className="text-violet-200">{t('employee_owner_preview')}</span></p></div></div><button type="button" onClick={handleExitPreview} className="inline-flex items-center justify-center px-4 py-2 bg-white text-violet-800 font-bold text-xs rounded-lg hover:bg-violet-50 transition-colors shadow-sm whitespace-nowrap">{t('employee_exit_preview')}</button></div></div>}
+    <header className={`bg-white border-b border-stone-200 sticky z-40 shadow-sm ${isPreview?'top-[72px] sm:top-[56px]':'top-0'}`}><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="flex justify-between h-16 items-center"><div className="flex items-center gap-3"><Logo size="sm"/><div><h1 className="text-sm font-bold text-stone-900">{businessName||t('login_employee_title')}</h1><p className="text-[10px] text-stone-400 flex items-center gap-1"><User size={10}/>{employee?.full_name||'Staff'}<span className="mx-1">·</span>{displayRole}{employee?.department&&<><span className="mx-1">·</span>{displayDept}</>}</p></div></div><div className="flex items-center gap-3"><span className="hidden sm:inline-block px-3 py-1 bg-amber-50 rounded-lg text-xs font-bold text-amber-700 border border-amber-200">{isPreview?'Preview · Staff Portal':t('nav_staff')}</span><button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 hover:border-red-200 text-stone-600 hover:text-red-600 rounded-xl text-xs font-semibold"><LogOut size={12}/>{isPreview?t('employee_exit_preview'):t('nav_logout')}</button></div></div></div></header>
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {denied&&<div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">Access denied for that section.</div>}
+      <div className="flex border-b border-stone-200 overflow-x-auto gap-4 text-sm">{menu.map(item=><button key={item.id} type="button" onClick={()=>handleMenuClick(item.id)} className={`pb-3 px-1 font-semibold transition-all border-b-2 whitespace-nowrap ${activeMenu===item.id?'border-amber-500 text-stone-950':'border-transparent text-stone-500 hover:text-stone-700'}`}>{item.icon} {item.label}</button>)}</div>
+      {activeMenu==='overview'&&<div className="space-y-6"><div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-4"><div><p className="text-xs font-bold uppercase tracking-wider text-stone-400">Housekeeping today</p><h2 className="text-xl font-bold text-stone-900 mt-1">Your operational overview</h2><p className="text-sm text-stone-500 mt-2">Today's Tasks manages housekeeping work. The guest overview below keeps arrivals, current stays and departures visible to kitchen, restaurant/service and other multi-task staff.</p></div>{hasPermission(principal,'canViewHousekeeping')&&menu.some(item=>item.id==='todays_tasks')&&<button type="button" onClick={()=>setActiveMenu('todays_tasks')} className="inline-flex items-center rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600 transition-colors">Open Today's Tasks</button>}</div>{businessId&&authToken&&<EmployeeGuestOverview businessId={businessId} token={authToken}/>}</div>}
+      {activeMenu==='todays_tasks'&&hasPermission(principal,'canViewHousekeeping')&&businessId&&<EmployeeHousekeepingTasks businessId={businessId} employeeId={employee?.id} principal={principal}/>} 
+      {activeMenu==='my_rooms'&&hasPermission(principal,'canViewHousekeeping')&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">My Rooms will be enabled when room allocations are introduced for eligible plans.</div>}
+      {activeMenu==='rooms'&&(hasPermission(principal,'canViewRooms')||hasPermission(principal,'canAllocateRooms'))&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-600">Room status and allocation are available on the business Rooms page for authorised staff. Front Desk can allocate from Guest Details.</div>}
+      {activeMenu==='laundry_queue'&&hasPermission(principal,'canViewLaundry')&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">Laundry module coming soon. Your permissions are ready.</div>}
+      {activeMenu==='linen_inventory'&&hasPermission(principal,'canViewLaundry')&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">Linen inventory coming soon.</div>}
+      {activeMenu==='maintenance'&&hasPermission(principal,'canViewMaintenance')&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">Maintenance module coming soon. Your permissions are ready.</div>}
+      {activeMenu==='lost_found'&&hasPermission(principal,'canViewLostFound')&&businessId&&<LostFoundTab mode="employee" businessId={businessId} businessName={businessName} employeeId={employee?.id} employeeName={employee?.full_name} canCreate={hasPermission(principal,'canCreateLostFound')} canEdit={hasPermission(principal,'canEditLostFound')} canDispose={hasPermission(principal,'canDisposeLostFound')}/>} 
+      {activeMenu==='reports'&&(hasPermission(principal,'canViewOperationalReports')||hasPermission(principal,'canViewReports' as any))&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">Operational reports are available from the business Reports tab for authorised roles.</div>}
+      {activeMenu==='employees'&&hasPermission(principal,'canManageStaff')&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 text-sm text-stone-500">Staff management is available via the business Staff Portal.</div>}
+      {activeMenu==='profile'&&<div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-2 text-sm"><p><span className="text-stone-400">{t('employee_col_name')}</span><br/><span className="font-semibold">{employee?.full_name}</span></p><p><span className="text-stone-400">{t('employee_col_role')}</span><br/><span className="font-semibold">{displayRole}</span></p><p><span className="text-stone-400">{t('employee_col_department')}</span><br/><span className="font-semibold">{displayDept}</span></p>{employee?.additional_departments?.length?<p><span className="text-stone-400">Additional departments</span><br/><span className="font-semibold">{employee.additional_departments.map(d=>departmentLabel(d)).join(', ')}</span></p>:null}<p><span className="text-stone-400">{t('guest_details_phone')}</span><br/><span className="font-mono">{employee?.phone_number}</span></p></div>}
+      {menu.length===0&&<div className="text-center py-12 text-stone-400 text-sm">No permissions assigned. Contact your administrator.</div>}
+    </main>
+  </div>;
 }
