@@ -14,7 +14,7 @@ exports.handler=async(event)=>{
   const today=todayInSouthAfrica(),read={apikey:serviceKey,Authorization:`Bearer ${serviceKey}`};
   const fields='id,guest_name,guest_phone,guest_country,check_in_date,check_out_date,status,room_id,room_number,room_name';
   const base=`${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(businessId)}&select=${fields}&order=check_in_date.asc`;
-  const restrictionsBase=`${supabaseUrl}/rest/v1/booking_food_restrictions?select=booking_id,vegetarian,vegan,pescatarian,halal,kosher,gluten_free,lactose_free,nut_allergy,seafood_allergy,diabetic,no_pork,other,other_text,carnivore&booking_id=in.`;
+  const restrictionsFields='booking_id,vegetarian,vegan,pescatarian,halal,kosher,gluten_free,lactose_free,nut_allergy,seafood_allergy,diabetic,no_pork,other,other_text,carnivore';
   try{
     const [a,d,s]=await Promise.all([
       fetch(`${base}&check_in_date=eq.${encodeURIComponent(today)}`,{headers:read}),
@@ -27,7 +27,8 @@ exports.handler=async(event)=>{
     const bookingIds=[...new Set(guests.map(g=>g.id).filter(Boolean))];
     let restrictions=[];
     if(bookingIds.length){
-      const r=await fetch(`${restrictionsBase}${bookingIds.map(id=>`%22${encodeURIComponent(id)}%22`).join(',')})`,{headers:read});
+      const filter=bookingIds.join(',');
+      const r=await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${encodeURIComponent(filter)})&select=${restrictionsFields}`,{headers:read});
       if(!r.ok)throw new Error(`Food restrictions query failed with HTTP ${r.status}`);
       restrictions=await r.json();
     }
