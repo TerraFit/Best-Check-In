@@ -2,21 +2,16 @@
 // RBAC: canViewHousekeeping when JWT present
 // Includes active service sessions so timers survive browser sleep/reload.
 // Phase 0: authentication is mandatory and business scope is JWT-bound.
+// Read access does not require a live employee-status lookup; execution endpoints do.
 
 const {
-  authenticateHousekeepingServiceLive,
+  authenticateHousekeepingService,
   resolveBusinessId,
 } = require('./_housekeepingServiceAuth.cjs');
 
-function isReadyStatus(s) {
-  return ['ready', 'clean', 'inspected'].includes(s);
-}
-function isNotReadyStatus(s) {
-  return ['not_ready', 'dirty', 'full_service_required', 'refresh_required'].includes(s);
-}
-function isMaintenanceRoom(r) {
-  return !r.active || ['out_of_order', 'maintenance', 'unavailable'].includes(r.availability_status);
-}
+function isReadyStatus(s) { return ['ready', 'clean', 'inspected'].includes(s); }
+function isNotReadyStatus(s) { return ['not_ready', 'dirty', 'full_service_required', 'refresh_required'].includes(s); }
+function isMaintenanceRoom(r) { return !r.active || ['out_of_order', 'maintenance', 'unavailable'].includes(r.availability_status); }
 
 exports.handler = async (event) => {
   const headers = {
@@ -30,7 +25,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   try {
-    const gate = await authenticateHousekeepingServiceLive(event, 'view');
+    const gate = authenticateHousekeepingService(event, 'view');
     if (!gate.ok) return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error, code: gate.code }) };
 
     const q = event.queryStringParameters || {};
@@ -86,13 +81,9 @@ exports.handler = async (event) => {
     } else {
       let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
       if (roomId) filter += `&room_id=eq.${encodeURIComponent(roomId)}`;
-      if (view === 'pending') {
-        filter += '&status=in.(pending,in_progress)';
-      } else if (view === 'completed') {
-        filter += '&status=eq.completed';
-      } else if (status) {
-        filter += `&status=eq.${encodeURIComponent(status)}`;
-      }
+      if (view === 'pending') filter += '&status=in.(pending,in_progress)';
+      else if (view === 'completed') filter += '&status=eq.completed';
+      else if (status) filter += `&status=eq.${encodeURIComponent(status)}`;
 
       const res = await fetch(
         `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`,
@@ -112,9 +103,7 @@ exports.handler = async (event) => {
         `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&id=in.(${roomIds.map(encodeURIComponent).join(',')})&select=id,room_type,housekeeping_status,occupancy_status,availability_status,active`,
         { headers: restHeaders }
       );
-      if (roomsLookup.ok) {
-        for (const room of await roomsLookup.json()) roomsById[room.id] = room;
-      }
+      if (roomsLookup.ok) for (const room of await roomsLookup.json()) roomsById[room.id] = room;
     }
 
     const activeSessionsByTask = {};
@@ -159,11 +148,7 @@ exports.handler = async (event) => {
     );
     const overdueTasks = overdueRes.ok ? await overdueRes.json() : [];
 
-    let roomsReady = 0;
-    let roomsNotReady = 0;
-    let roomsCleaning = 0;
-    let roomsAwaiting = 0;
-    let roomsMaintenance = 0;
+    let roomsReady = 0, roomsNotReady = 0, roomsCleaning = 0, roomsAwaiting = 0, roomsMaintenance = 0;
     for (const r of rooms) {
       if (isMaintenanceRoom(r)) { roomsMaintenance += 1; continue; }
       if (r.housekeeping_status === 'do_not_disturb') continue;
@@ -175,24 +160,14 @@ exports.handler = async (event) => {
     }
 
     const stats = {
-      rooms_ready: roomsReady,
-      rooms_not_ready: roomsNotReady,
-      rooms_clean: roomsReady,
-      rooms_dirty: roomsNotReady,
-      rooms_cleaning: roomsCleaning,
-      rooms_awaiting_inspection: roomsAwaiting,
-      rooms_maintenance: roomsMaintenance,
+      rooms_ready: roomsReady, rooms_not_ready: roomsNotReady, rooms_clean: roomsReady, rooms_dirty: roomsNotReady,
+      rooms_cleaning: roomsCleaning, rooms_awaiting_inspection: roomsAwaiting, rooms_maintenance: roomsMaintenance,
       refresh_due: todayOpenTasks.filter((t) => t.task_type === 'refresh').length,
       full_service_due: todayOpenTasks.filter((t) => t.task_type === 'full_service').length,
-      completed_today: completedToday.length,
-      overdue: overdueTasks.length,
+      completed_today: completedToday.length, overdue: overdueTasks.length,
     };
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, businessId }),
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, businessId }) };
   } catch (error) {
     console.error('get-housekeeping-tasks fatal:', error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to fetch housekeeping tasks' }) };
