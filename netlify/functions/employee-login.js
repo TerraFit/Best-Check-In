@@ -16,7 +16,9 @@ exports.handler = async (event) => {
     const supabaseUrl = process.env.SUPABASE_URL, supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const orClause = uniqueVariants.map((v) => `phone_number.eq.${encodeURIComponent(v)}`).join(',');
-    let path = `employees?select=id,business_id,full_name,phone_number,password_hash,status,active,staff_role,role,department,permission_set&or=(${orClause})`;
+    // The production employees table does not have the optional `active` column.
+    // Account activity is already represented by the canonical `status` field.
+    let path = `employees?select=id,business_id,full_name,phone_number,password_hash,status,staff_role,role,department,permission_set&or=(${orClause})`;
     if (requestedBusinessId) path += `&business_id=eq.${encodeURIComponent(requestedBusinessId)}`;
     const lookupResponse = await fetch(`${supabaseUrl}/rest/v1/${path}`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' } });
     if (!lookupResponse.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Database error' }) };
@@ -28,7 +30,8 @@ exports.handler = async (event) => {
       if (businessIds.size > 1 && !requestedBusinessId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid phone number or password', code: 'AMBIGUOUS_PHONE' }) };
     }
     const employee = matched[0];
-    if (employee.status === 'Disabled' || employee.active === false) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Account has been disabled. Please contact your administrator.', code: 'EMPLOYEE_DISABLED' }) };
+    const isActive = employee.status !== 'Disabled';
+    if (!isActive) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Account has been disabled. Please contact your administrator.', code: 'EMPLOYEE_DISABLED' }) };
     if (employee.status === 'Pending') return { statusCode: 403, headers, body: JSON.stringify({ error: 'Account not yet activated. Please use the invitation link sent to you.' }) };
     if (!employee.password_hash) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Account not properly set up. Please contact your administrator.' }) };
     if (!(await bcrypt.compare(password, employee.password_hash))) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid phone number or password' }) };
@@ -37,8 +40,8 @@ exports.handler = async (event) => {
     const staffRole = employee.staff_role || employee.role || 'Employee (Legacy)';
     let permissionSet = employee.permission_set || null;
     if (typeof permissionSet === 'string') { try { permissionSet = JSON.parse(permissionSet); } catch { permissionSet = null; } }
-    const token = jwt.sign({ sub: employee.id, role: 'employee', user_metadata: { employee_id: employee.id, business_id: employee.business_id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, active: employee.active !== false } }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '7d' });
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, token, token_expiry: '7d', employee: { id: employee.id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, business_id: employee.business_id, status: employee.status, active: employee.active !== false, last_login: nowIso } }) };
+    const token = jwt.sign({ sub: employee.id, role: 'employee', user_metadata: { employee_id: employee.id, business_id: employee.business_id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, active: isActive } }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '7d' });
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, token, token_expiry: '7d', employee: { id: employee.id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, business_id: employee.business_id, status: employee.status, active: isActive, last_login: nowIso } }) };
   } catch (error) {
     console.error('Employee login error:', error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Login failed', details: error.message }) };
