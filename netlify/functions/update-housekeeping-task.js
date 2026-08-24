@@ -6,6 +6,7 @@
 const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
+  MANAGE_HIERARCHY,
 } = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
@@ -90,6 +91,24 @@ exports.handler = async (event) => {
     const task = rows[0];
     if (!task) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
+    }
+
+    // Execution status changes must follow the same ownership boundary as the
+    // session-based start/progress/complete endpoints. Management may override
+    // assignment; ordinary employees may only execute their assigned task.
+    if (mode === 'execute') {
+      const principal = gate.principal;
+      const canOverride = principal.actorType === 'business'
+        || principal.actorType === 'super_admin'
+        || MANAGE_HIERARCHY.has(principal.normalizedRole)
+        || principal.permissions?.includes('canManageHousekeeping');
+      if (!canOverride && String(task.assigned_staff_id || '') !== String(principal.employeeId || '')) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }),
+        };
+      }
     }
 
     if (status === 'skipped') {
