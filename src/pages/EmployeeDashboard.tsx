@@ -6,8 +6,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
 import Logo from '../components/Logo';
-import QRCodeModal from '../components/QRCodeModal';
-import { GuestOverviewTab } from '../components/staff/GuestOverviewTab';
 import EmployeeHousekeepingTasks from '../components/housekeeping/EmployeeHousekeepingTasks';
 import LostFoundTab from './tabs/LostFoundTab';
 import {
@@ -19,24 +17,6 @@ import {
 } from '../services/rbacService';
 import type { PermissionPrincipal } from '../services/rbacService';
 import { t } from '../i18n';
-
-interface Booking {
-  id: string;
-  guest_name: string;
-  guest_email?: string;
-  guest_phone?: string;
-  guest_country?: string;
-  guest_province?: string;
-  guest_city?: string;
-  check_in_date?: string;
-  check_out_date?: string;
-  status?: string;
-  nights?: number;
-  food_restrictions?: Record<string, unknown>;
-  room_id?: string;
-  room_number?: string;
-  room_name?: string;
-}
 
 interface EmployeeUser {
   id: string;
@@ -80,12 +60,10 @@ function readIsPreviewSession(): boolean {
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState<string>('overview');
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [showQRModal, setShowQRModal] = useState(false);
   const [denied, setDenied] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
 
@@ -151,21 +129,9 @@ export default function EmployeeDashboard() {
 
         setBusinessId(businessIdFromAuth);
 
-        const response = await fetch(
-          `/.netlify/functions/get-business-bookings?businessId=${businessIdFromAuth}&limit=1000&page=1`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setBookings(data.bookings || []);
-        }
-
+        // The Employee Portal must not depend on the Business Dashboard booking feed.
+        // Housekeeping tasks are loaded by EmployeeHousekeepingTasks from the
+        // authoritative housekeeping_tasks pipeline when Today's Tasks is opened.
         const bizResponse = await fetch(
           `/.netlify/functions/get-business-branding?id=${businessIdFromAuth}`,
           {
@@ -180,7 +146,7 @@ export default function EmployeeDashboard() {
           setBusinessName(bizData.trading_name || 'Property');
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching employee portal data:', error);
       } finally {
         setLoading(false);
       }
@@ -227,46 +193,6 @@ export default function EmployeeDashboard() {
     }
     setActiveMenu(id);
   };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const parseDate = (dateStr: string | undefined): Date | null => {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    d.setHours(0, 0, 0, 0);
-    return isNaN(d.getTime()) ? null : d;
-  };
-
-  const todaysArrivals = useMemo(
-    () =>
-      bookings.filter((b) => {
-        const checkIn = parseDate(b.check_in_date);
-        return checkIn && checkIn.getTime() === today.getTime();
-      }),
-    [bookings]
-  );
-
-  const stayovers = useMemo(
-    () =>
-      bookings.filter((b) => {
-        const checkIn = parseDate(b.check_in_date);
-        const checkOut = parseDate(b.check_out_date);
-        if (!checkIn || b.status !== 'checked_in') return false;
-        if (checkIn.getTime() >= today.getTime()) return false;
-        if (!checkOut) return true;
-        return checkOut.getTime() > today.getTime();
-      }),
-    [bookings]
-  );
-
-  const todaysCheckouts = useMemo(
-    () =>
-      bookings.filter((b) => {
-        const checkOut = parseDate(b.check_out_date);
-        return checkOut && checkOut.getTime() === today.getTime();
-      }),
-    [bookings]
-  );
 
   if (loading) {
     return (
@@ -382,21 +308,31 @@ export default function EmployeeDashboard() {
           ))}
         </div>
 
-        {(activeMenu === 'overview' ||
-          activeMenu === 'arrivals' ||
-          activeMenu === 'departures' ||
-          activeMenu === 'guests' ||
-          activeMenu === 'checkins') &&
-          hasPermission(principal, 'canViewGuestDetails') && (
-            <GuestOverviewTab
-              bookings={bookings}
-              todayArrivals={todaysArrivals}
-              todayStayovers={stayovers}
-              todayCheckouts={todaysCheckouts}
-              businessId={businessId || ''}
-              onShowQRModal={() => setShowQRModal(true)}
-            />
-          )}
+        {activeMenu === 'overview' && (
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                Housekeeping today
+              </p>
+              <h2 className="text-xl font-bold text-stone-900 mt-1">Your operational overview</h2>
+              <p className="text-sm text-stone-500 mt-2">
+                Your housekeeping work is managed through Today's Tasks. Open it to see the same
+                tasks used by the Business Dashboard, start your service, and complete it without
+                leaving the Employee Portal.
+              </p>
+            </div>
+            {hasPermission(principal, 'canViewHousekeeping') &&
+              menu.some((item) => item.id === 'todays_tasks') && (
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu('todays_tasks')}
+                  className="inline-flex items-center rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600 transition-colors"
+                >
+                  Open Today's Tasks
+                </button>
+              )}
+          </div>
+        )}
 
         {activeMenu === 'todays_tasks' &&
           hasPermission(principal, 'canViewHousekeeping') &&
@@ -500,14 +436,6 @@ export default function EmployeeDashboard() {
           </div>
         )}
       </main>
-
-      {showQRModal && businessId && (
-        <QRCodeModal
-          businessId={businessId}
-          businessName={businessName}
-          onClose={() => setShowQRModal(false)}
-        />
-      )}
     </div>
   );
 }
