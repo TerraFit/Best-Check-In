@@ -54,9 +54,15 @@ describe('Phase 0 security', () => {
     const src = fs.readFileSync(path.join(__dirname, '../generate-housekeeping-tasks.js'), 'utf8');
     assert.ok(src.includes("authenticateHousekeepingServiceLive(event, 'generate')"));
   });
-  it('get/update live', () => {
-    assert.ok(fs.readFileSync(path.join(__dirname, '../get-housekeeping-tasks.js'), 'utf8').includes('authenticateHousekeepingServiceLive'));
-    assert.ok(fs.readFileSync(path.join(__dirname, '../update-housekeeping-task.js'), 'utf8').includes('resolveBusinessId'));
+  it('task read is JWT-protected and does not require the live employee-status probe', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../get-housekeeping-tasks.js'), 'utf8');
+    assert.ok(src.includes("authenticateHousekeepingService(event, 'view')"));
+    assert.equal(src.includes("authenticateHousekeepingServiceLive(event, 'view')"), false);
+    assert.ok(src.includes('resolveBusinessId'));
+  });
+  it('task update remains tenant-scoped', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-task.js'), 'utf8');
+    assert.ok(src.includes('resolveBusinessId'));
   });
   it('service live', () => {
     for (const f of ['start-housekeeping-service.js', 'complete-housekeeping-service.js', 'update-housekeeping-service-progress.js']) {
