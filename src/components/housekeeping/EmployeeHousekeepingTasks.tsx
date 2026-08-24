@@ -8,6 +8,7 @@ import type { PermissionPrincipal } from '../../services/rbacService';
 
 interface Props {
   businessId: string;
+  employeeId?: string;
   principal: PermissionPrincipal;
 }
 
@@ -40,7 +41,7 @@ function taskLabel(task: HousekeepingTask): string {
   return 'Refresh';
 }
 
-export default function EmployeeHousekeepingTasks({ businessId, principal }: Props) {
+export default function EmployeeHousekeepingTasks({ businessId, employeeId, principal }: Props) {
   const [tasks, setTasks] = useState<HousekeepingTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export default function EmployeeHousekeepingTasks({ businessId, principal }: Pro
   const renderTask = (task: HousekeepingTask, bucket: TaskBucket) => {
     const activeSession = task.active_session;
     const isAssignedToEmployee = Boolean(
-      task.assigned_staff_id && task.assigned_staff_id === principal.employeeId
+      task.assigned_staff_id && task.assigned_staff_id === employeeId
     );
     const canStartThisTask = canStart && (isAssignedToEmployee || !task.assigned_staff_id);
     const statusLabel = bucket === 'behind' ? 'Behind' : bucket === 'completed_today' ? 'Completed Today' : task.status === 'in_progress' ? 'In Progress' : 'Pending';
