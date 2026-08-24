@@ -1,37 +1,8 @@
 export type HousekeepingIssuePriority = 'low' | 'medium' | 'high' | 'urgent';
 export type HousekeepingIssueStatus = 'open' | 'assigned' | 'in_progress' | 'resolved' | 'verified' | 'dismissed';
-
-export interface HousekeepingIssueOption {
-  category: string;
-  types: string[];
-}
-
-export interface HousekeepingIssue {
-  id: string;
-  business_id: string;
-  service_session_id: string;
-  housekeeping_task_id: string;
-  room_id: string;
-  employee_id?: string | null;
-  employee_name?: string | null;
-  checklist_item_id: string;
-  checklist_item_label: string;
-  category: string;
-  issue_type: string;
-  other_description?: string | null;
-  description?: string | null;
-  priority: HousekeepingIssuePriority;
-  status: HousekeepingIssueStatus;
-  maintenance_requested: boolean;
-  maintenance_status?: string | null;
-  photo_url?: string | null;
-  reported_at: string;
-  resolved_at?: string | null;
-  verified_at?: string | null;
-}
-
+export interface HousekeepingIssueOption { category: string; types: string[]; }
+export interface HousekeepingIssue { id: string; business_id: string; service_session_id: string; housekeeping_task_id: string; room_id: string; room_number?: string | null; employee_id?: string | null; employee_name?: string | null; checklist_item_id: string; checklist_item_label: string; category: string; issue_type: string; other_description?: string | null; description?: string | null; priority: HousekeepingIssuePriority; status: HousekeepingIssueStatus; maintenance_requested: boolean; maintenance_status?: string | null; photo_url?: string | null; reported_at: string; resolved_at?: string | null; verified_at?: string | null; }
 const COMMON_OTHER = ['Other'];
-
 export const HOUSEKEEPING_ISSUE_CATALOG: Record<string, HousekeepingIssueOption> = {
   lighting: { category: 'Lighting', types: ['Broken bulb', 'Missing bulb', 'Damaged cable/wire', 'Damaged light fitting', 'Damaged lampshade', 'Broken stand/base', 'Light not working', ...COMMON_OTHER] },
   furniture: { category: 'Furniture & Fixtures', types: ['Stained', 'Scratched', 'Damaged', 'Broken', 'Missing', 'Loose component', ...COMMON_OTHER] },
@@ -46,10 +17,8 @@ export const HOUSEKEEPING_ISSUE_CATALOG: Record<string, HousekeepingIssueOption>
   electronics: { category: 'TV / Entertainment / Electronics', types: ['Not working', 'Remote missing', 'Remote not working', 'Screen damaged', 'Cable damaged', 'Missing cable', ...COMMON_OTHER] },
   general: { category: 'General', types: ['Dirty', 'Damaged', 'Broken', 'Missing', 'Not working', ...COMMON_OTHER] },
 };
-
 export function getIssueOption(itemId: string, label: string): HousekeepingIssueOption {
-  const id = itemId.toLowerCase();
-  const text = label.toLowerCase();
+  const id = itemId.toLowerCase(); const text = label.toLowerCase();
   if (/(lamp|light|bulb|lighting)/.test(id) || /(lamp|light|bulb)/.test(text)) return HOUSEKEEPING_ISSUE_CATALOG.lighting;
   if (/(pillow|cushion)/.test(id) || /(pillow|cushion)/.test(text)) return HOUSEKEEPING_ISSUE_CATALOG.pillows;
   if (/(linen|bed|sheet|blanket|duvet)/.test(id) || /(linen|bed|sheet|blanket|duvet)/.test(text)) return HOUSEKEEPING_ISSUE_CATALOG.bed_linen;
