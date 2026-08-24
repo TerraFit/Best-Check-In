@@ -32,6 +32,7 @@ exports.handler = async (event) => {
       service_session_id: body.sessionId,
       housekeeping_task_id: body.taskId,
       room_id: body.roomId,
+      room_number: body.roomNumber || null,
       employee_id: gate.principal.employeeId || null,
       employee_name: gate.principal.employeeName || null,
       checklist_item_id: body.checklistItemId,
