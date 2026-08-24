@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getRoomDisplayName } from '../../services/roomDisplayService';
 import { fetchHousekeepingTasks, updateHousekeepingTask, generateHousekeepingTasks, startHousekeepingService } from '../../services/housekeepingApi';
 import { taskTypeLabel } from '../../services/housekeepingScheduleEngine';
-import { getAuthHeaders } from '../../utils/auth';
+import { getAuthHeader } from '../../utils/auth';
 import type { HousekeepingTask, HousekeepingDashboardStats } from '../../types/housekeeping';
 import type { HousekeepingServiceSession } from '../../types/housekeepingServicePerformance';
 import { t } from '../../i18n';
@@ -38,10 +38,6 @@ export function HousekeepingTab({ businessId }: Props) {
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [activeTask, setActiveTask] = useState<HousekeepingTask | null>(null);
   const [activeSession, setActiveSession] = useState<HousekeepingServiceSession | null>(null);
-
-  // Task Assignments is deliberately a UI-level workflow. It uses the existing
-  // assigned_staff_id / assigned_staff_name task fields and does not require a
-  // housekeeping database-model change.
   const [taskAssignmentsEnabled, setTaskAssignmentsEnabled] = useState(false);
   const [housekeepers, setHousekeepers] = useState<Housekeeper[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
@@ -64,7 +60,7 @@ export function HousekeepingTab({ businessId }: Props) {
   const loadHousekeepers = useCallback(async () => {
     if (!businessId) return;
     try {
-      const response = await fetch(`/.netlify/functions/manage-employees?businessId=${encodeURIComponent(businessId)}`, { headers: getAuthHeaders() });
+      const response = await fetch(`/.netlify/functions/manage-employees?businessId=${encodeURIComponent(businessId)}`, { headers: getAuthHeader() });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       const rows = Array.isArray(data.data) ? data.data : [];
