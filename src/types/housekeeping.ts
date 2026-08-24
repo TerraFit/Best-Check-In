@@ -40,6 +40,7 @@ export interface HousekeepingTask {
   room_id: string;
   room_number?: number | null;
   room_name?: string | null;
+  room_floor?: string | number | null;
   room_type?: string | null;
   booking_id?: string | null;
   guest_name?: string | null;
@@ -71,9 +72,7 @@ export interface ScheduledService {
 export interface HousekeepingDashboardStats {
   rooms_ready: number;
   rooms_not_ready: number;
-  /** @deprecated use rooms_ready */
   rooms_clean: number;
-  /** @deprecated use rooms_not_ready */
   rooms_dirty: number;
   refresh_due: number;
   full_service_due: number;
