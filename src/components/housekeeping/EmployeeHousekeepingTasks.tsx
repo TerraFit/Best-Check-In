@@ -113,7 +113,8 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
     const isAssignedToEmployee = Boolean(
       task.assigned_staff_id && task.assigned_staff_id === employeeId
     );
-    const canStartThisTask = canStart && (isAssignedToEmployee || !task.assigned_staff_id || canOverride);
+    const isUnassigned = !task.assigned_staff_id;
+    const canStartThisTask = canStart && (isAssignedToEmployee || canOverride);
     const canResumeThisTask = Boolean(
       activeSession &&
         (activeSession.employee_id === employeeId || canOverride)
@@ -138,6 +139,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
             {task.assigned_staff_name && (
               <p className="text-xs text-stone-400 mt-1">Assigned to {task.assigned_staff_name}</p>
             )}
+            {isUnassigned && <p className="text-xs text-stone-400 mt-1">Unassigned</p>}
             {activeSession?.employee_name && (
               <p className="text-xs text-amber-700 mt-1">In service · {activeSession.employee_name}</p>
             )}
@@ -167,7 +169,9 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, prin
                   {startingTaskId === task.id ? 'Starting…' : 'Start'}
                 </button>
               ) : (
-                <span className="text-xs text-stone-400">Assigned to another employee</span>
+                <span className="text-xs text-stone-400">
+                  {isUnassigned ? 'Waiting for assignment' : 'Assigned to another employee'}
+                </span>
               )}
             </div>
           )}
