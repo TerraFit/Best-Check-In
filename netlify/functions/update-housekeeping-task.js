@@ -1,13 +1,15 @@
 // netlify/functions/update-housekeeping-task.js
-// CJS exports.handler — no local require (esbuild + type:module safe)
+// ESM-safe import of the CJS auth helper (package.json sets type:module).
 // Room readiness + RBAC by action
 // Phase 0: fail-closed JWT authentication and JWT-bound tenant scope.
+
+import auth from './_housekeepingServiceAuth.cjs';
 
 const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
   MANAGE_HIERARCHY,
-} = require('./_housekeepingServiceAuth.cjs');
+} = auth;
 
 function canOverrideTaskExecution(principal, task) {
   if (!principal || !task) return false;
@@ -241,4 +243,4 @@ exports.handler = async (event) => {
   }
 };
 
-exports.canOverrideTaskExecution = canOverrideTaskExecution;
+export { canOverrideTaskExecution };
