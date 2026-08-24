@@ -47,28 +47,62 @@ exports.handler = async (event) => {
     const todayStr = date || new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
+    const todayStart = new Date(`${todayStr}T00:00:00+02:00`);
+    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
-    let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
-    if (roomId) filter += `&room_id=eq.${encodeURIComponent(roomId)}`;
+    let tasks;
     if (view === 'today') {
-      filter += `&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)`;
-    } else if (view === 'pending') {
-      filter += '&status=in.(pending,in_progress)';
-    } else if (view === 'completed') {
-      filter += '&status=eq.completed';
-    } else if (status) {
-      filter += `&status=eq.${encodeURIComponent(status)}`;
-    }
+      // Today's operational board is a calculated union:
+      // - today's pending/in-progress work
+      // - older open work shown as Behind
+      // - anything completed today, regardless of its scheduled date
+      const openRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lte.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=*&order=scheduled_date.asc,created_at.asc`,
+        { headers: restHeaders }
+      );
+      if (!openRes.ok) {
+        const text = await openRes.text();
+        return { statusCode: openRes.status, headers, body: JSON.stringify({ error: text || openRes.statusText }) };
+      }
 
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`,
-      { headers: restHeaders }
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      return { statusCode: res.status, headers, body: JSON.stringify({ error: text || res.statusText }) };
+      const completedRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=*&order=completed_at.asc`,
+        { headers: restHeaders }
+      );
+      if (!completedRes.ok) {
+        const text = await completedRes.text();
+        return { statusCode: completedRes.status, headers, body: JSON.stringify({ error: text || completedRes.statusText }) };
+      }
+
+      const combined = [...await openRes.json(), ...await completedRes.json()];
+      const byId = new Map();
+      for (const task of combined) byId.set(task.id, task);
+      tasks = [...byId.values()].sort((a, b) => {
+        const aDate = a.status === 'completed' ? (a.completed_at || a.scheduled_date) : a.scheduled_date;
+        const bDate = b.status === 'completed' ? (b.completed_at || b.scheduled_date) : b.scheduled_date;
+        return String(aDate).localeCompare(String(bDate));
+      });
+    } else {
+      let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
+      if (roomId) filter += `&room_id=eq.${encodeURIComponent(roomId)}`;
+      if (view === 'pending') {
+        filter += '&status=in.(pending,in_progress)';
+      } else if (view === 'completed') {
+        filter += '&status=eq.completed';
+      } else if (status) {
+        filter += `&status=eq.${encodeURIComponent(status)}`;
+      }
+
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=*&order=scheduled_date.asc,created_at.asc`,
+        { headers: restHeaders }
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        return { statusCode: res.status, headers, body: JSON.stringify({ error: text || res.statusText }) };
+      }
+      tasks = await res.json();
     }
-    const tasks = await res.json();
 
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
     const roomsById = {};
@@ -113,7 +147,7 @@ exports.handler = async (event) => {
     const todayOpenTasks = todayTasksRes.ok ? await todayTasksRes.json() : [];
 
     const completedTodayRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=eq.completed&select=id`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`,
       { headers: restHeaders }
     );
     const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
