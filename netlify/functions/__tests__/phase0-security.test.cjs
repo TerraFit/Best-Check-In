@@ -6,25 +6,10 @@ const jwt = require('jsonwebtoken');
 const { normalizeRole, resolveBusinessId, authenticateHousekeepingService, ASSIGN_HIERARCHY, GENERATE_HIERARCHY } = require('../_housekeepingServiceAuth.cjs');
 const SECRET = 'phase0-test-secret-not-for-production';
 function makeEvent(token) { return { headers: token ? { authorization: `Bearer ${token}` } : {} }; }
-function signEmployee({ employeeId, businessId, role, permissions }) {
-  return jwt.sign({ sub: employeeId, role: 'employee', user_metadata: { employee_id: employeeId, business_id: businessId, staff_role: role, role, permission_set: permissions || [] } }, SECRET, { expiresIn: '1h' });
-}
-function signBusiness(businessId) {
-  return jwt.sign({ sub: businessId, role: 'authenticated', user_metadata: { business_id: businessId } }, SECRET, { expiresIn: '1h' });
-}
-function signSuperAdmin() {
-  return jwt.sign({ sub: 'sa', role: 'authenticated', user_metadata: { super_admin: true } }, SECRET, { expiresIn: '1h' });
-}
-function withSecret(fn) {
-  return () => {
-    const prev = process.env.SUPABASE_JWT_SECRET;
-    process.env.SUPABASE_JWT_SECRET = SECRET;
-    try { return fn(); } finally {
-      if (prev === undefined) delete process.env.SUPABASE_JWT_SECRET;
-      else process.env.SUPABASE_JWT_SECRET = prev;
-    }
-  };
-}
+function signEmployee({ employeeId, businessId, role, permissions }) { return jwt.sign({ sub: employeeId, role: 'employee', user_metadata: { employee_id: employeeId, business_id: businessId, staff_role: role, role, permission_set: permissions || [] } }, SECRET, { expiresIn: '1h' }); }
+function signBusiness(businessId) { return jwt.sign({ sub: businessId, role: 'authenticated', user_metadata: { business_id: businessId } }, SECRET, { expiresIn: '1h' }); }
+function signSuperAdmin() { return jwt.sign({ sub: 'sa', role: 'authenticated', user_metadata: { super_admin: true } }, SECRET, { expiresIn: '1h' }); }
+function withSecret(fn) { return () => { const prev = process.env.SUPABASE_JWT_SECRET; process.env.SUPABASE_JWT_SECRET = SECRET; try { return fn(); } finally { if (prev === undefined) delete process.env.SUPABASE_JWT_SECRET; else process.env.SUPABASE_JWT_SECRET = prev; } }; }
 describe('Phase 0 security', () => {
   it('aliases', () => assert.equal(normalizeRole('housekeeper'), 'Employee (Legacy)'));
   it('employee no generate', () => assert.equal(GENERATE_HIERARCHY.has('Employee (Legacy)'), false));
@@ -32,90 +17,23 @@ describe('Phase 0 security', () => {
   it('mismatch 403', () => assert.equal(resolveBusinessId({ actorType: 'employee', businessId: 'a', employeeId: 'e' }, 'b').status, 403));
   it('anonymous 401', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(null), 'generate').status, 401)));
   it('business generate', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(signBusiness('b1')), 'generate').ok, true)));
-  it('employee generate deny', withSecret(() => {
-    const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)', permissions: [] });
-    assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, false);
-  }));
-  it('employee execute', withSecret(() => {
-    const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)' });
-    assert.equal(authenticateHousekeepingService(makeEvent(t), 'execute').ok, true);
-  }));
-  it('manager generate', withSecret(() => {
-    const t = signEmployee({ employeeId: 'm1', businessId: 'b1', role: 'Manager' });
-    assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, true);
-  }));
+  it('employee generate deny', withSecret(() => { const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)', permissions: [] }); assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, false); }));
+  it('employee execute', withSecret(() => { const t = signEmployee({ employeeId: 'e1', businessId: 'b1', role: 'Employee (Legacy)' }); assert.equal(authenticateHousekeepingService(makeEvent(t), 'execute').ok, true); }));
+  it('manager generate', withSecret(() => { const t = signEmployee({ employeeId: 'm1', businessId: 'b1', role: 'Manager' }); assert.equal(authenticateHousekeepingService(makeEvent(t), 'generate').ok, true); }));
   it('super admin generate', withSecret(() => assert.equal(authenticateHousekeepingService(makeEvent(signSuperAdmin()), 'generate').ok, true)));
-  it('cross business', withSecret(() => {
-    const gate = authenticateHousekeepingService(makeEvent(signBusiness('biz-a')), 'generate');
-    assert.equal(resolveBusinessId(gate.principal, 'biz-b').status, 403);
-  }));
+  it('cross business', withSecret(() => { const gate = authenticateHousekeepingService(makeEvent(signBusiness('biz-a')), 'generate'); assert.equal(resolveBusinessId(gate.principal, 'biz-b').status, 403); }));
   it('login no select=*', () => assert.equal(fs.readFileSync(path.join(__dirname, '../employee-login.js'), 'utf8').includes('employees?select=*'), false));
-  it('generate secured', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../generate-housekeeping-tasks.js'), 'utf8');
-    assert.ok(src.includes("authenticateHousekeepingServiceLive(event, 'generate')"));
-  });
-  it('task read is JWT-protected and does not require the live employee-status probe', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../get-housekeeping-tasks.js'), 'utf8');
-    assert.ok(src.includes("authenticateHousekeepingService(event, 'view')"));
-    assert.equal(src.includes("authenticateHousekeepingServiceLive(event, 'view')"), false);
-    assert.ok(src.includes('resolveBusinessId'));
-  });
-  it('task update remains tenant-scoped', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-task.js'), 'utf8');
-    assert.ok(src.includes('resolveBusinessId'));
-  });
-  it('service live', () => {
-    for (const f of ['start-housekeeping-service.js', 'complete-housekeeping-service.js', 'update-housekeeping-service-progress.js']) {
-      assert.ok(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('await authenticateHousekeepingServiceLive'));
-    }
-  });
-  it('start enforces assigned employee or management override', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../start-housekeeping-service.js'), 'utf8');
-    assert.ok(src.includes('task.assigned_staff_id'));
-    assert.ok(src.includes('gate.principal.employeeId'));
-    assert.ok(src.includes('MANAGE_HIERARCHY'));
-  });
-  it('progress enforces session employee ownership or management override', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-service-progress.js'), 'utf8');
-    assert.ok(src.includes('session.employee_id'));
-    assert.ok(src.includes('gate.principal.employeeId'));
-    assert.ok(src.includes('MANAGE_HIERARCHY'));
-  });
-  it('complete enforces session employee ownership or management override', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../complete-housekeeping-service.js'), 'utf8');
-    assert.ok(src.includes('session.employee_id'));
-    assert.ok(src.includes('gate.principal.employeeId'));
-    assert.ok(src.includes('MANAGE_HIERARCHY'));
-    assert.ok(src.includes('&status=eq.active'));
-  });
-  it('employee cannot execute another employee task', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
-    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), false);
-  });
-  it('employee can execute own assigned task', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
-    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-a' }), true);
-  });
-  it('employee cannot execute unassigned task', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] };
-    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: null }), false);
-  });
-  it('management can override task assignment', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Manager', permissions: [] };
-    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
-  });
-  it('housekeeping permission can override task assignment', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Employee (Legacy)', permissions: ['canManageHousekeeping'] };
-    assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true);
-  });
-  it('business and super admin can override task assignment', async () => {
-    const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js');
-    assert.equal(canOverrideTaskExecution({ actorType: 'business', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
-    assert.equal(canOverrideTaskExecution({ actorType: 'super_admin', employeeId: null }, { assigned_staff_id: 'employee-b' }), true);
-  });
+  it('generate secured', () => { const src = fs.readFileSync(path.join(__dirname, '../generate-housekeeping-tasks.js'), 'utf8'); assert.ok(src.includes("authenticateHousekeepingServiceLive(event, 'generate')")); });
+  it('task read is JWT-protected and does not require the live employee-status probe', () => { const src = fs.readFileSync(path.join(__dirname, '../get-housekeeping-tasks.js'), 'utf8'); assert.ok(src.includes("authenticateHousekeepingService(event, 'view')")); assert.equal(src.includes("authenticateHousekeepingServiceLive(event, 'view')"), false); assert.ok(src.includes('resolveBusinessId')); });
+  it('task update remains tenant-scoped', () => { const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-task.js'), 'utf8'); assert.ok(src.includes('resolveBusinessId')); });
+  it('service live', () => { for (const f of ['start-housekeeping-service.js', 'complete-housekeeping-service.js', 'update-housekeeping-service-progress.js']) assert.ok(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('await authenticateHousekeepingServiceLive')); });
+  it('start allows unassigned tasks but protects explicit assignments', () => { const src = fs.readFileSync(path.join(__dirname, '../start-housekeeping-service.js'), 'utf8'); assert.ok(src.includes('assignedEmployeeId && assignedEmployeeId !== currentEmployeeId')); assert.ok(src.includes('isUnassigned') || src.includes('unassigned task')); assert.ok(src.includes('MANAGE_HIERARCHY')); });
+  it('progress enforces session employee ownership or management override', () => { const src = fs.readFileSync(path.join(__dirname, '../update-housekeeping-service-progress.js'), 'utf8'); assert.ok(src.includes('session.employee_id')); assert.ok(src.includes('gate.principal.employeeId')); assert.ok(src.includes('MANAGE_HIERARCHY')); });
+  it('complete enforces session employee ownership or management override', () => { const src = fs.readFileSync(path.join(__dirname, '../complete-housekeeping-service.js'), 'utf8'); assert.ok(src.includes('session.employee_id')); assert.ok(src.includes('gate.principal.employeeId')); assert.ok(src.includes('MANAGE_HIERARCHY')); assert.ok(src.includes('&status=eq.active')); });
+  it('employee cannot execute another employee task', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] }; assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), false); });
+  it('employee can execute own assigned task', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] }; assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-a' }), true); });
+  it('unassigned task remains non-assignable by employee', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); const principal = { actorType: 'employee', employeeId: 'employee-a', normalizedRole: 'Employee (Legacy)', permissions: [] }; assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: null }), false); });
+  it('management can override task assignment', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Manager', permissions: [] }; assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true); });
+  it('housekeeping permission can override task assignment', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); const principal = { actorType: 'employee', employeeId: 'manager-a', normalizedRole: 'Employee (Legacy)', permissions: ['canManageHousekeeping'] }; assert.equal(canOverrideTaskExecution(principal, { assigned_staff_id: 'employee-b' }), true); });
+  it('business and super admin can override task assignment', async () => { const { canOverrideTaskExecution } = await import('../update-housekeeping-task.js'); assert.equal(canOverrideTaskExecution({ actorType: 'business', employeeId: null }, { assigned_staff_id: 'employee-b' }), true); assert.equal(canOverrideTaskExecution({ actorType: 'super_admin', employeeId: null }, { assigned_staff_id: 'employee-b' }), true); });
 });
