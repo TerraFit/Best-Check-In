@@ -89,15 +89,15 @@ const FULL_SERVICE: HousekeepingChecklistSection[] = [
   { id: 'full-final', title: 'Final Check', items: [
     { id: 'full-smell', label: 'Room smells fresh and clean' },
     { id: 'full-temperature', label: 'Room temperature is comfortable' },
-    { id: 'full-too-cold', label: 'Room temperature is too cold — record/resolve issue' },
-    { id: 'full-too-hot', label: 'Room temperature is too hot — record/resolve issue' },
+    { id: 'full-too-cold', label: 'Room temperature is too cold' },
+    { id: 'full-too-hot', label: 'Room temperature is too hot' },
     { id: 'full-floor-final', label: 'Final floor and presentation check' },
     { id: 'full-linen', label: 'Confirm all linen is correctly presented' },
     { id: 'full-maintenance', label: 'Confirm all observed defects were reported' },
     { id: 'full-supplies', label: 'Remove cleaning equipment and waste' },
     { id: 'full-window-final', label: 'Final window check — close windows when weather/room conditions require it' },
-    { id: 'full-door', label: 'Secure room and close door' },
     { id: 'full-final-look', label: 'Complete final visual inspection' },
+    { id: 'full-door', label: 'Secure room and close door' },
     { id: 'full-status', label: 'Confirm room is ready for inspection' },
   ] },
 ];
