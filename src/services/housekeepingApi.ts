@@ -13,6 +13,7 @@ import type {
   HousekeepingServiceTarget,
   HousekeepingServiceType,
 } from '../types/housekeepingServicePerformance';
+import type { HousekeepingIssue, HousekeepingIssuePriority } from '../types/housekeepingIssues';
 import { DEFAULT_HOUSEKEEPING_SETTINGS } from '../types/housekeeping';
 import { DEFAULT_HOUSEKEEPING_SERVICE_SETTINGS } from '../types/housekeepingServicePerformance';
 import { clearEmployeeAuth, getAuthToken } from '../utils/auth';
@@ -66,3 +67,30 @@ export async function fetchHousekeepingServiceTargets(businessId: string): Promi
 export async function saveHousekeepingServiceTarget(businessId: string, target: Partial<HousekeepingServiceTarget>): Promise<HousekeepingServiceTarget> { const data = await parseJson(await fetch('/.netlify/functions/housekeeping-service-targets', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ businessId, ...target }) })); return data.target; }
 export async function fetchHousekeepingSettings(businessId: string): Promise<HousekeepingSettings> { const data = await parseJson(await fetch(`/.netlify/functions/housekeeping-settings?businessId=${encodeURIComponent(businessId)}`, { headers: authHeaders() })); return { business_id: businessId, ...DEFAULT_HOUSEKEEPING_SETTINGS, ...(data.settings || {}) }; }
 export async function saveHousekeepingSettings(businessId: string, updates: Partial<HousekeepingSettings>): Promise<HousekeepingSettings> { const data = await parseJson(await fetch('/.netlify/functions/housekeeping-settings', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ businessId, ...updates }) })); return { business_id: businessId, ...DEFAULT_HOUSEKEEPING_SETTINGS, ...(data.settings || {}) }; }
+
+export async function createHousekeepingIssue(payload: {
+  businessId: string;
+  sessionId: string;
+  taskId: string;
+  roomId: string;
+  checklistItemId: string;
+  checklistItemLabel: string;
+  category: string;
+  issueType: string;
+  otherDescription?: string;
+  description?: string;
+  priority?: HousekeepingIssuePriority;
+  maintenanceRequested?: boolean;
+  photoUrl?: string;
+}): Promise<HousekeepingIssue> {
+  const data = await parseJson(await fetch('/.netlify/functions/create-housekeeping-issue', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) }));
+  return data.issue;
+}
+
+export async function fetchHousekeepingIssues(options: { businessId: string; sessionId?: string; status?: string }): Promise<HousekeepingIssue[]> {
+  const params = new URLSearchParams({ businessId: options.businessId });
+  if (options.sessionId) params.set('sessionId', options.sessionId);
+  if (options.status) params.set('status', options.status);
+  const data = await parseJson(await fetch(`/.netlify/functions/get-housekeeping-issues?${params}`, { headers: authHeaders() }));
+  return data.issues || [];
+}
