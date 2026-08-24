@@ -56,8 +56,9 @@ exports.handler = async (event) => {
       // - today's pending/in-progress work
       // - older open work shown as Behind
       // - anything completed today, regardless of its scheduled date
+      const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
       const openRes = await fetch(
-        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lte.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=*&order=scheduled_date.asc,created_at.asc`,
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lte.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)${roomFilter}&select=*&order=scheduled_date.asc,created_at.asc`,
         { headers: restHeaders }
       );
       if (!openRes.ok) {
@@ -66,7 +67,7 @@ exports.handler = async (event) => {
       }
 
       const completedRes = await fetch(
-        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=*&order=completed_at.asc`,
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}${roomFilter}&select=*&order=completed_at.asc`,
         { headers: restHeaders }
       );
       if (!completedRes.ok) {
