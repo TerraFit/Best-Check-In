@@ -1,5 +1,5 @@
 const {
-  authenticateHousekeepingService,
+  authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
 } = require('./_housekeepingServiceAuth.cjs');
@@ -62,8 +62,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return response(204, {});
   if (event.httpMethod !== 'GET') return response(405, { success: false, error: 'Method Not Allowed' });
   try {
-    const gate = authenticateHousekeepingService(event, 'view_performance');
-    if (!gate.ok) return response(gate.status, { success: false, error: gate.error });
+    const gate = await authenticateHousekeepingServiceLive(event, 'view_performance');
+    if (!gate.ok) return response(gate.status, { success: false, error: gate.error, code: gate.code });
 
     const q = event.queryStringParameters || {};
     const scope = resolveBusinessId(gate.principal, q.businessId || null);
@@ -89,10 +89,7 @@ exports.handler = async (event) => {
     if (q.employeeId) params.set('employee_id', `eq.${q.employeeId}`);
     if (SERVICE_TYPES.includes(q.serviceType)) params.set('service_type', `eq.${q.serviceType}`);
     if (q.roomId) params.set('room_id', `eq.${q.roomId}`);
-    params.set(
-      'select',
-      'id,room_id,employee_id,employee_name,service_type,target_minutes_snapshot,actual_seconds,started_at,completed_at,checklist_completed_count,checklist_total_count,issues_reported_count,quality_result,rework_seconds'
-    );
+    params.set('select', 'id,room_id,employee_id,employee_name,service_type,target_minutes_snapshot,actual_seconds,started_at,completed_at,checklist_completed_count,checklist_total_count,issues_reported_count,quality_result,rework_seconds');
     params.set('order', 'started_at.asc');
     params.set('limit', '5000');
 
@@ -106,9 +103,7 @@ exports.handler = async (event) => {
       return response(res.status, { success: false, error: text });
     }
     const sessions = await res.json();
-    if (!Array.isArray(sessions)) {
-      return response(500, { success: false, error: 'Invalid performance data response' });
-    }
+    if (!Array.isArray(sessions)) return response(500, { success: false, error: 'Invalid performance data response' });
 
     const overall = metric();
     const employees = new Map();
@@ -117,18 +112,9 @@ exports.handler = async (event) => {
     const days = new Map();
     let skipped = 0;
     for (const s of sessions) {
-      if (!add(overall, s)) {
-        skipped++;
-        continue;
-      }
+      if (!add(overall, s)) { skipped++; continue; }
       const employeeKey = s.employee_id || `name:${s.employee_name || 'Unassigned'}`;
-      if (!employees.has(employeeKey)) {
-        employees.set(employeeKey, {
-          employeeId: s.employee_id || null,
-          employeeName: s.employee_name || 'Unassigned',
-          metric: metric(),
-        });
-      }
+      if (!employees.has(employeeKey)) employees.set(employeeKey, { employeeId: s.employee_id || null, employeeName: s.employee_name || 'Unassigned', metric: metric() });
       add(employees.get(employeeKey).metric, s);
       const serviceKey = s.service_type || 'unknown';
       if (!services.has(serviceKey)) services.set(serviceKey, metric());
@@ -141,41 +127,19 @@ exports.handler = async (event) => {
       add(days.get(day), s);
     }
 
-    const byEmployee = [...employees.values()]
-      .map((x) => ({ employeeId: x.employeeId, employeeName: x.employeeName, ...out(x.metric) }))
-      .sort((a, b) => b.count - a.count || a.averageVarianceSeconds - b.averageVarianceSeconds);
-    const byServiceType = [...services.entries()]
-      .map(([serviceType, m]) => ({ serviceType, ...out(m) }))
-      .sort((a, b) => b.count - a.count);
-    const byRoom = [...rooms.values()]
-      .map((x) => ({ roomId: x.roomId, ...out(x.metric) }))
-      .sort((a, b) => b.count - a.count);
-    const daily = [...days.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, m]) => ({ date, ...out(m) }));
+    const byEmployee = [...employees.values()].map((x) => ({ employeeId: x.employeeId, employeeName: x.employeeName, ...out(x.metric) })).sort((a, b) => b.count - a.count || a.averageVarianceSeconds - b.averageVarianceSeconds);
+    const byServiceType = [...services.entries()].map(([serviceType, m]) => ({ serviceType, ...out(m) })).sort((a, b) => b.count - a.count);
+    const byRoom = [...rooms.values()].map((x) => ({ roomId: x.roomId, ...out(x.metric) })).sort((a, b) => b.count - a.count);
+    const daily = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, m]) => ({ date, ...out(m) }));
     const quality = overall.quality;
-    const qualityCount =
-      (quality.passed || 0) + (quality.passed_with_minor_issue || 0) + (quality.failed_rework_required || 0);
+    const qualityCount = (quality.passed || 0) + (quality.passed_with_minor_issue || 0) + (quality.failed_rework_required || 0);
     const reworkCount = quality.failed_rework_required || 0;
     const reworkSeconds = sessions.reduce((sum, s) => sum + Math.max(0, Number(s.rework_seconds) || 0), 0);
 
     return response(200, {
       success: true,
-      meta: {
-        businessId,
-        dateFrom: from,
-        dateTo: to,
-        generatedAt: new Date().toISOString(),
-        source: 'housekeeping_service_sessions',
-        completedSessionsReturned: sessions.length,
-        skippedSessionsWithoutValidTiming: skipped,
-      },
-      summary: {
-        ...out(overall),
-        qualityPassRate: qualityCount ? Math.round(((quality.passed || 0) / qualityCount) * 10000) / 100 : null,
-        reworkCount,
-        totalReworkSeconds: reworkSeconds,
-      },
+      meta: { businessId, dateFrom: from, dateTo: to, generatedAt: new Date().toISOString(), source: 'housekeeping_service_sessions', completedSessionsReturned: sessions.length, skippedSessionsWithoutValidTiming: skipped },
+      summary: { ...out(overall), qualityPassRate: qualityCount ? Math.round(((quality.passed || 0) / qualityCount) * 10000) / 100 : null, reworkCount, totalReworkSeconds: reworkSeconds },
       byEmployee,
       byServiceType,
       byRoom,

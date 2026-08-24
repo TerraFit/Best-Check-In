@@ -2,9 +2,10 @@
 // Auth required (fail closed). business_id is bound from JWT.
 
 const {
-  authenticateHousekeepingService,
+  authenticateHousekeepingServiceLive,
   resolveBusinessId,
   schemaMissingResponse,
+  MANAGE_HIERARCHY,
 } = require('./_housekeepingServiceAuth.cjs');
 
 exports.handler = async (event) => {
@@ -19,9 +20,9 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
-    const gate = authenticateHousekeepingService(event, 'execute');
+    const gate = await authenticateHousekeepingServiceLive(event, 'execute');
     if (!gate.ok) {
-      return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error }) };
+      return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error, code: gate.code }) };
     }
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
@@ -64,6 +65,18 @@ exports.handler = async (event) => {
     const session = (await sessionRes.json())[0];
     if (!session) {
       return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Active service session not found' }) };
+    }
+
+    const isManagement = gate.principal.actorType === 'business'
+      || gate.principal.actorType === 'super_admin'
+      || MANAGE_HIERARCHY.has(gate.principal.normalizedRole)
+      || gate.principal.permissions?.includes('canManageHousekeeping');
+    if (!isManagement && String(session.employee_id || '') !== String(gate.principal.employeeId || '')) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Forbidden: service session belongs to another employee' }),
+      };
     }
 
     const patch = {

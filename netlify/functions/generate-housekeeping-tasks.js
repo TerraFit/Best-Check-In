@@ -3,6 +3,11 @@
 // Generate focuses on TODAY's operational tasks.
 // Room readiness: task creation → not_ready (until Start → Cleaning → Inspection → Ready).
 
+const {
+  authenticateHousekeepingServiceLive,
+  resolveBusinessId,
+} = require('./_housekeepingServiceAuth.cjs');
+
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Africa/Johannesburg',
@@ -256,6 +261,27 @@ exports.handler = async (event) => {
   }
 
   try {
+    const auth = await authenticateHousekeepingServiceLive(event, 'generate');
+    if (!auth.ok) {
+      return {
+        statusCode: auth.status || 401,
+        headers,
+        body: JSON.stringify({ error: auth.error || 'Unauthorized', code: auth.code }),
+      };
+    }
+
+    const body = JSON.parse(event.body || '{}');
+    const scope = resolveBusinessId(auth.principal, body.businessId);
+    if (!scope.ok) {
+      return {
+        statusCode: scope.status || 403,
+        headers,
+        body: JSON.stringify({ error: scope.error || 'Forbidden' }),
+      };
+    }
+    const businessId = scope.businessId;
+    const { bookingId, roomId, regenerate = true } = body;
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) {
@@ -263,17 +289,6 @@ exports.handler = async (event) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Server configuration error' }),
-      };
-    }
-
-    const body = JSON.parse(event.body || '{}');
-    const { businessId, bookingId, roomId, regenerate = true } = body;
-
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'businessId required' }),
       };
     }
 
