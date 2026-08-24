@@ -1,5 +1,5 @@
 // netlify/functions/update-housekeeping-task.js
-// ESM-safe import of the CJS auth helper (package.json sets type:module).
+// ESM-safe auth import and exports (package.json sets type:module).
 // Room readiness + RBAC by action
 // Phase 0: fail-closed JWT authentication and JWT-bound tenant scope.
 
@@ -11,7 +11,7 @@ const {
   MANAGE_HIERARCHY,
 } = auth;
 
-function canOverrideTaskExecution(principal, task) {
+export function canOverrideTaskExecution(principal, task) {
   if (!principal || !task) return false;
   if (principal.actorType === 'business' || principal.actorType === 'super_admin') return true;
   if (MANAGE_HIERARCHY.has(principal.normalizedRole)) return true;
@@ -19,7 +19,7 @@ function canOverrideTaskExecution(principal, task) {
   return String(task.assigned_staff_id || '') === String(principal.employeeId || '');
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -27,9 +27,7 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
@@ -37,23 +35,10 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const {
-      businessId: requestedBusinessId,
-      taskId,
-      status,
-      notes,
-      assigned_staff_id,
-      assigned_staff_name,
-      inspection_status,
-      completed_by,
+      businessId: requestedBusinessId, taskId, status, notes,
+      assigned_staff_id, assigned_staff_name, inspection_status, completed_by,
     } = body;
-
-    if (!taskId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'taskId required' }),
-      };
-    }
+    if (!taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
 
     let mode = 'view';
     if (status === 'in_progress' || status === 'completed' || status === 'skipped') mode = 'execute';
@@ -61,51 +46,30 @@ exports.handler = async (event) => {
     else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) mode = 'assign';
 
     const gate = await authenticateHousekeepingServiceLive(event, mode);
-    if (!gate.ok) {
-      return {
-        statusCode: gate.status || 403,
-        headers,
-        body: JSON.stringify({ error: gate.error, code: gate.code }),
-      };
-    }
+    if (!gate.ok) return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error, code: gate.code }) };
 
     const scope = resolveBusinessId(gate.principal, requestedBusinessId || null);
-    if (!scope.ok) {
-      return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
-    }
+    if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
-    }
+    if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
 
     const restHeaders = {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-      Accept: 'application/json',
+      apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json',
+      Prefer: 'return=representation', Accept: 'application/json',
     };
-
     const taskRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}&select=*`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } },
     );
-    if (!taskRes.ok) {
-      const err = await taskRes.text();
-      return { statusCode: taskRes.status, headers, body: JSON.stringify({ error: err }) };
-    }
-    const rows = await taskRes.json();
-    const task = rows[0];
-    if (!task) {
-      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
-    }
+    if (!taskRes.ok) return { statusCode: taskRes.status, headers, body: JSON.stringify({ error: await taskRes.text() }) };
+    const task = (await taskRes.json())[0];
+    if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    // Execution status changes must follow the same ownership boundary as the
-    // session-based start/progress/complete endpoints. Management may override
-    // assignment; ordinary employees may only execute their assigned task.
+    // Execution status changes follow the same ownership boundary as the
+    // session-based start/progress/complete endpoints.
     if (mode === 'execute' && !canOverrideTaskExecution(gate.principal, task)) {
       return {
         statusCode: 403,
@@ -114,14 +78,12 @@ exports.handler = async (event) => {
       };
     }
 
-    if (status === 'skipped') {
-      if (task.task_type !== 'refresh' || task.is_checkout) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }),
-        };
-      }
+    if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }),
+      };
     }
 
     const patch = { updated_at: new Date().toISOString() };
@@ -130,10 +92,7 @@ exports.handler = async (event) => {
     if (assigned_staff_id !== undefined) patch.assigned_staff_id = assigned_staff_id;
     if (assigned_staff_name !== undefined) patch.assigned_staff_name = assigned_staff_name;
     if (inspection_status !== undefined) patch.inspection_status = inspection_status;
-
-    if (status === 'in_progress') {
-      patch.started_at = new Date().toISOString();
-    }
+    if (status === 'in_progress') patch.started_at = new Date().toISOString();
     if (status === 'completed') {
       patch.completed_at = new Date().toISOString();
       if (completed_by) patch.completed_by = completed_by;
@@ -148,50 +107,29 @@ exports.handler = async (event) => {
 
     const updateRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}`,
-      {
-        method: 'PATCH',
-        headers: restHeaders,
-        body: JSON.stringify(patch),
-      }
+      { method: 'PATCH', headers: restHeaders, body: JSON.stringify(patch) },
     );
-    if (!updateRes.ok) {
-      const err = await updateRes.text();
-      return { statusCode: updateRes.status, headers, body: JSON.stringify({ error: err }) };
-    }
+    if (!updateRes.ok) return { statusCode: updateRes.status, headers, body: JSON.stringify({ error: await updateRes.text() }) };
     const updated = await updateRes.json();
     const next = updated[0] || { ...task, ...patch };
 
     let roomPatch = null;
-    if (status === 'in_progress') {
-      roomPatch = { housekeeping_status: 'cleaning_in_progress' };
-    } else if (status === 'skipped') {
+    if (status === 'in_progress') roomPatch = { housekeeping_status: 'cleaning_in_progress' };
+    else if (status === 'skipped') roomPatch = { housekeeping_status: 'ready' };
+    else if (status === 'completed' && !inspection_status) roomPatch = { housekeeping_status: 'awaiting_inspection' };
+    else if (inspection_status === 'rejected') roomPatch = { housekeeping_status: 'cleaning_in_progress' };
+    else if (inspection_status === 'approved') {
       roomPatch = { housekeeping_status: 'ready' };
-    } else if (status === 'completed' && !inspection_status) {
-      roomPatch = { housekeeping_status: 'awaiting_inspection' };
-    } else if (inspection_status === 'rejected') {
-      roomPatch = { housekeeping_status: 'cleaning_in_progress' };
-    } else if (inspection_status === 'approved') {
-      roomPatch = { housekeeping_status: 'ready' };
-      if (task.is_checkout) {
-        roomPatch.occupancy_status = 'vacant';
-      }
+      if (task.is_checkout) roomPatch.occupancy_status = 'vacant';
     } else if (status === 'pending' && task.is_checkout) {
-      roomPatch = {
-        occupancy_status: 'departure_pending',
-        housekeeping_status: 'not_ready',
-      };
+      roomPatch = { occupancy_status: 'departure_pending', housekeeping_status: 'not_ready' };
     }
 
     if (roomPatch && task.room_id) {
       roomPatch.updated_at = new Date().toISOString();
       await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'PATCH',
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify(roomPatch),
       }).catch((e) => console.warn('room patch failed', e.message));
     }
@@ -199,48 +137,19 @@ exports.handler = async (event) => {
     try {
       await fetch(`${supabaseUrl}/rest/v1/room_events`, {
         method: 'POST',
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          business_id: businessId,
-          room_id: task.room_id,
-          event_type: inspection_status
-            ? `housekeeping_inspection_${inspection_status}`
-            : `housekeeping_task_${status || 'updated'}`,
-          source: 'staff',
-          severity: 'info',
-          booking_id: task.booking_id,
-          guest_name: task.guest_name,
-          details: {
-            task_id: taskId,
-            task_type: task.task_type,
-            is_checkout: task.is_checkout,
-            status: next.status,
-            inspection_status: next.inspection_status,
-            room_patch: roomPatch,
-          },
+          business_id: businessId, room_id: task.room_id,
+          event_type: inspection_status ? `housekeeping_inspection_${inspection_status}` : `housekeeping_task_${status || 'updated'}`,
+          source: 'staff', severity: 'info', booking_id: task.booking_id, guest_name: task.guest_name,
+          details: { task_id: taskId, task_type: task.task_type, is_checkout: task.is_checkout, status: next.status, inspection_status: next.inspection_status, room_patch: roomPatch },
         }),
       });
-    } catch (e) {
-      console.warn('room_events', e.message);
-    }
+    } catch (e) { console.warn('room_events', e.message); }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true, task: next, room_patch: roomPatch }),
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, task: next, room_patch: roomPatch }) };
   } catch (error) {
     console.error('update-housekeeping-task fatal:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message || 'Failed to update housekeeping task' }),
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to update housekeeping task' }) };
   }
 };
-
-export { canOverrideTaskExecution };
