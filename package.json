@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "i18n:validate": "node scripts/i18n-validate.cjs",
-    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs"
+    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs",
+    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs"
   },
   "dependencies": {
     "react": "^19.2.4",
@@ -30,7 +31,7 @@
     "jsonwebtoken": "^9.0.0",
     "ws": "^8.18.0",
     "@stripe/stripe-js": "^3.5.0",
-    "d3-scale": "^4.0.2",
+    "d3-scale": "^4.0.0",
     "d3-geo": "^3.1.0",
     "topojson-client": "^3.1.0",
     "lucide-react": "^0.546.0",
@@ -49,7 +50,7 @@
     "autoprefixer": "^10.4.16",
     "@netlify/functions": "^2.8.0",
     "@types/d3-scale": "^4.0.8",
-    "@types/d3-geo": "^3.1.0",
+    "@types/d3-geo": "^3.0.0",
     "@types/topojson-client": "^3.1.0"
   }
 }
