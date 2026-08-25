@@ -20,6 +20,7 @@ type ViewFilter = 'today' | 'pending' | 'completed' | 'all';
 interface Housekeeper { id: string; full_name?: string | null; name?: string | null; department?: string | null; status?: string | null; active?: boolean; }
 function employeeName(employee: Housekeeper): string { return employee.full_name?.trim() || employee.name?.trim() || 'Housekeeper'; }
 function isHousekeeper(employee: Housekeeper): boolean { const department = String(employee.department || '').trim().toLowerCase(); return department === 'housekeeping' || department === 'housekeeper' || department === 'housekeepers'; }
+const AUTO_REFRESH_MS = 20 * 60 * 1000;
 
 export function HousekeepingTab({ businessId }: Props) {
   const [view, setView] = useState<ViewFilter>('today');
@@ -39,9 +40,29 @@ export function HousekeepingTab({ businessId }: Props) {
   const [assignmentBusy, setAssignmentBusy] = useState(false);
   const [roomFilter, setRoomFilter] = useState('');
 
-  const load = useCallback(async () => { if (!businessId) return; setLoading(true); setError(null); try { const data = await fetchHousekeepingTasks({ businessId, view }); setTasks(data.tasks); setStats(data.stats); setSelectedTaskIds((current) => current.filter((id) => data.tasks.some((task) => task.id === id))); } catch (e) { setError(e instanceof Error ? e.message : t('housekeeping_failed_load')); } finally { setLoading(false); } }, [businessId, view]);
+  const load = useCallback(async () => {
+    if (!businessId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await generateHousekeepingTasks({ businessId, regenerate: false });
+      const data = await fetchHousekeepingTasks({ businessId, view });
+      setTasks(data.tasks);
+      setStats(data.stats);
+      setSelectedTaskIds((current) => current.filter((id) => data.tasks.some((task) => task.id === id)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('housekeeping_failed_load'));
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId, view]);
+
   const loadHousekeepers = useCallback(async () => { if (!businessId) return; try { const response = await fetch(`/.netlify/functions/manage-employees?businessId=${encodeURIComponent(businessId)}`, { headers: getAuthHeader() }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`); const rows = Array.isArray(data.data) ? data.data : []; setHousekeepers(rows.filter((employee: Housekeeper) => { const active = employee.active !== false && String(employee.status || '').toLowerCase() !== 'disabled'; return active && isHousekeeper(employee); })); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load housekeepers'); } }, [businessId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { void load(); }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [load]);
   useEffect(() => { if (taskAssignmentsEnabled) void loadHousekeepers(); }, [taskAssignmentsEnabled, loadHousekeepers]);
   useEffect(() => { if (!taskAssignmentsEnabled) { setSelectedTaskIds([]); setSelectedHousekeeperId(''); } }, [taskAssignmentsEnabled]);
   const openSession = (task: HousekeepingTask, session: HousekeepingServiceSession) => { setActiveTask(task); setActiveSession(session); };
