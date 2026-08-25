@@ -167,13 +167,16 @@ export const getLanguageFlag = (code: SupportedLanguage): string => {
 
 // Translation function with interpolation and fallback
 export const t = (key: keyof TranslationKeys, params?: Record<string, string | number>): string => {
+  // Treat the existing landing-page business-login key as the generic Login action.
+  const resolvedKey: keyof TranslationKeys = key === 'landing_cta_business_login' ? 'login_sign_in' : key;
+
   // Get translation for current language
   let translation = translationMap[currentLanguage];
-  let text = translation?.[key];
+  let text = translation?.[resolvedKey];
   
   // Fallback to English if translation missing
   if (!text && currentLanguage !== 'en') {
-    text = translationMap.en?.[key];
+    text = translationMap.en?.[resolvedKey];
   }
   
   // Final fallback to the key itself
