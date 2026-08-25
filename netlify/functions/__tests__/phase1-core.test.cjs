@@ -40,7 +40,11 @@ function loadCommonJsExports(relativeFile, exportNames, { stubAuth = false } = {
     clearInterval,
   };
 
-  vm.runInNewContext(source, sandbox, { filename: filePath });
+  const sourceForTest = relativeFile === 'netlify/functions/generate-housekeeping-tasks.js'
+    ? `${source}\nmodule.exports.generateSchedule = generateSchedule;\nmodule.exports.serviceForToday = serviceForToday;`
+    : source;
+
+  vm.runInNewContext(sourceForTest, sandbox, { filename: filePath });
   return selectExports(module.exports, exportNames);
 }
 
@@ -110,7 +114,7 @@ test('Phase 1 stay dates: invalid or non-positive nights are rejected', () => {
 
 test('Phase 1 schedule: three-night stay has refresh on stayover nights and full service on checkout', () => {
   const schedule = housekeepingGenerator.generateSchedule('2026-08-20', '2026-08-23', 'standard', {});
-  assert.deepEqual(schedule, [
+  assert.deepEqual(Array.from(schedule, (task) => ({ ...task })), [
     { scheduled_date: '2026-08-21', task_type: 'refresh', is_checkout: false, stay_night: 1 },
     { scheduled_date: '2026-08-22', task_type: 'refresh', is_checkout: false, stay_night: 2 },
     { scheduled_date: '2026-08-23', task_type: 'full_service', is_checkout: true, stay_night: 3 },
@@ -132,7 +136,7 @@ test('Phase 1 schedule: day two of a three-night stay is a refresh even if digit
     'standard',
     {}
   );
-  assert.deepEqual(service, {
+  assert.deepEqual({ ...service }, {
     scheduled_date: '2026-08-21',
     task_type: 'refresh',
     is_checkout: false,
@@ -169,7 +173,7 @@ test('Phase 1 schedule: dates outside the stay produce no task', () => {
 
 test('Phase 1 schedule: five-night standard stay inserts a full service before checkout', () => {
   const schedule = housekeepingGenerator.generateSchedule('2026-08-20', '2026-08-25', 'standard', {});
-  assert.deepEqual(schedule.map(({ scheduled_date, task_type, stay_night }) => ({ scheduled_date, task_type, stay_night })), [
+  assert.deepEqual(Array.from(schedule, ({ scheduled_date, task_type, stay_night }) => ({ scheduled_date, task_type, stay_night })), [
     { scheduled_date: '2026-08-21', task_type: 'refresh', stay_night: 1 },
     { scheduled_date: '2026-08-22', task_type: 'refresh', stay_night: 2 },
     { scheduled_date: '2026-08-23', task_type: 'full_service', stay_night: 3 },
@@ -180,7 +184,7 @@ test('Phase 1 schedule: five-night standard stay inserts a full service before c
 
 test('Phase 1 schedule: premium policy services every intermediate stay night', () => {
   const schedule = housekeepingGenerator.generateSchedule('2026-08-20', '2026-08-24', 'premium', {});
-  assert.deepEqual(schedule.map((task) => task.task_type), [
+  assert.deepEqual(Array.from(schedule, (task) => task.task_type), [
     'full_service',
     'full_service',
     'full_service',
@@ -194,7 +198,7 @@ test('Phase 1 checklist: Guest Property / Lost & Found is first and contains the
   assert.equal(checklist[0].id, 'full-guest-property');
   assert.equal(checklist[0].title, 'Guest Property / Lost & Found — FIRST');
   assert.equal(checklist[0].items.length, 8);
-  assert.deepEqual(checklist[0].items.map((item) => item.id), [
+  assert.deepEqual(Array.from(checklist[0].items, (item) => item.id), [
     'full-lost-bedroom-tabletops',
     'full-lost-under-bed',
     'full-lost-closet',
@@ -238,7 +242,7 @@ test('Phase 1 issue catalog: every contextual category has Other and representat
   for (const [key, option] of Object.entries(catalog)) {
     assert.ok(option.types.includes('Other'), `${key} must include Other`);
   }
-  assert.deepEqual(issueTypes.getIssueOption('full-lighting', 'Check all lighting').category, 'Lighting');
+  assert.equal(issueTypes.getIssueOption('full-lighting', 'Check all lighting').category, 'Lighting');
   assert.ok(catalog.lighting.types.includes('Broken bulb'));
   assert.ok(catalog.lighting.types.includes('Missing bulb'));
   assert.ok(catalog.lighting.types.includes('Damaged cable/wire'));
@@ -246,7 +250,7 @@ test('Phase 1 issue catalog: every contextual category has Other and representat
   assert.ok(catalog.furniture.types.includes('Scratched'));
   assert.ok(catalog.furniture.types.includes('Broken'));
   assert.ok(catalog.furniture.types.includes('Missing'));
-  assert.deepEqual(issueTypes.getIssueOption('full-fridge', 'Clean and restock minibar/fridge').category, 'Minibar / Fridge');
+  assert.equal(issueTypes.getIssueOption('full-fridge', 'Clean and restock minibar/fridge').category, 'Minibar / Fridge');
 });
 
 test('Phase 1 issue modal: Other requires a description and issues can be routed to Maintenance', () => {
