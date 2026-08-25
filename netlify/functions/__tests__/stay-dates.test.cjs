@@ -1,10 +1,29 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const { createRequire } = require('node:module');
+
+const filePath = path.resolve(__dirname, '../lib/stayDates.js');
+const source = fs.readFileSync(filePath, 'utf8');
+const module = { exports: {} };
+const nativeRequire = createRequire(filePath);
+
+vm.runInNewContext(source, {
+  module,
+  exports: module.exports,
+  require: nativeRequire,
+  console,
+  process,
+  Buffer,
+}, { filename: filePath });
+
 const {
   calculateCheckOutDate,
   normalizeNights,
   parseIsoDate,
-} = require('../lib/stayDates');
+} = module.exports;
 
 test('stay dates: three nights from 2026-08-20 checkout on 2026-08-23', () => {
   assert.equal(calculateCheckOutDate('2026-08-20', 3), '2026-08-23');
