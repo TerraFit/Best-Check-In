@@ -36,6 +36,11 @@ async function supabaseRest(path, options = {}) {
   return body;
 }
 
+const getAppUrl = () => {
+  const value = process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://fastcheckin.co.za';
+  return String(value).replace(/\/$/, '');
+};
+
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -106,7 +111,7 @@ export const handler = async function(event) {
 
     stage = 'token-insert';
     const resetToken = crypto.randomUUID();
-    const resetLink = `https://fastcheckin.co.za/reset-password/${resetToken}`;
+    const resetLink = `${getAppUrl()}/reset-password/${resetToken}`;
 
     try {
       await supabaseRest('password_resets', {
