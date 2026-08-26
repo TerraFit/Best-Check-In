@@ -1,5 +1,40 @@
-import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
+
+const supabaseUrl = () => String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseKey = () => process.env.SUPABASE_SERVICE_KEY;
+
+const supabaseHeaders = () => ({
+  apikey: supabaseKey(),
+  Authorization: `Bearer ${supabaseKey()}`,
+  'Content-Type': 'application/json'
+});
+
+async function supabaseRest(path, options = {}) {
+  const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      ...supabaseHeaders(),
+      ...(options.headers || {})
+    }
+  });
+
+  const text = await response.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+
+  if (!response.ok) {
+    const error = new Error(`Supabase REST error ${response.status}`);
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
+
+  return body;
+}
 
 export const handler = async function(event) {
   const headers = {
@@ -42,29 +77,26 @@ export const handler = async function(event) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Email is required' }) };
     }
 
-    stage = 'supabase-client';
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-
+    // IMPORTANT: Do not instantiate @supabase/supabase-js here. Netlify's
+    // Node.js 20 runtime does not provide the native WebSocket required by
+    // newer supabase-js realtime-js versions. This endpoint only needs
+    // PostgREST, so use the HTTPS REST API directly.
     stage = 'business-lookup';
-    // Limit to one row so duplicate legacy business emails cannot turn a valid
-    // recovery request into a PostgREST "multiple rows" error.
-    const { data: business, error: fetchError } = await supabase
-      .from('businesses')
-      .select('id, trading_name, email')
-      .ilike('email', normalizedEmail)
-      .limit(1)
-      .maybeSingle();
-
-    if (fetchError) {
+    let businessRows;
+    try {
+      businessRows = await supabaseRest(
+        `businesses?select=id%2Ctrading_name%2Cemail&email=ilike.${encodeURIComponent(normalizedEmail)}&limit=1`
+      );
+    } catch (error) {
       console.error('Business password reset lookup failed:', {
         stage,
-        code: fetchError.code,
-        message: fetchError.message,
-        details: fetchError.details,
-        hint: fetchError.hint
+        status: error?.status,
+        body: error?.body
       });
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to start password recovery' }) };
     }
+
+    const business = Array.isArray(businessRows) ? businessRows[0] : null;
 
     // Keep account enumeration behaviour unchanged.
     if (!business) {
@@ -75,20 +107,23 @@ export const handler = async function(event) {
     stage = 'token-insert';
     const resetToken = crypto.randomUUID();
     const resetLink = `https://fastcheckin.co.za/reset-password/${resetToken}`;
-    const { error: tokenError } = await supabase.from('password_resets').insert([{
-      token: resetToken,
-      business_id: business.id,
-      email: business.email,
-      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    }]);
 
-    if (tokenError) {
+    try {
+      await supabaseRest('password_resets', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          token: resetToken,
+          business_id: business.id,
+          email: business.email,
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        })
+      });
+    } catch (error) {
       console.error('Business password reset token insert failed:', {
         stage,
-        code: tokenError.code,
-        message: tokenError.message,
-        details: tokenError.details,
-        hint: tokenError.hint
+        status: error?.status,
+        body: error?.body
       });
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to start password recovery' }) };
     }
@@ -112,7 +147,19 @@ export const handler = async function(event) {
     if (!emailResponse.ok) {
       const detail = await emailResponse.text();
       console.error('Resend password reset failed:', emailResponse.status, detail);
-      await supabase.from('password_resets').delete().eq('token', resetToken);
+
+      // Best-effort cleanup of the token if email delivery fails.
+      try {
+        await supabaseRest(`password_resets?token=eq.${encodeURIComponent(resetToken)}`, {
+          method: 'DELETE'
+        });
+      } catch (cleanupError) {
+        console.error('Business password reset token cleanup failed:', {
+          status: cleanupError?.status,
+          body: cleanupError?.body
+        });
+      }
+
       return { statusCode: 503, headers, body: JSON.stringify({ error: 'Email recovery is temporarily unavailable. Please try again later.' }) };
     }
 
