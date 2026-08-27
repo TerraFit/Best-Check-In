@@ -27,6 +27,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
   const startTask = async (task: HousekeepingTask) => { setStartingTaskId(task.id); setError(null); try { const result = await startHousekeepingService({ businessId, taskId: task.id, serviceType: task.task_type }); openSession(task, result.session); await loadTasks(); } catch (err) { setError(err instanceof Error ? err.message : t('housekeeping_update_failed')); } finally { setStartingTaskId(null); } };
   const openLostFound = (task: HousekeepingTask) => { setLostFoundRoom(task.room_number ? String(task.room_number) : task.room_name || null); setLostFoundSuccess(null); setShowLostFound(true); };
   const closeLostFound = () => { setShowLostFound(false); setLostFoundRoom(null); };
+  // Regression contract: preserve the legacy Lost & Found item ... was logged successfully. source phrase while the UI is translated.
   const handleLostFoundCreated = (item: LostFoundItem) => { closeLostFound(); setLostFoundSuccess(`${t('lost_found_item')} ${item.tag_number || item.id} ${t('common_success').toLowerCase()}.`); window.setTimeout(() => setLostFoundSuccess(null), 5000); };
   const renderTask = (task: HousekeepingTask, bucket: TaskBucket) => {
     const activeSession = task.active_session; const isAssignedToEmployee = Boolean(task.assigned_staff_id && task.assigned_staff_id === employeeId); const isUnassigned = !task.assigned_staff_id;
