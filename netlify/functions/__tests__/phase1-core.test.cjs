@@ -231,10 +231,15 @@ test('Phase 1 checklist: temperature is a single choice, not three independent r
 test('Phase 1 checklist: Lost & Found from the employee task stays in the checklist and uses the full create form', () => {
   const source = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
   assert.match(source, /import LostFoundCreateForm from '\.\.\/lostFound\/LostFoundCreateForm'/);
+  assert.match(source, /import \{ useTranslation \} from '..\/\.\.\/i18n'/);
   assert.match(source, /const \[showLostFound, setShowLostFound\]/);
   assert.match(source, /setShowLostFound\(true\)/);
-  assert.match(source, /Lost & Found item .* was logged successfully\./);
+  assert.match(source, /const handleLostFoundCreated = \(item: LostFoundItem\)/);
+  assert.match(source, /t\('lost_found_item'\)/);
+  assert.match(source, /t\('common_success'\)/);
+  assert.doesNotMatch(source, /Lost & Found item .* was logged successfully\./);
   assert.match(source, /showLostFound && <LostFoundCreateForm/);
+  assert.match(source, /onCreated=\{handleLostFoundCreated\}/);
 });
 
 test('Phase 1 issue catalog: every contextual category has Other and representative issue types', () => {
