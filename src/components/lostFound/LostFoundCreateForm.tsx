@@ -16,6 +16,7 @@ interface Props {
   storageOptions: string[];
   employeeId?: string | null;
   employeeName?: string | null;
+  initialRoomNumber?: string | null;
   onClose: () => void;
   onCreated: (item: LostFoundItem) => void;
 }
@@ -26,6 +27,7 @@ export default function LostFoundCreateForm({
   storageOptions,
   employeeId,
   employeeName,
+  initialRoomNumber,
   onClose,
   onCreated,
 }: Props) {
@@ -39,7 +41,7 @@ export default function LostFoundCreateForm({
     category: categories[0] || 'Miscellaneous',
     found_date: new Date().toISOString().slice(0, 10),
     time_found: '',
-    room_number: '',
+    room_number: initialRoomNumber || '',
     storage_location: storages[0] || 'Reception Safe',
     storage_detail: '',
     condition: 'good' as LostFoundCondition,
@@ -134,11 +136,11 @@ export default function LostFoundCreateForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-          <h3 className="font-bold text-stone-900">{t('lost_found_new_item')}</h3>
-          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100">
+          <h3 className="font-bold text-stone-900">New Lost & Found Item</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100" aria-label="Close">
             <X size={18} />
           </button>
         </div>
@@ -149,94 +151,49 @@ export default function LostFoundCreateForm({
           </p>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">{t('lost_found_item_name')} *</label>
-            <input
-              required
-              value={form.item_name}
-              onChange={(e) => setForm({ ...form, item_name: e.target.value })}
-              className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-              placeholder="e.g. Black iPhone charger"
-            />
+            <label className="text-xs font-semibold text-stone-500">Item name *</label>
+            <input required value={form.item_name} onChange={(e) => setForm({ ...form, item_name: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" placeholder="e.g. Black iPhone charger" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_category')}</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+              <label className="text-xs font-semibold text-stone-500">Category</label>
+              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_condition')}</label>
-              <select
-                value={form.condition}
-                onChange={(e) =>
-                  setForm({ ...form, condition: e.target.value as LostFoundCondition })
-                }
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-              >
-                {CONDITION_OPTIONS.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
+              <label className="text-xs font-semibold text-stone-500">Condition</label>
+              <select value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value as LostFoundCondition })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {CONDITION_OPTIONS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">{t('lost_found_description')}</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
-              className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-            />
+            <label className="text-xs font-semibold text-stone-500">Description</label>
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_date_found')}</label>
-              <input
-                type="date"
-                value={form.found_date}
-                onChange={(e) => setForm({ ...form, found_date: e.target.value })}
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-              />
+              <label className="text-xs font-semibold text-stone-500">Date found</label>
+              <input type="date" value={form.found_date} onChange={(e) => setForm({ ...form, found_date: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_time_found')}</label>
-              <input
-                type="time"
-                value={form.time_found}
-                onChange={(e) => setForm({ ...form, time_found: e.target.value })}
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-              />
+              <label className="text-xs font-semibold text-stone-500">Time found</label>
+              <input type="time" value={form.time_found} onChange={(e) => setForm({ ...form, time_found: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">{t('lost_found_room_number')}</label>
-            <input
-              value={form.room_number}
-              onChange={(e) => setForm({ ...form, room_number: e.target.value })}
-              onBlur={onRoomBlur}
-              className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-              placeholder={t("lost_found_autofill_guest")}
-            />
+            <label className="text-xs font-semibold text-stone-500">Room number</label>
+            <input value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} onBlur={onRoomBlur} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" placeholder="Room number — guest details will be auto-filled when available" />
           </div>
 
           {(form.guest_name || form.guest_email) && (
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs space-y-1">
-              <div className="font-semibold text-amber-900">{t('lost_found_guest_linked')}</div>
+              <div className="font-semibold text-amber-900">Guest linked</div>
               <div>{form.guest_name}</div>
               {form.guest_email && <div className="text-stone-600">{form.guest_email}</div>}
               {form.guest_phone && <div className="text-stone-600">{form.guest_phone}</div>}
@@ -245,61 +202,27 @@ export default function LostFoundCreateForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_storage')}</label>
-              <select
-                value={form.storage_location}
-                onChange={(e) => setForm({ ...form, storage_location: e.target.value })}
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white"
-              >
-                {storages.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+              <label className="text-xs font-semibold text-stone-500">Storage</label>
+              <select value={form.storage_location} onChange={(e) => setForm({ ...form, storage_location: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {storages.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-stone-500">{t('lost_found_box_detail')}</label>
-              <input
-                value={form.storage_detail}
-                onChange={(e) => setForm({ ...form, storage_detail: e.target.value })}
-                className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-                placeholder="e.g. Shelf 2"
-              />
+              <label className="text-xs font-semibold text-stone-500">Storage detail</label>
+              <input value={form.storage_detail} onChange={(e) => setForm({ ...form, storage_detail: e.target.value })} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" placeholder="e.g. Shelf 2" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-stone-500">{t('lost_found_internal_notes')}</label>
-            <textarea
-              value={form.internal_notes}
-              onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}
-              rows={2}
-              className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"
-            />
+            <label className="text-xs font-semibold text-stone-500">Internal notes</label>
+            <textarea value={form.internal_notes} onChange={(e) => setForm({ ...form, internal_notes: e.target.value })} rows={2} className="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
           </div>
 
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              {error}
-            </div>
-          )}
+          {error && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</div>}
 
           <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 text-sm font-semibold border border-stone-200 rounded-xl"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save item'}
-            </button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold border border-stone-200 rounded-xl">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50">{saving ? 'Saving…' : 'Save item'}</button>
           </div>
         </form>
       </div>

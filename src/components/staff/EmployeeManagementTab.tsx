@@ -1,529 +1,59 @@
 // src/components/staff/EmployeeManagementTab.tsx
 // Role = authority hierarchy. Department = organisational unit.
-
 import React, { useState } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
-import {
-  ASSIGNABLE_DEPARTMENTS,
-  ASSIGNABLE_ROLES,
-  DEPARTMENT_LABELS,
-  ROLE_LABELS,
-  normalizeHierarchyRole,
-  type StaffDepartment,
-  type StaffRole,
-} from '../../types/permissions';
+import { ASSIGNABLE_DEPARTMENTS, ASSIGNABLE_ROLES, DEPARTMENT_LABELS, ROLE_LABELS, normalizeHierarchyRole, type StaffDepartment, type StaffRole } from '../../types/permissions';
 import { roleLabel } from '../../services/rbacService';
 import { t } from '../../i18n';
 
 interface Employee {
-  id: string;
-  business_id: string;
-  full_name: string;
-  phone_number: string;
-  role: string;
-  staff_role?: string | null;
-  department?: string | null;
-  permission_set?: string[] | null;
-  active?: boolean;
-  status: 'Pending' | 'Active' | 'Disabled';
-  invitation_token: string;
-  invitation_expiry: string;
-  invited_at: string;
-  activated_at?: string;
-  last_login?: string;
-  created_at: string;
-  updated_at: string;
+  id:string; business_id:string; full_name:string; phone_number:string; role:string; staff_role?:string|null; department?:string|null;
+  additional_departments?:string[]|null; permission_set?:string[]|null; active?:boolean; status:'Pending'|'Active'|'Disabled'; invitation_token:string;
+  invitation_expiry:string; invited_at:string; activated_at?:string; last_login?:string; created_at:string; updated_at:string;
 }
+interface EmployeeManagementTabProps { employees:Employee[]; businessName:string; onUpdateEmployees:(employees:Employee[])=>void; }
 
-interface EmployeeManagementTabProps {
-  employees: Employee[];
-  businessName: string;
-  onUpdateEmployees: (employees: Employee[]) => void;
+export function EmployeeManagementTab({employees,businessName,onUpdateEmployees}:EmployeeManagementTabProps) {
+  const [showAddForm,setShowAddForm]=useState(false), [fullName,setFullName]=useState(''), [phone,setPhone]=useState('');
+  const [staffRole,setStaffRole]=useState<StaffRole>('Employee (Legacy)'), [department,setDepartment]=useState<StaffDepartment>('front_office');
+  const [additionalDepartments,setAdditionalDepartments]=useState<StaffDepartment[]>([]);
+  const [copySuccess,setCopySuccess]=useState<string|null>(null), [loading,setLoading]=useState(false);
+  const getAuthToken=():string|null=>{try{const a=localStorage.getItem('fastcheckin_auth');if(a)return JSON.parse(a)?.token||null;}catch{}return null;};
+  const getBusinessId=():string|null=>{try{const a=localStorage.getItem('fastcheckin_auth');if(a)return JSON.parse(a)?.user?.businessId||null;}catch{}return null;};
+  const toggleExtra=(dept:StaffDepartment)=>setAdditionalDepartments(prev=>prev.includes(dept)?prev.filter(d=>d!==dept):[...prev,dept]);
+
+  const handleAddEmployee=async(e:React.FormEvent)=>{
+    e.preventDefault(); if(!fullName.trim()||!phone.trim()){alert('Please fill out all fields');return;}
+    const businessId=getBusinessId(), token=getAuthToken(); if(!businessId||!token){alert('Session not found. Please log in again.');return;}
+    setLoading(true);
+    try{
+      const cleanPhone=phone.replace(/\D/g,''); if(cleanPhone.length<9){alert('Please enter a valid phone number (at least 9 digits)');setLoading(false);return;}
+      const invitationToken='FCINV_'+Math.random().toString(36).substring(2,10).toUpperCase(), expiryDate=new Date(); expiryDate.setDate(expiryDate.getDate()+7);
+      const hierarchyRole=normalizeHierarchyRole(staffRole), extras=additionalDepartments.filter(d=>d!==department);
+      const newEmp={business_id:businessId,full_name:fullName.trim(),phone_number:cleanPhone,role:hierarchyRole,staff_role:hierarchyRole,department,additional_departments:extras,status:'Pending',active:true,invitation_token:invitationToken,invitation_expiry:expiryDate.toISOString(),invited_at:new Date().toISOString()};
+      const response=await fetch('/.netlify/functions/manage-employees',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(newEmp)}), data=await response.json();
+      if(response.ok&&data.success){onUpdateEmployees([data.data,...employees]);setFullName('');setPhone('');setStaffRole('Employee (Legacy)');setDepartment('front_office');setAdditionalDepartments([]);setShowAddForm(false);alert(`Added "${fullName}" as ${ROLE_LABELS[hierarchyRole]||hierarchyRole}`);} else alert(data.error||'Failed to add employee');
+    }catch{alert('An error occurred. Please try again.');}finally{setLoading(false);}
+  };
+  const handleRemoveEmployee=async(id:string,name:string)=>{if(!confirm(`Permanently delete employee "${name}"?`))return;const token=getAuthToken();if(!token)return;setLoading(true);try{const r=await fetch('/.netlify/functions/manage-employees',{method:'DELETE',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id})}),d=await r.json();if(r.ok&&d.success)onUpdateEmployees(employees.filter(e=>e.id!==id));else alert(d.error||'Failed to delete');}catch{alert('Delete failed');}finally{setLoading(false);}};
+  const handleToggleDisable=async(id:string,currentStatus:'Active'|'Pending'|'Disabled',name:string)=>{const isDisabled=currentStatus==='Disabled',newStatus=isDisabled?'Active':'Disabled';if(!confirm(`${isDisabled?'Re-enable':'Disable'} "${name}"?`))return;const token=getAuthToken();if(!token)return;setLoading(true);try{const r=await fetch('/.netlify/functions/manage-employees',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id,status:newStatus,active:newStatus==='Active'})}),d=await r.json();if(r.ok&&d.success)onUpdateEmployees(employees.map(e=>e.id===id?{...e,status:newStatus,active:newStatus==='Active',updated_at:new Date().toISOString()}:e));else alert(d.error||'Failed to update status');}catch{alert('Update failed');}finally{setLoading(false);}};
+  const handleChangeRole=async(id:string,nextRole:StaffRole)=>{const token=getAuthToken();if(!token)return;const hierarchyRole=normalizeHierarchyRole(nextRole);setLoading(true);try{const r=await fetch('/.netlify/functions/manage-employees',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id,role:hierarchyRole,staff_role:hierarchyRole})}),d=await r.json();if(r.ok&&d.success)onUpdateEmployees(employees.map(e=>e.id===id?{...e,role:hierarchyRole,staff_role:hierarchyRole,updated_at:new Date().toISOString()}:e));else alert(d.error||'Failed to update role');}catch{alert('Role update failed');}finally{setLoading(false);}};
+  const handleChangeDepartment=async(id:string,nextDept:StaffDepartment)=>{const token=getAuthToken();if(!token)return;setLoading(true);try{const r=await fetch('/.netlify/functions/manage-employees',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id,department:nextDept})}),d=await r.json();if(r.ok&&d.success)onUpdateEmployees(employees.map(e=>e.id===id?{...e,department:nextDept,updated_at:new Date().toISOString()}:e));else alert(d.error||'Failed to update department');}catch{alert('Department update failed');}finally{setLoading(false);}};
+  const handleChangeAdditionalDepartments=async(id:string,depts:string[])=>{const token=getAuthToken();if(!token)return;setLoading(true);try{const r=await fetch('/.netlify/functions/manage-employees',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id,additional_departments:depts})}),d=await r.json();if(r.ok&&d.success)onUpdateEmployees(employees.map(e=>e.id===id?{...e,additional_departments:depts,updated_at:new Date().toISOString()}:e));else alert(d.error||'Failed to update additional departments');}catch{alert('Additional department update failed');}finally{setLoading(false);}};
+  const handleShareOverview=(emp:Employee)=>{const url=`${window.location.origin}/employee/invite/${emp.invitation_token}`,text=`Hello ${emp.full_name},\n\nYou have been invited to FastCheckIn as ${roleLabel(emp.staff_role||emp.role)}.\n\nActivate your account:\n${url}`,cleanPhone=emp.phone_number.replace(/\D/g,'');window.open(`https://wa.me/27${cleanPhone}?text=${encodeURIComponent(text)}`,'_blank');};
+  const handleCopyLink=(emp:Employee)=>{const url=`${window.location.origin}/employee/invite/${emp.invitation_token}`,message=`Hello ${emp.full_name},\n\nActivate FastCheckIn (${roleLabel(emp.staff_role||emp.role)}):\n${url}`;navigator.clipboard.writeText(message).then(()=>{setCopySuccess(emp.id);setTimeout(()=>setCopySuccess(null),3000);});};
+
+  return <div className="space-y-6 animate-fade-in">
+    <div className="flex justify-between items-center"><div><h2 className="text-xl font-bold font-serif text-stone-900 leading-none">Employee Accounts</h2><p className="text-xs text-stone-400 mt-1">Department is organisational only. Role is authority level (permissions). Employees may have additional departments for multi-tasking.</p></div><button onClick={()=>setShowAddForm(!showAddForm)} className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold uppercase tracking-wider"><Plus size={14}/> Add Employee</button></div>
+    {showAddForm&&<form onSubmit={handleAddEmployee} className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-2xl">
+      <div className="flex justify-between items-center border-b border-stone-100 pb-3"><h3 className="font-bold text-xs uppercase tracking-widest text-stone-400">Create Employee</h3><button type="button" onClick={()=>setShowAddForm(false)} className="p-1 text-stone-400"><X size={14}/></button></div>
+      <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Full Name</label><input type="text" required value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs" placeholder="Mary Housekeeper"/></div><div className="space-y-1"><label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Mobile</label><input type="text" inputMode="numeric" required value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs font-mono" placeholder="0837789487" maxLength={10}/></div></div>
+      <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Primary Department</label><select value={department} onChange={e=>setDepartment(e.target.value as StaffDepartment)} className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs">{ASSIGNABLE_DEPARTMENTS.map(d=><option key={d} value={d}>{DEPARTMENT_LABELS[d]}</option>)}</select></div><div className="space-y-1"><label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Role</label><select value={staffRole} onChange={e=>setStaffRole(e.target.value as StaffRole)} className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs">{ASSIGNABLE_ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]||r}</option>)}</select></div></div>
+      <div className="space-y-2"><label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Additional Departments</label><p className="text-[11px] text-stone-500">Useful for small properties where one employee may also work in laundry, kitchen or restaurant service.</p><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{ASSIGNABLE_DEPARTMENTS.filter(d=>d!==department).map(d=><label key={d} className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs"><input type="checkbox" checked={additionalDepartments.includes(d)} onChange={()=>toggleExtra(d)}/>{DEPARTMENT_LABELS[d]}</label>)}</div></div>
+      <button type="submit" disabled={loading} className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider disabled:opacity-50">{loading?'Adding…':'Create Invite'}</button>
+    </form>}
+    <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]"><tr><th className="px-4 py-4">{t('employee_col_name')}</th><th className="px-4 py-4">{t('employee_col_department')}</th><th className="px-4 py-4">Additional</th><th className="px-4 py-4">{t('employee_col_role')}</th><th className="px-4 py-4">{t('employee_col_status')}</th><th className="px-4 py-4">{t('employee_col_last_login')}</th><th className="px-4 py-4 text-center">{t('employee_col_actions')}</th></tr></thead>
+    <tbody className="divide-y divide-stone-100 font-medium">{employees.length===0?<tr><td colSpan={7} className="px-6 py-12 text-center text-stone-400">No employees yet. Add staff and assign a role.</td></tr>:employees.map(emp=>{const displayRole=normalizeHierarchyRole(emp.staff_role||emp.role);const extras=emp.additional_departments||[];return <tr key={emp.id} className="hover:bg-stone-50/50"><td className="px-4 py-4"><div className="font-bold text-stone-900">{emp.full_name}</div><div className="font-mono text-stone-500 text-[10px]">{emp.phone_number}</div></td><td className="px-4 py-4"><select value={emp.department||'custom'} disabled={loading} onChange={e=>handleChangeDepartment(emp.id,e.target.value as StaffDepartment)} className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[130px]">{ASSIGNABLE_DEPARTMENTS.map(d=><option key={d} value={d}>{DEPARTMENT_LABELS[d]}</option>)}</select></td><td className="px-4 py-4"><div className="flex flex-wrap gap-1 max-w-[190px]">{ASSIGNABLE_DEPARTMENTS.filter(d=>d!==emp.department).map(d=><label key={d} className="text-[9px] flex items-center gap-1"><input type="checkbox" checked={extras.includes(d)} disabled={loading} onChange={()=>handleChangeAdditionalDepartments(emp.id,extras.includes(d)?extras.filter(x=>x!==d):[...extras,d])}/>{DEPARTMENT_LABELS[d]}</label>)}</div></td><td className="px-4 py-4"><select value={displayRole} disabled={loading} onChange={e=>handleChangeRole(emp.id,e.target.value as StaffRole)} className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[140px]">{ASSIGNABLE_ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]||r}</option>)}</select></td><td className="px-4 py-4"><span className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${emp.status==='Active'?'bg-green-100 text-green-800':emp.status==='Disabled'?'bg-red-100 text-red-800':'bg-yellow-100 text-yellow-800'}`}>{emp.status}</span></td><td className="px-4 py-4 text-stone-500">{emp.last_login?new Date(emp.last_login).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td><td className="px-4 py-4"><div className="flex justify-center items-center gap-1.5 flex-wrap"><button onClick={()=>handleShareOverview(emp)} className="px-2 py-1 bg-green-50 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase">Share</button><button onClick={()=>handleCopyLink(emp)} className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase">{copySuccess===emp.id?'Copied!':'Copy'}</button><button onClick={()=>handleToggleDisable(emp.id,emp.status,emp.full_name)} className="px-2 py-1 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-[9px] font-bold uppercase" disabled={loading}>{emp.status==='Disabled'?'Enable':'Disable'}</button><button onClick={()=>handleRemoveEmployee(emp.id,emp.full_name)} className="p-1.5 text-stone-400 hover:text-red-500" disabled={loading}><Trash2 size={14}/></button></div></td></tr>})}</tbody></table></div></div>
+  </div>;
 }
-
-export function EmployeeManagementTab({
-  employees,
-  businessName,
-  onUpdateEmployees,
-}: EmployeeManagementTabProps) {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [staffRole, setStaffRole] = useState<StaffRole>('Employee (Legacy)');
-  const [department, setDepartment] = useState<StaffDepartment>('front_office');
-  const [copySuccess, setCopySuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const getAuthToken = (): string | null => {
-    try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) return JSON.parse(authStr)?.token || null;
-    } catch {
-      /* ignore */
-    }
-    return null;
-  };
-
-  const getBusinessId = (): string | null => {
-    try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) return JSON.parse(authStr)?.user?.businessId || null;
-    } catch {
-      /* ignore */
-    }
-    return null;
-  };
-
-  const handleAddEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullName.trim() || !phone.trim()) {
-      alert('Please fill out all fields');
-      return;
-    }
-    const businessId = getBusinessId();
-    const token = getAuthToken();
-    if (!businessId || !token) {
-      alert('Session not found. Please log in again.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone.length < 9) {
-        alert('Please enter a valid phone number (at least 9 digits)');
-        setLoading(false);
-        return;
-      }
-      const invitationToken =
-        'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 7);
-
-      const hierarchyRole = normalizeHierarchyRole(staffRole);
-
-      const newEmp: Record<string, unknown> = {
-        business_id: businessId,
-        full_name: fullName.trim(),
-        phone_number: cleanPhone,
-        role: hierarchyRole,
-        staff_role: hierarchyRole,
-        department,
-        status: 'Pending',
-        active: true,
-        invitation_token: invitationToken,
-        invitation_expiry: expiryDate.toISOString(),
-        invited_at: new Date().toISOString(),
-      };
-
-      const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newEmp),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onUpdateEmployees([data.data, ...employees]);
-        setFullName('');
-        setPhone('');
-        setStaffRole('Employee (Legacy)');
-        setDepartment('front_office');
-        setShowAddForm(false);
-        alert(`Added "${fullName}" as ${ROLE_LABELS[hierarchyRole] || hierarchyRole}`);
-      } else {
-        alert(data.error || 'Failed to add employee');
-      }
-    } catch {
-      alert('An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemoveEmployee = async (id: string, name: string) => {
-    if (!confirm(`Permanently delete employee "${name}"?`)) return;
-    const token = getAuthToken();
-    if (!token) return;
-    setLoading(true);
-    try {
-      const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onUpdateEmployees(employees.filter((e) => e.id !== id));
-      } else alert(data.error || 'Failed to delete');
-    } catch {
-      alert('Delete failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleDisable = async (
-    id: string,
-    currentStatus: 'Active' | 'Pending' | 'Disabled',
-    name: string
-  ) => {
-    const isDisabled = currentStatus === 'Disabled';
-    const newStatus = isDisabled ? 'Active' : 'Disabled';
-    if (!confirm(`${isDisabled ? 'Re-enable' : 'Disable'} "${name}"?`)) return;
-    const token = getAuthToken();
-    if (!token) return;
-    setLoading(true);
-    try {
-      const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id, status: newStatus, active: newStatus === 'Active' }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onUpdateEmployees(
-          employees.map((e) =>
-            e.id === id
-              ? {
-                  ...e,
-                  status: newStatus,
-                  active: newStatus === 'Active',
-                  updated_at: new Date().toISOString(),
-                }
-              : e
-          )
-        );
-      } else alert(data.error || 'Failed to update status');
-    } catch {
-      alert('Update failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChangeRole = async (id: string, nextRole: StaffRole) => {
-    const token = getAuthToken();
-    if (!token) return;
-    const hierarchyRole = normalizeHierarchyRole(nextRole);
-    setLoading(true);
-    try {
-      const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id, role: hierarchyRole, staff_role: hierarchyRole }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onUpdateEmployees(
-          employees.map((e) =>
-            e.id === id
-              ? {
-                  ...e,
-                  role: hierarchyRole,
-                  staff_role: hierarchyRole,
-                  updated_at: new Date().toISOString(),
-                }
-              : e
-          )
-        );
-      } else alert(data.error || 'Failed to update role');
-    } catch {
-      alert('Role update failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChangeDepartment = async (id: string, nextDept: StaffDepartment) => {
-    const token = getAuthToken();
-    if (!token) return;
-    setLoading(true);
-    try {
-      const response = await fetch('/.netlify/functions/manage-employees', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id, department: nextDept }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onUpdateEmployees(
-          employees.map((e) =>
-            e.id === id
-              ? { ...e, department: nextDept, updated_at: new Date().toISOString() }
-              : e
-          )
-        );
-      } else alert(data.error || 'Failed to update department');
-    } catch {
-      alert('Department update failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleShareOverview = (emp: Employee) => {
-    const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    const text = `Hello ${emp.full_name},\n\nYou have been invited to FastCheckIn as ${roleLabel(
-      emp.staff_role || emp.role
-    )}.\n\nActivate your account:\n${onboardingUrl}`;
-    const cleanPhone = emp.phone_number.replace(/\D/g, '');
-    window.open(`https://wa.me/27${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
-  const handleCopyLink = (emp: Employee) => {
-    const onboardingUrl = `${window.location.origin}/employee/invite/${emp.invitation_token}`;
-    const message = `Hello ${emp.full_name},\n\nActivate FastCheckIn (${roleLabel(
-      emp.staff_role || emp.role
-    )}):\n${onboardingUrl}`;
-    navigator.clipboard.writeText(message).then(() => {
-      setCopySuccess(emp.id);
-      setTimeout(() => setCopySuccess(null), 3000);
-    });
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold font-serif text-stone-900 leading-none">
-            Employee Accounts
-          </h2>
-          <p className="text-xs text-stone-400 mt-1">
-            Department is organisational only. Role is authority level (permissions).
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold uppercase tracking-wider"
-        >
-          <Plus size={14} /> Add Employee
-        </button>
-      </div>
-
-      {showAddForm && (
-        <form
-          onSubmit={handleAddEmployee}
-          className="bg-white p-6 rounded-3xl border border-stone-200 shadow-lg space-y-4 max-w-xl"
-        >
-          <div className="flex justify-between items-center border-b border-stone-100 pb-3">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-stone-400">
-              Create Employee
-            </h3>
-            <button type="button" onClick={() => setShowAddForm(false)} className="p-1 text-stone-400">
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Full Name
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
-                placeholder="Mary Housekeeper"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Mobile
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs font-mono"
-                placeholder="0837789487"
-                maxLength={10}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Department
-              </label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value as StaffDepartment)}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
-              >
-                {ASSIGNABLE_DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {DEPARTMENT_LABELS[d]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                Role
-              </label>
-              <select
-                value={staffRole}
-                onChange={(e) => setStaffRole(e.target.value as StaffRole)}
-                className="w-full bg-stone-50 border border-stone-200 py-2.5 px-3 rounded-xl text-xs"
-              >
-                {ASSIGNABLE_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r] || r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-stone-900 hover:bg-stone-950 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider disabled:opacity-50"
-          >
-            {loading ? 'Adding…' : 'Create Invite'}
-          </button>
-        </form>
-      )}
-
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-stone-50/80 border-b border-stone-100 text-stone-400 font-bold uppercase tracking-widest text-[9px]">
-              <tr>
-                <th className="px-4 py-4">{t('employee_col_name')}</th>
-                <th className="px-4 py-4">{t('employee_col_department')}</th>
-                <th className="px-4 py-4">{t('employee_col_role')}</th>
-                <th className="px-4 py-4">{t('employee_col_status')}</th>
-                <th className="px-4 py-4">{t('employee_col_last_login')}</th>
-                <th className="px-4 py-4 text-center">{t('employee_col_actions')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100 font-medium">
-              {employees.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-stone-400">
-                    No employees yet. Add staff and assign a role.
-                  </td>
-                </tr>
-              ) : (
-                employees.map((emp) => {
-                  const displayRole = normalizeHierarchyRole(emp.staff_role || emp.role);
-                  return (
-                    <tr key={emp.id} className="hover:bg-stone-50/50">
-                      <td className="px-4 py-4">
-                        <div className="font-bold text-stone-900">{emp.full_name}</div>
-                        <div className="font-mono text-stone-500 text-[10px]">{emp.phone_number}</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={emp.department || 'custom'}
-                          disabled={loading}
-                          onChange={(e) =>
-                            handleChangeDepartment(emp.id, e.target.value as StaffDepartment)
-                          }
-                          className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[130px]"
-                        >
-                          {ASSIGNABLE_DEPARTMENTS.map((d) => (
-                            <option key={d} value={d}>
-                              {DEPARTMENT_LABELS[d]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={displayRole}
-                          disabled={loading}
-                          onChange={(e) => handleChangeRole(emp.id, e.target.value as StaffRole)}
-                          className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white max-w-[140px]"
-                        >
-                          {ASSIGNABLE_ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {ROLE_LABELS[r] || r}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[9px] font-bold ${
-                            emp.status === 'Active'
-                              ? 'bg-green-100 text-green-800'
-                              : emp.status === 'Disabled'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {emp.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-stone-500">
-                        {emp.last_login
-                          ? new Date(emp.last_login).toLocaleString('en-ZA', {
-                              dateStyle: 'short',
-                              timeStyle: 'short',
-                            })
-                          : 'Never'}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => handleShareOverview(emp)}
-                            className="px-2 py-1 bg-green-50 border border-green-200 text-green-700 rounded-lg text-[9px] font-bold uppercase"
-                          >
-                            Share
-                          </button>
-                          <button
-                            onClick={() => handleCopyLink(emp)}
-                            className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-[9px] font-bold uppercase"
-                          >
-                            {copySuccess === emp.id ? 'Copied!' : 'Copy'}
-                          </button>
-                          <button
-                            onClick={() => handleToggleDisable(emp.id, emp.status, emp.full_name)}
-                            className="px-2 py-1 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-[9px] font-bold uppercase"
-                            disabled={loading}
-                          >
-                            {emp.status === 'Disabled' ? 'Enable' : 'Disable'}
-                          </button>
-                          <button
-                            onClick={() => handleRemoveEmployee(emp.id, emp.full_name)}
-                            className="p-1.5 text-stone-400 hover:text-red-500"
-                            disabled={loading}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default EmployeeManagementTab;
