@@ -1,10 +1,13 @@
 // netlify/functions/create-booking.js
-// CommonJS booking creation with food restrictions saving.
+// Netlify booking creation with food restrictions saving.
 // Stay dates are authoritative: check-in + nights always derives checkout.
 
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates');
 
-exports.handler = async (event) => {
+export async function handler(event) {
   console.log(`📊 create-booking called at ${new Date().toISOString()}`);
   
   const headers = {
@@ -64,7 +67,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Never trust a client-supplied checkout date. Nights is the source of truth.
     if (body.check_out_date && String(body.check_out_date).slice(0, 10) !== checkOutDate) {
       console.warn('⚠️ Ignoring conflicting client checkout date:', body.check_out_date, '→', checkOutDate);
     }
@@ -185,4 +187,4 @@ exports.handler = async (event) => {
     console.error('❌ Fatal error:', err);
     return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }) };
   }
-};
+}
