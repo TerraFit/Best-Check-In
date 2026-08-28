@@ -5,7 +5,7 @@
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates');
+const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates.cjs');
 
 export async function handler(event) {
   console.log(`📊 create-booking called at ${new Date().toISOString()}`);
