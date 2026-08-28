@@ -2,10 +2,9 @@
 // Netlify booking creation with food restrictions saving.
 // Stay dates are authoritative: check-in + nights always derives checkout.
 
-import { createRequire } from 'node:module';
+import stayDates from './lib/stayDates.cjs';
 
-const require = createRequire(import.meta.url);
-const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates.cjs');
+const { calculateCheckOutDate, normalizeNights } = stayDates;
 
 export async function handler(event) {
   console.log(`📊 create-booking called at ${new Date().toISOString()}`);
