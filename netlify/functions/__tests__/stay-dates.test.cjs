@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
 
-const filePath = path.resolve(__dirname, '../lib/stayDates.js');
+const filePath = path.resolve(__dirname, '../lib/stayDates.cjs');
 const source = fs.readFileSync(filePath, 'utf8');
 const sandboxModule = { exports: {} };
 const nativeRequire = createRequire(filePath);
