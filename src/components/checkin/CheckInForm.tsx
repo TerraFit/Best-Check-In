@@ -18,7 +18,7 @@ interface CheckInFormProps {
 
 export function CheckInForm({ onComplete, businessId, resetOnMount = false, branding }: CheckInFormProps) {
   const { t } = useTranslation();
-  const checkIn = useCheckIn({ onComplete, businessId, resetOnMount, branding });
+  const checkIn = useCheckIn({ onComplete, businessId: businessId || null, resetOnMount, branding });
 
   const {
     step,
@@ -35,30 +35,26 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
     setHasDietaryRestrictions,
     showRestrictionsPanel,
     setShowRestrictionsPanel,
-    idPhoto,
-    setIdPhoto,
-    signature,
-    setSignature,
-    acceptLegal,
-    setAcceptLegal,
-    hasScrolledToBottom,
-    loading,
-    loginLoading,
     profileLoaded,
     profileSaveSuccess,
-    businessName,
-    primaryColor,
-    secondaryColor,
+    loading,
+    loginLoading,
+    hasScrolledToBottom,
     handleSubmit,
     handleIndemnityScroll,
     getErrorClass,
   } = checkIn;
 
+  // DynamicCheckIn is the source of truth for business branding.
+  // Keep safe fallbacks so the form never renders "undefined" while branding loads.
+  const businessName = branding?.trading_name || 'our establishment';
+  const primaryColor = branding?.primary_color || '#D97706';
+  const secondaryColor = branding?.secondary_color || '#92400E';
+
   const ErrorMessage: React.FC<{ field: string; message: string }> = ({ message }) =>
     message ? <p className="text-red-500 text-xs mt-1">{message}</p> : null;
 
   useEffect(() => {
-    // ensure scroll top on step change
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
@@ -156,17 +152,11 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
             guestName={`${formData.firstName || ''} ${formData.lastName || ''}`.trim()}
             passportOrId={formData.passportOrId || ''}
             idPhoto={formData.idPhoto || null}
-            onIdPhotoChange={(photo) =>
-              setFormData(prev => ({ ...prev, idPhoto: photo || '' }))
-            }
+            onIdPhotoChange={(photo) => setFormData(prev => ({ ...prev, idPhoto: photo || '' }))}
             signature={formData.signature || ''}
-            onSignatureChange={(sig) =>
-              setFormData(prev => ({ ...prev, signature: sig }))
-            }
+            onSignatureChange={(sig) => setFormData(prev => ({ ...prev, signature: sig }))}
             acceptLegal={!!formData.acceptLegal}
-            onAcceptLegalChange={(accepted) =>
-              setFormData(prev => ({ ...prev, acceptLegal: accepted }))
-            }
+            onAcceptLegalChange={(accepted) => setFormData(prev => ({ ...prev, acceptLegal: accepted }))}
             hasScrolledToBottom={hasScrolledToBottom}
             onIndemnityScroll={handleIndemnityScroll}
             loading={loading}
@@ -182,10 +172,8 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
           <Step5Success
             businessName={businessName}
             email={formData.email || ''}
-            onNewGuest={() => {
-              // parent may remount via reset
-              window.location.reload();
-            }}
+            guestName={`${formData.firstName || ''} ${formData.lastName || ''}`.trim()}
+            onReset={() => window.location.reload()}
           />
         )}
 
