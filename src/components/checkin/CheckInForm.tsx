@@ -13,16 +13,16 @@ interface CheckInFormProps {
   onComplete: (booking: Booking, indemnityToken?: string) => void;
   businessId?: string;
   resetOnMount?: boolean;
-  branding?: any;
 }
 
-export function CheckInForm({ onComplete, businessId, resetOnMount = false, branding }: CheckInFormProps) {
+export function CheckInForm({ onComplete, businessId, resetOnMount = false }: CheckInFormProps) {
   const { t } = useTranslation();
-  const checkIn = useCheckIn({ onComplete, businessId: businessId || null, resetOnMount, branding });
+  const checkIn = useCheckIn({ onComplete, businessId: businessId || null, resetOnMount });
 
   const {
     step,
     setStep,
+    branding,
     formData,
     setFormData,
     touched,
@@ -45,8 +45,8 @@ export function CheckInForm({ onComplete, businessId, resetOnMount = false, bran
     getErrorClass,
   } = checkIn;
 
-  // DynamicCheckIn is the source of truth for business branding.
-  // Keep safe fallbacks so the form never renders "undefined" while branding loads.
+  // The check-in hook loads branding directly from the businessId in the URL.
+  // CheckInApp does not need to fetch or pass a second branding object.
   const businessName = branding?.trading_name || 'our establishment';
   const primaryColor = branding?.primary_color || '#D97706';
   const secondaryColor = branding?.secondary_color || '#92400E';
