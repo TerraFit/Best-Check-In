@@ -81,7 +81,12 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const emailHtml = generateEmailTemplate(booking, newsletterSettings);
+    const businessDisplayName =
+  booking.business_name?.trim() ||
+  newsletterSettings?.trading_name?.trim() ||
+  'Your Stay';
+
+const emailHtml = generateEmailTemplate(booking, newsletterSettings);
     
     const fromEmail = newsletterSettings?.trading_name 
       ? `${newsletterSettings.trading_name.replace(/[^a-zA-Z0-9]/g, '')} <checkin@fastcheckin.co.za>`
@@ -98,7 +103,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         from: fromEmail,
         to: [booking.guest_email],
-        subject: `✅ Check-in Confirmed: ${booking.business_name || 'Your Stay'}`,
+        subject: `✅ Check-in Confirmed: ${businessDisplayName}`,
         html: emailHtml,
         reply_to: 'support@fastcheckin.co.za'
       })
@@ -181,7 +186,10 @@ export const handler: Handler = async (event) => {
 
 // Email template generator - unchanged from your original
 function generateEmailTemplate(booking: BookingData, settings: any): string {
-  const businessName = booking.business_name || 'your accommodation';
+  const businessName =
+  booking.business_name?.trim() ||
+  settings?.trading_name?.trim() ||
+  'your accommodation';
   const guestName = booking.guest_name?.split(' ')[0] || 'Guest';
   
   let checkInDate = '';
