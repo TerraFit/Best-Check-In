@@ -5,6 +5,7 @@ const { authenticateRequest } = require('./_auth.cjs');
 
 const ALL = [
   'canViewDashboard','canViewGuestDetails','canViewGuestLimited','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule','canAssignHousekeepingTasks','canViewHousekeepingReports','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewLaundryReports','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewLostFound','canCreateLostFound','canEditLostFound','canDisposeLostFound','canViewLostFoundReports','canViewOperationalReports','canViewFinancialReports','canViewMarketingReports','canViewGuestReports','canViewAuditReports','canExportReports','canManageMarketing','canManageStaff','canManageSettings','canViewAuditLog','canApproveRoomChanges','canAccessStaffPortal',
+  'canViewPlatformAnalytics','canViewOriginAnalytics','canViewEstablishmentPerformance',
 ];
 
 function expandLegacy(set) {
@@ -69,7 +70,7 @@ function requireAnyPermission(principal, permissions) { return (permissions || [
 
 function principalFromJwt(decoded) {
   const meta = (decoded && decoded.user_metadata) || {};
-  if ((decoded && decoded.role) === 'service_role') return null; // service-role is never a human application principal
+  if ((decoded && decoded.role) === 'service_role') return null;
   const explicitSuperAdmin = decoded?.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true';
   if (explicitSuperAdmin) return { actorType:'super_admin', role:'super_admin', active:true, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
   if (meta.business_id && !meta.employee_id) return { actorType:'business', role:'business_owner', active:meta.active !== false, businessId:meta.business_id, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
