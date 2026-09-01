@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
@@ -18,11 +19,11 @@ exports.handler = async function(event) {
 
   try {
     const { email, password } = JSON.parse(event.body || '{}');
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'superadmin@jbay.app';
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
     const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
     const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
-    if (!superAdminPassword || !jwtSecret) {
+    if (!superAdminEmail || !superAdminPassword || !jwtSecret) {
       console.error('SuperAdmin authentication environment is incomplete');
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
@@ -42,6 +43,9 @@ exports.handler = async function(event) {
       { expiresIn: '1h', issuer: 'fastcheckin', audience: 'super-admin' }
     );
 
+    // The HttpOnly cookie is the preferred session transport. The token is
+    // retained in the JSON response temporarily for frontend compatibility;
+    // privileged APIs must validate it server-side and never trust localStorage.
     const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : '';
     const cookie = `fastcheckin_super_admin=${encodeURIComponent(token)}; Max-Age=3600; Path=/; HttpOnly; SameSite=Strict;${secure}`;
 
@@ -61,7 +65,7 @@ exports.handler = async function(event) {
       })
     };
   } catch (error) {
-    console.error('Super admin login error:', error);
+    console.error('Super admin login error:', error?.message || error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server error' }) };
   }
 };
