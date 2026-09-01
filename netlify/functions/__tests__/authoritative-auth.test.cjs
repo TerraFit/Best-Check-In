@@ -14,6 +14,13 @@ function sign(payload, options = {}) {
   return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', ...options });
 }
 
+function signSuperAdmin(payload = {}, options = {}) {
+  return sign(
+    { sub: 'admin-1', email: 'admin@example.com', role: 'super_admin', user_metadata: { super_admin: true }, ...payload },
+    { issuer: 'fastcheckin', audience: 'super-admin', ...options }
+  );
+}
+
 test('anonymous request is rejected with 401', () => {
   const result = auth.authenticateRequest({ headers: {} });
   assert.equal(result.ok, false);
@@ -33,19 +40,33 @@ test('service-role JWT is not treated as a human SuperAdmin', () => {
   assert.equal(result.status, 403);
 });
 
-test('SuperAdmin identity is recognised only from an explicit SuperAdmin claim', () => {
-  const token = sign({ sub: 'admin-1', email: 'admin@example.com', user_metadata: { super_admin: true } });
+test('SuperAdmin identity requires the canonical issuer and audience', () => {
+  const token = signSuperAdmin();
   const result = auth.requireSuperAdmin(eventWithToken(token));
   assert.equal(result.ok, true);
   assert.equal(result.principal.actorType, 'super_admin');
   assert.equal(result.principal.businessId, null);
 });
 
+test('SuperAdmin token with wrong audience is rejected', () => {
+  const token = signSuperAdmin({}, { audience: 'business' });
+  const result = auth.requireSuperAdmin(eventWithToken(token));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 401);
+});
+
+test('SuperAdmin token with wrong issuer is rejected', () => {
+  const token = signSuperAdmin({}, { issuer: 'other-service' });
+  const result = auth.requireSuperAdmin(eventWithToken(token));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 401);
+});
+
 test('business token cannot satisfy SuperAdmin authorization', () => {
   const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
   const result = auth.requireSuperAdmin(eventWithToken(token));
   assert.equal(result.ok, false);
-  assert.equal(result.status, 403);
+  assert.equal(result.status, 401);
 });
 
 test('employee token cannot cross tenant boundary', () => {
@@ -57,7 +78,7 @@ test('employee token cannot cross tenant boundary', () => {
 });
 
 test('SuperAdmin may intentionally resolve a requested platform tenant', () => {
-  const token = sign({ sub: 'admin-1', user_metadata: { super_admin: true } });
+  const token = signSuperAdmin();
   const result = auth.requireSuperAdmin(eventWithToken(token));
   assert.equal(result.ok, true);
   assert.equal(auth.resolveTenant(result.principal, 'biz-b').businessId, 'biz-b');
