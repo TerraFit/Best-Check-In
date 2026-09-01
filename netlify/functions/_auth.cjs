@@ -21,8 +21,6 @@ function extractToken(event) {
   const bearer = String(authorization).match(/^Bearer\s+(.+)$/i);
   if (bearer) return bearer[1].trim();
 
-  // SuperAdmin may use the hardened HttpOnly session cookie. Other actors
-  // should use Authorization Bearer tokens so tenant identity remains explicit.
   const cookieHeader = headers.cookie || headers.Cookie || '';
   if (cookieHeader) {
     for (const part of String(cookieHeader).split(';')) {
@@ -107,10 +105,7 @@ function principalFromDecoded(decoded) {
 }
 
 function authenticateRequest(event, options = {}) {
-  const verifyOptions = options.actorType === ACTOR_TYPES.SUPER_ADMIN
-    ? { issuer: 'fastcheckin', audience: 'super-admin' }
-    : {};
-  const verified = verifyToken(extractToken(event), verifyOptions);
+  const verified = verifyToken(extractToken(event));
   if (!verified.ok) return verified;
   const principal = principalFromDecoded(verified.decoded);
   if (!principal) return { ok: false, status: 403, error: 'Token is missing a valid application identity' };
@@ -119,6 +114,17 @@ function authenticateRequest(event, options = {}) {
   if (options.actorType && principal.actorType !== options.actorType) {
     return { ok: false, status: 403, error: 'Forbidden' };
   }
+
+  if (options.actorType === ACTOR_TYPES.SUPER_ADMIN) {
+    const strict = verifyToken(extractToken(event), { issuer: 'fastcheckin', audience: 'super-admin' });
+    if (!strict.ok) return strict;
+    const strictPrincipal = principalFromDecoded(strict.decoded);
+    if (!strictPrincipal || strictPrincipal.actorType !== ACTOR_TYPES.SUPER_ADMIN) {
+      return { ok: false, status: 403, error: 'Forbidden' };
+    }
+    return { ok: true, principal: strictPrincipal, decoded: strict.decoded };
+  }
+
   return { ok: true, principal, decoded: verified.decoded };
 }
 
