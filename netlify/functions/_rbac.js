@@ -1,5 +1,7 @@
 // netlify/functions/_rbac.js
-// Server-side permission checks. UI visibility alone must never grant access.
+// Authorization policy/role matrix. Authentication and tenant identity are
+// delegated to the canonical server-side auth foundation in _auth.cjs.
+const { authenticateRequest } = require('./_auth.cjs');
 
 const ALL = [
   'canViewDashboard','canViewGuestDetails','canViewGuestLimited','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule','canAssignHousekeepingTasks','canViewHousekeepingReports','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewLaundryReports','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewLostFound','canCreateLostFound','canEditLostFound','canDisposeLostFound','canViewLostFoundReports','canViewOperationalReports','canViewFinancialReports','canViewMarketingReports','canViewGuestReports','canViewAuditReports','canExportReports','canManageMarketing','canManageStaff','canManageSettings','canViewAuditLog','canApproveRoomChanges','canAccessStaffPortal',
@@ -42,15 +44,16 @@ function normalizeRole(role) {
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-function resolvePermissions({ actorType, role, permission_set, active }) {
+function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
   if (active === false) return new Set();
   if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
   if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
-  if (Array.isArray(permission_set) && permission_set.length) {
-    if (r === 'custom') return expandLegacy(new Set(permission_set.filter((p) => typeof p === 'string')));
-    permission_set.forEach((p) => { if (typeof p === 'string') base.add(p); });
+  const supplied = Array.isArray(permission_set) ? permission_set : (Array.isArray(permissions) ? permissions : []);
+  if (supplied.length) {
+    if (r === 'custom') return expandLegacy(new Set(supplied.filter((p) => typeof p === 'string')));
+    supplied.forEach((p) => { if (typeof p === 'string') base.add(p); });
   }
   return expandLegacy(base);
 }
@@ -66,24 +69,20 @@ function requireAnyPermission(principal, permissions) { return (permissions || [
 
 function principalFromJwt(decoded) {
   const meta = (decoded && decoded.user_metadata) || {};
-  if ((decoded && decoded.role) === 'service_role' || meta.super_admin) return { actorType:'super_admin', role:'super_admin', active:true };
-  if (meta.business_id && !meta.employee_id) return { actorType:'business', role:'business_owner', active:true };
-  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false };
+  if ((decoded && decoded.role) === 'service_role') return null; // service-role is never a human application principal
+  const explicitSuperAdmin = decoded?.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true';
+  if (explicitSuperAdmin) return { actorType:'super_admin', role:'super_admin', active:true, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
+  if (meta.business_id && !meta.employee_id) return { actorType:'business', role:'business_owner', active:meta.active !== false, businessId:meta.business_id, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
+  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false, businessId:meta.business_id || null, employeeId:meta.employee_id || decoded.sub || null, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
 }
 
 function assertPermission(event, permission) {
-  const authHeader = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-  if (!authHeader) return { ok:false, status:401, error:'Authentication required' };
-  try {
-    const jwt = require('jsonwebtoken');
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    const principal = principalFromJwt(decoded);
-    if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
-    return { ok:true, principal };
-  } catch (e) {
-    return { ok:false, status:401, error:'Invalid or expired authentication token' };
-  }
+  const auth = authenticateRequest(event);
+  if (!auth.ok) return auth;
+  const principal = principalFromJwt(auth.decoded);
+  if (!principal) return { ok:false, status:401, error:'Invalid application identity' };
+  if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
+  return { ok:true, principal };
 }
 
 module.exports = { ALL, ROLE_DEFAULTS, normalizeRole, resolvePermissions, requirePermission, requireAnyPermission, principalFromJwt, assertPermission };
