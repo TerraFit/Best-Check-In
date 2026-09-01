@@ -36,12 +36,12 @@ function extractToken(event) {
   return null;
 }
 
-function verifyToken(token) {
+function verifyToken(token, options = {}) {
   const secret = process.env.SUPABASE_JWT_SECRET;
   if (!secret) return { ok: false, status: 500, error: 'Server authentication is not configured' };
   if (!token) return { ok: false, status: 401, error: 'Authentication required' };
   try {
-    return { ok: true, decoded: jwt.verify(token, secret) };
+    return { ok: true, decoded: jwt.verify(token, secret, options) };
   } catch (error) {
     return {
       ok: false,
@@ -107,7 +107,10 @@ function principalFromDecoded(decoded) {
 }
 
 function authenticateRequest(event, options = {}) {
-  const verified = verifyToken(extractToken(event));
+  const verifyOptions = options.actorType === ACTOR_TYPES.SUPER_ADMIN
+    ? { issuer: 'fastcheckin', audience: 'super-admin' }
+    : {};
+  const verified = verifyToken(extractToken(event), verifyOptions);
   if (!verified.ok) return verified;
   const principal = principalFromDecoded(verified.decoded);
   if (!principal) return { ok: false, status: 403, error: 'Token is missing a valid application identity' };
