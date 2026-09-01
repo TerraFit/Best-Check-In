@@ -1,5 +1,6 @@
 // netlify/functions/create-booking.js
-// Netlify booking creation with food restrictions saving.
+// Public guest booking creation. The endpoint remains intentionally anonymous,
+// but the target business must be an approved, active establishment.
 // Stay dates are authoritative: check-in + nights always derives checkout.
 
 import stayDates from './lib/stayDates.cjs';
@@ -7,32 +8,48 @@ import stayDates from './lib/stayDates.cjs';
 const { calculateCheckOutDate, normalizeNights } = stayDates;
 
 export async function handler(event) {
-  console.log(`📊 create-booking called at ${new Date().toISOString()}`);
-  
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
   }
 
   try {
     const body = JSON.parse(event.body || '{}');
-    console.log('📝 Received booking for:', body.guest_email);
 
     if (!body.business_id) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing business_id' }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing business_id' }) };
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
+    }
+
+    // Public check-in is allowed only for an explicitly approved, non-paused
+    // establishment. This prevents arbitrary business_id injection from
+    // creating bookings in another tenant's register.
+    const businessResponse = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(body.business_id)}&select=id,status,service_paused`,
+      { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Accept': 'application/json' } }
+    );
+
+    if (!businessResponse.ok) {
+      console.error('Business validation failed:', businessResponse.status);
+      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Unable to validate establishment' }) };
+    }
+
+    const businesses = await businessResponse.json();
+    const business = businesses?.[0];
+    if (!business || business.status !== 'approved' || business.service_paused === true) {
+      return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Check-in is not available for this establishment' }) };
     }
 
     const cleanName = (name) => {
@@ -46,7 +63,7 @@ export async function handler(event) {
     const guestName = body.guest_name || '';
 
     if (guestName && !firstName && !lastName) {
-      const nameParts = guestName.trim().split(' ');
+      const nameParts = guestName.trim().split(/\s+/);
       firstName = nameParts[0] || '';
       lastName = nameParts.slice(1).join(' ') || '';
     }
@@ -61,13 +78,14 @@ export async function handler(event) {
         statusCode: 400,
         headers,
         body: JSON.stringify({
+          success: false,
           error: 'A valid check-in date and number of nights (minimum 1) are required. Checkout date is calculated automatically from these values.'
         })
       };
     }
 
     if (body.check_out_date && String(body.check_out_date).slice(0, 10) !== checkOutDate) {
-      console.warn('⚠️ Ignoring conflicting client checkout date:', body.check_out_date, '→', checkOutDate);
+      console.warn('Ignoring conflicting client checkout date; using server-derived value');
     }
 
     const bookingData = {
@@ -100,9 +118,6 @@ export async function handler(event) {
     if (body.arriving_from) bookingData.arriving_from = body.arriving_from;
     if (body.next_destination) bookingData.next_destination = body.next_destination;
 
-    console.log('💾 Inserting booking via REST...');
-    console.log('📅 Stay:', { checkInDate, nights, checkOutDate });
-
     const response = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
       method: 'POST',
       headers: {
@@ -117,16 +132,19 @@ export async function handler(event) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Insert error:', response.status, errorText);
+      console.error('Booking insert failed:', response.status);
       if (errorText.includes('23505')) {
-        return { statusCode: 200, headers, body: JSON.stringify({ success: true, duplicate: true, message: 'Duplicate booking detected', booking: null }) };
+        return {
+          statusCode: 409,
+          headers,
+          body: JSON.stringify({ success: false, duplicate: true, code: 'DUPLICATE_BOOKING', error: 'A booking for this guest already exists' })
+        };
       }
-      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: `HTTP ${response.status}: ${errorText.substring(0, 200)}` }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: `Booking creation failed (HTTP ${response.status})` }) };
     }
 
     const result = await response.json();
     const savedBooking = result && result[0];
-    console.log('✅ Booking saved:', savedBooking?.id, savedBooking?.check_in_date, savedBooking?.nights, savedBooking?.check_out_date);
 
     if (savedBooking?.id && body.food_restrictions) {
       try {
@@ -171,9 +189,9 @@ export async function handler(event) {
           });
         }
 
-        if (!restrictionsResponse.ok) console.error('❌ Failed to save food restrictions:', await restrictionsResponse.text());
+        if (!restrictionsResponse.ok) console.error('Failed to save food restrictions:', restrictionsResponse.status);
       } catch (err) {
-        console.error('❌ Error saving food restrictions:', err);
+        console.error('Error saving food restrictions:', err?.message || 'unknown error');
       }
     }
 
@@ -183,7 +201,7 @@ export async function handler(event) {
       body: JSON.stringify({ success: true, duplicate: false, booking: savedBooking, message: 'Booking created successfully' })
     };
   } catch (err) {
-    console.error('❌ Fatal error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }) };
+    console.error('Fatal booking error:', err?.message || 'unknown error');
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Internal Server Error' }) };
   }
 }
