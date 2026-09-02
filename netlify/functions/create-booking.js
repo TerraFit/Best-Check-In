@@ -48,7 +48,7 @@ export async function handler(event) {
 
     const businesses = await businessResponse.json();
     const business = businesses?.[0];
-    if (!business || business.status !== 'approved' || business.service_paused === true) {
+    if (!business || business.id !== String(body.business_id) || business.status !== 'approved' || business.service_paused === true) {
       return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Check-in is not available for this establishment' }) };
     }
 
