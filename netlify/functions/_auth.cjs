@@ -182,6 +182,19 @@ function principalFromDecoded(decoded) {
   };
 }
 
+function strictSuperAdminVerification(event) {
+  const verified = verifyToken(extractToken(event), {
+    issuer: process.env.SUPER_ADMIN_JWT_ISSUER || 'fastcheckin',
+    audience: process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin',
+  });
+  if (!verified.ok) return verified;
+  const principal = principalFromDecoded(verified.decoded);
+  if (!principal || principal.actorType !== ACTOR_TYPES.SUPER_ADMIN) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+  return { ok: true, principal, decoded: verified.decoded };
+}
+
 function authenticateRequest(event, options = {}) {
   const verified = verifyToken(extractToken(event));
   if (!verified.ok) return verified;
@@ -194,16 +207,7 @@ function authenticateRequest(event, options = {}) {
   }
 
   if (options.actorType === ACTOR_TYPES.SUPER_ADMIN) {
-    const strict = verifyToken(extractToken(event), {
-      issuer: process.env.SUPER_ADMIN_JWT_ISSUER || 'fastcheckin',
-      audience: process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin',
-    });
-    if (!strict.ok) return strict;
-    const strictPrincipal = principalFromDecoded(strict.decoded);
-    if (!strictPrincipal || strictPrincipal.actorType !== ACTOR_TYPES.SUPER_ADMIN) {
-      return { ok: false, status: 403, error: 'Forbidden' };
-    }
-    return { ok: true, principal: strictPrincipal, decoded: strict.decoded };
+    return strictSuperAdminVerification(event);
   }
 
   return { ok: true, principal, decoded: verified.decoded };
@@ -216,7 +220,12 @@ function requireSuperAdmin(event) {
 function requirePlatformActor(event) {
   const result = authenticateRequest(event);
   if (!result.ok) return result;
-  if (result.principal.actorType !== ACTOR_TYPES.SUPER_ADMIN && result.principal.actorType !== ACTOR_TYPES.PLATFORM) {
+  if (result.principal.actorType === ACTOR_TYPES.SUPER_ADMIN) {
+    // A SuperAdmin is also a platform actor, but must retain the stronger
+    // dedicated issuer/audience validation when reaching platform endpoints.
+    return strictSuperAdminVerification(event);
+  }
+  if (result.principal.actorType !== ACTOR_TYPES.PLATFORM) {
     return { ok: false, status: 403, error: 'Platform access required' };
   }
   return result;
