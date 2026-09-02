@@ -71,10 +71,16 @@ test('manage-employees: employee mutation is tenant-scoped', async () => {
 test('manage-employees: employee creation binds business_id to authenticated tenant', async () => {
   const calls = mockFetch();
   const { handler } = await loadFunction();
-  const result = await handler(event('POST', businessToken('biz-a'), { businessId: 'biz-b', full_name: 'New Employee', phone_number: '+27 82 123 4567' }));
+  const result = await handler(event('POST', businessToken('biz-a'), { full_name: 'New Employee', phone_number: '+27 82 123 4567' }));
   assert.equal(result.statusCode, 200);
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body[0].business_id, 'biz-a');
+});
+
+test('manage-employees: employee creation rejects cross-tenant business substitution', async () => {
+  const { handler } = await loadFunction();
+  const result = await handler(event('POST', businessToken('biz-a'), { businessId: 'biz-b', full_name: 'New Employee', phone_number: '+27 82 123 4567' }));
+  assert.equal(result.statusCode, 403);
 });
 
 test('manage-employees: employee deletion is tenant-scoped', async () => {
