@@ -1,4 +1,4 @@
-const { requireSuperAdmin, authFailure } = require('./_auth.cjs');
+const { ACTOR_TYPES, requirePlatformActor, requirePlatformPermission, authFailure } = require('./_auth.cjs');
 
 const headers = {
   'Content-Type': 'application/json',
@@ -13,8 +13,11 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
   }
 
-  const auth = requireSuperAdmin(event);
+  const auth = requirePlatformActor(event);
   if (!auth.ok) return authFailure(auth, headers);
+  if (!requirePlatformPermission(auth.principal, 'platform:analytics:read')) {
+    return authFailure({ status: 403, error: 'Missing permission: platform:analytics:read' }, headers);
+  }
 
   const businessId = event.queryStringParameters?.businessId;
   if (!businessId) {
@@ -41,7 +44,7 @@ exports.handler = async (event) => {
 
     // Reuse the canonical analytics pipeline rather than the legacy hard-coded
     // booking table and simplified calculations that previously made this
-    // SuperAdmin Business Overview unreliable.
+    // Business Overview unreliable.
     const { fetchBookingsForAnalytics } = await import('./lib/analytics/pipeline.js');
     const { enrichBookingGeo } = await import('./lib/analytics/metrics.js');
     const { bookings } = await fetchBookingsForAnalytics(businessId, dateFrom, dateTo);
@@ -64,24 +67,33 @@ exports.handler = async (event) => {
     const summaryData = summary.summary || {};
     const occupancy = Number(summaryData.occupancy || 0);
     const totalRevenue = Number(summaryData.totalRevenue || 0);
+    const isSuperAdmin = auth.principal.actorType === ACTOR_TYPES.SUPER_ADMIN;
+
+    const businessResponse = {
+      id: business.id,
+      trading_name: business.trading_name,
+      registered_name: business.registered_name,
+      email: business.email,
+      phone: business.phone,
+      physical_address: business.physical_address,
+      status: business.status,
+      created_at: business.created_at,
+    };
+
+    // Commercial/subscription data is not part of the analytics permission.
+    // Keep it available only to the full SuperAdmin role; platform analytics
+    // users receive the establishment identity and performance data they need.
+    if (isSuperAdmin) {
+      businessResponse.subscription_tier = business.subscription_tier;
+      businessResponse.subscription_status = business.subscription_status || 'active';
+    }
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        business: {
-          id: business.id,
-          trading_name: business.trading_name,
-          registered_name: business.registered_name,
-          email: business.email,
-          phone: business.phone,
-          physical_address: business.physical_address,
-          status: business.status,
-          subscription_tier: business.subscription_tier,
-          subscription_status: business.subscription_status || 'active',
-          created_at: business.created_at,
-        },
+        business: businessResponse,
         analytics: {
           total_bookings: Number(summaryData.totalBookings || 0),
           total_guests: Number(summaryData.totalGuests || 0),
