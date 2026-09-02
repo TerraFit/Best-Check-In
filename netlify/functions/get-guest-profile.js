@@ -1,7 +1,7 @@
 // netlify/functions/get-guest-profile.js
 // Public returning-guest lookup. This endpoint remains public for the current
-// check-in UX, but it must never expose identity documents or contact/location
-// history to an unauthenticated caller.
+// check-in UX, but it must be bound to the requested establishment and must
+// never expose identity documents or contact/location history.
 
 export const handler = async function(event) {
   const headers = {
@@ -18,8 +18,12 @@ export const handler = async function(event) {
 
   try {
     const email = event.queryStringParameters?.email;
+    const businessId = event.queryStringParameters?.business_id;
     if (!email) {
       return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Email required' }) };
+    }
+    if (!businessId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -29,15 +33,55 @@ export const handler = async function(event) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const encodedBusinessId = encodeURIComponent(String(businessId));
+    const encodedEmail = encodeURIComponent(normalizedEmail);
+    const restHeaders = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Accept': 'application/json'
+    };
+
+    // Public lookup is allowed only for an approved, active establishment.
+    const businessResponse = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}&select=id,status,service_paused`,
+      { headers: restHeaders }
+    );
+    if (!businessResponse.ok) {
+      console.error('Business validation failed:', businessResponse.status);
+      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to validate business' }) };
+    }
+
+    const businesses = await businessResponse.json();
+    const business = Array.isArray(businesses) ? businesses[0] : null;
+    if (
+      !business ||
+      business.id !== String(businessId) ||
+      business.status !== 'approved' ||
+      business.service_paused === true
+    ) {
+      return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Business not available' }) };
+    }
+
+    // guest_profiles is global by email in the current schema. Prove that the
+    // email belongs to this establishment before touching that global record.
+    const bookingResponse = await fetch(
+      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&guest_email=eq.${encodedEmail}&select=id,business_id&limit=1`,
+      { headers: restHeaders }
+    );
+    if (!bookingResponse.ok) {
+      console.error('Guest booking validation failed:', bookingResponse.status);
+      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to validate guest' }) };
+    }
+
+    const bookings = await bookingResponse.json();
+    const booking = Array.isArray(bookings) ? bookings[0] : null;
+    if (!booking || booking.business_id !== String(businessId)) {
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, profile: null }) };
+    }
+
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodeURIComponent(normalizedEmail)}&select=full_name,country`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
+      `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodedEmail}&select=full_name,country`,
+      { headers: restHeaders }
     );
 
     if (!response.ok) {
@@ -59,8 +103,6 @@ export const handler = async function(event) {
       lastName = nameParts.slice(1).join(' ') || '';
     }
 
-    // Deliberately minimal. Passport/ID, phone, city, province and visit
-    // history must not be exposed by an anonymous email-based lookup.
     return {
       statusCode: 200,
       headers,
