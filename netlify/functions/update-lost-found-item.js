@@ -55,6 +55,12 @@ export const handler = async (event) => {
     const itemId = body.itemId || body.item_id;
     if (!itemId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId and itemId are required' }) };
 
+    // Disposal is a distinct privileged action. Reject it before any data-layer
+    // access so an editor without disposal permission cannot reach the item query.
+    if (body.status === 'archived' && !requireBusinessPermission(a.principal, 'canDisposeLostFound')) {
+      return authFailure({ status: 403, error: 'Missing permission: canDisposeLostFound' }, headers);
+    }
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
@@ -75,9 +81,6 @@ export const handler = async (event) => {
     const updates = { updated_at: new Date().toISOString() };
     for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 
-    if (body.status === 'archived' && !requireBusinessPermission(a.principal, 'canDisposeLostFound')) {
-      return authFailure({ status: 403, error: 'Missing permission: canDisposeLostFound' }, headers);
-    }
     if (updates.status === 'returned' || updates.status === 'collected') updates.returned_at = updates.returned_at || new Date().toISOString();
     if (updates.status === 'archived') updates.archived_at = new Date().toISOString();
 
