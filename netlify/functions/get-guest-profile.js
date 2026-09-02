@@ -80,7 +80,7 @@ export const handler = async function(event) {
     }
 
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodedEmail}&select=full_name,country`,
+      `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodedEmail}&select=full_name%2Ccountry`,
       { headers: restHeaders }
     );
 
