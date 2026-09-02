@@ -15,18 +15,20 @@ function sign(payload, options = {}) {
 }
 
 function signSuperAdmin(payload = {}, options = {}) {
-  const permissions = auth.PLATFORM_PERMISSIONS;
   return sign(
     {
       sub: 'admin-1',
       email: 'admin@example.com',
       role: 'super_admin',
-      permission_set: permissions,
-      user_metadata: { super_admin: true, permission_set: permissions },
-      ...payload
+      user_metadata: { super_admin: true },
+      ...payload,
     },
-    { issuer: 'fastcheckin', audience: 'super-admin', ...options }
+    { issuer: 'fastcheckin', audience: 'super-admin', ...options },
   );
+}
+
+function signPlatform(platformRole, payload = {}) {
+  return sign({ sub: `${platformRole}-1`, email: `${platformRole}@example.com`, platform_role: platformRole, ...payload });
 }
 
 test('anonymous request is rejected with 401', () => {
@@ -41,7 +43,7 @@ test('invalid JWT is rejected with 401', () => {
   assert.equal(result.status, 401);
 });
 
-test('service-role JWT is not treated as a human SuperAdmin', () => {
+test('service-role JWT is not treated as a human application identity', () => {
   const token = sign({ role: 'service_role', sub: 'service' });
   const result = auth.authenticateRequest(eventWithToken(token));
   assert.equal(result.ok, false);
@@ -56,15 +58,20 @@ test('SuperAdmin identity requires the canonical issuer and audience', () => {
   assert.equal(result.principal.businessId, null);
 });
 
-test('SuperAdmin token carries only explicit platform permissions', () => {
+test('SuperAdmin receives the full explicit platform permission set', () => {
   const token = signSuperAdmin();
   const result = auth.requireSuperAdmin(eventWithToken(token));
   assert.equal(result.ok, true);
   assert.deepEqual(result.principal.permissions, auth.PLATFORM_PERMISSIONS);
   for (const permission of auth.PLATFORM_PERMISSIONS) {
-    assert.equal(auth.requirePermission(result.principal, permission), true);
+    assert.equal(auth.requirePlatformPermission(result.principal, permission), true);
   }
-  assert.equal(auth.requirePermission(result.principal, 'canDeleteBusinesses'), false);
+});
+
+test('SuperAdmin cannot be elevated from user-editable metadata alone', () => {
+  const token = sign({ sub: 'user-1', user_metadata: { super_admin: true } });
+  const result = auth.requireSuperAdmin(eventWithToken(token));
+  assert.equal(result.ok, false);
 });
 
 test('SuperAdmin token with wrong audience is rejected', () => {
@@ -85,7 +92,7 @@ test('business token cannot satisfy SuperAdmin authorization', () => {
   const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
   const result = auth.requireSuperAdmin(eventWithToken(token));
   assert.equal(result.ok, false);
-  assert.equal(result.status, 401);
+  assert.equal(result.status, 403);
 });
 
 test('employee token cannot cross tenant boundary', () => {
@@ -103,10 +110,60 @@ test('SuperAdmin may intentionally resolve a requested platform tenant', () => {
   assert.equal(auth.resolveTenant(result.principal, 'biz-b').businessId, 'biz-b');
 });
 
-test('platform analytics permissions are explicit application permissions', () => {
-  assert.deepEqual(auth.PLATFORM_PERMISSIONS, [
-    'canViewPlatformAnalytics',
-    'canViewOriginAnalytics',
-    'canViewEstablishmentPerformance',
+test('platform operations has business lifecycle access but not developer or analytics access', () => {
+  const token = signPlatform('platform_operations');
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(result.principal.role, 'platform_operations');
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:businesses:write'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:developers:manage'), false);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:read'), false);
+});
+
+test('platform developer cannot access business, finance, or analytics permissions', () => {
+  const token = signPlatform('platform_developer');
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:developers:manage'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:businesses:write'), false);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:payments:read'), false);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:read'), false);
+});
+
+test('platform finance is limited to commercial/reporting permissions', () => {
+  const token = signPlatform('platform_finance');
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:payments:read'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:reports:export'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:read'), false);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:developers:manage'), false);
+});
+
+test('platform analytics is limited to analytics and reporting permissions', () => {
+  const token = signPlatform('platform_analytics');
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:read'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:export'), true);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:payments:read'), false);
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:businesses:write'), false);
+});
+
+test('platform roles are platform-wide but still require an explicit target tenant', () => {
+  const token = signPlatform('platform_support');
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(result.principal.businessId, null);
+  assert.equal(auth.resolveTenant(result.principal).ok, false);
+  assert.equal(auth.resolveTenant(result.principal, 'biz-b').businessId, 'biz-b');
+});
+
+test('platform analytics permissions are explicit and centrally defined', () => {
+  assert.deepEqual(auth.PLATFORM_ROLE_PERMISSIONS.platform_analytics, [
+    'platform:analytics:read',
+    'platform:analytics:export',
+    'platform:reports:read',
+    'platform:reports:export',
   ]);
 });
