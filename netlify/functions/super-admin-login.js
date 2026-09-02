@@ -32,22 +32,16 @@ exports.handler = async function(event) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid credentials' }) };
     }
 
-    const platformPermissions = [
-      'canViewPlatformAnalytics',
-      'canViewOriginAnalytics',
-      'canViewEstablishmentPerformance'
-    ];
-
+    // Permissions are derived centrally from the signed super_admin role in
+    // _auth.cjs. Do not embed a second, stale permission vocabulary in the JWT.
     const token = jwt.sign(
       {
         sub: 'super-admin',
         email: superAdminEmail,
         role: 'super_admin',
-        permission_set: platformPermissions,
         user_metadata: {
           super_admin: true,
-          role: 'super_admin',
-          permission_set: platformPermissions
+          role: 'super_admin'
         }
       },
       jwtSecret,
