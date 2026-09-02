@@ -2,8 +2,7 @@
 // Includes room fields for Overview cards (Phase 1.1)
 // Filters (status, province, city, country, search) applied at DB level BEFORE pagination.
 
-const auth = require('./_auth.cjs');
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = require('./_auth.cjs');
 
 const createResponse = (statusCode, body) => ({
   statusCode,
