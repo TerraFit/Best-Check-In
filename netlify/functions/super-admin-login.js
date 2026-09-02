@@ -14,7 +14,7 @@ exports.handler = async function(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+    return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method not allowed' }) };
   }
 
   try {
@@ -32,12 +32,23 @@ exports.handler = async function(event) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid credentials' }) };
     }
 
+    const platformPermissions = [
+      'canViewPlatformAnalytics',
+      'canViewOriginAnalytics',
+      'canViewEstablishmentPerformance'
+    ];
+
     const token = jwt.sign(
       {
         sub: 'super-admin',
         email: superAdminEmail,
         role: 'super_admin',
-        user_metadata: { super_admin: true, role: 'super_admin' }
+        permission_set: platformPermissions,
+        user_metadata: {
+          super_admin: true,
+          role: 'super_admin',
+          permission_set: platformPermissions
+        }
       },
       jwtSecret,
       { expiresIn: '1h', issuer: 'fastcheckin', audience: 'super-admin' }
