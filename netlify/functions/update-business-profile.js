@@ -1,5 +1,18 @@
 // netlify/functions/update-business-profile.js
-// Update business profile fields through the service-role REST API.
+// Update establishment profile fields through the canonical server-side authorization model.
+import auth from './_auth.cjs';
+
+const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
+
+const EDITABLE_PROFILE_FIELDS = new Set([
+  'trading_name', 'slogan', 'welcome_message',
+  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
+  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
+  'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
+  'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
+  'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
+  'marketing_consent_enabled', 'directors', 'updated_at'
+]);
 
 export const handler = async function(event) {
   const headers = {
@@ -12,47 +25,39 @@ export const handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
 
+  const authentication = requireBusinessActor(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+
+  if (!requireBusinessPermission(authentication.principal, 'canManageSettings')) {
+    return authFailure({ status: 403, error: 'Missing permission: canManageSettings' }, headers);
+  }
+
   try {
     const body = JSON.parse(event.body || '{}');
     const { businessId, ...fields } = body;
-    if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
+    const tenant = resolveTenant(authentication.principal, businessId);
+    if (!tenant.ok) return authFailure(tenant, headers);
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
-
-    fields.updated_at = new Date().toISOString();
-
-    const ALLOWED_FIELDS = [
-      'trading_name', 'registered_name', 'legal_name', 'slogan', 'welcome_message',
-      'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
-      'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
-      'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
-      'subscription_tier', 'current_plan', 'billing_cycle', 'service_paused',
-      'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
-      'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
-      'marketing_consent_enabled', 'directors', 'updated_at'
-    ];
-
+    // Platform-controlled commercial/status fields must not be changed through the normal profile endpoint.
     const filteredFields = {};
     for (const [key, value] of Object.entries(fields)) {
-      if (!ALLOWED_FIELDS.includes(key)) {
-        console.warn(`⚠️ Skipping unknown field: ${key}`);
-        continue;
-      }
-      // Empty strings are intentional for editable contact fields: an owner may clear a value.
-      // Only undefined is omitted. Null is preserved where the database accepts it.
-      if (value !== undefined) filteredFields[key] = value;
+      if (!EDITABLE_PROFILE_FIELDS.has(key) || value === undefined) continue;
+      filteredFields[key] = value;
     }
 
     if (Object.keys(filteredFields).length === 0) {
-      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'No valid fields to update' }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'No editable profile fields supplied' }) };
     }
 
-    console.log('📝 Updating business:', businessId);
-    console.log('📝 Fields to update:', Object.keys(filteredFields));
+    filteredFields.updated_at = new Date().toISOString();
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}`, {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
+    }
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -65,40 +70,27 @@ export const handler = async function(event) {
 
     const responseText = await response.text();
     if (!response.ok) {
-      console.error('❌ Update error:', response.status, responseText);
+      console.error('Business profile update failed:', response.status, responseText);
       if (response.status === 404) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
-      if (response.status === 401 || response.status === 403) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Unauthorized - Invalid API key' }) };
-      throw new Error(`HTTP ${response.status}: ${responseText}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
-    let updatedBusinesses = [];
-    try { updatedBusinesses = responseText ? JSON.parse(responseText) : []; } catch (parseError) {
-      throw new Error('Business update returned an invalid database response');
-    }
+    let updatedBusinesses;
+    try { updatedBusinesses = responseText ? JSON.parse(responseText) : []; }
+    catch { throw new Error('Business update returned an invalid database response'); }
 
-    // Supabase can return HTTP 200 even when an UPDATE matched zero rows.
-    // Never report success unless the targeted business row was actually returned.
     if (!Array.isArray(updatedBusinesses) || updatedBusinesses.length !== 1) {
-      console.error('❌ Business update matched no row:', { businessId, responseText });
-      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business profile could not be updated', details: 'No matching business record was updated' }) };
+      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business profile could not be updated' }) };
     }
-
-    const updatedBusiness = updatedBusinesses[0];
-    console.log('✅ Business updated successfully:', businessId, Object.keys(filteredFields));
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        message: 'Profile updated successfully',
-        updatedFields: Object.keys(filteredFields),
-        data: updatedBusiness
-      })
+      body: JSON.stringify({ success: true, message: 'Profile updated successfully', updatedFields: Object.keys(filteredFields), data: updatedBusinesses[0] })
     };
   } catch (error) {
-    console.error('❌ Error updating business profile:', error);
+    console.error('Error updating business profile:', error?.message || error);
     if (error instanceof SyntaxError) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Invalid JSON in request body' }) };
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message || 'Failed to update business profile' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to update business profile' }) };
   }
 };
