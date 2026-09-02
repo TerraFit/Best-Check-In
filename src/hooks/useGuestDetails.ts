@@ -1,8 +1,9 @@
 // src/hooks/useGuestDetails.ts
-// ✅ COMPLETE: Fixed business_id for audit logging
+// Guest detail reads now send the canonical authentication header.
 
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
+import { getAuthHeader } from '../utils/auth';
 
 export function useGuestDetails() {
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,8 @@ export function useGuestDetails() {
 
     try {
       const response = await fetch(
-        `/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`
+        `/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`,
+        { headers: { ...getAuthHeader(), 'Content-Type': 'application/json' } }
       );
 
       console.log('📡 useGuestDetails: Response status:', response.status);
@@ -44,7 +46,7 @@ export function useGuestDetails() {
     }
   }, []);
 
-  // ✅ FIXED: Get business_id from auth, not from guestDetails
+  // Get business_id from auth for write/audit operations.
   const getBusinessId = useCallback((): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
@@ -55,7 +57,7 @@ export function useGuestDetails() {
     } catch (e) {
       console.warn('Could not get business_id from auth:', e);
     }
-    
+
     try {
       const businessStr = localStorage.getItem('business');
       if (businessStr) {
@@ -65,7 +67,7 @@ export function useGuestDetails() {
     } catch (e) {
       console.warn('Could not get business_id from business storage:', e);
     }
-    
+
     return null;
   }, []);
 
@@ -84,17 +86,16 @@ export function useGuestDetails() {
     setError(null);
 
     try {
-      // ✅ Get business_id
       const businessId = getBusinessId();
       console.log('💾 useGuestDetails: Business ID:', businessId);
 
       const response = await fetch('/.netlify/functions/save-food-restrictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bookingId, 
+        body: JSON.stringify({
+          bookingId,
           restrictions,
-          business_id: businessId  // ✅ Pass business_id
+          business_id: businessId
         })
       });
 
@@ -108,7 +109,7 @@ export function useGuestDetails() {
 
       const result = await response.json();
       console.log('✅ useGuestDetails: Save result:', result);
-      
+
       if (result.success && result.restrictions) {
         setGuestDetails(prev => {
           if (!prev) return null;
@@ -119,7 +120,6 @@ export function useGuestDetails() {
         });
       }
 
-      // ✅ Create audit log with correct business_id
       await addAuditLog({
         bookingId,
         action: 'UPDATE_FOOD_RESTRICTIONS',
@@ -153,17 +153,16 @@ export function useGuestDetails() {
     setError(null);
 
     try {
-      // ✅ Get business_id
       const businessId = getBusinessId();
       console.log('📅 useGuestDetails: Business ID:', businessId);
 
       const response = await fetch('/.netlify/functions/update-booking-stay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bookingId, 
+        body: JSON.stringify({
+          bookingId,
           ...data,
-          business_id: businessId  // ✅ Pass business_id
+          business_id: businessId
         })
       });
 
@@ -177,7 +176,7 @@ export function useGuestDetails() {
 
       const result = await response.json();
       console.log('✅ useGuestDetails: Update stay result:', result);
-      
+
       if (result.success && result.booking) {
         setGuestDetails(prev => {
           if (!prev) return null;
@@ -190,7 +189,6 @@ export function useGuestDetails() {
         });
       }
 
-      // ✅ Create audit log with correct business_id
       await addAuditLog({
         bookingId,
         action: 'UPDATE_STAY_DETAILS',
@@ -209,7 +207,6 @@ export function useGuestDetails() {
     }
   }, [guestDetails, getBusinessId]);
 
-  // ✅ FIXED: Add audit log with correct business_id
   const addAuditLog = useCallback(async (logData: {
     bookingId: string;
     action: string;
@@ -218,18 +215,13 @@ export function useGuestDetails() {
     businessId?: string;
   }) => {
     try {
-      // Get current user from auth
       const authStr = localStorage.getItem('fastcheckin_auth');
       const auth = authStr ? JSON.parse(authStr) : null;
       const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
 
-      // ✅ Use provided businessId, or try to get it
       let businessId = logData.businessId || null;
-      if (!businessId) {
-        businessId = getBusinessId();
-      }
+      if (!businessId) businessId = getBusinessId();
 
-      // ✅ If still null, use a fallback
       if (!businessId) {
         console.warn('⚠️ No business_id available for audit log, using fallback');
         businessId = '00000000-0000-0000-0000-000000000000';
@@ -269,7 +261,6 @@ export function useGuestDetails() {
     }
   }, [guestDetails, getBusinessId]);
 
-  // ✅ Helper to get IP address
   const getIPAddress = async (): Promise<string> => {
     try {
       const response = await fetch('https://api.ipify.org?format=json');
