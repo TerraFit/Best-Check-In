@@ -15,8 +15,16 @@ function sign(payload, options = {}) {
 }
 
 function signSuperAdmin(payload = {}, options = {}) {
+  const permissions = auth.PLATFORM_PERMISSIONS;
   return sign(
-    { sub: 'admin-1', email: 'admin@example.com', role: 'super_admin', user_metadata: { super_admin: true }, ...payload },
+    {
+      sub: 'admin-1',
+      email: 'admin@example.com',
+      role: 'super_admin',
+      permission_set: permissions,
+      user_metadata: { super_admin: true, permission_set: permissions },
+      ...payload
+    },
     { issuer: 'fastcheckin', audience: 'super-admin', ...options }
   );
 }
@@ -46,6 +54,17 @@ test('SuperAdmin identity requires the canonical issuer and audience', () => {
   assert.equal(result.ok, true);
   assert.equal(result.principal.actorType, 'super_admin');
   assert.equal(result.principal.businessId, null);
+});
+
+test('SuperAdmin token carries only explicit platform permissions', () => {
+  const token = signSuperAdmin();
+  const result = auth.requireSuperAdmin(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.principal.permissions, auth.PLATFORM_PERMISSIONS);
+  for (const permission of auth.PLATFORM_PERMISSIONS) {
+    assert.equal(auth.requirePermission(result.principal, permission), true);
+  }
+  assert.equal(auth.requirePermission(result.principal, 'canDeleteBusinesses'), false);
 });
 
 test('SuperAdmin token with wrong audience is rejected', () => {
