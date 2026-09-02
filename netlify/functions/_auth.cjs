@@ -5,15 +5,69 @@ const jwt = require('jsonwebtoken');
 
 const ACTOR_TYPES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
+  PLATFORM: 'platform',
   BUSINESS: 'business',
   EMPLOYEE: 'employee',
 });
 
 const PLATFORM_PERMISSIONS = Object.freeze([
-  'canViewPlatformAnalytics',
-  'canViewOriginAnalytics',
-  'canViewEstablishmentPerformance',
+  'platform:businesses:read',
+  'platform:businesses:write',
+  'platform:change_requests:read',
+  'platform:change_requests:write',
+  'platform:subscriptions:read',
+  'platform:subscriptions:write',
+  'platform:payments:read',
+  'platform:analytics:read',
+  'platform:analytics:export',
+  'platform:reports:read',
+  'platform:reports:export',
+  'platform:audit:read',
+  'platform:compliance:read',
+  'platform:developers:manage',
+  'platform:system:diagnostics',
 ]);
+
+const PLATFORM_ROLE_PERMISSIONS = Object.freeze({
+  super_admin: PLATFORM_PERMISSIONS,
+  platform_operations: Object.freeze([
+    'platform:businesses:read',
+    'platform:businesses:write',
+    'platform:change_requests:read',
+    'platform:change_requests:write',
+    'platform:subscriptions:read',
+    'platform:subscriptions:write',
+    'platform:payments:read',
+    'platform:audit:read',
+  ]),
+  platform_developer: Object.freeze([
+    'platform:developers:manage',
+    'platform:system:diagnostics',
+  ]),
+  platform_finance: Object.freeze([
+    'platform:subscriptions:read',
+    'platform:subscriptions:write',
+    'platform:payments:read',
+    'platform:reports:read',
+    'platform:reports:export',
+  ]),
+  platform_analytics: Object.freeze([
+    'platform:analytics:read',
+    'platform:analytics:export',
+    'platform:reports:read',
+    'platform:reports:export',
+  ]),
+  platform_compliance: Object.freeze([
+    'platform:audit:read',
+    'platform:compliance:read',
+    'platform:reports:read',
+    'platform:reports:export',
+  ]),
+  platform_support: Object.freeze([
+    'platform:businesses:read',
+    'platform:change_requests:read',
+  ]),
+});
 
 function extractToken(event) {
   const headers = event?.headers || {};
@@ -58,12 +112,19 @@ function asPermissions(value) {
   } catch { return []; }
 }
 
+function platformPermissionsForRole(role) {
+  return Array.isArray(PLATFORM_ROLE_PERMISSIONS[role])
+    ? [...PLATFORM_ROLE_PERMISSIONS[role]]
+    : [];
+}
+
 function principalFromDecoded(decoded) {
   if (!decoded || typeof decoded !== 'object') return null;
   const meta = decoded.user_metadata || {};
-  const explicitSuperAdmin = decoded.role === ACTOR_TYPES.SUPER_ADMIN || meta.super_admin === true || meta.super_admin === 'true';
 
-  if (explicitSuperAdmin) {
+  // Platform identity must come from a signed application claim. Do not trust
+  // user-editable metadata such as user_metadata.super_admin for elevation.
+  if (decoded.role === ACTOR_TYPES.SUPER_ADMIN) {
     return {
       actorType: ACTOR_TYPES.SUPER_ADMIN,
       role: ACTOR_TYPES.SUPER_ADMIN,
@@ -71,10 +132,27 @@ function principalFromDecoded(decoded) {
       email: decoded.email || meta.email || null,
       businessId: null,
       employeeId: null,
-      permissions: asPermissions(meta.permission_set || decoded.permission_set),
+      permissions: platformPermissionsForRole('super_admin'),
       active: true,
     };
   }
+
+  const platformRole = decoded.platform_role;
+  if (typeof platformRole === 'string' && PLATFORM_ROLE_PERMISSIONS[platformRole]) {
+    return {
+      actorType: ACTOR_TYPES.PLATFORM,
+      role: platformRole,
+      userId: decoded.sub || null,
+      email: decoded.email || meta.email || null,
+      businessId: null,
+      employeeId: null,
+      permissions: platformPermissionsForRole(platformRole),
+      active: decoded.active !== false,
+    };
+  }
+
+  // service_role is a database credential, never a human application identity.
+  if (decoded.role === 'service_role') return null;
 
   const businessId = meta.business_id || decoded.business_id || null;
   if (!businessId) return null;
@@ -116,7 +194,10 @@ function authenticateRequest(event, options = {}) {
   }
 
   if (options.actorType === ACTOR_TYPES.SUPER_ADMIN) {
-    const strict = verifyToken(extractToken(event), { issuer: 'fastcheckin', audience: 'super-admin' });
+    const strict = verifyToken(extractToken(event), {
+      issuer: process.env.SUPER_ADMIN_JWT_ISSUER || 'fastcheckin',
+      audience: process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin',
+    });
     if (!strict.ok) return strict;
     const strictPrincipal = principalFromDecoded(strict.decoded);
     if (!strictPrincipal || strictPrincipal.actorType !== ACTOR_TYPES.SUPER_ADMIN) {
@@ -132,6 +213,15 @@ function requireSuperAdmin(event) {
   return authenticateRequest(event, { actorType: ACTOR_TYPES.SUPER_ADMIN });
 }
 
+function requirePlatformActor(event) {
+  const result = authenticateRequest(event);
+  if (!result.ok) return result;
+  if (result.principal.actorType !== ACTOR_TYPES.SUPER_ADMIN && result.principal.actorType !== ACTOR_TYPES.PLATFORM) {
+    return { ok: false, status: 403, error: 'Platform access required' };
+  }
+  return result;
+}
+
 function requireBusinessActor(event) {
   const result = authenticateRequest(event);
   if (!result.ok) return result;
@@ -143,7 +233,7 @@ function requireBusinessActor(event) {
 
 function resolveTenant(principal, requestedBusinessId) {
   if (!principal) return { ok: false, status: 401, error: 'Authentication required' };
-  if (principal.actorType === ACTOR_TYPES.SUPER_ADMIN) {
+  if (principal.actorType === ACTOR_TYPES.SUPER_ADMIN || principal.actorType === ACTOR_TYPES.PLATFORM) {
     if (!requestedBusinessId) return { ok: false, status: 400, error: 'businessId required' };
     return { ok: true, businessId: String(requestedBusinessId) };
   }
@@ -156,6 +246,12 @@ function resolveTenant(principal, requestedBusinessId) {
 function requirePermission(principal, permission) {
   if (!principal) return false;
   return principal.permissions.includes(permission);
+}
+
+function requirePlatformPermission(principal, permission) {
+  if (!principal) return false;
+  if (principal.actorType !== ACTOR_TYPES.SUPER_ADMIN && principal.actorType !== ACTOR_TYPES.PLATFORM) return false;
+  return requirePermission(principal, permission);
 }
 
 function authorize(principal, permission) {
@@ -175,14 +271,18 @@ function authFailure(result, headers = {}) {
 module.exports = {
   ACTOR_TYPES,
   PLATFORM_PERMISSIONS,
+  PLATFORM_ROLE_PERMISSIONS,
   extractToken,
   verifyToken,
   principalFromDecoded,
+  platformPermissionsForRole,
   authenticateRequest,
   requireSuperAdmin,
+  requirePlatformActor,
   requireBusinessActor,
   resolveTenant,
   requirePermission,
+  requirePlatformPermission,
   authorize,
   authFailure,
 };
