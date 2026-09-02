@@ -2,7 +2,15 @@
 // List rooms + derive live occupancy from bookings (never trust stale occupancy_status alone)
 // Auth: Bearer JWT required; businessId must match token business_id (tenant isolation)
 
-const jwt = require('jsonwebtoken');
+
+import auth from './_auth.cjs';
+
+const {
+  requireBusinessActor,
+  requireBusinessPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
 
 function todayInJohannesburg() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -86,7 +94,7 @@ function deriveOccupancyLabel(room, bookings, todayStr) {
   return 'vacant';
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -102,56 +110,23 @@ exports.handler = async (event) => {
   }
 
   try {
-    const token = event.headers.authorization?.replace('Bearer ', '') ||
-      event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'No authorization token provided' }),
-      };
+    const actor = requireBusinessActor(event);
+    if (!actor.ok) return authFailure(actor, headers);
+
+    if (!requireBusinessPermission(actor.principal, 'canViewRooms')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canViewRooms' },
+        headers
+      );
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({ error: 'Token has expired' }),
-        };
-      }
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Invalid token signature' }),
-      };
-    }
+    const { businessId: qBusinessId, includeInactive } =
+      event.queryStringParameters || {};
 
-    const businessIdFromToken = decoded.user_metadata?.business_id;
-    if (!businessIdFromToken) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Token missing business ID' }),
-      };
-    }
+    const tenant = resolveTenant(actor.principal, qBusinessId);
+    if (!tenant.ok) return authFailure(tenant, headers);
 
-    const { businessId: qBusinessId, includeInactive } = event.queryStringParameters || {};
-    const businessId = qBusinessId || businessIdFromToken;
-    if (qBusinessId && qBusinessId !== businessIdFromToken) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Forbidden' }),
-      };
-    }
-
-    if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
-    }
+    const businessId = tenant.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -165,7 +140,9 @@ exports.handler = async (event) => {
       Accept: 'application/json',
     };
 
-    let path = `rooms?business_id=eq.${businessId}&order=sort_order.asc.nullslast,room_number.asc`;
+    const encodedBusinessId = encodeURIComponent(businessId);
+
+    let path = `rooms?business_id=eq.${encodedBusinessId}&order=sort_order.asc.nullslast,room_number.asc`;
     if (includeInactive !== 'true') {
       path += '&active=eq.true';
     }
@@ -184,7 +161,7 @@ exports.handler = async (event) => {
     let bookings = [];
     try {
       const bRes = await fetch(
-        `${supabaseUrl}/rest/v1/bookings?business_id=eq.${businessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,room_id,room_number,check_in_date,check_out_date,status`,
+        `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,room_id,room_number,check_in_date,check_out_date,status`,
         { headers: restGet }
       );
       if (bRes.ok) bookings = await bRes.json();
