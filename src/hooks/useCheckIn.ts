@@ -187,22 +187,22 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   }, [businessId]);
 
-  // Load guest profile when email changes
+  // Load guest profile when email or business scope changes
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (formData.email && formData.email.includes('@')) {
+      if (formData.email && formData.email.includes('@') && businessId) {
         loadGuestProfile(formData.email);
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [formData.email]);
+  }, [formData.email, businessId]);
 
   const loadGuestProfile = async (email: string) => {
-    if (!email || !email.includes('@')) return;
+    if (!email || !email.includes('@') || !businessId) return;
     
     try {
       console.log('🔍 Loading guest profile for:', email);
-      const result = await checkinService.getGuestProfile(email);
+      const result = await checkinService.getGuestProfile(email, businessId);
       console.log('🔍 Guest profile result:', result);
       
       if (result?.profile) {
