@@ -9,6 +9,7 @@ process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 const SECRET = process.env.SUPABASE_JWT_SECRET;
 function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { expiresIn: '15m', ...options }); }
 function eventWithToken(token, body) { return { httpMethod: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) }; }
+function getEventWithToken(token, businessId) { return { httpMethod: 'GET', headers: { authorization: `Bearer ${token}` }, queryStringParameters: businessId === undefined ? {} : { businessId } }; }
 function businessToken(businessId = 'biz-a', extra = {}) { return sign({ sub: `owner-${businessId}`, user_metadata: { business_id: businessId }, ...extra }); }
 function employeeToken(businessId = 'biz-a', permissions = ['canManageSettings']) { return sign({ sub: `emp-${businessId}`, user_metadata: { business_id: businessId, employee_id: `emp-${businessId}`, staff_role: 'Manager', permission_set: permissions } }); }
 function platformToken(role = 'platform_operations') { return sign({ sub: `${role}-1`, email: `${role}@example.com`, platform_role: role }); }
@@ -43,6 +44,30 @@ test('update-business-settings: employee without settings permission is rejected
   assert.equal(result.statusCode, 403);
 });
 
+test('get-business-settings: anonymous request is rejected', async () => {
+  const { handler } = await loadFunction('get-business-settings');
+  const result = await handler(getEventWithToken(null, 'biz-a').headers.authorization ? getEventWithToken(null, 'biz-a') : { httpMethod: 'GET', headers: {}, queryStringParameters: { businessId: 'biz-a' } });
+  assert.equal(result.statusCode, 401);
+});
+
+test('get-business-settings: business owner cannot cross tenant', async () => {
+  const { handler } = await loadFunction('get-business-settings');
+  const result = await handler(getEventWithToken(businessToken('biz-a'), 'biz-b'));
+  assert.equal(result.statusCode, 403);
+});
+
+test('get-business-settings: employee without settings permission is rejected', async () => {
+  const { handler } = await loadFunction('get-business-settings');
+  const result = await handler(getEventWithToken(employeeToken('biz-a', ['canViewDashboard']), 'biz-a'));
+  assert.equal(result.statusCode, 403);
+});
+
+test('get-business-settings: businessId is required after authentication', async () => {
+  const { handler } = await loadFunction('get-business-settings');
+  const result = await handler(getEventWithToken(businessToken('biz-a')));
+  assert.equal(result.statusCode, 400);
+});
+
 test('update-business-profile: anonymous request is rejected', async () => {
   const { handler } = await loadFunction('update-business-profile');
   const result = await handler({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ businessId: 'biz-a', trading_name: 'X' }) });
@@ -70,7 +95,7 @@ test('update-business-profile: subscription fields are not accepted through prof
 
 test('update-business-locked-fields: anonymous request is rejected', async () => {
   const { handler } = await loadFunction('update-business-locked-fields');
-  const result = await handler({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ businessId: 'biz-a', updates: { service_paused: true } }) });
+  const result = await handler(eventWithToken(null, { businessId: 'biz-a', updates: { service_paused: true } }));
   assert.equal(result.statusCode, 401);
 });
 
