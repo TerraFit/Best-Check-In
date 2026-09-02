@@ -71,7 +71,7 @@ function principalFromDecoded(decoded) {
       email: decoded.email || meta.email || null,
       businessId: null,
       employeeId: null,
-      permissions: asPermissions(meta.permission_set),
+      permissions: asPermissions(meta.permission_set || decoded.permission_set),
       active: true,
     };
   }
@@ -87,7 +87,7 @@ function principalFromDecoded(decoded) {
       email: decoded.email || meta.email || null,
       businessId,
       employeeId: null,
-      permissions: asPermissions(meta.permission_set),
+      permissions: asPermissions(meta.permission_set || decoded.permission_set),
       active: meta.active !== false,
     };
   }
@@ -99,7 +99,7 @@ function principalFromDecoded(decoded) {
     email: decoded.email || meta.email || null,
     businessId,
     employeeId: meta.employee_id,
-    permissions: asPermissions(meta.permission_set),
+    permissions: asPermissions(meta.permission_set || decoded.permission_set),
     active: meta.active !== false,
   };
 }
@@ -155,7 +155,6 @@ function resolveTenant(principal, requestedBusinessId) {
 
 function requirePermission(principal, permission) {
   if (!principal) return false;
-  if (principal.actorType === ACTOR_TYPES.SUPER_ADMIN) return true;
   return principal.permissions.includes(permission);
 }
 
