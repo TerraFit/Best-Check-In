@@ -1,8 +1,10 @@
 // netlify/functions/manage-employees.js
 // Canonical server-side authentication and tenant authorization.
-const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = require('./_auth.cjs');
+import auth from './_auth.cjs';
 
-exports.handler = async function (event) {
+const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
+
+export const handler = async function (event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -15,9 +17,9 @@ exports.handler = async function (event) {
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
   try {
-    const auth = requireBusinessActor(event);
-    if (!auth.ok) return authFailure(auth, headers);
-    if (!requireBusinessPermission(auth.principal, 'canManageStaff')) {
+    const authResult = requireBusinessActor(event);
+    if (!authResult.ok) return authFailure(authResult, headers);
+    if (!requireBusinessPermission(authResult.principal, 'canManageStaff')) {
       return authFailure({ status: 403, error: 'Missing permission: canManageStaff' }, headers);
     }
 
@@ -29,7 +31,7 @@ exports.handler = async function (event) {
         return null;
       }
     })();
-    const tenant = resolveTenant(auth.principal, requestedBusinessId);
+    const tenant = resolveTenant(authResult.principal, requestedBusinessId);
     if (!tenant.ok) return authFailure(tenant, headers);
     const businessId = tenant.businessId;
 
