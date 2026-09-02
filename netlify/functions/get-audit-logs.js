@@ -1,5 +1,5 @@
 import auth from './_auth.cjs';
-import rbac from './_rbac.js';
+import rbac from './_rbac.cjs';
 
 const { authenticateRequest, resolveTenant, requireBusinessPermission, requirePlatformPermission, authFailure } = auth;
 const { requirePermission } = rbac;
