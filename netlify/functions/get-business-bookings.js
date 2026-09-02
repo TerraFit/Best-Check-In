@@ -2,7 +2,9 @@
 // Includes room fields for Overview cards (Phase 1.1)
 // Filters (status, province, city, country, search) applied at DB level BEFORE pagination.
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = require('./_auth.cjs');
+import auth from './_auth.cjs';
+
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -53,7 +55,7 @@ function cleanFacetValues(rows, field) {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
   if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
 
