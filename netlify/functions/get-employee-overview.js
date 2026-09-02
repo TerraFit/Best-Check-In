@@ -1,14 +1,21 @@
-const jwt = require('jsonwebtoken');
+import auth from './_auth.cjs';
+
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, OPTIONS'};
 const response=(statusCode,body)=>({statusCode,headers,body:JSON.stringify(body)});
 function todayInSouthAfrica(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
-exports.handler=async(event)=>{
+export const handler=async(event)=>{
   if(event.httpMethod==='OPTIONS')return{statusCode:204,headers,body:''};
-  if(event.httpMethod!=='GET')return response(405,{error:'Method Not Allowed'});
-  const token=event.headers.authorization?.replace(/^Bearer\s+/i,''); if(!token)return response(401,{error:'No authorization token provided'});
-  let decoded; try{decoded=jwt.verify(token,process.env.SUPABASE_JWT_SECRET);}catch(error){return response(401,{error:error.name==='TokenExpiredError'?'Token has expired':'Invalid token signature'});}
-  const metadata=decoded.user_metadata||{},businessId=metadata.business_id,employeeId=metadata.employee_id||decoded.sub;
-  if(decoded.role!=='employee'||!businessId||!employeeId)return response(403,{error:'Employee authorization required'});
+  if(event.httpMethod!=='GET')return response(405,{error:'Method not allowed'});
+  const authResult=requireBusinessActor(event);
+  if(!authResult.ok)return authFailure(authResult,headers);
+  if(authResult.principal.actorType!=='employee')return authFailure({status:403,error:'Employee authorization required'},headers);
+  const requestedBusinessId=event.queryStringParameters?.businessId||null;
+  const tenant=resolveTenant(authResult.principal,requestedBusinessId);
+  if(!tenant.ok)return authFailure(tenant,headers);
+  const businessId=tenant.businessId;
+  const employeeId=authResult.principal.employeeId;
+  if(!employeeId)return authFailure({status:403,error:'Employee authorization required'},headers);
   const supabaseUrl=process.env.SUPABASE_URL,serviceKey=process.env.SUPABASE_SERVICE_KEY;
   if(!supabaseUrl||!serviceKey)return response(500,{error:'Server configuration error'});
   const today=todayInSouthAfrica(),read={apikey:serviceKey,Authorization:`Bearer ${serviceKey}`};
