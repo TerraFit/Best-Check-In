@@ -72,9 +72,13 @@ export async function assignRoomToBooking(payload: AssignRoomPayload): Promise<{
   booking?: any;
   room?: Room | null;
 }> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch('/.netlify/functions/assign-room-to-booking', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
   return parseJson(res);
