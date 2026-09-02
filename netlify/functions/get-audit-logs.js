@@ -19,6 +19,14 @@ export const handler = async function (event) {
 
   const principal = authResult.principal;
   const requestedBusinessId = event.queryStringParameters?.businessId || null;
+  if (!requestedBusinessId) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Business ID required' }),
+    };
+  }
+
   const isPlatformActor = ['super_admin', 'platform'].includes(principal.actorType);
 
   if (isPlatformActor) {
