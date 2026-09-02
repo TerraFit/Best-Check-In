@@ -88,6 +88,28 @@ test('SuperAdmin token with wrong issuer is rejected', () => {
   assert.equal(result.status, 401);
 });
 
+test('platform authorization preserves strict SuperAdmin audience validation', () => {
+  const token = signSuperAdmin({}, { audience: 'business' });
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 401);
+});
+
+test('platform authorization preserves strict SuperAdmin issuer validation', () => {
+  const token = signSuperAdmin({}, { issuer: 'other-service' });
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 401);
+});
+
+test('valid SuperAdmin remains a platform actor with full platform permissions', () => {
+  const token = signSuperAdmin();
+  const result = auth.requirePlatformActor(eventWithToken(token));
+  assert.equal(result.ok, true);
+  assert.equal(result.principal.actorType, 'super_admin');
+  assert.equal(auth.requirePlatformPermission(result.principal, 'platform:analytics:read'), true);
+});
+
 test('business token cannot satisfy SuperAdmin authorization', () => {
   const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
   const result = auth.requireSuperAdmin(eventWithToken(token));
