@@ -1,5 +1,7 @@
 // netlify/functions/get-guest-details.js
-// ✅ Includes optional room fields (Phase 1)
+// Guest details are sensitive tenant-scoped data and require authoritative server authorization.
+
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = require('./_auth.cjs');
 
 export const handler = async (event) => {
   const headers = {
@@ -14,23 +16,34 @@ export const handler = async (event) => {
   }
 
   if (event.httpMethod !== 'GET') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    const { bookingId } = event.queryStringParameters || {};
+    const { bookingId, businessId: requestedBusinessId } = event.queryStringParameters || {};
 
     if (!bookingId) {
-      return { 
-        statusCode: 400, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking ID required' }) 
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Booking ID required' })
       };
     }
+
+    const auth = requireBusinessActor(event);
+    if (!auth.ok) return authFailure(auth, headers);
+
+    if (!requireBusinessPermission(auth.principal, 'canViewGuestDetails')) {
+      return authFailure({ status: 403, error: 'Missing permission: canViewGuestDetails' }, headers);
+    }
+
+    const scope = resolveTenant(auth.principal, requestedBusinessId || null);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -43,49 +56,46 @@ export const handler = async (event) => {
       };
     }
 
+    const encodedBookingId = encodeURIComponent(String(bookingId));
+    const encodedBusinessId = encodeURIComponent(String(businessId));
+    const restHeaders = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Accept': 'application/json'
+    };
+
+    // The authenticated tenant is part of the booking lookup itself. Never
+    // fetch a booking globally and then trust its business_id after the fact.
     const bookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${encodedBookingId}&business_id=eq.${encodedBusinessId}&select=*`,
+      { headers: restHeaders }
     );
 
     if (!bookingResponse.ok) {
-      const errorText = await bookingResponse.text();
-      console.error('Booking fetch error:', errorText);
-      return { 
-        statusCode: 404, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking not found' }) 
+      console.error('Booking fetch error:', bookingResponse.status);
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' })
       };
     }
 
     const bookingData = await bookingResponse.json();
-    const booking = bookingData[0];
+    const booking = Array.isArray(bookingData) ? bookingData[0] : null;
 
-    if (!booking) {
-      return { 
-        statusCode: 404, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking not found' }) 
+    if (!booking || String(booking.business_id) !== String(businessId)) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Booking not found' })
       };
     }
 
     let restrictions = null;
     try {
       const restrictionsResponse = await fetch(
-        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=*`,
-        {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Accept': 'application/json'
-          }
-        }
+        `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodedBookingId}&select=*`,
+        { headers: restHeaders }
       );
 
       if (restrictionsResponse.ok) {
@@ -147,9 +157,9 @@ export const handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Failed to fetch guest details',
-        details: error.message 
+        details: error.message
       })
     };
   }
