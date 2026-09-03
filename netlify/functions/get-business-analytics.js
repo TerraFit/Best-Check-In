@@ -42,9 +42,6 @@ exports.handler = async (event) => {
     const dateTo = end.toISOString().slice(0, 10);
     const summary = await buildAnalyticsSummary({ businessId, dateFrom, dateTo });
 
-    // Reuse the canonical analytics pipeline rather than the legacy hard-coded
-    // booking table and simplified calculations that previously made this
-    // Business Overview unreliable.
     const { fetchBookingsForAnalytics } = await import('./lib/analytics/pipeline.js');
     const { enrichBookingGeo } = await import('./lib/analytics/metrics.js');
     const { bookings } = await fetchBookingsForAnalytics(businessId, dateFrom, dateTo);
@@ -80,9 +77,6 @@ exports.handler = async (event) => {
       created_at: business.created_at,
     };
 
-    // Commercial/subscription data is not part of the analytics permission.
-    // Keep it available only to the full SuperAdmin role; platform analytics
-    // users receive the establishment identity and performance data they need.
     if (isSuperAdmin) {
       businessResponse.subscription_tier = business.subscription_tier;
       businessResponse.subscription_status = business.subscription_status || 'active';
@@ -112,8 +106,6 @@ exports.handler = async (event) => {
           returning_rate: Number(summaryData.returningRate || 0),
         },
         comparisons: {
-          // Ranking/benchmark calculations will be added as a separate
-          // platform analytics capability; do not invent zero-valued ranks.
           rankings: {
             rank_overall: null,
             rank_province: null,
@@ -130,9 +122,9 @@ exports.handler = async (event) => {
   } catch (error) {
     console.error('get-business-analytics error:', error?.message || error);
     return {
-      statusCode: error.statusCode || 500,
+      statusCode: 500,
       headers,
-      body: JSON.stringify({ success: false, error: error.message || 'Internal Server Error' }),
+      body: JSON.stringify({ success: false, error: 'Internal Server Error' }),
     };
   }
 };
