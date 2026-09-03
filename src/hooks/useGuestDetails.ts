@@ -1,5 +1,5 @@
 // src/hooks/useGuestDetails.ts
-// Guest detail reads now send the canonical authentication header.
+// Guest detail reads and booking mutations send the canonical authentication header.
 
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
@@ -46,7 +46,6 @@ export function useGuestDetails() {
     }
   }, []);
 
-  // Get business_id from auth for write/audit operations.
   const getBusinessId = useCallback((): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
@@ -75,49 +74,27 @@ export function useGuestDetails() {
     bookingId: string,
     restrictions: FoodRestrictions
   ) => {
-    if (!bookingId) {
-      throw new Error('No booking ID provided');
-    }
-
-    console.log('💾 useGuestDetails: Saving restrictions for:', bookingId);
-    console.log('💾 useGuestDetails: Restrictions:', restrictions);
+    if (!bookingId) throw new Error('No booking ID provided');
 
     setLoading(true);
     setError(null);
 
     try {
       const businessId = getBusinessId();
-      console.log('💾 useGuestDetails: Business ID:', businessId);
-
       const response = await fetch('/.netlify/functions/save-food-restrictions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId,
-          restrictions,
-          business_id: businessId
-        })
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, restrictions, business_id: businessId })
       });
-
-      console.log('📡 useGuestDetails: Save response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ useGuestDetails: Save error:', errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('✅ useGuestDetails: Save result:', result);
-
       if (result.success && result.restrictions) {
-        setGuestDetails(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            food_restrictions: result.restrictions
-          };
-        });
+        setGuestDetails(prev => prev ? { ...prev, food_restrictions: result.restrictions } : null);
       }
 
       await addAuditLog({
@@ -127,10 +104,8 @@ export function useGuestDetails() {
         description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`,
         businessId: businessId || undefined
       });
-
       return result;
     } catch (err) {
-      console.error('❌ useGuestDetails: Error saving restrictions:', err);
       setError(err instanceof Error ? err.message : 'Failed to save restrictions');
       throw err;
     } finally {
@@ -142,51 +117,32 @@ export function useGuestDetails() {
     bookingId: string,
     data: StayUpdateData
   ) => {
-    if (!bookingId) {
-      throw new Error('No booking ID provided');
-    }
-
-    console.log('📅 useGuestDetails: Updating stay details for:', bookingId);
-    console.log('📅 useGuestDetails: Data:', data);
+    if (!bookingId) throw new Error('No booking ID provided');
 
     setLoading(true);
     setError(null);
 
     try {
       const businessId = getBusinessId();
-      console.log('📅 useGuestDetails: Business ID:', businessId);
-
       const response = await fetch('/.netlify/functions/update-booking-stay', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId,
-          ...data,
-          business_id: businessId
-        })
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, ...data, business_id: businessId })
       });
-
-      console.log('📡 useGuestDetails: Update stay response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ useGuestDetails: Update stay error:', errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('✅ useGuestDetails: Update stay result:', result);
-
       if (result.success && result.booking) {
-        setGuestDetails(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            check_in_date: result.booking.check_in_date || prev.check_in_date,
-            check_out_date: result.booking.check_out_date || prev.check_out_date,
-            nights: result.booking.nights || prev.nights,
-          };
-        });
+        setGuestDetails(prev => prev ? {
+          ...prev,
+          check_in_date: result.booking.check_in_date || prev.check_in_date,
+          check_out_date: result.booking.check_out_date || prev.check_out_date,
+          nights: result.booking.nights || prev.nights,
+        } : null);
       }
 
       await addAuditLog({
@@ -196,10 +152,8 @@ export function useGuestDetails() {
         description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`,
         businessId: businessId || undefined
       });
-
       return result;
     } catch (err) {
-      console.error('❌ useGuestDetails: Error updating stay details:', err);
       setError(err instanceof Error ? err.message : 'Failed to update stay details');
       throw err;
     } finally {
@@ -221,11 +175,7 @@ export function useGuestDetails() {
 
       let businessId = logData.businessId || null;
       if (!businessId) businessId = getBusinessId();
-
-      if (!businessId) {
-        console.warn('⚠️ No business_id available for audit log, using fallback');
-        businessId = '00000000-0000-0000-0000-000000000000';
-      }
+      if (!businessId) businessId = '00000000-0000-0000-0000-000000000000';
 
       const auditLog = {
         business_id: businessId,
@@ -241,21 +191,13 @@ export function useGuestDetails() {
         user_agent: navigator.userAgent
       };
 
-      console.log('📝 Creating audit log from useGuestDetails:', auditLog);
-
       const response = await fetch('/.netlify/functions/create-audit-log', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(auditLog)
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Audit log created for:', logData.action, result);
-      } else {
-        const errorText = await response.text();
-        console.warn('⚠️ Failed to create audit log:', errorText);
-      }
+      if (response.ok) await response.json();
     } catch (err) {
       console.warn('⚠️ Audit log error (non-critical):', err);
     }
@@ -272,7 +214,6 @@ export function useGuestDetails() {
   };
 
   const resetGuestDetails = useCallback(() => {
-    console.log('🔄 useGuestDetails: Resetting guest details');
     setGuestDetails(null);
     setError(null);
     setLoading(false);
