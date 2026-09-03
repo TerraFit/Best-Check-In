@@ -47,10 +47,14 @@ function principalFromDecoded(decoded) {
   // when required, re-verified with the strict issuer/audience checks below.
   if (meta.role === ACTOR_TYPES.SUPER_ADMIN && decoded.role !== ACTOR_TYPES.SUPER_ADMIN) return null;
 
+  // Supabase service-role tokens are backend credentials, never human application identities.
+  // Reject them before considering any platform_role claim so a token cannot combine
+  // service_role with a valid platform role to bypass the service-role boundary.
+  if (decoded.role === 'service_role') return null;
+
   if (decoded.role === ACTOR_TYPES.SUPER_ADMIN) return { actorType:'super_admin', role:'super_admin', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, employeeId:null, permissions:platformPermissionsForRole('super_admin'), active:true };
   const platformRole = decoded.platform_role;
   if (typeof platformRole === 'string' && PLATFORM_ROLE_PERMISSIONS[platformRole]) return { actorType:'platform', role:platformRole, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, employeeId:null, permissions:platformPermissionsForRole(platformRole), active:decoded.active !== false };
-  if (decoded.role === 'service_role') return null;
   const businessId = meta.business_id || decoded.business_id || null;
   if (!businessId) return null;
   if (!meta.employee_id) return { actorType:'business', role:'business_owner', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId, employeeId:null, permissions:asPermissions(meta.permission_set || decoded.permission_set), active:meta.active !== false };
