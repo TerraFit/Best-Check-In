@@ -25,6 +25,10 @@ function mockFetch(ok = true) {
   return calls;
 }
 
+function newEmployeeBody(overrides = {}) {
+  return { full_name: 'New Employee', phone_number: '+27 82 123 4567', ...overrides };
+}
+
 test('staff escalation: employee cannot assign a higher role', async () => {
   const { handler } = await loadFunction();
   const result = await handler(event('PATCH', employeeToken(), { id: 'emp-2', staff_role: 'Manager' }));
@@ -61,8 +65,8 @@ test('staff escalation: employee may assign a lower role', async () => {
 
 test('staff escalation: employee may assign only a subset of own permissions', async () => {
   const calls = mockFetch();
-  const permissions = ['canManageStaff', 'canViewRooms'];
   const { handler } = await loadFunction();
+  const permissions = ['canManageStaff', 'canViewRooms'];
   const result = await handler(event('PATCH', employeeToken('Supervisor', permissions), { id: 'emp-2', permission_set: permissions }));
   assert.equal(result.statusCode, 200);
   assert.deepEqual(JSON.parse(calls[0].options.body).permission_set, permissions);
@@ -71,6 +75,24 @@ test('staff escalation: employee may assign only a subset of own permissions', a
 test('staff escalation: unsupported privileged role is rejected', async () => {
   const { handler } = await loadFunction();
   const result = await handler(event('PATCH', businessToken(), { id: 'emp-2', staff_role: 'super_admin' }));
+  assert.equal(result.statusCode, 403);
+});
+
+test('staff escalation: unsupported arbitrary role is rejected', async () => {
+  const { handler } = await loadFunction();
+  const result = await handler(event('PATCH', businessToken(), { id: 'emp-2', staff_role: 'not-a-real-role' }));
+  assert.equal(result.statusCode, 403);
+});
+
+test('staff escalation: employee cannot create a higher-role employee', async () => {
+  const { handler } = await loadFunction();
+  const result = await handler(event('POST', employeeToken(), newEmployeeBody({ staff_role: 'Manager' })));
+  assert.equal(result.statusCode, 403);
+});
+
+test('staff escalation: employee cannot create an employee with permissions they do not have', async () => {
+  const { handler } = await loadFunction();
+  const result = await handler(event('POST', employeeToken(), newEmployeeBody({ permission_set: ['canManageStaff', 'canManageSettings'] })));
   assert.equal(result.statusCode, 403);
 });
 
