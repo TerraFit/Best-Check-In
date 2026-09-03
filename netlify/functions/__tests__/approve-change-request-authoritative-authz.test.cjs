@@ -153,7 +153,7 @@ test('approve change request: invalid action is rejected', async () => {
 test('approve change request: malformed JSON is rejected', async () => {
   const { handler } = await loadFunction();
   const result = await handler(event(superAdminToken(), '{bad json'));
-  assert.equal(result.statusCode, 500);
+  assert.equal(result.statusCode, 400);
   assert.doesNotMatch(result.body, /SyntaxError|Unexpected token/);
 });
 
