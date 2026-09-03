@@ -1,6 +1,22 @@
 const superAdminAuth = require('./_superAdminAuth.cjs');
 const { requireSuperAdmin, authFailure } = superAdminAuth;
 
+const APPROVABLE_FIELDS = new Set([
+  'trading name',
+  'registered name',
+  'legal name',
+  'slogan',
+  'location',
+  'directors',
+  'email',
+  'secondary email',
+  'phone',
+  'mobile phone',
+  'secondary phone',
+  'website',
+  'postal address'
+]);
+
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -15,8 +31,15 @@ exports.handler = async function(event) {
   const auth = requireSuperAdmin(event);
   if (!auth.ok) return authFailure(auth, headers);
 
+  let requestBody;
   try {
-    const { requestId, action, reason } = JSON.parse(event.body || '{}');
+    requestBody = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+  }
+
+  try {
+    const { requestId, action, reason } = requestBody;
     if (!requestId || !action) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Request ID and action are required' }) };
     if (!['approve', 'reject'].includes(action)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Action must be "approve" or "reject"' }) };
 
@@ -34,9 +57,14 @@ exports.handler = async function(event) {
 
     if (action === 'approve') {
       const fieldName = String(changeRequest.field_name || '').trim();
+      const normalizedFieldName = fieldName.toLowerCase();
+      if (!APPROVABLE_FIELDS.has(normalizedFieldName)) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'This change request field cannot be approved' }) };
+      }
+
       const requestedValue = changeRequest.requested_value;
       let updateBusinessData = {};
-      switch (fieldName.toLowerCase()) {
+      switch (normalizedFieldName) {
         case 'trading name': updateBusinessData = { trading_name: requestedValue }; break;
         case 'registered name': updateBusinessData = { registered_name: requestedValue }; break;
         case 'legal name': updateBusinessData = { legal_name: requestedValue }; break;
@@ -61,9 +89,16 @@ exports.handler = async function(event) {
           break;
         }
         default: {
-          const fieldMap = { email:'email', 'secondary email':'secondary_email', phone:'phone', 'mobile phone':'mobile_phone', 'secondary phone':'secondary_phone', website:'website', 'postal address':'postal_address' };
-          const dbField = fieldMap[fieldName.toLowerCase()] || fieldName.toLowerCase().replace(/\s+/g, '_');
-          updateBusinessData = { [dbField]: requestedValue };
+          const fieldMap = {
+            email: 'email',
+            'secondary email': 'secondary_email',
+            phone: 'phone',
+            'mobile phone': 'mobile_phone',
+            'secondary phone': 'secondary_phone',
+            website: 'website',
+            'postal address': 'postal_address'
+          };
+          updateBusinessData = { [fieldMap[normalizedFieldName]]: requestedValue };
         }
       }
 
