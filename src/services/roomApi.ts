@@ -58,9 +58,13 @@ export async function updateRoom(
   businessId: string,
   updates: RoomUpdatePayload
 ): Promise<Room> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch('/.netlify/functions/update-room', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ roomId, businessId, ...updates }),
   });
   const data = await parseJson(res);
