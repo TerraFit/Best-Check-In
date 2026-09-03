@@ -19,6 +19,8 @@ function event(body, auth) {
 
 async function loadHandler() {
   process.env.SUPABASE_JWT_SECRET = SECRET;
+  process.env.SUPABASE_URL = 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
   delete require.cache[require.resolve(MODULE)];
   const mod = await import(require.resolve(MODULE));
   return mod.handler;
@@ -110,8 +112,8 @@ test('platform actor without businesses write permission is rejected', async () 
 
 test('authorized platform actor reaches data layer for requested tenant', async () => {
   const result = await withFetchMock((handler, calls) => handler(event({ businessId: 'biz-b', updates: { status: 'approved' } }, platformToken())).then((response) => ({ response, calls })));
-  assert.notEqual(result.response.statusCode, 401);
-  assert.notEqual(result.response.statusCode, 403);
+  assert.equal(result.response.statusCode, 200);
+  assert.equal(result.calls.length, 1);
   assert.match(result.calls[0].url, /id=eq\.biz-b/);
 });
 
