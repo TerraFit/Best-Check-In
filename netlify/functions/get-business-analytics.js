@@ -1,4 +1,6 @@
-const { ACTOR_TYPES, requirePlatformActor, requirePlatformPermission, authFailure } = require('./_auth.cjs');
+import auth from './_auth.cjs';
+
+const { ACTOR_TYPES, requirePlatformActor, requirePlatformPermission, authFailure } = auth;
 
 const headers = {
   'Content-Type': 'application/json',
