@@ -87,8 +87,11 @@ test('update business profile: employee without canManageSettings is rejected', 
 
 test('update business profile: authorized employee reaches the data layer', async () => {
   const token = employeeToken();
-  const response = await withFetchMock(okResponse(), () => handler(event(token)));
-  assert.equal(response.statusCode, 200);
+  await withFetchMock(okResponse(), async (calls) => {
+    const response = await handler(event(token));
+    assert.equal(response.statusCode, 200);
+    assert.equal(calls.length, 1);
+  });
 });
 
 test('update business profile: employee cannot substitute another tenant', async () => {
@@ -98,45 +101,54 @@ test('update business profile: employee cannot substitute another tenant', async
 });
 
 test('update business profile: business actor reaches only its own tenant', async () => {
-  const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
-  const response = await withFetchMock(okResponse(), () => handler(event(token)));
-  assert.equal(response.statusCode, 200);
+  const token = sign({
+    sub: 'owner-a',
+    email: 'owner-a@example.com',
+    user_metadata: { business_id: 'biz-a', permission_set: ['canManageSettings'] },
+  });
+  await withFetchMock(okResponse(), async (calls) => {
+    const response = await handler(event(token, { businessId: 'biz-a', trading_name: 'Owner Update' }));
+    assert.equal(response.statusCode, 200);
+    assert.match(calls[0][0], /businesses\?id=eq\.biz-a$/);
+  });
 });
 
 test('update business profile: business actor cannot substitute another tenant', async () => {
-  const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
+  const token = sign({
+    sub: 'owner-a',
+    email: 'owner-a@example.com',
+    user_metadata: { business_id: 'biz-a', permission_set: ['canManageSettings'] },
+  });
   const response = await handler(event(token, { businessId: 'biz-b', trading_name: 'Attack' }));
   assert.equal(response.statusCode, 403);
 });
 
 test('update business profile: service-role JWT is rejected', async () => {
-  const token = sign({ role: 'service_role', sub: 'service' });
+  const token = sign({ role: 'service_role', sub: 'service-role' });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('update business profile: metadata-only super_admin spoof is rejected', async () => {
   const token = sign({
-    sub: 'employee-1',
-    user_metadata: {
-      business_id: 'biz-a',
-      employee_id: 'emp-1',
-      role: 'super_admin',
-      permission_set: ['canManageSettings'],
-    },
+    sub: 'spoof',
+    user_metadata: { role: 'super_admin', business_id: 'biz-a', permission_set: ['canManageSettings'] },
   });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('update business profile: platform actor is rejected by business-actor gate', async () => {
-  const token = sign({ sub: 'platform-1', platform_role: 'platform_operations' });
+  const token = sign({
+    sub: 'platform-1',
+    platform_role: 'platform_analytics',
+  });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('update business profile: wrong HTTP method is rejected', async () => {
-  const response = await handler(event(null, { businessId: 'biz-a', trading_name: 'Updated Name' }, 'GET'));
+  const response = await handler(event(null, { businessId: 'biz-a', trading_name: 'Nope' }, 'GET'));
   assert.equal(response.statusCode, 405);
 });
 
@@ -179,6 +191,7 @@ test('update business profile: platform-controlled fields are filtered from the 
     assert.equal(sent.registered_name, undefined);
     assert.equal(sent.legal_name, undefined);
     assert.equal(typeof sent.updated_at, 'string');
+    return result;
   });
   assert.equal(response.statusCode, 200);
 });
@@ -212,26 +225,23 @@ test('update business profile: invalid JSON is rejected without data-layer acces
 
 test('update business profile: database errors are sanitized', async () => {
   const token = employeeToken();
-  const originalError = console.error;
-  console.error = () => {};
-  try {
-    const response = await withFetchMock(errorResponse(500, 'secret SQL/schema details'), () => handler(event(token)));
-    const body = JSON.parse(response.body);
+  await withFetchMock(errorResponse(500, 'SECRET database schema and credentials'), async () => {
+    const response = await handler(event(token));
     assert.equal(response.statusCode, 500);
-    assert.equal(body.error, 'Failed to update business profile');
-    assert.equal(body.details, undefined);
-    assert.equal(JSON.stringify(body).includes('secret SQL/schema details'), false);
-  } finally {
-    console.error = originalError;
-  }
+    assert.equal(response.body, JSON.stringify({ success: false, error: 'Failed to update business profile' }));
+    assert.doesNotMatch(response.body, /SECRET|schema|credentials/);
+  });
 });
 
 test('update business profile: successful response preserves expected success shape', async () => {
   const token = employeeToken();
-  const response = await withFetchMock(okResponse([{ id: 'biz-a', trading_name: 'Updated Name' }]), () => handler(event(token)));
-  const body = JSON.parse(response.body);
-  assert.equal(response.statusCode, 200);
-  assert.equal(body.success, true);
-  assert.equal(body.message, 'Profile updated successfully');
-  assert.deepEqual(body.updatedFields, ['trading_name', 'updated_at']);
+  await withFetchMock(okResponse([{ id: 'biz-a', trading_name: 'Updated Name' }]), async () => {
+    const response = await handler(event(token));
+    assert.equal(response.statusCode, 200);
+    const body = JSON.parse(response.body);
+    assert.equal(body.success, true);
+    assert.equal(body.message, 'Profile updated successfully');
+    assert.deepEqual(body.updatedFields, ['trading_name', 'updated_at']);
+    assert.equal(body.data.id, 'biz-a');
+  });
 });
