@@ -232,55 +232,56 @@ export const handler = async function(event) {
       };
     }
 
-    // Email uses only server-authoritative business/request data.
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <img src="https://fastcheckin.co.za/fastcheckin-logo.png" alt="FastCheckin" style="height: 50px;">
-          <h1 style="color: #f59e0b; margin: 20px 0 0;">Appeal Request Submitted</h1>
-        </div>
-        <p><strong>Business Name:</strong> ${business.trading_name}</p>
-        <p><strong>Business ID:</strong> ${business.id}</p>
-        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Field:</strong> ${changeRequest.field_name}</p>
-          <p><strong>Current Value:</strong> ${changeRequest.current_value || '(empty)'}</p>
-          <p><strong>Requested Value:</strong> ${changeRequest.requested_value}</p>
-          <p><strong>Original Request Reason:</strong> ${changeRequest.reason || 'Not provided'}</p>
-          <p><strong>Rejection Reason:</strong> ${changeRequest.rejection_reason || 'Not provided'}</p>
-        </div>
-        <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Appeal Message:</strong></p>
-          <p style="white-space: pre-wrap;">${String(appealMessage).trim()}</p>
-        </div>
-        ${safeAttachments.length > 0 ? `
-          <div style="margin: 20px 0;">
-            <p><strong>Attachments:</strong></p>
-            <ul>
-              ${safeAttachments.map(att => `<li><a href="${att?.url || ''}">${att?.name || 'Attachment'}</a></li>`).join('')}
-            </ul>
+    // Email delivery is optional operationally; it must not make a persisted appeal fail.
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <img src="https://fastcheckin.co.za/fastcheckin-logo.png" alt="FastCheckin" style="height: 50px;">
+              <h1 style="color: #f59e0b; margin: 20px 0 0;">Appeal Request Submitted</h1>
+            </div>
+            <p><strong>Business Name:</strong> ${business.trading_name}</p>
+            <p><strong>Business ID:</strong> ${business.id}</p>
+            <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>Field:</strong> ${changeRequest.field_name}</p>
+              <p><strong>Current Value:</strong> ${changeRequest.current_value || '(empty)'}</p>
+              <p><strong>Requested Value:</strong> ${changeRequest.requested_value}</p>
+              <p><strong>Original Request Reason:</strong> ${changeRequest.reason || 'Not provided'}</p>
+              <p><strong>Rejection Reason:</strong> ${changeRequest.rejection_reason || 'Not provided'}</p>
+            </div>
+            <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>Appeal Message:</strong></p>
+              <p style="white-space: pre-wrap;">${String(appealMessage).trim()}</p>
+            </div>
+            ${safeAttachments.length > 0 ? `
+              <div style="margin: 20px 0;">
+                <p><strong>Attachments:</strong></p>
+                <ul>
+                  ${safeAttachments.map(att => `<li><a href="${att?.url || ''}">${att?.name || 'Attachment'}</a></li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+            <p>Please review this appeal and take appropriate action in the Super Admin portal.</p>
+            <hr style="margin: 30px 0; border-color: #e5e7eb;">
+            <p style="font-size: 12px; color: #6b7280; text-align: center;">
+              FastCheckin - Seamless Check-in, Smarter Stay<br>
+              <a href="https://fastcheckin.co.za" style="color: #f59e0b;">www.fastcheckin.co.za</a>
+            </p>
           </div>
-        ` : ''}
-        <p>Please review this appeal and take appropriate action in the Super Admin portal.</p>
-        <hr style="margin: 30px 0; border-color: #e5e7eb;">
-        <p style="font-size: 12px; color: #6b7280; text-align: center;">
-          FastCheckin - Seamless Check-in, Smarter Stay<br>
-          <a href="https://fastcheckin.co.za" style="color: #f59e0b;">www.fastcheckin.co.za</a>
-        </p>
-      </div>
-    `;
+        `;
 
-    try {
-      await resend.emails.send({
-        from: 'FastCheckin <appeals@fastcheckin.co.za>',
-        to: ['inquiry@fastcheckin.co.za'],
-        cc: business.email ? [business.email] : [],
-        subject: `Appeal Request – ${business.trading_name} (ID: ${String(business.id).substring(0, 8)})`,
-        html: emailHtml
-      });
-    } catch (emailError) {
-      // Email delivery must not turn a successfully persisted appeal into a false failure.
-      console.error('Failed to send appeal email:', emailError);
+        await resend.emails.send({
+          from: 'FastCheckin <appeals@fastcheckin.co.za>',
+          to: ['inquiry@fastcheckin.co.za'],
+          cc: business.email ? [business.email] : [],
+          subject: `Appeal Request – ${business.trading_name} (ID: ${String(business.id).substring(0, 8)})`,
+          html: emailHtml
+        });
+      } catch (emailError) {
+        console.error('Failed to send appeal email:', emailError);
+      }
     }
 
     console.log('Appeal submitted successfully:', appeal.id);
