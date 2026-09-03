@@ -181,7 +181,7 @@ test('appeal: business owner is allowed and server derives authoritative request
   const result = await handler(event(businessToken(), baseBody));
   assert.equal(result.statusCode, 200);
   const inserted = calls.find(call => call.url.includes('/rest/v1/appeals'));
-  const payload = JSON.parse(inserted.options.body);
+  const payload = JSON.parse(inserted.options.body)[0];
   assert.equal(payload.business_id, 'biz-a');
   assert.equal(payload.business_name, 'Old Trading Name');
   assert.equal(payload.business_email, 'biz-a@example.com');
@@ -198,7 +198,7 @@ test('appeal: employee is tenant-bound and cannot override authoritative request
   const result = await handler(event(employeeToken(), { ...baseBody, businessName: 'ATTACKER', currentValue: 'ATTACKER', requestedValue: 'ATTACKER REQUEST' }));
   assert.equal(result.statusCode, 200);
   const inserted = calls.find(call => call.url.includes('/rest/v1/appeals'));
-  const payload = JSON.parse(inserted.options.body);
+  const payload = JSON.parse(inserted.options.body)[0];
   assert.equal(payload.business_id, 'biz-a');
   assert.equal(payload.business_name, 'Old Trading Name');
   assert.equal(payload.current_value, 'Old Trading Name');
