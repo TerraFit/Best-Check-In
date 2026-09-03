@@ -9,7 +9,7 @@ const PUBLIC_BRANDING_FIELDS = [
   'newsletter_share_text'
 ];
 
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Cache-Control': 'public, max-age=300',
