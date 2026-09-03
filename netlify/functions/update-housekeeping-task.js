@@ -1,22 +1,65 @@
 // netlify/functions/update-housekeeping-task.js
-// ESM-safe auth import and exports (package.json sets type:module).
-// Room readiness + RBAC by action
-// Phase 0: fail-closed JWT authentication and JWT-bound tenant scope.
+// Authoritative server-side authentication, authorization, and tenant binding.
 
-import auth from './_housekeepingServiceAuth.cjs';
+import auth from './_auth.cjs';
+import rbac from './_rbac.js';
 
-const {
-  authenticateHousekeepingServiceLive,
-  resolveBusinessId,
-  MANAGE_HIERARCHY,
-} = auth;
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
+const { resolvePermissions, normalizeRole } = rbac;
+
+const STATUS_PERMISSIONS = Object.freeze({
+  in_progress: 'canStartHousekeepingTask',
+  completed: 'canCompleteHousekeepingTask',
+  skipped: 'canCompleteHousekeepingTask',
+});
+
+const MANAGE_ROLES = new Set(['team_leader', 'supervisor', 'foreman', 'manager', 'general_manager', 'business_owner']);
+
+function principalPermissions(principal) {
+  return resolvePermissions({
+    actorType: principal?.actorType,
+    role: principal?.role,
+    permission_set: principal?.permissions,
+    permissions: principal?.permissions,
+    active: principal?.active,
+  });
+}
+
+function hasPermission(principal, permission) {
+  if (!principal) return false;
+  if (principal.actorType === 'business') return true;
+  return principalPermissions(principal).has(permission);
+}
 
 export function canOverrideTaskExecution(principal, task) {
   if (!principal || !task) return false;
-  if (principal.actorType === 'business' || principal.actorType === 'super_admin') return true;
-  if (MANAGE_HIERARCHY.has(principal.normalizedRole)) return true;
-  if (principal.permissions?.includes('canManageHousekeeping')) return true;
+  if (principal.actorType === 'business') return true;
+  const permissions = principalPermissions(principal);
+  const normalizedRole = normalizeRole(principal.role);
+  if (MANAGE_ROLES.has(normalizedRole)) return true;
+  if (permissions.has('canManageHousekeeping')) return true;
   return String(task.assigned_staff_id || '') === String(principal.employeeId || '');
+}
+
+async function verifyAssignedEmployee(businessId, employeeId) {
+  if (employeeId == null || employeeId === '') return { ok: true };
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !key) return { ok: false, status: 500, error: 'Server configuration error' };
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employeeId)}&business_id=eq.${encodeURIComponent(businessId)}&select=id,business_id,status`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } },
+    );
+    if (!res.ok) return { ok: false, status: 500, error: 'Unable to validate assigned employee' };
+    const row = (await res.json())[0];
+    if (!row) return { ok: false, status: 403, error: 'Assigned employee is outside the business scope' };
+    if (String(row.status || '').toLowerCase() === 'disabled') return { ok: false, status: 403, error: 'Assigned employee is disabled' };
+    return { ok: true };
+  } catch (error) {
+    console.error('assigned employee validation failed:', error?.message || error);
+    return { ok: false, status: 500, error: 'Unable to validate assigned employee' };
+  }
 }
 
 export const handler = async (event) => {
@@ -33,22 +76,41 @@ export const handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    }
+
     const {
       businessId: requestedBusinessId, taskId, status, notes,
-      assigned_staff_id, assigned_staff_name, inspection_status, completed_by,
+      assigned_staff_id, assigned_staff_name, inspection_status,
     } = body;
     if (!taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
+
+    const authResult = requireBusinessActor(event);
+    if (!authResult.ok) return authFailure(authResult, headers);
+    const principal = authResult.principal;
 
     let mode = 'view';
     if (status === 'in_progress' || status === 'completed' || status === 'skipped') mode = 'execute';
     else if (inspection_status === 'approved' || inspection_status === 'rejected') mode = 'manage';
     else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) mode = 'assign';
 
-    const gate = await authenticateHousekeepingServiceLive(event, mode);
-    if (!gate.ok) return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error, code: gate.code }) };
+    const permission = mode === 'execute'
+      ? STATUS_PERMISSIONS[status]
+      : mode === 'manage'
+        ? 'canApproveInspection'
+        : mode === 'assign'
+          ? 'canAssignHousekeepingTasks'
+          : 'canViewHousekeeping';
 
-    const scope = resolveBusinessId(gate.principal, requestedBusinessId || null);
+    if (!hasPermission(principal, permission)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${permission}` }) };
+    }
+
+    const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
 
@@ -64,26 +126,24 @@ export const handler = async (event) => {
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}&select=*`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } },
     );
-    if (!taskRes.ok) return { statusCode: taskRes.status, headers, body: JSON.stringify({ error: await taskRes.text() }) };
+    if (!taskRes.ok) {
+      console.error('housekeeping task lookup failed:', taskRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to load housekeeping task' }) };
+    }
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    // Execution status changes follow the same ownership boundary as the
-    // session-based start/progress/complete endpoints.
-    if (mode === 'execute' && !canOverrideTaskExecution(gate.principal, task)) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }),
-      };
+    if (mode === 'execute' && !canOverrideTaskExecution(principal, task)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
     }
 
     if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }),
-      };
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }) };
+    }
+
+    if (mode === 'assign' && assigned_staff_id !== undefined) {
+      const employeeCheck = await verifyAssignedEmployee(businessId, assigned_staff_id);
+      if (!employeeCheck.ok) return { statusCode: employeeCheck.status || 500, headers, body: JSON.stringify({ error: employeeCheck.error }) };
     }
 
     const patch = { updated_at: new Date().toISOString() };
@@ -95,7 +155,11 @@ export const handler = async (event) => {
     if (status === 'in_progress') patch.started_at = new Date().toISOString();
     if (status === 'completed') {
       patch.completed_at = new Date().toISOString();
-      if (completed_by) patch.completed_by = completed_by;
+      if (principal.actorType === 'employee') {
+        patch.completed_by = principal.employeeId;
+      } else if (principal.userId) {
+        patch.completed_by = principal.userId;
+      }
       if (!inspection_status) patch.inspection_status = 'pending';
     }
     if (inspection_status === 'approved' || inspection_status === 'rejected') {
@@ -109,7 +173,10 @@ export const handler = async (event) => {
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}`,
       { method: 'PATCH', headers: restHeaders, body: JSON.stringify(patch) },
     );
-    if (!updateRes.ok) return { statusCode: updateRes.status, headers, body: JSON.stringify({ error: await updateRes.text() }) };
+    if (!updateRes.ok) {
+      console.error('housekeeping task update failed:', updateRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to update housekeeping task' }) };
+    }
     const updated = await updateRes.json();
     const next = updated[0] || { ...task, ...patch };
 
@@ -150,6 +217,6 @@ export const handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, task: next, room_patch: roomPatch }) };
   } catch (error) {
     console.error('update-housekeeping-task fatal:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to update housekeeping task' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to update housekeeping task' }) };
   }
 };
