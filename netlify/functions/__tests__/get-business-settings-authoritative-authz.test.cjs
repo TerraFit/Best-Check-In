@@ -92,7 +92,7 @@ test('business settings: business actor cannot substitute another tenant', async
 test('business settings: service-role JWT is rejected', async () => {
   const token = sign({ role: 'service_role', sub: 'service' });
   const response = await handler(event(token));
-  assert.equal(response.statusCode, 401);
+  assert.equal(response.statusCode, 403);
 });
 
 test('business settings: metadata-only super_admin spoof is rejected', async () => {
@@ -106,7 +106,7 @@ test('business settings: metadata-only super_admin spoof is rejected', async () 
     },
   });
   const response = await handler(event(token));
-  assert.equal(response.statusCode, 401);
+  assert.equal(response.statusCode, 403);
 });
 
 test('business settings: platform actor is rejected by business-actor gate', async () => {
@@ -115,7 +115,7 @@ test('business settings: platform actor is rejected by business-actor gate', asy
     platform_role: 'platform_operations',
   });
   const response = await handler(event(token));
-  assert.equal(response.statusCode, 401);
+  assert.equal(response.statusCode, 403);
 });
 
 test('business settings: wrong HTTP method is rejected', async () => {
