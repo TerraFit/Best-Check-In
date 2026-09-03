@@ -41,6 +41,12 @@ function platformPermissionsForRole(role) { return Array.isArray(PLATFORM_ROLE_P
 function principalFromDecoded(decoded) {
   if (!decoded || typeof decoded !== 'object') return null;
   const meta = decoded.user_metadata || {};
+
+  // Reserved platform identities must never be asserted through mutable user metadata.
+  // A real SuperAdmin is recognized only from the signed top-level role claim and,
+  // when required, re-verified with the strict issuer/audience checks below.
+  if (meta.role === ACTOR_TYPES.SUPER_ADMIN && decoded.role !== ACTOR_TYPES.SUPER_ADMIN) return null;
+
   if (decoded.role === ACTOR_TYPES.SUPER_ADMIN) return { actorType:'super_admin', role:'super_admin', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, employeeId:null, permissions:platformPermissionsForRole('super_admin'), active:true };
   const platformRole = decoded.platform_role;
   if (typeof platformRole === 'string' && PLATFORM_ROLE_PERMISSIONS[platformRole]) return { actorType:'platform', role:platformRole, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, employeeId:null, permissions:platformPermissionsForRole(platformRole), active:decoded.active !== false };
