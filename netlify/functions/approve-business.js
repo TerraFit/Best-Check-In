@@ -13,29 +13,23 @@ export const handler = async function(event) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const auth = requireSuperAdmin(event);
   if (!auth.ok) return authFailure(auth, headers);
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
   if (!supabaseUrl || !supabaseKey) {
     console.error('Missing Supabase environment variables');
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error: Missing Supabase credentials' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
   }
 
   try {
     let businessId;
     try {
-      const body = JSON.parse(event.body);
+      const body = JSON.parse(event.body || '{}');
       businessId = body.businessId;
     } catch (parseError) {
       console.error('Failed to parse request body:', parseError);
@@ -45,13 +39,27 @@ export const handler = async function(event) {
     if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID is required' }) };
 
     console.log(`📝 Processing approval for business ID: ${businessId}`);
+    const encodedBusinessId = encodeURIComponent(String(businessId));
 
-    const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=*`, {
+    const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}&select=id,trading_name,email,status`, {
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
     });
-    const businesses = await fetchResponse.json();
-    const business = businesses?.[0];
 
+    if (!fetchResponse.ok) {
+      const errorText = await fetchResponse.text();
+      console.error('Business validation failed:', fetchResponse.status, errorText);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to validate business' }) };
+    }
+
+    let businesses;
+    try {
+      businesses = await fetchResponse.json();
+    } catch (jsonError) {
+      console.error('Business validation response was not valid JSON:', jsonError?.message || jsonError);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to validate business' }) };
+    }
+
+    const business = businesses?.[0];
     if (!business) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
     if (business.status === 'approved') return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business is already approved' }) };
     if (business.status !== 'pending') return { statusCode: 400, headers, body: JSON.stringify({ error: `Business cannot be approved from status: ${business.status}` }) };
@@ -61,32 +69,47 @@ export const handler = async function(event) {
     const verificationToken = uuidv4();
     const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
 
-    await fetch(`${supabaseUrl}/rest/v1/email_verifications`, {
+    const verificationResponse = await fetch(`${supabaseUrl}/rest/v1/email_verifications`, {
       method: 'POST',
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([{ token: verificationToken, business_id: businessId, email: business.email, expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() }])
+      body: JSON.stringify([{ token: verificationToken, business_id: business.id, email: business.email, expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() }])
     });
 
-    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}`, {
+    if (!verificationResponse.ok) {
+      const errorText = await verificationResponse.text();
+      console.error('Error creating email verification:', verificationResponse.status, errorText);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to prepare business approval' }) };
+    }
+
+    const now = new Date().toISOString();
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}`, {
       method: 'PATCH',
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify({ status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      body: JSON.stringify({ status: 'approved', approved_at: now, updated_at: now })
     });
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.error('Error updating business status:', errorText);
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to approve business', details: errorText }) };
+      console.error('Error updating business status:', updateResponse.status, errorText);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to approve business' }) };
     }
 
-    const updatedData = await updateResponse.json();
-    const updatedBusiness = updatedData[0];
+    let updatedData;
+    try {
+      updatedData = await updateResponse.json();
+    } catch (jsonError) {
+      console.error('Business update response was not valid JSON:', jsonError?.message || jsonError);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to finalize business approval' }) };
+    }
+
+    const updatedBusiness = updatedData?.[0];
+    if (!updatedBusiness) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to finalize business approval' }) };
+
     console.log(`✅ Business status updated to approved for: ${business.trading_name}`);
 
-    const checkInUrl = `https://fastcheckin.co.za/checkin/${businessId}`;
+    const checkInUrl = `https://fastcheckin.co.za/checkin/${business.id}`;
     let qrCodeDataUrl = null;
     let qrBuffer = null;
-
     try {
       qrCodeDataUrl = await QRCode.toDataURL(checkInUrl, { width: 400, margin: 2, color: { dark: '#f59e0b', light: '#ffffff' }, errorCorrectionLevel: 'H' });
       qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
@@ -117,8 +140,8 @@ export const handler = async function(event) {
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business approved successfully', business: { id: updatedBusiness.id, trading_name: updatedBusiness.trading_name, email: updatedBusiness.email, status: updatedBusiness.status }, checkInUrl, qrCode: qrCodeDataUrl, emailSent, verificationLink }) };
   } catch (error) {
-    console.error('Unhandled error in approve-business function:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', message: error.message }) };
+    console.error('Unhandled error in approve-business function:', error?.message || error);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };
 
