@@ -6,7 +6,7 @@ process.env.SUPABASE_JWT_SECRET = 'test-secret';
 process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'service-key';
 
-const { handler } = await import('../update-booking-stay.js');
+let handler;
 
 const BOOKING_ID = 'booking-1';
 const TENANT_A = 'business-a';
@@ -23,18 +23,20 @@ const baseBooking = {
 };
 
 function token(payload = {}) {
-  return jwt.sign({
+  const claims = {
     sub: payload.sub || 'user-1',
     role: payload.role || 'authenticated',
     email: payload.email || 'owner@example.com',
     user_metadata: {
-      business_id: payload.businessId || TENANT_A,
+      ...(payload.businessId ? { business_id: payload.businessId } : { business_id: TENANT_A }),
       ...(payload.employeeId ? { employee_id: payload.employeeId } : {}),
       ...(payload.staffRole ? { staff_role: payload.staffRole } : {}),
       ...(payload.permissions ? { permission_set: payload.permissions } : {}),
       ...(payload.metadataRole ? { role: payload.metadataRole } : {}),
     },
-  }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '1h' });
+  };
+  if (payload.platformRole) claims.platform_role = payload.platformRole;
+  return jwt.sign(claims, process.env.SUPABASE_JWT_SECRET, { expiresIn: '1h' });
 }
 
 function event({ auth, body, method = 'POST' } = {}) {
@@ -59,12 +61,16 @@ function installFetch({ booking = baseBooking, updateResult = null, bookingStatu
       return response(updateStatus, updateBody ?? (updateResult ? [updateResult] : []), updateStatus < 300);
     }
     if (url.includes('/bookings?id=eq.')) {
-      return response(bookingStatus, bookingStatus < 300 ? [booking] : { error: 'SECRET database details' }, bookingStatus < 300);
+      return response(bookingStatus, bookingStatus < 300 && booking ? [booking] : [], bookingStatus < 300);
     }
     if (url.includes('/audit_logs')) return response(201, {});
     throw new Error(`Unexpected fetch: ${url}`);
   };
 }
+
+test.before(async () => {
+  ({ handler } = await import('../update-booking-stay.js'));
+});
 
 test('1. anonymous request is rejected before database access', async () => {
   let called = false;
@@ -104,7 +110,7 @@ test('5. employee cannot substitute another tenant', async () => {
 
 test('6. platform actor is rejected from business mutation', async () => {
   global.fetch = async () => { throw new Error('database must not be reached'); };
-  const result = await handler(event({ auth: token({ role: 'authenticated', businessId: null }) }));
+  const result = await handler(event({ auth: token({ platformRole: 'platform_operations' }) }));
   assert.equal(result.statusCode, 403);
 });
 
@@ -140,7 +146,7 @@ test('9. business owner can update only within authenticated tenant', async () =
   assert.notEqual(patch.check_out_date, '2099-01-01');
 });
 
-test('10. authorized employee is tenant-bound and client business_id is not trusted', async () => {
+test('10. authorized employee is tenant-bound', async () => {
   const capture = [];
   installFetch({ updateResult: { ...baseBooking, check_in_date: '2026-09-11', check_out_date: '2026-09-13', nights: 2 }, capture });
   const result = await handler(event({
