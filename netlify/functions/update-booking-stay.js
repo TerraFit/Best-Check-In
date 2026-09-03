@@ -2,7 +2,8 @@
 // Stay dates are derived from check-in date + nights. Checkout is never a
 // user-controlled source of truth; it is recalculated whenever the stay changes.
 
-const jwt = require('jsonwebtoken');
+import auth from './_auth.cjs';
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates');
 
 export const handler = async (event) => {
@@ -16,22 +17,40 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
-  try {
-    const body = JSON.parse(event.body || '{}');
-    const { bookingId, check_in_date, nights, business_id } = body;
+  const authResult = requireBusinessActor(event);
+  if (!authResult.ok) return authFailure(authResult, headers);
 
+  if (!requireBusinessPermission(authResult.principal, 'canManageBookings')) {
+    return authFailure({ status: 403, error: 'Forbidden' }, headers);
+  }
+
+  try {
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    }
+
+    const { bookingId, check_in_date, nights, business_id } = body;
     if (!bookingId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID required' }) };
+
+    const tenant = resolveTenant(authResult.principal, business_id);
+    if (!tenant.ok) return authFailure(tenant, headers);
+    const businessId = tenant.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
 
+    const encodedBookingId = encodeURIComponent(bookingId);
+    const encodedBusinessId = encodeURIComponent(businessId);
     const currentResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id,check_in_date,check_out_date,nights`,
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${encodedBookingId}&business_id=eq.${encodedBusinessId}&select=id,guest_name,business_id,check_in_date,check_out_date,nights`,
       { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Accept': 'application/json' } }
     );
 
-    if (!currentResponse.ok) throw new Error(`Failed to fetch current booking: ${await currentResponse.text()}`);
+    if (!currentResponse.ok) throw new Error('Failed to fetch current booking');
     const currentData = await currentResponse.json();
     const currentBooking = currentData[0];
     if (!currentBooking) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
@@ -68,14 +87,11 @@ export const handler = async (event) => {
       changes.nights = { from: oldNights ?? 'not set', to: nextNights };
     }
 
-    // Checkout is always derived. Keep it synchronized even when only the
-    // booking is being repaired and the caller did not explicitly change dates.
     if (nextCheckOut !== currentBooking.check_out_date) {
       updateData.check_out_date = nextCheckOut;
       changes.check_out_date = { from: currentBooking.check_out_date || 'not set', to: nextCheckOut, derived_from: 'check_in_date + nights' };
     }
 
-    // A client-supplied checkout date is deliberately ignored.
     if (body.check_out_date && String(body.check_out_date).slice(0, 10) !== nextCheckOut) {
       console.warn('⚠️ Ignoring conflicting client checkout date:', body.check_out_date, '→', nextCheckOut);
     }
@@ -84,7 +100,7 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, booking: currentBooking, message: 'No changes needed' }) };
     }
 
-    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${encodedBookingId}&business_id=eq.${encodedBusinessId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -95,33 +111,18 @@ export const handler = async (event) => {
       body: JSON.stringify(updateData)
     });
 
-    if (!updateResponse.ok) throw new Error(`HTTP ${updateResponse.status}: ${await updateResponse.text()}`);
+    if (!updateResponse.ok) throw new Error('Failed to update booking stay');
     const result = await updateResponse.json();
     const updatedBooking = result[0];
+    if (!updatedBooking) throw new Error('Updated booking not returned');
 
     try {
-      const authHeader = event.headers.authorization || '';
-      let userId = '00000000-0000-0000-0000-000000000000';
-      let userName = 'System';
-      let userRole = 'owner';
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        if (token) {
-          const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-          userId = decoded.sub || userId;
-          userName = decoded.user_metadata?.full_name || decoded.user_metadata?.name || decoded.user_metadata?.business_name || 'System';
-          userRole = decoded.user_metadata?.role || 'owner';
-        }
-      } catch (tokenError) {
-        console.warn('Could not extract user from token:', tokenError.message);
-      }
-
       const guestName = currentBooking.guest_name || 'Unknown Guest';
       const auditLog = {
-        business_id: business_id || updatedBooking?.business_id || currentBooking.business_id,
-        user_id: userId,
-        user_name: userName,
-        user_role: userRole,
+        business_id: businessId,
+        user_id: authResult.principal.userId || '00000000-0000-0000-0000-000000000000',
+        user_name: authResult.principal.email || 'Unknown User',
+        user_role: authResult.principal.role || 'business_owner',
         action: 'UPDATE_STAY_DETAILS',
         details: changes,
         description: `Updated stay details for guest ${guestName}`,
@@ -137,7 +138,7 @@ export const handler = async (event) => {
         headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify([auditLog])
       });
-      if (!directResponse.ok) console.warn('⚠️ Audit log insert failed:', await directResponse.text());
+      if (!directResponse.ok) console.warn('⚠️ Audit log insert failed');
     } catch (auditError) {
       console.warn('⚠️ Audit log error (non-critical):', auditError);
     }
@@ -149,6 +150,6 @@ export const handler = async (event) => {
     };
   } catch (error) {
     console.error('❌ Error updating stay details:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message || 'Failed to update stay details' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to update stay details' }) };
   }
 };
