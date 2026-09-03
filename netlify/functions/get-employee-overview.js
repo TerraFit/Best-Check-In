@@ -1,6 +1,6 @@
 import auth from './_auth.cjs';
 
-const { requireBusinessActor, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 const headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, OPTIONS'};
 const response=(statusCode,body)=>({statusCode,headers,body:JSON.stringify(body)});
 function todayInSouthAfrica(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
@@ -10,6 +10,7 @@ export const handler=async(event)=>{
   const authResult=requireBusinessActor(event);
   if(!authResult.ok)return authFailure(authResult,headers);
   if(authResult.principal.actorType!=='employee')return authFailure({status:403,error:'Employee authorization required'},headers);
+  if(!requireBusinessPermission(authResult.principal,'canViewDashboard'))return authFailure({status:403,error:'Missing permission: canViewDashboard'},headers);
   const requestedBusinessId=event.queryStringParameters?.businessId||null;
   const tenant=resolveTenant(authResult.principal,requestedBusinessId);
   if(!tenant.ok)return authFailure(tenant,headers);
