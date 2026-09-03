@@ -1,8 +1,101 @@
 // netlify/functions/manage-employees.js
-// Canonical server-side authentication and tenant authorization.
+// Canonical server-side authentication, tenant authorization, and staff privilege boundaries.
 import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
+
+const ROLE_LEVELS = new Map([
+  ['Employee (Legacy)', 0],
+  ['EmployeeOverview', 0],
+  ['employee', 0],
+  ['front_desk', 0],
+  ['housekeeper', 0],
+  ['laundry_attendant', 0],
+  ['marketing', 0],
+  ['finance', 0],
+  ['night_auditor', 0],
+  ['security', 0],
+  ['custom', 0],
+  ['Team Leader', 1],
+  ['team_leader', 1],
+  ['Supervisor', 2],
+  ['supervisor', 2],
+  ['Foreman', 3],
+  ['foreman', 3],
+  ['maintenance', 0],
+  ['Manager', 4],
+  ['manager', 4],
+  ['general_manager', 4],
+  ['administration', 0],
+  ['Director', 5],
+  ['director', 5],
+]);
+
+const CANONICAL_ROLES = new Map([
+  ['Employee (Legacy)', 'Employee (Legacy)'], ['EmployeeOverview', 'Employee (Legacy)'], ['employee', 'Employee (Legacy)'],
+  ['front_desk', 'Employee (Legacy)'], ['housekeeper', 'Employee (Legacy)'], ['laundry_attendant', 'Employee (Legacy)'],
+  ['marketing', 'Employee (Legacy)'], ['finance', 'Employee (Legacy)'], ['night_auditor', 'Employee (Legacy)'],
+  ['security', 'Employee (Legacy)'], ['custom', 'Employee (Legacy)'],
+  ['Team Leader', 'Team Leader'], ['team_leader', 'Team Leader'],
+  ['Supervisor', 'Supervisor'], ['supervisor', 'Supervisor'],
+  ['Foreman', 'Foreman'], ['foreman', 'Foreman'],
+  ['Manager', 'Manager'], ['manager', 'Manager'], ['general_manager', 'Manager'],
+  ['Director', 'Director'], ['director', 'Director'],
+]);
+
+function normalizeRole(role) {
+  if (typeof role !== 'string' || !role.trim()) return 'Employee (Legacy)';
+  return CANONICAL_ROLES.get(role) || null;
+}
+
+function roleLevel(role) {
+  return ROLE_LEVELS.get(role) ?? null;
+}
+
+function validateStaffAuthority(principal, targetEmployeeId, requestedRole, requestedPermissions) {
+  const isEmployee = principal?.actorType === 'employee';
+  const isOwner = principal?.actorType === 'business';
+
+  if (!isEmployee && !isOwner) return { ok: false, status: 403, error: 'Forbidden' };
+
+  if (requestedRole !== undefined) {
+    const canonicalRequestedRole = normalizeRole(requestedRole);
+    if (!canonicalRequestedRole) return { ok: false, status: 403, error: 'Unsupported staff role' };
+
+    if (isEmployee) {
+      const actorRole = normalizeRole(principal.staffRole || principal.role);
+      const actorLevel = roleLevel(actorRole);
+      const requestedLevel = roleLevel(canonicalRequestedRole);
+      if (actorLevel === null || requestedLevel === null || requestedLevel >= actorLevel) {
+        return { ok: false, status: 403, error: 'Insufficient authority to assign this role' };
+      }
+      if (String(targetEmployeeId) === String(principal.employeeId)) {
+        return { ok: false, status: 403, error: 'Cannot change your own authority' };
+      }
+    }
+  }
+
+  if (requestedPermissions !== undefined) {
+    if (!Array.isArray(requestedPermissions)) {
+      return { ok: false, status: 403, error: 'Invalid permission set' };
+    }
+    if (isEmployee) {
+      const actorPermissions = Array.isArray(principal.permissions) ? principal.permissions : [];
+      if (!requestedPermissions.every((permission) => actorPermissions.includes(permission))) {
+        return { ok: false, status: 403, error: 'Cannot grant permissions you do not possess' };
+      }
+      if (String(targetEmployeeId) === String(principal.employeeId)) {
+        return { ok: false, status: 403, error: 'Cannot change your own authority' };
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
+function safeDatabaseFailure(headers, operation) {
+  return { statusCode: 500, headers, body: JSON.stringify({ error: `Failed to ${operation}` }) };
+}
 
 export const handler = async function (event) {
   const headers = {
@@ -39,7 +132,7 @@ export const handler = async function (event) {
       const response = await fetch(`${supabaseUrl}/rest/v1/employees?business_id=eq.${encodeURIComponent(businessId)}&select=*&order=created_at.desc`, {
         headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
       });
-      if (!response.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch employees' }) };
+      if (!response.ok) return safeDatabaseFailure(headers, 'fetch employees');
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: (await response.json()) || [] }) };
     }
 
@@ -50,10 +143,13 @@ export const handler = async function (event) {
       const cleanPhone = phone_number.replace(/\D/g, '');
       if (cleanPhone.length < 9) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Phone number must be at least 9 digits' }) };
       const resolvedRole = staff_role || role || 'front_desk';
+      const authority = validateStaffAuthority(authResult.principal, `new-${Date.now()}`, resolvedRole, permission_set);
+      if (!authority.ok) return authFailure(authority, headers);
+      const canonicalRole = normalizeRole(resolvedRole);
       const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
       const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + 7);
       const extras = Array.isArray(additional_departments) ? [...new Set(additional_departments.filter(Boolean))] : [];
-      const insertData = { business_id: businessId, full_name, phone_number: cleanPhone, role: resolvedRole, staff_role: resolvedRole, department: department || null, additional_departments: extras, permission_set: permission_set || null, status: 'Pending', active: true, invitation_token: invitationToken, invitation_expiry: expiryDate.toISOString(), invited_at: new Date().toISOString() };
+      const insertData = { business_id: businessId, full_name, phone_number: cleanPhone, role: canonicalRole, staff_role: canonicalRole, department: department || null, additional_departments: extras, permission_set: permission_set === undefined ? null : permission_set, status: 'Pending', active: true, invitation_token: invitationToken, invitation_expiry: expiryDate.toISOString(), invited_at: new Date().toISOString() };
       const insertResponse = await fetch(`${supabaseUrl}/rest/v1/employees`, {
         method: 'POST', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify([insertData])
       });
@@ -64,10 +160,10 @@ export const handler = async function (event) {
           const retry = await fetch(`${supabaseUrl}/rest/v1/employees`, {
             method: 'POST', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify([insertData])
           });
-          if (!retry.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: `Failed to create employee: ${await retry.text()}` }) };
+          if (!retry.ok) return safeDatabaseFailure(headers, 'create employee');
           const data = await retry.json(); return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data[0] }) };
         }
-        return { statusCode: 500, headers, body: JSON.stringify({ error: `Failed to create employee: ${errText}` }) };
+        return safeDatabaseFailure(headers, 'create employee');
       }
       const data = await insertResponse.json();
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data[0] }) };
@@ -77,13 +173,19 @@ export const handler = async function (event) {
       const body = JSON.parse(event.body || '{}');
       const { id, status, role, staff_role, department, additional_departments, full_name, phone_number, active, permission_set } = body;
       if (!id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Employee ID required' }) };
+      const requestedRole = staff_role !== undefined ? staff_role : role;
+      const authority = validateStaffAuthority(authResult.principal, id, requestedRole, permission_set);
+      if (!authority.ok) return authFailure(authority, headers);
       const updateData = { updated_at: new Date().toISOString() };
       if (status) updateData.status = status;
       if (active !== undefined) updateData.active = !!active;
       if (status === 'Disabled') updateData.active = false;
       if (status === 'Active') updateData.active = true;
-      if (role) { updateData.role = role; updateData.staff_role = role; }
-      if (staff_role) { updateData.staff_role = staff_role; updateData.role = staff_role; }
+      if (requestedRole !== undefined) {
+        const canonicalRole = normalizeRole(requestedRole);
+        updateData.role = canonicalRole;
+        updateData.staff_role = canonicalRole;
+      }
       if (department !== undefined) updateData.department = department;
       if (additional_departments !== undefined) updateData.additional_departments = Array.isArray(additional_departments) ? [...new Set(additional_departments.filter(Boolean))] : [];
       if (permission_set !== undefined) updateData.permission_set = permission_set;
@@ -92,7 +194,7 @@ export const handler = async function (event) {
       const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'PATCH', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(updateData)
       });
-      if (!response.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to update employee: ' + await response.text() }) };
+      if (!response.ok) return safeDatabaseFailure(headers, 'update employee');
       const data = await response.json(); return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data[0] }) };
     }
 
@@ -102,12 +204,12 @@ export const handler = async function (event) {
       const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'DELETE', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
       });
-      if (!response.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete employee' }) };
+      if (!response.ok) return safeDatabaseFailure(headers, 'delete employee');
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Employee deleted successfully' }) };
     }
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   } catch (error) {
     console.error('manage-employees fatal:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Internal server error' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };
