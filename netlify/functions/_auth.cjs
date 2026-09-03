@@ -42,14 +42,11 @@ function principalFromDecoded(decoded) {
   if (!decoded || typeof decoded !== 'object') return null;
   const meta = decoded.user_metadata || {};
 
-  // Reserved platform identities must never be asserted through mutable user metadata.
-  // A real SuperAdmin is recognized only from the signed top-level role claim and,
-  // when required, re-verified with the strict issuer/audience checks below.
+  // Reserved SuperAdmin identity markers may never be asserted through mutable metadata.
   if (meta.role === ACTOR_TYPES.SUPER_ADMIN && decoded.role !== ACTOR_TYPES.SUPER_ADMIN) return null;
+  if (meta.super_admin === true || meta.super_admin === 'true') return null;
 
   // Supabase service-role tokens are backend credentials, never human application identities.
-  // Reject them before considering any platform_role claim so a token cannot combine
-  // service_role with a valid platform role to bypass the service-role boundary.
   if (decoded.role === 'service_role') return null;
 
   if (decoded.role === ACTOR_TYPES.SUPER_ADMIN) return { actorType:'super_admin', role:'super_admin', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, employeeId:null, permissions:platformPermissionsForRole('super_admin'), active:true };
