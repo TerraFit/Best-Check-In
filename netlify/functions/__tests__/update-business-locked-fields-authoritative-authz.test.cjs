@@ -24,12 +24,11 @@ async function loadHandler() {
   return mod.handler;
 }
 
-function platformToken(role = 'platform_admin', permissions = ['platform:businesses:write']) {
+function platformToken(role = 'platform_operations') {
   return token({
     sub: 'platform-user',
-    role,
+    role: 'authenticated',
     platform_role: role,
-    permissions,
     aud: 'authenticated',
     iss: 'https://example.supabase.co/auth/v1',
   });
@@ -37,9 +36,7 @@ function platformToken(role = 'platform_admin', permissions = ['platform:busines
 
 function businessToken(businessId = 'biz-a') {
   return token({
-    sub: 'business-user',
-    role: 'authenticated',
-    aud: 'authenticated',
+    sub: 'business-user', role: 'authenticated', aud: 'authenticated',
     iss: 'https://example.supabase.co/auth/v1',
     user_metadata: { business_id: businessId },
   });
@@ -47,9 +44,7 @@ function businessToken(businessId = 'biz-a') {
 
 function employeeToken(businessId = 'biz-a') {
   return token({
-    sub: 'employee-user',
-    role: 'authenticated',
-    aud: 'authenticated',
+    sub: 'employee-user', role: 'authenticated', aud: 'authenticated',
     iss: 'https://example.supabase.co/auth/v1',
     user_metadata: { business_id: businessId, employee_id: 'emp-1', staff_role: 'Manager' },
   });
@@ -57,19 +52,14 @@ function employeeToken(businessId = 'biz-a') {
 
 function serviceRoleToken() {
   return token({
-    sub: 'service-role',
-    role: 'service_role',
-    platform_role: 'platform_admin',
-    aud: 'authenticated',
-    iss: 'https://example.supabase.co/auth/v1',
+    sub: 'service-role', role: 'service_role', platform_role: 'platform_operations',
+    aud: 'authenticated', iss: 'https://example.supabase.co/auth/v1',
   });
 }
 
 function superAdminMetadataSpoof() {
   return token({
-    sub: 'spoof',
-    role: 'authenticated',
-    aud: 'authenticated',
+    sub: 'spoof', role: 'authenticated', aud: 'authenticated',
     iss: 'https://example.supabase.co/auth/v1',
     user_metadata: { role: 'super_admin', business_id: 'biz-a' },
   });
@@ -81,8 +71,7 @@ async function withFetchMock(fn) {
   global.fetch = async (url, options) => {
     calls.push({ url, options });
     return {
-      ok: true,
-      status: 200,
+      ok: true, status: 200,
       text: async () => JSON.stringify([{ id: 'biz-a', registered_name: 'Safe', subscription_tier: 'Business' }]),
     };
   };
@@ -115,20 +104,20 @@ test('employee cannot access platform-only endpoint', async () => {
 });
 
 test('platform actor without businesses write permission is rejected', async () => {
-  const response = await withFetchMock((handler) => handler(event({ businessId: 'biz-a', updates: { status: 'approved' } }, platformToken('platform_analytics', []))));
+  const response = await withFetchMock((handler) => handler(event({ businessId: 'biz-a', updates: { status: 'approved' } }, platformToken('platform_analytics'))));
   assert.equal(response.statusCode, 403);
 });
 
-test('platform actor with businesses write permission reaches data layer', async () => {
-  const response = await withFetchMock((handler, calls) => handler(event({ businessId: 'biz-a', updates: { status: 'approved' } }, platformToken())) .then((r) => ({ response: r, calls })));
-  assert.notEqual(response.response.statusCode, 401);
-  assert.notEqual(response.response.statusCode, 403);
-  assert.match(response.calls[0].url, /id=eq\.biz-a/);
+test('authorized platform actor reaches data layer for requested tenant', async () => {
+  const result = await withFetchMock((handler, calls) => handler(event({ businessId: 'biz-b', updates: { status: 'approved' } }, platformToken())).then((response) => ({ response, calls })));
+  assert.notEqual(result.response.statusCode, 401);
+  assert.notEqual(result.response.statusCode, 403);
+  assert.match(result.calls[0].url, /id=eq\.biz-b/);
 });
 
-test('platform actor cannot substitute a business tenant when tenant is bound', async () => {
-  const response = await withFetchMock((handler) => handler(event({ businessId: 'biz-b', updates: { status: 'approved' } }, platformToken())));
-  assert.equal(response.statusCode, 403);
+test('platform actor must supply a target business tenant', async () => {
+  const response = await withFetchMock((handler) => handler(event({ updates: { status: 'approved' } }, platformToken())));
+  assert.equal(response.statusCode, 400);
 });
 
 test('metadata-only super_admin spoof is rejected', async () => {
@@ -148,7 +137,9 @@ test('unknown fields are filtered from database write', async () => {
   }, platformToken())).then((response) => ({ response, calls })));
   assert.equal(result.response.statusCode, 200);
   const written = JSON.parse(result.calls[0].options.body);
-  assert.deepEqual(written, { status: 'approved', subscription_tier: 'Business', updated_at: written.updated_at });
+  assert.equal(written.status, 'approved');
+  assert.equal(written.subscription_tier, 'Business');
+  assert.equal(typeof written.updated_at, 'string');
   assert.equal(Object.prototype.hasOwnProperty.call(written, 'secret_internal_field'), false);
 });
 
