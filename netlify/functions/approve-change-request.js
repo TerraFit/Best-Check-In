@@ -1,4 +1,4 @@
-const superAdminAuth = require('./_superAdminAuth.cjs');
+import superAdminAuth from './_superAdminAuth.cjs';
 const { requireSuperAdmin, authFailure } = superAdminAuth;
 
 const APPROVABLE_FIELDS = new Set([
@@ -17,7 +17,7 @@ const APPROVABLE_FIELDS = new Set([
   'postal address'
 ]);
 
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
