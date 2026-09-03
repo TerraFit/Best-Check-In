@@ -1,11 +1,22 @@
-const auth = require('./_auth.cjs');
+import auth from './_auth.cjs';
+
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
-const createResponse = (statusCode, body) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' }, body: JSON.stringify(body) });
+const createResponse = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+  },
+  body: JSON.stringify(body)
+});
+
 const cache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
   if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
 
