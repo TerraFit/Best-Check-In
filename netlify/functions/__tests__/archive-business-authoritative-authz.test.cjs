@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET = 'test-secret';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'service-key';
+process.env.SUPER_ADMIN_JWT_ISSUER = 'fastcheckin';
+process.env.SUPER_ADMIN_JWT_AUDIENCE = 'super-admin';
 
 function token(claims = {}) {
   return jwt.sign({
@@ -41,13 +43,23 @@ async function invoke({ auth, body, method, fetchImpl } = {}) {
   }
 }
 
-const superAdmin = token({ role: 'super_admin', user_metadata: {} });
+const superAdmin = token({
+  role: 'super_admin',
+  iss: process.env.SUPER_ADMIN_JWT_ISSUER,
+  aud: process.env.SUPER_ADMIN_JWT_AUDIENCE,
+  user_metadata: {},
+});
 const platform = token({ platform_role: 'platform_operations', user_metadata: {} });
 const business = token({ user_metadata: { business_id: 'biz-a' } });
 const employee = token({ user_metadata: { business_id: 'biz-a', employee_id: 'emp-1', staff_role: 'Manager' } });
 const spoofedSuperAdmin = token({ user_metadata: { business_id: 'biz-a', role: 'super_admin' } });
 const serviceRole = token({ role: 'service_role', platform_role: 'platform_operations', user_metadata: {} });
-const expired = jwt.sign({ sub: 'expired', role: 'super_admin', aud: 'authenticated', iss: 'https://example.supabase.co/auth/v1' }, process.env.SUPABASE_JWT_SECRET, { expiresIn: -1 });
+const expired = jwt.sign({
+  sub: 'expired',
+  role: 'super_admin',
+  aud: process.env.SUPER_ADMIN_JWT_AUDIENCE,
+  iss: process.env.SUPER_ADMIN_JWT_ISSUER,
+}, process.env.SUPABASE_JWT_SECRET, { expiresIn: -1 });
 
 const okFetch = async (url, options) => ({
   ok: true,
