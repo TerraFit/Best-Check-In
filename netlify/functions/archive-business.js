@@ -1,6 +1,8 @@
-const { requireSuperAdmin, authFailure } = require('./_superAdminAuth.cjs');
+import auth from './_auth.cjs';
 
-exports.handler = async function(event) {
+const { requireSuperAdmin, authFailure } = auth;
+
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -11,8 +13,8 @@ exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
-  const auth = requireSuperAdmin(event);
-  if (!auth.ok) return authFailure(auth, headers);
+  const authentication = requireSuperAdmin(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
 
   try {
     const { businessId } = JSON.parse(event.body || '{}');
