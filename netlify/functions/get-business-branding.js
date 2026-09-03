@@ -2,6 +2,13 @@
 // Public check-in branding endpoint. Keep this response strictly limited to
 // fields required to render the guest-facing check-in experience.
 
+const PUBLIC_BRANDING_FIELDS = [
+  'id', 'trading_name', 'logo_url', 'hero_image_url', 'slogan', 'welcome_message',
+  'primary_color', 'secondary_color', 'newsletter_enabled', 'newsletter_title',
+  'newsletter_prize', 'newsletter_cta', 'newsletter_terms', 'newsletter_draw_date',
+  'newsletter_share_text'
+];
+
 exports.handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -30,26 +37,7 @@ exports.handler = async function(event) {
 
     // IMPORTANT: this endpoint is intentionally public for QR check-in.
     // Never add private business/contact/subscription/director fields here.
-    const select = [
-      'id',
-      'trading_name',
-      'logo_url',
-      'hero_image_url',
-      'slogan',
-      'welcome_message',
-      'total_rooms',
-      'avg_price',
-      'primary_color',
-      'secondary_color',
-      'newsletter_enabled',
-      'newsletter_title',
-      'newsletter_prize',
-      'newsletter_cta',
-      'newsletter_terms',
-      'newsletter_draw_date',
-      'newsletter_share_text'
-    ].join(',');
-
+    const select = PUBLIC_BRANDING_FIELDS.join(',');
     const response = await fetch(
       `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=${select}`,
       {
@@ -73,7 +61,14 @@ exports.handler = async function(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify(business) };
+    // Defense in depth: never echo unexpected columns even if an upstream
+    // data source returns more fields than requested by the SELECT clause.
+    const publicBusiness = Object.fromEntries(
+      PUBLIC_BRANDING_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(business, field))
+        .map((field) => [field, business[field]])
+    );
+
+    return { statusCode: 200, headers, body: JSON.stringify(publicBusiness) };
   } catch (error) {
     console.error('Business branding function error:', error?.message || 'unknown error');
     return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Internal server error' }) };
