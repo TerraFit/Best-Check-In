@@ -3,8 +3,9 @@
 // user-controlled source of truth; it is recalculated whenever the stay changes.
 
 import auth from './_auth.cjs';
-import { calculateCheckOutDate, normalizeNights } from './lib/stayDates.js';
+import stayDates from './lib/stayDates.cjs';
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const { calculateCheckOutDate, normalizeNights } = stayDates;
 
 export const handler = async (event) => {
   const headers = {
