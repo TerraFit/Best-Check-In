@@ -3,8 +3,9 @@
 // user-controlled source of truth; it is recalculated whenever the stay changes.
 
 import auth from './_auth.cjs';
+import stayDates from './lib/stayDates.js';
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
-const { calculateCheckOutDate, normalizeNights } = require('./lib/stayDates');
+const { calculateCheckOutDate, normalizeNights } = stayDates;
 
 export const handler = async (event) => {
   const headers = {
@@ -19,7 +20,6 @@ export const handler = async (event) => {
 
   const authResult = requireBusinessActor(event);
   if (!authResult.ok) return authFailure(authResult, headers);
-
   if (!requireBusinessPermission(authResult.principal, 'canManageBookings')) {
     return authFailure({ status: 403, error: 'Forbidden' }, headers);
   }
