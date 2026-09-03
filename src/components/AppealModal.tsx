@@ -1,6 +1,5 @@
-// src/components/AppealModal.tsx
-
 import { useState, useRef } from 'react';
+import { getAuthToken } from '../utils/auth';
 import { t } from '../i18n'
 
 interface AppealModalProps {
@@ -64,9 +63,13 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
     }));
 
     try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const response = await fetch('/.netlify/functions/submit-appeal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           originalRequestId: request.id,
           businessId: business.id,
@@ -110,7 +113,6 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Email-style header */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
             <div className="flex">
               <span className="w-24 font-medium text-gray-600">{t('appeal_to')}:</span>
@@ -126,7 +128,6 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
             </div>
           </div>
 
-          {/* Pre-filled request details (read-only) */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-3">{t('appeal_original_details')}</h4>
             <div className="space-y-2 text-sm">
@@ -142,7 +143,6 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
             </div>
           </div>
 
-          {/* Appeal Message */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Appeal Message <span className="text-red-500">*</span>
@@ -157,7 +157,6 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
             />
           </div>
 
-          {/* Attachments */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Upload Supporting Documents (optional but recommended)
@@ -177,7 +176,7 @@ export default function AppealModal({ isOpen, onClose, request, business, onSubm
                 className="text-orange-500 hover:text-orange-600"
               >
                 <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <span className="text-sm">{t('appeal_upload_hint')}</span>
               </button>
