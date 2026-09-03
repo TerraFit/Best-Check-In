@@ -3,6 +3,8 @@
  * Pro+ — Analytics Snapshot PDF
  */
 
+import auth from './_auth.cjs';
+
 const headersJson = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
@@ -15,9 +17,9 @@ const {
   requireBusinessPermission,
   resolveTenant,
   authFailure,
-} = require('./_auth.cjs');
+} = auth;
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: headersJson, body: '' };
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers: headersJson, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
 
