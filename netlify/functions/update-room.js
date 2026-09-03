@@ -105,8 +105,12 @@ export const handler = async (event) => {
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      return { statusCode: response.status, headers, body: JSON.stringify({ error: err }) };
+      console.error('update-room data layer error:', response.status);
+      return {
+        statusCode: response.status >= 500 ? 500 : response.status,
+        headers,
+        body: JSON.stringify({ error: response.status >= 500 ? 'Failed to update room' : 'Room update rejected' }),
+      };
     }
 
     const result = await response.json();
