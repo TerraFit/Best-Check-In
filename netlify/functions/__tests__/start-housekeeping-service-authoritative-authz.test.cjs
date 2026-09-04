@@ -28,7 +28,7 @@ beforeEach(() => {
   global.fetch = async (url, options = {}) => {
     const u = String(url);
     calls.push({ url: u, options });
-    if (fail && u.includes(fail.match)) return response(fail.status, fail.body);
+    if (fail && u.includes(fail.match) && (!fail.method || fail.method === options.method)) return response(fail.status, fail.body);
     if (u.includes('/employees?')) return response(200, [{ id: 'emp-1', business_id: 'biz-1', status: 'Active' }]);
     if (u.includes('/housekeeping_tasks?id=eq.task-1')) return options.method === 'PATCH' ? response(200, [{ ...TASK, status: 'in_progress' }]) : response(200, [TASK]);
     if (u.includes('/rooms?id=eq.room-1')) return response(200, [ROOM]);
@@ -65,9 +65,9 @@ test('housekeeper cannot start another employee task', async () => { const r = a
 test('manager may override task assignment', async () => { const r = await handler(event(manager(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 200); });
 test('employee cannot substitute another tenant', async () => { const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh', businessId: 'biz-2' })); assert.equal(r.statusCode, 403); });
 test('malformed JSON is rejected before database access', async () => { const r = await handler(event(housekeeper(), '{not-json')); assert.equal(r.statusCode, 400); assert.equal(calls.length, 0); });
-test('task lookup failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', status: 500, body: 'SECRET_DATABASE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_DATABASE_DETAILS')); });
+test('task lookup failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', method: undefined, status: 500, body: 'SECRET_DATABASE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_DATABASE_DETAILS')); });
 test('room lookup failure is sanitized', async () => { fail = { match: '/rooms?id=eq.room-1', status: 500, body: 'SECRET_ROOM_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_ROOM_DETAILS')); });
 test('session creation failure is sanitized', async () => { fail = { match: '/housekeeping_service_sessions', status: 500, body: 'SECRET_SESSION_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_SESSION_DETAILS')); });
-test('task transition failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', status: 500, body: 'SECRET_TASK_UPDATE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_TASK_UPDATE_DETAILS')); });
+test('task transition failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', method: 'PATCH', status: 500, body: 'SECRET_TASK_UPDATE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_TASK_UPDATE_DETAILS')); });
 test('wrong HTTP method is rejected', async () => { const r = await handler(event(null, {}, 'GET')); assert.equal(r.statusCode, 405); });
 test('OPTIONS remains public preflight', async () => { const r = await handler(event(null, {}, 'OPTIONS')); assert.equal(r.statusCode, 204); });
