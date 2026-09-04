@@ -1,14 +1,14 @@
 // netlify/functions/export-official-register.js
 // Programme 1: backend feature gate for official_register_export (Pro+)
-// Phase 0: fail-closed JWT authentication and JWT-bound tenant scope.
+// P0: canonical JWT authentication and JWT-bound tenant scope.
 // Official register is a sensitive export: business owners and SuperAdmins only.
 
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import auth from './_housekeepingServiceAuth.cjs';
+import auth from './_auth.cjs';
 import { assertFeatureAccess } from './lib/featureAccess.js';
 
-const { authenticateHousekeepingService, resolveBusinessId } = auth;
+const { authenticateRequest, resolveTenant, authFailure } = auth;
 
 export const handler = async (event) => {
   const headers = {
@@ -26,19 +26,17 @@ export const handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
+  const authentication = authenticateRequest(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+
+  const principal = authentication.principal;
+  // This export contains ID/passport data and other statutory guest PII.
+  // Do not allow ordinary employees or platform roles to reach the export.
+  if (principal.actorType !== 'business' && principal.actorType !== 'super_admin') {
+    return authFailure({ status: 403, error: 'Official register export requires business-owner authorization' }, headers);
+  }
+
   try {
-    const gate = authenticateHousekeepingService(event, 'manage');
-    if (!gate.ok) {
-      return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error, code: gate.code }) };
-    }
-
-    const principal = gate.principal;
-    // This export contains ID/passport data and other statutory guest PII.
-    // Do not allow ordinary employees to reach the password or booking lookup.
-    if (principal.actorType !== 'business' && principal.actorType !== 'super_admin') {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Official register export requires business-owner authorization' }) };
-    }
-
     let body;
     try {
       body = JSON.parse(event.body || '{}');
@@ -47,10 +45,8 @@ export const handler = async (event) => {
     }
 
     const { businessId: requestedBusinessId, request, authorization } = body;
-    const scope = resolveBusinessId(principal, requestedBusinessId || null);
-    if (!scope.ok) {
-      return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
-    }
+    const scope = resolveTenant(principal, requestedBusinessId || undefined);
+    if (!scope.ok) return authFailure(scope, headers);
     const businessId = scope.businessId;
 
     if (!authorization?.password || authorization.acceptTerms !== true) {
@@ -93,12 +89,9 @@ export const handler = async (event) => {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid password' }) };
     }
 
-    const actorMeta = principal.actorType === 'super_admin' ? {} : principal;
-    const userId = principal.actorType === 'super_admin'
-      ? (principal.employeeId || 'super_admin')
-      : (principal.employeeId || 'business_owner');
+    const userId = principal.actorType === 'super_admin' ? (principal.userId || 'super_admin') : (principal.userId || 'business_owner');
     const userRole = principal.actorType === 'super_admin' ? 'super_admin' : 'owner';
-    const userName = principal.employeeName || 'Business Owner';
+    const userName = principal.email || (principal.actorType === 'super_admin' ? 'Super Admin' : 'Business Owner');
 
     const queryParts = [
       `business_id=eq.${encodeURIComponent(businessId)}`,
