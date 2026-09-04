@@ -8,6 +8,7 @@ const headers = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+const COLLECTABLE_STATUSES = new Set(['guest_contacted', 'guest_replied', 'collection_arranged', 'courier_booked']);
 
 async function audit(u, k, e) {
   try {
@@ -35,6 +36,14 @@ export const handler = async (event) => {
     const sh = { apikey: k, Authorization: `Bearer ${k}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const base = `${u}/rest/v1/lost_and_found?id=eq.${encodeURIComponent(itemId)}&business_id=eq.${encodeURIComponent(t.businessId)}`;
     const actorId = a.principal.employeeId || a.principal.userId || null, actorName = a.principal.email || null;
+
+    const curRes = await fetch(`${base}&select=id,status,updated_at,tag_number,booking_id`, { headers: sh });
+    if (!curRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to load Lost & Found item' }) };
+    const currentRows = await curRes.json();
+    if (!currentRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Item not found' }) };
+    const current = currentRows[0];
+    if (!COLLECTABLE_STATUSES.has(current.status)) return { statusCode: 409, headers, body: JSON.stringify({ error: 'Lost & Found item is not ready for collection' }) };
+
     const updates = {
       status: 'collected', returned_at: now, returned_to: collectedByName, collected_by_name: collectedByName,
       collected_by_id_number: b.collected_by_id_number || b.collectedByIdNumber || null,
@@ -42,15 +51,17 @@ export const handler = async (event) => {
       released_by_staff_id: actorId, released_by_staff_name: actorName,
       updated_at: now,
     };
-    const pr = await fetch(`${base}&status=neq.collected&status=neq.archived`, { method: 'PATCH', headers: sh, body: JSON.stringify(updates) });
-    if (!pr.ok) return { statusCode: pr.status === 404 ? 409 : 500, headers, body: JSON.stringify({ error: 'Failed to record Lost & Found collection' }) };
-    const item = (await pr.json())[0];
-    if (!item) return { statusCode: 409, headers, body: JSON.stringify({ error: 'Item was already collected or archived' }) };
+    const pr = await fetch(`${base}&status=eq.${encodeURIComponent(current.status)}&updated_at=eq.${encodeURIComponent(current.updated_at)}`, { method: 'PATCH', headers: sh, body: JSON.stringify(updates) });
+    if (!pr.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to record Lost & Found collection' }) };
+    const rows = await pr.json();
+    if (!rows.length) return { statusCode: 409, headers, body: JSON.stringify({ error: 'Lost & Found item changed before collection could be recorded' }) };
+    const item = rows[0];
+
     const when = new Date(now);
     const dateStr = when.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr = when.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
     const notes = `Returned to guest\nCollected by: ${collectedByName}\n` + (updates.collected_by_id_number ? `ID: ${updates.collected_by_id_number}\n` : '') + `Released by: ${actorName || 'Staff'}\n${dateStr}\n${timeStr}`;
-    await fetch(`${u}/rest/v1/lost_and_found_activity`, { method: 'POST', headers: sh, body: JSON.stringify([{ business_id: t.businessId, item_id: itemId, event_type: 'collected', employee_id: actorId, employee_name: actorName, from_status: null, to_status: 'collected', notes, details: { collected_by_name: collectedByName, collected_by_id_number: updates.collected_by_id_number, has_signature: !!updates.collection_signature_url } }]) });
+    await fetch(`${u}/rest/v1/lost_and_found_activity`, { method: 'POST', headers: sh, body: JSON.stringify([{ business_id: t.businessId, item_id: itemId, event_type: 'collected', employee_id: actorId, employee_name: actorName, from_status: current.status, to_status: 'collected', notes, details: { collected_by_name: collectedByName, collected_by_id_number: updates.collected_by_id_number, has_signature: !!updates.collection_signature_url } }]) });
     await audit(u, k, {
       business_id: t.businessId, user_id: actorId || '00000000-0000-0000-0000-000000000000',
       user_name: actorName || 'System', user_role: a.principal.role, action: 'lost_found_collected',
