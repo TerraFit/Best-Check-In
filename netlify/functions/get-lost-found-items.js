@@ -22,10 +22,8 @@ export const handler = async (event) => {
     const r = await fetch(`${url}/rest/v1/lost_and_found?${filter}&select=*&order=found_date.desc,created_at.desc&limit=${lim}`, { headers: sh });
     if (!r.ok) { console.error('get-lost-found-items query failed:', r.status); return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch Lost & Found items' }) }; }
     const items = await r.json();
-    for (const item of items) {
-      if (Array.isArray(item.photo_urls) && item.photo_urls.length) item.photo_urls = await signStoragePaths(url, key, businessId, item.photo_urls);
-      if (item.collection_signature_url) item.collection_signature_url = await signStoragePaths(url, key, businessId, item.collection_signature_url);
-    }
+    // The list only needs a thumbnail. Full media is signed by the detail endpoint.
+    for (const item of items) if (Array.isArray(item.photo_urls) && item.photo_urls.length) item.photo_urls = await signStoragePaths(url, key, businessId, [item.photo_urls[0]]);
     const sr = await fetch(`${url}/rest/v1/lost_and_found?business_id=eq.${encodeURIComponent(businessId)}&select=id,status,found_date,returned_at,created_at,photo_urls`, { headers: sh });
     if (!sr.ok) { console.error('get-lost-found-items stats query failed:', sr.status); return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to calculate Lost & Found statistics' }) }; }
     const all = await sr.json();
