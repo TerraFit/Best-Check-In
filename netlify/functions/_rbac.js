@@ -1,9 +1,11 @@
 // netlify/functions/_rbac.js
 // Authorization policy/role matrix. Authentication and tenant identity are
 // delegated to the canonical server-side auth foundation in _auth.cjs.
-const { authenticateRequest } = require('./_auth.cjs');
+import auth from './_auth.cjs';
 
-const ALL = [
+const { authenticateRequest } = auth;
+
+export const ALL = [
   'canViewDashboard','canViewGuestDetails','canViewGuestLimited','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule','canAssignHousekeepingTasks','canViewHousekeepingReports','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewLaundryReports','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewLostFound','canCreateLostFound','canEditLostFound','canDisposeLostFound','canViewLostFoundReports','canViewOperationalReports','canViewFinancialReports','canViewMarketingReports','canViewGuestReports','canViewAuditReports','canExportReports','canManageMarketing','canManageStaff','canManageSettings','canViewAuditLog','canApproveRoomChanges','canAccessStaffPortal',
   'canViewPlatformAnalytics','canViewOriginAnalytics','canViewEstablishmentPerformance',
 ];
@@ -19,7 +21,7 @@ function expandLegacy(set) {
 
 const HK_WORKER = ['canViewDashboard','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
 const HK_LEAD = HK_WORKER.concat(['canApproveInspection','canAssignHousekeepingTasks','canGenerateHousekeepingSchedule','canViewHousekeepingReports','canEditLostFound','canViewRooms']);
-const ROLE_DEFAULTS = {
+export const ROLE_DEFAULTS = {
   super_admin: ALL,
   business_owner: ALL,
   general_manager: ALL,
@@ -38,14 +40,14 @@ const ROLE_DEFAULTS = {
   EmployeeOverview: ['canViewDashboard','canViewGuestDetails','canManageBookings'],
 };
 
-function normalizeRole(role) {
+export function normalizeRole(role) {
   if (!role) return 'EmployeeOverview';
   if (ROLE_DEFAULTS[role]) return role;
   const aliases = { owner:'business_owner', business:'business_owner', gm:'general_manager', receptionist:'front_desk', reception:'front_desk', hk:'housekeeper', housekeeping:'housekeeper' };
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
+export function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
   if (active === false) return new Set();
   if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
   if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
@@ -59,16 +61,16 @@ function resolvePermissions({ actorType, role, permission_set, permissions, acti
   return expandLegacy(base);
 }
 
-function requirePermission(principal, permission) {
+export function requirePermission(principal, permission) {
   const set = resolvePermissions(principal || {});
   if (set.has(permission)) return true;
   if (['canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule'].includes(permission) && set.has('canManageHousekeeping')) return true;
   return false;
 }
 
-function requireAnyPermission(principal, permissions) { return (permissions || []).some((p) => requirePermission(principal, p)); }
+export function requireAnyPermission(principal, permissions) { return (permissions || []).some((p) => requirePermission(principal, p)); }
 
-function principalFromJwt(decoded) {
+export function principalFromJwt(decoded) {
   const meta = (decoded && decoded.user_metadata) || {};
   if ((decoded && decoded.role) === 'service_role') return null;
   const explicitSuperAdmin = decoded?.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true';
@@ -77,13 +79,11 @@ function principalFromJwt(decoded) {
   return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false, businessId:meta.business_id || null, employeeId:meta.employee_id || decoded.sub || null, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
 }
 
-function assertPermission(event, permission) {
-  const auth = authenticateRequest(event);
-  if (!auth.ok) return auth;
-  const principal = principalFromJwt(auth.decoded);
+export function assertPermission(event, permission) {
+  const authResult = authenticateRequest(event);
+  if (!authResult.ok) return authResult;
+  const principal = principalFromJwt(authResult.decoded);
   if (!principal) return { ok:false, status:401, error:'Invalid application identity' };
   if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
   return { ok:true, principal };
 }
-
-module.exports = { ALL, ROLE_DEFAULTS, normalizeRole, resolvePermissions, requirePermission, requireAnyPermission, principalFromJwt, assertPermission };
