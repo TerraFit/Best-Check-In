@@ -99,7 +99,7 @@ export const handler = async function (event) {
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Failed to fetch audit logs',
+        error: 'Failed to fetch audit logs',
       }),
     };
   }
