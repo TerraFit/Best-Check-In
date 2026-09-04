@@ -21,8 +21,8 @@ export const handler = async (event) => {
   try {
     const actor = requireBusinessActor(event);
     if (!actor.ok) return authFailure(actor, headers);
-    if (!requireBusinessPermission(actor.principal, 'canViewRooms')) {
-      return authFailure({ status: 403, error: 'Missing permission: canViewRooms' }, headers);
+    if (!requireBusinessPermission(actor.principal, 'canApproveRoomChanges')) {
+      return authFailure({ status: 403, error: 'Missing permission: canApproveRoomChanges' }, headers);
     }
 
     const body = JSON.parse(event.body || '{}');
