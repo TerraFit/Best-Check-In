@@ -127,12 +127,25 @@ export const handler = async (event) => {
       if (businesses?.[0]?.trading_name) businessName = businesses[0].trading_name;
     }
 
+    // Defense in depth: the response allowlist must hold even if the data layer
+    // ever returns more fields than the explicit REST projection above.
+    const safeEmployee = {
+      id: employee.id,
+      business_id: employee.business_id,
+      full_name: employee.full_name,
+      phone_number: employee.phone_number,
+      role: employee.role,
+      status: employee.status,
+      invitation_expiry: employee.invitation_expiry,
+      invited_at: employee.invited_at
+    };
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        employee,
+        employee: safeEmployee,
         businessName
       })
     };
