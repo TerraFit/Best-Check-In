@@ -68,8 +68,9 @@ test('update password: token consumption is conditional and occurs before passwo
     assert.ok(businessPatch);
     assert.match(resetPatch.url, /id=eq\.reset-1/);
     assert.match(resetPatch.url, /used_at=is\.null/);
-    assert.deepEqual(JSON.parse(resetPatch.options.body), { used_at: assert.match ? JSON.parse(resetPatch.options.body).used_at && JSON.parse(resetPatch.options.body) : null });
-    assert.ok(new Date(JSON.parse(resetPatch.options.body).used_at).getTime() > 0);
+    const resetPatchBody = JSON.parse(resetPatch.options.body);
+    assert.equal(Object.keys(resetPatchBody).length, 1);
+    assert.ok(new Date(resetPatchBody.used_at).getTime() > 0);
     assert.ok(calls.indexOf(resetPatch) < calls.indexOf(businessPatch));
     assert.match(businessPatch.url, /id=eq\.biz-a/);
     assert.equal(JSON.parse(result.body).success, true);
