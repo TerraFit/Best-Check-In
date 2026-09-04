@@ -3,23 +3,22 @@
 // Authorization and tenant identity are authoritative on the server.
 
 import auth from './_auth.cjs';
+import rbac from './_rbac.cjs';
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 
 const DEFAULT_TARGETS = { refresh: 45, full_service: 60, deep_cleaning: 120, mattress_flip_air: 30, checkout_inspection: 10 };
 const MANAGEMENT_ROLES = new Set(['team leader', 'supervisor', 'foreman', 'manager', 'director', 'general manager', 'business owner']);
 
 function hasStartPermission(principal) {
-  if (!principal) return false;
-  if (principal.actorType === 'business') return true;
-  return requireBusinessPermission(principal, 'canStartHousekeepingTask');
+  return !!principal && rbac.requirePermission(principal, 'canStartHousekeepingTask');
 }
 
 function isManagement(principal) {
   if (!principal || principal.actorType === 'business') return true;
   const role = String(principal.role || '').trim().toLowerCase();
-  const permissions = Array.isArray(principal.permissions) ? principal.permissions : [];
-  return MANAGEMENT_ROLES.has(role) || permissions.includes('canManageHousekeeping');
+  const permissions = rbac.resolvePermissions(principal);
+  return MANAGEMENT_ROLES.has(role) || permissions.has('canManageHousekeeping') || permissions.has('canAssignHousekeepingTasks');
 }
 
 async function assertEmployeeActive(principal, headers) {
