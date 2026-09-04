@@ -19,7 +19,7 @@ function token({ sub = 'user-1', role = 'authenticated', businessId = 'biz-1', e
 function event(jwtToken, body = {}, method = 'POST') { return { httpMethod: method, headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}, body: typeof body === 'string' ? body : JSON.stringify(body) }; }
 function response(status, data = []) { return { ok: status >= 200 && status < 300, status, async json() { return data; }, async text() { return typeof data === 'string' ? data : JSON.stringify(data); } }; }
 
-before(async () => { ({ handler } = await import('../update-housekeeping-service-progress.js?test=update-housekeeping-service-progress-authz')); });
+before(async () => { ({ handler } = await import('../update-housekeeping-service-progress.js?test=update-housekeeping-service-progress-authz-v2')); });
 beforeEach(() => {
   calls = [];
   fail = null;
@@ -62,7 +62,7 @@ test('business owner may update own-tenant session', async () => { const r = awa
 test('assigned housekeeper may update own session', async () => { const r = await handler(event(housekeeper(), body)); assert.equal(r.statusCode, 200); });
 test('housekeeper cannot update another employee session', async () => { const r = await handler(event(otherEmployee(), body)); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('manager may override executor assignment', async () => { const r = await handler(event(manager(), body)); assert.equal(r.statusCode, 200); });
-test('explicit completion permission permits progress update for another executor', async () => { const r = await handler(event(explicitPermission(), body)); assert.equal(r.statusCode, 200); });
+test('explicit completion permission does not permit cross-session progress update', async () => { const r = await handler(event(explicitPermission(), body)); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('employee cannot substitute another tenant', async () => { const r = await handler(event(housekeeper(), { ...body, businessId: 'biz-2' })); assert.equal(r.statusCode, 403); assert.equal(calls.length, 1); });
 test('malformed JSON is rejected before authentication and database access', async () => { const r = await handler(event(housekeeper(), '{not-json')); assert.equal(r.statusCode, 400); assert.equal(calls.length, 0); });
 test('missing sessionId is rejected', async () => { const r = await handler(event(housekeeper(), { checklistState: {} })); assert.equal(r.statusCode, 400); assert.equal(calls.filter((c) => c.url.includes('housekeeping_service_sessions')).length, 0); });
