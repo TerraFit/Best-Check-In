@@ -29,8 +29,10 @@ export const handler = async function(event) {
     const notificationId = typeof body.notificationId === 'string' ? body.notificationId.trim() : '';
     if (!notificationId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Notification ID required' }) };
 
-    const targetUserType = isPlatform ? 'admin' : 'business';
-    const targetUserId = isPlatform ? principal.userId : principal.businessId;
+    // Bind the mutation to the same notification identity used by get/mark-read.
+    // Employees must never be able to mutate a business owner's notification.
+    const targetUserType = isPlatform ? 'admin' : (principal.actorType === 'employee' ? 'employee' : 'business');
+    const targetUserId = isPlatform ? principal.userId : (principal.actorType === 'employee' ? principal.employeeId : principal.businessId);
     if (!targetUserId) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden' }) };
 
     const supabaseUrl = process.env.SUPABASE_URL;
