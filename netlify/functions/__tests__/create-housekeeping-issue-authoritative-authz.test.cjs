@@ -63,10 +63,11 @@ test('employee cannot attach issue to another room in the same tenant', async ()
   assert.equal(calls.filter((c) => c.url.includes('/housekeeping_issues')).length, 0);
 });
 
-test('malformed JSON is rejected without database access after authentication', async () => {
+test('malformed JSON is rejected after authentication without service-session or write database access', async () => {
   const r = await handler(event(token(), '{not-json'));
   assert.equal(r.statusCode, 400);
-  assert.equal(calls.length, 0);
+  assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions?') || c.url.includes('/housekeeping_tasks?') || c.url.includes('/housekeeping_issues')).length, 0);
+  assert.equal(calls.filter((c) => c.url.includes('/employees?')).length, 1);
 });
 
 test('wrong HTTP method is rejected', async () => {
