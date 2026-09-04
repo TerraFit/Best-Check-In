@@ -130,6 +130,20 @@ export const handler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${STATUS_PERMISSIONS[status]}` }) };
     }
 
+    // Reject notes-only mutation before any database access when the caller
+    // lacks task-execution/management capability. This is important because
+    // read-only housekeeping access must never become a write primitive and
+    // should fail before revealing whether the supplied taskId exists.
+    if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
+      const canEditNotes = principal.actorType === 'business'
+        || hasPermission(principal, 'canManageHousekeeping')
+        || hasPermission(principal, 'canStartHousekeepingTask')
+        || hasPermission(principal, 'canCompleteHousekeepingTask');
+      if (!canEditNotes) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
+      }
+    }
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
@@ -156,11 +170,7 @@ export const handler = async (event) => {
     // Notes are operational task data, not read access. An employee may only
     // add/change notes when they can execute this task or manage housekeeping.
     if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
-      const canEditNotes = principal.actorType === 'business'
-        || hasPermission(principal, 'canManageHousekeeping')
-        || hasPermission(principal, 'canStartHousekeepingTask')
-        || hasPermission(principal, 'canCompleteHousekeepingTask');
-      if (!canEditNotes || !canOverrideTaskExecution(principal, task)) {
+      if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
       }
     }
