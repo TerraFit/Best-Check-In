@@ -42,6 +42,13 @@ export const handler = async (event) => {
     const t = resolveTenant(a.principal, body.businessId || body.business_id); if (!t.ok) return authFailure(t, headers);
     const businessId = t.businessId, itemId = body.itemId || body.item_id;
     if (!itemId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId and itemId are required' }) };
+
+    // Authorization for the privileged terminal transition is checked before any
+    // object lookup so callers cannot use an archive request to probe item state.
+    if (body.status === 'archived' && !requireBusinessPermission(a.principal, 'canDisposeLostFound')) {
+      return authFailure({ status: 403, error: 'Missing permission: canDisposeLostFound' }, headers);
+    }
+
     const supabaseUrl = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const sh = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json', Prefer: 'return=representation' };
