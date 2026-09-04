@@ -1,5 +1,7 @@
-const { createClient } = require('@supabase/supabase-js');
-const { requireSuperAdmin, authFailure } = require('./_superAdminAuth.cjs');
+const { createClient } = require('@Supabase/supabase-js');
+const auth = require('./_auth.cjs');
+
+const { authenticateRequest, requirePlatformPermission, authFailure } = auth;
 
 exports.handler = async function(event) {
   const headers = {
@@ -12,18 +14,31 @@ exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'DELETE') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
-  const auth = requireSuperAdmin(event);
-  if (!auth.ok) return authFailure(auth, headers);
+  const authentication = authenticateRequest(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+  const principal = authentication.principal;
+  if (!requirePlatformPermission(principal, 'platform:businesses:write')) {
+    return authFailure({ status: 403, error: 'Missing permission: platform:businesses:write' }, headers);
+  }
 
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Delete business configuration is incomplete');
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     const { businessId } = JSON.parse(event.body || '{}');
-    if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
+    if (!businessId || typeof businessId !== 'string' || businessId.length > 200) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
+    }
 
     const { error: deleteError } = await supabase.from('businesses').delete().eq('id', businessId);
     if (deleteError) {
-      console.error('Delete error:', deleteError);
+      console.error('Delete error:', deleteError?.message || deleteError);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete business' }) };
     }
 
