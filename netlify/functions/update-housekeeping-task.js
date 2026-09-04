@@ -2,7 +2,7 @@
 // Authoritative server-side authentication, authorization, and tenant binding.
 
 import auth from './_auth.cjs';
-import rbac from './_rbac.js';
+import * as rbac from './_rbac.js';
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const { resolvePermissions, normalizeRole } = rbac;
