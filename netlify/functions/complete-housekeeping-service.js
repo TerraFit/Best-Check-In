@@ -3,8 +3,8 @@
 // Authorization is authoritative: identity, role/permission, tenant, and executor scope
 // are all established server-side before any write occurs.
 
-const auth = require('./_auth.cjs');
-const rbac = require('./_rbac.cjs');
+import auth from './_auth.cjs';
+import rbac from './_rbac.cjs';
 const { requireBusinessActor, resolveTenant } = auth;
 
 const MANAGEMENT_ROLES = new Set(['general_manager', 'manager', 'director', 'supervisor', 'team_leader', 'foreman']);
@@ -28,7 +28,7 @@ function parseCount(value) {
   return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -102,8 +102,6 @@ exports.handler = async (event) => {
       return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
     }
 
-    // A normal employee may only complete a session they actually own. Management
-    // can complete another employee's session, but never outside the resolved tenant.
     if (!isManagement(principal) && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
@@ -164,8 +162,6 @@ exports.handler = async (event) => {
     );
     if (!taskRes.ok) {
       console.error('complete-housekeeping-service task update failed:', taskRes.status);
-      // Compensate for the earlier session write so a failed task transition does
-      // not leave an apparently completed session against an incomplete task.
       await fetch(
         `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}&status=eq.completed`,
         { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'active', completed_at: null, actual_seconds: null, updated_at: new Date().toISOString() }) }
@@ -178,8 +174,6 @@ exports.handler = async (event) => {
       return response(409, headers, { success: false, error: 'Housekeeping task could not be completed' });
     }
 
-    // Room status is deliberately best effort: task/session completion remains the
-    // authoritative state transition, while room status is a derived operational hint.
     const roomRes = await fetch(
       `${supabaseUrl}/rest/v1/rooms?id=eq.${q(session.room_id)}&business_id=eq.${q(businessId)}`,
       {
