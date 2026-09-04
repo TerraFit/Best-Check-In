@@ -11,7 +11,10 @@ const DEFAULT_TARGETS = { refresh: 45, full_service: 60, deep_cleaning: 120, mat
 const MANAGEMENT_ROLES = new Set(['team leader', 'supervisor', 'foreman', 'manager', 'director', 'general manager', 'business owner']);
 
 function hasStartPermission(principal) {
-  return !!principal && rbac.requirePermission(principal, 'canStartHousekeepingTask');
+  if (!principal) return false;
+  if (principal.actorType === 'business') return true;
+  const role = String(principal.role || '').trim().toLowerCase();
+  return MANAGEMENT_ROLES.has(role) || rbac.requirePermission(principal, 'canStartHousekeepingTask');
 }
 
 function isManagement(principal) {
