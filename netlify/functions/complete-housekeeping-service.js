@@ -22,6 +22,13 @@ function isManagement(principal) {
     || permissions.has('canAssignHousekeepingTasks');
 }
 
+function hasExplicitCompletionPermission(principal) {
+  return !!principal
+    && principal.actorType === 'employee'
+    && Array.isArray(principal.permissions)
+    && principal.permissions.includes('canCompleteHousekeepingTask');
+}
+
 function parseCount(value) {
   if (value === undefined || value === null || value === '') return 0;
   const n = Number(value);
@@ -69,7 +76,10 @@ export const handler = async (event) => {
       }
     }
 
+    const management = isManagement(principal);
+    const explicitCompletionPermission = hasExplicitCompletionPermission(principal);
     const canComplete = principal.actorType === 'business'
+      || management
       || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
     if (!canComplete) return response(403, headers, { success: false, error: 'Missing permission: canCompleteHousekeepingTask' });
 
@@ -102,7 +112,7 @@ export const handler = async (event) => {
       return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
     }
 
-    if (!isManagement(principal) && String(session.employee_id || '') !== String(principal.employeeId || '')) {
+    if (!management && !explicitCompletionPermission && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
 
