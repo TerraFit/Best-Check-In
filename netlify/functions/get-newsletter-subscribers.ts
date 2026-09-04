@@ -26,11 +26,16 @@ export const handler = async (event) => {
   }
 
   try {
-    const requestedBusinessId = event.queryStringParameters?.businessId;
-    const businessId = resolveTenant(principal, requestedBusinessId);
-    if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
+    const requestedBusinessId = typeof event.queryStringParameters?.businessId === 'string'
+      ? event.queryStringParameters.businessId.trim()
+      : '';
+    if (!requestedBusinessId && isPlatform) {
+      return authFailure({ status: 400, error: 'businessId required' }, headers);
     }
+
+    const scope = resolveTenant(principal, requestedBusinessId || undefined);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -60,7 +65,11 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, subscribers: Array.isArray(subscribers) ? subscribers : [], count: Array.isArray(subscribers) ? subscribers.length : 0 })
+      body: JSON.stringify({
+        success: true,
+        subscribers: Array.isArray(subscribers) ? subscribers : [],
+        count: Array.isArray(subscribers) ? subscribers.length : 0
+      })
     };
   } catch (error) {
     console.error('Error fetching newsletter subscribers:', error?.message || error);
