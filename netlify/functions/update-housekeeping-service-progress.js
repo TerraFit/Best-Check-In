@@ -20,6 +20,8 @@ function isManagement(principal) {
 function hasProgressPermission(principal) {
   if (!principal) return false;
   if (principal.actorType === 'business') return true;
+  // Management roles are allowed to supervise/override an assigned executor.
+  if (isManagement(principal)) return true;
   return rbac.requirePermission(principal, 'canStartHousekeepingTask')
     || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
 }
@@ -54,9 +56,6 @@ export const handler = async (event) => {
   if (!gate.ok) return response(gate.status || 401, headers, { success: false, error: gate.error });
 
   const principal = gate.principal;
-  const scope = resolveTenant(principal, body.businessId || null);
-  if (!scope.ok) return response(scope.status, headers, { success: false, error: scope.error });
-
   if (!body.sessionId) return response(400, headers, { success: false, error: 'sessionId is required' });
   if (!hasProgressPermission(principal)) {
     return response(403, headers, { success: false, error: 'Missing permission: canStartHousekeepingTask' });
@@ -66,7 +65,6 @@ export const handler = async (event) => {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!supabaseUrl || !key) return response(500, headers, { success: false, error: 'Server configuration error' });
 
-  const businessId = scope.businessId;
   const read = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
   const write = { ...read, 'Content-Type': 'application/json', Prefer: 'return=representation' };
   const q = encodeURIComponent;
@@ -74,7 +72,7 @@ export const handler = async (event) => {
   try {
     if (principal.actorType === 'employee') {
       const employeeRes = await fetch(
-        `${supabaseUrl}/rest/v1/employees?id=eq.${q(principal.employeeId)}&business_id=eq.${q(businessId)}&select=id,business_id,status`,
+        `${supabaseUrl}/rest/v1/employees?id=eq.${q(principal.employeeId)}&business_id=eq.${q(principal.businessId)}&select=id,business_id,status`,
         { headers: read }
       );
       if (!employeeRes.ok) {
@@ -90,6 +88,10 @@ export const handler = async (event) => {
         return response(403, headers, { success: false, error: 'Forbidden: business scope mismatch' });
       }
     }
+
+    const scope = resolveTenant(principal, body.businessId || null);
+    if (!scope.ok) return response(scope.status, headers, { success: false, error: scope.error });
+    const businessId = scope.businessId;
 
     const sessionRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(body.sessionId)}&business_id=eq.${q(businessId)}&status=eq.active&select=id,business_id,employee_id`,
