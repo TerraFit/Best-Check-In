@@ -25,9 +25,9 @@ function token({ sub = 'user-1', role = 'authenticated', businessId = 'biz-1', e
   return sign({ sub, role, platform_role: platformRole, user_metadata: { business_id: businessId, ...(employeeId ? { employee_id: employeeId } : {}), ...(staffRole ? { staff_role: staffRole } : {}), ...(permissions ? { permission_set: permissions } : {}), ...meta }, iss: issuer, aud: audience });
 }
 function event(jwtToken, body = {}, method = 'POST') { return { httpMethod: method, headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}, body: typeof body === 'string' ? body : JSON.stringify(body) }; }
-function response(status, data = []) { return { ok: status >= 200 && status < 300, status, async json() { return data; }, async text() { return typeof data === 'string' ? data : JSON.stringify(data); } }; }
+function response(status, data = []) { return { ok: status >= 200 && status < 300, status, async json() { return typeof data === 'string' ? [] : data; }, async text() { return typeof data === 'string' ? data : JSON.stringify(data); } }; }
 
-before(async () => { ({ handler } = await import('../complete-housekeeping-service.js?test=complete-housekeeping-service-authz')); });
+before(async () => { ({ handler } = await import('../complete-housekeeping-service.js?test=complete-housekeeping-service-authz-v2')); });
 beforeEach(() => {
   calls = [];
   fail = null;
@@ -68,9 +68,7 @@ const superAdmin = () => token({ sub: 'admin-1', role: 'super_admin', businessId
 const serviceRole = () => token({ sub: 'service-1', role: 'service_role' });
 const spoofed = () => token({ sub: 'attacker-1', meta: { super_admin: true } });
 
-async function complete(principalToken = housekeeper(), body = { sessionId: 'session-1' }) {
-  return handler(event(principalToken, body));
-}
+async function complete(principalToken = housekeeper(), body = { sessionId: 'session-1' }) { return handler(event(principalToken, body)); }
 
 test('anonymous request is rejected before database access', async () => { const r = await complete(null); assert.equal(r.statusCode, 401); assert.equal(calls.length, 0); });
 test('invalid JWT is rejected', async () => { const r = await complete('invalid'); assert.equal(r.statusCode, 401); assert.equal(calls.length, 0); });
@@ -82,12 +80,12 @@ test('real SuperAdmin is rejected by business endpoint', async () => { const r =
 test('employee without completion permission is rejected', async () => { const r = await complete(frontDesk()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions')).length, 0); });
 test('business owner may complete own-tenant session', async () => { const r = await complete(owner()); assert.equal(r.statusCode, 200); });
 test('assigned housekeeper may complete own session', async () => { const r = await complete(housekeeper()); assert.equal(r.statusCode, 200); });
-test('explicit completion permission is sufficient', async () => { const r = await complete(explicitPermissionEmployee()); assert.equal(r.statusCode, 200); });
+test('explicit completion permission does not permit cross-session completion', async () => { const r = await complete(explicitPermissionEmployee()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('housekeeper cannot complete another employee session', async () => { const r = await complete(otherEmployee()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('manager may override executor assignment', async () => { const r = await complete(manager()); assert.equal(r.statusCode, 200); });
 test('employee cannot substitute another tenant', async () => { const r = await complete(housekeeper(), { sessionId: 'session-1', businessId: 'biz-2' }); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('malformed JSON is rejected before authentication and database access', async () => { const r = await handler(event(housekeeper(), '{not-json')); assert.equal(r.statusCode, 400); assert.equal(calls.length, 0); });
-test('missing sessionId is rejected', async () => { const r = await complete(housekeeper(), {}); assert.equal(r.statusCode, 400); assert.equal(calls.filter((c) => c.url.includes('/employees?')).length, 1); assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions')).length, 0); });
+test('missing sessionId is rejected', async () => { const r = await complete(housekeeper(), {}); assert.equal(r.statusCode, 400); assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions')).length, 0); });
 test('disabled employee is rejected before session lookup', async () => { global.fetch = async (url, options = {}) => { calls.push({ url: String(url), options }); if (String(url).includes('/employees?')) return response(200, [{ id: 'emp-1', business_id: 'biz-1', status: 'disabled' }]); return response(500, 'SHOULD_NOT_BE_REACHED'); }; const r = await complete(housekeeper()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions')).length, 0); });
 test('employee status verification failure is sanitized', async () => { fail = { match: '/employees?', status: 500, body: 'SECRET_EMPLOYEE_DETAILS' }; const r = await complete(housekeeper()); assert.equal(r.statusCode, 503); assert.ok(!r.body.includes('SECRET_EMPLOYEE_DETAILS')); });
 test('session lookup failure is sanitized', async () => { fail = { match: '/housekeeping_service_sessions', status: 500, body: 'SECRET_SESSION_DETAILS' }; const r = await complete(housekeeper()); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_SESSION_DETAILS')); });
