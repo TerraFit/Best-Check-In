@@ -23,7 +23,7 @@ exports.handler = async function(event) {
 
     const { error: deleteError } = await supabase.from('businesses').delete().eq('id', businessId);
     if (deleteError) {
-      console.error('❌ Delete error:', deleteError);
+      console.error('Delete error:', deleteError);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete business' }) };
     }
 
@@ -32,7 +32,10 @@ exports.handler = async function(event) {
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business permanently deleted' }) };
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    console.error('Unhandled delete business error:', error?.message || error);
+    if (error instanceof SyntaxError) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body' }) };
+    }
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };
