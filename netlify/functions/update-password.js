@@ -67,7 +67,19 @@ export const handler = async function(event) {
       };
     }
 
-    const { token, password } = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid request' })
+      };
+    }
+
+    const token = String(body.token || '').trim();
+    const password = String(body.password || '');
 
     if (!token || !password) {
       return {
@@ -102,6 +114,30 @@ export const handler = async function(event) {
       };
     }
 
+    // Atomically claim the reset record before changing the password. The
+    // used_at=is.null predicate means concurrent requests cannot both consume
+    // the same reset credential. A successful claim is the authorization to
+    // perform the password mutation for this authoritative business_id.
+    const usedAt = new Date().toISOString();
+    const consumedRows = await supabaseRest(
+      `password_resets?id=eq.${encodeURIComponent(resetRecord.id)}&used_at=is.null`,
+      {
+        method: 'PATCH',
+        headers: {
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify({ used_at: usedAt })
+      }
+    );
+
+    if (!Array.isArray(consumedRows) || consumedRows.length !== 1) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await supabaseRest(`businesses?id=eq.${encodeURIComponent(resetRecord.business_id)}`, {
@@ -112,21 +148,17 @@ export const handler = async function(event) {
       body: JSON.stringify({ password_hash: hashedPassword })
     });
 
-    await supabaseRest(`password_resets?id=eq.${encodeURIComponent(resetRecord.id)}&used_at=is.null`, {
-      method: 'PATCH',
-      headers: {
-        Prefer: 'return=minimal'
-      },
-      body: JSON.stringify({ used_at: new Date().toISOString() })
-    });
-
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ success: true })
     };
   } catch (error) {
-    console.error('Error in update-password:', error);
+    console.error('Error in update-password:', {
+      status: error?.status,
+      body: error?.body,
+      message: error?.message
+    });
     return {
       statusCode: 500,
       headers,
