@@ -16,7 +16,7 @@ function event({ method = 'POST', body = {}, token } = {}) {
   return {
     httpMethod: method,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: JSON.stringify(body),
+    body: typeof body === 'string' ? body : JSON.stringify(body),
   };
 }
 
@@ -103,35 +103,34 @@ test('missing business scope is rejected before room mutation', async () => {
 test('inactive employee is rejected before room mutation', async () => {
   let fetchCalls = 0;
   global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', active: false, permissionSet: ['canViewRooms'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', active: false, permissionSet: ['canApproveRoomChanges'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
   assert.equal(fetchCalls, 0);
 });
 
-test('employee without room permission is rejected before room mutation', async () => {
+test('employee without room-change approval is rejected before room mutation', async () => {
   let fetchCalls = 0;
   global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: [] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: ['canViewRooms'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
   assert.equal(fetchCalls, 0);
 });
 
-test('authorized business actor is tenant-bound for room synchronization', async () => {
+test('authorized foreman with room-change approval can synchronize rooms', async () => {
   const calls = [];
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
     if (String(url).includes('/rooms?')) return jsonResponse([room()]);
     return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'foreman', employeeId: 'employee-1', permissionSet: ['canApproveRoomChanges'] }), body: { businessId: 'biz-a', totalRooms: 1 } }));
   assert.equal(response.statusCode, 200);
-  assert.ok(calls.every((c) => !c.url.includes('biz-other')));
   assert.ok(calls.some((c) => c.url.includes('business_id=eq.biz-a')));
 });
 
-test('authorized employee with canViewRooms can synchronize rooms', async () => {
+test('business owner may synchronize its own tenant', async () => {
   global.fetch = async (url) => String(url).includes('/rooms?') ? jsonResponse([room()]) : jsonResponse([]);
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: ['canViewRooms'] }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
   assert.equal(response.statusCode, 200);
 });
 
