@@ -30,10 +30,7 @@ beforeEach(() => {
     calls.push({ url: u, options });
     if (fail && u.includes(fail.match)) return response(fail.status, fail.body);
     if (u.includes('/employees?')) return response(200, [{ id: 'emp-1', business_id: 'biz-1', status: 'Active' }]);
-    if (u.includes('/housekeeping_tasks?id=eq.task-1')) {
-      if (options.method === 'PATCH') return response(200, [{ ...TASK, status: 'in_progress' }]);
-      return response(200, [TASK]);
-    }
+    if (u.includes('/housekeeping_tasks?id=eq.task-1')) return options.method === 'PATCH' ? response(200, [{ ...TASK, status: 'in_progress' }]) : response(200, [TASK]);
     if (u.includes('/rooms?id=eq.room-1')) return response(200, [ROOM]);
     if (u.includes('/housekeeping_service_settings?')) return response(200, [{ warning_minutes: 15, final_countdown_seconds: 5, voice_enabled: true, sound_enabled: true }]);
     if (u.includes('/housekeeping_service_targets?')) return response(200, [{ service_type: 'refresh', room_type: 'standard', target_minutes: 40 }]);
@@ -67,9 +64,10 @@ test('assigned housekeeper may start task', async () => { const r = await handle
 test('housekeeper cannot start another employee task', async () => { const r = await handler(event(otherEmployee(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'POST' && c.url.includes('housekeeping_service_sessions')).length, 0); });
 test('manager may override task assignment', async () => { const r = await handler(event(manager(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 200); });
 test('employee cannot substitute another tenant', async () => { const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh', businessId: 'biz-2' })); assert.equal(r.statusCode, 403); });
-test('malformed JSON is rejected before database access', async () => { const r = await handler(event(housekeeper(), '{not-json')); assert.equal(r.statusCode, 400); assert.equal(calls.length, 1); assert.ok(calls[0].url.includes('/employees?')); });
+test('malformed JSON is rejected before database access', async () => { const r = await handler(event(housekeeper(), '{not-json')); assert.equal(r.statusCode, 400); assert.equal(calls.length, 0); });
 test('task lookup failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', status: 500, body: 'SECRET_DATABASE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_DATABASE_DETAILS')); });
 test('room lookup failure is sanitized', async () => { fail = { match: '/rooms?id=eq.room-1', status: 500, body: 'SECRET_ROOM_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_ROOM_DETAILS')); });
 test('session creation failure is sanitized', async () => { fail = { match: '/housekeeping_service_sessions', status: 500, body: 'SECRET_SESSION_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_SESSION_DETAILS')); });
+test('task transition failure is sanitized', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', status: 500, body: 'SECRET_TASK_UPDATE_DETAILS' }; const r = await handler(event(housekeeper(), { taskId: 'task-1', serviceType: 'refresh' })); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_TASK_UPDATE_DETAILS')); });
 test('wrong HTTP method is rejected', async () => { const r = await handler(event(null, {}, 'GET')); assert.equal(r.statusCode, 405); });
 test('OPTIONS remains public preflight', async () => { const r = await handler(event(null, {}, 'OPTIONS')); assert.equal(r.statusCode, 204); });
