@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'service-key';
+process.env.RESEND_API_KEY = 'resend-test-key';
 
 const response = (status, body) => ({
   ok: status >= 200 && status < 300,
