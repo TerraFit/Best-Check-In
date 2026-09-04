@@ -1,5 +1,7 @@
-// Phase 0 shared JWT auth. Fail closed. JWT business_id authoritative.
-const jwt = require('jsonwebtoken');
+// Housekeeping authorization compatibility layer.
+// JWT verification and application identity are owned exclusively by _auth.cjs.
+const { authenticateRequest, resolveTenant } = require('./_auth.cjs');
+
 const ROLE_ALIASES = {
   'employee (legacy)': 'Employee (Legacy)', employeeoverview: 'Employee (Legacy)', employee: 'Employee (Legacy)',
   'team leader': 'Team Leader', team_leader: 'Team Leader', lead: 'Team Leader',
@@ -19,18 +21,89 @@ const NON_HOUSEKEEPING_LEGACY_ROLES = new Set([
   'laundry_attendant', 'maintenance', 'administration', 'marketing', 'finance',
   'night_auditor', 'security', 'custom',
 ]);
-function normalizeRole(raw) { if (raw == null || raw === '') return 'Employee (Legacy)'; const s = String(raw).trim(); if (ROLE_ALIASES[s]) return ROLE_ALIASES[s]; const lower = s.toLowerCase(); if (ROLE_ALIASES[lower]) return ROLE_ALIASES[lower]; if (EXECUTE_HIERARCHY.has(s) || s === 'business_owner' || s === 'super_admin') return s; return s; }
-function extractToken(event) { const raw = (event.headers?.authorization || event.headers?.Authorization || '').trim(); if (!raw) return null; return raw.replace(/^Bearer\s+/i, '').trim() || null; }
-function asPermArray(permissionSet) { if (Array.isArray(permissionSet)) return permissionSet; if (typeof permissionSet === 'string') { try { const p = JSON.parse(permissionSet); return Array.isArray(p) ? p : []; } catch { return []; } } return []; }
+
+function normalizeRole(raw) {
+  if (raw == null || raw === '') return 'Employee (Legacy)';
+  const s = String(raw).trim();
+  if (ROLE_ALIASES[s]) return ROLE_ALIASES[s];
+  const lower = s.toLowerCase();
+  if (ROLE_ALIASES[lower]) return ROLE_ALIASES[lower];
+  if (EXECUTE_HIERARCHY.has(s) || s === 'business_owner' || s === 'super_admin') return s;
+  return s;
+}
+
+function asPermArray(permissionSet) {
+  if (Array.isArray(permissionSet)) return permissionSet.filter((p) => typeof p === 'string');
+  if (typeof permissionSet === 'string') {
+    try {
+      const p = JSON.parse(permissionSet);
+      return Array.isArray(p) ? p.filter((value) => typeof value === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function mapPrincipal(principal) {
+  if (!principal) return null;
+  if (principal.actorType === 'super_admin') {
+    return { ...principal, normalizedRole: 'super_admin', permissions: asPermArray(principal.permissions) };
+  }
+  if (!['business', 'employee'].includes(principal.actorType)) return null;
+  return {
+    ...principal,
+    normalizedRole: principal.actorType === 'business' ? 'business_owner' : normalizeRole(principal.role),
+    permissions: asPermArray(principal.permissions),
+  };
+}
+
+function authenticateHousekeepingService(event, mode = 'manage') {
+  // Canonical auth rejects service-role JWTs and mutable metadata impersonation.
+  const authenticated = authenticateRequest(event);
+  if (!authenticated.ok) return authenticated;
+
+  const principal = mapPrincipal(authenticated.principal);
+  if (!principal) return { ok: false, status: 403, error: 'Business account access required' };
+  const has = (permission) => principal.permissions.includes(permission);
+
+  if (mode === 'manage') {
+    if (principal.actorType === 'business' || principal.actorType === 'super_admin') return { ok: true, principal };
+    if (MANAGE_HIERARCHY.has(principal.normalizedRole) || has('canManageSettings') || has('canManageHousekeeping')) return { ok: true, principal };
+    return { ok: false, status: 403, error: 'Missing permission: canManageSettings' };
+  }
+  if (mode === 'assign') {
+    if (principal.actorType === 'business' || principal.actorType === 'super_admin') return { ok: true, principal };
+    if (ASSIGN_HIERARCHY.has(principal.normalizedRole) || has('canAssignHousekeepingTasks') || has('canManageHousekeeping')) return { ok: true, principal };
+    return { ok: false, status: 403, error: 'Missing permission: canAssignHousekeepingTasks' };
+  }
+  if (mode === 'generate') {
+    if (principal.actorType === 'business' || principal.actorType === 'super_admin') return { ok: true, principal };
+    if (GENERATE_HIERARCHY.has(principal.normalizedRole) || has('canGenerateHousekeepingSchedule') || has('canManageHousekeeping')) return { ok: true, principal };
+    return { ok: false, status: 403, error: 'Missing permission: canGenerateHousekeepingSchedule' };
+  }
+  if (mode === 'view_performance') {
+    if (principal.actorType === 'business' || principal.actorType === 'super_admin' || MANAGE_HIERARCHY.has(principal.normalizedRole) || has('canManageHousekeeping') || has('canViewHousekeepingPerformance') || has('canViewHousekeepingReports')) return { ok: true, principal };
+    return { ok: false, status: 403, error: 'Missing permission: canViewHousekeepingPerformance' };
+  }
+  if (mode === 'view') {
+    if (principal.actorType === 'business' || principal.actorType === 'super_admin') return { ok: true, principal };
+    if (EXECUTE_HIERARCHY.has(principal.normalizedRole) || has('canViewHousekeeping') || has('canManageHousekeeping') || has('canStartHousekeepingTask') || has('canCompleteHousekeepingTask')) return { ok: true, principal };
+    return { ok: false, status: 403, error: 'Missing permission: canViewHousekeeping' };
+  }
+
+  const legacyRoleWithoutExplicitHousekeepingAccess = NON_HOUSEKEEPING_LEGACY_ROLES.has(principal.role);
+  if (legacyRoleWithoutExplicitHousekeepingAccess && !has('canStartHousekeepingTask') && !has('canCompleteHousekeepingTask') && !has('canManageHousekeeping')) return { ok: false, status: 403, error: 'Missing permission: canStartHousekeepingTask' };
+  if (principal.actorType === 'business' || principal.actorType === 'super_admin' || EXECUTE_HIERARCHY.has(principal.normalizedRole) || has('canStartHousekeepingTask') || has('canCompleteHousekeepingTask') || has('canManageHousekeeping')) return { ok: true, principal };
+  return { ok: false, status: 403, error: 'Missing permission: canStartHousekeepingTask' };
+}
+
 async function assertEmployeeStillActive(principal) {
   if (!principal || principal.actorType !== 'employee' || !principal.employeeId) return { ok: true, principal };
-  const supabaseUrl = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
   if (!supabaseUrl || !key) return { ok: false, status: 500, error: 'Server configuration error' };
   try {
-    // The production employees schema historically uses `status` as the canonical
-    // activation field. Do not require the newer optional `active` column here;
-    // requiring it turned a valid employee into a false 503 when schema versions
-    // were mixed during migration rollout.
     const res = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(principal.employeeId)}&select=id,business_id,status`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
     });
@@ -45,10 +118,40 @@ async function assertEmployeeStillActive(principal) {
     return { ok: false, status: 503, error: 'Unable to verify employee status' };
   }
 }
-function authenticateHousekeepingService(event, mode = 'manage') { const token = extractToken(event); if (!token) return { ok: false, status: 401, error: 'No authorization token provided' }; let decoded; try { decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET); } catch (err) { if (err?.name === 'TokenExpiredError') return { ok: false, status: 401, error: 'Token has expired' }; return { ok: false, status: 401, error: 'Invalid authorization token' }; } const meta = decoded?.user_metadata || {}; if (decoded?.role === 'service_role' || meta.super_admin) return { ok: true, principal: { actorType: 'super_admin', role: 'super_admin', normalizedRole: 'super_admin', businessId: meta.business_id || null, employeeId: null, employeeName: null, permissions: asPermArray(meta.permission_set) } }; const businessId = meta.business_id; if (!businessId) return { ok: false, status: 403, error: 'Token missing business ID' }; if (!meta.employee_id) return { ok: true, principal: { actorType: 'business', role: 'business_owner', normalizedRole: 'business_owner', businessId, employeeId: null, employeeName: meta.business_name || meta.email || null, permissions: asPermArray(meta.permission_set) } }; const rawRole = meta.staff_role || meta.role || ''; const normalizedRole = normalizeRole(rawRole); const perms = asPermArray(meta.permission_set); const principal = { actorType: 'employee', role: String(rawRole).toLowerCase(), normalizedRole, businessId, employeeId: meta.employee_id || decoded.sub || null, employeeName: meta.full_name || meta.name || null, permissions: perms }; const has = (p) => perms.includes(p); if (mode === 'manage') { if (MANAGE_HIERARCHY.has(normalizedRole) || has('canManageSettings') || has('canManageHousekeeping')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canManageSettings' }; } if (mode === 'assign') { if (ASSIGN_HIERARCHY.has(normalizedRole) || has('canAssignHousekeepingTasks') || has('canManageHousekeeping')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canAssignHousekeepingTasks' }; } if (mode === 'generate') { if (principal.actorType === 'business' || principal.actorType === 'super_admin') return { ok: true, principal }; if (GENERATE_HIERARCHY.has(normalizedRole) || has('canGenerateHousekeepingSchedule') || has('canManageHousekeeping')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canGenerateHousekeepingSchedule' }; } if (mode === 'view_performance') { if (principal.actorType === 'business' || principal.actorType === 'super_admin' || MANAGE_HIERARCHY.has(normalizedRole) || has('canManageHousekeeping') || has('canViewHousekeepingPerformance') || has('canViewHousekeepingReports')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canViewHousekeepingPerformance' }; } if (mode === 'view') { if (EXECUTE_HIERARCHY.has(normalizedRole) || MANAGE_HIERARCHY.has(normalizedRole) || has('canViewHousekeeping') || has('canManageHousekeeping') || has('canStartHousekeepingTask') || has('canCompleteHousekeepingTask')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canViewHousekeeping' }; } const legacyRoleWithoutExplicitHousekeepingAccess = NON_HOUSEKEEPING_LEGACY_ROLES.has(principal.role); if (legacyRoleWithoutExplicitHousekeepingAccess && !has('canStartHousekeepingTask') && !has('canCompleteHousekeepingTask') && !has('canManageHousekeeping')) return { ok: false, status: 403, error: 'Missing permission: canStartHousekeepingTask' }; if (EXECUTE_HIERARCHY.has(normalizedRole) || has('canStartHousekeepingTask') || has('canCompleteHousekeepingTask') || has('canManageHousekeeping')) return { ok: true, principal }; return { ok: false, status: 403, error: 'Missing permission: canStartHousekeepingTask' }; }
-async function authenticateHousekeepingServiceLive(event, mode = 'execute') { const gate = authenticateHousekeepingService(event, mode); if (!gate.ok) return gate; return assertEmployeeStillActive(gate.principal); }
-function resolveBusinessId(principal, clientBusinessId) { if (principal.actorType === 'super_admin') { const id = clientBusinessId || principal.businessId; if (!id) return { ok: false, status: 400, error: 'businessId required' }; return { ok: true, businessId: id }; } if (clientBusinessId && String(clientBusinessId) !== String(principal.businessId)) return { ok: false, status: 403, error: 'Forbidden: business scope mismatch' }; return { ok: true, businessId: principal.businessId }; }
-function isSchemaMissingError(status, bodyText) { const text = typeof bodyText === 'string' ? bodyText : JSON.stringify(bodyText || ''); return /PGRST205|relation .* does not exist|Could not find the table|schema cache/i.test(text); }
-function schemaMissingResponse(status, bodyText, relation) { if (!isSchemaMissingError(status, bodyText)) return null; return { success: false, error: 'Housekeeping service schema is not installed', code: 'HOUSEKEEPING_SCHEMA_MISSING', relation: relation || undefined, hint: 'Apply docs/migrations/013, 014 and 015' }; }
-function phoneDigitVariants(phone) { const cleanDigits = String(phone || '').replace(/\D/g, ''); if (!cleanDigits) return []; const variants = new Set([cleanDigits]); if (cleanDigits.startsWith('0')) variants.add(cleanDigits.substring(1)); if (!cleanDigits.startsWith('0')) variants.add('0' + cleanDigits); if (cleanDigits.startsWith('27')) { const w = cleanDigits.substring(2); variants.add(w); if (!w.startsWith('0')) variants.add('0' + w); } if (!cleanDigits.startsWith('27')) { if (cleanDigits.length === 9) variants.add('27' + cleanDigits); else if (cleanDigits.length === 10 && cleanDigits.startsWith('0')) variants.add('27' + cleanDigits.substring(1)); } return [...variants].filter(Boolean); }
+
+async function authenticateHousekeepingServiceLive(event, mode = 'execute') {
+  const gate = authenticateHousekeepingService(event, mode);
+  if (!gate.ok) return gate;
+  return assertEmployeeStillActive(gate.principal);
+}
+
+function resolveBusinessId(principal, clientBusinessId) {
+  return resolveTenant(principal, clientBusinessId || undefined);
+}
+
+function isSchemaMissingError(status, bodyText) {
+  const text = typeof bodyText === 'string' ? bodyText : JSON.stringify(bodyText || '');
+  return /PGRST205|relation .* does not exist|Could not find the table|schema cache/i.test(text);
+}
+function schemaMissingResponse(status, bodyText, relation) {
+  if (!isSchemaMissingError(status, bodyText)) return null;
+  return { success: false, error: 'Housekeeping service schema is not installed', code: 'HOUSEKEEPING_SCHEMA_MISSING', relation: relation || undefined, hint: 'Apply docs/migrations/013, 014 and 015' };
+}
+function phoneDigitVariants(phone) {
+  const cleanDigits = String(phone || '').replace(/\D/g, '');
+  if (!cleanDigits) return [];
+  const variants = new Set([cleanDigits]);
+  if (cleanDigits.startsWith('0')) variants.add(cleanDigits.substring(1));
+  if (!cleanDigits.startsWith('0')) variants.add('0' + cleanDigits);
+  if (cleanDigits.startsWith('27')) {
+    const w = cleanDigits.substring(2);
+    variants.add(w);
+    if (!w.startsWith('0')) variants.add('0' + w);
+  }
+  if (!cleanDigits.startsWith('27')) {
+    if (cleanDigits.length === 9) variants.add('27' + cleanDigits);
+    else if (cleanDigits.length === 10 && cleanDigits.startsWith('0')) variants.add('27' + cleanDigits.substring(1));
+  }
+  return [...variants].filter(Boolean);
+}
 module.exports = { authenticateHousekeepingService, authenticateHousekeepingServiceLive, assertEmployeeStillActive, resolveBusinessId, isSchemaMissingError, schemaMissingResponse, normalizeRole, phoneDigitVariants, ROLE_ALIASES, EXECUTE_HIERARCHY, MANAGE_HIERARCHY, ASSIGN_HIERARCHY, GENERATE_HIERARCHY };
