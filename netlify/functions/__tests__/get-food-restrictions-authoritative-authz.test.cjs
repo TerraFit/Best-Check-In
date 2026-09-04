@@ -48,7 +48,7 @@ test('food restrictions: missing booking returns not found', async () => {
   assert.equal((await handler(event(businessToken()))).statusCode, 404);
 });
 
-test('food restrictions: invalid booking id is rejected', async () => {
+test('food restrictions: oversized booking id is rejected', async () => {
   const { handler } = await loadFunction();
-  assert.equal((await handler(event(businessToken(), undefined))).statusCode, 400);
+  assert.equal((await handler(event(businessToken(), 'x'.repeat(201)))).statusCode, 400);
 });
