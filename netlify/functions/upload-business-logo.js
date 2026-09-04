@@ -19,24 +19,19 @@ export const handler = async function(event) {
   const principal = authentication.principal;
   const isPlatform = ['super_admin', 'platform'].includes(principal.actorType);
   if (isPlatform) {
-    if (!requirePlatformPermission(principal, 'platform:businesses:write')) {
-      return authFailure({ status: 403, error: 'Missing permission: platform:businesses:write' }, headers);
-    }
+    if (!requirePlatformPermission(principal, 'platform:businesses:write')) return authFailure({ status: 403, error: 'Missing permission: platform:businesses:write' }, headers);
   } else if (!requireBusinessPermission(principal, 'canManageSettings')) {
     return authFailure({ status: 403, error: 'Missing permission: canManageSettings' }, headers);
   }
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const businessId = resolveTenant(principal, body.businessId || body.business_id);
-    if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
-    }
+    const scope = resolveTenant(principal, body.businessId || body.business_id);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
 
     const logoUrl = body.logo_url == null ? null : String(body.logo_url).trim();
-    if (logoUrl && logoUrl.length > 2048) {
-      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Invalid logo URL' }) };
-    }
+    if (logoUrl && logoUrl.length > 2048) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Invalid logo URL' }) };
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -47,20 +42,13 @@ export const handler = async function(event) {
 
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}`, {
       method: 'PATCH',
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal'
-      },
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ logo_url: logoUrl || null, updated_at: new Date().toISOString() })
     });
-
     if (!response.ok) {
       console.error('Business logo update failed:', response.status);
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to update logo' }) };
     }
-
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Logo updated successfully' }) };
   } catch (error) {
     console.error('Error updating business logo:', error?.message || error);
