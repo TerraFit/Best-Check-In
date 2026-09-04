@@ -3,10 +3,8 @@
 // Authorization and tenant identity are authoritative on the server.
 
 import auth from './_auth.cjs';
-import rbac from './_rbac.js';
 
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
-const { resolvePermissions } = rbac;
 
 const DEFAULT_TARGETS = { refresh: 45, full_service: 60, deep_cleaning: 120, mattress_flip_air: 30, checkout_inspection: 10 };
 const MANAGEMENT_ROLES = new Set(['team leader', 'supervisor', 'foreman', 'manager', 'director', 'general manager', 'business owner']);
@@ -14,15 +12,14 @@ const MANAGEMENT_ROLES = new Set(['team leader', 'supervisor', 'foreman', 'manag
 function hasStartPermission(principal) {
   if (!principal) return false;
   if (principal.actorType === 'business') return true;
-  if (requireBusinessPermission(principal, 'canStartHousekeepingTask')) return true;
-  return resolvePermissions({ actorType: principal.actorType, role: principal.role, permission_set: principal.permissions, permissions: principal.permissions, active: principal.active }).has('canStartHousekeepingTask');
+  return requireBusinessPermission(principal, 'canStartHousekeepingTask');
 }
 
 function isManagement(principal) {
   if (!principal || principal.actorType === 'business') return true;
   const role = String(principal.role || '').trim().toLowerCase();
-  const permissions = resolvePermissions({ actorType: principal.actorType, role: principal.role, permission_set: principal.permissions, permissions: principal.permissions, active: principal.active });
-  return MANAGEMENT_ROLES.has(role) || permissions.has('canManageHousekeeping');
+  const permissions = Array.isArray(principal.permissions) ? principal.permissions : [];
+  return MANAGEMENT_ROLES.has(role) || permissions.includes('canManageHousekeeping');
 }
 
 async function assertEmployeeActive(principal, headers) {
