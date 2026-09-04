@@ -93,26 +93,42 @@ export const handler = async (event) => {
     if (!authResult.ok) return authFailure(authResult, headers);
     const principal = authResult.principal;
 
-    let mode = 'view';
-    if (status === 'in_progress' || status === 'completed' || status === 'skipped') mode = 'execute';
-    else if (inspection_status === 'approved' || inspection_status === 'rejected') mode = 'manage';
-    else if (assigned_staff_id !== undefined || assigned_staff_name !== undefined) mode = 'assign';
-
-    const permission = mode === 'execute'
-      ? STATUS_PERMISSIONS[status]
-      : mode === 'manage'
-        ? 'canApproveInspection'
-        : mode === 'assign'
-          ? 'canAssignHousekeepingTasks'
-          : 'canViewHousekeeping';
-
-    if (!hasPermission(principal, permission)) {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${permission}` }) };
-    }
-
     const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
+
+    const hasStatusMutation = status !== undefined;
+    const hasAssignmentMutation = assigned_staff_id !== undefined || assigned_staff_name !== undefined;
+    const hasInspectionMutation = inspection_status !== undefined;
+    const hasNotesMutation = notes !== undefined;
+
+    if (!hasStatusMutation && !hasAssignmentMutation && !hasInspectionMutation && !hasNotesMutation) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'No update fields provided' }) };
+    }
+
+    if (hasStatusMutation && !Object.prototype.hasOwnProperty.call(STATUS_PERMISSIONS, status) && status !== 'pending') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unsupported housekeeping task status' }) };
+    }
+    if (hasInspectionMutation && inspection_status !== 'approved' && inspection_status !== 'rejected') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unsupported inspection status' }) };
+    }
+
+    // Every mutating field is authorized independently. A request containing
+    // multiple mutation classes must satisfy every required capability; the
+    // previous single-mode selection allowed an executor to smuggle an
+    // assignment change alongside an otherwise-authorized status update.
+    if (hasAssignmentMutation && !hasPermission(principal, 'canAssignHousekeepingTasks')) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canAssignHousekeepingTasks' }) };
+    }
+    if (hasInspectionMutation && !hasPermission(principal, 'canApproveInspection')) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canApproveInspection' }) };
+    }
+    if (status === 'pending' && !hasPermission(principal, 'canAssignHousekeepingTasks')) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canAssignHousekeepingTasks' }) };
+    }
+    if (status && STATUS_PERMISSIONS[status] && !hasPermission(principal, STATUS_PERMISSIONS[status])) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${STATUS_PERMISSIONS[status]}` }) };
+    }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
@@ -133,15 +149,27 @@ export const handler = async (event) => {
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    if (mode === 'execute' && !canOverrideTaskExecution(principal, task)) {
+    if ((status && STATUS_PERMISSIONS[status]) && !canOverrideTaskExecution(principal, task)) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
+    }
+
+    // Notes are operational task data, not read access. An employee may only
+    // add/change notes when they can execute this task or manage housekeeping.
+    if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
+      const canEditNotes = principal.actorType === 'business'
+        || hasPermission(principal, 'canManageHousekeeping')
+        || hasPermission(principal, 'canStartHousekeepingTask')
+        || hasPermission(principal, 'canCompleteHousekeepingTask');
+      if (!canEditNotes || !canOverrideTaskExecution(principal, task)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
+      }
     }
 
     if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }) };
     }
 
-    if (mode === 'assign' && assigned_staff_id !== undefined) {
+    if (hasAssignmentMutation && assigned_staff_id !== undefined) {
       const employeeCheck = await verifyAssignedEmployee(businessId, assigned_staff_id);
       if (!employeeCheck.ok) return { statusCode: employeeCheck.status || 500, headers, body: JSON.stringify({ error: employeeCheck.error }) };
     }
