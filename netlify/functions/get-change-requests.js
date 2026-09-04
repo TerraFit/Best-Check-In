@@ -1,7 +1,7 @@
-import superAdminAuth from './_superAdminAuth.cjs';
+import auth from './_auth.cjs';
 import { supabaseFetch } from './lib/supabase-rest.js';
 
-const { requireSuperAdmin, authFailure } = superAdminAuth;
+const { authenticateRequest, requirePlatformPermission, authFailure } = auth;
 
 export const handler = async function(event) {
   const headers = {
@@ -14,8 +14,12 @@ export const handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed', data: [] }) };
 
-  const auth = requireSuperAdmin(event);
-  if (!auth.ok) return authFailure(auth, headers);
+  const authentication = authenticateRequest(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+  const principal = authentication.principal;
+  if (!requirePlatformPermission(principal, 'platform:change_requests:read')) {
+    return authFailure({ status: 403, error: 'Missing permission: platform:change_requests:read' }, headers);
+  }
 
   try {
     const { status, businessId } = event.queryStringParameters || {};
@@ -25,6 +29,7 @@ export const handler = async function(event) {
     const data = await supabaseFetch(query);
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data || [], count: data?.length || 0 }) };
   } catch (error) {
+    console.error('Change requests lookup failed:', error?.message || error);
     return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Internal server error', data: [] }) };
   }
 };
