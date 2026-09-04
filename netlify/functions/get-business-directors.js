@@ -35,8 +35,9 @@ export const handler = async function(event) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
     }
 
-    const businessId = resolveTenant(principal, requestedBusinessId);
-    if (!businessId) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden' }) };
+    const scope = resolveTenant(principal, requestedBusinessId);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
 
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
       console.error('Business directors configuration is incomplete');
