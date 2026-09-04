@@ -70,11 +70,14 @@ export function requirePermission(principal, permission) {
 
 export function requireAnyPermission(principal, permissions) { return (permissions || []).some((p) => requirePermission(principal, p)); }
 
+// Compatibility mapper for callers that already possess a verified decoded JWT.
+// Never elevate based on mutable user_metadata SuperAdmin markers.
 export function principalFromJwt(decoded) {
-  const meta = (decoded && decoded.user_metadata) || {};
-  if ((decoded && decoded.role) === 'service_role') return null;
-  const explicitSuperAdmin = decoded?.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true';
-  if (explicitSuperAdmin) return { actorType:'super_admin', role:'super_admin', active:true, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
+  if (!decoded || typeof decoded !== 'object') return null;
+  const meta = decoded.user_metadata || {};
+  if (decoded.role === 'service_role') return null;
+  if ((meta.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true') && decoded.role !== 'super_admin') return null;
+  if (decoded.role === 'super_admin') return { actorType:'super_admin', role:'super_admin', active:true, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
   if (meta.business_id && !meta.employee_id) return { actorType:'business', role:'business_owner', active:meta.active !== false, businessId:meta.business_id, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
   return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false, businessId:meta.business_id || null, employeeId:meta.employee_id || decoded.sub || null, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
 }
@@ -82,8 +85,10 @@ export function principalFromJwt(decoded) {
 export function assertPermission(event, permission) {
   const authResult = authenticateRequest(event);
   if (!authResult.ok) return authResult;
-  const principal = principalFromJwt(authResult.decoded);
-  if (!principal) return { ok:false, status:401, error:'Invalid application identity' };
+  // Use the canonical principal produced by _auth.cjs. Do not reconstruct
+  // identity from decoded mutable metadata in an authorization boundary.
+  const principal = authResult.principal;
+  if (!principal) return { ok:false, status:403, error:'Invalid application identity' };
   if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
   return { ok:true, principal };
 }
