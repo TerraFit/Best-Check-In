@@ -22,13 +22,6 @@ function isManagement(principal) {
     || permissions.has('canAssignHousekeepingTasks');
 }
 
-function hasExplicitCompletionPermission(principal) {
-  return !!principal
-    && principal.actorType === 'employee'
-    && Array.isArray(principal.permissions)
-    && principal.permissions.includes('canCompleteHousekeepingTask');
-}
-
 function parseCount(value) {
   if (value === undefined || value === null || value === '') return 0;
   const n = Number(value);
@@ -77,7 +70,6 @@ export const handler = async (event) => {
     }
 
     const management = isManagement(principal);
-    const explicitCompletionPermission = hasExplicitCompletionPermission(principal);
     const canComplete = principal.actorType === 'business'
       || management
       || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
@@ -102,17 +94,19 @@ export const handler = async (event) => {
       { headers: read }
     );
     if (!sessionRes.ok) {
+      const text = await sessionRes.text();
+      if (/PGRST205|relation .* does not exist|Could not find the table|schema cache/i.test(text)) {
+        return response(503, headers, { success: false, error: 'Housekeeping service schema is not installed', code: 'HOUSEKEEPING_SCHEMA_MISSING', relation: 'housekeeping_service_sessions', hint: 'Apply docs/migrations/013, 014 and 015' });
+      }
       console.error('complete-housekeeping-service session lookup failed:', sessionRes.status);
       return response(500, headers, { success: false, error: 'Unable to load service session' });
     }
 
     const session = (await sessionRes.json())[0];
     if (!session) return response(404, headers, { success: false, error: 'Service session not found' });
-    if (session.status !== 'active') {
-      return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
-    }
+    if (session.status !== 'active') return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
 
-    if (!management && !explicitCompletionPermission && String(session.employee_id || '') !== String(principal.employeeId || '')) {
+    if (!management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
 
@@ -158,7 +152,7 @@ export const handler = async (event) => {
     }
 
     const taskRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(session.housekeeping_task_id)}&business_id=eq.${q(businessId)}&select=id,status`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(session.housekeeping_task_id)}&business_id=eq.${q(businessId)}`,
       {
         method: 'PATCH',
         headers: write,
