@@ -25,7 +25,13 @@ export const handler = async (event) => {
       return authFailure({ status: 403, error: 'Missing permission: canApproveRoomChanges' }, headers);
     }
 
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Request body must be valid JSON' }) };
+    }
+
     const { businessId: requestedBusinessId, totalRooms, confirmDeactivate } = body;
     if (!requestedBusinessId || totalRooms === undefined || totalRooms === null) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId and totalRooms are required' }) };
