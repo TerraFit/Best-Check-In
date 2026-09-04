@@ -31,6 +31,7 @@ export const handler = async function(event) {
       .from('businesses')
       .select('logo_url')
       .eq('id', businessId)
+      .eq('status', 'approved')
       .maybeSingle();
 
     if (error) {
