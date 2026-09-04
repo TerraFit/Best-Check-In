@@ -27,6 +27,7 @@ export const handler = async function(event) {
       .from('businesses')
       .select('hero_image_url')
       .eq('id', businessId)
+      .eq('status', 'approved')
       .maybeSingle();
 
     if (error) {
