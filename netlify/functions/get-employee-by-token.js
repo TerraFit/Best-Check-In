@@ -1,5 +1,5 @@
 // netlify/functions/get-employee-by-token.js
-// ✅ Using REST API directly - no WebSocket needed
+// Public invitation capability endpoint: only returns the minimum onboarding data.
 
 export const handler = async (event) => {
   const headers = {
@@ -9,12 +9,10 @@ export const handler = async (event) => {
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Only allow GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -24,18 +22,15 @@ export const handler = async (event) => {
   }
 
   try {
-    // Get token from query string
     const { token } = event.queryStringParameters || {};
 
-    if (!token) {
+    if (!token || typeof token !== 'string' || token.length > 256) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing token parameter' })
+        body: JSON.stringify({ error: 'Invalid invitation token' })
       };
     }
-
-    console.log('🔍 get-employee-by-token called with token:', token);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -49,11 +44,19 @@ export const handler = async (event) => {
       };
     }
 
-    // ============================================================
-    // ✅ Use REST API directly - NO WebSocket
-    // ============================================================
+    const select = [
+      'id',
+      'business_id',
+      'full_name',
+      'phone_number',
+      'role',
+      'status',
+      'invitation_expiry',
+      'invited_at'
+    ].join(',');
+
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
+      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=${encodeURIComponent(select)}&limit=1`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -67,12 +70,9 @@ export const handler = async (event) => {
       const errorText = await response.text();
       console.error('❌ Supabase REST error:', response.status, errorText);
       return {
-        statusCode: response.status,
+        statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Database error',
-          details: errorText
-        })
+        body: JSON.stringify({ error: 'Unable to verify invitation' })
       };
     }
 
@@ -80,52 +80,39 @@ export const handler = async (event) => {
     const employee = employees?.[0];
 
     if (!employee) {
-      console.log('❌ No employee found with token:', token);
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ 
-          error: 'Invalid or expired invitation token',
-          details: 'No employee found with this token'
-        })
+        body: JSON.stringify({ error: 'Invalid or expired invitation token' })
       };
     }
 
-    console.log('✅ Employee found:', employee.full_name);
-    console.log('📱 Phone:', employee.phone_number);
-    console.log('📊 Status:', employee.status);
-    console.log('⏰ Expiry:', employee.invitation_expiry);
-
-    // Check if token is expired
-    const isExpired = new Date() > new Date(employee.invitation_expiry);
+    const isExpired = !employee.invitation_expiry || new Date() > new Date(employee.invitation_expiry);
     if (isExpired) {
-      console.log('❌ Token expired on:', employee.invitation_expiry);
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Invitation link has expired. Please request a new one from your employer.',
           expired: true
         })
       };
     }
 
-    // Check if already activated
     if (employee.status === 'Active') {
-      console.log('❌ Account already activated');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'This account has already been activated.',
           alreadyActivated: true
         })
       };
     }
 
-    // Get business name
+    let businessName = 'your business';
     const businessResponse = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${employee.business_id}&select=trading_name`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(employee.business_id)}&select=trading_name&limit=1`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -135,38 +122,26 @@ export const handler = async (event) => {
       }
     );
 
-    let businessName = 'J-Bay Zebra Lodge';
     if (businessResponse.ok) {
       const businesses = await businessResponse.json();
-      if (businesses?.[0]?.trading_name) {
-        businessName = businesses[0].trading_name;
-      }
+      if (businesses?.[0]?.trading_name) businessName = businesses[0].trading_name;
     }
-
-    // Remove sensitive data before sending
-    const { password_hash, ...safeEmployee } = employee;
-
-    console.log('✅ Returning employee data for:', safeEmployee.full_name);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        employee: safeEmployee,
-        businessName: businessName
+        employee,
+        businessName
       })
     };
-
   } catch (error) {
     console.error('❌ Error in get-employee-by-token:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message 
-      })
+      body: JSON.stringify({ error: 'Unable to verify invitation' })
     };
   }
 };
