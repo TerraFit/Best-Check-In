@@ -36,7 +36,10 @@ beforeEach(() => {
     const u = String(url);
     calls.push({ url: u, options });
     if (fail && u.includes(fail.match) && (!fail.method || fail.method === options.method)) return response(fail.status, fail.body);
-    if (u.includes('/employees?')) return response(200, [{ id: 'emp-1', business_id: 'biz-1', status: 'Active' }]);
+    if (u.includes('/employees?')) {
+      const employeeId = decodeURIComponent((u.match(/id=eq\.([^&]+)/) || [])[1] || 'emp-1');
+      return response(200, [{ id: employeeId, business_id: 'biz-1', status: 'Active' }]);
+    }
     if (u.includes('/housekeeping_service_sessions')) {
       if (options.method === 'PATCH') {
         if (u.includes('status=eq.completed')) return response(200, [{ ...SESSION, status: 'active' }]);
@@ -79,7 +82,7 @@ test('real SuperAdmin is rejected by business endpoint', async () => { const r =
 test('employee without completion permission is rejected', async () => { const r = await complete(frontDesk()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.url.includes('/housekeeping_service_sessions')).length, 0); });
 test('business owner may complete own-tenant session', async () => { const r = await complete(owner()); assert.equal(r.statusCode, 200); });
 test('assigned housekeeper may complete own session', async () => { const r = await complete(housekeeper()); assert.equal(r.statusCode, 200); });
-test('explicit completion permission is sufficient', async () => { const r = await complete(explicitPermissionEmployee(), { sessionId: 'session-1' }); assert.equal(r.statusCode, 403); });
+test('explicit completion permission is sufficient', async () => { const r = await complete(explicitPermissionEmployee()); assert.equal(r.statusCode, 200); });
 test('housekeeper cannot complete another employee session', async () => { const r = await complete(otherEmployee()); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
 test('manager may override executor assignment', async () => { const r = await complete(manager()); assert.equal(r.statusCode, 200); });
 test('employee cannot substitute another tenant', async () => { const r = await complete(housekeeper(), { sessionId: 'session-1', businessId: 'biz-2' }); assert.equal(r.statusCode, 403); assert.equal(calls.filter((c) => c.options.method === 'PATCH').length, 0); });
