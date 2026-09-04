@@ -20,18 +20,9 @@ function isManagement(principal) {
 function hasProgressPermission(principal) {
   if (!principal) return false;
   if (principal.actorType === 'business') return true;
-  // Management roles are allowed to supervise/override an assigned executor.
   if (isManagement(principal)) return true;
   return rbac.requirePermission(principal, 'canStartHousekeepingTask')
     || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
-}
-
-function hasExplicitProgressPermission(principal) {
-  return !!principal
-    && principal.actorType === 'employee'
-    && Array.isArray(principal.permissions)
-    && (principal.permissions.includes('canStartHousekeepingTask')
-      || principal.permissions.includes('canCompleteHousekeepingTask'));
 }
 
 export const handler = async (event) => {
@@ -109,8 +100,7 @@ export const handler = async (event) => {
     if (!session) return response(404, headers, { success: false, error: 'Active service session not found' });
 
     const management = isManagement(principal);
-    const explicitProgressPermission = hasExplicitProgressPermission(principal);
-    if (!management && !explicitProgressPermission && String(session.employee_id || '') !== String(principal.employeeId || '')) {
+    if (!management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
 
