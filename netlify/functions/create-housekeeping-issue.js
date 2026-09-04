@@ -1,10 +1,12 @@
-const { authenticateHousekeepingServiceLive, resolveBusinessId, schemaMissingResponse, MANAGE_HIERARCHY } = require('./_housekeepingServiceAuth.cjs');
+import auth from './_housekeepingServiceAuth.cjs';
+
+const { authenticateHousekeepingServiceLive, resolveBusinessId, schemaMissingResponse, MANAGE_HIERARCHY } = auth;
 
 function response(statusCode, headers, payload) {
   return { statusCode, headers, body: JSON.stringify(payload) };
 }
 
-exports.handler = async (event) => {
+export async function handler(event) {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return response(405, headers, { error: 'Method Not Allowed' });
@@ -36,8 +38,6 @@ exports.handler = async (event) => {
     const write = { ...read, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const q = encodeURIComponent;
 
-    // The session is authoritative for both the employee and the task/room being serviced.
-    // Do not trust client-supplied taskId/roomId to attach an issue to another resource.
     const sessionRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(body.sessionId)}&business_id=eq.${q(scope.businessId)}&select=id,employee_id,housekeeping_task_id,room_id,status`,
       { headers: read }
@@ -123,4 +123,4 @@ exports.handler = async (event) => {
     console.error('create-housekeeping-issue fatal:', error?.message || error);
     return response(500, headers, { success: false, error: 'Failed to report housekeeping issue' });
   }
-};
+}
