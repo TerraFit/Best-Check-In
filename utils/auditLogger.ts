@@ -1,5 +1,5 @@
 // src/utils/auditLogger.ts
-// ✅ FIXED: Uses the same API endpoint as the backend
+// Audit identity and tenant scope are established server-side.
 
 interface AuditLogData {
   action: string;
@@ -16,51 +16,34 @@ interface AuditLogData {
   guest_name?: string;
 }
 
-/**
- * Create an audit log entry via the backend API
- * This matches the structure expected by create-audit-log.js
- */
 export const createAuditLog = async (data: AuditLogData) => {
   try {
-    // Get user info from localStorage
-    let userId = '00000000-0000-0000-0000-000000000000';
-    let userName = 'System';
-    let userRole = 'owner';
     let businessId = data.business_id || null;
+    let token: string | null = null;
 
     try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
+      const authStr = localStorage.getItem('fastcheckin_auth') || localStorage.getItem('fastcheckin_employee_auth');
       if (authStr) {
         const auth = JSON.parse(authStr);
         const user = auth.user || {};
-        userId = user.id || '00000000-0000-0000-0000-000000000000';
-        userName = user.name || user.full_name || user.email || 'System';
-        userRole = user.role || 'owner';
-        businessId = businessId || user.businessId || null;
+        businessId = businessId || user.businessId || user.business_id || null;
+        token = auth.token || auth.access_token || user.token || user.access_token || null;
       }
     } catch (e) {
-      console.warn('Could not get user from auth:', e);
+      console.warn('Could not get authenticated session:', e);
     }
 
-    // Try to get business_id from business storage if still null
     if (!businessId) {
       try {
         const businessStr = localStorage.getItem('business');
-        if (businessStr) {
-          const business = JSON.parse(businessStr);
-          businessId = business.id || null;
-        }
+        if (businessStr) businessId = JSON.parse(businessStr).id || null;
       } catch (e) {
         console.warn('Could not get business from storage:', e);
       }
     }
 
-    // Build the log entry matching the backend schema
     const logEntry = {
-      business_id: businessId || 'unknown',
-      user_id: data.user_id || userId,
-      user_name: data.user_name || userName,
-      user_role: data.user_role || userRole,
+      business_id: businessId || undefined,
       action: data.action,
       details: data.changes || {},
       description: data.description || `${data.action} performed`,
@@ -70,14 +53,12 @@ export const createAuditLog = async (data: AuditLogData) => {
       user_agent: navigator.userAgent || 'unknown',
     };
 
-    console.log('📝 Creating audit log:', logEntry);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-    // ✅ Call the backend function (not direct Supabase)
     const response = await fetch('/.netlify/functions/create-audit-log', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(logEntry),
     });
 
@@ -88,13 +69,12 @@ export const createAuditLog = async (data: AuditLogData) => {
     }
 
     const result = await response.json();
-    console.log('✅ Audit log created:', result);
     return { success: true, data: result };
   } catch (error) {
     console.error('❌ Error creating audit log:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 };
