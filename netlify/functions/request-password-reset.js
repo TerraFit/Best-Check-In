@@ -110,7 +110,7 @@ export const handler = async function(event) {
     }
 
     stage = 'token-insert';
-    const resetToken = crypto.randomUUID();
+    const resetToken = crypto.randomBytes(32).toString('base64url');
     const resetLink = `${getAppUrl()}/reset-password/${resetToken}`;
 
     try {

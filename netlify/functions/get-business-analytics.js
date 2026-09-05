@@ -1,159 +1,132 @@
-export const handler = async function(event) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  };
+import auth from './_auth.cjs';
+
+const { ACTOR_TYPES, requirePlatformActor, requirePlatformPermission, authFailure } = auth;
+
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+};
+
+export const handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'GET') {
+    return { statusCode: 405, headers, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
+  }
+
+  const auth = requirePlatformActor(event);
+  if (!auth.ok) return authFailure(auth, headers);
+  if (!requirePlatformPermission(auth.principal, 'platform:analytics:read')) {
+    return authFailure({ status: 403, error: 'Missing permission: platform:analytics:read' }, headers);
+  }
+
+  const businessId = event.queryStringParameters?.businessId;
+  if (!businessId) {
+    return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'businessId required' }) };
+  }
 
   try {
-    const { businessId, dateRange, province, city } = event.queryStringParameters || {};
-    
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID required' })
-      };
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
-    }
-
-    // Get date range filter
-    let startDate = new Date();
-    switch(dateRange) {
-      case '30days':
-        startDate.setDate(startDate.getDate() - 30);
-        break;
-      case '90days':
-        startDate.setDate(startDate.getDate() - 90);
-        break;
-      case '12months':
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(startDate.getDate() - 30);
-    }
-
-    // Fetch business details via REST
-    const businessResponse = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${businessId}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      }
-    );
-    
-    const businesses = await businessResponse.json();
-    const business = businesses?.[0];
-
+    const { fetchBusiness, buildAnalyticsSummary } = await import('./lib/analytics/pipeline.js');
+    const business = await fetchBusiness(businessId);
     if (!business) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found' })
-      };
+      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
     }
 
-    // Fetch bookings for the period
-    const BOOKINGS_TABLE = 'ONLINE CHECKING J-BAY ZEBRA LODGE';
-    const bookingsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/${encodeURIComponent(BOOKINGS_TABLE)}?business_id=eq.${businessId}&check_in_date=gte.${startDate.toISOString().split('T')[0]}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
+    const range = event.queryStringParameters?.dateRange || '30days';
+    const end = new Date();
+    const start = new Date(end);
+    if (range === '90days') start.setDate(start.getDate() - 90);
+    else if (range === '12months') start.setFullYear(start.getFullYear() - 1);
+    else start.setDate(start.getDate() - 30);
+
+    const dateFrom = start.toISOString().slice(0, 10);
+    const dateTo = end.toISOString().slice(0, 10);
+    const summary = await buildAnalyticsSummary({ businessId, dateFrom, dateTo });
+
+    const { fetchBookingsForAnalytics } = await import('./lib/analytics/pipeline.js');
+    const { enrichBookingGeo } = await import('./lib/analytics/metrics.js');
+    const { bookings } = await fetchBookingsForAnalytics(businessId, dateFrom, dateTo);
+    const completed = bookings.filter((b) => b.status === 'completed').map(enrichBookingGeo);
+
+    const provinces = {};
+    const cities = {};
+    const months = {};
+    completed.forEach((booking) => {
+      const province = booking._region || booking.guest_province;
+      const city = booking._city || booking.guest_city;
+      if (province) provinces[province] = (provinces[province] || 0) + 1;
+      if (city) cities[city] = (cities[city] || 0) + 1;
+      if (booking.check_in_date) {
+        const month = new Date(`${booking.check_in_date}T00:00:00Z`).toLocaleString('en-ZA', { month: 'short', timeZone: 'UTC' });
+        months[month] = (months[month] || 0) + 1;
       }
-    );
-    
-    const bookings = await bookingsResponse.json();
-    const completedBookings = bookings.filter(b => b.status === 'completed');
-
-    // Calculate occupancy rate (simplified)
-    const totalRooms = business.total_rooms || 10;
-    const possibleNights = totalRooms * 30;
-    const bookedNights = completedBookings.length;
-    const occupancyRate = (bookedNights / possibleNights) * 100;
-
-    // Monthly breakdown
-    const monthlyBreakdown = {};
-    completedBookings.forEach(booking => {
-      const month = new Date(booking.check_in_date).toLocaleString('default', { month: 'short' });
-      monthlyBreakdown[month] = (monthlyBreakdown[month] || 0) + 1;
     });
 
-    // Guest origin breakdown
-    const guestOrigins = {
-      provinces: {},
-      cities: {},
-      countries: {}
+    const summaryData = summary.summary || {};
+    const occupancy = Number(summaryData.occupancy || 0);
+    const totalRevenue = Number(summaryData.totalRevenue || 0);
+    const isSuperAdmin = auth.principal.actorType === ACTOR_TYPES.SUPER_ADMIN;
+
+    const businessResponse = {
+      id: business.id,
+      trading_name: business.trading_name,
+      registered_name: business.registered_name,
+      email: business.email,
+      phone: business.phone,
+      physical_address: business.physical_address,
+      status: business.status,
+      created_at: business.created_at,
     };
 
-    completedBookings.forEach(booking => {
-      if (booking.guest_province) {
-        guestOrigins.provinces[booking.guest_province] = (guestOrigins.provinces[booking.guest_province] || 0) + 1;
-      }
-      if (booking.guest_city) {
-        guestOrigins.cities[booking.guest_city] = (guestOrigins.cities[booking.guest_city] || 0) + 1;
-      }
-      if (booking.guest_country) {
-        guestOrigins.countries[booking.guest_country] = (guestOrigins.countries[booking.guest_country] || 0) + 1;
-      }
-    });
+    if (isSuperAdmin) {
+      businessResponse.subscription_tier = business.subscription_tier;
+      businessResponse.subscription_status = business.subscription_status || 'active';
+    }
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        business: {
-          id: business.id,
-          trading_name: business.trading_name,
-          registered_name: business.registered_name,
-          email: business.email,
-          phone: business.phone,
-          physical_address: business.physical_address,
-          status: business.status,
-          subscription_tier: business.subscription_tier,
-          subscription_status: business.subscription_status || 'active',
-          created_at: business.created_at
-        },
+        success: true,
+        business: businessResponse,
         analytics: {
-          total_bookings: completedBookings.length,
-          occupancy_rate: occupancyRate.toFixed(2),
-          monthly_breakdown: monthlyBreakdown,
-          guest_origins: guestOrigins,
-          total_revenue: completedBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
+          total_bookings: Number(summaryData.totalBookings || 0),
+          total_guests: Number(summaryData.totalGuests || 0),
+          total_nights: Number(summaryData.totalNights || 0),
+          occupancy_rate: occupancy,
+          monthly_breakdown: months,
+          guest_origins: {
+            countries: Object.fromEntries((summary.originCountries || []).map((x) => [x.name, x.total])),
+            provinces,
+            cities,
+          },
+          arriving_from: summary.arrivingFrom || [],
+          going_to: summary.goingTo || [],
+          total_revenue: totalRevenue,
+          average_stay: Number(summaryData.averageStay || 0),
+          returning_rate: Number(summaryData.returningRate || 0),
         },
         comparisons: {
           rankings: {
-            rank_overall: 0,
-            rank_province: 0,
-            rank_city: 0,
-            percentile_overall: 0,
-            percentile_province: 0,
-            percentile_city: 0
+            rank_overall: null,
+            rank_province: null,
+            rank_city: null,
+            percentile_overall: null,
+            percentile_province: null,
+            percentile_city: null,
           },
-          province_average: { avg_occupancy: 0, avg_bookings: 0 }
-        }
-      })
+          province_average: { avg_occupancy: null, avg_bookings: null },
+        },
+        meta: summary.meta,
+      }),
     };
-
   } catch (error) {
-    console.error('Analytics error:', error);
+    console.error('get-business-analytics error:', error?.message || error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ success: false, error: 'Internal Server Error' }),
     };
   }
 };

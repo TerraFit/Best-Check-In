@@ -1,8 +1,9 @@
 // src/hooks/useGuestDetails.ts
-// ✅ COMPLETE: Fixed business_id for audit logging
+// Guest detail reads now send the canonical authentication header.
 
 import { useState, useCallback } from 'react';
 import { GuestDetails, FoodRestrictions, StayUpdateData } from '../types/guest';
+import { getAuthHeader } from '../utils/auth';
 
 export function useGuestDetails() {
   const [loading, setLoading] = useState(false);
@@ -15,285 +16,105 @@ export function useGuestDetails() {
       setError('No booking ID provided');
       return;
     }
-
     console.log('🔍 useGuestDetails: Fetching guest details for:', bookingId);
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch(
-        `/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`
-      );
-
+      const response = await fetch(`/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`, { headers: { ...getAuthHeader(), 'Content-Type': 'application/json' } });
       console.log('📡 useGuestDetails: Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ useGuestDetails: API error:', errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-
       const data = await response.json();
       console.log('✅ useGuestDetails: Guest details received:', data);
       setGuestDetails(data);
     } catch (err) {
       console.error('❌ useGuestDetails: Error fetching guest details:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch guest details');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
-  // ✅ FIXED: Get business_id from auth, not from guestDetails
   const getBusinessId = useCallback((): string | null => {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        return auth.user?.businessId || null;
-      }
-    } catch (e) {
-      console.warn('Could not get business_id from auth:', e);
-    }
-    
+      if (authStr) { const auth = JSON.parse(authStr); return auth.user?.businessId || null; }
+    } catch (e) { console.warn('Could not get business_id from auth:', e); }
     try {
       const businessStr = localStorage.getItem('business');
-      if (businessStr) {
-        const business = JSON.parse(businessStr);
-        return business.id || null;
-      }
-    } catch (e) {
-      console.warn('Could not get business_id from business storage:', e);
-    }
-    
+      if (businessStr) { const business = JSON.parse(businessStr); return business.id || null; }
+    } catch (e) { console.warn('Could not get business_id from business storage:', e); }
     return null;
   }, []);
 
-  const updateFoodRestrictions = useCallback(async (
-    bookingId: string,
-    restrictions: FoodRestrictions
-  ) => {
-    if (!bookingId) {
-      throw new Error('No booking ID provided');
-    }
-
+  const updateFoodRestrictions = useCallback(async (bookingId: string, restrictions: FoodRestrictions) => {
+    if (!bookingId) throw new Error('No booking ID provided');
     console.log('💾 useGuestDetails: Saving restrictions for:', bookingId);
     console.log('💾 useGuestDetails: Restrictions:', restrictions);
-
-    setLoading(true);
-    setError(null);
-
+    setLoading(true); setError(null);
     try {
-      // ✅ Get business_id
       const businessId = getBusinessId();
       console.log('💾 useGuestDetails: Business ID:', businessId);
-
       const response = await fetch('/.netlify/functions/save-food-restrictions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bookingId, 
-          restrictions,
-          business_id: businessId  // ✅ Pass business_id
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, restrictions, business_id: businessId })
       });
-
       console.log('📡 useGuestDetails: Save response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ useGuestDetails: Save error:', errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
+      if (!response.ok) { const errorData = await response.json().catch(() => ({})); console.error('❌ useGuestDetails: Save error:', errorData); throw new Error(errorData.error || `HTTP ${response.status}`); }
       const result = await response.json();
       console.log('✅ useGuestDetails: Save result:', result);
-      
-      if (result.success && result.restrictions) {
-        setGuestDetails(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            food_restrictions: result.restrictions
-          };
-        });
-      }
-
-      // ✅ Create audit log with correct business_id
-      await addAuditLog({
-        bookingId,
-        action: 'UPDATE_FOOD_RESTRICTIONS',
-        details: restrictions,
-        description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`,
-        businessId: businessId || undefined
-      });
-
+      if (result.success && result.restrictions) setGuestDetails(prev => prev ? { ...prev, food_restrictions: result.restrictions } : null);
+      await addAuditLog({ bookingId, action: 'UPDATE_FOOD_RESTRICTIONS', details: restrictions, description: `Updated food restrictions for guest ${guestDetails?.guest_name || 'Unknown'}`, businessId: businessId || undefined });
       return result;
-    } catch (err) {
-      console.error('❌ useGuestDetails: Error saving restrictions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save restrictions');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error('❌ useGuestDetails: Error saving restrictions:', err); setError(err instanceof Error ? err.message : 'Failed to save restrictions'); throw err; }
+    finally { setLoading(false); }
   }, [guestDetails, getBusinessId]);
 
-  const updateStayDetails = useCallback(async (
-    bookingId: string,
-    data: StayUpdateData
-  ) => {
-    if (!bookingId) {
-      throw new Error('No booking ID provided');
-    }
-
+  const updateStayDetails = useCallback(async (bookingId: string, data: StayUpdateData) => {
+    if (!bookingId) throw new Error('No booking ID provided');
     console.log('📅 useGuestDetails: Updating stay details for:', bookingId);
     console.log('📅 useGuestDetails: Data:', data);
-
-    setLoading(true);
-    setError(null);
-
+    setLoading(true); setError(null);
     try {
-      // ✅ Get business_id
       const businessId = getBusinessId();
       console.log('📅 useGuestDetails: Business ID:', businessId);
-
       const response = await fetch('/.netlify/functions/update-booking-stay', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bookingId, 
-          ...data,
-          business_id: businessId  // ✅ Pass business_id
-        })
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, ...data, business_id: businessId })
       });
-
       console.log('📡 useGuestDetails: Update stay response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ useGuestDetails: Update stay error:', errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
+      if (!response.ok) { const errorData = await response.json().catch(() => ({})); console.error('❌ useGuestDetails: Update stay error:', errorData); throw new Error(errorData.error || `HTTP ${response.status}`); }
       const result = await response.json();
       console.log('✅ useGuestDetails: Update stay result:', result);
-      
-      if (result.success && result.booking) {
-        setGuestDetails(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            check_in_date: result.booking.check_in_date || prev.check_in_date,
-            check_out_date: result.booking.check_out_date || prev.check_out_date,
-            nights: result.booking.nights || prev.nights,
-          };
-        });
-      }
-
-      // ✅ Create audit log with correct business_id
-      await addAuditLog({
-        bookingId,
-        action: 'UPDATE_STAY_DETAILS',
-        details: data,
-        description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`,
-        businessId: businessId || undefined
-      });
-
+      if (result.success && result.booking) setGuestDetails(prev => prev ? { ...prev, check_in_date: result.booking.check_in_date || prev.check_in_date, check_out_date: result.booking.check_out_date || prev.check_out_date, nights: result.booking.nights || prev.nights } : null);
+      await addAuditLog({ bookingId, action: 'UPDATE_STAY_DETAILS', details: data, description: `Updated stay details for guest ${guestDetails?.guest_name || 'Unknown'}`, businessId: businessId || undefined });
       return result;
-    } catch (err) {
-      console.error('❌ useGuestDetails: Error updating stay details:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update stay details');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error('❌ useGuestDetails: Error updating stay details:', err); setError(err instanceof Error ? err.message : 'Failed to update stay details'); throw err; }
+    finally { setLoading(false); }
   }, [guestDetails, getBusinessId]);
 
-  // ✅ FIXED: Add audit log with correct business_id
-  const addAuditLog = useCallback(async (logData: {
-    bookingId: string;
-    action: string;
-    details: any;
-    description: string;
-    businessId?: string;
-  }) => {
+  const addAuditLog = useCallback(async (logData: { bookingId: string; action: string; details: any; description: string; businessId?: string; }) => {
     try {
-      // Get current user from auth
       const authStr = localStorage.getItem('fastcheckin_auth');
       const auth = authStr ? JSON.parse(authStr) : null;
       const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
-
-      // ✅ Use provided businessId, or try to get it
       let businessId = logData.businessId || null;
-      if (!businessId) {
-        businessId = getBusinessId();
-      }
-
-      // ✅ If still null, use a fallback
-      if (!businessId) {
-        console.warn('⚠️ No business_id available for audit log, using fallback');
-        businessId = '00000000-0000-0000-0000-000000000000';
-      }
-
-      const auditLog = {
-        business_id: businessId,
-        user_id: user.id || '00000000-0000-0000-0000-000000000000',
-        user_name: user.name || user.full_name || 'Unknown User',
-        user_role: user.role || 'owner',
-        action: logData.action,
-        details: logData.details,
-        description: logData.description,
-        booking_id: logData.bookingId,
-        guest_name: guestDetails?.guest_name || null,
-        ip_address: await getIPAddress(),
-        user_agent: navigator.userAgent
-      };
-
+      if (!businessId) businessId = getBusinessId();
+      if (!businessId) { console.warn('⚠️ No business_id available for audit log, using fallback'); businessId = '00000000-0000-0000-0000-000000000000'; }
+      const auditLog = { business_id: businessId, user_id: user.id || '00000000-0000-0000-0000-000000000000', user_name: user.name || user.full_name || 'Unknown User', user_role: user.role || 'owner', action: logData.action, details: logData.details, description: logData.description, booking_id: logData.bookingId, guest_name: guestDetails?.guest_name || null, ip_address: await getIPAddress(), user_agent: navigator.userAgent };
       console.log('📝 Creating audit log from useGuestDetails:', auditLog);
-
-      const response = await fetch('/.netlify/functions/create-audit-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(auditLog)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Audit log created for:', logData.action, result);
-      } else {
-        const errorText = await response.text();
-        console.warn('⚠️ Failed to create audit log:', errorText);
-      }
-    } catch (err) {
-      console.warn('⚠️ Audit log error (non-critical):', err);
-    }
+      const response = await fetch('/.netlify/functions/create-audit-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(auditLog) });
+      if (response.ok) { const result = await response.json(); console.log('✅ Audit log created for:', logData.action, result); } else { const errorText = await response.text(); console.warn('⚠️ Failed to create audit log:', errorText); }
+    } catch (err) { console.warn('⚠️ Audit log error (non-critical):', err); }
   }, [guestDetails, getBusinessId]);
 
-  // ✅ Helper to get IP address
   const getIPAddress = async (): Promise<string> => {
-    try {
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      return data.ip || 'unknown';
-    } catch {
-      return 'unknown';
-    }
+    try { const response = await fetch('https://api.ipify.org?format=json'); const data = await response.json(); return data.ip || 'unknown'; } catch { return 'unknown'; }
   };
 
-  const resetGuestDetails = useCallback(() => {
-    console.log('🔄 useGuestDetails: Resetting guest details');
-    setGuestDetails(null);
-    setError(null);
-    setLoading(false);
-  }, []);
+  const resetGuestDetails = useCallback(() => { console.log('🔄 useGuestDetails: Resetting guest details'); setGuestDetails(null); setError(null); setLoading(false); }, []);
 
-  return {
-    guestDetails,
-    loading,
-    error,
-    fetchGuestDetails,
-    updateFoodRestrictions,
-    updateStayDetails,
-    resetGuestDetails
-  };
+  return { guestDetails, loading, error, fetchGuestDetails, updateFoodRestrictions, updateStayDetails, resetGuestDetails };
 }

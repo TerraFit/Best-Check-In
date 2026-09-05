@@ -23,14 +23,17 @@ exports.handler = async function(event) {
 
     const { data, error } = await supabase.from('businesses').update({ status: 'approved', deleted_at: null }).eq('id', businessId).eq('status', 'archived').select().single();
     if (error) {
-      console.error('❌ Restore error:', error);
+      console.error('Restore error:', error);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to restore business' }) };
     }
     if (!data) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found or not archived' }) };
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business restored successfully', business: data }) };
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    console.error('Unhandled restore business error:', error?.message || error);
+    if (error instanceof SyntaxError) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body' }) };
+    }
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };

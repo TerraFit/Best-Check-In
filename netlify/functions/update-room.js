@@ -1,7 +1,17 @@
 // netlify/functions/update-room.js
 // Update mutable room fields. room_number and room_code are immutable.
+// Auth: Bearer JWT required; businessId must match token business_id (tenant isolation)
 
-exports.handler = async (event) => {
+import auth from './_auth.cjs';
+
+const {
+  requireBusinessActor,
+  requireBusinessPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
+
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -17,16 +27,30 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { roomId, businessId } = body;
+    const actor = requireBusinessActor(event);
+    if (!actor.ok) return authFailure(actor, headers);
 
-    if (!roomId || !businessId) {
+    if (!requireBusinessPermission(actor.principal, 'canViewRooms')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canViewRooms' },
+        headers
+      );
+    }
+
+    const body = JSON.parse(event.body || '{}');
+    const { roomId, businessId: requestedBusinessId } = body;
+
+    if (!roomId || !requestedBusinessId) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: 'roomId and businessId are required' }),
       };
     }
+
+    const tenant = resolveTenant(actor.principal, requestedBusinessId);
+    if (!tenant.ok) return authFailure(tenant, headers);
+    const businessId = tenant.businessId;
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -64,8 +88,10 @@ exports.handler = async (event) => {
       };
     }
 
+    const encodedRoomId = encodeURIComponent(roomId);
+    const encodedBusinessId = encodeURIComponent(businessId);
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/rooms?id=eq.${roomId}&business_id=eq.${businessId}`,
+      `${supabaseUrl}/rest/v1/rooms?id=eq.${encodedRoomId}&business_id=eq.${encodedBusinessId}`,
       {
         method: 'PATCH',
         headers: {
@@ -79,8 +105,12 @@ exports.handler = async (event) => {
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      return { statusCode: response.status, headers, body: JSON.stringify({ error: err }) };
+      console.error('update-room data layer error:', response.status);
+      return {
+        statusCode: response.status >= 500 ? 500 : response.status,
+        headers,
+        body: JSON.stringify({ error: response.status >= 500 ? 'Failed to update room' : 'Room update rejected' }),
+      };
     }
 
     const result = await response.json();

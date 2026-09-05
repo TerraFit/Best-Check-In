@@ -1,99 +1,73 @@
 // netlify/functions/save-food-restrictions.js
-// ✅ COMPLETE REWRITE: All dietary options with audit logging
-// ✅ FIXED: Food restriction changes now create audit logs
+// Authoritative tenant-scoped food restriction write with audit logging.
 
-const jwt = require('jsonwebtoken');
+import auth from './_auth.cjs';
+
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
+const response = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
+const encode = (value) => encodeURIComponent(String(value));
+
+async function supabaseRequest(path, options = {}) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  return fetch(`${url}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(options.headers || {})
+    }
+  });
+}
 
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  if (event.httpMethod === 'OPTIONS') return response(204, {});
+  if (event.httpMethod !== 'POST') return response(405, { error: 'Method Not Allowed' });
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405, 
-      headers, 
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
-    };
+  const actor = requireBusinessActor(event);
+  if (!actor.ok) return authFailure(actor, headers);
+  if (!requireBusinessPermission(actor.principal, 'canManageBookings')) {
+    return authFailure({ status: 403, error: 'Missing permission: canManageBookings' }, headers);
   }
 
   try {
-    const body = JSON.parse(event.body);
-    // ✅ Accept business_id from request
-    const { bookingId, restrictions, business_id } = body;
-
-    console.log('📥 Received save request:', { bookingId, restrictions, business_id });
-
-    if (!bookingId) {
-      return { 
-        statusCode: 400, 
-        headers, 
-        body: JSON.stringify({ error: 'Booking ID required' }) 
-      };
+    const body = JSON.parse(event.body || '{}');
+    const { bookingId, restrictions } = body;
+    if (!bookingId || typeof bookingId !== 'string' || bookingId.length > 200) {
+      return response(400, { error: 'Booking ID required' });
+    }
+    if (!restrictions || typeof restrictions !== 'object' || Array.isArray(restrictions)) {
+      return response(400, { error: 'Restrictions data required' });
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !supabaseKey) return response(500, { error: 'Server configuration error' });
 
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing Supabase credentials');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
-    }
-
-    // ============================================================
-    // ✅ 1. GET CURRENT BOOKING DATA FOR AUDIT LOG
-    // ============================================================
-    const currentBookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=id,guest_name,business_id`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
+    const bookingResponse = await supabaseRequest(
+      `bookings?id=eq.${encode(bookingId)}&select=id,guest_name,business_id&limit=1`
     );
-
-    let currentBooking = null;
-    if (currentBookingResponse.ok) {
-      const bookingData = await currentBookingResponse.json();
-      currentBooking = bookingData[0];
+    if (!bookingResponse.ok) {
+      console.error('Food restriction booking lookup failed:', bookingResponse.status);
+      return response(500, { error: 'Failed to validate booking' });
     }
+    const bookings = await bookingResponse.json();
+    const currentBooking = Array.isArray(bookings) ? bookings[0] : null;
+    if (!currentBooking) return response(404, { error: 'Booking not found' });
 
-    // ============================================================
-    // ✅ 2. GET CURRENT RESTRICTIONS FOR AUDIT LOG
-    // ============================================================
-    const currentRestrictionsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
-    );
+    const scope = resolveTenant(actor.principal, currentBooking.business_id);
+    if (!scope.ok) return authFailure(scope, headers);
 
-    let currentRestrictions = null;
-    if (currentRestrictionsResponse.ok) {
-      const restrictionsData = await currentRestrictionsResponse.json();
-      currentRestrictions = restrictionsData[0];
-    }
-
-    // ============================================================
-    // ✅ 3. BUILD RESTRICTION DATA
-    // ============================================================
     const restrictionData = {
       vegetarian: restrictions.vegetarian === true,
       vegan: restrictions.vegan === true,
@@ -108,223 +82,85 @@ export const handler = async (event) => {
       no_pork: restrictions.no_pork === true,
       carnivore: restrictions.carnivore === true,
       other: restrictions.other === true,
-      other_text: restrictions.other_text || '',
+      other_text: typeof restrictions.other_text === 'string' ? restrictions.other_text : '',
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Saving restriction data:', JSON.stringify(restrictionData, null, 2));
-
-    // ============================================================
-    // ✅ 4. CHECK IF RESTRICTIONS EXIST
-    // ============================================================
-    const checkResponse = await fetch(
-      `${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${bookingId}&select=id`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Accept': 'application/json'
-        }
-      }
+    const currentRestrictionsResponse = await supabaseRequest(
+      `booking_food_restrictions?booking_id=eq.${encode(bookingId)}&select=*&limit=1`
     );
-
-    if (!checkResponse.ok) {
-      console.error('❌ Check response error:', await checkResponse.text());
-      throw new Error(`Check failed: ${checkResponse.status}`);
+    if (!currentRestrictionsResponse.ok) {
+      console.error('Food restriction lookup failed:', currentRestrictionsResponse.status);
+      return response(500, { error: 'Failed to read food restrictions' });
     }
-
-    const existingData = await checkResponse.json();
-    const existingId = existingData[0]?.id;
+    const currentRestrictionsRows = await currentRestrictionsResponse.json();
+    const currentRestrictions = Array.isArray(currentRestrictionsRows) ? currentRestrictionsRows[0] : null;
 
     let result;
-
-    // ============================================================
-    // ✅ 5. INSERT OR UPDATE
-    // ============================================================
-    if (existingId) {
-      // UPDATE
-      console.log('📝 Updating existing restrictions for:', bookingId);
-      
-      const updateResponse = await fetch(
-        `${supabaseUrl}/rest/v1/booking_food_restrictions?id=eq.${existingId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify(restrictionData)
-        }
+    if (currentRestrictions?.id) {
+      const updateResponse = await supabaseRequest(
+        `booking_food_restrictions?id=eq.${encode(currentRestrictions.id)}`,
+        { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(restrictionData) }
       );
-
       if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        console.error('❌ Update error:', errorText);
-        throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
+        console.error('Food restriction update failed:', updateResponse.status);
+        return response(500, { error: 'Failed to save food restrictions' });
       }
-
-      const updateData = await updateResponse.json();
-      result = updateData[0];
-      console.log('✅ Updated restrictions:', result);
+      const updated = await updateResponse.json();
+      result = Array.isArray(updated) ? updated[0] : null;
     } else {
-      // INSERT
-      console.log('📝 Inserting new restrictions for:', bookingId);
-      
-      const insertResponse = await fetch(
-        `${supabaseUrl}/rest/v1/booking_food_restrictions`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify([{
-            booking_id: bookingId,
-            ...restrictionData,
-            created_at: new Date().toISOString()
-          }])
-        }
+      const insertResponse = await supabaseRequest(
+        'booking_food_restrictions',
+        { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([{ booking_id: bookingId, ...restrictionData, created_at: new Date().toISOString() }]) }
       );
-
       if (!insertResponse.ok) {
-        const errorText = await insertResponse.text();
-        console.error('❌ Insert error:', errorText);
-        throw new Error(`HTTP ${insertResponse.status}: ${errorText}`);
+        console.error('Food restriction insert failed:', insertResponse.status);
+        return response(500, { error: 'Failed to save food restrictions' });
       }
-
-      const insertData = await insertResponse.json();
-      result = insertData[0];
-      console.log('✅ Inserted restrictions:', result);
+      const inserted = await insertResponse.json();
+      result = Array.isArray(inserted) ? inserted[0] : null;
     }
 
-    // ============================================================
-    // ✅ 6. CREATE AUDIT LOG (COMPLETELY REWRITTEN)
-    // ============================================================
     try {
-      // Calculate what changed
+      const fields = ['vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'gluten_free', 'lactose_free', 'nut_allergy', 'seafood_allergy', 'diabetic', 'no_pork', 'carnivore', 'other'];
       const changes = {};
-      const fields = [
-        'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher',
-        'gluten_free', 'lactose_free', 'nut_allergy', 'seafood_allergy',
-        'diabetic', 'no_pork', 'carnivore', 'other'
-      ];
-
-      fields.forEach(field => {
+      for (const field of fields) {
         const oldValue = currentRestrictions ? currentRestrictions[field] : false;
         const newValue = restrictionData[field];
-        if (oldValue !== newValue) {
-          changes[field] = { from: oldValue, to: newValue };
-        }
-      });
-
-      // Check other_text changes
-      const oldOtherText = currentRestrictions?.other_text || '';
-      const newOtherText = restrictionData.other_text || '';
-      if (oldOtherText !== newOtherText) {
-        changes.other_text = { from: oldOtherText, to: newOtherText };
+        if (oldValue !== newValue) changes[field] = { from: oldValue, to: newValue };
       }
+      const oldOtherText = currentRestrictions?.other_text || '';
+      if (oldOtherText !== restrictionData.other_text) changes.other_text = { from: oldOtherText, to: restrictionData.other_text };
 
-      // ✅ CRITICAL: Only create audit log if there were changes
       if (Object.keys(changes).length > 0) {
-        // ✅ Get user from auth header
-        const authHeader = event.headers.authorization || '';
-        let userId = '00000000-0000-0000-0000-000000000000';
-        let userName = 'System';
-        let userRole = 'owner';
-
-        try {
-          const token = authHeader.replace('Bearer ', '');
-          if (token) {
-            const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-            userId = decoded.sub || '00000000-0000-0000-0000-000000000000';
-            userName = decoded.user_metadata?.full_name || 
-                       decoded.user_metadata?.name || 
-                       decoded.user_metadata?.business_name ||
-                       'System';
-            userRole = decoded.user_metadata?.role || 'owner';
-          }
-        } catch (tokenError) {
-          console.warn('Could not extract user from token:', tokenError.message);
-        }
-
-        // ✅ Get guest name
-        const guestName = currentBooking?.guest_name || 'Unknown Guest';
-        
-        // ✅ Use business_id from request, fallback to booking's business_id
-        const businessId = business_id || currentBooking?.business_id || 'unknown';
-
-        // ✅ Build the audit log
         const auditLog = {
-          business_id: businessId,
-          user_id: userId,
-          user_name: userName,
-          user_role: userRole,
+          business_id: scope.businessId,
+          user_id: actor.principal.employeeId || actor.principal.subject || actor.principal.businessId || null,
+          user_name: actor.principal.name || 'System',
+          user_role: actor.principal.normalizedRole || actor.principal.role || actor.principal.actorType,
           action: 'UPDATE_FOOD_RESTRICTIONS',
           details: changes,
-          description: `Updated food restrictions for guest ${guestName}`,
+          description: `Updated food restrictions for guest ${currentBooking.guest_name || 'Unknown Guest'}`,
           booking_id: bookingId,
-          guest_name: guestName,
-          ip_address: event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown',
-          user_agent: event.headers['user-agent'] || 'unknown',
+          guest_name: currentBooking.guest_name || 'Unknown Guest',
+          ip_address: event.headers?.['client-ip'] || event.headers?.['x-forwarded-for'] || 'unknown',
+          user_agent: event.headers?.['user-agent'] || 'unknown',
           created_at: new Date().toISOString()
         };
-
-        console.log('📝 Audit log for food restrictions:', JSON.stringify(auditLog, null, 2));
-
-        // ✅ DIRECT INSERT (most reliable)
-        const directResponse = await fetch(
-          `${supabaseUrl}/rest/v1/audit_logs`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify([auditLog])
-          }
-        );
-
-        if (directResponse.ok) {
-          console.log('✅ Audit log created for food restrictions update');
-        } else {
-          const directError = await directResponse.text();
-          console.warn('⚠️ Direct insert failed:', directError);
-        }
-      } else {
-        console.log('ℹ️ No changes detected, skipping audit log');
+        const auditResponse = await supabaseRequest('audit_logs', {
+          method: 'POST',
+          body: JSON.stringify([auditLog])
+        });
+        if (!auditResponse.ok) console.warn('Food restriction audit log insert failed:', auditResponse.status);
       }
     } catch (auditError) {
-      console.warn('⚠️ Audit log error (non-critical):', auditError);
-      // Don't fail the request if audit logging fails
+      console.warn('Food restriction audit log error:', auditError?.message || auditError);
     }
 
-    // ============================================================
-    // ✅ 7. RETURN SUCCESS RESPONSE
-    // ============================================================
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        restrictions: result,
-        message: 'Food restrictions saved successfully'
-      })
-    };
-
+    return response(200, { success: true, restrictions: result, message: 'Food restrictions saved successfully' });
   } catch (error) {
-    console.error('❌ Error saving food restrictions:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        success: false,
-        error: error.message || 'Failed to save food restrictions' 
-      })
-    };
+    console.error('Error saving food restrictions:', error?.message || error);
+    if (error instanceof SyntaxError) return response(400, { error: 'Invalid JSON in request body' });
+    return response(500, { error: 'Internal server error' });
   }
 };

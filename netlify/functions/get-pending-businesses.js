@@ -21,6 +21,7 @@ export const handler = async function(event) {
     const data = await supabaseFetch('businesses?status=eq.pending&select=*&order=created_at.desc');
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data || [], count: data?.length || 0 }) };
   } catch (error) {
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message, data: [] }) };
+    console.error('Error loading pending businesses:', error?.message || error);
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load pending businesses', data: [] }) };
   }
 };

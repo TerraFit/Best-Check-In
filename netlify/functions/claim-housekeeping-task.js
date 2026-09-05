@@ -17,8 +17,14 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
+  let body;
   try {
-    const body = JSON.parse(event.body || '{}');
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+  }
+
+  try {
     if (!body.taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
 
     const gate = await authenticateHousekeepingServiceLive(event, 'execute');
@@ -50,8 +56,21 @@ export const handler = async (event) => {
       }),
     });
 
-    const rows = res.ok ? await res.json() : [];
-    if (!res.ok) return { statusCode: res.status, headers, body: JSON.stringify({ error: await res.text() }) };
+    if (!res.ok) {
+      let upstreamDetails = '';
+      try {
+        upstreamDetails = await res.text();
+      } catch {
+        // Ignore response-body read failures; the client still receives a sanitized error.
+      }
+      console.error('claim-housekeeping-task upstream failure:', {
+        status: res.status,
+        body: upstreamDetails,
+      });
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to claim housekeeping task' }) };
+    }
+
+    const rows = await res.json();
     if (!rows[0]) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'Task is no longer available to claim', code: 'TASK_ALREADY_CLAIMED' }) };
     }
@@ -59,6 +78,6 @@ export const handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, task: rows[0] }) };
   } catch (error) {
     console.error('claim-housekeeping-task fatal:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to claim housekeeping task' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to claim housekeeping task' }) };
   }
 };

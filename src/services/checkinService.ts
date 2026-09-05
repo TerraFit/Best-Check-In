@@ -22,10 +22,10 @@ export class CheckInService {
     return response.json();
   }
 
-  async getGuestProfile(email: string): Promise<any> {
+  async getGuestProfile(email: string, businessId: string): Promise<any> {
     const normalizedEmail = email.toLowerCase().trim();
     const response = await fetch(
-      `${this.baseUrl}/get-guest-profile?email=${encodeURIComponent(normalizedEmail)}`
+      `${this.baseUrl}/get-guest-profile?email=${encodeURIComponent(normalizedEmail)}&business_id=${encodeURIComponent(businessId)}`
     );
     if (!response.ok) return null;
     return response.json();
