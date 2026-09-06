@@ -1,50 +1,85 @@
 import { createClient } from '@supabase/supabase-js';
+import { getPackage, getPlanPricing, normalizePlanId } from './lib/packages.js';
+import auth from './_auth.cjs';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-// Peach Payments configuration
 const PEACH_API_KEY = process.env.PEACH_API_KEY;
 const PEACH_ENTITY_ID = process.env.PEACH_ENTITY_ID;
 const PEACH_URL = process.env.NODE_ENV === 'production'
   ? 'https://api.peachpayments.com/v1/payments'
   : 'https://testapi.peachpayments.com/v1/payments';
 
+const jsonHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*'
+};
+
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  };
-
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+    return { statusCode: 204, headers: jsonHeaders, body: '' };
   }
 
-  if (event.httpMethod === 'POST') {
-    return createPeachPayment(event);
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers: jsonHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  return createPeachPayment(event);
 };
 
 async function createPeachPayment(event) {
   try {
-    const { businessId, planId, billingCycle, email, amount, returnUrl } = JSON.parse(event.body);
+    const gate = auth.requireBusinessActor(event);
+    if (!gate.ok || gate.principal.actorType !== 'business') {
+      return auth.authFailure(gate, jsonHeaders);
+    }
 
-    const transactionId = `PP-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const body = JSON.parse(event.body || '{}');
+    const businessId = body.businessId;
+    const requestedPlanId = body.planId;
+    const billingCycle = body.billingCycle;
 
-    // Save transaction
-    await supabase.from('transactions').insert({
+    const scope = auth.resolveTenant(gate.principal, businessId);
+    if (!scope.ok) return auth.authFailure(scope, jsonHeaders);
+
+    if (!['monthly', 'yearly'].includes(billingCycle)) {
+      return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Invalid billing cycle' }) };
+    }
+
+    const planId = normalizePlanId(requestedPlanId);
+    const pkg = getPackage(planId);
+    const pricing = getPlanPricing(planId, billingCycle);
+    if (!pkg || pricing.contactSales || pricing.amount <= 0) {
+      return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not available for online payment' }) };
+    }
+
+    const { data: business, error: businessError } = await supabase
+      .from('businesses')
+      .select('id, email, trading_name, status')
+      .eq('id', scope.businessId)
+      .single();
+
+    if (businessError || !business || business.status !== 'approved') {
+      return { statusCode: 403, headers: jsonHeaders, body: JSON.stringify({ error: 'Business account is not eligible for payment' }) };
+    }
+
+    const transactionId = `PP-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const authoritativeAmount = pricing.amount;
+    const customerEmail = gate.principal.email || business.email;
+
+    const { error: transactionError } = await supabase.from('transactions').insert({
       id: transactionId,
-      business_id: businessId,
+      business_id: scope.businessId,
       plan_id: planId,
       billing_cycle: billingCycle,
-      amount: amount,
+      amount: authoritativeAmount,
       status: 'pending',
       gateway: 'peach',
       created_at: new Date().toISOString()
     });
 
-    // Create Peach payment
+    if (transactionError) throw transactionError;
+
     const response = await fetch(PEACH_URL, {
       method: 'POST',
       headers: {
@@ -53,33 +88,39 @@ async function createPeachPayment(event) {
       },
       body: new URLSearchParams({
         entityId: PEACH_ENTITY_ID,
-        amount: amount.toString(),
-        currency: 'ZAR',
+        amount: authoritativeAmount.toString(),
+        currency: pricing.currency,
         paymentType: 'DB',
         merchantTransactionId: transactionId,
-        customerEmail: email,
-        returnUrl: returnUrl || `https://fastcheckin.co.za/business/billing?gateway=peach`,
-        shopperResultUrl: `https://fastcheckin.co.za/.netlify/functions/peach-payments/result`
+        customerEmail,
+        returnUrl: 'https://fastcheckin.co.za/business/billing?gateway=peach',
+        shopperResultUrl: 'https://fastcheckin.co.za/.netlify/functions/peach-payments/result'
       })
     });
 
+    if (!response.ok) {
+      const upstream = await response.text();
+      console.error('Peach payment request failed:', response.status, upstream);
+      throw new Error('Peach payment request failed');
+    }
+
     const result = await response.json();
+    if (!result.redirect?.url) throw new Error('Peach payment did not return a redirect URL');
 
     return {
       statusCode: 200,
-      headers,
+      headers: jsonHeaders,
       body: JSON.stringify({
-        redirectUrl: result.redirect?.url,
+        redirectUrl: result.redirect.url,
         transactionId
       })
     };
-
   } catch (error) {
     console.error('Peach payment error:', error);
     return {
       statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message })
+      headers: jsonHeaders,
+      body: JSON.stringify({ error: 'Payment could not be created' })
     };
   }
 }
