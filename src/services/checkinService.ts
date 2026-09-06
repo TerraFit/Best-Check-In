@@ -31,11 +31,11 @@ export class CheckInService {
     return response.json();
   }
 
-  async saveGuestProfile(email: string, profileData: any): Promise<any> {
+  async saveGuestProfile(email: string, businessId: string, profileData: any): Promise<any> {
     const response = await fetch(`${this.baseUrl}/save-guest-profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, profileData })
+      body: JSON.stringify({ email, businessId, profileData })
     });
     return response.json();
   }
