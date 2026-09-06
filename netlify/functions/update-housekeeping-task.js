@@ -5,7 +5,7 @@ import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
-const { resolvePermissions, normalizeRole } = rbac;
+const { resolvePermissions } = rbac;
 
 const STATUS_PERMISSIONS = Object.freeze({
   in_progress: 'canStartHousekeepingTask',
@@ -33,10 +33,10 @@ function hasPermission(principal, permission) {
 
 export function canOverrideTaskExecution(principal, task) {
   if (!principal || !task) return false;
-  if (principal.actorType === 'business') return true;
+  if (principal.actorType === 'business' || principal.actorType === 'super_admin') return true;
   const permissions = principalPermissions(principal);
-  const normalizedRole = normalizeRole(principal.role);
-  if (MANAGE_ROLES.has(normalizedRole)) return true;
+  const role = String(principal.role || '').trim().toLowerCase();
+  if (MANAGE_ROLES.has(role)) return true;
   if (permissions.has('canManageHousekeeping')) return true;
   return String(task.assigned_staff_id || '') === String(principal.employeeId || '');
 }
@@ -113,10 +113,6 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unsupported inspection status' }) };
     }
 
-    // Every mutating field is authorized independently. A request containing
-    // multiple mutation classes must satisfy every required capability; the
-    // previous single-mode selection allowed an executor to smuggle an
-    // assignment change alongside an otherwise-authorized status update.
     if (hasAssignmentMutation && !hasPermission(principal, 'canAssignHousekeepingTasks')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canAssignHousekeepingTasks' }) };
     }
@@ -130,10 +126,6 @@ export const handler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${STATUS_PERMISSIONS[status]}` }) };
     }
 
-    // Reject notes-only mutation before any database access when the caller
-    // lacks task-execution/management capability. This is important because
-    // read-only housekeeping access must never become a write primitive and
-    // should fail before revealing whether the supplied taskId exists.
     if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
       const canEditNotes = principal.actorType === 'business'
         || hasPermission(principal, 'canManageHousekeeping')
@@ -167,8 +159,6 @@ export const handler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
     }
 
-    // Notes are operational task data, not read access. An employee may only
-    // add/change notes when they can execute this task or manage housekeeping.
     if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
       if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
