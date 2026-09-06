@@ -95,7 +95,10 @@ export async function handler(event) {
       check_in_date: checkInDate,
       check_out_date: checkOutDate,
       nights,
-      status: body.status || 'checked_in',
+      // This endpoint represents a completed guest check-in. Never allow an
+      // anonymous caller to manufacture privileged booking states such as
+      // cancelled/completed through the public create path.
+      status: 'checked_in',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
