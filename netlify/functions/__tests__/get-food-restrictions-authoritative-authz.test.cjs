@@ -30,7 +30,8 @@ test('food restrictions: anonymous request is rejected', async () => {
 test('food restrictions: employee cannot read another tenant booking', async () => {
   mockFetch('biz-b');
   const { handler } = await loadFunction();
-  assert.equal((await handler(event(employeeToken('biz-a')))).statusCode, 403);
+  // The booking query is tenant-scoped, so an out-of-scope result is treated as not found.
+  assert.equal((await handler(event(employeeToken('biz-a')))).statusCode, 404);
 });
 
 test('food restrictions: authorized employee is tenant scoped', async () => {
