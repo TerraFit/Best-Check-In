@@ -1,4 +1,4 @@
-import { Handler } from '@netlify/functions';
+import type { Handler } from '@netlify/functions';
 import auth from './_auth.cjs';
 
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
