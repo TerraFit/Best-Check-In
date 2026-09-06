@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "i18n:validate": "node scripts/i18n-validate.cjs",
-    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs",
-    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs"
+    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs",
+    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs"
   },
   "dependencies": {
     "react": "^19.2.4",
@@ -22,9 +22,9 @@
     "@types/recharts": "^1.8.29",
     "@supabase/supabase-js": "^2.39.0",
     "bcryptjs": "^2.4.3",
-    "uuid": "^9.0.1",
+    "uuid": "^9.0.0",
     "resend": "^4.0.0",
-    "qrcode": "^1.5.3",
+    "qrcode": "^1.5.0",
     "@heroicons/react": "^2.0.0",
     "xlsx": "^0.18.5",
     "stripe": "^17.5.0",
@@ -39,8 +39,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",
-    "typescript": "^5.8.2",
-    "vite": "^6.4.1",
+    "typescript": "^5.8.0",
+    "@vitejs/plugin-react": "^5.1.4",
     "@types/qrcode": "^1.5.5",
     "@types/node": "^20.0.0",
     "@types/d3-scale": "^4.0.8",
