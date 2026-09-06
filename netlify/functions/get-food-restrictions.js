@@ -46,7 +46,7 @@ export const handler = async function(event) {
     }
     const bookings = await bookingResponse.json();
     const booking = Array.isArray(bookings) ? bookings[0] : null;
-    if (!booking) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+    if (!booking || String(booking.business_id) !== String(businessScope)) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
 
     const response = await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodeURIComponent(bookingId)}&select=*`, { headers: readHeaders });
     if (!response.ok) {
