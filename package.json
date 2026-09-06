@@ -26,7 +26,7 @@
     "resend": "^4.0.0",
     "qrcode": "^1.5.3",
     "@heroicons/react": "^2.0.0",
-    "xlsx": "^0.18.0",
+    "xlsx": "^0.18.5",
     "stripe": "^17.5.0",
     "jsonwebtoken": "^9.0.0",
     "ws": "^8.18.0",
