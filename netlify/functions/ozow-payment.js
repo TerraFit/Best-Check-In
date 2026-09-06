@@ -9,13 +9,36 @@ const OZOW_SITE_CODE = process.env.OZOW_SITE_CODE;
 const OZOW_API_KEY = process.env.OZOW_API_KEY;
 const OZOW_PRIVATE_KEY = process.env.OZOW_PRIVATE_KEY;
 const OZOW_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.ozow.com/request/payment'
-  : 'https://sandbox.ozow.com/request/payment';
+  ? 'https://api.ozow.com/postpaymentrequest'
+  : 'https://stagingapi.ozow.com/postpaymentrequest';
 
 const jsonHeaders = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*'
 };
+
+function buildRequestHash(data) {
+  const values = [
+    data.SiteCode,
+    data.CountryCode,
+    data.CurrencyCode,
+    data.Amount,
+    data.TransactionReference,
+    data.BankReference,
+    data.Optional1,
+    data.Optional2,
+    data.Optional3,
+    data.Optional4,
+    data.Optional5,
+    data.Customer,
+    data.CancelUrl,
+    data.ErrorUrl,
+    data.SuccessUrl,
+    data.NotifyUrl,
+    data.IsTest,
+  ].map((value) => value == null ? '' : String(value));
+  return crypto.createHash('sha512').update(`${values.join('')}${OZOW_PRIVATE_KEY}`.toLowerCase()).digest('hex');
+}
 
 export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: jsonHeaders, body: '' };
@@ -52,20 +75,30 @@ async function createOzowPayment(event) {
 
     const ozowData = {
       SiteCode: OZOW_SITE_CODE,
-      TransactionReference: transactionId,
-      Amount: authoritativeAmount,
+      CountryCode: 'ZA',
       CurrencyCode: pricing.currency,
-      CustomerEmail: customerEmail,
+      Amount: authoritativeAmount.toFixed(2),
+      TransactionReference: transactionId,
+      BankReference: transactionId.slice(0, 20),
+      Optional1: scope.businessId,
+      Optional2: planId,
+      Optional3: billingCycle,
+      Optional4: '',
+      Optional5: '',
+      Customer: customerEmail,
       CancelUrl: 'https://fastcheckin.co.za/business/billing?canceled=true',
       ErrorUrl: 'https://fastcheckin.co.za/business/billing?error=true',
       SuccessUrl: 'https://fastcheckin.co.za/business/billing?success=true',
       NotifyUrl: 'https://fastcheckin.co.za/.netlify/functions/ozow-payment-notify',
       IsTest: process.env.NODE_ENV !== 'production'
     };
+    ozowData.HashCheck = buildRequestHash(ozowData);
 
-    const hashString = `${OZOW_SITE_CODE}${ozowData.TransactionReference}${ozowData.Amount}${ozowData.CurrencyCode}${OZOW_PRIVATE_KEY}`;
-    ozowData.Hash = crypto.createHash('sha512').update(hashString).digest('hex');
-    const response = await fetch(OZOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(OZOW_API_KEY ? { ApiKey: OZOW_API_KEY } : {}) }, body: JSON.stringify(ozowData) });
+    const response = await fetch(OZOW_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(OZOW_API_KEY ? { ApiKey: OZOW_API_KEY } : {}) },
+      body: JSON.stringify(ozowData)
+    });
     if (!response.ok) {
       const upstream = await response.text();
       console.error('Ozow payment request failed:', response.status, upstream);
@@ -73,10 +106,13 @@ async function createOzowPayment(event) {
     }
 
     const result = await response.json();
-    if (!result.PaymentUrl) throw new Error('Ozow payment did not return a payment URL');
-    return { statusCode: 200, headers: jsonHeaders, body: JSON.stringify({ redirectUrl: result.PaymentUrl, transactionId }) };
+    const paymentUrl = result.PaymentUrl || result.paymentUrl || result.Url || result.url;
+    if (!paymentUrl) throw new Error('Ozow payment did not return a payment URL');
+    return { statusCode: 200, headers: jsonHeaders, body: JSON.stringify({ redirectUrl: paymentUrl, transactionId }) };
   } catch (error) {
     console.error('Ozow payment error:', error);
     return { statusCode: 500, headers: jsonHeaders, body: JSON.stringify({ error: 'Payment could not be created' }) };
   }
 }
+
+export { buildRequestHash };
