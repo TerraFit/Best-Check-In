@@ -198,7 +198,12 @@ export async function handler(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, duplicate: false, booking: savedBooking, message: 'Booking created successfully' })
+      body: JSON.stringify({
+        success: true,
+        duplicate: false,
+        booking: savedBooking?.id ? { id: savedBooking.id } : null,
+        message: 'Booking created successfully'
+      })
     };
   } catch (err) {
     console.error('Fatal booking error:', err?.message || 'unknown error');
