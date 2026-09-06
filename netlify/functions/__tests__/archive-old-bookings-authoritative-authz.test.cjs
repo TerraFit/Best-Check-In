@@ -47,9 +47,9 @@ function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } 
     }
   };
 
-  const wrapped = `${source}\nmodule.exports = { handler };`;
+  const wrapped = `const createClient = () => client;\n${source}\nmodule.exports = { handler };`;
   const module = { exports: {} };
-  vm.runInNewContext(`(function(require, module, exports, process, console) { ${wrapped}\n})(require, module, module.exports, process, console);`, sandbox, { filename: HANDLER_PATH });
+  vm.runInNewContext(`(function(require, module, exports, process, console, client) { ${wrapped}\n})(require, module, module.exports, process, console, client);`, sandbox, { filename: HANDLER_PATH });
   return { handler: module.exports.handler, calls };
 }
 
