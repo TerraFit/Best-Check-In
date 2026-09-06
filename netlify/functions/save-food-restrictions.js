@@ -50,12 +50,16 @@ export const handler = async (event) => {
       return response(400, { error: 'Restrictions data required' });
     }
 
+    const scope = resolveTenant(actor.principal, body.business_id);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) return response(500, { error: 'Server configuration error' });
 
     const bookingResponse = await supabaseRequest(
-      `bookings?id=eq.${encode(bookingId)}&select=id,guest_name,business_id&limit=1`
+      `bookings?id=eq.${encode(bookingId)}&business_id=eq.${encode(businessId)}&select=id,guest_name,business_id&limit=1`
     );
     if (!bookingResponse.ok) {
       console.error('Food restriction booking lookup failed:', bookingResponse.status);
@@ -64,9 +68,6 @@ export const handler = async (event) => {
     const bookings = await bookingResponse.json();
     const currentBooking = Array.isArray(bookings) ? bookings[0] : null;
     if (!currentBooking) return response(404, { error: 'Booking not found' });
-
-    const scope = resolveTenant(actor.principal, currentBooking.business_id);
-    if (!scope.ok) return authFailure(scope, headers);
 
     const restrictionData = {
       vegetarian: restrictions.vegetarian === true,
