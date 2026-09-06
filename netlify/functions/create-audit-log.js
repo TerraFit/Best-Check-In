@@ -1,7 +1,8 @@
-const auth = require('./_auth.cjs');
+import auth from './_auth.cjs';
+
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -51,10 +52,10 @@ exports.handler = async (event) => {
     const response = await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
       method: 'POST',
       headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        Prefer: 'return=representation'
       },
       body: JSON.stringify([logEntry])
     });
