@@ -58,7 +58,8 @@ export const handler = async (event) => {
     );
 
     if (!bookingRes.ok) {
-      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+      console.error('assign-room booking lookup failed:', bookingRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to load booking' }) };
     }
 
     const bookings = await bookingRes.json();
@@ -81,7 +82,11 @@ export const handler = async (event) => {
           },
         }
       );
-      const rooms = roomRes.ok ? await roomRes.json() : [];
+      if (!roomRes.ok) {
+        console.error('assign-room room lookup failed:', roomRes.status);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to load room' }) };
+      }
+      const rooms = await roomRes.json();
       newRoom = rooms[0];
       if (!newRoom) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Room not found or inactive' }) };
@@ -108,8 +113,12 @@ export const handler = async (event) => {
     );
 
     if (!updateRes.ok) {
-      const err = await updateRes.text();
-      return { statusCode: updateRes.status, headers, body: JSON.stringify({ error: err }) };
+      console.error('assign-room booking update failed:', updateRes.status);
+      return {
+        statusCode: updateRes.status >= 500 ? 500 : updateRes.status,
+        headers,
+        body: JSON.stringify({ error: updateRes.status >= 500 ? 'Failed to update booking room' : 'Booking room update rejected' }),
+      };
     }
 
     const updated = await updateRes.json();
@@ -191,6 +200,6 @@ export const handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, booking: updatedBooking, room: newRoom }) };
   } catch (error) {
     console.error('assign-room-to-booking fatal:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Failed to assign room' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to assign room' }) };
   }
 };
