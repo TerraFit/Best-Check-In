@@ -34,10 +34,12 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
+    // Identity is authoritative: client-supplied user_id/user_name/user_role are ignored.
+    const principalUserId = actor.principal.userId || null;
     const logEntry = {
       business_id: businessId,
-      user_id: actor.principal.userId || '00000000-0000-0000-0000-000000000000',
-      user_name: actor.principal.email || 'System',
+      user_id: principalUserId || '00000000-0000-0000-0000-000000000000',
+      user_name: principalUserId || actor.principal.email || 'System',
       user_role: actor.principal.role || 'owner',
       action: action.trim(),
       details: details && typeof details === 'object' ? details : {},
