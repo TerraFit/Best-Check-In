@@ -24,7 +24,10 @@ export async function fetchRooms(businessId: string, options?: { includeInactive
 export async function fetchAvailableRooms(params: { businessId: string; checkIn: string; checkOut: string; excludeBookingId?: string }): Promise<Room[]> {
   const qs = new URLSearchParams({ businessId: params.businessId, checkIn: params.checkIn, checkOut: params.checkOut });
   if (params.excludeBookingId) qs.set('excludeBookingId', params.excludeBookingId);
-  const res = await fetch(`/.netlify/functions/get-available-rooms?${qs}`);
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/.netlify/functions/get-available-rooms?${qs}`, { headers });
   const data = await parseJson(res);
   return data.rooms || data.data || [];
 }
