@@ -47,3 +47,45 @@ test('create-conversation rejects an authenticated user attempting another tenan
   const result = await handler(event(token, JSON.stringify({ businessId: 'biz-b', subject: 'cross tenant' })));
   assert.equal(result.statusCode, 403);
 });
+
+test('public create-booking ignores attacker-controlled booking status', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (calls.length === 1) {
+      return {
+        ok: true,
+        async json() {
+          return [{ id: 'biz-a', status: 'approved', service_paused: false }];
+        }
+      };
+    }
+
+    return {
+      ok: true,
+      async json() {
+        return [{ id: 'booking-a' }];
+      }
+    };
+  };
+
+  try {
+    const { handler } = await load('create-booking.js');
+    const result = await handler(event(null, JSON.stringify({
+      business_id: 'biz-a',
+      guest_name: 'Guest Example',
+      guest_email: 'guest@example.com',
+      check_in_date: '2026-09-06',
+      nights: 1,
+      status: 'cancelled'
+    })));
+
+    assert.equal(result.statusCode, 200);
+    const insert = JSON.parse(calls[1].options.body)[0];
+    assert.equal(insert.status, 'checked_in');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
