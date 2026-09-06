@@ -21,7 +21,7 @@ exports.handler = async (event) => {
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     const now = new Date(); const path = `${scope.businessId}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2,'0')}/${crypto.randomUUID()}.${ext(decoded.mimeType)}`;
     const upload = await fetch(`${supabaseUrl}/storage/v1/object/housekeeping-issue-photos/${path}`, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': decoded.mimeType, 'x-upsert': 'true' }, body: decoded.buffer });
-    if (!upload.ok) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to upload issue photo', details: await upload.text() }) };
+    if (!upload.ok) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to upload issue photo' }) };
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, url: `${supabaseUrl}/storage/v1/object/public/housekeeping-issue-photos/${path}` }) };
-  } catch (error) { console.error('upload-housekeeping-issue-photo fatal:', error); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message || 'Upload failed' }) }; }
+  } catch (error) { console.error('upload-housekeeping-issue-photo fatal:', error); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to upload issue photo' }) }; }
 };
