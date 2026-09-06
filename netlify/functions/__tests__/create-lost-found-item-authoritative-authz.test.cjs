@@ -74,7 +74,7 @@ test('create-lost-found-item ignores forged guest fields when booking is authori
       return new Response(JSON.stringify([{ year: 2026, last_seq: 7 }]), { status: 200 });
     }
     if (value.includes('/rest/v1/lost_and_found_tag_sequences')) return new Response(JSON.stringify([]), { status: 200 });
-    if (value.includes('/rest/v1/lost_and_found?')) return new Response(JSON.stringify([{ id: 'lf-1' }]), { status: 200 });
+    if (value === 'https://example.supabase.co/rest/v1/lost_and_found') return new Response(JSON.stringify([{ id: 'lf-1' }]), { status: 201 });
     return new Response('', { status: 201 });
   };
   try {
@@ -90,7 +90,7 @@ test('create-lost-found-item ignores forged guest fields when booking is authori
       room_name: 'Attacker Room'
     }));
     assert.equal(result.statusCode, 200);
-    const insert = requests.find((r) => r.url.includes('/rest/v1/lost_and_found?') || r.url.endsWith('/rest/v1/lost_and_found'));
+    const insert = requests.find((r) => r.url === 'https://example.supabase.co/rest/v1/lost_and_found');
     assert.ok(insert);
     assert.equal(insert.body[0].guest_name, 'Real Guest');
     assert.equal(insert.body[0].guest_email, 'real@example.com');
