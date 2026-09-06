@@ -2,11 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
 export const handler = async function(event) {
-  console.log('🔄 Running payment status check...');
-  
-  // Check if this is a scheduled run or manual trigger
-  const isScheduled = event.headers['x-nf-schedule'] === 'true';
-  console.log(`📆 ${isScheduled ? 'Scheduled' : 'Manual'} run`);
+  // This function is configured as a Netlify Scheduled Function. Do not use a
+  // caller-controlled header as proof of scheduled execution.
+  const isScheduled = true;
+  console.log('🔄 Running scheduled payment status check...');
   
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -17,18 +16,21 @@ export const handler = async function(event) {
     checked: 0,
     remindersSent: 0,
     critical: 0,
-    isScheduled,
-    errors: []
+    isScheduled
   };
 
   try {
-    // Get all approved businesses
+    // Get all approved businesses. Scheduled execution is intentionally
+    // cross-tenant because this is a platform maintenance job.
     const { data: businesses, error } = await supabase
       .from('businesses')
       .select('*')
       .eq('status', 'approved');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Payment status business lookup failed:', error);
+      throw new Error('Payment status check failed');
+    }
     
     results.checked = businesses.length;
     console.log(`📊 Found ${businesses.length} approved businesses`);
@@ -42,19 +44,21 @@ export const handler = async function(event) {
         if (daysOverdue >= 10) paymentStatus = 'critical';
         else if (daysOverdue >= 5) paymentStatus = 'overdue';
         
-        await supabase
+        const { error: paymentUpdateError } = await supabase
           .from('businesses')
           .update({ 
             payment_status: paymentStatus
           })
           .eq('id', business.id);
 
-        // Send reminder if needed (only for scheduled runs to avoid spam)
+        if (paymentUpdateError) throw paymentUpdateError;
+
+        // Send reminder on the scheduled run only to avoid duplicate/manual spam.
         if (isScheduled && shouldSendReminder(business, daysOverdue)) {
           await sendPaymentReminder(business, daysOverdue);
           results.remindersSent++;
           
-          await supabase
+          const { error: reminderUpdateError } = await supabase
             .from('businesses')
             .update({ 
               payment_reminder_sent: true,
@@ -62,18 +66,19 @@ export const handler = async function(event) {
               last_reminder_sent: new Date().toISOString()
             })
             .eq('id', business.id);
+
+          if (reminderUpdateError) throw reminderUpdateError;
           
-          console.log(`📧 Reminder sent to ${business.trading_name} (${daysOverdue} days overdue)`);
+          console.log(`📧 Reminder sent to business ${business.id} (${daysOverdue} days overdue)`);
         }
 
         if (daysOverdue >= 10) {
           results.critical++;
-          console.log(`⚠️ CRITICAL: ${business.trading_name} - ${daysOverdue} days overdue`);
+          console.log(`⚠️ CRITICAL: business ${business.id} - ${daysOverdue} days overdue`);
         }
         
       } catch (err) {
-        results.errors.push({ business: business.id, error: err.message });
-        console.error(`❌ Error processing ${business.id}:`, err.message);
+        console.error(`❌ Error processing business ${business.id}:`, err?.message || 'unknown error');
       }
     }
 
@@ -88,7 +93,7 @@ export const handler = async function(event) {
     console.error('❌ Payment check failed:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: 'Payment status check failed' })
     };
   }
 };
