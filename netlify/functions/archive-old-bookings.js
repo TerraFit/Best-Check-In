@@ -6,14 +6,9 @@ export const handler = async function(event) {
     'Access-Control-Allow-Origin': '*'
   };
 
-  // Only allow scheduled runs or admin triggers
-  const isScheduled = event.headers['x-nf-schedule'] === 'true';
-  const adminKey = event.headers['x-admin-key'];
-  
-  if (!isScheduled && adminKey !== process.env.ADMIN_MIGRATION_KEY) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
-
+  // This function is deployed as a Netlify Scheduled Function. Netlify does
+  // not expose scheduled functions as ordinary incoming web requests, so a
+  // caller-controlled header must not be used as an authentication signal.
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
@@ -137,14 +132,14 @@ export const handler = async function(event) {
         results.archived += archivedCount;
 
       } catch (err) {
-        results.errors.push({ business: business.id, error: err.message });
-        console.error(`Error processing ${business.id}:`, err.message);
+        results.errors.push({ business: business.id, error: 'Failed to archive bookings for business' });
+        console.error(`Error processing ${business.id}:`, err);
       }
       
       results.processed++;
     }
 
-    console.log('✅ Archive complete:', results);
+    console.log('Archive complete:', results);
     
     return {
       statusCode: 200,
@@ -153,11 +148,11 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('❌ Archive failed:', error);
+    console.error('Archive failed:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: 'Failed to archive old bookings' })
     };
   }
 };
