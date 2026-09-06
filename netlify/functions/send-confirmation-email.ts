@@ -4,8 +4,6 @@ import { handler as legacyHandler } from './lib/send-confirmation-email-legacy';
 interface ConfirmationRequest {
   booking_id?: string;
   indemnity_token?: string;
-  id?: string;
-  booking_id_alias?: string;
 }
 
 interface BookingRecord {
@@ -57,11 +55,14 @@ export const handler: Handler = async (event, context) => {
       return response(400, { error: 'Invalid JSON' });
     }
 
-    const bookingId = request.booking_id || request.id || request.booking_id_alias;
     const indemnityToken = request.indemnity_token;
+    if (!indemnityToken || typeof indemnityToken !== 'string') {
+      return response(400, { error: 'indemnity_token is required' });
+    }
 
-    if (!bookingId || typeof bookingId !== 'string' || !indemnityToken || typeof indemnityToken !== 'string') {
-      return response(400, { error: 'booking_id and indemnity_token are required' });
+    const requestedBookingId = request.booking_id;
+    if (requestedBookingId !== undefined && typeof requestedBookingId !== 'string') {
+      return response(400, { error: 'booking_id must be a string' });
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -79,10 +80,12 @@ export const handler: Handler = async (event, context) => {
     };
 
     const encodedToken = encodeURIComponent(indemnityToken);
-    const encodedBookingId = encodeURIComponent(bookingId);
+    const indemnityQuery = requestedBookingId
+      ? `access_token=eq.${encodedToken}&booking_id=eq.${encodeURIComponent(requestedBookingId)}`
+      : `access_token=eq.${encodedToken}`;
 
     const indemnityResponse = await fetch(
-      `${supabaseUrl}/rest/v1/indemnity_records?access_token=eq.${encodedToken}&booking_id=eq.${encodedBookingId}&select=booking_id,business_id&limit=1`,
+      `${supabaseUrl}/rest/v1/indemnity_records?${indemnityQuery}&select=booking_id,business_id&limit=1`,
       { headers: restHeaders }
     );
 
@@ -94,12 +97,18 @@ export const handler: Handler = async (event, context) => {
     const indemnityRecords = (await indemnityResponse.json()) as IndemnityRecord[];
     const indemnity = indemnityRecords[0];
 
-    if (!indemnity || indemnity.booking_id !== bookingId || !indemnity.business_id) {
+    if (!indemnity || !indemnity.booking_id || !indemnity.business_id) {
       return response(403, { error: 'Invalid booking capability' });
     }
 
+    if (requestedBookingId && indemnity.booking_id !== requestedBookingId) {
+      return response(403, { error: 'Invalid booking capability' });
+    }
+
+    const bookingId = indemnity.booking_id;
+
     const bookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?id=eq.${encodedBookingId}&business_id=eq.${encodeURIComponent(indemnity.business_id)}&select=id,business_id,guest_name,guest_email,check_in_date,check_out_date,nights,total_amount,marketing_consent&limit=1`,
+      `${supabaseUrl}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}&business_id=eq.${encodeURIComponent(indemnity.business_id)}&select=id,business_id,guest_name,guest_email,check_in_date,check_out_date,nights,total_amount,marketing_consent&limit=1`,
       { headers: restHeaders }
     );
 
