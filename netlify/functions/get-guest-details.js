@@ -1,7 +1,8 @@
 // netlify/functions/get-guest-details.js
 // Guest details are sensitive tenant-scoped data and require authoritative server authorization.
+import auth from './_auth.cjs';
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = require('./_auth.cjs');
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
 export const handler = async (event) => {
   const headers = {
@@ -15,10 +16,10 @@ export const handler = async (event) => {
   try {
     const { bookingId, businessId: requestedBusinessId } = event.queryStringParameters || {};
     if (!bookingId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID required' }) };
-    const auth = requireBusinessActor(event);
-    if (!auth.ok) return authFailure(auth, headers);
-    if (!requireBusinessPermission(auth.principal, 'canViewGuestDetails')) return authFailure({ status: 403, error: 'Missing permission: canViewGuestDetails' }, headers);
-    const scope = resolveTenant(auth.principal, requestedBusinessId || null);
+    const authResult = requireBusinessActor(event);
+    if (!authResult.ok) return authFailure(authResult, headers);
+    if (!requireBusinessPermission(authResult.principal, 'canViewGuestDetails')) return authFailure({ status: 403, error: 'Missing permission: canViewGuestDetails' }, headers);
+    const scope = resolveTenant(authResult.principal, requestedBusinessId || null);
     if (!scope.ok) return authFailure(scope, headers);
     const businessId = scope.businessId;
     const supabaseUrl = process.env.SUPABASE_URL;
