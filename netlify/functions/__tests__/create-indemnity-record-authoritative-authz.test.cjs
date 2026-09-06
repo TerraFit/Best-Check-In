@@ -27,5 +27,8 @@ test('indemnity timestamp is server-authoritative', () => {
 test('indemnity errors never return upstream response details', () => {
   assert.doesNotMatch(source, /details:\s*errorText/);
   assert.doesNotMatch(source, /details:\s*error instanceof Error/);
-  assert.match(source, /error: 'Internal server error'/);
+  assert.match(
+    source,
+    /error:\s*error instanceof SyntaxError \? 'Invalid JSON in request body' : 'Internal server error'/
+  );
 });
