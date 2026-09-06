@@ -11,7 +11,7 @@ const {
   authFailure,
 } = auth;
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -67,7 +67,6 @@ exports.handler = async (event) => {
       Accept: 'application/json',
     };
 
-    // 1. Candidate rooms: active = true AND availability_status = available
     const roomsRes = await fetch(
       `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(authoritativeBusinessId)}&active=eq.true&availability_status=eq.available&order=sort_order.asc.nullslast,room_number.asc`,
       { headers: restHeaders }
@@ -83,40 +82,35 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, rooms: [] }) };
     }
 
-    // 2. Bookings that overlap the requested stay and have a room assigned
-    // Overlap: existing.check_in < requested.checkOut AND existing.check_out > requested.checkIn
-    // If check_out is null, treat as check_in + nights.
     const bookingsRes = await fetch(
       `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(authoritativeBusinessId)}&room_id=not.is.null&status=neq.cancelled&select=id,room_id,check_in_date,check_out_date,nights,status`,
       { headers: restHeaders }
     );
 
-    let occupiedRoomIds = new Set();
-    if (bookingsRes.ok) {
-      const bookings = await bookingsRes.json();
-      const reqIn = new Date(checkIn);
-      const reqOut = new Date(checkOut);
-
-      for (const b of bookings) {
-        if (excludeBookingId && b.id === excludeBookingId) continue;
-        if (!b.room_id || !b.check_in_date) continue;
-
-        const bIn = new Date(b.check_in_date);
-        let bOut;
-        if (b.check_out_date) {
-          bOut = new Date(b.check_out_date);
-        } else {
-          bOut = new Date(bIn);
-          bOut.setDate(bOut.getDate() + (parseInt(b.nights, 10) || 1));
-        }
-
-        if (bIn < reqOut && bOut > reqIn) {
-          occupiedRoomIds.add(b.room_id);
-        }
-      }
-    } else {
+    if (!bookingsRes.ok) {
       console.error('Available rooms occupancy lookup failed:', bookingsRes.status);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to verify room availability' }) };
+    }
+
+    const occupiedRoomIds = new Set();
+    const bookings = await bookingsRes.json();
+    const reqIn = new Date(checkIn);
+    const reqOut = new Date(checkOut);
+
+    for (const b of bookings) {
+      if (excludeBookingId && b.id === excludeBookingId) continue;
+      if (!b.room_id || !b.check_in_date) continue;
+
+      const bIn = new Date(b.check_in_date);
+      let bOut;
+      if (b.check_out_date) {
+        bOut = new Date(b.check_out_date);
+      } else {
+        bOut = new Date(bIn);
+        bOut.setDate(bOut.getDate() + (parseInt(b.nights, 10) || 1));
+      }
+
+      if (bIn < reqOut && bOut > reqIn) occupiedRoomIds.add(b.room_id);
     }
 
     const available = allRooms.filter((r) => !occupiedRoomIds.has(r.id));
