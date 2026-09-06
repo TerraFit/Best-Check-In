@@ -136,6 +136,10 @@ test('create-booking: security and public-endpoint authorization gates', async (
     assert.equal(payload.nights, 3);
     assert.equal(payload.check_out_date, '2026-09-13');
     assert.equal(payload.status, 'checked_in');
+
+    const responseBody = JSON.parse(result.body);
+    assert.deepEqual(responseBody.booking, { id: 'booking-1' });
+    assert.equal(Object.keys(responseBody.booking).length, 1);
   });
 
   await t.test('client-supplied business_id is the only tenant target and is encoded in validation', async () => {
