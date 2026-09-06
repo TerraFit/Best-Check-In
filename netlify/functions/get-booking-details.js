@@ -33,7 +33,10 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
     const readHeaders = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' };
-    const response = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}&select=id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,guest_province,guest_city,arriving_from,adults,children,check_in_date,check_out_date,nights,booking_source,referral_source,created_at,updated_at`, { headers: readHeaders });
+    const businessScope = isPlatform ? null : resolveTenant(principal, principal.businessId);
+    if (!isPlatform && !businessScope.ok) return authFailure(businessScope, headers);
+    const tenantFilter = businessScope?.ok ? `&business_id=eq.${encodeURIComponent(businessScope.businessId)}` : '';
+    const response = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}${tenantFilter}&select=id,business_id,guest_name,guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,guest_province,guest_city,arriving_from,adults,children,check_in_date,check_out_date,nights,booking_source,referral_source,created_at,updated_at`, { headers: readHeaders });
     if (!response.ok) {
       console.error('Booking lookup failed:', response.status);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch booking details' }) };
