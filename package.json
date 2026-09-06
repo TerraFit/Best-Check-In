@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "i18n:validate": "node scripts/i18n-validate.cjs",
-    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs netlify/functions/__tests__/payment-gateways-authoritative-authz.test.cjs netlify/functions/__tests__/ozow-payment-notify-authoritative-authz.test.cjs",
-    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs netlify/functions/__tests__/payment-gateways-authoritative-authz.test.cjs netlify/functions/__tests__/ozow-payment-notify-authoritative-authz.test.cjs"
+    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs netlify/functions/__tests__/payment-gateways-authoritative-authz.test.cjs netlify/functions/__tests__/ozow-payment-notify-authoritative-authz.test.cjs netlify/functions/__tests__/get-available-rooms-authoritative-authz.test.cjs",
+    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs netlify/functions/__tests__/payfast-authoritative-authz.test.cjs netlify/functions/__tests__/payment-gateways-authoritative-authz.test.cjs netlify/functions/__tests__/ozow-payment-notify-authoritative-authz.test.cjs netlify/functions/__tests__/get-available-rooms-authoritative-authz.test.cjs"
   },
   "dependencies": {
     "react": "^19.2.4",
@@ -17,7 +17,7 @@
     "react-router-dom": "^6.22.0",
     "react-dropzone": "^14.2.3",
     "recharts": "^2.12.0",
-    "papaparse": "^5.4.1",
+    "papaparse": "^5.4.0",
     "@types/papaparse": "^5.3.14",
     "@types/recharts": "^1.8.29",
     "@supabase/supabase-js": "^2.39.0",
@@ -31,7 +31,7 @@
     "jsonwebtoken": "^9.0.0",
     "ws": "^8.18.0",
     "@stripe/stripe-js": "^3.5.0",
-    "d3-scale": "^4.0.0",
+    "d3-scale": "^4.1.0",
     "d3-geo": "^3.1.0",
     "topojson-client": "^3.1.0",
     "lucide-react": "^0.546.0",
@@ -44,6 +44,8 @@
     "@types/node": "^20.0.0",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-geo": "^3.0.8",
+    "@types/topojson-client": "^3.0.8",
+    "@types/node": "^20.0.0",
     "@types/topojson-client": "^3.0.8",
     "tailwindcss": "^3.4.0",
     "postcss": "^8.4.32",
