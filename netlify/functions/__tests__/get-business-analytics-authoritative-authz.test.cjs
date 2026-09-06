@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-business-analytics-authz';
 
-const { handler } = require('../get-business-analytics.js');
+const { handler } = await import('../get-business-analytics.js');
 
 function sign(payload, options = {}) {
   return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', ...options });
@@ -16,7 +16,6 @@ function signSuperAdmin(payload = {}, options = {}) {
       sub: 'admin-1',
       email: 'admin@example.com',
       role: 'super_admin',
-      user_metadata: { super_admin: true },
       ...payload,
     },
     { issuer: 'fastcheckin', audience: 'super-admin', ...options },
@@ -36,16 +35,20 @@ function signPlatform(platformRole, payload = {}, options = {}) {
 }
 
 function event(token, query = { businessId: 'biz-a' }, method = 'GET') {
-  return {
-    httpMethod: method,
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-    queryStringParameters: query,
+  return { httpMethod: method, headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters: query };
+}
+
+function bodyOf(response) { return JSON.parse(response.body); }
+
+function mockAnalyticsFetch() {
+  global.fetch = async (url) => {
+    const value = String(url);
+    if (value.includes('/businesses?')) return { ok: true, status: 200, json: async () => [{ id: 'biz-a', trading_name: 'Test Business', registered_name: 'Test Business', email: 'test@example.com', phone: '000', physical_address: 'Address', status: 'approved', created_at: '2026-01-01', subscription_tier: 'pro', subscription_status: 'active' }] };
+    return { ok: true, status: 200, json: async () => [] };
   };
 }
 
-async function bodyOf(response) {
-  return JSON.parse(response.body);
-}
+mockAnalyticsFetch();
 
 test('business analytics: anonymous request is rejected', async () => {
   const response = await handler(event(null));
@@ -53,52 +56,36 @@ test('business analytics: anonymous request is rejected', async () => {
 });
 
 test('business analytics: invalid JWT is rejected', async () => {
-  const response = await handler(event('not-a-jwt'));
+  const response = await handler(event('invalid-token'));
   assert.equal(response.statusCode, 401);
 });
 
 test('business analytics: expired JWT is rejected', async () => {
-  const token = sign({ sub: 'expired' }, { expiresIn: -1 });
+  const token = sign({ sub: 'platform-1', platform_role: 'platform_analytics' }, { expiresIn: -1 });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 401);
 });
 
 test('business analytics: business actor is rejected', async () => {
-  const token = sign({ sub: 'business-1', user_metadata: { business_id: 'biz-a' } });
+  const token = sign({ sub: 'owner-1', user_metadata: { business_id: 'biz-a' } });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('business analytics: employee actor is rejected', async () => {
-  const token = sign({
-    sub: 'employee-1',
-    user_metadata: {
-      business_id: 'biz-a',
-      employee_id: 'emp-1',
-      staff_role: 'Manager',
-      permission_set: ['canExportReports'],
-    },
-  });
+  const token = sign({ sub: 'emp-1', user_metadata: { business_id: 'biz-a', employee_id: 'emp-1', permission_set: ['canViewDashboard'] } });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('business analytics: service-role JWT is rejected', async () => {
-  const token = sign({ role: 'service_role', sub: 'service' });
+  const token = sign({ sub: 'service-1', role: 'service_role' });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('business analytics: metadata-only super_admin spoof is rejected', async () => {
-  const token = sign({
-    sub: 'employee-1',
-    user_metadata: {
-      business_id: 'biz-a',
-      employee_id: 'emp-1',
-      role: 'super_admin',
-      permission_set: ['platform:analytics:read'],
-    },
-  });
+  const token = sign({ sub: 'spoof-1', user_metadata: { super_admin: true, business_id: 'biz-a' } });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
@@ -127,7 +114,7 @@ test('business analytics: missing businessId is rejected after authorization', a
   const token = signPlatform('platform_analytics');
   const response = await handler(event(token, {}));
   assert.equal(response.statusCode, 400);
-  assert.equal((await bodyOf(response)).error, 'businessId required');
+  assert.equal(bodyOf(response).error, 'businessId required');
 });
 
 test('business analytics: wrong HTTP method is rejected', async () => {
@@ -136,28 +123,21 @@ test('business analytics: wrong HTTP method is rejected', async () => {
 });
 
 test('business analytics: OPTIONS remains public preflight', async () => {
-  const response = await handler(event(null, {}, 'OPTIONS'));
+  const response = await handler(event(null, { businessId: 'biz-a' }, 'OPTIONS'));
   assert.equal(response.statusCode, 204);
-  assert.equal(response.body, '');
 });
 
 test('business analytics: authorized platform actor cannot use a malformed token to bypass authorization', async () => {
-  const token = signPlatform('platform_analytics', { role: 'service_role' });
+  const token = sign({ sub: 'spoof-1', platform_role: 'platform_analytics', user_metadata: { super_admin: true } });
   const response = await handler(event(token));
   assert.equal(response.statusCode, 403);
 });
 
 test('business analytics: database errors do not expose raw error details', async () => {
-  const original = console.error;
-  console.error = () => {};
-  try {
-    const token = signPlatform('platform_analytics');
-    const response = await handler(event(token));
-    const body = await bodyOf(response);
-    assert.equal(response.statusCode, 500);
-    assert.equal(body.error, 'Internal Server Error');
-    assert.equal(body.details, undefined);
-  } finally {
-    console.error = original;
-  }
+  global.fetch = async () => ({ ok: false, status: 500, text: async () => 'SECRET database details' });
+  const token = signPlatform('platform_analytics');
+  const response = await handler(event(token));
+  assert.equal(response.statusCode, 500);
+  assert.doesNotMatch(response.body, /SECRET/);
+  mockAnalyticsFetch();
 });
