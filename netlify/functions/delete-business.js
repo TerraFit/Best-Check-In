@@ -1,4 +1,4 @@
-const { createClient } = require('@Supabase/supabase-js');
+const { createClient } = require('@supabase/supabase-js');
 const auth = require('./_auth.cjs');
 
 const { authenticateRequest, requirePlatformPermission, authFailure } = auth;
