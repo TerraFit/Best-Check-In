@@ -42,6 +42,7 @@ function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } 
   const sandbox = {
     console,
     module,
+    client,
     process: { env: { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_KEY: 'service-key' } },
     require(id) {
       if (id === '@supabase/supabase-js') return { createClient: () => client };
