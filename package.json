@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "i18n:validate": "node scripts/i18n-validate.cjs",
-    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs",
-    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs"
+    "test:phase0": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs",
+    "test:phase1": "node --test netlify/functions/__tests__/phase0-security.test.cjs netlify/functions/__tests__/stay-dates.test.cjs netlify/functions/__tests__/phase1-core.test.cjs netlify/functions/__tests__/upload-housekeeping-issue-photo-authoritative-authz.test.cjs netlify/functions/__tests__/archive-old-bookings-authoritative-authz.test.cjs"
   },
   "dependencies": {
     "react": "^19.2.4",
