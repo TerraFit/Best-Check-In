@@ -38,8 +38,10 @@ function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } 
     }
   };
 
+  const module = { exports: {} };
   const sandbox = {
     console,
+    module,
     process: { env: { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_KEY: 'service-key' } },
     require(id) {
       if (id === '@supabase/supabase-js') return { createClient: () => client };
@@ -48,7 +50,6 @@ function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } 
   };
 
   const wrapped = `const createClient = () => client;\n${source}\nmodule.exports = { handler };`;
-  const module = { exports: {} };
   vm.runInNewContext(`(function(require, module, exports, process, console, client) { ${wrapped}\n})(require, module, module.exports, process, console, client);`, sandbox, { filename: HANDLER_PATH });
   return { handler: module.exports.handler, calls };
 }
