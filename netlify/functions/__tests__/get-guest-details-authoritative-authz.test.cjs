@@ -42,15 +42,19 @@ test('missing booking id is rejected before data-layer access', async () => { se
 test('anonymous requests are rejected before booking access', async () => { setConfiguredEnv(); let fetchCalls = 0; global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); }; const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1' })); assert.equal(response.statusCode, 401); assert.equal(fetchCalls, 0); });
 test('invalid JWT is rejected before booking access', async () => { setConfiguredEnv(); let fetchCalls = 0; global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); }; const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1', token: 'not-a-jwt' })); assert.equal(response.statusCode, 401); assert.equal(fetchCalls, 0); });
 
-test('business actor without employee record is rejected when it lacks guest-detail permission semantics', async () => {
+test('business actor without employee record is accepted with business-owner guest-detail semantics', async () => {
   setConfiguredEnv();
   const ownerToken = jwt.sign({ sub: 'owner-1', email: 'owner@example.com', user_metadata: { business_id: 'biz-a', active: true } }, process.env.SUPABASE_JWT_SECRET);
   let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_name: 'Owner Guest', guest_email: 'guest@example.com', adults: 1, children: 0, check_in_date: '2026-09-01', check_out_date: '2026-09-02', nights: 1 }]); };
+  global.fetch = async (url) => {
+    fetchCalls += 1;
+    if (String(url).includes('/booking_food_restrictions?')) return jsonResponse([]);
+    return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_name: 'Owner Guest', guest_email: 'guest@example.com', adults: 1, children: 0, check_in_date: '2026-09-01', check_out_date: '2026-09-02', nights: 1 }]);
+  };
   const handler = loadHandler();
   const response = await handler(event({ bookingId: 'booking-1', token: ownerToken }));
   assert.equal(response.statusCode, 200);
-  assert.equal(fetchCalls, 1);
+  assert.equal(fetchCalls, 2);
 });
 
 test('employee with only limited guest permission is denied full guest details', async () => { setConfiguredEnv(); const limitedToken = token({ permissionSet: ['canViewGuestLimited'] }); let fetchCalls = 0; global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); }; const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1', token: limitedToken })); assert.equal(response.statusCode, 403); assert.equal(fetchCalls, 0); });
