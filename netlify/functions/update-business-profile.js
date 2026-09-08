@@ -24,7 +24,8 @@ const PROFILE_RESPONSE_FIELDS = [
   'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
   'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
   'marketing_consent_enabled', 'directors', 'updated_at'
-].join(',');
+];
+const PROFILE_RESPONSE_FIELD_SET = new Set(PROFILE_RESPONSE_FIELDS);
 
 export const handler = async function(event) {
   const headers = {
@@ -69,7 +70,7 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(PROFILE_RESPONSE_FIELDS)}`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(PROFILE_RESPONSE_FIELDS.join(','))}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -95,10 +96,16 @@ export const handler = async function(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business profile could not be updated' }) };
     }
 
+    // Defense in depth: even if the upstream data layer ignores or violates the select
+    // projection, never serialize an unexpected businesses column to the client.
+    const safeBusiness = Object.fromEntries(
+      Object.entries(updatedBusinesses[0]).filter(([key]) => PROFILE_RESPONSE_FIELD_SET.has(key))
+    );
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: 'Profile updated successfully', updatedFields: Object.keys(filteredFields), data: updatedBusinesses[0] })
+      body: JSON.stringify({ success: true, message: 'Profile updated successfully', updatedFields: Object.keys(filteredFields), data: safeBusiness })
     };
   } catch (error) {
     console.error('Error updating business profile:', error?.message || error);
