@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { phoneDigitVariants } = require('./_housekeepingServiceAuth.cjs');
 exports.handler = async (event) => {
-  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   try {
@@ -16,8 +16,6 @@ exports.handler = async (event) => {
     const supabaseUrl = process.env.SUPABASE_URL, supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const orClause = uniqueVariants.map((v) => `phone_number.eq.${encodeURIComponent(v)}`).join(',');
-    // The production employees table does not have the optional `active` column.
-    // Account activity is already represented by the canonical `status` field.
     let path = `employees?select=id,business_id,full_name,phone_number,password_hash,status,staff_role,role,department,permission_set&or=(${orClause})`;
     if (requestedBusinessId) path += `&business_id=eq.${encodeURIComponent(requestedBusinessId)}`;
     const lookupResponse = await fetch(`${supabaseUrl}/rest/v1/${path}`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' } });
@@ -40,7 +38,7 @@ exports.handler = async (event) => {
     const staffRole = employee.staff_role || employee.role || 'Employee (Legacy)';
     let permissionSet = employee.permission_set || null;
     if (typeof permissionSet === 'string') { try { permissionSet = JSON.parse(permissionSet); } catch { permissionSet = null; } }
-    const token = jwt.sign({ sub: employee.id, role: 'employee', user_metadata: { employee_id: employee.id, business_id: employee.business_id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, active: isActive } }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ sub: employee.id, role: 'employee', user_metadata: { employee_id: employee.id, business_id: employee.business_id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, active: isActive } }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '7d', issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', audience: 'employee' });
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, token, token_expiry: '7d', employee: { id: employee.id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, business_id: employee.business_id, status: employee.status, active: isActive, last_login: nowIso } }) };
   } catch (error) {
     console.error('Employee login error:', error);
