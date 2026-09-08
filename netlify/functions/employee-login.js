@@ -42,6 +42,6 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, token, token_expiry: '7d', employee: { id: employee.id, full_name: employee.full_name, phone_number: employee.phone_number, role: staffRole, staff_role: staffRole, department: employee.department || null, permission_set: permissionSet, business_id: employee.business_id, status: employee.status, active: isActive, last_login: nowIso } }) };
   } catch (error) {
     console.error('Employee login error:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Login failed', details: error.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Login failed' }) };
   }
 };

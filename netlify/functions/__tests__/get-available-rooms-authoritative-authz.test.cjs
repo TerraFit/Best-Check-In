@@ -25,7 +25,11 @@ function token({ businessId = 'biz-a', role, employeeId, permissionSet = ['canVi
   if (employeeId) userMetadata.employee_id = employeeId;
   if (role) userMetadata.role = role;
   if (permissionSet) userMetadata.permission_set = permissionSet;
-  return jwt.sign({ sub: 'user-1', email: 'user@example.com', user_metadata: userMetadata }, process.env.SUPABASE_JWT_SECRET);
+  return jwt.sign(
+    { sub: 'user-1', email: 'user@example.com', user_metadata: userMetadata },
+    process.env.SUPABASE_JWT_SECRET,
+    { issuer: 'fastcheckin' }
+  );
 }
 
 function jsonResponse(body, status = 200) {
@@ -90,7 +94,7 @@ test('platform actors require platform:businesses:read', async () => {
   const platformToken = jwt.sign({
     sub: 'platform-user',
     platform_role: 'platform_developer',
-  }, process.env.SUPABASE_JWT_SECRET);
+  }, process.env.SUPABASE_JWT_SECRET, { issuer: 'fastcheckin' });
   const response = await loadHandler()(event({ token: platformToken }));
   assert.equal(response.statusCode, 403);
   assert.equal(calls, 0);

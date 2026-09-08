@@ -73,6 +73,7 @@ function businessToken({
   return signJwt(
     {
       sub: `user-${businessId}`,
+      iss: 'fastcheckin',
       business_id: businessId,
       role,
       permissions,
@@ -100,6 +101,7 @@ function platformToken({
   return signJwt(
     {
       sub: 'platform-user-1',
+      iss: 'fastcheckin',
       platform_role: platformRole,
       permissions,
       iat: Math.floor(Date.now() / 1000),

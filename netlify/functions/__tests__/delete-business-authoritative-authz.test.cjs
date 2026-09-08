@@ -15,7 +15,7 @@ function token(claims = {}) {
     sub: 'user-1',
     role: 'authenticated',
     aud: 'authenticated',
-    iss: 'https://example.supabase.co/auth/v1',
+    iss: 'fastcheckin',
     user_metadata: { business_id: 'biz-a', ...claims.user_metadata },
     ...claims,
   }, process.env.SUPABASE_JWT_SECRET, { expiresIn: '1h' });
