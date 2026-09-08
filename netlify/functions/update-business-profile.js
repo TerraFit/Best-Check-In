@@ -14,6 +14,18 @@ const EDITABLE_PROFILE_FIELDS = new Set([
   'marketing_consent_enabled', 'directors', 'updated_at'
 ]);
 
+// Never return the full businesses row: it contains platform-controlled and sensitive
+// billing/payment/authentication fields that are not part of the profile API contract.
+const PROFILE_RESPONSE_FIELDS = [
+  'id', 'trading_name', 'slogan', 'welcome_message',
+  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
+  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
+  'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
+  'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
+  'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
+  'marketing_consent_enabled', 'directors', 'updated_at'
+].join(',');
+
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -57,7 +69,7 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(PROFILE_RESPONSE_FIELDS)}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
