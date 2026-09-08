@@ -5,11 +5,12 @@ const jwt = require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-business-profile-authz';
 process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 
 const { handler } = require('../update-business-profile.js');
 
 function sign(payload, options = {}) {
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', ...options });
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER, expiresIn: '15m', ...options });
 }
 
 function employeeToken({ businessId = 'biz-a', permissions = ['canManageSettings'], role = 'Manager', employeeId = 'emp-1' } = {}) {
@@ -109,7 +110,7 @@ test('update business profile: business actor reaches only its own tenant', asyn
   await withFetchMock(okResponse(), async (calls) => {
     const response = await handler(event(token, { businessId: 'biz-a', trading_name: 'Owner Update' }));
     assert.equal(response.statusCode, 200);
-    assert.match(calls[0][0], /businesses\?id=eq\.biz-a$/);
+    assert.match(calls[0][0], /businesses\?id=eq\.biz-a&select=/);
   });
 });
 
@@ -180,7 +181,7 @@ test('update business profile: platform-controlled fields are filtered from the 
     }));
     assert.equal(result.statusCode, 200);
     const [url, options] = calls[0];
-    assert.equal(url, 'https://test.supabase.co/rest/v1/businesses?id=eq.biz-a');
+    assert.match(url, /businesses\?id=eq\.biz-a&select=/);
     const sent = JSON.parse(options.body);
     assert.equal(sent.trading_name, 'Safe Name');
     assert.equal(sent.status, undefined);
@@ -196,12 +197,39 @@ test('update business profile: platform-controlled fields are filtered from the 
   assert.equal(response.statusCode, 200);
 });
 
+test('update business profile: response excludes sensitive and platform-controlled columns', async () => {
+  const token = employeeToken();
+  const response = await withFetchMock(okResponse([{
+    id: 'biz-a',
+    trading_name: 'Safe Name',
+    password_hash: 'SECRET_PASSWORD_HASH',
+    payment_method_id: 'SECRET_PAYMENT_METHOD',
+    stripe_customer_id: 'SECRET_STRIPE_CUSTOMER',
+    stripe_subscription_id: 'SECRET_STRIPE_SUBSCRIPTION',
+    subscription_tier: 'Business',
+    billing_cycle: 'annual',
+    status: 'approved',
+  }]), async () => handler(event(token, { businessId: 'biz-a', trading_name: 'Safe Name' })));
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.data.id, 'biz-a');
+  assert.equal(body.data.trading_name, 'Safe Name');
+  assert.equal(body.data.password_hash, undefined);
+  assert.equal(body.data.payment_method_id, undefined);
+  assert.equal(body.data.stripe_customer_id, undefined);
+  assert.equal(body.data.stripe_subscription_id, undefined);
+  assert.equal(body.data.subscription_tier, undefined);
+  assert.equal(body.data.billing_cycle, undefined);
+  assert.equal(body.data.status, undefined);
+  assert.doesNotMatch(response.body, /SECRET_PASSWORD_HASH|SECRET_PAYMENT_METHOD|SECRET_STRIPE_CUSTOMER|SECRET_STRIPE_SUBSCRIPTION/);
+});
+
 test('update business profile: tenant ID is taken from authenticated principal', async () => {
   const token = employeeToken({ businessId: 'biz-a' });
   await withFetchMock(okResponse(), async (calls) => {
     const response = await handler(event(token, { businessId: 'biz-a', trading_name: 'Tenant A' }));
     assert.equal(response.statusCode, 200);
-    assert.match(calls[0][0], /businesses\?id=eq\.biz-a$/);
+    assert.match(calls[0][0], /businesses\?id=eq\.biz-a&select=/);
   });
 });
 
