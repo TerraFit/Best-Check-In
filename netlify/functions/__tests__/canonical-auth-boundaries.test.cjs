@@ -8,7 +8,8 @@ const auth = require('../_auth.cjs');
 
 const SECRET = 'canonical-auth-boundary-test-secret';
 function event(token) { return { headers: { authorization: `Bearer ${token}` } }; }
-function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '1h' }); }
+function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '1h', issuer: 'fastcheckin' }); }
+function signUntrusted(payload) { return jwt.sign(payload, SECRET, { expiresIn: '1h' }); }
 function withSecret(fn) {
   return () => {
     const previous = process.env.SUPABASE_JWT_SECRET;
@@ -21,6 +22,13 @@ function withSecret(fn) {
 }
 
 describe('Canonical authorization boundaries', () => {
+  it('rejects validly signed JWTs without FastCheckIn issuer', withSecret(() => {
+    const token = signUntrusted({ sub: 'attacker', role: 'authenticated', user_metadata: { business_id: 'biz-a' } });
+    const result = auth.authenticateRequest(event(token));
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 401);
+  }));
+
   it('rejects service-role tokens', withSecret(() => {
     const token = sign({ sub: 'service', role: 'service_role', user_metadata: { business_id: 'biz-a' } });
     const result = auth.authenticateRequest(event(token));
