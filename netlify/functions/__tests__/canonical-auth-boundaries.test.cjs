@@ -11,10 +11,10 @@ function event(token) { return { headers: { authorization: `Bearer ${token}` } }
 function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '1h', issuer: 'fastcheckin' }); }
 function signUntrusted(payload) { return jwt.sign(payload, SECRET, { expiresIn: '1h' }); }
 function withSecret(fn) {
-  return () => {
+  return async () => {
     const previous = process.env.SUPABASE_JWT_SECRET;
     process.env.SUPABASE_JWT_SECRET = SECRET;
-    try { return fn(); } finally {
+    try { return await fn(); } finally {
       if (previous === undefined) delete process.env.SUPABASE_JWT_SECRET;
       else process.env.SUPABASE_JWT_SECRET = previous;
     }
