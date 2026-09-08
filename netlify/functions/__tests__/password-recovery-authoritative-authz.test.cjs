@@ -24,97 +24,99 @@ function event({ method = 'POST', body } = {}) {
   };
 }
 
-test('update password: invalid token cannot change password', async () => {
+test('update password: missing token is rejected before database access', async () => {
   const originalFetch = global.fetch;
-  const calls = [];
-  global.fetch = async (url, options) => {
-    calls.push({ url, options });
-    return response(200, []);
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    return response(500, { message: 'must not be called' });
   };
   try {
     const handler = await loadHandler('update-password');
-    const result = await handler(event({ body: { token: 'invalid-token', password: 'Password1!' } }));
+    const result = await handler(event({ body: { password: 'Password1!' } }));
     assert.equal(result.statusCode, 400);
-    assert.equal(JSON.parse(result.body).error, 'Invalid or expired token');
-    assert.equal(calls.some(call => call.options?.method === 'PATCH'), false);
+    assert.equal(JSON.parse(result.body).error, 'Token and password required');
+    assert.equal(calls, 0);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test('update password: token consumption is conditional and occurs before password mutation', async () => {
+test('update password: password reset is authorized and completed by one RPC transaction', async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (url, options) => {
     calls.push({ url, options });
-    if (!options?.method) {
-      return response(200, [{ id: 'reset-1', business_id: 'biz-a' }]);
-    }
-    if (url.includes('password_resets?') && options.method === 'PATCH') {
-      return response(200, [{ id: 'reset-1' }]);
-    }
-    if (url.includes('businesses?') && options.method === 'PATCH') {
-      return response(200, []);
-    }
-    throw new Error(`Unexpected request: ${url}`);
+    assert.equal(url, 'https://example.supabase.co/rest/v1/rpc/reset_business_password_with_token');
+    assert.equal(options.method, 'POST');
+    return response(200, '00000000-0000-0000-0000-000000000001');
   };
   try {
     const handler = await loadHandler('update-password');
     const result = await handler(event({ body: { token: 'valid-token', password: 'Password1!' } }));
     assert.equal(result.statusCode, 200);
-
-    const resetPatch = calls.find(call => call.options?.method === 'PATCH' && call.url.includes('password_resets?'));
-    const businessPatch = calls.find(call => call.options?.method === 'PATCH' && call.url.includes('businesses?'));
-    assert.ok(resetPatch);
-    assert.ok(businessPatch);
-    assert.match(resetPatch.url, /id=eq\.reset-1/);
-    assert.match(resetPatch.url, /used_at=is\.null/);
-    const resetPatchBody = JSON.parse(resetPatch.options.body);
-    assert.equal(Object.keys(resetPatchBody).length, 1);
-    assert.ok(new Date(resetPatchBody.used_at).getTime() > 0);
-    assert.ok(calls.indexOf(resetPatch) < calls.indexOf(businessPatch));
-    assert.match(businessPatch.url, /id=eq\.biz-a/);
     assert.equal(JSON.parse(result.body).success, true);
+    assert.equal(calls.length, 1);
+
+    const payload = JSON.parse(calls[0].options.body);
+    assert.equal(payload.p_token, 'valid-token');
+    assert.match(payload.p_password_hash, /^\$2[aby]?\$/);
+    assert.equal(Object.keys(payload).sort().join(','), 'p_password_hash,p_token');
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test('update password: already-consumed token cannot mutate business password', async () => {
+test('update password: caller cannot select or override a business tenant', async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (url, options) => {
     calls.push({ url, options });
-    if (!options?.method) return response(200, [{ id: 'reset-1', business_id: 'biz-a' }]);
-    if (url.includes('password_resets?') && options.method === 'PATCH') return response(200, []);
-    return response(500, { message: 'business password update must not run' });
+    return response(200, '00000000-0000-0000-0000-000000000001');
   };
   try {
     const handler = await loadHandler('update-password');
-    const result = await handler(event({ body: { token: 'valid-token', password: 'Password1!' } }));
-    assert.equal(result.statusCode, 400);
-    assert.equal(JSON.parse(result.body).error, 'Invalid or expired token');
-    assert.equal(calls.some(call => call.options?.method === 'PATCH' && call.url.includes('businesses?')), false);
+    const result = await handler(event({
+      body: {
+        token: 'valid-token',
+        password: 'Password1!',
+        businessId: 'attacker-business',
+        business_id: 'attacker-business'
+      }
+    }));
+    assert.equal(result.statusCode, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url.includes('/businesses?'), false);
+    const payload = JSON.parse(calls[0].options.body);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'businessId'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'business_id'), false);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test('update password: database details are not exposed to the client', async () => {
+test('update password: database errors are sanitized and no fallback mutation is attempted', async () => {
   const originalFetch = global.fetch;
-  global.fetch = async () => response(500, { message: 'secret database detail' });
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return response(500, { message: 'secret database detail' });
+  };
   try {
     const handler = await loadHandler('update-password');
     const result = await handler(event({ body: { token: 'valid-token', password: 'Password1!' } }));
     assert.equal(result.statusCode, 500);
     assert.equal(JSON.parse(result.body).error, 'Failed to reset password');
     assert.equal(result.body.includes('secret database detail'), false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url.includes('/businesses?'), false);
+    assert.equal(calls[0].url.includes('/password_resets?'), false);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test('request password reset: generated token has high entropy', async () => {
+test('request password reset: generated token has high entropy and authoritative business binding', async () => {
   const originalFetch = global.fetch;
   let inserted;
   global.fetch = async (url, options) => {
