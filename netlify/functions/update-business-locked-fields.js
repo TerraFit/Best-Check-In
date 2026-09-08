@@ -14,7 +14,8 @@ const LOCKED_FIELDS = new Set([
 
 // Never return unrelated columns from the businesses table. This endpoint only needs to
 // confirm the target row and report the fields it was explicitly authorized to change.
-const LOCKED_RESPONSE_FIELDS = ['id', ...LOCKED_FIELDS].join(',');
+const LOCKED_RESPONSE_FIELDS = ['id', ...LOCKED_FIELDS];
+const LOCKED_RESPONSE_FIELD_SET = new Set(LOCKED_RESPONSE_FIELDS);
 
 export const handler = async function(event) {
   const headers = {
@@ -58,7 +59,7 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(LOCKED_RESPONSE_FIELDS)}`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(LOCKED_RESPONSE_FIELDS.join(','))}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -83,12 +84,18 @@ export const handler = async function(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business information could not be updated' }) };
     }
 
+    // Defense in depth: even if the upstream data layer ignores or violates the select
+    // projection, never serialize an unexpected businesses column to the client.
+    const safeBusiness = Object.fromEntries(
+      Object.entries(result[0]).filter(([key]) => LOCKED_RESPONSE_FIELD_SET.has(key))
+    );
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        data: result[0],
+        data: safeBusiness,
         updatedFields: Object.keys(updateData).filter((key) => key !== 'updated_at'),
         reason: typeof reason === 'string' ? reason.slice(0, 500) : undefined,
         message: 'Business information updated successfully'
