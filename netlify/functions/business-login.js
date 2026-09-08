@@ -62,7 +62,7 @@ exports.handler = async function(event) {
         }
       },
       process.env.SUPABASE_JWT_SECRET,
-      { expiresIn }
+      { expiresIn, issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', audience: 'business' }
     );
 
     return {
