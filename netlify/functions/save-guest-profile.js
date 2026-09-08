@@ -21,16 +21,16 @@ export const handler = async function(event) {
   }
 
   try {
-    const body = JSON.parse(event.body);
-    const { email, profileData } = body;
+    const body = JSON.parse(event.body || '{}');
+    const { email, profileData, bookingId, businessId } = body;
 
-    console.log('📝 Saving guest profile for email:', email);
-
-    if (!email) {
+    if (!bookingId || !businessId || !email) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Email required' })
+        body: JSON.stringify({
+          error: 'bookingId, businessId and email are required'
+        })
       };
     }
 
@@ -52,6 +52,70 @@ export const handler = async function(event) {
 
     const normalizedEmail = email.toLowerCase().trim();
     
+    const encodedBookingId = encodeURIComponent(String(bookingId));
+    const encodedBusinessId = encodeURIComponent(String(businessId));
+
+    // This endpoint remains anonymous because it is called during guest
+    // check-in. Profile mutation is nevertheless bound to the authoritative
+    // booking created by the same check-in flow.
+    let booking;
+
+    try {
+      const bookingResponse = await fetch(
+        `${supabaseUrl}/rest/v1/bookings?id=eq.${encodedBookingId}&business_id=eq.${encodedBusinessId}&select=id,business_id,guest_email,status&limit=1`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!bookingResponse.ok) {
+        console.error(
+          '❌ Guest booking validation failed:',
+          bookingResponse.status
+        );
+
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: 'Unable to validate booking' })
+        };
+      }
+
+      const bookings = await bookingResponse.json();
+      booking = Array.isArray(bookings) ? bookings[0] : null;
+    } catch (err) {
+      console.error(
+        '❌ Guest booking validation error:',
+        err?.message || err
+      );
+
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: 'Unable to validate booking' })
+      };
+    }
+
+    if (
+      !booking ||
+      booking.business_id !== String(businessId) ||
+      !booking.guest_email ||
+      booking.guest_email.toLowerCase().trim() !== normalizedEmail
+    ) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({
+          error: 'Guest profile authorization failed'
+        })
+      };
+    }
+
     // Build full name from available data
     let fullName = '';
     if (profileData?.fullName) {

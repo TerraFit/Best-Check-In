@@ -9,6 +9,16 @@ import {
   getAnalyticsLimits,
 } from './lib/featureAccess.js';
 
+import auth from './_auth.cjs';
+
+const {
+  authenticateRequest,
+  requireBusinessPermission,
+  requirePlatformPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
+
 export const handler = async function (event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -40,13 +50,53 @@ export const handler = async function (event) {
       };
     }
 
+    // Subscription data is tenant-scoped and must never be resolved solely
+    // from a caller-supplied businessId.
+    const authentication = authenticateRequest(event);
+
+    if (!authentication.ok) {
+      return authFailure(authentication, headers);
+    }
+
+    const principal = authentication.principal;
+
+    const authorized =
+      ['super_admin', 'platform'].includes(principal.actorType)
+        ? requirePlatformPermission(
+            principal,
+            'platform:subscriptions:read'
+          )
+        : requireBusinessPermission(
+            principal,
+            'canManageSettings'
+          );
+
+    if (!authorized) {
+      return authFailure(
+        {
+          ok: false,
+          status: 403,
+          error: 'Missing permission to view subscription status',
+        },
+        headers
+      );
+    }
+
+    const tenant = resolveTenant(principal, businessId);
+
+    if (!tenant.ok) {
+      return authFailure(tenant, headers);
+    }
+
+    const authorizedBusinessId = tenant.businessId;
+
     // REST-only plan resolution (no supabase-js / Realtime / WebSocket)
-    const resolved = await resolveEffectivePlan(null, businessId);
+    const resolved = await resolveEffectivePlan(null, authorizedBusinessId);
     if (resolved.error && !resolved.business) {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: resolved.error || 'Business not found' }),
+        body: JSON.stringify({ error: 'Business not found' }),
       };
     }
 
@@ -116,7 +166,6 @@ export const handler = async function (event) {
       headers,
       body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message,
       }),
     };
   }
