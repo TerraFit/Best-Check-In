@@ -111,7 +111,8 @@ export async function handler(event) {
     if (body.guest_signature) bookingData.guest_signature = body.guest_signature;
     if (body.adults) bookingData.adults = body.adults;
     if (body.children) bookingData.children = body.children;
-    if (body.total_amount) bookingData.total_amount = body.total_amount;
+    // total_amount is intentionally server-authoritative. The anonymous
+    // check-in client must never be able to set or alter financial state.
     if (body.guest_province) bookingData.guest_province = body.guest_province;
     if (body.guest_city) bookingData.guest_city = body.guest_city;
     if (body.guest_country) bookingData.guest_country = body.guest_country;
