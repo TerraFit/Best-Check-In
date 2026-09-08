@@ -12,6 +12,7 @@ const PLATFORM_ROLE_PERMISSIONS = Object.freeze({
   platform_compliance: ['platform:audit:read','platform:compliance:read','platform:reports:read','platform:reports:export'],
   platform_support: ['platform:businesses:read','platform:change_requests:read'],
 });
+const APPLICATION_JWT_ISSUER = process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin';
 
 function extractToken(event) {
   const headers = event?.headers || {};
@@ -58,13 +59,13 @@ function principalFromDecoded(decoded) {
   return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId, employeeId:meta.employee_id, permissions:asPermissions(meta.permission_set || decoded.permission_set), active:meta.active !== false };
 }
 function strictSuperAdminVerification(event) {
-  const verified = verifyToken(extractToken(event), { issuer:process.env.SUPER_ADMIN_JWT_ISSUER || 'fastcheckin', audience:process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin' });
+  const verified = verifyToken(extractToken(event), { issuer:process.env.SUPER_ADMIN_JWT_ISSUER || APPLICATION_JWT_ISSUER, audience:process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin' });
   if (!verified.ok) return verified;
   const principal = principalFromDecoded(verified.decoded);
   return principal?.actorType === ACTOR_TYPES.SUPER_ADMIN ? { ok:true, principal, decoded:verified.decoded } : { ok:false, status:403, error:'Forbidden' };
 }
 function authenticateRequest(event, options = {}) {
-  const verified = verifyToken(extractToken(event)); if (!verified.ok) return verified;
+  const verified = verifyToken(extractToken(event), { issuer:APPLICATION_JWT_ISSUER }); if (!verified.ok) return verified;
   const principal = principalFromDecoded(verified.decoded);
   if (!principal) return { ok:false, status:403, error:'Token is missing a valid application identity' };
   if (principal.active === false) return { ok:false, status:403, error:'Account is inactive' };
