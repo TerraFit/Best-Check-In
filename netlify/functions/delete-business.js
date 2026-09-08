@@ -1,9 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
-const auth = require('./_auth.cjs');
+import { createClient } from '@supabase/supabase-js';
+import auth from './_auth.cjs';
 
 const { authenticateRequest, requirePlatformPermission, authFailure } = auth;
 
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
