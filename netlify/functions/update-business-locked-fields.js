@@ -12,6 +12,10 @@ const LOCKED_FIELDS = new Set([
   'status', 'trial_end', 'subscription_status'
 ]);
 
+// Never return unrelated columns from the businesses table. This endpoint only needs to
+// confirm the target row and report the fields it was explicitly authorized to change.
+const LOCKED_RESPONSE_FIELDS = ['id', ...LOCKED_FIELDS].join(',');
+
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
@@ -54,7 +58,7 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(LOCKED_RESPONSE_FIELDS)}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
