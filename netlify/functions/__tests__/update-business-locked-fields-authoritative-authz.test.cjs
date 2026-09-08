@@ -11,11 +11,12 @@ const SECRET = process.env.SUPABASE_JWT_SECRET;
 const MODULE = '../update-business-locked-fields.js';
 
 function token(payload = {}) {
-  return jwt.sign(payload, SECRET, { issuer: 'fastcheckin', audience: payload.aud || 'platform', expiresIn: '1h' });
+  const { aud = 'platform', ...claims } = payload;
+  return jwt.sign(claims, SECRET, { issuer: 'fastcheckin', audience: aud, expiresIn: '1h' });
 }
 
 function platformToken(role = 'platform_operations', permissions = ['platform:businesses:write']) {
-  return token({ sub: 'platform-user', role, user_metadata: { actor_type: 'platform', role, permissions } });
+  return token({ sub: 'platform-user', role: 'authenticated', platform_role: role, permissions });
 }
 
 function event(body, authorization, method = 'POST') {
