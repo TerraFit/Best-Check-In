@@ -30,13 +30,6 @@ export const handler = async (event) => {
     const actor = requireBusinessActor(event);
     if (!actor.ok) return authFailure(actor, headers);
 
-    if (!requireBusinessPermission(actor.principal, 'canViewRooms')) {
-      return authFailure(
-        { status: 403, error: 'Missing permission: canViewRooms' },
-        headers
-      );
-    }
-
     const body = JSON.parse(event.body || '{}');
     const { roomId, businessId: requestedBusinessId } = body;
 
@@ -58,12 +51,16 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
-    const allowed = [
+    const administrativeFields = [
       'room_name',
       'room_type',
       'max_adults',
       'max_children',
       'max_infants',
+      'sort_order',
+      'notes',
+    ];
+    const operationalFields = [
       'availability_status',
       'occupancy_status',
       'housekeeping_status',
@@ -71,12 +68,30 @@ export const handler = async (event) => {
       'cleaning_priority',
       'active',
       'unavailable_reason',
-      'sort_order',
-      'notes',
     ];
 
+    const administrativeUpdates = administrativeFields.filter((key) => body[key] !== undefined);
+    const operationalUpdates = operationalFields.filter((key) => body[key] !== undefined);
+
+    if (administrativeUpdates.length > 0 && !requireBusinessPermission(actor.principal, 'canManageSettings')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canManageSettings' },
+        headers
+      );
+    }
+
+    if (operationalUpdates.length > 0 && !requireBusinessPermission(actor.principal, 'canApproveRoomChanges')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canApproveRoomChanges' },
+        headers
+      );
+    }
+
     const updateData = { updated_at: new Date().toISOString() };
-    for (const key of allowed) {
+    for (const key of administrativeFields) {
+      if (body[key] !== undefined) updateData[key] = body[key];
+    }
+    for (const key of operationalFields) {
       if (body[key] !== undefined) updateData[key] = body[key];
     }
 
@@ -147,7 +162,7 @@ export const handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Failed to update room' }),
+      body: JSON.stringify({ error: 'Failed to update room' }),
     };
   }
 };
