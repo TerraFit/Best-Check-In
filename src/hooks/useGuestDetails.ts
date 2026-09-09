@@ -57,7 +57,7 @@ export function useGuestDetails() {
       const businessId = getBusinessId();
       console.log('💾 useGuestDetails: Business ID:', businessId);
       const response = await fetch('/.netlify/functions/save-food-restrictions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId, restrictions, business_id: businessId })
       });
       console.log('📡 useGuestDetails: Save response status:', response.status);
@@ -99,13 +99,15 @@ export function useGuestDetails() {
     try {
       const authStr = localStorage.getItem('fastcheckin_auth');
       const auth = authStr ? JSON.parse(authStr) : null;
-      const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
-      let businessId = logData.businessId || null;
-      if (!businessId) businessId = getBusinessId();
-      if (!businessId) { console.warn('⚠️ No business_id available for audit log, using fallback'); businessId = '00000000-0000-0000-0000-000000000000'; }
-      const auditLog = { business_id: businessId, user_id: user.id || '00000000-0000-0000-0000-000000000000', user_name: user.name || user.full_name || 'Unknown User', user_role: user.role || 'owner', action: logData.action, details: logData.details, description: logData.description, booking_id: logData.bookingId, guest_name: guestDetails?.guest_name || null, ip_address: await getIPAddress(), user_agent: navigator.userAgent };
+      const user = auth?.user || null;
+      const businessId = logData.businessId || getBusinessId();
+      if (!businessId || !user?.id) {
+        console.warn('⚠️ Missing authenticated business/user identity for audit log');
+        return;
+      }
+      const auditLog = { business_id: businessId, user_id: user.id, user_name: user.name || user.full_name || 'Unknown User', user_role: user.role || 'owner', action: logData.action, details: logData.details, description: logData.description, booking_id: logData.bookingId, guest_name: guestDetails?.guest_name || null, ip_address: await getIPAddress(), user_agent: navigator.userAgent };
       console.log('📝 Creating audit log from useGuestDetails:', auditLog);
-      const response = await fetch('/.netlify/functions/create-audit-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(auditLog) });
+      const response = await fetch('/.netlify/functions/create-audit-log', { method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify(auditLog) });
       if (response.ok) { const result = await response.json(); console.log('✅ Audit log created for:', logData.action, result); } else { const errorText = await response.text(); console.warn('⚠️ Failed to create audit log:', errorText); }
     } catch (err) { console.warn('⚠️ Audit log error (non-critical):', err); }
   }, [guestDetails, getBusinessId]);

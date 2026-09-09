@@ -1,6 +1,7 @@
 // src/components/billing/SubscriptionStatus.tsx
 import { useState, useEffect } from 'react';
 import { t } from '../../i18n';
+import { getAuthHeader } from '../../utils/auth';
 
 interface SubscriptionStatusProps {
   businessId: string;
@@ -24,7 +25,9 @@ export default function SubscriptionStatus({ businessId }: SubscriptionStatusPro
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`);
+      const response = await fetch(`/.netlify/functions/get-subscription-status?businessId=${encodeURIComponent(businessId)}`, {
+        headers: { ...getAuthHeader() }
+      });
       const data = await response.json();
       setStatus(data);
     } catch (error) {
