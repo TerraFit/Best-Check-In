@@ -1,9 +1,9 @@
+import auth from '../netlify/functions/_auth.cjs';
+
 /**
  * GET /.netlify/functions/generate-analytics-snapshot
  * Pro+ — Analytics Snapshot PDF
  */
-
-const jwt = require('jsonwebtoken');
 
 const headersJson = {
   'Content-Type': 'application/json',
@@ -12,37 +12,41 @@ const headersJson = {
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
 };
 
+const createResponse = (statusCode, body) => ({
+  statusCode,
+  headers: headersJson,
+  body: JSON.stringify(body),
+});
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: headersJson, body: '' };
-  if (event.httpMethod !== 'GET') return { statusCode: 405, headers: headersJson, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
+  if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
 
   try {
-    const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) return { statusCode: 401, headers: headersJson, body: JSON.stringify({ success: false, error: 'No authorization token provided' }) };
+    const actor = auth.requireBusinessActor(event);
+    if (!actor.ok) return auth.authFailure(actor);
 
-    let decoded;
-    try { decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET); }
-    catch { return { statusCode: 401, headers: headersJson, body: JSON.stringify({ success: false, error: 'Invalid token' }) }; }
-
-    const businessIdFromToken = decoded.user_metadata?.business_id;
-    const q = event.queryStringParameters || {};
-    const businessId = q.businessId || businessIdFromToken;
-    if (!businessIdFromToken || (q.businessId && q.businessId !== businessIdFromToken)) {
-      return { statusCode: 403, headers: headersJson, body: JSON.stringify({ success: false, error: 'Forbidden' }) };
+    if (!auth.requireBusinessPermission(actor.principal, 'canViewReports')) {
+      return auth.authFailure({ status: 403, error: 'Forbidden' });
     }
 
-    const { buildAnalyticsSummary, fetchBusiness, resolveBusinessPlan } = await import('./lib/analytics/pipeline.js');
-    const { buildRoomPerformance } = await import('./lib/analytics/roomPerformance.js');
-    const { assertSnapshotAllowed } = await import('./lib/analytics/packageGates.js');
-    const { buildSnapshotPdfPayload } = await import('./lib/analytics/reportBuilders/snapshot.js');
+    const q = event.queryStringParameters || {};
+    const tenant = auth.resolveTenant(actor.principal, q.businessId);
+    if (!tenant.ok) return auth.authFailure(tenant);
+    const businessId = tenant.businessId;
+
+    const { buildAnalyticsSummary, fetchBusiness, resolveBusinessPlan } = await import('../netlify/functions/lib/analytics/pipeline.js');
+    const { buildRoomPerformance } = await import('../netlify/functions/lib/analytics/roomPerformance.js');
+    const { assertSnapshotAllowed } = await import('../netlify/functions/lib/analytics/packageGates.js');
+    const { buildSnapshotPdfPayload } = await import('../netlify/functions/lib/analytics/reportBuilders/snapshot.js');
 
     const business = await fetchBusiness(businessId);
-    if (!business) return { statusCode: 404, headers: headersJson, body: JSON.stringify({ success: false, error: 'Business not found' }) };
+    if (!business) return createResponse(404, { success: false, error: 'Business not found' });
 
     const plan = resolveBusinessPlan(business);
     const gate = assertSnapshotAllowed(plan);
     if (!gate.allowed) {
-      return { statusCode: 403, headers: headersJson, body: JSON.stringify({ success: false, error: gate.reason, requiredPlan: gate.requiredPlan, upgradeRequired: true }) };
+      return createResponse(403, { success: false, error: gate.reason, requiredPlan: gate.requiredPlan, upgradeRequired: true });
     }
 
     const dateFrom = q.dateFrom || q.startDate;
@@ -67,6 +71,6 @@ exports.handler = async (event) => {
     };
   } catch (err) {
     console.error('generate-analytics-snapshot error:', err);
-    return { statusCode: 500, headers: headersJson, body: JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }) };
+    return createResponse(500, { success: false, error: 'Internal Server Error' });
   }
 };
