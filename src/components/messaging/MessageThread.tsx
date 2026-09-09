@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
+import { getAuthHeader } from '../../utils/auth';
 
 interface Message {
   id: string;
@@ -40,7 +41,9 @@ export default function MessageThread({ conversationId, userType, onMessageSent 
 
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`/.netlify/functions/get-messages?conversationId=${conversationId}`);
+      const response = await fetch(`/.netlify/functions/get-messages?conversationId=${conversationId}`, {
+        headers: { ...getAuthHeader() }
+      });
       const data = await response.json();
       setMessages(data.messages || []);
       setConversation(data.conversation);
@@ -55,7 +58,10 @@ export default function MessageThread({ conversationId, userType, onMessageSent 
     try {
       await fetch('/.netlify/functions/mark-message-read', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({
           conversationId,
           readerType: userType
@@ -71,7 +77,10 @@ export default function MessageThread({ conversationId, userType, onMessageSent 
     try {
       const response = await fetch('/.netlify/functions/send-message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({
           conversationId,
           senderType: userType,

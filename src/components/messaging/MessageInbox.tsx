@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationModal from './NewConversationModal';
+import { getAuthHeader } from '../../utils/auth';
 
 interface Conversation {
   id: string;
@@ -33,7 +34,9 @@ export default function MessageInbox({ userType = 'admin' }: { userType?: 'admin
 
   const fetchConversations = async () => {
     try {
-      const response = await fetch(`/.netlify/functions/get-conversations?status=${filter}`);
+      const response = await fetch(`/.netlify/functions/get-conversations?status=${filter}`, {
+        headers: { ...getAuthHeader() }
+      });
       const data = await response.json();
       setConversations(data.conversations || []);
     } catch (error) {

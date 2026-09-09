@@ -1,6 +1,7 @@
 // src/components/BusinessOverview.tsx
 import { useState, useEffect } from 'react';
 import { t } from '../i18n';
+import { getAuthHeader } from '../utils/auth';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer 
@@ -26,7 +27,10 @@ export default function BusinessOverview({ businessId, onClose }: BusinessOvervi
     setError(null);
     try {
       const response = await fetch(
-        `/.netlify/functions/get-business-analytics?businessId=${businessId}&dateRange=${dateRange}`
+        `/.netlify/functions/get-business-analytics?businessId=${businessId}&dateRange=${dateRange}`,
+        {
+          headers: { ...getAuthHeader() }
+        }
       );
       
       // Check if response is OK

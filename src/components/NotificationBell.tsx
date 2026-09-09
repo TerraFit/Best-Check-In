@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAuthHeader } from '../utils/auth';
 
 interface Notification {
   id: string;
@@ -41,7 +42,9 @@ export default function NotificationBell({ userType }: { userType: 'admin' | 'bu
   const fetchNotifications = async () => {
     try {
       // You'll need to create this function
-      const response = await fetch(`/.netlify/functions/get-notifications?userType=${userType}&unreadOnly=true`);
+      const response = await fetch(`/.netlify/functions/get-notifications?userType=${userType}&unreadOnly=true`, {
+        headers: { ...getAuthHeader() }
+      });
       const data = await response.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unread_count || 0);
@@ -54,7 +57,10 @@ export default function NotificationBell({ userType }: { userType: 'admin' | 'bu
     try {
       await fetch('/.netlify/functions/mark-notification-read', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({ notificationId })
       });
       
