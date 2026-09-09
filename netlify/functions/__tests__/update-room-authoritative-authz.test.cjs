@@ -1,4 +1,4 @@
-const { test, before, after } = require('node:test');
+const { test, before, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
@@ -11,7 +11,11 @@ let handler;
 let calls;
 
 function sign(payload, options = {}) {
-  return jwt.sign(payload, SECRET, { expiresIn: '1h', ...options });
+  return jwt.sign(payload, SECRET, {
+    expiresIn: '1h',
+    issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    ...options,
+  });
 }
 
 function token({
@@ -84,11 +88,34 @@ const administration = () => token({
   sub: 'admin-1',
   employeeId: 'emp-admin',
   staffRole: 'administration',
+  permissions: [
+    'canViewDashboard',
+    'canViewOperationalReports',
+    'canViewGuestReports',
+    'canViewAuditReports',
+    'canExportReports',
+    'canViewAuditLog',
+    'canManageSettings',
+    'canManageStaff',
+    'canAccessStaffPortal',
+    'canViewGuestDetails',
+    'canViewRooms',
+  ],
 });
 const maintenance = () => token({
   sub: 'maintenance-1',
   employeeId: 'emp-maint',
   staffRole: 'maintenance',
+  permissions: [
+    'canViewDashboard',
+    'canViewMaintenance',
+    'canCreateMaintenanceJob',
+    'canCompleteMaintenanceJob',
+    'canTakeRoomOffline',
+    'canReturnRoomToService',
+    'canViewRooms',
+    'canApproveRoomChanges',
+  ],
 });
 const frontDesk = () => token({
   sub: 'front-1',
