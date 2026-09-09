@@ -3,6 +3,7 @@
 import { useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { getAuthHeader } from '../utils/auth';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useBusinessData } from '../hooks/useBusinessData';
 import { useFilters } from '../hooks/useFilters';
@@ -41,8 +42,6 @@ export default function BusinessDashboard() {
     if (!business?.id) { alert(t('error_unexpected')); return; }
     setSavingProfile(true);
     try {
-      // IMPORTANT: save the values submitted by SettingsEditForm, not the parent
-      // profileForm state. The child owns the live input state while the editor is open.
       const updateData = {
         businessId: business.id,
         total_rooms: parseInt(formData.total_rooms, 10) || 0,
@@ -61,7 +60,7 @@ export default function BusinessDashboard() {
       console.log('📝 Saving business profile fields:', Object.keys(updateData).filter(key => key !== 'businessId'));
       const response = await fetch('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(updateData)
       });
       const responseData = await response.json().catch(() => ({}));
@@ -69,11 +68,9 @@ export default function BusinessDashboard() {
         throw new Error(responseData.error || 'Failed to update profile');
       }
 
-      // Do not close the editor until the database has been re-read successfully.
       const freshBusiness = await refreshData();
       if (!freshBusiness) throw new Error('Profile was saved but the fresh business profile could not be loaded');
 
-      // Make the submitted values visible immediately as well as after a reload.
       setProfileForm({
         total_rooms: String(freshBusiness.total_rooms ?? ''),
         avg_price: String(freshBusiness.avg_price ?? ''),
@@ -95,7 +92,7 @@ export default function BusinessDashboard() {
     } finally { setSavingProfile(false); }
   }, [business, refreshData, setEditingProfile, setProfileForm, setSavingProfile]);
 
-  const saveNewsletterSettings = useCallback(async () => { if (!business?.id) { alert(t('error_unexpected')); return; } setSavingNewsletter(true); try { const newsletterData = { businessId: business.id, newsletter_enabled: newsletterEnabled, newsletter_title: newsletterTitle, newsletter_prize: newsletterPrize, newsletter_cta: newsletterCta, newsletter_terms: newsletterTerms, newsletter_draw_date: newsletterDrawDate || null, newsletter_share_text: newsletterShareText }; const response = await fetch('/.netlify/functions/update-business-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newsletterData) }); if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to save newsletter settings'); } await refreshData(); alert(t('common_success')); } catch (error) { console.error('Error saving newsletter settings:', error); alert(t('error_unexpected')); } finally { setSavingNewsletter(false); } }, [business?.id, newsletterEnabled, newsletterTitle, newsletterPrize, newsletterCta, newsletterTerms, newsletterDrawDate, newsletterShareText, refreshData, setSavingNewsletter]);
+  const saveNewsletterSettings = useCallback(async () => { if (!business?.id) { alert(t('error_unexpected')); return; } setSavingNewsletter(true); try { const newsletterData = { businessId: business.id, newsletter_enabled: newsletterEnabled, newsletter_title: newsletterTitle, newsletter_prize: newsletterPrize, newsletter_cta: newsletterCta, newsletter_terms: newsletterTerms, newsletter_draw_date: newsletterDrawDate || null, newsletter_share_text: newsletterShareText }; const response = await fetch('/.netlify/functions/update-business-profile', { method:'POST', headers:{'Content-Type':'application/json', ...getAuthHeader()}, body:JSON.stringify(newsletterData) }); if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Failed to save newsletter settings'); } await refreshData(); alert(t('common_success')); } catch (error) { console.error('Error saving newsletter settings:', error); alert(t('error_unexpected')); } finally { setSavingNewsletter(false); } }, [business?.id, newsletterEnabled, newsletterTitle, newsletterPrize, newsletterCta, newsletterTerms, newsletterDrawDate, newsletterShareText, refreshData, setSavingNewsletter]);
 
   const principal = businessOwnerPrincipal();
   const tabs = filterTabs(principal, [{id:'overview',name:t('dashboard_overview')},{id:'checkins',name:t('dashboard_checkins')},{id:'reports',name:t('dashboard_reports')},{id:'rooms',name:t('nav_rooms')},{id:'housekeeping',name:t('nav_housekeeping')},{id:'lost_found',name:t('nav_lost_found')},{id:'staff',name:t('nav_staff')},{id:'settings',name:t('dashboard_settings')}]);
