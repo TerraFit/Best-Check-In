@@ -321,7 +321,10 @@ export default function Billing() {
     try {
       const response = await fetch('/.netlify/functions/update-business-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
         body: JSON.stringify({
           businessId,
           current_plan: planId,
