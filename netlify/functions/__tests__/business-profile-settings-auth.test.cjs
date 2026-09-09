@@ -7,7 +7,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 
 const SECRET = process.env.SUPABASE_JWT_SECRET;
-function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { expiresIn: '15m', ...options }); }
+function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { expiresIn: '15m', issuer: 'fastcheckin', ...options }); }
 function eventWithToken(token, body) { return { httpMethod: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) }; }
 function getEventWithToken(token, businessId) { return { httpMethod: 'GET', headers: { authorization: `Bearer ${token}` }, queryStringParameters: businessId === undefined ? {} : { businessId } }; }
 function businessToken(businessId = 'biz-a', extra = {}) { return sign({ sub: `owner-${businessId}`, user_metadata: { business_id: businessId }, ...extra }); }
@@ -16,7 +16,12 @@ function platformToken(role = 'platform_operations') { return sign({ sub: `${rol
 
 async function loadFunction(name) { return import(`../${name}.js?test=${Date.now()}-${Math.random()}`); }
 function mockFetch(result = [{ id: 'biz-a', trading_name: 'Test Business' }]) {
-  global.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(result) });
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: async () => JSON.stringify(result),
+  });
 }
 
 test('update-business-settings: anonymous request is rejected', async () => {
@@ -62,10 +67,11 @@ test('get-business-settings: employee without settings permission is rejected', 
   assert.equal(result.statusCode, 403);
 });
 
-test('get-business-settings: businessId is required after authentication', async () => {
+test('get-business-settings: authenticated business owner may use authoritative tenant scope', async () => {
   const { handler } = await loadFunction('get-business-settings');
+  mockFetch([{ marketing_consent_enabled: true }]);
   const result = await handler(getEventWithToken(businessToken('biz-a')));
-  assert.equal(result.statusCode, 400);
+  assert.equal(result.statusCode, 200);
 });
 
 test('update-business-profile: anonymous request is rejected', async () => {

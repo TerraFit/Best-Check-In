@@ -11,7 +11,7 @@ function eventWithToken(token) {
 }
 
 function sign(payload, options = {}) {
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', ...options });
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', issuer: 'fastcheckin', ...options });
 }
 
 function signSuperAdmin(payload = {}, options = {}) {
@@ -20,7 +20,7 @@ function signSuperAdmin(payload = {}, options = {}) {
       sub: 'admin-1',
       email: 'admin@example.com',
       role: 'super_admin',
-      user_metadata: { super_admin: true },
+      user_metadata: {},
       ...payload,
     },
     { issuer: 'fastcheckin', audience: 'super-admin', ...options },
