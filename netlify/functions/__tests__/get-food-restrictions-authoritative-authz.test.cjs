@@ -7,7 +7,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 const SECRET = process.env.SUPABASE_JWT_SECRET;
 
-function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '15m' }); }
+function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '15m', issuer: 'fastcheckin' }); }
 function businessToken(id = 'biz-a') { return sign({ sub: `owner-${id}`, user_metadata: { business_id: id } }); }
 function employeeToken(id = 'biz-a', permissions = ['canViewDashboard']) { return sign({ sub: `emp-${id}`, user_metadata: { business_id: id, employee_id: `emp-${id}`, permission_set: permissions } }); }
 function event(token, bookingId = 'booking-1') { return { httpMethod: 'GET', headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters: bookingId === undefined ? {} : { bookingId } }; }

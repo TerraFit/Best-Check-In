@@ -48,7 +48,7 @@ function token({
 
   if (role) payload.role = role;
 
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET);
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { issuer: 'fastcheckin' });
 }
 
 function jsonResponse(body, status = 200, headers = {}) {
@@ -181,7 +181,8 @@ test('missing business scope is rejected before booking access', async () => {
       email: 'user@example.com',
       user_metadata: { active: true }
     },
-    process.env.SUPABASE_JWT_SECRET
+    process.env.SUPABASE_JWT_SECRET,
+    { issuer: 'fastcheckin' }
   );
 
   const response = await loadHandler()(
