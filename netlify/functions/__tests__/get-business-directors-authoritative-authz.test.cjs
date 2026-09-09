@@ -5,8 +5,10 @@ const jwt = require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-authoritative-auth';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 const SECRET = process.env.SUPABASE_JWT_SECRET;
-function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '15m' }); }
+const ISSUER = process.env.FASTCHECKIN_JWT_ISSUER;
+function sign(payload) { return jwt.sign(payload, SECRET, { issuer: ISSUER, expiresIn: '15m' }); }
 function event(token, businessId = 'biz-a') { return { httpMethod: 'GET', headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters: businessId === undefined ? {} : { businessId } }; }
 function businessToken(id = 'biz-a') { return sign({ sub: `owner-${id}`, user_metadata: { business_id: id } }); }
 function employeeToken(id = 'biz-a', permissions = ['canManageStaff']) { return sign({ sub: `emp-${id}`, user_metadata: { business_id: id, employee_id: `emp-${id}`, permission_set: permissions } }); }

@@ -19,9 +19,13 @@ export const handler = async function(event) {
 
   const principal = authentication.principal;
   const isPlatform = ['super_admin', 'platform'].includes(principal.actorType);
+
+  // Issuing a setup credential can reset the business owner's password.
+  // This is deliberately narrower than ordinary settings administration.
   const allowed = isPlatform
     ? requirePlatformPermission(principal, 'platform:businesses:write')
-    : requireBusinessPermission(principal, 'canManageSettings');
+    : principal.actorType === 'business';
+
   if (!allowed) return authFailure({ status: 403, error: 'Forbidden' }, headers);
 
   try {

@@ -3,11 +3,12 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-business-settings-authz';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 
 const { handler } = require('../get-business-settings.js');
 
 function sign(payload, options = {}) {
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { expiresIn: '15m', ...options });
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER, expiresIn: '15m', ...options });
 }
 
 function event(token, query = { businessId: 'biz-a' }, method = 'GET') {
