@@ -1,7 +1,7 @@
 // src/pages/Billing.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getBusinessId } from '../utils/auth';
+import { getAuthHeader, getBusinessId } from '../utils/auth';
 import SubscriptionStatus from '../components/Billing/SubscriptionStatus';
 import { PlanType } from '../types/entitlements';
 import { t } from '../i18n'
@@ -203,7 +203,9 @@ export default function Billing() {
     if (!businessId) return;
 
     try {
-      const response = await fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`);
+      const response = await fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`, {
+        headers: { ...getAuthHeader() }
+      });
       if (response.ok) {
         const data = await response.json();
         setSubscriptionStatus(data);

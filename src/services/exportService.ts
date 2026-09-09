@@ -4,6 +4,7 @@
 // ✅ Includes proper error handling and types
 
 import { MarketingExportFilters, OfficialExportRequest, SensitiveExportAudit } from '../types/export';
+import { getAuthHeader } from '../utils/auth';
 
 const API_BASE = '/.netlify/functions';
 
@@ -48,8 +49,9 @@ export class ExportService {
     // ✅ UPDATED: Using marketing-export.v2 (no WebSocket dependency)
     const response = await fetch(`${API_BASE}/export-marketing-contacts-v2`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
       },
       body: JSON.stringify({ businessId, filters, format })
     });
@@ -99,8 +101,9 @@ export class ExportService {
   ): Promise<Blob> {
     const response = await fetch(`${API_BASE}/export-official-register`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
       },
       body: JSON.stringify({ businessId, request, authorization, format })
     });
@@ -158,7 +161,8 @@ export class ExportService {
 
     const response = await fetch(`${API_BASE}/get-export-audit-logs?${params.toString()}`, {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
       }
     });
     
