@@ -30,7 +30,7 @@ function setConfiguredEnv() {
 }
 
 function token({ businessId = 'biz-a', permissionSet = ['canViewGuestDetails'], role = 'manager', employeeId = 'emp-1', active = true } = {}) {
-  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET);
+  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
 }
 
 function restoreEnv() { process.env = { ...ORIGINAL_ENV }; global.fetch = originalFetch; }
@@ -44,7 +44,7 @@ test('invalid JWT is rejected before booking access', async () => { setConfigure
 
 test('business actor without employee record is accepted with business-owner guest-detail semantics', async () => {
   setConfiguredEnv();
-  const ownerToken = jwt.sign({ sub: 'owner-1', email: 'owner@example.com', user_metadata: { business_id: 'biz-a', active: true } }, process.env.SUPABASE_JWT_SECRET);
+  const ownerToken = jwt.sign({ sub: 'owner-1', email: 'owner@example.com', user_metadata: { business_id: 'biz-a', active: true } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
   let fetchCalls = 0;
   global.fetch = async (url) => {
     fetchCalls += 1;
