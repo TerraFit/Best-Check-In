@@ -140,6 +140,18 @@ export const handler = async (event) => {
     }
 
     const bookings = await response.json();
+
+    if (
+      !Array.isArray(bookings) ||
+      bookings.some((booking) => booking?.business_id !== targetBusinessId)
+    ) {
+      console.error('Booking tenant boundary violation detected');
+      return createResponse(403, {
+        success: false,
+        error: 'Booking tenant authorization failed'
+      });
+    }
+
     const contentRange = response.headers.get('content-range') || response.headers.get('Content-Range') || '';
     let totalBookings = 0;
     const slashIdx = contentRange.lastIndexOf('/');

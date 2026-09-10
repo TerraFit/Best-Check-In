@@ -271,6 +271,31 @@ test('authorized business actor is tenant-bound and can list bookings', async ()
   assert.equal(body.bookings[0].business_id, 'biz-a');
 });
 
+test('business actor rejects booking rows returned for another tenant', async () => {
+  const urls = [];
+
+  global.fetch = async (url) => {
+    urls.push(String(url));
+
+    return jsonResponse(
+      [{ id: 'booking-1', business_id: 'biz-b', guest_name: 'Guest B' }],
+      200,
+      { 'content-range': '0-0/1' }
+    );
+  };
+
+  const response = await loadHandler()(
+    event({
+      businessId: 'biz-a',
+      token: token({ businessId: 'biz-a' })
+    })
+  );
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /business_id=eq\.biz-a/);
+});
+
 test('authorized employee with booking-view permission can list bookings', async () => {
   global.fetch = async () =>
     jsonResponse(
