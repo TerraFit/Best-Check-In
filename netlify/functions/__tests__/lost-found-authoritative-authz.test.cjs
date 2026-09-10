@@ -137,6 +137,178 @@ test('resolve-lost-found-guest: booking lookup failure returns 502 after tenant-
   }finally{global.fetch=originalFetch}
 });
 
+
+test('get-lost-found-item: authorized owner keeps item and activity tenant-scoped', async () => {
+  const token = biz('biz-a');
+  const originalFetch = global.fetch;
+  const calls = [];
+
+  global.fetch = async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, method: options.method || 'GET' });
+
+    if (value.includes('/rest/v1/lost_and_found?') &&
+        value.includes('id=eq.item-a') &&
+        value.includes('business_id=eq.biz-a')) {
+      return new Response(JSON.stringify([{
+        id: 'item-a',
+        business_id: 'biz-a',
+        status: 'awaiting_contact',
+        item_name: 'Wallet',
+        description: 'Black leather wallet',
+        guest_name: 'Guest A',
+        booking_id: 'booking-a',
+        photo_urls: [],
+        collection_signature_url: null
+      }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (value.includes('/rest/v1/lost_and_found_activity?') &&
+        value.includes('item_id=eq.item-a') &&
+        value.includes('business_id=eq.biz-a')) {
+      return new Response(JSON.stringify([{
+        id: 'activity-a',
+        item_id: 'item-a',
+        business_id: 'biz-a',
+        action: 'created',
+        created_at: '2026-09-10T06:00:00.000Z'
+      }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${value}`);
+  };
+
+  try {
+    const { handler } = await fn('get-lost-found-item');
+
+    const result = await handler(event(
+      'GET',
+      { businessId: 'biz-a', itemId: 'item-a' },
+      token
+    ));
+
+    assert.equal(result.statusCode, 200);
+
+    const body = JSON.parse(result.body);
+    assert.equal(body.success, true);
+    assert.equal(body.item.id, 'item-a');
+    assert.equal(body.item.business_id, 'biz-a');
+    assert.equal(body.activity.length, 1);
+    assert.equal(body.activity[0].business_id, 'biz-a');
+
+    const itemCall = calls.find(c =>
+      c.url.includes('/rest/v1/lost_and_found?')
+    );
+    const activityCall = calls.find(c =>
+      c.url.includes('/rest/v1/lost_and_found_activity?')
+    );
+
+    assert.ok(itemCall);
+    assert.match(itemCall.url, /id=eq\.item-a/);
+    assert.match(itemCall.url, /business_id=eq\.biz-a/);
+
+    assert.ok(activityCall);
+    assert.match(activityCall.url, /item_id=eq\.item-a/);
+    assert.match(activityCall.url, /business_id=eq\.biz-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('get-lost-found-item: cross-tenant item is not accessible and activity is not queried', async () => {
+  const token = biz('biz-a');
+  const originalFetch = global.fetch;
+  const calls = [];
+
+  global.fetch = async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, method: options.method || 'GET' });
+
+    if (value.includes('/rest/v1/lost_and_found?')) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (value.includes('/rest/v1/lost_and_found_activity?')) {
+      throw new Error('Activity must never be queried when item is not found');
+    }
+
+    throw new Error(`Unexpected fetch: ${value}`);
+  };
+
+  try {
+    const { handler } = await fn('get-lost-found-item');
+
+    const result = await handler(event(
+      'GET',
+      { businessId: 'biz-a', itemId: 'item-b' },
+      token
+    ));
+
+    assert.equal(result.statusCode, 404);
+
+    const itemCall = calls.find(c =>
+      c.url.includes('/rest/v1/lost_and_found?')
+    );
+
+    assert.ok(itemCall);
+    assert.match(itemCall.url, /id=eq\.item-b/);
+    assert.match(itemCall.url, /business_id=eq\.biz-a/);
+    assert.equal(
+      calls.some(c => c.url.includes('/rest/v1/lost_and_found_activity?')),
+      false
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('get-lost-found-item: item lookup failure returns 502 without activity lookup', async () => {
+  const token = biz('biz-a');
+  const originalFetch = global.fetch;
+  const calls = [];
+
+  global.fetch = async (url, options = {}) => {
+    const value = String(url);
+    calls.push(value);
+
+    if (value.includes('/rest/v1/lost_and_found?')) {
+      return new Response('upstream failure', { status: 500 });
+    }
+
+    if (value.includes('/rest/v1/lost_and_found_activity?')) {
+      throw new Error('Activity must not be queried after item lookup failure');
+    }
+
+    throw new Error(`Unexpected fetch: ${value}`);
+  };
+
+  try {
+    const { handler } = await fn('get-lost-found-item');
+
+    const result = await handler(event(
+      'GET',
+      { businessId: 'biz-a', itemId: 'item-a' },
+      token
+    ));
+
+    assert.equal(result.statusCode, 502);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /id=eq\.item-a/);
+    assert.match(calls[0], /business_id=eq\.biz-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('invalid JWT is rejected rather than fail-open',async()=>{const{handler}=await fn('get-lost-found-item');assert.equal((await handler(event('GET',{businessId:'biz-a',itemId:'item-1'},'not-a-jwt'))).statusCode,401)});
 
 test('update-lost-found-item source enforces explicit workflow transitions',async()=>{const{handler}=await fn('update-lost-found-item');assert.equal(typeof handler,'function');const fs=require('node:fs'),source=fs.readFileSync(path=require('node:path').join(__dirname,'..','update-lost-found-item.js'),'utf8');assert.match(source,/const WORKFLOW_TRANSITIONS =/);assert.match(source,/Invalid Lost & Found status transition/);assert.match(source,/updated_at=eq\.\$\{q\(current\.updated_at\)\}/);assert.match(source,/Booking and room do not match/)});
