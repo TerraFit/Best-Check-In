@@ -5,9 +5,15 @@ const jwt = require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-authoritative-auth';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 
 const SECRET = process.env.SUPABASE_JWT_SECRET;
-function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '15m' }); }
+function sign(payload) {
+  return jwt.sign(payload, SECRET, {
+    issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    expiresIn: '15m'
+  });
+}
 function event(token, body = '{}') {
   return {
     httpMethod: 'POST',
