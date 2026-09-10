@@ -7,7 +7,7 @@ const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFail
 const EDITABLE_PROFILE_FIELDS = new Set([
   'trading_name', 'slogan', 'welcome_message',
   'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
-  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
+  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading',
   'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
   'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
   'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
@@ -51,7 +51,8 @@ export const handler = async function(event) {
     const tenant = resolveTenant(authentication.principal, businessId);
     if (!tenant.ok) return authFailure(tenant, headers);
 
-    // Platform-controlled commercial/status fields must not be changed through the normal profile endpoint.
+    // max_rooms is a platform-controlled licensing ceiling. It is deliberately not
+    // editable through the normal business profile endpoint.
     const filteredFields = {};
     for (const [key, value] of Object.entries(fields)) {
       if (!EDITABLE_PROFILE_FIELDS.has(key) || value === undefined) continue;
@@ -62,13 +63,61 @@ export const handler = async function(event) {
       return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'No editable profile fields supplied' }) };
     }
 
-    filteredFields.updated_at = new Date().toISOString();
-
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
+
+    // When total_rooms is being changed, read the licensed ceiling from the authoritative
+    // tenant row before allowing the mutation. Never trust a client-supplied max_rooms.
+    let maxRooms = null;
+    if (Object.prototype.hasOwnProperty.call(filteredFields, 'total_rooms')) {
+      const requestedTotalRooms = Number(filteredFields.total_rooms);
+      if (!Number.isInteger(requestedTotalRooms) || requestedTotalRooms < 0) {
+        return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'total_rooms must be a non-negative integer' }) };
+      }
+      filteredFields.total_rooms = requestedTotalRooms;
+
+      const licenseResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=id,max_rooms`, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (!licenseResponse.ok) {
+        console.error('Business room license lookup failed:', licenseResponse.status);
+        return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to load room license', code: 'ROOM_LICENSE_LOOKUP_FAILED' }) };
+      }
+
+      const licenseRows = await licenseResponse.json();
+      const license = Array.isArray(licenseRows) ? licenseRows[0] : null;
+      if (!license || license.id !== tenant.businessId) {
+        return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
+      }
+
+      maxRooms = license.max_rooms === null || license.max_rooms === undefined ? null : Number(license.max_rooms);
+      if (maxRooms !== null && (!Number.isInteger(maxRooms) || maxRooms < 0)) {
+        console.error('Invalid room license configuration for business:', tenant.businessId);
+        return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Invalid room license configuration', code: 'ROOM_LICENSE_INVALID' }) };
+      }
+      if (maxRooms !== null && requestedTotalRooms > maxRooms) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: 'Room limit reached. Upgrade your plan to add more rooms.',
+            code: 'ROOM_LIMIT_REACHED',
+            totalRooms: requestedTotalRooms,
+            maxRooms,
+          })
+        };
+      }
+    }
+
+    filteredFields.updated_at = new Date().toISOString();
 
     const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(PROFILE_RESPONSE_FIELDS.join(','))}`, {
       method: 'PATCH',
