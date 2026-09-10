@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { getAuthHeader } from '../utils/auth';
 import { fetchRooms, updateRoom } from '../services/roomApi';
 import {
   getRoomDisplayName,
@@ -55,21 +56,21 @@ export default function RoomSettings() {
     setLoading(true);
     setError(null);
     try {
-      const [list, brandingRes] = await Promise.all([
+      const [list, subscriptionRes] = await Promise.all([
         fetchRooms(businessId, { includeInactive: true }),
-        fetch(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`),
+        fetch(`/.netlify/functions/get-subscription-status?businessId=${encodeURIComponent(businessId)}`, {
+          headers: getAuthHeader(),
+          cache: 'no-store',
+        }),
       ]);
       setRooms(
         list.sort((a, b) => Number(a.room_number) - Number(b.room_number))
       );
 
-      if (brandingRes.ok) {
-        const branding = await brandingRes.json();
-        const total =
-          branding.total_rooms ??
-          branding.data?.total_rooms ??
-          null;
-        setLicensedRooms(typeof total === 'number' ? total : parseInt(total, 10) || null);
+      if (subscriptionRes.ok) {
+        const subscription = await subscriptionRes.json();
+        const maxRooms = subscription.packageMeta?.maxRooms ?? subscription.limits?.maxRooms ?? null;
+        setLicensedRooms(typeof maxRooms === 'number' ? maxRooms : parseInt(maxRooms, 10) || null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t('rooms_failed_load'));
@@ -140,10 +141,11 @@ export default function RoomSettings() {
             {t('rooms_licensed_capacity')}
           </h2>
           <p className="text-2xl font-bold text-gray-900">
-            {t('rooms_licensed_rooms')}{' '}
+            {rooms.length} /{' '}
             <span className="text-orange-600">
               {licensedRooms !== null ? licensedRooms : '—'}
-            </span>
+            </span>{' '}
+            <span className="text-base font-medium text-gray-500">{t('rooms_licensed_rooms')}</span>
           </p>
           <p className="text-xs text-gray-500 mt-2">{t('rooms_licensed_help')}</p>
         </section>
@@ -359,36 +361,24 @@ export default function RoomSettings() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">{t('rooms_notes')}</label>
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  rows={3}
-                  placeholder={t('rooms_placeholder_notes')}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none"
-                />
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {saving ? t('common_saving') : t('common_save')}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={saving}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {t('common_cancel')}
+                </button>
               </div>
-
-              {error && <p className="text-sm text-red-600">{error}</p>}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeEdit}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-              >
-                {t('rooms_cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
-              >
-                {saving ? t('rooms_saving') : t('rooms_save')}
-              </button>
             </div>
           </div>
         </div>
