@@ -39,7 +39,7 @@ export const handler = async (event) => {
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('marketing_consent_enabled')
+      .select('marketing_consent_enabled,total_rooms,max_rooms')
       .eq('id', tenant.businessId)
       .single();
 
@@ -49,7 +49,9 @@ export const handler = async (event) => {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        marketing_consent_enabled: data?.marketing_consent_enabled || false
+        marketing_consent_enabled: data?.marketing_consent_enabled || false,
+        total_rooms: data?.total_rooms ?? null,
+        max_rooms: data?.max_rooms ?? null
       })
     };
   } catch (error) {
