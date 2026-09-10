@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET = 'test-secret';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'service-key';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 
 function loadHandler() {
   const path = require.resolve('../sync-rooms.js');
@@ -26,7 +27,7 @@ function token({ businessId = 'biz-a', role, permissionSet, employeeId, active =
   if (permissionSet) userMetadata.permission_set = permissionSet;
   const payload = { sub: 'user-1', email: 'user@example.com', user_metadata: userMetadata };
   if (role) payload.role = role;
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET);
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
 }
 
 function jsonResponse(body, status = 200) {
@@ -81,7 +82,7 @@ test('invalid JWT is rejected before room mutation', async () => {
 test('expired JWT is rejected before room mutation', async () => {
   let fetchCalls = 0;
   global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const expired = jwt.sign({ sub: 'user-1', user_metadata: { business_id: 'biz-a', active: true }, exp: Math.floor(Date.now() / 1000) - 60 }, process.env.SUPABASE_JWT_SECRET);
+  const expired = jwt.sign({ sub: 'user-1', user_metadata: { business_id: 'biz-a', active: true }, exp: Math.floor(Date.now() / 1000) - 60 }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
   const response = await loadHandler()(event({ token: expired, body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 401);
   assert.equal(fetchCalls, 0);
@@ -98,7 +99,7 @@ test('tenant substitution is rejected before room mutation', async () => {
 test('missing business scope is rejected before room mutation', async () => {
   let fetchCalls = 0;
   global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const noBusinessToken = jwt.sign({ sub: 'user-1', user_metadata: { active: true } }, process.env.SUPABASE_JWT_SECRET);
+  const noBusinessToken = jwt.sign({ sub: 'user-1', user_metadata: { active: true } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
   const response = await loadHandler()(event({ token: noBusinessToken, body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
   assert.equal(fetchCalls, 0);
