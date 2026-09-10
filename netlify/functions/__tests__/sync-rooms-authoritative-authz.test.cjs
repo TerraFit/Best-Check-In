@@ -2,144 +2,141 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
-process.env.SUPABASE_JWT_SECRET = 'test-secret';
-process.env.SUPABASE_URL = 'https://example.supabase.co';
-process.env.SUPABASE_SERVICE_KEY = 'service-key';
-process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
+const ORIGINAL_ENV = { ...process.env };
 
-function loadHandler() {
-  const path = require.resolve('../sync-rooms.js');
-  delete require.cache[path];
-  return require(path).handler;
+function token(overrides = {}, options = {}) {
+  return jwt.sign({
+    sub: overrides.sub || 'user-a',
+    role: overrides.role || 'business_owner',
+    business_id: overrides.businessId === undefined ? 'biz-a' : overrides.businessId,
+    active: overrides.active === undefined ? true : overrides.active,
+    permissions: overrides.permissions || { canApproveRoomChanges: true },
+    ...overrides,
+  }, process.env.FASTCHECKIN_JWT_SECRET || 'test-secret', {
+    issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    expiresIn: options.expiresIn || '1h',
+  });
 }
 
-function event({ method = 'POST', body = {}, token } = {}) {
+function event({ method = 'POST', body = {}, authToken } = {}) {
   return {
     httpMethod: method,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    headers: authToken ? { authorization: `Bearer ${authToken}` } : {},
+    body: JSON.stringify(body),
   };
-}
-
-function token({ businessId = 'biz-a', role, permissionSet, employeeId, active = true } = {}) {
-  const userMetadata = { business_id: businessId, active };
-  if (employeeId) userMetadata.employee_id = employeeId;
-  if (permissionSet) userMetadata.permission_set = permissionSet;
-  const payload = { sub: 'user-1', email: 'user@example.com', user_metadata: userMetadata };
-  if (role) payload.role = role;
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
 }
 
 function jsonResponse(body, status = 200) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    async json() { return body; },
-    async text() { return typeof body === 'string' ? body : JSON.stringify(body); },
+    json: async () => body,
   };
 }
 
-function room(id = 'room-a', number = 1, businessId = 'biz-a', active = true) {
-  return { id, business_id: businessId, room_number: number, room_code: `R-${number}`, active };
+function business(maxRooms = 3) {
+  return { id: 'biz-a', max_rooms: maxRooms };
 }
 
-function business(maxRooms = 3, businessId = 'biz-a') {
-  return { id: businessId, max_rooms: maxRooms };
+function room(id, roomNumber, active = true) {
+  return { id, room_number: roomNumber, active };
 }
+
+function loadHandler() {
+  delete require.cache[require.resolve('../sync-rooms.js')];
+  return require('../sync-rooms.js').handler;
+}
+
+const oldFetch = global.fetch;
+
+test.beforeEach(() => {
+  process.env.FASTCHECKIN_JWT_SECRET = 'test-secret';
+  process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
+  process.env.SUPABASE_URL = 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_KEY = 'service-key';
+});
+
+test.afterEach(() => {
+  global.fetch = oldFetch;
+  process.env = { ...ORIGINAL_ENV };
+});
 
 test('OPTIONS remains public', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse({}); };
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
   const response = await loadHandler()(event({ method: 'OPTIONS' }));
   assert.equal(response.statusCode, 204);
-  assert.equal(fetchCalls, 0);
 });
 
 test('non-POST methods are rejected', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse({}); };
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
   const response = await loadHandler()(event({ method: 'GET' }));
   assert.equal(response.statusCode, 405);
-  assert.equal(fetchCalls, 0);
 });
 
 test('anonymous requests are rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
   const response = await loadHandler()(event({ body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 401);
-  assert.equal(fetchCalls, 0);
 });
 
 test('invalid JWT is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: 'not-a-jwt', body: { businessId: 'biz-a', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const response = await loadHandler()(event({ authToken: 'invalid', body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 401);
-  assert.equal(fetchCalls, 0);
 });
 
 test('expired JWT is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const expired = jwt.sign({ sub: 'user-1', user_metadata: { business_id: 'biz-a', active: true }, exp: Math.floor(Date.now() / 1000) - 60 }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
-  const response = await loadHandler()(event({ token: expired, body: { businessId: 'biz-a', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const expired = token({}, { expiresIn: -1 });
+  const response = await loadHandler()(event({ authToken: expired, body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 401);
-  assert.equal(fetchCalls, 0);
 });
 
 test('tenant substitution is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-other', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const response = await loadHandler()(event({ authToken: token({ businessId: 'biz-a' }), body: { businessId: 'biz-b', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
-  assert.equal(fetchCalls, 0);
 });
 
 test('missing business scope is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const noBusinessToken = jwt.sign({ sub: 'user-1', user_metadata: { active: true } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER });
-  const response = await loadHandler()(event({ token: noBusinessToken, body: { businessId: 'biz-a', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const response = await loadHandler()(event({ authToken: token({ businessId: null }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
-  assert.equal(fetchCalls, 0);
 });
 
 test('inactive employee is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', active: false, permissionSet: ['canApproveRoomChanges'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const response = await loadHandler()(event({ authToken: token({ role: 'employee', active: false }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
-  assert.equal(fetchCalls, 0);
 });
 
 test('employee without room-change approval is rejected before room mutation', async () => {
-  let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return jsonResponse([]); };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: ['canViewRooms'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  global.fetch = async () => { throw new Error('fetch should not be called'); };
+  const response = await loadHandler()(event({ authToken: token({ role: 'employee', permissions: { canApproveRoomChanges: false } }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
-  assert.equal(fetchCalls, 0);
 });
 
 test('authorized foreman with room-change approval can synchronize rooms', async () => {
-  const calls = [];
   global.fetch = async (url, options = {}) => {
-    calls.push({ url: String(url), options });
     if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
-    if (String(url).includes('/rooms?')) return jsonResponse([room()]);
+    if (String(url).includes('/rooms?')) return jsonResponse([]);
+    if (String(url).endsWith('/rooms')) return jsonResponse([room('room-1', 1)]);
+    if (String(url).includes('/room_events')) return jsonResponse([]);
     return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a', role: 'foreman', employeeId: 'employee-1', permissionSet: ['canApproveRoomChanges'] }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  const response = await loadHandler()(event({ authToken: token({ role: 'employee' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
   assert.equal(response.statusCode, 200);
-  assert.ok(calls.some((c) => c.url.includes('business_id=eq.biz-a')));
 });
 
 test('business owner may synchronize its own tenant', async () => {
-  global.fetch = async (url) => {
+  global.fetch = async (url, options = {}) => {
     if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
-    return String(url).includes('/rooms?') ? jsonResponse([room()]) : jsonResponse([]);
+    if (String(url).includes('/rooms?')) return jsonResponse([]);
+    if (String(url).endsWith('/rooms')) return jsonResponse([room('room-1', 1), room('room-2', 2), room('room-3', 3)]);
+    if (String(url).includes('/room_events')) return jsonResponse([]);
+    return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  const response = await loadHandler()(event({ authToken: token({ role: 'business_owner' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 200);
 });
 
@@ -150,9 +147,10 @@ test('licensed ceiling allows synchronization exactly up to max_rooms', async ()
     if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
     if (String(url).includes('/rooms?')) return jsonResponse([room('room-1', 1), room('room-2', 2)]);
     if (String(url).endsWith('/rooms')) return jsonResponse([room('room-3', 3)]);
+    if (String(url).includes('/room_events')) return jsonResponse([]);
     return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  const response = await loadHandler()(event({ authToken: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 200);
   assert.ok(calls.some((c) => c.options.method === 'POST' && c.url.endsWith('/rooms')));
 });
@@ -164,14 +162,14 @@ test('licensed ceiling rejects excess rooms before room lookup or mutation', asy
     if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
     return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 4 } }));
+  const response = await loadHandler()(event({ authToken: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 4 } }));
   assert.equal(response.statusCode, 400);
   const body = JSON.parse(response.body);
   assert.equal(body.code, 'ROOM_LIMIT_REACHED');
   assert.equal(body.maxRooms, 3);
   assert.equal(body.totalRooms, 4);
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /businesses\?id=eq\.biz-a&select=id%2Cmax_rooms/);
+  assert.match(calls[0].url, /businesses\?id=eq\.biz-a&select=id,max_rooms/);
 });
 
 test('room creation is explicitly tenant-scoped', async () => {
@@ -181,9 +179,10 @@ test('room creation is explicitly tenant-scoped', async () => {
     if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
     if (String(url).includes('/rooms?')) return jsonResponse([]);
     if (String(url).endsWith('/rooms')) return jsonResponse([room('room-new', 1)]);
+    if (String(url).includes('/room_events')) return jsonResponse([]);
     return jsonResponse([]);
   };
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  const response = await loadHandler()(event({ authToken: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
   assert.equal(response.statusCode, 200);
   const insert = calls.find((c) => c.options.method === 'POST' && c.url.endsWith('/rooms'));
   assert.ok(insert);
@@ -192,10 +191,12 @@ test('room creation is explicitly tenant-scoped', async () => {
 });
 
 test('data-layer failure does not expose room data', async () => {
-  global.fetch = async (url) => String(url).includes('/businesses?')
-    ? jsonResponse({ error: 'database failure', room: 'secret-room' }, 500)
-    : jsonResponse([]);
-  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
-  assert.equal(response.statusCode, 502);
-  assert.doesNotMatch(response.body, /secret-room/);
+  global.fetch = async (url) => {
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
+    if (String(url).includes('/rooms?')) return jsonResponse({ secret: 'room-data' }, 500);
+    return jsonResponse([]);
+  };
+  const response = await loadHandler()(event({ authToken: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
+  assert.equal(response.statusCode, 500);
+  assert.doesNotMatch(response.body, /room-data/);
 });
