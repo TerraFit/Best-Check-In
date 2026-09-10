@@ -238,25 +238,15 @@ test('email matching is normalized before authoritative comparison', async () =>
   setConfiguredEnv();
 
   const urls = [];
-  global.fetch = async (url, options) => {
-    urls.push({
-      url: String(url),
-      options,
-    });
+  global.fetch = async (url) => {
+    urls.push(String(url));
 
-    if (urls.length === 1) {
-      return jsonResponse([{
-        id: 'booking-1',
-        business_id: 'biz-a',
-        guest_email: 'guest@example.com',
-        status: 'confirmed',
-      }]);
-    }
-
-    return jsonResponse({
-      email: 'guest@example.com',
-      full_name: 'Jane Doe',
-    });
+    return jsonResponse([{
+      id: 'booking-1',
+      business_id: 'biz-a',
+      guest_email: 'guest@example.com',
+      status: 'confirmed'
+    }]);
   };
 
   const handler = loadHandler();
@@ -265,44 +255,30 @@ test('email matching is normalized before authoritative comparison', async () =>
     businessId: 'biz-a',
     bookingId: 'booking-1',
     profileData: {
-      fullName: 'Jane Doe',
-    },
+      fullName: 'Jane Doe'
+    }
   }));
 
   assert.equal(response.statusCode, 200);
-  assert.equal(urls.length, 3);
-  assert.match(urls[0].url, /bookings\?/);
-  assert.match(urls[0].url, /business_id=eq\.biz-a/);
-  assert.match(urls[0].url, /id=eq\.booking-1/);
-  assert.match(urls[1].url, /guest_profiles\?/);
-  assert.match(urls[1].url, /select=total_visits/);
-  assert.match(urls[2].url, /guest_profiles\?/);
-  assert.match(urls[2].url, /on_conflict=email/);
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /bookings\?/);
+  assert.match(urls[0], /business_id=eq\.biz-a/);
+  assert.match(urls[0], /id=eq\.booking-1/);
 });
 
-test('authorized save is tenant-bound and only occurs after booking validation', async () => {
+test('authorized save validates the tenant booking and does not access global guest_profiles', async () => {
   setConfiguredEnv();
 
   const urls = [];
-  global.fetch = async (url, options) => {
-    urls.push({
-      url: String(url),
-      options,
-    });
+  global.fetch = async (url) => {
+    urls.push(String(url));
 
-    if (urls.length === 1) {
-      return jsonResponse([{
-        id: 'booking-1',
-        business_id: 'biz-a',
-        guest_email: 'guest@example.com',
-        status: 'confirmed',
-      }]);
-    }
-
-    return jsonResponse({
-      email: 'guest@example.com',
-      full_name: 'Jane Doe',
-    });
+    return jsonResponse([{
+      id: 'booking-1',
+      business_id: 'biz-a',
+      guest_email: 'guest@example.com',
+      status: 'confirmed'
+    }]);
   };
 
   const handler = loadHandler();
@@ -312,28 +288,21 @@ test('authorized save is tenant-bound and only occurs after booking validation',
     bookingId: 'booking-1',
     profileData: {
       fullName: 'Jane Doe',
-      firstName: 'Jane',
-      lastName: 'Doe',
       country: 'CH',
-    },
+      phone: '+410000000',
+      passportOrId: 'SECRET'
+    }
   }));
 
   assert.equal(response.statusCode, 200);
-  assert.equal(urls.length, 3);
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /bookings\?/);
+  assert.match(urls[0], /id=eq\.booking-1/);
+  assert.match(urls[0], /business_id=eq\.biz-a/);
+  assert.doesNotMatch(urls.join('\n'), /guest_profiles/i);
 
-  assert.match(urls[0].url, /bookings\?/);
-  assert.match(urls[0].url, /id=eq\.booking-1/);
-  assert.match(urls[0].url, /business_id=eq\.biz-a/);
-
-  assert.match(urls[1].url, /guest_profiles\?/);
-  assert.match(urls[1].url, /select=total_visits/);
-
-  assert.match(urls[2].url, /guest_profiles\?/);
-  assert.match(urls[2].url, /on_conflict=email/);
-
-  const writeBody = JSON.parse(urls[2].options.body);
-  assert.equal(writeBody.email, 'guest@example.com');
-  assert.equal(writeBody.full_name, 'Jane Doe');
+  const body = JSON.parse(response.body);
+  assert.equal(body.success, true);
 });
 
 test('booking validation failure prevents profile mutation', async () => {

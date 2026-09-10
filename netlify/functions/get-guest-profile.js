@@ -62,10 +62,11 @@ export const handler = async function(event) {
       return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Business not available' }) };
     }
 
-    // guest_profiles is global by email in the current schema. Prove that the
-    // email belongs to this establishment before touching that global record.
+    // Returning-guest data must come only from a booking belonging to this
+    // establishment. Do not consult the legacy global guest_profiles table:
+    // that table is keyed only by email and is therefore not tenant-scoped.
     const bookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&guest_email=eq.${encodedEmail}&select=id,business_id&limit=1`,
+      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&guest_email=eq.${encodedEmail}&select=id,business_id,guest_name,guest_first_name,guest_last_name,guest_country&order=created_at.desc&limit=1`,
       { headers: restHeaders }
     );
     if (!bookingResponse.ok) {
@@ -79,26 +80,21 @@ export const handler = async function(event) {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, profile: null }) };
     }
 
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodedEmail}&select=full_name%2Ccountry`,
-      { headers: restHeaders }
-    );
+    // Only return the minimal fields already held by this tenant's booking.
+    // Never expose ID documents, phone numbers, signatures, or location
+    // history through this public returning-guest endpoint.
+    const fullName =
+      booking.guest_name ||
+      [booking.guest_first_name, booking.guest_last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
 
-    if (!response.ok) {
-      console.error('Guest profile lookup failed:', response.status);
-      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to load guest profile' }) };
-    }
+    let firstName = booking.guest_first_name || '';
+    let lastName = booking.guest_last_name || '';
 
-    const data = await response.json();
-    if (!data || data.length === 0) {
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, profile: null }) };
-    }
-
-    const profile = data[0];
-    let firstName = '';
-    let lastName = '';
-    if (profile.full_name) {
-      const nameParts = profile.full_name.trim().split(/\s+/);
+    if (!firstName && !lastName && fullName) {
+      const nameParts = fullName.trim().split(/\s+/);
       firstName = nameParts[0] || '';
       lastName = nameParts.slice(1).join(' ') || '';
     }
@@ -109,10 +105,10 @@ export const handler = async function(event) {
       body: JSON.stringify({
         success: true,
         profile: {
-          full_name: profile.full_name || '',
+          full_name: fullName || '',
           first_name: firstName,
           last_name: lastName,
-          country: profile.country || ''
+          country: booking.guest_country || ''
         }
       })
     };

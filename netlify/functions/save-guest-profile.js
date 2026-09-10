@@ -116,101 +116,18 @@ export const handler = async function(event) {
       };
     }
 
-    // Build full name from available data
-    let fullName = '';
-    if (profileData?.fullName) {
-      fullName = profileData.fullName;
-    } else if (profileData?.firstName || profileData?.lastName) {
-      fullName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
-    }
-
-    // First, check if profile exists to get current visit count
-    let totalVisits = 1;
-    try {
-      const checkResponse = await fetch(
-        `${supabaseUrl}/rest/v1/guest_profiles?email=eq.${encodeURIComponent(normalizedEmail)}&select=total_visits`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (checkResponse.ok) {
-        const existing = await checkResponse.json();
-        if (existing && existing.length > 0 && existing[0].total_visits) {
-          totalVisits = existing[0].total_visits + 1;
-        }
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not check existing profile:', err.message);
-    }
-
-    // Build profile object with ONLY fields that exist in your table
-    const profileToSave = {
-      email: normalizedEmail,
-      full_name: fullName,
-      phone: profileData?.phone || '',
-      passport_or_id: profileData?.passportOrId || '',
-      country: profileData?.country || '',
-      city: profileData?.city || '',
-      province: profileData?.province || '',
-      total_visits: totalVisits,
-      last_visit_date: new Date().toISOString().split('T')[0],
-      updated_at: new Date().toISOString()
-    };
-
-    // Remove undefined or empty values
-    Object.keys(profileToSave).forEach(key => {
-      if (profileToSave[key] === undefined || profileToSave[key] === '') {
-        delete profileToSave[key];
-      }
-    });
-
-    console.log('📦 Saving profile data:', Object.keys(profileToSave));
-
-    // ✅ CORRECTED UPSERT with explicit conflict target
-    const upsertResponse = await fetch(
-      `${supabaseUrl}/rest/v1/guest_profiles?on_conflict=email`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(profileToSave)
-      }
-    );
-
-    if (!upsertResponse.ok) {
-      const errorText = await upsertResponse.text();
-      console.error('❌ Upsert failed:', upsertResponse.status, errorText);
-      
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ 
-          success: true, 
-          warning: 'Profile save failed',
-          message: 'Check-in continues'
-        })
-      };
-    }
-
-    console.log('✅ Guest profile saved successfully for:', normalizedEmail);
-    
+    // The booking is the authoritative, tenant-scoped guest record.
+    // The legacy guest_profiles table is global by email and must not be
+    // read or mutated from this anonymous endpoint.
+    //
+    // Keep this endpoint as a compatibility no-op because the current guest
+    // check-in flow still calls it after creating the booking.
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Profile saved successfully'
+      body: JSON.stringify({
+        success: true,
+        message: 'Guest profile is stored with the booking'
       })
     };
 

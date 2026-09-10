@@ -136,14 +136,13 @@ test('validated business id must match the returned business record', async () =
   assert.equal(urls.length, 1);
 });
 
-test('email at another establishment cannot retrieve the global guest profile', async () => {
+test('email at another establishment cannot retrieve guest data', async () => {
   setConfiguredEnv();
   const urls = [];
   global.fetch = async (url) => {
     urls.push(String(url));
     if (urls.length === 1) return jsonResponse([{ id: 'biz-a', status: 'approved', service_paused: false }]);
-    if (urls.length === 2) return jsonResponse([]); // no booking for this email at biz-a
-    return jsonResponse([{ full_name: 'Secret Guest', country: 'CH' }]);
+    return jsonResponse([]);
   };
   const handler = loadHandler();
   const response = await handler(event({ email: 'secret@example.com', business_id: 'biz-a' }));
@@ -154,18 +153,39 @@ test('email at another establishment cannot retrieve the global guest profile', 
   assert.match(urls[1], /business_id=eq\.biz-a/);
 });
 
-test('authorized returning guest lookup is tenant-bound and returns only minimal profile fields', async () => {
+test('authorized returning guest lookup uses only the tenant-scoped booking', async () => {
   setConfiguredEnv();
   const urls = [];
+
   global.fetch = async (url) => {
     urls.push(String(url));
-    if (urls.length === 1) return jsonResponse([{ id: 'biz-a', status: 'approved', service_paused: false }]);
-    if (urls.length === 2) return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_email: 'guest@example.com' }]);
-    return jsonResponse([{ full_name: 'Jane Doe', country: 'CH', phone: '+410000000', id_number: 'SECRET' }]);
+
+    if (urls.length === 1) {
+      return jsonResponse([{ id: 'biz-a', status: 'approved', service_paused: false }]);
+    }
+
+    return jsonResponse([{
+      id: 'booking-1',
+      business_id: 'biz-a',
+      guest_email: 'guest@example.com',
+      guest_name: 'Jane Doe',
+      guest_first_name: 'Jane',
+      guest_last_name: 'Doe',
+      guest_country: 'CH',
+      guest_phone: '+410000000',
+      guest_id_number: 'SECRET',
+      guest_signature: 'SECRET'
+    }]);
   };
+
   const handler = loadHandler();
-  const response = await handler(event({ email: ' Guest@Example.com ', business_id: 'biz-a' }));
+  const response = await handler(event({
+    email: ' Guest@Example.com ',
+    business_id: 'biz-a'
+  }));
+
   assert.equal(response.statusCode, 200);
+
   const body = JSON.parse(response.body);
   assert.deepEqual(body.profile, {
     full_name: 'Jane Doe',
@@ -173,26 +193,64 @@ test('authorized returning guest lookup is tenant-bound and returns only minimal
     last_name: 'Doe',
     country: 'CH'
   });
-  assert.equal(urls.length, 3);
+
+  assert.equal(urls.length, 2);
+  assert.match(urls[1], /bookings\?/);
   assert.match(urls[1], /business_id=eq\.biz-a/);
   assert.match(urls[1], /guest_email=eq\.guest%40example\.com/);
-  assert.match(urls[2], /guest_profiles\?/);
-  assert.match(urls[2], /select=full_name%2Ccountry/);
-  assert.doesNotMatch(urls[2], /phone|id_number|passport|signature/i);
+  assert.match(urls[1], /guest_name/);
+  assert.match(urls[1], /guest_country/);
+  assert.doesNotMatch(urls[1], /guest_phone|guest_id_number|guest_signature/);
 });
 
-test('conflicting business ids are not trusted from a global profile response', async () => {
+test('conflicting business ids are not trusted from a tenant-scoped booking', async () => {
   setConfiguredEnv();
+
   const urls = [];
+
   global.fetch = async (url) => {
     urls.push(String(url));
-    if (urls.length === 1) return jsonResponse([{ id: 'biz-a', status: 'approved', service_paused: false }]);
-    if (urls.length === 2) return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_email: 'guest@example.com' }]);
-    return jsonResponse([{ full_name: 'Guest A', country: 'ZA' }]);
+
+    if (urls.length === 1) {
+      return jsonResponse([{
+        id: 'biz-a',
+        status: 'approved',
+        service_paused: false
+      }]);
+    }
+
+    return jsonResponse([{
+      id: 'booking-a',
+      business_id: 'biz-a',
+      guest_email: 'guest@example.com',
+      guest_name: 'Guest',
+      guest_first_name: 'Guest',
+      guest_last_name: '',
+      guest_country: 'ZA'
+    }]);
   };
+
   const handler = loadHandler();
-  const response = await handler(event({ email: 'guest@example.com', business_id: 'biz-a' }));
+
+  const response = await handler(event({
+    email: 'guest@example.com',
+    business_id: 'biz-a'
+  }));
+
   assert.equal(response.statusCode, 200);
-  assert.equal(JSON.parse(response.body).profile.first_name, 'Guest');
+
+  const body = JSON.parse(response.body);
+
+  assert.deepEqual(body.profile, {
+    full_name: 'Guest',
+    first_name: 'Guest',
+    last_name: '',
+    country: 'ZA'
+  });
+
+  assert.equal(urls.length, 2);
+  assert.match(urls[1], /bookings\?/);
   assert.match(urls[1], /business_id=eq\.biz-a/);
+  assert.match(urls[1], /guest_email=eq\.guest%40example\.com/);
+  assert.doesNotMatch(urls[1], /guest_profiles/);
 });
