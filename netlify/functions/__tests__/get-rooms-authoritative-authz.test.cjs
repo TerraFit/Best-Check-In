@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
 process.env.SUPABASE_JWT_SECRET = 'test-secret';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'service-key';
 
@@ -46,7 +47,10 @@ function token({
 
   if (role) payload.role = role;
 
-  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET);
+  return jwt.sign(payload, process.env.SUPABASE_JWT_SECRET, {
+    issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    expiresIn: '1h',
+  });
 }
 
 function jsonResponse(body, status = 200, headers = {}) {
@@ -143,7 +147,10 @@ test('expired JWT is rejected before room access', async () => {
       },
       exp: Math.floor(Date.now() / 1000) - 60
     },
-    process.env.SUPABASE_JWT_SECRET
+    process.env.SUPABASE_JWT_SECRET,
+    {
+      issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    }
   );
 
   const response = await loadHandler()(
@@ -190,7 +197,11 @@ test('missing business scope is rejected before room access', async () => {
         active: true
       }
     },
-    process.env.SUPABASE_JWT_SECRET
+    process.env.SUPABASE_JWT_SECRET,
+    {
+      issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+      expiresIn: '1h',
+    }
   );
 
   const response = await loadHandler()(
