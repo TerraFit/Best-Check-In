@@ -1,6 +1,6 @@
 // src/pages/BusinessDashboard.tsx
 // i18n: tab labels and loading text via t()
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getAuthHeader } from '../utils/auth';
@@ -15,6 +15,7 @@ import StaffPortalTab from './tabs/StaffPortalTab';
 import HousekeepingTab from './tabs/HousekeepingTab';
 import LostFoundTab from './tabs/LostFoundTab';
 import { businessOwnerPrincipal, filterTabs } from '../services/rbacService';
+import { UpgradePromptModal } from '../components/analytics/UpgradePromptModal';
 import { t } from '../i18n';
 
 export default function BusinessDashboard() {
@@ -28,6 +29,7 @@ export default function BusinessDashboard() {
   const uniqueProvinces = dataUniqueProvinces?.length ? dataUniqueProvinces : [];
   const uniqueCities = dataUniqueCities?.length ? dataUniqueCities : [];
   const uniqueCountries = dataUniqueCountries?.length ? dataUniqueCountries : [];
+  const [roomUpgradeOpen, setRoomUpgradeOpen] = useState(false);
 
   useEffect(() => { const tab = searchParams.get('tab'); if (tab && tab !== activeTab) setActiveTab(tab); }, [searchParams, activeTab, setActiveTab]);
   useEffect(() => { if (business) { setNewsletterEnabled(business.newsletter_enabled ?? false); setNewsletterTitle(business.newsletter_title || 'Win Your Next Stay With Us'); setNewsletterPrize(business.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'); setNewsletterCta(business.newsletter_cta || 'Subscribe now, only takes 1 click.'); setNewsletterTerms(business.newsletter_terms || '*T&C\'s apply. Winner announced monthly.'); setNewsletterDrawDate(business.newsletter_draw_date || ''); setNewsletterShareText(business.newsletter_share_text || 'Want better odds? Share this with friends and family!'); } }, [business]);
@@ -65,6 +67,10 @@ export default function BusinessDashboard() {
       });
       const responseData = await response.json().catch(() => ({}));
       if (!response.ok || responseData.success !== true) {
+        if (responseData.code === 'ROOM_LIMIT_REACHED') {
+          setRoomUpgradeOpen(true);
+          return;
+        }
         throw new Error(responseData.error || 'Failed to update profile');
       }
 
@@ -98,7 +104,8 @@ export default function BusinessDashboard() {
   const tabs = filterTabs(principal, [{id:'overview',name:t('dashboard_overview')},{id:'checkins',name:t('dashboard_checkins')},{id:'reports',name:t('dashboard_reports')},{id:'rooms',name:t('nav_rooms')},{id:'housekeeping',name:t('nav_housekeeping')},{id:'lost_found',name:t('nav_lost_found')},{id:'staff',name:t('nav_staff')},{id:'settings',name:t('dashboard_settings')}]);
   const handleTabChange = useCallback((tabId: string) => { setActiveTab(tabId); setCurrentPage(1); setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', tabId); return next; }); }, [setActiveTab, setCurrentPage, setSearchParams]);
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div><p className="text-gray-500">{t('common_loading')}</p></div></div>;
-  return <div className="min-h-screen bg-gray-50"><Header business={business} refreshing={refreshing} onRefresh={refreshData} onLogout={handleLogout} onShowQRModal={() => setShowQRModal(true)} /><TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} /><NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  const nextRoomTier: Record<string, string> = { starter: 'growth', growth: 'pro', pro: 'business', business: 'enterprise', enterprise: 'enterprise' };
+  return <div className="min-h-screen bg-gray-50"><Header business={business} refreshing={refreshing} onRefresh={refreshData} onLogout={handleLogout} onShowQRModal={() => setShowQRModal(true)} onShowImportModal={() => setShowImportModal(true)} /><TrialBanner subscriptionStatus={subscriptionStatus} trialDaysLeft={trialDaysLeft} /><NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     {activeTab === 'overview' && <OverviewTab business={business} todayArrivals={todayArrivals} todayStayovers={todayStayovers} todayCheckouts={todayCheckouts} businessId={business?.id || getBusinessId() || ''} onShowQRModal={() => setShowQRModal(true)} onShowImportModal={() => setShowImportModal(true)} />}
     {activeTab === 'checkins' && <CheckinsTab bookings={bookings} filteredBookings={filteredCheckinsBookings} totalBookings={displayTotalBookings} currentPage={currentPage} totalPages={displayTotalPages} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={size => {setPageSize(size);setCurrentPage(1);}} filters={currentFilters} onUpdateFilter={updateFilter} onClearFilters={clearCurrentFilters} isFilterActive={isFilterActive} uniqueProvinces={uniqueProvinces} uniqueCities={uniqueCities} uniqueCountries={uniqueCountries} getStatusBadge={getStatusBadge} isLoading={bookings.length===0} businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || ''} />}
     {activeTab === 'reports' && <ReportsTab bookings={bookings} totalBookings={displayTotalBookings} />}
@@ -106,6 +113,8 @@ export default function BusinessDashboard() {
     {activeTab === 'housekeeping' && <div className="space-y-4"><div className="flex justify-end"><button type="button" onClick={()=>navigate('/business/housekeeping-settings')} className="text-sm font-medium text-orange-600 hover:text-orange-700">{t('housekeeping_title')} {t('nav_settings')} →</button></div><HousekeepingTab businessId={business?.id || getBusinessId() || ''} /></div>}
     {activeTab === 'lost_found' && <LostFoundTab mode="business" businessId={business?.id || getBusinessId() || ''} businessName={business?.trading_name || business?.name || ''} canCreate canEdit canDispose />}
     {activeTab === 'staff' && <StaffPortalTab businessId={business?.id || getBusinessId() || ''} />}
-    {activeTab === 'settings' && <SettingsTab business={business} editingProfile={editingProfile} profileForm={profileForm} savingProfile={savingProfile} businessId={getBusinessId() || ''} onEdit={()=>setEditingProfile(true)} onCancelEdit={()=>setEditingProfile(false)} onSave={saveBusinessProfile} newsletterEnabled={newsletterEnabled} newsletterTitle={newsletterTitle} newsletterPrize={newsletterPrize} newsletterCta={newsletterCta} newsletterTerms={newsletterTerms} newsletterDrawDate={newsletterDrawDate} newsletterShareText={newsletterShareText} savingNewsletter={savingNewsletter} onNewsletterEnabledChange={setNewsletterEnabled} onNewsletterTitleChange={setNewsletterTitle} onNewsletterPrizeChange={setNewsletterPrize} onNewsletterCtaChange={setNewsletterCta} onSaveNewsletter={saveNewsletterSettings} onRefreshBusiness={refreshData} />}
-  </main><DashboardModals showQRModal={showQRModal} showImportModal={showImportModal} showAppealModal={showAppealModal} business={business} rejectedRequest={rejectedRequest} onCloseQR={()=>setShowQRModal(false)} onCloseImport={()=>setShowImportModal(false)} onCloseAppeal={()=>{setShowAppealModal(false);setRejectedRequest(null);}} onImportComplete={async ()=>{await refreshData();setShowImportModal(false);}} onAppealSubmit={refreshData} loadBookings={refreshData} fetchChangeRequests={refreshData} /></div>;
+    {activeTab === 'settings' && <SettingsTab business={business} editingProfile={editingProfile} profileForm={profileForm} savingProfile={savingProfile} businessId={getBusinessId() || ''} onEdit={()=>setEditingProfile(true)} onCancelEdit={()=>setEditingProfile(false)} onSave={saveBusinessProfile} newsletterEnabled={newsletterEnabled} newsletterTitle={newsletterTitle} newsletterPrize={newsletterPrize} newsletterCta={newsletterCta} newsletterTerms={newsletterTerms} newsletterDrawDate={newsletterDrawDate} newsletterShareText={newsletterShareText} savingNewsletter={savingNewsletter} onNewsletterEnabledChange={setNewsletterEnabled} onNewsletterTitleChange={setNewsletterTitle} onNewsletterPrizeChange={setNewsletterPrize} onNewsletterTermsChange={setNewsletterTerms} onNewsletterDrawDateChange={setNewsletterDrawDate} onNewsletterShareTextChange={setNewsletterShareText} onSaveNewsletter={saveNewsletterSettings} onRefreshBusiness={refreshData} />}
+  </main><DashboardModals showQRModal={showQRModal} showImportModal={showImportModal} showAppealModal={showAppealModal} business={business} rejectedRequest={rejectedRequest} onCloseQR={()=>setShowQRModal(false)} onCloseImport={()=>setShowImportModal(false)} onCloseAppeal={()=>{setShowAppealModal(false);setRejectedRequest(null);}} onImportComplete={async ()=>{await refreshData();setShowImportModal(false);}} onAppealSubmit={refreshData} loadBookings={refreshData} fetchChangeRequests={refreshData} />
+  <UpgradePromptModal isOpen={roomUpgradeOpen} onClose={()=>setRoomUpgradeOpen(false)} currentTier={subscriptionTier} featureName="Additional rooms" targetTier={nextRoomTier[subscriptionTier] || 'growth'} onUpgrade={()=>navigate('/billing')} onCompare={()=>navigate('/billing')} />
+  </div>;
 }
