@@ -43,6 +43,44 @@ test('food restrictions: authorized employee is tenant scoped', async () => {
   assert.match(calls[1].url, /booking_food_restrictions\?booking_id=eq\.booking-1/);
 });
 
+test('food restrictions: cross-tenant booking result never reaches restrictions query', async () => {
+  const calls = [];
+
+  global.fetch = async (url) => {
+    calls.push(String(url));
+
+    if (String(url).includes('/bookings?')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{
+          id: 'booking-1',
+          business_id: 'biz-b'
+        }]
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [{
+        booking_id: 'booking-1',
+        vegan: true
+      }]
+    };
+  };
+
+  const { handler } = await loadFunction();
+
+  const result = await handler(
+    event(employeeToken('biz-a'))
+  );
+
+  assert.equal(result.statusCode, 404);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /bookings\?id=eq\.booking-1/);
+});
+
 test('food restrictions: missing booking returns not found', async () => {
   global.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
   const { handler } = await loadFunction();
