@@ -42,6 +42,10 @@ function room(id = 'room-a', number = 1, businessId = 'biz-a', active = true) {
   return { id, business_id: businessId, room_number: number, room_code: `R-${number}`, active };
 }
 
+function business(maxRooms = 3, businessId = 'biz-a') {
+  return { id: businessId, max_rooms: maxRooms };
+}
+
 test('OPTIONS remains public', async () => {
   let fetchCalls = 0;
   global.fetch = async () => { fetchCalls += 1; return jsonResponse({}); };
@@ -120,6 +124,7 @@ test('authorized foreman with room-change approval can synchronize rooms', async
   const calls = [];
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
     if (String(url).includes('/rooms?')) return jsonResponse([room()]);
     return jsonResponse([]);
   };
@@ -129,15 +134,50 @@ test('authorized foreman with room-change approval can synchronize rooms', async
 });
 
 test('business owner may synchronize its own tenant', async () => {
-  global.fetch = async (url) => String(url).includes('/rooms?') ? jsonResponse([room()]) : jsonResponse([]);
+  global.fetch = async (url) => {
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
+    return String(url).includes('/rooms?') ? jsonResponse([room()]) : jsonResponse([]);
+  };
   const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 1 } }));
   assert.equal(response.statusCode, 200);
+});
+
+test('licensed ceiling allows synchronization exactly up to max_rooms', async () => {
+  const calls = [];
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
+    if (String(url).includes('/rooms?')) return jsonResponse([room('room-1', 1), room('room-2', 2)]);
+    if (String(url).endsWith('/rooms')) return jsonResponse([room('room-3', 3)]);
+    return jsonResponse([]);
+  };
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  assert.equal(response.statusCode, 200);
+  assert.ok(calls.some((c) => c.options.method === 'POST' && c.url.endsWith('/rooms')));
+});
+
+test('licensed ceiling rejects excess rooms before room lookup or mutation', async () => {
+  const calls = [];
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
+    return jsonResponse([]);
+  };
+  const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 4 } }));
+  assert.equal(response.statusCode, 400);
+  const body = JSON.parse(response.body);
+  assert.equal(body.code, 'ROOM_LIMIT_REACHED');
+  assert.equal(body.maxRooms, 3);
+  assert.equal(body.totalRooms, 4);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /businesses\?id=eq\.biz-a&select=id%2Cmax_rooms/);
 });
 
 test('room creation is explicitly tenant-scoped', async () => {
   const calls = [];
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
+    if (String(url).includes('/businesses?')) return jsonResponse([business(3)]);
     if (String(url).includes('/rooms?')) return jsonResponse([]);
     if (String(url).endsWith('/rooms')) return jsonResponse([room('room-new', 1)]);
     return jsonResponse([]);
@@ -151,8 +191,10 @@ test('room creation is explicitly tenant-scoped', async () => {
 });
 
 test('data-layer failure does not expose room data', async () => {
-  global.fetch = async () => jsonResponse({ error: 'database failure', room: 'secret-room' }, 500);
+  global.fetch = async (url) => String(url).includes('/businesses?')
+    ? jsonResponse({ error: 'database failure', room: 'secret-room' }, 500)
+    : jsonResponse([]);
   const response = await loadHandler()(event({ token: token({ businessId: 'biz-a' }), body: { businessId: 'biz-a', totalRooms: 3 } }));
-  assert.equal(response.statusCode, 500);
+  assert.equal(response.statusCode, 502);
   assert.doesNotMatch(response.body, /secret-room/);
 });
