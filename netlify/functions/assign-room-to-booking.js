@@ -88,7 +88,10 @@ export const handler = async (event) => {
       }
       const rooms = await roomRes.json();
       newRoom = rooms[0];
-      if (!newRoom) {
+      if (
+        !newRoom ||
+        String(newRoom.business_id) !== String(tenant.businessId)
+      ) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Room not found or inactive' }) };
       }
       if (newRoom.availability_status !== 'available') {

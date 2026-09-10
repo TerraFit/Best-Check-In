@@ -83,3 +83,72 @@ test('assign-room-to-booking: booking returned outside resolved tenant is reject
   const result = await handler(eventWithToken(businessToken('biz-a'), { bookingId: 'booking-1', roomId: null, businessId: 'biz-a' }));
   assert.equal(result.statusCode, 404);
 });
+
+test('assign-room-to-booking: room returned outside resolved tenant is rejected', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+
+    if (String(url).includes('/rest/v1/bookings')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{
+          id: 'booking-1',
+          business_id: 'biz-a',
+          guest_name: 'Guest',
+          room_id: null,
+          check_in_date: '2026-09-10',
+        }],
+        text: async () => '',
+      };
+    }
+
+    if (String(url).includes('/rest/v1/rooms')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{
+          id: 'room-1',
+          business_id: 'biz-b',
+          room_number: '99',
+          room_name: 'Other Tenant Room',
+          active: true,
+          availability_status: 'available',
+        }],
+        text: async () => '',
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [],
+      text: async () => '',
+    };
+  };
+
+  const { handler } = await loadFunction();
+
+  const result = await handler(
+    eventWithToken(
+      businessToken('biz-a'),
+      {
+        bookingId: 'booking-1',
+        roomId: 'room-1',
+        businessId: 'biz-a',
+      }
+    )
+  );
+
+  assert.equal(result.statusCode, 400);
+
+  const bookingWrites = calls.filter(
+    (call) =>
+      call.url.includes('/rest/v1/bookings?id=eq.booking-1') &&
+      call.options.method === 'PATCH'
+  );
+
+  assert.equal(bookingWrites.length, 0);
+});
