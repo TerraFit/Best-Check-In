@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '../..', '..');
 const HANDLER_PATH = path.join(ROOT, 'netlify/functions/archive-old-bookings.js');
 
-function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } = {}) {
+function loadHandler({ businesses = [], bookingCount = 0, archiveError = null, oldBookings = [] } = {}) {
   const source = fs.readFileSync(HANDLER_PATH, 'utf8')
     .replace(/import\s+\{\s*createClient\s*\}\s+from\s+['"]@supabase\/supabase-js['"];?/, '')
     .replace(/export\s+const\s+handler\s*=\s*/, 'const handler = ');
@@ -24,12 +24,21 @@ function loadHandler({ businesses = [], bookingCount = 0, archiveError = null } 
         order() { return this; },
         limit() { return this; },
         insert() { return Promise.resolve({ error: null }); },
-        delete() { return this; },
-        in() { return Promise.resolve({ error: null }); },
+        delete() {
+          state.operation = 'delete';
+          return this;
+        },
+        in(column, values) {
+          state.in = [column, values];
+          return Promise.resolve({ error: null });
+        },
         then(resolve) {
           if (table === 'businesses') return resolve({ data: businesses, error: null });
           if (table === 'bookings' && state.filters.some(([column]) => column === 'business_id')) {
             if (archiveError) return resolve({ data: null, error: archiveError });
+            if (state.filters.some(([column, operator]) => column === 'created_at' && operator === '<')) {
+              return resolve({ data: oldBookings, error: null });
+            }
             return resolve({ data: [], error: null, count: bookingCount });
           }
           return resolve({ data: [], error: null });
@@ -73,4 +82,44 @@ test('archive failure does not expose upstream database error details', async ()
   assert.equal(body.errors[0].error, 'Failed to archive bookings for business');
   assert.equal(JSON.stringify(body).includes('secret database connection details'), false);
   assert.equal(JSON.stringify(body).includes('PGRST999'), false);
+});
+
+test('archive deletes remain tenant-scoped for every business', async () => {
+  const businesses = [
+    {
+      id: 'biz-a',
+      trading_name: 'A',
+      subscription_tier: 'Business',
+      max_active_bookings: 20,
+      archive_after_days: 30,
+      auto_archive_enabled: true
+    }
+  ];
+
+  const oldBookings = [
+    {
+      id: 'booking-a-1',
+      business_id: 'biz-a',
+      created_at: '2026-01-01T00:00:00.000Z'
+    }
+  ];
+
+  const { handler, calls } = loadHandler({
+    businesses,
+    bookingCount: 1,
+    oldBookings
+  });
+
+  const response = await handler({ headers: {} });
+
+  assert.equal(response.statusCode, 200);
+
+  const deleteCalls = calls.filter(call => call.operation === 'delete');
+
+  assert.equal(deleteCalls.length, 1);
+  assert.deepEqual(
+    deleteCalls[0].filters.find(([column]) => column === 'business_id'),
+    ['business_id', 'biz-a']
+  );
+  assert.deepEqual(deleteCalls[0].in, ['id', ['booking-a-1']]);
 });

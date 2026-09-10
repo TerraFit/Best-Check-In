@@ -77,6 +77,7 @@ export const handler = async function(event) {
           const { error: deleteError } = await supabase
             .from('bookings')
             .delete()
+            .eq('business_id', business.id)
             .in('id', oldBookings.map(b => b.id));
 
           if (deleteError) throw deleteError;
@@ -112,6 +113,7 @@ export const handler = async function(event) {
               const { error: deleteError } = await supabase
                 .from('bookings')
                 .delete()
+                .eq('business_id', business.id)
                 .in('id', excessBookings.map(b => b.id));
 
               if (deleteError) throw deleteError;
