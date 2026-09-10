@@ -50,6 +50,39 @@ export const handler = async (event) => {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
 
+    const businessQuery = `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=id,max_rooms`;
+    const businessRes = await fetch(businessQuery, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' },
+    });
+    if (!businessRes.ok) {
+      console.error('sync-rooms business license lookup error:', businessRes.status);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Failed to load room license', code: 'ROOM_LICENSE_LOOKUP_FAILED' }) };
+    }
+
+    const businesses = await businessRes.json();
+    const business = Array.isArray(businesses) ? businesses[0] : null;
+    if (!business || business.id !== businessId) {
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
+    }
+
+    const maxRooms = business.max_rooms === null || business.max_rooms === undefined ? null : Number(business.max_rooms);
+    if (maxRooms !== null && (!Number.isInteger(maxRooms) || maxRooms < 0)) {
+      console.error('sync-rooms invalid max_rooms for business:', businessId);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Invalid room license configuration', code: 'ROOM_LICENSE_INVALID' }) };
+    }
+    if (maxRooms !== null && target > maxRooms) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Room limit reached. Upgrade your plan to add more rooms.',
+          code: 'ROOM_LIMIT_REACHED',
+          totalRooms: target,
+          maxRooms,
+        }),
+      };
+    }
+
     const restHeaders = {
       apikey: supabaseKey,
       Authorization: `Bearer ${supabaseKey}`,
