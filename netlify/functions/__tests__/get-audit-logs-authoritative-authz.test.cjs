@@ -3,11 +3,12 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-authoritative-auth';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 
 const SECRET = process.env.SUPABASE_JWT_SECRET;
-function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { expiresIn: '15m', ...options }); }
+function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', expiresIn: '15m', ...options }); }
 function event(token, queryStringParameters) {
   return { httpMethod: 'GET', headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters };
 }
