@@ -13,10 +13,11 @@ function mockFetch(payload = [{ id: 'biz-a', trading_name: 'Test Lodge', logo_ur
 }
 
 test('business branding: public GET succeeds without authentication', async () => {
-  mockFetch();
+  const calls = mockFetch();
   const { handler } = await loadFunction();
   const result = await handler(event('biz-a'));
   assert.equal(result.statusCode, 200);
+  assert.match(calls[0].url, /id=eq\.biz-a&status=eq\.approved&service_paused=eq\.false/);
 });
 
 test('business branding: missing id is rejected', async () => {
@@ -63,6 +64,22 @@ test('business branding: unknown business returns 404', async () => {
   const { handler } = await loadFunction();
   const result = await handler(event('missing'));
   assert.equal(result.statusCode, 404);
+});
+
+test('business branding: unapproved business is excluded by the query', async () => {
+  const calls = mockFetch([]);
+  const { handler } = await loadFunction();
+  const result = await handler(event('pending'));
+  assert.equal(result.statusCode, 404);
+  assert.match(calls[0].url, /status=eq\.approved/);
+});
+
+test('business branding: paused business is excluded by the query', async () => {
+  const calls = mockFetch([]);
+  const { handler } = await loadFunction();
+  const result = await handler(event('paused'));
+  assert.equal(result.statusCode, 404);
+  assert.match(calls[0].url, /service_paused=eq\.false/);
 });
 
 test('business branding: upstream failure is sanitized', async () => {
