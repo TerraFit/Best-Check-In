@@ -28,6 +28,7 @@ export const handler = async function(event) {
       .select('hero_image_url')
       .eq('id', businessId)
       .eq('status', 'approved')
+      .eq('service_paused', false)
       .maybeSingle();
 
     if (error) {
