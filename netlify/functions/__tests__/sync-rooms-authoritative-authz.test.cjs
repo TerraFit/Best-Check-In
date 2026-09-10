@@ -5,14 +5,30 @@ const jwt = require('jsonwebtoken');
 const ORIGINAL_ENV = { ...process.env };
 
 function token(overrides = {}, options = {}) {
+  const role = overrides.role || 'business_owner';
+  const businessId = overrides.businessId === undefined ? 'biz-a' : overrides.businessId;
+  const active = overrides.active === undefined ? true : overrides.active;
+  const permissions = overrides.permissions === undefined ? ['canApproveRoomChanges'] : overrides.permissions;
+  const employeeId = overrides.employeeId || 'emp-a';
+
   return jwt.sign({
-    sub: overrides.sub || 'user-a',
-    role: overrides.role || 'business_owner',
-    business_id: overrides.businessId === undefined ? 'biz-a' : overrides.businessId,
-    active: overrides.active === undefined ? true : overrides.active,
-    permissions: overrides.permissions || { canApproveRoomChanges: true },
+    sub: overrides.sub || (role === 'employee' ? employeeId : 'user-a'),
+    email: overrides.email || 'user@example.com',
+    user_metadata: {
+      business_id: businessId,
+      ...(role === 'employee' ? { employee_id: employeeId, staff_role: overrides.staffRole || 'Foreman' } : {}),
+      active,
+      permission_set: permissions,
+    },
     ...overrides,
-  }, process.env.FASTCHECKIN_JWT_SECRET || 'test-secret', {
+    user_metadata: {
+      business_id: businessId,
+      ...(role === 'employee' ? { employee_id: employeeId, staff_role: overrides.staffRole || 'Foreman' } : {}),
+      active,
+      permission_set: permissions,
+      ...(overrides.user_metadata || {}),
+    },
+  }, process.env.SUPABASE_JWT_SECRET || 'test-secret', {
     issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
     expiresIn: options.expiresIn || '1h',
   });
@@ -50,7 +66,7 @@ function loadHandler() {
 const oldFetch = global.fetch;
 
 test.beforeEach(() => {
-  process.env.FASTCHECKIN_JWT_SECRET = 'test-secret';
+  process.env.SUPABASE_JWT_SECRET = 'test-secret';
   process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_KEY = 'service-key';
@@ -112,7 +128,7 @@ test('inactive employee is rejected before room mutation', async () => {
 
 test('employee without room-change approval is rejected before room mutation', async () => {
   global.fetch = async () => { throw new Error('fetch should not be called'); };
-  const response = await loadHandler()(event({ authToken: token({ role: 'employee', permissions: { canApproveRoomChanges: false } }), body: { businessId: 'biz-a', totalRooms: 3 } }));
+  const response = await loadHandler()(event({ authToken: token({ role: 'employee', permissions: ['canViewRooms'] }), body: { businessId: 'biz-a', totalRooms: 3 } }));
   assert.equal(response.statusCode, 403);
 });
 
