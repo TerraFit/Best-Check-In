@@ -36,10 +36,11 @@ export const handler = async function(event) {
     }
 
     // IMPORTANT: this endpoint is intentionally public for QR check-in.
+    // Only approved, active establishments may expose guest-facing branding.
     // Never add private business/contact/subscription/director fields here.
     const select = PUBLIC_BRANDING_FIELDS.join(',');
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=${select}`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.approved&service_paused=eq.false&select=${select}`,
       {
         headers: {
           'apikey': supabaseKey,
