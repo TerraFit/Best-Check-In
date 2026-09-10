@@ -293,6 +293,29 @@ test('authorized employee can access only their tenant booking', async () => {
   );
 });
 
+test('business actor rejects a booking row returned for another tenant', async () => {
+  const calls = mockFetch({
+    bookingBusinessId: 'biz-b',
+  });
+
+  const { handler } = await loadFunction();
+
+  const result = await handler(
+    event({
+      token: businessToken('biz-a'),
+      bookingId: 'booking-1',
+    }),
+  );
+
+  assert.equal(result.statusCode, 403);
+  assert.equal(calls.length, 1);
+
+  assert.match(
+    calls[0].url,
+    /business_id=eq\.biz-a/,
+  );
+});
+
 test('business owner can access their own tenant booking', async () => {
   const calls = mockFetch({
     bookingBusinessId: 'biz-a',
