@@ -7,7 +7,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 
 const SECRET = process.env.SUPABASE_JWT_SECRET;
-function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { expiresIn: '15m', ...options }); }
+function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { issuer: 'fastcheckin', expiresIn: '15m', ...options }); }
 function event(method, token, body, queryStringParameters) {
   return { httpMethod: method, headers: token ? { authorization: `Bearer ${token}` } : {}, body: body === undefined ? undefined : JSON.stringify(body), queryStringParameters };
 }

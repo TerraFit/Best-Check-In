@@ -7,7 +7,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 const SECRET = process.env.SUPABASE_JWT_SECRET;
 
-function sign(payload) { return jwt.sign(payload, SECRET, { expiresIn: '15m' }); }
+function sign(payload) { return jwt.sign(payload, SECRET, { issuer: 'fastcheckin', expiresIn: '15m' }); }
 function event(method, token, body) {
   return { httpMethod: method, headers: token ? { authorization: `Bearer ${token}` } : {}, body: body === undefined ? undefined : JSON.stringify(body) };
 }
@@ -20,7 +20,7 @@ function mockFetch(ok = true) {
   const calls = [];
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
-    return { ok, status: ok ? 200 : 500, json: async () => [{ id: 'emp-2', business_id: 'biz-a', full_name: 'Employee' }], text: async () => 'database failure' };
+    return { ok, status: ok ? 200 : 500, json: async () => [{ id: 'emp-2', business_id: 'biz-a', full_name: 'Employee', role: 'Team Leader', staff_role: 'Team Leader' }], text: async () => 'database failure' };
   };
   return calls;
 }
@@ -58,7 +58,9 @@ test('staff escalation: employee may assign a lower role', async () => {
   const { handler } = await loadFunction();
   const result = await handler(event('PATCH', employeeToken(), { id: 'emp-2', staff_role: 'Team Leader' }));
   assert.equal(result.statusCode, 200);
-  const body = JSON.parse(calls[0].options.body);
+  const patchCall = calls.find((call) => call.options?.method === 'PATCH');
+  assert.ok(patchCall, 'Expected tenant-scoped PATCH request');
+  const body = JSON.parse(patchCall.options.body);
   assert.equal(body.role, 'Team Leader');
   assert.equal(body.staff_role, 'Team Leader');
 });
@@ -69,7 +71,9 @@ test('staff escalation: employee may assign only a subset of own permissions', a
   const permissions = ['canManageStaff', 'canViewRooms'];
   const result = await handler(event('PATCH', employeeToken('Supervisor', permissions), { id: 'emp-2', permission_set: permissions }));
   assert.equal(result.statusCode, 200);
-  assert.deepEqual(JSON.parse(calls[0].options.body).permission_set, permissions);
+  const patchCall = calls.find((call) => call.options?.method === 'PATCH');
+  assert.ok(patchCall, 'Expected tenant-scoped PATCH request');
+  assert.deepEqual(JSON.parse(patchCall.options.body).permission_set, permissions);
 });
 
 test('staff escalation: unsupported privileged role is rejected', async () => {

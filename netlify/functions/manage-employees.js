@@ -52,26 +52,63 @@ function roleLevel(role) {
   return ROLE_LEVELS.get(role) ?? null;
 }
 
-function validateStaffAuthority(principal, targetEmployeeId, requestedRole, requestedPermissions) {
+function validateStaffAuthority(principal, targetEmployeeId, targetRole, requestedRole, requestedPermissions) {
   const isEmployee = principal?.actorType === 'employee';
   const isOwner = principal?.actorType === 'business';
 
   if (!isEmployee && !isOwner) return { ok: false, status: 403, error: 'Forbidden' };
 
-  if (requestedRole !== undefined) {
-    const canonicalRequestedRole = normalizeRole(requestedRole);
-    if (!canonicalRequestedRole) return { ok: false, status: 403, error: 'Unsupported staff role' };
+  if (isEmployee) {
+    if (
+      targetEmployeeId !== undefined &&
+      targetEmployeeId !== null &&
+      String(targetEmployeeId) === String(principal.employeeId)
+    ) {
+      return { ok: false, status: 403, error: 'Cannot change your own authority' };
+    }
 
-    if (isEmployee) {
-      const actorRole = normalizeRole(principal.staffRole || principal.role);
-      const actorLevel = roleLevel(actorRole);
+    const actorRole = normalizeRole(principal.staffRole || principal.role);
+    const actorLevel = roleLevel(actorRole);
+
+    if (actorLevel === null) {
+      return { ok: false, status: 403, error: 'Insufficient authority' };
+    }
+
+    if (requestedRole !== undefined) {
+      const canonicalRequestedRole = normalizeRole(requestedRole);
+      if (!canonicalRequestedRole) {
+        return { ok: false, status: 403, error: 'Unsupported staff role' };
+      }
+
       const requestedLevel = roleLevel(canonicalRequestedRole);
-      if (actorLevel === null || requestedLevel === null || requestedLevel >= actorLevel) {
+      if (requestedLevel === null || requestedLevel >= actorLevel) {
         return { ok: false, status: 403, error: 'Insufficient authority to assign this role' };
       }
-      if (String(targetEmployeeId) === String(principal.employeeId)) {
-        return { ok: false, status: 403, error: 'Cannot change your own authority' };
+    }
+
+    if (requestedPermissions !== undefined) {
+      if (!Array.isArray(requestedPermissions)) {
+        return { ok: false, status: 403, error: 'Invalid permission set' };
       }
+
+      const actorPermissions = Array.isArray(principal.permissions) ? principal.permissions : [];
+      if (!requestedPermissions.every((permission) => actorPermissions.includes(permission))) {
+        return { ok: false, status: 403, error: 'Cannot grant permissions you do not possess' };
+      }
+    }
+
+    if (targetRole !== undefined && targetRole !== null) {
+      const targetCanonicalRole = normalizeRole(targetRole);
+      const targetLevel = roleLevel(targetCanonicalRole);
+
+      if (targetLevel === null || targetLevel >= actorLevel) {
+        return { ok: false, status: 403, error: 'Insufficient authority over target employee' };
+      }
+    }
+  } else if (requestedRole !== undefined) {
+    const canonicalRequestedRole = normalizeRole(requestedRole);
+    if (!canonicalRequestedRole) {
+      return { ok: false, status: 403, error: 'Unsupported staff role' };
     }
   }
 
@@ -79,18 +116,37 @@ function validateStaffAuthority(principal, targetEmployeeId, requestedRole, requ
     if (!Array.isArray(requestedPermissions)) {
       return { ok: false, status: 403, error: 'Invalid permission set' };
     }
+
     if (isEmployee) {
       const actorPermissions = Array.isArray(principal.permissions) ? principal.permissions : [];
       if (!requestedPermissions.every((permission) => actorPermissions.includes(permission))) {
         return { ok: false, status: 403, error: 'Cannot grant permissions you do not possess' };
       }
-      if (String(targetEmployeeId) === String(principal.employeeId)) {
-        return { ok: false, status: 403, error: 'Cannot change your own authority' };
-      }
     }
   }
 
   return { ok: true };
+}
+
+async function getTargetEmployee(supabaseUrl, supabaseKey, businessId, employeeId) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employeeId)}&business_id=eq.${encodeURIComponent(businessId)}&select=id,role,staff_role`,
+    {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`
+      }
+    }
+  );
+
+  if (!response.ok) return { ok: false, status: 500, error: 'Failed to fetch target employee' };
+
+  const data = await response.json();
+  if (!Array.isArray(data) || !data[0]) {
+    return { ok: false, status: 404, error: 'Employee not found' };
+  }
+
+  return { ok: true, employee: data[0] };
 }
 
 function safeDatabaseFailure(headers, operation) {
@@ -143,7 +199,13 @@ export const handler = async function (event) {
       const cleanPhone = phone_number.replace(/\D/g, '');
       if (cleanPhone.length < 9) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Phone number must be at least 9 digits' }) };
       const resolvedRole = staff_role || role || 'front_desk';
-      const authority = validateStaffAuthority(authResult.principal, `new-${Date.now()}`, resolvedRole, permission_set);
+      const authority = validateStaffAuthority(
+        authResult.principal,
+        undefined,
+        undefined,
+        resolvedRole,
+        permission_set
+      );
       if (!authority.ok) return authFailure(authority, headers);
       const canonicalRole = normalizeRole(resolvedRole);
       const invitationToken = 'FCINV_' + Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -174,8 +236,35 @@ export const handler = async function (event) {
       const { id, status, role, staff_role, department, additional_departments, full_name, phone_number, active, permission_set } = body;
       if (!id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Employee ID required' }) };
       const requestedRole = staff_role !== undefined ? staff_role : role;
-      const authority = validateStaffAuthority(authResult.principal, id, requestedRole, permission_set);
-      if (!authority.ok) return authFailure(authority, headers);
+
+      // Reject self-authority changes and invalid requested authority before
+      // performing any database lookup.
+      const preliminaryAuthority = validateStaffAuthority(
+        authResult.principal,
+        id,
+        undefined,
+        requestedRole,
+        permission_set
+      );
+      if (!preliminaryAuthority.ok) return authFailure(preliminaryAuthority, headers);
+
+      let targetEmployee = null;
+      if (authResult.principal.actorType === 'employee') {
+        const target = await getTargetEmployee(supabaseUrl, supabaseKey, businessId, id);
+        if (!target.ok) return authFailure(target, headers);
+        targetEmployee = target.employee;
+
+        // The target's current authority must be established server-side
+        // before an employee can mutate that employee.
+        const targetAuthority = validateStaffAuthority(
+          authResult.principal,
+          id,
+          targetEmployee.staff_role || targetEmployee.role,
+          undefined,
+          undefined
+        );
+        if (!targetAuthority.ok) return authFailure(targetAuthority, headers);
+      }
       const updateData = { updated_at: new Date().toISOString() };
       if (status) updateData.status = status;
       if (active !== undefined) updateData.active = !!active;
@@ -201,6 +290,21 @@ export const handler = async function (event) {
     if (event.httpMethod === 'DELETE') {
       const { id } = JSON.parse(event.body || '{}');
       if (!id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Employee ID required' }) };
+
+      if (authResult.principal.actorType === 'employee') {
+        const target = await getTargetEmployee(supabaseUrl, supabaseKey, businessId, id);
+        if (!target.ok) return authFailure(target, headers);
+
+        const authority = validateStaffAuthority(
+          authResult.principal,
+          id,
+          target.employee.staff_role || target.employee.role,
+          undefined,
+          undefined
+        );
+        if (!authority.ok) return authFailure(authority, headers);
+      }
+
       const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'DELETE', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
       });
