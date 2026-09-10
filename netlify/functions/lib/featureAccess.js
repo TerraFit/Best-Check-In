@@ -232,3 +232,39 @@ export async function resolveEffectivePlan(_supabaseIgnored, businessId) {
     entitlements,
   };
 }
+
+/**
+ * Assert feature for a business; returns null if allowed, or an HTTP response body object.
+ */
+export async function assertFeatureAccess(supabase, businessId, featureId) {
+  const resolved = await resolveEffectivePlan(supabase, businessId);
+  if (resolved.error && !resolved.business) {
+    return {
+      statusCode: 404,
+      body: { error: resolved.error || 'Business not found', code: 'BUSINESS_NOT_FOUND' },
+    };
+  }
+  const access = checkFeatureAccess(featureId, resolved.effectivePlan);
+  if (access.allowed) return null;
+  return {
+    statusCode: 403,
+    body: {
+      error: access.reason,
+      code: 'UPGRADE_REQUIRED',
+      featureId: access.featureId,
+      requiredPackage: access.requiredPackage,
+      recommendedPackage: access.recommendedPackage,
+      currentPackage: access.currentPackage,
+      upsellMessage: access.upsellMessage,
+    },
+  };
+}
+
+/** @deprecated Prefer supabaseFetch from supabase-rest.js — avoids Realtime/WebSocket on Netlify. */
+export function createSupabaseServiceClient() {
+  throw new Error(
+    'createSupabaseServiceClient is disabled on Netlify Node 20; use supabaseFetch from lib/supabase-rest.js'
+  );
+}
+
+export { getPlanPricing, normalizePlanId, getPackage, planSatisfies, recommendUpgrade };
