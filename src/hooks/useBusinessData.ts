@@ -55,15 +55,29 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
       const cacheBust = `&_=${Date.now()}`;
-      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
-        signal: controller.signal, cache: 'no-store'
-      });
+      const [res, settingsRes] = await Promise.all([
+        fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        }),
+        fetchWithAuth(`/.netlify/functions/get-business-settings?businessId=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        }).catch(() => null),
+      ]);
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const businessData = data.success && data.data ? data.data : data;
       if (!businessData || businessData.id !== businessId) throw new Error('Fresh business profile was not returned');
+
+      // get-business-settings is authenticated and tenant-scoped. It supplies the
+      // operational room count and platform-controlled licensed ceiling without
+      // exposing either value through the public branding endpoint.
+      if (settingsRes?.ok) {
+        const settings = await settingsRes.json();
+        businessData.total_rooms = settings.total_rooms ?? null;
+        businessData.max_rooms = settings.max_rooms ?? null;
+      }
 
       if (isMountedRef.current) {
         setBusiness(businessData);
@@ -115,7 +129,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       const validBookings = rawBookings.filter(b => b.business_id === businessId); setBookings(validBookings);
       const total = result.total_count ?? validBookings.length; setTotalBookingsCount(total); setTotalPages(activeTab === 'reports' ? 1 : Math.max(1, result.total_pages ?? Math.ceil(total / pageSize)));
       if (result.facets) { setUniqueProvinces(Array.isArray(result.facets.provinces) ? result.facets.provinces : []); setUniqueCities(Array.isArray(result.facets.cities) ? result.facets.cities : []); setUniqueCountries(Array.isArray(result.facets.countries) ? result.facets.countries : []); }
-      else { setUniqueProvinces([...new Set(validBookings.map(b => b.guest_province).filter(Boolean))].sort() as string[]); setUniqueCities([...new Set(validBookings.map(b => b.guest_city).filter(Boolean))].sort() as string[]); setUniqueCountries([...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean))].sort() as string[]); }
+      else { setUniqueProvinces([...new Set(validBookings.map(b => b.guest_province).filter(Boolean))].sort() as string[]); setUniqueCities([...new Set(validBookings.map(b => b.guest_city).filter(Boolean))].sort() as string[]); setUniqueCountries([...new Set(validBookings.map(b => b.guest_country?.replace(/\.$/, '').trim()).filter(Boolean)].sort() as string[]); }
       const todayStr = new Date().toISOString().split('T')[0]; const today = new Date(); today.setHours(0,0,0,0);
       setTodayArrivals(validBookings.filter(b => b.check_in_date === todayStr)); setTodayCheckouts(validBookings.filter(b => b.check_out_date === todayStr)); setTodayStayovers(validBookings.filter(b => { if (!b.check_in_date) return false; const checkIn = new Date(b.check_in_date); checkIn.setHours(0,0,0,0); if (checkIn >= today) return false; if (!b.check_out_date) return true; const checkOut = new Date(b.check_out_date); checkOut.setHours(0,0,0,0); return checkOut > today; }));
       console.log(`📦 Loaded ${validBookings.length} bookings (filtered total: ${total})`);
