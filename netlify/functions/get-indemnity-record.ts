@@ -50,7 +50,7 @@ export const handler: Handler = async (event) => {
 
     // REST API call with properly encoded token
     const indemnityResponse = await fetch(
-      `${supabaseUrl}/rest/v1/indemnity_records?access_token=eq.${encodedToken}&select=*`,
+      `${supabaseUrl}/rest/v1/indemnity_records?access_token=eq.${encodedToken}&select=guest_name,guest_first_name,guest_last_name,passport_or_id,signature_data,signed_at,indemnity_text,business_id`,
       {
         headers: {
           'apikey': supabaseKey,
