@@ -203,6 +203,53 @@ test('authorized returning guest lookup uses only the tenant-scoped booking', as
   assert.doesNotMatch(urls[1], /guest_phone|guest_id_number|guest_signature/);
 });
 
+test('cross-tenant booking row is never exposed by the public guest lookup', async () => {
+  setConfiguredEnv();
+
+  const urls = [];
+
+  global.fetch = async (url) => {
+    urls.push(String(url));
+
+    if (urls.length === 1) {
+      return jsonResponse([{
+        id: 'biz-a',
+        status: 'approved',
+        service_paused: false
+      }]);
+    }
+
+    return jsonResponse([{
+      id: 'booking-other',
+      business_id: 'biz-b',
+      guest_email: 'guest@example.com',
+      guest_name: 'Secret Guest',
+      guest_first_name: 'Secret',
+      guest_last_name: 'Guest',
+      guest_country: 'CH'
+    }]);
+  };
+
+  const handler = loadHandler();
+
+  const response = await handler(event({
+    email: 'guest@example.com',
+    business_id: 'biz-a'
+  }));
+
+  assert.equal(response.statusCode, 200);
+
+  const body = JSON.parse(response.body);
+
+  assert.deepEqual(body.profile, null);
+
+  assert.equal(urls.length, 2);
+  assert.match(urls[0], /businesses\?/);
+  assert.match(urls[1], /bookings\?/);
+  assert.match(urls[1], /business_id=eq\.biz-a/);
+  assert.match(urls[1], /guest_email=eq\.guest%40example\.com/);
+});
+
 test('conflicting business ids are not trusted from a tenant-scoped booking', async () => {
   setConfiguredEnv();
 
