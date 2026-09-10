@@ -12,6 +12,131 @@ for(const name of ['collect-lost-found-item','contact-lost-found-guest','upload-
 test('update-lost-found-item: employee without edit permission rejected',async()=>{const{handler}=await fn('update-lost-found-item');assert.equal((await handler(event('POST',{},biz('biz-a',['canViewLostFound']),{businessId:'biz-a',itemId:'item-1',item_name:'x'}))).statusCode,403)});
 test('manage-lost-found-meta: employee without edit permission rejected',async()=>{const{handler}=await fn('manage-lost-found-meta');assert.equal((await handler(event('POST',{},biz('biz-a',['canViewLostFound']),{businessId:'biz-a',action:'add_category',name:'Test'}))).statusCode,403)});
 test('update-lost-found-item: archive requires dispose permission',async()=>{const{handler}=await fn('update-lost-found-item');assert.equal((await handler(event('POST',{},biz('biz-a',['canEditLostFound']),{businessId:'biz-a',itemId:'item-1',status:'archived'}))).statusCode,403)});
+
+test('resolve-lost-found-guest: authorized owner resolves by roomId with tenant-bound room and booking lookups',async()=>{
+  const{handler}=await fn('resolve-lost-found-guest');
+  const token=biz('biz-a');
+  const originalFetch=global.fetch;
+  const calls=[];
+  global.fetch=async(url,opts={})=>{
+    calls.push({url:String(url),opts});
+    if(String(url).includes('/rest/v1/rooms?')&&String(url).includes('id=eq.room-a'))return new Response(JSON.stringify([{id:'room-a',room_number:'101',name:'Room 101'}]),{status:200});
+    if(String(url).includes('/rest/v1/bookings?'))return new Response(JSON.stringify([{
+      id:'booking-a',
+      guest_name:'Guest A',
+      guest_email:'guest@example.com',
+      guest_phone:'+27123456789',
+      check_in_date:'2026-09-09',
+      check_out_date:'2026-09-12',
+      booking_reference:'REF-A',
+      room_id:'room-a',
+      room_number:'101',
+      status:'checked_in'
+    }]),{status:200});
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try{
+    const r=await handler(event('GET',{businessId:'biz-a',roomId:'room-a'},token));
+    assert.equal(r.statusCode,200);
+    const body=JSON.parse(r.body);
+    assert.equal(body.success,true);
+    assert.equal(body.guest.guest_name,'Guest A');
+    assert.equal(body.guest.booking_id,'booking-a');
+    const roomCall=calls.find(c=>c.url.includes('/rest/v1/rooms?'));
+    const bookingCall=calls.find(c=>c.url.includes('/rest/v1/bookings?'));
+    assert.ok(roomCall);
+    assert.match(roomCall.url,/id=eq\.room-a/);
+    assert.match(roomCall.url,/business_id=eq\.biz-a/);
+    assert.ok(bookingCall);
+    assert.match(bookingCall.url,/business_id=eq\.biz-a/);
+    assert.match(bookingCall.url,/room_id=eq\.room-a/);
+  }finally{global.fetch=originalFetch}
+});
+
+test('resolve-lost-found-guest: authorized owner resolves by roomNumber with tenant-bound room lookup',async()=>{
+  const{handler}=await fn('resolve-lost-found-guest');
+  const originalFetch=global.fetch;
+  const calls=[];
+  global.fetch=async(url,opts={})=>{
+    calls.push(String(url));
+    if(String(url).includes('/rest/v1/rooms?')&&String(url).includes('room_number=eq.101'))return new Response(JSON.stringify([{id:'room-a',room_number:'101',room_name:'Room 101'}]),{status:200});
+    if(String(url).includes('/rest/v1/bookings?'))return new Response(JSON.stringify([{
+      id:'booking-a',guest_name:'Guest A',guest_email:null,guest_phone:null,
+      check_in_date:'2026-09-09',check_out_date:'2026-09-10',
+      booking_reference:'REF-A',room_id:'room-a',status:'confirmed'
+    }]),{status:200});
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try{
+    const r=await handler(event('GET',{businessId:'biz-a',roomNumber:'101'},biz('biz-a')));
+    assert.equal(r.statusCode,200);
+    const body=JSON.parse(r.body);
+    assert.equal(body.guest.guest_name,'Guest A');
+    const roomCall=calls.find(url=>url.includes('/rest/v1/rooms?'));
+    const bookingCall=calls.find(url=>url.includes('/rest/v1/bookings?'));
+    assert.match(roomCall,/business_id=eq\.biz-a/);
+    assert.match(roomCall,/room_number=eq\.101/);
+    assert.match(bookingCall,/business_id=eq\.biz-a/);
+    assert.match(bookingCall,/room_id=eq\.room-a/);
+  }finally{global.fetch=originalFetch}
+});
+
+test('resolve-lost-found-guest: missing tenant-bound room returns 404 without booking fallback',async()=>{
+  const{handler}=await fn('resolve-lost-found-guest');
+  const originalFetch=global.fetch;
+  const calls=[];
+  global.fetch=async(url,opts={})=>{
+    calls.push(String(url));
+    if(String(url).includes('/rest/v1/rooms?'))return new Response(JSON.stringify([]),{status:200});
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try{
+    const r=await handler(event('GET',{businessId:'biz-a',roomId:'room-missing'},biz('biz-a')));
+    assert.equal(r.statusCode,404);
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].includes('/rest/v1/bookings?'),false);
+    assert.match(calls[0],/business_id=eq\.biz-a/);
+    assert.match(calls[0],/id=eq\.room-missing/);
+  }finally{global.fetch=originalFetch}
+});
+
+test('resolve-lost-found-guest: room lookup failure returns 502 without booking lookup',async()=>{
+  const{handler}=await fn('resolve-lost-found-guest');
+  const originalFetch=global.fetch;
+  const calls=[];
+  global.fetch=async(url,opts={})=>{
+    calls.push(String(url));
+    if(String(url).includes('/rest/v1/rooms?'))return new Response('upstream failure',{status:500});
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try{
+    const r=await handler(event('GET',{businessId:'biz-a',roomId:'room-a'},biz('biz-a')));
+    assert.equal(r.statusCode,502);
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].includes('/rest/v1/bookings?'),false);
+  }finally{global.fetch=originalFetch}
+});
+
+test('resolve-lost-found-guest: booking lookup failure returns 502 after tenant-bound room resolution',async()=>{
+  const{handler}=await fn('resolve-lost-found-guest');
+  const originalFetch=global.fetch;
+  const calls=[];
+  global.fetch=async(url,opts={})=>{
+    calls.push(String(url));
+    if(String(url).includes('/rest/v1/rooms?'))return new Response(JSON.stringify([{id:'room-a',room_number:'101',name:'Room 101'}]),{status:200});
+    if(String(url).includes('/rest/v1/bookings?'))return new Response('upstream failure',{status:500});
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try{
+    const r=await handler(event('GET',{businessId:'biz-a',roomId:'room-a'},biz('biz-a')));
+    assert.equal(r.statusCode,502);
+    assert.equal(calls.length,2);
+    assert.match(calls[0],/business_id=eq\.biz-a/);
+    assert.match(calls[1],/business_id=eq\.biz-a/);
+    assert.match(calls[1],/room_id=eq\.room-a/);
+  }finally{global.fetch=originalFetch}
+});
+
 test('invalid JWT is rejected rather than fail-open',async()=>{const{handler}=await fn('get-lost-found-item');assert.equal((await handler(event('GET',{businessId:'biz-a',itemId:'item-1'},'not-a-jwt'))).statusCode,401)});
 
 test('update-lost-found-item source enforces explicit workflow transitions',async()=>{const{handler}=await fn('update-lost-found-item');assert.equal(typeof handler,'function');const fs=require('node:fs'),source=fs.readFileSync(path=require('node:path').join(__dirname,'..','update-lost-found-item.js'),'utf8');assert.match(source,/const WORKFLOW_TRANSITIONS =/);assert.match(source,/Invalid Lost & Found status transition/);assert.match(source,/updated_at=eq\.\$\{q\(current\.updated_at\)\}/);assert.match(source,/Booking and room do not match/)});
