@@ -1,6 +1,6 @@
 const test=require('node:test');const assert=require('node:assert/strict');const jwt=require('jsonwebtoken');
 process.env.SUPABASE_JWT_SECRET='test-secret-for-authoritative-auth';process.env.SUPABASE_URL='https://example.supabase.co';process.env.SUPABASE_SERVICE_KEY='test-service-key';
-const secret=process.env.SUPABASE_JWT_SECRET;const sign=p=>jwt.sign(p,secret,{expiresIn:'15m'});const biz=(id='biz-a',perms)=>sign({sub:`user-${id}`,user_metadata:{business_id:id,...(perms?{employee_id:`emp-${id}`,staff_role:'custom',permission_set:perms}: {})}});const event=(method,path,token,body)=>({httpMethod:method,headers:token?{authorization:`Bearer ${token}`}:{},queryStringParameters:path||{},body:body?JSON.stringify(body):undefined});async function fn(name){return import(`../${name}.js?test=${Date.now()}-${Math.random()}`)}
+const secret=process.env.SUPABASE_JWT_SECRET;const sign=p=>jwt.sign(p,secret,{expiresIn:'15m',issuer:process.env.FASTCHECKIN_JWT_ISSUER||'fastcheckin'});const biz=(id='biz-a',perms)=>sign({sub:`user-${id}`,user_metadata:{business_id:id,...(perms?{employee_id:`emp-${id}`,staff_role:'custom',permission_set:perms}: {})}});const event=(method,path,token,body)=>({httpMethod:method,headers:token?{authorization:`Bearer ${token}`}:{},queryStringParameters:path||{},body:body?JSON.stringify(body):undefined});async function fn(name){return import(`../${name}.js?test=${Date.now()}-${Math.random()}`)}
 for(const name of ['get-lost-found-items','get-lost-found-item','get-lost-found-meta','resolve-lost-found-guest'])test(`${name}: anonymous rejected`,async()=>{const{handler}=await fn(name);assert.equal((await handler(event('GET',{businessId:'biz-a'}))).statusCode,401)});
 for(const name of ['create-lost-found-item','update-lost-found-item','collect-lost-found-item','contact-lost-found-guest','upload-lost-found-photo','manage-lost-found-meta'])test(`${name}: anonymous rejected`,async()=>{const{handler}=await fn(name);assert.equal((await handler(event('POST',{},null,{businessId:'biz-a',itemId:'x',item_name:'x',name:'x',action:'add_category',images:['bad']}))).statusCode,401)});
 for(const name of ['get-lost-found-items','get-lost-found-item','get-lost-found-meta'])test(`${name}: owner cannot substitute tenant`,async()=>{const{handler}=await fn(name);assert.equal((await handler(event('GET',{businessId:'biz-b',itemId:'item-1'},biz('biz-a')))).statusCode,403)});
@@ -18,3 +18,189 @@ test('update-lost-found-item source enforces explicit workflow transitions',asyn
 test('contact-lost-found-guest source constrains methods and terminal states',async()=>{const fs=require('node:fs'),path=require('node:path');const source=fs.readFileSync(path.join(__dirname,'..','contact-lost-found-guest.js'),'utf8');assert.match(source,/const CONTACT_METHODS = new Set/);assert.match(source,/Invalid contact method/);assert.match(source,/const CONTACTABLE_STATUSES = new Set/);assert.match(source,/Guest contact is not allowed for this Lost & Found status/);assert.match(source,/updated_at=eq\.\$\{encodeURIComponent\(item\.updated_at\)\}/)});
 test('collect-lost-found-item source constrains collection states and concurrency',async()=>{const fs=require('node:fs'),path=require('node:path');const source=fs.readFileSync(path.join(__dirname,'..','collect-lost-found-item.js'),'utf8');assert.match(source,/const COLLECTABLE_STATUSES = new Set/);assert.match(source,/Lost & Found item is not ready for collection/);assert.match(source,/updated_at=eq\.\$\{encodeURIComponent\(current\.updated_at\)\}/)});
 test('upload-lost-found-photo source binds existing uploads to item identity',async()=>{const fs=require('node:fs'),path=require('node:path');const source=fs.readFileSync(path.join(__dirname,'..','upload-lost-found-photo.js'),'utf8');assert.match(source,/const itemId = body\.itemId \|\| body\.item_id \|\| null/);assert.match(source,/id=eq\.\$\{encodeURIComponent\(itemId\)\}&business_id=eq/);assert.match(source,/Upload tag does not match Lost & Found item/)});
+
+test('contact-lost-found-guest: cross-tenant item is not accessible', async () => {
+  const token = biz('biz-a');
+  const originalFetch = global.fetch;
+  const urls = [];
+  let patchCalls = 0;
+
+  global.fetch = async (url, options = {}) => {
+    const value = String(url);
+    urls.push({ url: value, method: options.method || 'GET' });
+
+    if (value.includes('/rest/v1/lost_and_found?')) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if ((options.method || 'GET') === 'PATCH') {
+      patchCalls += 1;
+      throw new Error('Cross-tenant item must never be patched');
+    }
+
+    return new Response('', { status: 201 });
+  };
+
+  try {
+    const { handler } = await fn('contact-lost-found-guest');
+
+    const result = await handler(event(
+      'POST',
+      {},
+      token,
+      {
+        businessId: 'biz-a',
+        itemId: 'item-b',
+        method: 'phone',
+        notes: 'Attempted cross-tenant contact'
+      }
+    ));
+
+    assert.equal(result.statusCode, 404);
+    assert.equal(patchCalls, 0);
+
+    const itemLookup = urls.find(
+      (request) =>
+        request.method === 'GET' &&
+        request.url.includes('/rest/v1/lost_and_found?')
+    );
+
+    assert.ok(itemLookup);
+    assert.match(itemLookup.url, /business_id=eq\.biz-a/);
+    assert.match(itemLookup.url, /id=eq\.item-b/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('contact-lost-found-guest: authorized contact remains tenant-scoped', async () => {
+  const token = biz('biz-a');
+  const originalFetch = global.fetch;
+  const requests = [];
+
+  global.fetch = async (url, options = {}) => {
+    const value = String(url);
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+
+    requests.push({ url: value, method, body });
+
+    if (value.includes('/rest/v1/lost_and_found?') && method === 'GET') {
+      return new Response(JSON.stringify([{
+        id: 'item-a',
+        business_id: 'biz-a',
+        status: 'awaiting_contact',
+        updated_at: '2026-09-10T06:00:00.000Z',
+        tag_number: 'LF-2026-0001',
+        item_name: 'Wallet',
+        description: 'Black leather wallet',
+        guest_name: 'Real Guest',
+        guest_email: 'real@example.com',
+        booking_id: 'booking-a'
+      }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (value.includes('/rest/v1/lost_and_found?') && method === 'PATCH') {
+      return new Response(JSON.stringify([{
+        id: 'item-a',
+        business_id: 'biz-a',
+        status: 'guest_contacted',
+        updated_at: '2026-09-10T06:01:00.000Z'
+      }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (value.includes('/rest/v1/lost_and_found_activity')) {
+      return new Response(JSON.stringify([{
+        id: 'activity-a',
+        business_id: 'biz-a',
+        item_id: 'item-a',
+        event_type: 'guest_contacted'
+      }]), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (value.includes('/rest/v1/audit_logs')) {
+      return new Response('', { status: 201 });
+    }
+
+    return new Response('', { status: 201 });
+  };
+
+  try {
+    const { handler } = await fn('contact-lost-found-guest');
+
+    const result = await handler(event(
+      'POST',
+      {},
+      token,
+      {
+        businessId: 'biz-a',
+        itemId: 'item-a',
+        method: 'phone',
+        outcome: 'guest_reached',
+        notes: 'Guest contacted successfully'
+      }
+    ));
+
+    assert.equal(result.statusCode, 200);
+
+    const itemLookup = requests.find(
+      (request) =>
+        request.method === 'GET' &&
+        request.url.includes('/rest/v1/lost_and_found?')
+    );
+
+    const itemPatch = requests.find(
+      (request) =>
+        request.method === 'PATCH' &&
+        request.url.includes('/rest/v1/lost_and_found?')
+    );
+
+    const activityInsert = requests.find(
+      (request) =>
+        request.method === 'POST' &&
+        request.url.includes('/rest/v1/lost_and_found_activity')
+    );
+
+    const auditInsert = requests.find(
+      (request) =>
+        request.method === 'POST' &&
+        request.url.includes('/rest/v1/audit_logs')
+    );
+
+    assert.ok(itemLookup);
+    assert.ok(itemPatch);
+    assert.ok(activityInsert);
+    assert.ok(auditInsert);
+
+    assert.match(itemLookup.url, /business_id=eq\.biz-a/);
+    assert.match(itemLookup.url, /id=eq\.item-a/);
+
+    assert.match(itemPatch.url, /business_id=eq\.biz-a/);
+    assert.match(itemPatch.url, /id=eq\.item-a/);
+    assert.match(itemPatch.url, /status=eq\.awaiting_contact/);
+    assert.match(
+      itemPatch.url,
+      /updated_at=eq\.2026-09-10T06%3A00%3A00\.000Z/
+    );
+
+    assert.equal(activityInsert.body[0].business_id, 'biz-a');
+    assert.equal(activityInsert.body[0].item_id, 'item-a');
+
+    assert.equal(auditInsert.body[0].business_id, 'biz-a');
+    assert.equal(auditInsert.body[0].details.item_id, 'item-a');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
