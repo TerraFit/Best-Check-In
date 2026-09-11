@@ -43,9 +43,11 @@ function principalFromDecoded(decoded) {
   if (!decoded || typeof decoded !== 'object') return null;
   const meta = decoded.user_metadata || {};
 
-  // Reserved SuperAdmin identity markers may never be asserted through mutable metadata.
+  // Super Admin authority must come from the signed top-level JWT role claim.
+  // Mutable user_metadata may never elevate a token, but legitimate metadata
+  // accompanying the signed super_admin role must not invalidate that identity.
   if (meta.role === ACTOR_TYPES.SUPER_ADMIN && decoded.role !== ACTOR_TYPES.SUPER_ADMIN) return null;
-  if (meta.super_admin === true || meta.super_admin === 'true') return null;
+  if ((meta.super_admin === true || meta.super_admin === 'true') && decoded.role !== ACTOR_TYPES.SUPER_ADMIN) return null;
 
   // Supabase service-role tokens are backend credentials, never human application identities.
   if (decoded.role === 'service_role') return null;
