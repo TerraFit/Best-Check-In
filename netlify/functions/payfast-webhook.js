@@ -1,175 +1,207 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import auth from './_auth.cjs';
+import { getPlanPricing, getPackage } from './lib/packages.js';
 
+const { requireBusinessActor, resolveTenant } = auth;
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-// PayFast configuration
 const PAYFAST_MERCHANT_ID = process.env.PAYFAST_MERCHANT_ID;
 const PAYFAST_MERCHANT_KEY = process.env.PAYFAST_MERCHANT_KEY;
 const PAYFAST_PASSPHRASE = process.env.PAYFAST_PASSPHRASE;
-const PAYFAST_URL = process.env.NODE_ENV === 'production' 
+const PAYFAST_URL = process.env.NODE_ENV === 'production'
   ? 'https://www.payfast.co.za/eng/process'
   : 'https://sandbox.payfast.co.za/eng/process';
 
+const jsonHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+function safeError(statusCode, error) {
+  return { statusCode, headers: jsonHeaders, body: JSON.stringify({ error }) };
+}
+
+function buildPayFastSignature(data) {
+  const signatureString = Object.keys(data)
+    .filter((key) => key !== 'signature' && data[key] !== undefined && data[key] !== null && data[key] !== '')
+    .sort()
+    .map((key) => `${key}=${encodeURIComponent(String(data[key]).trim())}`)
+    .join('&');
+  const withPassphrase = PAYFAST_PASSPHRASE
+    ? `${signatureString}&passphrase=${encodeURIComponent(PAYFAST_PASSPHRASE.trim())}`
+    : signatureString;
+  return crypto.createHash('md5').update(withPassphrase).digest('hex');
+}
+
+function signaturesMatch(expected, supplied) {
+  if (typeof expected !== 'string' || typeof supplied !== 'string' || expected.length !== supplied.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
+}
+
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  };
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  // ITN (Instant Transaction Notification) from PayFast
-  if (event.httpMethod === 'POST' && event.path.includes('itn')) {
-    return handlePayFastITN(event);
-  }
-
-  // Create payment request
-  if (event.httpMethod === 'POST') {
-    return createPayFastPayment(event);
-  }
-
-  return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  const headers = jsonHeaders;
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod === 'POST' && event.path.includes('itn')) return handlePayFastITN(event);
+  if (event.httpMethod === 'POST') return createPayFastPayment(event);
+  return safeError(405, 'Method not allowed');
 };
 
 async function createPayFastPayment(event) {
   try {
-    const { businessId, planId, billingCycle, email, name, amount, returnUrl, cancelUrl } = JSON.parse(event.body);
+    const gate = requireBusinessActor(event);
+    if (!gate.ok) return safeError(gate.status || 403, gate.error || 'Forbidden');
+    if (gate.principal.actorType !== 'business') return safeError(403, 'Business owner access required');
 
-    // Get business details
-    const { data: business } = await supabase
+    const body = JSON.parse(event.body || '{}');
+    const { businessId, planId, billingCycle, email, returnUrl, cancelUrl } = body;
+    const scope = resolveTenant(gate.principal, businessId);
+    if (!scope.ok) return safeError(scope.status, scope.error);
+    if (billingCycle !== 'monthly' && billingCycle !== 'yearly') return safeError(400, 'Invalid billing cycle');
+
+    const pricing = getPlanPricing(planId, billingCycle);
+    const plan = getPackage(planId);
+    if (!plan || pricing.contactSales || pricing.amount <= 0) {
+      return safeError(400, 'Selected plan is not available for online payment');
+    }
+
+    const authoritativeAmount = pricing.amount;
+    const authoritativeBusinessId = scope.businessId;
+
+    const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('*')
-      .eq('id', businessId)
+      .select('id,trading_name,email,status')
+      .eq('id', authoritativeBusinessId)
       .single();
+    if (businessError || !business) return safeError(404, 'Business not found');
+    if (business.status !== 'approved') return safeError(403, 'Business is not approved');
 
-    // Generate unique transaction ID
-    const transactionId = `PF-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
-
-    // Save transaction record
-    await supabase.from('transactions').insert({
+    const transactionId = `PF-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    const { error: transactionError } = await supabase.from('transactions').insert({
       id: transactionId,
-      business_id: businessId,
-      plan_id: planId,
+      business_id: authoritativeBusinessId,
+      plan_id: plan.id,
       billing_cycle: billingCycle,
-      amount: amount,
+      amount: authoritativeAmount,
       status: 'pending',
       gateway: 'payfast',
       created_at: new Date().toISOString()
     });
+    if (transactionError) {
+      console.error('PayFast transaction creation failed:', transactionError.message || transactionError);
+      return safeError(500, 'Unable to create payment');
+    }
 
-    // Prepare PayFast data
     const pfData = {
       merchant_id: PAYFAST_MERCHANT_ID,
       merchant_key: PAYFAST_MERCHANT_KEY,
-      return_url: returnUrl || `https://fastcheckin.co.za/business/billing?success=true`,
-      cancel_url: cancelUrl || `https://fastcheckin.co.za/business/billing?canceled=true`,
-      notify_url: `https://fastcheckin.co.za/.netlify/functions/payfast-webhook/itn`,
+      return_url: returnUrl || 'https://fastcheckin.co.za/business/billing?success=true',
+      cancel_url: cancelUrl || 'https://fastcheckin.co.za/business/billing?canceled=true',
+      notify_url: 'https://fastcheckin.co.za/.netlify/functions/payfast-webhook/itn',
       name_first: business.trading_name,
       email_address: email || business.email,
       m_payment_id: transactionId,
-      amount: amount,
-      item_name: `${billingCycle === 'yearly' ? 'Annual' : 'Monthly'} Subscription - ${planId}`,
-      item_description: `FastCheckin ${planId} plan - ${billingCycle} billing`,
-      custom_int1: businessId,
-      custom_str1: planId,
+      amount: authoritativeAmount.toFixed(2),
+      item_name: `${billingCycle === 'yearly' ? 'Annual' : 'Monthly'} Subscription - ${plan.id}`,
+      item_description: `Fastcheckin ${plan.id} plan - ${billingCycle} billing`,
+      custom_int1: authoritativeBusinessId,
+      custom_str1: plan.id,
       custom_str2: billingCycle
     };
-
-    // Generate signature
-    const signatureString = Object.keys(pfData)
-      .filter(key => pfData[key] !== '')
-      .sort()
-      .map(key => `${key}=${encodeURIComponent(pfData[key].trim())}`)
-      .join('&');
-    
-    pfData.signature = crypto.createHash('md5').update(signatureString).digest('hex');
+    pfData.signature = buildPayFastSignature(pfData);
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers,
       body: JSON.stringify({
         redirectUrl: `${PAYFAST_URL}?${new URLSearchParams(pfData).toString()}`,
         transactionId
       })
     };
-
   } catch (error) {
-    console.error('PayFast payment error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: error.message })
-    };
+    console.error('PayFast payment error:', error?.message || error);
+    return safeError(500, 'Unable to create payment');
   }
 }
 
 async function handlePayFastITN(event) {
   try {
-    const pfData = new URLSearchParams(event.body);
-    const pfParamString = pfData.toString();
-    
-    // Verify signature
-    const { data: transaction } = await supabase
+    const pfData = Object.fromEntries(new URLSearchParams(event.body || ''));
+    const suppliedSignature = pfData.signature;
+
+    if (!suppliedSignature || !PAYFAST_MERCHANT_ID) {
+      console.error('PayFast ITN missing signature or merchant configuration');
+      return { statusCode: 400, headers: jsonHeaders, body: 'Invalid ITN' };
+    }
+
+    const expectedSignature = buildPayFastSignature(pfData);
+    if (!signaturesMatch(expectedSignature, suppliedSignature)) {
+      console.error('PayFast ITN signature verification failed');
+      return { statusCode: 400, headers: jsonHeaders, body: 'Invalid ITN signature' };
+    }
+    if (pfData.merchant_id !== PAYFAST_MERCHANT_ID) {
+      console.error('PayFast ITN merchant mismatch');
+      return { statusCode: 400, headers: jsonHeaders, body: 'Invalid merchant' };
+    }
+
+    const paymentId = pfData.m_payment_id;
+    if (!paymentId) return { statusCode: 400, headers: jsonHeaders, body: 'Invalid payment' };
+
+    const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
-      .select('*')
-      .eq('id', pfData.get('m_payment_id'))
+      .select('id,business_id,plan_id,billing_cycle,amount,status,gateway')
+      .eq('id', paymentId)
+      .eq('gateway', 'payfast')
       .single();
-
-    if (!transaction) {
-      console.error('Transaction not found:', pfData.get('m_payment_id'));
-      return { statusCode: 200, body: 'Transaction not found' };
+    if (transactionError || !transaction) {
+      console.error('PayFast transaction not found:', paymentId);
+      return { statusCode: 200, headers: jsonHeaders, body: 'Transaction not found' };
     }
 
-    // Check payment status
-    const paymentStatus = pfData.get('payment_status');
-    const amount = parseFloat(pfData.get('amount_gross'));
-    const businessId = pfData.get('custom_int1');
-    const planId = pfData.get('custom_str1');
-    const billingCycle = pfData.get('custom_str2');
+    const receivedAmount = Number.parseFloat(pfData.amount_gross);
+    const expectedAmount = Number(transaction.amount);
+    if (!Number.isFinite(receivedAmount) || Math.abs(receivedAmount - expectedAmount) > 0.001) {
+      console.error('PayFast ITN amount mismatch:', { paymentId, receivedAmount, expectedAmount });
+      return { statusCode: 400, headers: jsonHeaders, body: 'Invalid payment amount' };
+    }
+    if (pfData.custom_int1 !== String(transaction.business_id)
+      || pfData.custom_str1 !== String(transaction.plan_id)
+      || pfData.custom_str2 !== String(transaction.billing_cycle)) {
+      console.error('PayFast ITN transaction metadata mismatch:', paymentId);
+      return { statusCode: 400, headers: jsonHeaders, body: 'Invalid payment metadata' };
+    }
 
-    if (paymentStatus === 'COMPLETE') {
-      // Update transaction
-      await supabase
-        .from('transactions')
-        .update({
-          status: 'completed',
-          paid_at: new Date().toISOString(),
-          gateway_response: pfParamString
-        })
-        .eq('id', pfData.get('m_payment_id'));
+    if (pfData.payment_status === 'COMPLETE' && transaction.status !== 'completed') {
+      await supabase.from('transactions').update({
+        status: 'completed',
+        paid_at: new Date().toISOString(),
+        gateway_response: new URLSearchParams(pfData).toString()
+      }).eq('id', paymentId).eq('status', 'pending');
 
-      // Activate subscription
-      const trialEnd = new Date();
-      if (billingCycle === 'yearly') {
-        trialEnd.setFullYear(trialEnd.getFullYear() + 1);
-      } else {
-        trialEnd.setMonth(trialEnd.getMonth() + 1);
+      const dueDate = new Date();
+      if (transaction.billing_cycle === 'yearly') dueDate.setFullYear(dueDate.getFullYear() + 1);
+      else dueDate.setMonth(dueDate.getMonth() + 1);
+
+      await supabase.from('businesses').update({
+        subscription_status: 'active',
+        current_plan: transaction.plan_id,
+        billing_cycle: transaction.billing_cycle,
+        payment_status: 'paid',
+        last_payment_date: new Date().toISOString(),
+        payment_due_date: dueDate.toISOString(),
+        trial_end: null
+      }).eq('id', transaction.business_id);
+
+      // Preserve the existing confirmation hook; payment state is already authoritative above.
+      if (typeof sendPaymentConfirmation === 'function') {
+        await sendPaymentConfirmation(transaction.business_id, receivedAmount, transaction.plan_id, transaction.billing_cycle);
       }
-
-      await supabase
-        .from('businesses')
-        .update({
-          subscription_status: 'active',
-          current_plan: planId,
-          billing_cycle: billingCycle,
-          payment_status: 'paid',
-          last_payment_date: new Date().toISOString(),
-          payment_due_date: trialEnd.toISOString(),
-          trial_end: null
-        })
-        .eq('id', businessId);
-
-      // Send confirmation email
-      await sendPaymentConfirmation(businessId, amount, planId, billingCycle);
     }
 
-    return { statusCode: 200, body: 'OK' };
-
+    return { statusCode: 200, headers: jsonHeaders, body: 'OK' };
   } catch (error) {
-    console.error('PayFast ITN error:', error);
-    return { statusCode: 200, body: 'OK' };
+    console.error('PayFast ITN error:', error?.message || error);
+    return { statusCode: 200, headers: jsonHeaders, body: 'OK' };
   }
 }

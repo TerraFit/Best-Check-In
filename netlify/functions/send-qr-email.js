@@ -1,108 +1,55 @@
+import auth from './_auth.cjs';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
-    };
+  const actor = requireBusinessActor(event);
+  if (!actor.ok) return authFailure(actor, headers);
+  if (!requireBusinessPermission(actor.principal, 'canViewDashboard')) {
+    return authFailure({ status: 403, error: 'Missing permission: canViewDashboard' }, headers);
   }
-
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
 
   try {
-    const { businessId, businessName, qrCodeUrl, checkInUrl } = JSON.parse(event.body);
-
-    // Get business email from database
-    const { data: business, error } = await supabase
-      .from('businesses')
-      .select('email, trading_name')
-      .eq('id', businessId)
-      .single();
-
-    if (error || !business) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found' })
-      };
+    const body = JSON.parse(event.body || '{}');
+    const { businessId, qrCodeUrl, checkInUrl } = body;
+    const tenant = resolveTenant(actor.principal, businessId);
+    if (!tenant.ok) return authFailure(tenant, headers);
+    if (typeof qrCodeUrl !== 'string' || !qrCodeUrl.startsWith('data:image/png;base64,')) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid QR code image required' }) };
+    }
+    if (typeof checkInUrl !== 'string' || checkInUrl.length > 2048) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid check-in URL required' }) };
     }
 
-    // Send email with QR code
+    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+    const { data: business, error } = await supabase.from('businesses').select('id,email,trading_name').eq('id', tenant.businessId).single();
+    if (error || !business) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
+
     const resend = new Resend(process.env.RESEND_API_KEY);
-    
     await resend.emails.send({
-      from: 'FastCheckin <onboarding@resend.dev>', // Update to your verified domain later
+      from: 'FastCheckin <onboarding@resend.dev>',
       to: [business.email],
-      subject: `📱 Your FastCheckin QR Code - ${business.trading_name}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #f59e0b; margin: 0;">FastCheckin</h1>
-            <p style="color: #666; margin: 5px 0 0;">Your QR Code is ready!</p>
-          </div>
-          
-          <h2 style="color: #333; margin-bottom: 20px;">${business.trading_name}</h2>
-          
-          <div style="background: #f3f4f6; padding: 30px; border-radius: 8px; margin: 30px 0; text-align: center;">
-            <img src="${qrCodeUrl}" alt="QR Code" style="max-width: 200px; margin-bottom: 20px;">
-            <p style="color: #333; font-weight: bold; margin: 10px 0;">Scan for guest check-in</p>
-            <p style="color: #777; font-size: 14px; word-break: break-all;">${checkInUrl}</p>
-          </div>
-          
-          <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 30px 0;">
-            <h3 style="color: #0284c7; margin: 0 0 10px 0;">✨ Instructions:</h3>
-            <ul style="color: #555; line-height: 1.6;">
-              <li>Print this QR code and display at your reception</li>
-              <li>Guests scan with their phone camera</li>
-              <li>They'll be taken to your branded check-in page</li>
-            </ul>
-          </div>
-          
-          <p style="color: #777; font-size: 14px; border-top: 1px solid #ddd; padding-top: 20px; text-align: center;">
-            Need help? Contact us at support@fastcheckin.co.za
-          </p>
-        </div>
-      `,
-      attachments: [{
-        filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`,
-        content: qrCodeUrl.split(',')[1], // Remove data:image/png;base64, prefix
-        encoding: 'base64',
-        contentType: 'image/png'
-      }]
+      subject: `📱 Your Fastcheckin QR Code - ${business.trading_name}`,
+      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px"><h1>FastCheckin</h1><p>Your QR Code is ready!</p><h2>${business.trading_name}</h2><div style="background:#f3f4f6;padding:30px;border-radius:8px;margin:30px 0;text-align:center"><img src="${qrCodeUrl}" alt="QR Code" style="max-width:200px;margin-bottom:20px"><p><strong>Scan for guest check-in</strong></p><p style="word-break:break-all">${checkInUrl}</p></div><p>Print this QR code and display it at your reception. Guests can scan it with their phone camera to access your check-in page.</p><p style="color:#777;font-size:14px;border-top:1px solid #ddd;padding-top:20px;text-align:center">Need help? Contact support@fastcheckin.co.za</p></div>`,
+      attachments: [{ filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`, content: qrCodeUrl.split(',')[1], encoding: 'base64', contentType: 'image/png' }]
     });
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'QR Code email sent successfully' 
-      })
-    };
-
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'QR Code email sent successfully' }) };
   } catch (error) {
     console.error('Error sending QR email:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message })
-    };
+    if (error instanceof SyntaxError) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error?.message || 'Internal server error' }) };
   }
 };

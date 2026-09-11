@@ -1,92 +1,118 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { getPackage, getPlanPricing, normalizePlanId } from './lib/packages.js';
+import auth from './_auth.cjs';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-// Ozow configuration
 const OZOW_SITE_CODE = process.env.OZOW_SITE_CODE;
 const OZOW_API_KEY = process.env.OZOW_API_KEY;
 const OZOW_PRIVATE_KEY = process.env.OZOW_PRIVATE_KEY;
 const OZOW_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.ozow.com/request/payment'
-  : 'https://sandbox.ozow.com/request/payment';
+  ? 'https://api.ozow.com/postpaymentrequest'
+  : 'https://stagingapi.ozow.com/postpaymentrequest';
+
+const jsonHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*'
+};
+
+function buildRequestHash(data) {
+  const values = [
+    data.SiteCode,
+    data.CountryCode,
+    data.CurrencyCode,
+    data.Amount,
+    data.TransactionReference,
+    data.BankReference,
+    data.Optional1,
+    data.Optional2,
+    data.Optional3,
+    data.Optional4,
+    data.Optional5,
+    data.Customer,
+    data.CancelUrl,
+    data.ErrorUrl,
+    data.SuccessUrl,
+    data.NotifyUrl,
+    data.IsTest,
+  ].map((value) => value == null ? '' : String(value));
+  return crypto.createHash('sha512').update(`${values.join('')}${OZOW_PRIVATE_KEY}`.toLowerCase()).digest('hex');
+}
 
 export const handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  };
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod === 'POST') {
-    return createOzowPayment(event);
-  }
-
-  return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: jsonHeaders, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: jsonHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
+  return createOzowPayment(event);
 };
 
 async function createOzowPayment(event) {
   try {
-    const { businessId, planId, billingCycle, email, amount, returnUrl } = JSON.parse(event.body);
+    const gate = auth.requireBusinessActor(event);
+    if (!gate.ok || gate.principal.actorType !== 'business') return auth.authFailure(gate, jsonHeaders);
 
-    const transactionId = `OZ-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const body = JSON.parse(event.body || '{}');
+    const businessId = body.businessId;
+    const requestedPlanId = body.planId;
+    const billingCycle = body.billingCycle;
+    const scope = auth.resolveTenant(gate.principal, businessId);
+    if (!scope.ok) return auth.authFailure(scope, jsonHeaders);
+    if (!['monthly', 'yearly'].includes(billingCycle)) return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Invalid billing cycle' }) };
 
-    // Save transaction
-    await supabase.from('transactions').insert({
-      id: transactionId,
-      business_id: businessId,
-      plan_id: planId,
-      billing_cycle: billingCycle,
-      amount: amount,
-      status: 'pending',
-      gateway: 'ozow',
-      created_at: new Date().toISOString()
-    });
+    const planId = normalizePlanId(requestedPlanId);
+    const pkg = getPackage(planId);
+    const pricing = getPlanPricing(planId, billingCycle);
+    if (!pkg || pricing.contactSales || pricing.amount <= 0) return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not available for online payment' }) };
 
-    // Prepare Ozow request
+    const { data: business, error: businessError } = await supabase.from('businesses').select('id, email, status').eq('id', scope.businessId).single();
+    if (businessError || !business || business.status !== 'approved') return { statusCode: 403, headers: jsonHeaders, body: JSON.stringify({ error: 'Business account is not eligible for payment' }) };
+
+    const transactionId = `OZ-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const authoritativeAmount = pricing.amount;
+    const customerEmail = gate.principal.email || business.email;
+    const { error: transactionError } = await supabase.from('transactions').insert({ id: transactionId, business_id: scope.businessId, plan_id: planId, billing_cycle: billingCycle, amount: authoritativeAmount, status: 'pending', gateway: 'ozow', created_at: new Date().toISOString() });
+    if (transactionError) throw transactionError;
+
     const ozowData = {
       SiteCode: OZOW_SITE_CODE,
+      CountryCode: 'ZA',
+      CurrencyCode: pricing.currency,
+      Amount: authoritativeAmount.toFixed(2),
       TransactionReference: transactionId,
-      Amount: amount,
-      CurrencyCode: 'ZAR',
-      CustomerEmail: email,
-      CancelUrl: returnUrl || `https://fastcheckin.co.za/business/billing?canceled=true`,
-      ErrorUrl: returnUrl || `https://fastcheckin.co.za/business/billing?error=true`,
-      SuccessUrl: returnUrl || `https://fastcheckin.co.za/business/billing?success=true`,
-      NotifyUrl: `https://fastcheckin.co.za/.netlify/functions/ozow-payment/notify`,
+      BankReference: transactionId.slice(0, 20),
+      Optional1: scope.businessId,
+      Optional2: planId,
+      Optional3: billingCycle,
+      Optional4: '',
+      Optional5: '',
+      Customer: customerEmail,
+      CancelUrl: 'https://fastcheckin.co.za/business/billing?canceled=true',
+      ErrorUrl: 'https://fastcheckin.co.za/business/billing?error=true',
+      SuccessUrl: 'https://fastcheckin.co.za/business/billing?success=true',
+      NotifyUrl: 'https://fastcheckin.co.za/.netlify/functions/ozow-payment-notify',
       IsTest: process.env.NODE_ENV !== 'production'
     };
-
-    // Generate signature
-    const hashString = `${OZOW_SITE_CODE}${ozowData.TransactionReference}${ozowData.Amount}${ozowData.CurrencyCode}${OZOW_PRIVATE_KEY}`;
-    ozowData.Hash = crypto.createHash('sha512').update(hashString).digest('hex');
+    ozowData.HashCheck = buildRequestHash(ozowData);
 
     const response = await fetch(OZOW_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(OZOW_API_KEY ? { ApiKey: OZOW_API_KEY } : {}) },
       body: JSON.stringify(ozowData)
     });
+    if (!response.ok) {
+      const upstream = await response.text();
+      console.error('Ozow payment request failed:', response.status, upstream);
+      throw new Error('Ozow payment request failed');
+    }
 
     const result = await response.json();
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        redirectUrl: result.PaymentUrl,
-        transactionId
-      })
-    };
-
+    const paymentUrl = result.PaymentUrl || result.paymentUrl || result.Url || result.url;
+    if (!paymentUrl) throw new Error('Ozow payment did not return a payment URL');
+    return { statusCode: 200, headers: jsonHeaders, body: JSON.stringify({ redirectUrl: paymentUrl, transactionId }) };
   } catch (error) {
     console.error('Ozow payment error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message })
-    };
+    return { statusCode: 500, headers: jsonHeaders, body: JSON.stringify({ error: 'Payment could not be created' }) };
   }
 }
+
+export { buildRequestHash };

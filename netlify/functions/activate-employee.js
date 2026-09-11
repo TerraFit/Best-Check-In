@@ -1,5 +1,5 @@
 // netlify/functions/activate-employee.js
-// ✅ Using REST API directly - no WebSocket needed
+// Public invitation capability endpoint. The invitation token is the credential.
 
 import bcrypt from 'bcryptjs';
 
@@ -24,15 +24,24 @@ export const handler = async (event) => {
   }
 
   try {
-    const { token, password } = JSON.parse(event.body);
-
-    console.log('🔵 Activating employee with token:', token);
-
-    if (!token || !password) {
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Token and password required' })
+        body: JSON.stringify({ error: 'Request body must be valid JSON' })
+      };
+    }
+
+    const { token, password } = body;
+
+    if (!token || typeof token !== 'string' || token.length > 256 || !password || typeof password !== 'string') {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Valid token and password are required' })
       };
     }
 
@@ -56,29 +65,24 @@ export const handler = async (event) => {
       };
     }
 
-    // ============================================================
-    // ✅ Use REST API - NO WebSocket
-    // ============================================================
+    const authHeaders = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json'
+    };
 
-    // 1. Get employee by token
     const employeeResponse = await fetch(
-      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
+      `${supabaseUrl}/rest/v1/employees?invitation_token=eq.${encodeURIComponent(token)}&status=eq.Pending&select=id,business_id,full_name,phone_number,role,invitation_expiry&limit=1`,
+      { headers: authHeaders }
     );
 
     if (!employeeResponse.ok) {
       const errorText = await employeeResponse.text();
-      console.error('❌ Employee fetch error:', errorText);
+      console.error('❌ Employee fetch error:', employeeResponse.status, errorText);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Database error' })
+        body: JSON.stringify({ error: 'Unable to verify invitation' })
       };
     }
 
@@ -86,20 +90,16 @@ export const handler = async (event) => {
     const employee = employees?.[0];
 
     if (!employee) {
-      console.log('❌ No employee found with token:', token);
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Invalid invitation token' })
+        body: JSON.stringify({ error: 'Invalid or expired invitation token' })
       };
     }
 
-    console.log('✅ Employee found:', employee.full_name);
-
-    // Check expiry
-    const isExpired = new Date() > new Date(employee.invitation_expiry);
-    if (isExpired) {
-      console.log('❌ Token expired:', employee.invitation_expiry);
+    const now = new Date();
+    const expiry = new Date(employee.invitation_expiry);
+    if (!employee.invitation_expiry || Number.isNaN(expiry.getTime()) || now > expiry) {
       return {
         statusCode: 400,
         headers,
@@ -107,43 +107,33 @@ export const handler = async (event) => {
       };
     }
 
-    // Check if already active
-    if (employee.status === 'Active') {
-      console.log('❌ Account already activated');
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Account already activated' })
-      };
-    }
-
-    // 2. Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    const activatedAt = new Date().toISOString();
 
-    // 3. Update employee via REST PATCH
+    // Consume the invitation atomically. A second concurrent request using the
+    // same token cannot overwrite the password after the first activation.
     const updateResponse = await fetch(
-      `${supabaseUrl}/rest/v1/employees?id=eq.${employee.id}`,
+      `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}&status=eq.Pending&invitation_token=eq.${encodeURIComponent(token)}`,
       {
         method: 'PATCH',
         headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
+          ...authHeaders,
           'Prefer': 'return=representation'
         },
         body: JSON.stringify({
           password_hash: passwordHash,
           status: 'Active',
-          activated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          activated_at: activatedAt,
+          invitation_token: null,
+          updated_at: activatedAt
         })
       }
     );
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.error('❌ Update error:', errorText);
+      console.error('❌ Update error:', updateResponse.status, errorText);
       return {
         statusCode: 500,
         headers,
@@ -154,7 +144,13 @@ export const handler = async (event) => {
     const updatedEmployees = await updateResponse.json();
     const updated = updatedEmployees?.[0];
 
-    console.log('✅ Employee activated:', employee.full_name);
+    if (!updated) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ error: 'Invitation is no longer valid' })
+      };
+    }
 
     return {
       statusCode: 200,
@@ -166,20 +162,17 @@ export const handler = async (event) => {
           id: updated.id,
           full_name: updated.full_name,
           phone_number: updated.phone_number,
+          role: updated.role,
           status: updated.status
         }
       })
     };
-
   } catch (error) {
     console.error('❌ Activation error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'Failed to activate account',
-        details: error.message 
-      })
+      body: JSON.stringify({ error: 'Failed to activate account' })
     };
   }
 };

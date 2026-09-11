@@ -1,6 +1,8 @@
 // netlify/functions/get-export-audit-logs.js
 import { createClient } from '@supabase/supabase-js';
-import jwt from 'jsonwebtoken';
+import auth from './_auth.cjs';
+
+const { requireSuperAdmin, authFailure } = auth;
 
 export const handler = async (event) => {
   const headers = {
@@ -18,26 +20,10 @@ export const handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
+  const authResult = requireSuperAdmin(event);
+  if (!authResult.ok) return authFailure(authResult, headers);
+
   try {
-    // Verify SuperAdmin access
-    const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'No authorization token provided' }) };
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    } catch (err) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid token' }) };
-    }
-
-    // Check if user is SuperAdmin
-    const userRole = decoded.user_metadata?.role || decoded.role;
-    if (userRole !== 'super_admin') {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: 'SuperAdmin access required' }) };
-    }
-
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
@@ -86,7 +72,7 @@ export const handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to fetch audit logs', details: error.message })
+      body: JSON.stringify({ error: 'Failed to fetch audit logs' })
     };
   }
 };

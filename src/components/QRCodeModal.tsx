@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { t } from '../i18n';
+import { getAuthHeader } from '../utils/auth';
 
 interface Props {
   businessId: string;
@@ -530,7 +531,7 @@ export default function QRCodeModal({ businessId, businessName, businessLogo, bu
     try {
       const response = await fetch('/.netlify/functions/send-qr-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
           businessName,

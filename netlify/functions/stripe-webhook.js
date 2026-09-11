@@ -14,7 +14,7 @@ export const handler = async (event) => {
     stripeEvent = stripe.webhooks.constructEvent(event.body, sig, webhookSecret);
   } catch (err) {
     console.error(`Webhook signature verification failed: ${err.message}`);
-    return { statusCode: 400, body: JSON.stringify({ error: err.message }) };
+    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid webhook signature' }) };
   }
 
   switch (stripeEvent.type) {
@@ -78,7 +78,6 @@ async function handlePaymentSuccess(invoice) {
         paid_at: new Date().toISOString()
       });
 
-    // Update payment status
     await supabase
       .from('businesses')
       .update({
@@ -106,7 +105,6 @@ async function handlePaymentFailure(invoice) {
       })
       .eq('id', business.id);
 
-    // Send email notification
     await sendPaymentFailureEmail(business);
   }
 }

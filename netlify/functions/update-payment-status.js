@@ -1,11 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import auth from './_auth.cjs';
+
+const { requirePlatformActor, requirePlatformPermission, authFailure } = auth;
 
 export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
@@ -21,18 +24,24 @@ export const handler = async function(event) {
     };
   }
 
+  const actor = requirePlatformActor(event);
+  if (!actor.ok) return authFailure(actor, headers);
+  if (!requirePlatformPermission(actor.principal, 'platform:subscriptions:write')) {
+    return authFailure({ status: 403, error: 'Forbidden' }, headers);
+  }
+
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
   );
 
   try {
-    const { 
-      businessId, 
-      paymentStatus, 
+    const {
+      businessId,
+      paymentStatus,
       paymentDate,
-      sendReminder = false 
-    } = JSON.parse(event.body);
+      sendReminder = false
+    } = JSON.parse(event.body || '{}');
 
     if (!businessId || !paymentStatus) {
       return {
@@ -42,14 +51,16 @@ export const handler = async function(event) {
       };
     }
 
-    // Calculate new due date based on subscription tier
+    // Platform-authorized billing operation. The target business is selected
+    // explicitly after platform authorization; no business JWT tenant scope is
+    // inferred from attacker-controlled input.
     const { data: business, error: fetchError } = await supabase
       .from('businesses')
       .select('subscription_tier, email, trading_name')
       .eq('id', businessId)
       .single();
 
-    if (fetchError) {
+    if (fetchError || !business) {
       return {
         statusCode: 404,
         headers,
@@ -58,8 +69,16 @@ export const handler = async function(event) {
     }
 
     const paymentDateObj = paymentDate ? new Date(paymentDate) : new Date();
+    if (Number.isNaN(paymentDateObj.getTime())) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid payment date' })
+      };
+    }
+
     const dueDate = new Date(paymentDateObj);
-    
+
     // Set next due date based on subscription
     if (business.subscription_tier === 'annual') {
       dueDate.setFullYear(dueDate.getFullYear() + 1);
@@ -80,7 +99,7 @@ export const handler = async function(event) {
       .eq('id', businessId);
 
     if (updateError) {
-      console.error('❌ Update error:', updateError);
+      console.error('Payment status update error:', updateError);
       return {
         statusCode: 500,
         headers,
@@ -91,7 +110,7 @@ export const handler = async function(event) {
     // Send confirmation email if requested
     if (sendReminder) {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      
+
       await resend.emails.send({
         from: 'FastCheckin Billing <billing@fastcheckin.app>',
         to: [business.email],
@@ -123,11 +142,11 @@ export const handler = async function(event) {
     };
 
   } catch (error) {
-    console.error('🔥 Unhandled error:', error);
+    console.error('Payment status update fatal:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: 'Payment status update failed' })
     };
   }
 };

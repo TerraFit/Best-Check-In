@@ -1,187 +1,35 @@
-// netlify/functions/get-lost-found-items.js
-// List Lost & Found items with filters + dashboard / reporting stats
-
-function assertPermission(event, permission) {
-  const authHeader =
-    (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-  if (!authHeader) {
-    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-  }
+// Lost & Found list/reporting endpoint.
+import auth from './_auth.cjs';
+import { signStoragePaths } from './_lostFoundStorage.cjs';
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
+const hasPhotos = (r) => Array.isArray(r.photo_urls) && r.photo_urls.some(Boolean);
+export const handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  const a = requireBusinessActor(event); if (!a.ok) return authFailure(a, headers);
+  if (!requireBusinessPermission(a.principal, 'canViewLostFound')) return authFailure({ status: 403, error: 'Missing permission: canViewLostFound' }, headers);
   try {
-    const jwt = require('jsonwebtoken');
-    const token = authHeader.replace('Bearer ', '').trim();
-    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    const meta = (decoded && decoded.user_metadata) || {};
-    if (decoded.role === 'service_role' || meta.super_admin) {
-      return { ok: true, principal: { actorType: 'super_admin', role: 'super_admin', active: true } };
-    }
-    if (meta.business_id && !meta.employee_id) {
-      return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-    }
-    const role = meta.staff_role || meta.role || '';
-    const perms = Array.isArray(meta.permission_set) ? meta.permission_set : [];
-    const privileged = [
-      'business_owner', 'general_manager', 'supervisor', 'team_leader',
-      'front_desk', 'housekeeper', 'laundry_attendant', 'administration',
-      'security', 'super_admin', 'Manager', 'Director', 'Supervisor',
-      'Team Leader', 'Foreman', 'Employee (Legacy)',
-    ];
-    if (
-      privileged.includes(role) ||
-      perms.includes(permission) ||
-      perms.includes('canViewLostFound') ||
-      perms.includes('canManageLostFound')
-    ) {
-      return { ok: true, principal: { actorType: 'employee', role, active: true } };
-    }
-    return { ok: false, status: 403, error: 'Missing permission: ' + permission };
-  } catch (e) {
-    return { ok: true, principal: { actorType: 'business', role: 'business_owner', active: true } };
-  }
-}
-
-function hasPhotos(row) {
-  return Array.isArray(row.photo_urls) && row.photo_urls.some(Boolean);
-}
-
-exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  };
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
-
-  try {
-    const gate = assertPermission(event, 'canViewLostFound');
-    if (!gate.ok) {
-      return { statusCode: gate.status || 403, headers, body: JSON.stringify({ error: gate.error }) };
-    }
-
-    const q = event.queryStringParameters || {};
-    const {
-      businessId, status, category, search, roomNumber, tagNumber,
-      bookingReference, employee, storage, dateFrom, dateTo, limit,
-    } = q;
-
-    if (!businessId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'businessId required' }) };
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
-    }
-
+    const q = event.queryStringParameters || {}, t = resolveTenant(a.principal, q.businessId); if (!t.ok) return authFailure(t, headers);
+    const { businessId } = t, url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+    if (!url || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const sh = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
-
-    let filter = `business_id=eq.${businessId}`;
-    if (status) filter += `&status=eq.${encodeURIComponent(status)}`;
-    if (category) filter += `&category=eq.${encodeURIComponent(category)}`;
-    if (roomNumber) filter += `&room_number=eq.${encodeURIComponent(roomNumber)}`;
-    if (tagNumber) filter += `&tag_number=ilike.*${encodeURIComponent(tagNumber)}*`;
-    if (bookingReference) filter += `&booking_reference=ilike.*${encodeURIComponent(bookingReference)}*`;
-    if (employee) filter += `&found_by_staff_name=ilike.*${encodeURIComponent(employee)}*`;
-    if (storage) filter += `&storage_location=ilike.*${encodeURIComponent(storage)}*`;
-    if (dateFrom) filter += `&found_date=gte.${dateFrom}`;
-    if (dateTo) filter += `&found_date=lte.${dateTo}`;
-
-    if (search) {
-      const s = encodeURIComponent(search);
-      filter += `&or=(guest_name.ilike.*${s}*,guest_email.ilike.*${s}*,guest_phone.ilike.*${s}*,item_name.ilike.*${s}*,tag_number.ilike.*${s}*,description.ilike.*${s}*,booking_reference.ilike.*${s}*,room_number.ilike.*${s}*,category.ilike.*${s}*,storage_location.ilike.*${s}*,found_by_staff_name.ilike.*${s}*)`;
-    }
-
-    const lim = Math.min(parseInt(limit || '200', 10) || 200, 500);
-    const url =
-      `${supabaseUrl}/rest/v1/lost_and_found?${filter}&select=*&order=found_date.desc,created_at.desc&limit=${lim}`;
-
-    const res = await fetch(url, { headers: sh });
-    if (!res.ok) {
-      const t = await res.text();
-      return { statusCode: res.status, headers, body: JSON.stringify({ error: t || res.statusText }) };
-    }
-    const items = await res.json();
-
-    // Stats need photo_urls for missing_photos count
-    const statsRes = await fetch(
-      `${supabaseUrl}/rest/v1/lost_and_found?business_id=eq.${businessId}&select=id,status,found_date,returned_at,created_at,photo_urls`,
-      { headers: sh }
-    );
-    const all = statsRes.ok ? await statsRes.json() : [];
-
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-    const collected = all.filter((i) => ['returned', 'collected'].includes(i.status) && i.found_date && i.returned_at);
-    let avgDays = null;
-    if (collected.length) {
-      const sum = collected.reduce((acc, i) => {
-        const a = new Date(i.found_date).getTime();
-        const b = new Date(i.returned_at).getTime();
-        return acc + Math.max(0, (b - a) / 86400000);
-      }, 0);
-      avgDays = Math.round((sum / collected.length) * 10) / 10;
-    }
-
-    const openStatuses = [
-      'newly_found', 'awaiting_contact', 'guest_contacted', 'guest_replied',
-      'collection_arranged', 'courier_booked',
-    ];
-
-    const stats = {
-      total: all.length,
-      newly_found: all.filter((i) => i.status === 'newly_found').length,
-      awaiting_contact: all.filter((i) =>
-        ['newly_found', 'awaiting_contact'].includes(i.status)
-      ).length,
-      awaiting_collection: all.filter((i) =>
-        ['collection_arranged', 'courier_booked', 'guest_contacted', 'guest_replied'].includes(i.status)
-      ).length,
-      ready_for_collection: all.filter((i) =>
-        ['collection_arranged', 'courier_booked'].includes(i.status)
-      ).length,
-      missing_photos: all.filter(
-        (i) => openStatuses.includes(i.status) && !hasPhotos(i)
-      ).length,
-      overdue: all.filter(
-        (i) =>
-          openStatuses.includes(i.status) &&
-          i.found_date &&
-          i.found_date < thirtyDaysAgo
-      ).length,
-      returned: all.filter((i) => ['returned', 'collected'].includes(i.status)).length,
-      archived: all.filter((i) => i.status === 'archived').length,
-      unclaimed: all.filter((i) => i.status === 'unclaimed').length,
-      recently_found: all.filter((i) => i.found_date && i.found_date >= sevenDaysAgo).length,
-      recently_returned: all.filter(
-        (i) => i.returned_at && i.returned_at.slice(0, 10) >= sevenDaysAgo
-      ).length,
-      found_this_month: all.filter((i) => i.found_date && i.found_date >= monthStart).length,
-      avg_days_to_collection: avgDays,
-      outstanding: all.filter((i) => openStatuses.includes(i.status)).length,
-    };
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true, items, stats, businessId }),
-    };
-  } catch (error) {
-    console.error('get-lost-found-items fatal:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message || 'Failed to fetch lost & found items' }),
-    };
-  }
+    let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
+    for (const [k, col] of [['status','status'],['category','category'],['roomNumber','room_number'],['tagNumber','tag_number'],['bookingReference','booking_reference'],['employee','found_by_staff_name'],['storage','storage_location']]) if (q[k]) filter += `&${col}=${k === 'tagNumber' || k === 'bookingReference' || k === 'employee' || k === 'storage' ? 'ilike.*' + encodeURIComponent(q[k]) + '*' : 'eq.' + encodeURIComponent(q[k])}`;
+    if (q.dateFrom) filter += `&found_date=gte.${encodeURIComponent(q.dateFrom)}`; if (q.dateTo) filter += `&found_date=lte.${encodeURIComponent(q.dateTo)}`;
+    if (q.search) { const s = encodeURIComponent(q.search); filter += `&or=(guest_name.ilike.*${s}*,guest_email.ilike.*${s}*,guest_phone.ilike.*${s}*,item_name.ilike.*${s}*,tag_number.ilike.*${s}*,description.ilike.*${s}*,booking_reference.ilike.*${s}*,room_number.ilike.*${s}*,category.ilike.*${s}*,storage_location.ilike.*${s}*,found_by_staff_name.ilike.*${s}*)`; }
+    const lim = Math.min(parseInt(q.limit || '200', 10) || 200, 500);
+    const r = await fetch(`${url}/rest/v1/lost_and_found?${filter}&select=*&order=found_date.desc,created_at.desc&limit=${lim}`, { headers: sh });
+    if (!r.ok) { console.error('get-lost-found-items query failed:', r.status); return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch Lost & Found items' }) }; }
+    const items = await r.json();
+    // The list only needs a thumbnail. Full media is signed by the detail endpoint.
+    for (const item of items) if (Array.isArray(item.photo_urls) && item.photo_urls.length) item.photo_urls = await signStoragePaths(url, key, businessId, [item.photo_urls[0]]);
+    const sr = await fetch(`${url}/rest/v1/lost_and_found?business_id=eq.${encodeURIComponent(businessId)}&select=id,status,found_date,returned_at,created_at,photo_urls`, { headers: sh });
+    if (!sr.ok) { console.error('get-lost-found-items stats query failed:', sr.status); return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to calculate Lost & Found statistics' }) }; }
+    const all = await sr.json();
+    const now = new Date(), day = new Date(now); day.setDate(day.getDate() - 7); const dayBoundary = day.toISOString().slice(0, 10), month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, thirty = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10), open = ['newly_found','awaiting_contact','guest_contacted','guest_replied','collection_arranged','courier_booked'];
+    const returned = all.filter(i => ['returned','collected'].includes(i.status) && i.found_date && i.returned_at), avg = returned.length ? Math.round(returned.reduce((s, i) => s + Math.max(0, (new Date(i.returned_at) - new Date(i.found_date)) / 86400000), 0) / returned.length * 10) / 10 : null;
+    const stats = { total: all.length, newly_found: all.filter(i => i.status === 'newly_found').length, awaiting_contact: all.filter(i => ['newly_found','awaiting_contact'].includes(i.status)).length, awaiting_collection: all.filter(i => ['collection_arranged','courier_booked','guest_contacted','guest_replied'].includes(i.status)).length, ready_for_collection: all.filter(i => ['collection_arranged','courier_booked'].includes(i.status)).length, missing_photos: all.filter(i => open.includes(i.status) && !hasPhotos(i)).length, overdue: all.filter(i => open.includes(i.status) && i.found_date && i.found_date < thirty).length, returned: all.filter(i => ['returned','collected'].includes(i.status)).length, archived: all.filter(i => i.status === 'archived').length, unclaimed: all.filter(i => i.status === 'unclaimed').length, recently_found: all.filter(i => i.found_date && i.found_date >= dayBoundary).length, recently_returned: all.filter(i => i.returned_at && String(i.returned_at).slice(0, 10) >= dayBoundary).length, found_this_month: all.filter(i => i.found_date && i.found_date >= month).length, avg_days_to_collection: avg, outstanding: all.filter(i => open.includes(i.status)).length };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, items, stats, businessId }) };
+  } catch (error) { console.error('get-lost-found-items fatal:', error); return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch Lost & Found items' }) }; }
 };

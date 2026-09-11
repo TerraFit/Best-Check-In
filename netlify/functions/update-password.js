@@ -67,7 +67,19 @@ export const handler = async function(event) {
       };
     }
 
-    const { token, password } = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid request' })
+      };
+    }
+
+    const token = String(body.token || '').trim();
+    const password = String(body.password || '');
 
     if (!token || !password) {
       return {
@@ -85,39 +97,24 @@ export const handler = async function(event) {
       };
     }
 
-    // This endpoint only needs PostgREST. Do not instantiate @supabase/supabase-js:
-    // Netlify's Node.js 20 runtime does not provide the native WebSocket required by
-    // newer supabase-js realtime-js versions.
-    const resetRows = await supabaseRest(
-      `password_resets?select=id,business_id&token=eq.${encodeURIComponent(token)}&expires_at=gte.${encodeURIComponent(new Date().toISOString())}&used_at=is.null&limit=1`
-    );
-
-    const resetRecord = Array.isArray(resetRows) ? resetRows[0] : null;
-
-    if (!resetRecord) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid or expired token' })
-      };
-    }
-
+    // This endpoint intentionally does not require a normal JWT/RBAC principal:
+    // the single-use reset token is the recovery credential. The token's
+    // business_id is resolved server-side and is never accepted from the caller.
+    //
+    // Keep all authorization and mutation inside one database transaction. This
+    // prevents a token from being consumed if the password update fails and makes
+    // concurrent/replay attempts serialize on the reset row.
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await supabaseRest(`businesses?id=eq.${encodeURIComponent(resetRecord.business_id)}`, {
-      method: 'PATCH',
-      headers: {
-        Prefer: 'return=minimal'
-      },
-      body: JSON.stringify({ password_hash: hashedPassword })
-    });
-
-    await supabaseRest(`password_resets?id=eq.${encodeURIComponent(resetRecord.id)}&used_at=is.null`, {
-      method: 'PATCH',
-      headers: {
-        Prefer: 'return=minimal'
-      },
-      body: JSON.stringify({ used_at: new Date().toISOString() })
+    // PostgREST exposes the transaction as a single RPC call. Do not instantiate
+    // @supabase/supabase-js: Netlify's Node.js 20 runtime does not provide the
+    // native WebSocket required by newer supabase-js realtime-js versions.
+    await supabaseRest('rpc/reset_business_password_with_token', {
+      method: 'POST',
+      body: JSON.stringify({
+        p_token: token,
+        p_password_hash: hashedPassword
+      })
     });
 
     return {
@@ -126,7 +123,11 @@ export const handler = async function(event) {
       body: JSON.stringify({ success: true })
     };
   } catch (error) {
-    console.error('Error in update-password:', error);
+    console.error('Error in update-password:', {
+      status: error?.status,
+      body: error?.body,
+      message: error?.message
+    });
     return {
       statusCode: 500,
       headers,

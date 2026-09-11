@@ -10,7 +10,7 @@ import { Sparkles, FileDown, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { getAnalyticsLimits } from '../../services/featureAccessService';
 import { getPackage, normalizePlanId } from '../../config/packages';
-import { getBusinessId } from '../../utils/auth';
+import { getAuthHeader, getBusinessId } from '../../utils/auth';
 import {
   fetchAnalyticsSummary,
   downloadAnalyticsSnapshot,
@@ -42,7 +42,9 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
 
   useEffect(() => {
     if (!businessId) return;
-    fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`)
+    fetch(`/.netlify/functions/get-subscription-status?businessId=${businessId}`, {
+      headers: { ...getAuthHeader() }
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.plan) setEffectivePlan(normalizePlanId(data.plan) as SubscriptionTier);

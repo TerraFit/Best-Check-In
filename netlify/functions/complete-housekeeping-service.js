@@ -1,117 +1,154 @@
 // Complete a measured housekeeping service session.
 // Actual duration is calculated from persisted timestamps, never from the client timer.
-// Auth required (fail closed). business_id is bound from JWT.
+// Authorization is authoritative: identity, role/permission, tenant, and executor scope
+// are all established server-side before any write occurs.
 
-const {
-  authenticateHousekeepingServiceLive,
-  resolveBusinessId,
-  schemaMissingResponse,
-  MANAGE_HIERARCHY,
-} = require('./_housekeepingServiceAuth.cjs');
+import auth from './_auth.cjs';
+import rbac from './_rbac.cjs';
+const { requireBusinessActor, resolveTenant } = auth;
 
-exports.handler = async (event) => {
+const MANAGEMENT_ROLES = new Set(['general_manager', 'manager', 'director', 'supervisor', 'team_leader', 'foreman']);
+
+function response(statusCode, headers, body) {
+  return { statusCode, headers, body: JSON.stringify(body) };
+}
+
+function isManagement(principal) {
+  if (!principal || principal.actorType === 'business') return true;
+  const role = String(principal.role || '').trim().toLowerCase();
+  const permissions = rbac.resolvePermissions(principal);
+  return MANAGEMENT_ROLES.has(role)
+    || permissions.has('canManageHousekeeping')
+    || permissions.has('canAssignHousekeepingTasks');
+}
+
+function parseCount(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
+
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  if (event.httpMethod !== 'POST') return response(405, headers, { error: 'Method Not Allowed' });
+
+  let body;
   try {
-    const gate = await authenticateHousekeepingServiceLive(event, 'execute');
-    if (!gate.ok) {
-      return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error, code: gate.code }) };
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return response(400, headers, { success: false, error: 'Invalid JSON body' });
+  }
+
+  try {
+    const identity = requireBusinessActor(event);
+    if (!identity.ok) return response(identity.status || 401, headers, { success: false, error: identity.error });
+
+    const principal = identity.principal;
+    const requestedBusinessId = body?.businessId || null;
+    const scope = resolveTenant(principal, requestedBusinessId);
+    if (!scope.ok) return response(scope.status, headers, { success: false, error: scope.error });
+
+    if (principal.actorType === 'employee') {
+      const employeeRes = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/employees?id=eq.${encodeURIComponent(principal.employeeId)}&business_id=eq.${encodeURIComponent(scope.businessId)}&select=id,business_id,status`,
+        { headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`, Accept: 'application/json' } }
+      );
+      if (!employeeRes.ok) return response(503, headers, { success: false, error: 'Unable to verify employee status' });
+      const employee = (await employeeRes.json())[0];
+      if (!employee) return response(403, headers, { success: false, error: 'Employee account not found' });
+      if (String(employee.business_id) !== String(scope.businessId)) return response(403, headers, { success: false, error: 'Forbidden: business scope mismatch' });
+      if (String(employee.status || '').toLowerCase() === 'disabled') {
+        return response(403, headers, { success: false, error: 'Account has been disabled. Please contact your administrator.', code: 'EMPLOYEE_DISABLED' });
+      }
     }
+
+    const management = isManagement(principal);
+    const canComplete = principal.actorType === 'business'
+      || management
+      || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
+    if (!canComplete) return response(403, headers, { success: false, error: 'Missing permission: canCompleteHousekeepingTask' });
+
+    const sessionId = body?.sessionId;
+    if (!sessionId || typeof sessionId !== 'string') {
+      return response(400, headers, { success: false, error: 'sessionId is required' });
+    }
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) {
-      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
-    }
+    if (!supabaseUrl || !key) return response(500, headers, { success: false, error: 'Server configuration error' });
 
-    const body = JSON.parse(event.body || '{}');
-    const {
-      businessId: requestedBusinessId,
-      sessionId,
-      checklistCompletedCount = 0,
-      checklistTotalCount = 0,
-      issuesReportedCount = 0,
-      notes,
-    } = body;
-    const scope = resolveBusinessId(gate.principal, requestedBusinessId || null);
-    if (!scope.ok) {
-      return { statusCode: scope.status, headers, body: JSON.stringify({ success: false, error: scope.error }) };
-    }
-    if (!sessionId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'sessionId is required' }) };
-    }
-
-    const businessId = scope.businessId;
     const read = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const write = { ...read, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const q = (v) => encodeURIComponent(v);
+    const businessId = scope.businessId;
+
     const sessionRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}&select=*`,
       { headers: read }
     );
     if (!sessionRes.ok) {
       const text = await sessionRes.text();
-      const missing = schemaMissingResponse(sessionRes.status, text, 'housekeeping_service_sessions');
-      if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) };
-      return { statusCode: sessionRes.status, headers, body: JSON.stringify({ success: false, error: text }) };
-    }
-    const session = (await sessionRes.json())[0];
-    if (!session) {
-      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Service session not found' }) };
-    }
-    if (session.status !== 'active') {
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ success: false, error: `Service session is already ${session.status}`, session }),
-      };
+      if (/PGRST205|relation .* does not exist|Could not find the table|schema cache/i.test(text)) {
+        return response(503, headers, { success: false, error: 'Housekeeping service schema is not installed', code: 'HOUSEKEEPING_SCHEMA_MISSING', relation: 'housekeeping_service_sessions', hint: 'Apply docs/migrations/013, 014 and 015' });
+      }
+      console.error('complete-housekeeping-service session lookup failed:', sessionRes.status);
+      return response(500, headers, { success: false, error: 'Unable to load service session' });
     }
 
-    const isManagement = gate.principal.actorType === 'business'
-      || gate.principal.actorType === 'super_admin'
-      || MANAGE_HIERARCHY.has(gate.principal.normalizedRole)
-      || gate.principal.permissions?.includes('canManageHousekeeping');
-    if (!isManagement && String(session.employee_id || '') !== String(gate.principal.employeeId || '')) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ success: false, error: 'Forbidden: service session belongs to another employee' }),
-      };
+    const session = (await sessionRes.json())[0];
+    if (!session) return response(404, headers, { success: false, error: 'Service session not found' });
+    if (session.status !== 'active') return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
+
+    if (!management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
+      return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
+
+    const startedAt = new Date(session.started_at).getTime();
+    if (!Number.isFinite(startedAt)) return response(500, headers, { success: false, error: 'Invalid service session timestamp' });
 
     const completedAt = new Date().toISOString();
-    const actualSeconds = Math.max(
-      0,
-      Math.floor((new Date(completedAt).getTime() - new Date(session.started_at).getTime()) / 1000)
-    );
-    const targetSeconds = Number(session.target_minutes_snapshot) * 60;
+    const actualSeconds = Math.max(0, Math.floor((Date.parse(completedAt) - startedAt) / 1000));
+    const targetMinutes = Number(session.target_minutes_snapshot);
+    const targetSeconds = Number.isFinite(targetMinutes) && targetMinutes >= 0 ? Math.floor(targetMinutes * 60) : 0;
+
+    const checklistCompletedCount = parseCount(body.checklistCompletedCount);
+    const checklistTotalCount = parseCount(body.checklistTotalCount);
+    const issuesReportedCount = parseCount(body.issuesReportedCount);
+    const safeChecklistCompletedCount = checklistTotalCount > 0
+      ? Math.min(checklistCompletedCount, checklistTotalCount)
+      : checklistCompletedCount;
+
     const sessionPatch = {
       completed_at: completedAt,
       actual_seconds: actualSeconds,
       status: 'completed',
-      checklist_completed_count: Math.max(0, Number(checklistCompletedCount) || 0),
-      checklist_total_count: Math.max(0, Number(checklistTotalCount) || 0),
-      issues_reported_count: Math.max(0, Number(issuesReportedCount) || 0),
+      checklist_completed_count: safeChecklistCompletedCount,
+      checklist_total_count: checklistTotalCount,
+      issues_reported_count: issuesReportedCount,
       quality_result: 'pending',
-      notes: notes ?? session.notes ?? null,
+      notes: body.notes ?? session.notes ?? null,
       updated_at: completedAt,
     };
+
     const updateSessionRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}&status=eq.active`,
       { method: 'PATCH', headers: write, body: JSON.stringify(sessionPatch) }
     );
     if (!updateSessionRes.ok) {
-      const text = await updateSessionRes.text();
-      const missing = schemaMissingResponse(updateSessionRes.status, text, 'housekeeping_service_sessions');
-      if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) };
-      return { statusCode: updateSessionRes.status, headers, body: JSON.stringify({ success: false, error: text }) };
+      console.error('complete-housekeeping-service session update failed:', updateSessionRes.status);
+      return response(500, headers, { success: false, error: 'Unable to complete service session' });
+    }
+
+    const updatedSessions = await updateSessionRes.json();
+    if (!Array.isArray(updatedSessions) || updatedSessions.length !== 1) {
+      return response(409, headers, { success: false, error: 'Service session could not be completed' });
     }
 
     const taskRes = await fetch(
@@ -128,13 +165,28 @@ exports.handler = async (event) => {
       }
     );
     if (!taskRes.ok) {
-      return { statusCode: taskRes.status, headers, body: JSON.stringify({ success: false, error: await taskRes.text() }) };
+      console.error('complete-housekeeping-service task update failed:', taskRes.status);
+      await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(sessionId)}&business_id=eq.${q(businessId)}&status=eq.completed`,
+        { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'active', completed_at: null, actual_seconds: null, updated_at: new Date().toISOString() }) }
+      ).catch(() => {});
+      return response(500, headers, { success: false, error: 'Unable to complete housekeeping task' });
     }
-    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(session.room_id)}&business_id=eq.${q(businessId)}`, {
-      method: 'PATCH',
-      headers: { ...write, Prefer: 'return=minimal' },
-      body: JSON.stringify({ housekeeping_status: 'awaiting_inspection', updated_at: completedAt }),
-    });
+
+    const taskRows = await taskRes.json();
+    if (!Array.isArray(taskRows) || taskRows.length !== 1) {
+      return response(409, headers, { success: false, error: 'Housekeeping task could not be completed' });
+    }
+
+    const roomRes = await fetch(
+      `${supabaseUrl}/rest/v1/rooms?id=eq.${q(session.room_id)}&business_id=eq.${q(businessId)}`,
+      {
+        method: 'PATCH',
+        headers: { ...write, Prefer: 'return=minimal' },
+        body: JSON.stringify({ housekeeping_status: 'awaiting_inspection', updated_at: completedAt }),
+      }
+    );
+    if (!roomRes.ok) console.error('complete-housekeeping-service room status update failed:', roomRes.status);
 
     return {
       statusCode: 200,
@@ -151,11 +203,7 @@ exports.handler = async (event) => {
       }),
     };
   } catch (error) {
-    console.error('complete-housekeeping-service fatal:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ success: false, error: error.message || 'Failed to complete housekeeping service' }),
-    };
+    console.error('complete-housekeeping-service fatal:', error?.message || error);
+    return response(500, headers, { success: false, error: 'Failed to complete housekeeping service' });
   }
 };

@@ -1,7 +1,17 @@
 // netlify/functions/update-room.js
 // Update mutable room fields. room_number and room_code are immutable.
+// Auth: Bearer JWT required; businessId must match token business_id (tenant isolation)
 
-exports.handler = async (event) => {
+import auth from './_auth.cjs';
+
+const {
+  requireBusinessActor,
+  requireBusinessPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
+
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -17,10 +27,13 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { roomId, businessId } = body;
+    const actor = requireBusinessActor(event);
+    if (!actor.ok) return authFailure(actor, headers);
 
-    if (!roomId || !businessId) {
+    const body = JSON.parse(event.body || '{}');
+    const { roomId, businessId: requestedBusinessId } = body;
+
+    if (!roomId || !requestedBusinessId) {
       return {
         statusCode: 400,
         headers,
@@ -28,18 +41,26 @@ exports.handler = async (event) => {
       };
     }
 
+    const tenant = resolveTenant(actor.principal, requestedBusinessId);
+    if (!tenant.ok) return authFailure(tenant, headers);
+    const businessId = tenant.businessId;
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
-    const allowed = [
+    const administrativeFields = [
       'room_name',
       'room_type',
       'max_adults',
       'max_children',
       'max_infants',
+      'sort_order',
+      'notes',
+    ];
+    const operationalFields = [
       'availability_status',
       'occupancy_status',
       'housekeeping_status',
@@ -47,12 +68,30 @@ exports.handler = async (event) => {
       'cleaning_priority',
       'active',
       'unavailable_reason',
-      'sort_order',
-      'notes',
     ];
 
+    const administrativeUpdates = administrativeFields.filter((key) => body[key] !== undefined);
+    const operationalUpdates = operationalFields.filter((key) => body[key] !== undefined);
+
+    if (administrativeUpdates.length > 0 && !requireBusinessPermission(actor.principal, 'canManageSettings')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canManageSettings' },
+        headers
+      );
+    }
+
+    if (operationalUpdates.length > 0 && !requireBusinessPermission(actor.principal, 'canApproveRoomChanges')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canApproveRoomChanges' },
+        headers
+      );
+    }
+
     const updateData = { updated_at: new Date().toISOString() };
-    for (const key of allowed) {
+    for (const key of administrativeFields) {
+      if (body[key] !== undefined) updateData[key] = body[key];
+    }
+    for (const key of operationalFields) {
       if (body[key] !== undefined) updateData[key] = body[key];
     }
 
@@ -64,8 +103,10 @@ exports.handler = async (event) => {
       };
     }
 
+    const encodedRoomId = encodeURIComponent(roomId);
+    const encodedBusinessId = encodeURIComponent(businessId);
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/rooms?id=eq.${roomId}&business_id=eq.${businessId}`,
+      `${supabaseUrl}/rest/v1/rooms?id=eq.${encodedRoomId}&business_id=eq.${encodedBusinessId}`,
       {
         method: 'PATCH',
         headers: {
@@ -79,8 +120,12 @@ exports.handler = async (event) => {
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      return { statusCode: response.status, headers, body: JSON.stringify({ error: err }) };
+      console.error('update-room data layer error:', response.status);
+      return {
+        statusCode: response.status >= 500 ? 500 : response.status,
+        headers,
+        body: JSON.stringify({ error: response.status >= 500 ? 'Failed to update room' : 'Room update rejected' }),
+      };
     }
 
     const result = await response.json();
@@ -117,7 +162,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Failed to update room' }),
+      body: JSON.stringify({ error: 'Failed to update room' }),
     };
   }
 };

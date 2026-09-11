@@ -55,15 +55,29 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
       const cacheBust = `&_=${Date.now()}`;
-      const res = await fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
-        signal: controller.signal, cache: 'no-store'
-      });
+      const [res, settingsRes] = await Promise.all([
+        fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        }),
+        fetchWithAuth(`/.netlify/functions/get-business-settings?businessId=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        }).catch(() => null),
+      ]);
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const businessData = data.success && data.data ? data.data : data;
       if (!businessData || businessData.id !== businessId) throw new Error('Fresh business profile was not returned');
+
+      // get-business-settings is authenticated and tenant-scoped. It supplies the
+      // operational room count and platform-controlled licensed ceiling without
+      // exposing either value through the public branding endpoint.
+      if (settingsRes?.ok) {
+        const settings = await settingsRes.json();
+        businessData.total_rooms = settings.total_rooms ?? null;
+        businessData.max_rooms = settings.max_rooms ?? null;
+      }
 
       if (isMountedRef.current) {
         setBusiness(businessData);

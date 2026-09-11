@@ -187,22 +187,22 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   }, [businessId]);
 
-  // Load guest profile when email changes
+  // Load guest profile when email or business scope changes
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (formData.email && formData.email.includes('@')) {
+      if (formData.email && formData.email.includes('@') && businessId) {
         loadGuestProfile(formData.email);
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [formData.email]);
+  }, [formData.email, businessId]);
 
   const loadGuestProfile = async (email: string) => {
-    if (!email || !email.includes('@')) return;
+    if (!email || !email.includes('@') || !businessId) return;
     
     try {
       console.log('🔍 Loading guest profile for:', email);
-      const result = await checkinService.getGuestProfile(email);
+      const result = await checkinService.getGuestProfile(email, businessId);
       console.log('🔍 Guest profile result:', result);
       
       if (result?.profile) {
@@ -249,21 +249,28 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
     }
   };
 
-  const saveGuestProfile = async () => {
+  const saveGuestProfile = async (bookingId: string) => {
     if (!formData.saveDetails || !formData.email || !formData.email.includes('@')) return;
     
     try {
       const fullName = formatFullName(formData.firstName, formData.lastName);
-      await checkinService.saveGuestProfile(formData.email.toLowerCase().trim(), {
-        fullName,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
-        passportOrId: formData.passportOrId,
-        country: formData.country,
-        city: formData.city,
-        province: formData.province
-      });
+      if (!businessId || !bookingId) return;
+
+      await checkinService.saveGuestProfile(
+        formData.email.toLowerCase().trim(),
+        {
+          fullName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          passportOrId: formData.passportOrId,
+          country: formData.country,
+          city: formData.city,
+          province: formData.province
+        },
+        bookingId,
+        businessId
+      );
       setProfileSaveSuccess(true);
       setTimeout(() => setProfileSaveSuccess(false), 3000);
     } catch (error) {
@@ -550,7 +557,7 @@ export function useCheckIn({ businessId, onComplete, resetOnMount = false }: Use
       
       if (formData.saveDetails) {
         console.log('🔍 submitBooking: Saving guest profile...');
-        saveGuestProfile();
+        saveGuestProfile(result.bookingId!);
       }
 
       const newBooking: Booking = {

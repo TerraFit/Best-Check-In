@@ -1,45 +1,62 @@
-import { createClient } from '@supabase/supabase-js';
+import auth from './_auth.cjs';
+
+const { authenticateRequest, requireBusinessPermission, requirePlatformPermission, resolveTenant, authFailure } = auth;
+
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS'
+};
 
 export const handler = async function(event) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  const authentication = authenticateRequest(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+  const principal = authentication.principal;
+  const isPlatform = ['super_admin', 'platform'].includes(principal.actorType);
+
+  if (isPlatform) {
+    if (!requirePlatformPermission(principal, 'platform:businesses:read')) {
+      return authFailure({ status: 403, error: 'Missing permission: platform:businesses:read' }, headers);
+    }
+  } else if (!requireBusinessPermission(principal, 'canManageStaff')) {
+    return authFailure({ status: 403, error: 'Missing permission: canManageStaff' }, headers);
+  }
 
   try {
-    const { businessId } = event.queryStringParameters || {};
-
-    if (!businessId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Business ID required' })
-      };
+    const requestedBusinessId = typeof event.queryStringParameters?.businessId === 'string'
+      ? event.queryStringParameters.businessId.trim()
+      : '';
+    if (!requestedBusinessId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business ID required' }) };
     }
 
-    const { data, error } = await supabase
-      .from('directors')
-      .select('name, id_number, id_photo_url')
-      .eq('business_id', businessId);
+    const scope = resolveTenant(principal, requestedBusinessId);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
 
-    if (error) throw error;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Business directors configuration is incomplete');
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
+    }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(data || [])
-    };
+    const response = await fetch(`${supabaseUrl}/rest/v1/directors?business_id=eq.${encodeURIComponent(businessId)}&select=name,id_number,id_photo_url`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' }
+    });
+    if (!response.ok) {
+      console.error('Business directors lookup failed:', response.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch business directors' }) };
+    }
+
+    const data = await response.json();
+    return { statusCode: 200, headers, body: JSON.stringify(Array.isArray(data) ? data : []) };
   } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: error.message })
-    };
+    console.error('Unhandled business directors error:', error?.message || error);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };

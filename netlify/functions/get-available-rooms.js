@@ -1,7 +1,17 @@
 // netlify/functions/get-available-rooms.js
 // Conflict-prevention: only rooms that are active, available, and free for the stay
 
-exports.handler = async (event) => {
+import auth from './_auth.cjs';
+
+const {
+  authenticateRequest,
+  requireBusinessPermission,
+  requirePlatformPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
+
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -16,6 +26,19 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
+  const authentication = authenticateRequest(event);
+  if (!authentication.ok) return authFailure(authentication, headers);
+
+  const principal = authentication.principal;
+  const isPlatform = ['super_admin', 'platform'].includes(principal.actorType);
+  if (isPlatform) {
+    if (!requirePlatformPermission(principal, 'platform:businesses:read')) {
+      return authFailure({ status: 403, error: 'Missing permission: platform:businesses:read' }, headers);
+    }
+  } else if (!requireBusinessPermission(principal, 'canViewRooms')) {
+    return authFailure({ status: 403, error: 'Missing permission: canViewRooms' }, headers);
+  }
+
   try {
     const { businessId, checkIn, checkOut, excludeBookingId } = event.queryStringParameters || {};
 
@@ -27,9 +50,14 @@ exports.handler = async (event) => {
       };
     }
 
+    const scope = resolveTenant(principal, businessId);
+    if (!scope.ok) return authFailure(scope, headers);
+    const authoritativeBusinessId = scope.businessId;
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Available rooms configuration is incomplete');
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
@@ -39,15 +67,14 @@ exports.handler = async (event) => {
       Accept: 'application/json',
     };
 
-    // 1. Candidate rooms: active = true AND availability_status = available
     const roomsRes = await fetch(
-      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${businessId}&active=eq.true&availability_status=eq.available&order=sort_order.asc.nullslast,room_number.asc`,
+      `${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(authoritativeBusinessId)}&active=eq.true&availability_status=eq.available&order=sort_order.asc.nullslast,room_number.asc`,
       { headers: restHeaders }
     );
 
     if (!roomsRes.ok) {
-      const err = await roomsRes.text();
-      return { statusCode: roomsRes.status, headers, body: JSON.stringify({ error: err }) };
+      console.error('Available rooms lookup failed:', roomsRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch available rooms' }) };
     }
 
     const allRooms = await roomsRes.json();
@@ -55,38 +82,35 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, rooms: [] }) };
     }
 
-    // 2. Bookings that overlap the requested stay and have a room assigned
-    // Overlap: existing.check_in < requested.checkOut AND existing.check_out > requested.checkIn
-    // If check_out is null, treat as check_in + nights (fallback: still overlapping if check_in < checkOut)
     const bookingsRes = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${businessId}&room_id=not.is.null&status=neq.cancelled&select=id,room_id,check_in_date,check_out_date,nights,status`,
+      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodeURIComponent(authoritativeBusinessId)}&room_id=not.is.null&status=neq.cancelled&select=id,room_id,check_in_date,check_out_date,nights,status`,
       { headers: restHeaders }
     );
 
-    let occupiedRoomIds = new Set();
-    if (bookingsRes.ok) {
-      const bookings = await bookingsRes.json();
-      const reqIn = new Date(checkIn);
-      const reqOut = new Date(checkOut);
+    if (!bookingsRes.ok) {
+      console.error('Available rooms occupancy lookup failed:', bookingsRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to verify room availability' }) };
+    }
 
-      for (const b of bookings) {
-        if (excludeBookingId && b.id === excludeBookingId) continue;
-        if (!b.room_id || !b.check_in_date) continue;
+    const occupiedRoomIds = new Set();
+    const bookings = await bookingsRes.json();
+    const reqIn = new Date(checkIn);
+    const reqOut = new Date(checkOut);
 
-        const bIn = new Date(b.check_in_date);
-        let bOut;
-        if (b.check_out_date) {
-          bOut = new Date(b.check_out_date);
-        } else {
-          bOut = new Date(bIn);
-          bOut.setDate(bOut.getDate() + (parseInt(b.nights, 10) || 1));
-        }
+    for (const b of bookings) {
+      if (excludeBookingId && b.id === excludeBookingId) continue;
+      if (!b.room_id || !b.check_in_date) continue;
 
-        // Standard half-open style overlap on calendar dates
-        if (bIn < reqOut && bOut > reqIn) {
-          occupiedRoomIds.add(b.room_id);
-        }
+      const bIn = new Date(b.check_in_date);
+      let bOut;
+      if (b.check_out_date) {
+        bOut = new Date(b.check_out_date);
+      } else {
+        bOut = new Date(bIn);
+        bOut.setDate(bOut.getDate() + (parseInt(b.nights, 10) || 1));
       }
+
+      if (bIn < reqOut && bOut > reqIn) occupiedRoomIds.add(b.room_id);
     }
 
     const available = allRooms.filter((r) => !occupiedRoomIds.has(r.id));
@@ -97,11 +121,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({ success: true, rooms: available }),
     };
   } catch (error) {
-    console.error('get-available-rooms fatal:', error);
+    console.error('get-available-rooms fatal:', error?.message || error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Failed to fetch available rooms' }),
+      body: JSON.stringify({ error: 'Failed to fetch available rooms' }),
     };
   }
 };

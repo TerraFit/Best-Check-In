@@ -22,20 +22,20 @@ export class CheckInService {
     return response.json();
   }
 
-  async getGuestProfile(email: string): Promise<any> {
+  async getGuestProfile(email: string, businessId: string): Promise<any> {
     const normalizedEmail = email.toLowerCase().trim();
     const response = await fetch(
-      `${this.baseUrl}/get-guest-profile?email=${encodeURIComponent(normalizedEmail)}`
+      `${this.baseUrl}/get-guest-profile?email=${encodeURIComponent(normalizedEmail)}&business_id=${encodeURIComponent(businessId)}`
     );
     if (!response.ok) return null;
     return response.json();
   }
 
-  async saveGuestProfile(email: string, profileData: any): Promise<any> {
+  async saveGuestProfile(email: string, profileData: any, bookingId: string, businessId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/save-guest-profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, profileData })
+      body: JSON.stringify({ email, profileData, bookingId, businessId })
     });
     return response.json();
   }

@@ -7,6 +7,8 @@ const {
   schemaMissingResponse,
 } = require('./_housekeepingServiceAuth.cjs');
 
+const SETTINGS_SELECT = 'id,business_id,warning_minutes,final_countdown_seconds,voice_enabled,sound_enabled,allow_pause,created_at,updated_at';
+
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -14,36 +16,38 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
-  if (!['GET', 'POST'].includes(event.httpMethod)) return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  const response = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
+  if (event.httpMethod === 'OPTIONS') return response(204, {});
+  if (!['GET', 'POST'].includes(event.httpMethod)) return response(405, { error: 'Method Not Allowed' });
 
   try {
     const gate = await authenticateHousekeepingServiceLive(event, 'manage');
-    if (!gate.ok) return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error, code: gate.code }) };
+    if (!gate.ok) return response(gate.status || 401, { success: false, error: gate.error, code: gate.code });
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
+    if (!supabaseUrl || !key) return response(500, { success: false, error: 'Server configuration error' });
     const read = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const write = { ...read, 'Content-Type': 'application/json', Prefer: 'return=representation' };
 
     if (event.httpMethod === 'GET') {
       const scope = resolveBusinessId(gate.principal, event.queryStringParameters?.businessId || null);
-      if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ success: false, error: scope.error }) };
+      if (!scope.ok) return response(scope.status, { success: false, error: scope.error });
       const businessId = scope.businessId;
-      const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_settings?business_id=eq.${encodeURIComponent(businessId)}&select=*&limit=1`, { headers: read });
+      const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_settings?business_id=eq.${encodeURIComponent(businessId)}&select=${SETTINGS_SELECT}&limit=1`, { headers: read });
       if (!res.ok) {
         const text = await res.text();
         const missing = schemaMissingResponse(res.status, text, 'housekeeping_service_settings');
-        if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) };
-        return { statusCode: res.status, headers, body: JSON.stringify({ success: false, error: text }) };
+        if (missing) return response(503, missing);
+        console.error('housekeeping-service-settings GET failed:', res.status);
+        return response(503, { success: false, error: 'Unable to load service settings' });
       }
       const settings = (await res.json())[0] || { business_id: businessId, warning_minutes: 15, final_countdown_seconds: 5, voice_enabled: true, sound_enabled: true, allow_pause: false };
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, settings }) };
+      return response(200, { success: true, settings });
     }
 
     const body = JSON.parse(event.body || '{}');
     const scope = resolveBusinessId(gate.principal, body.businessId || null);
-    if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ success: false, error: scope.error }) };
+    if (!scope.ok) return response(scope.status, { success: false, error: scope.error });
     const businessId = scope.businessId;
     const allowed = ['warning_minutes', 'final_countdown_seconds', 'voice_enabled', 'sound_enabled', 'allow_pause'];
     const payload = { business_id: businessId, updated_at: new Date().toISOString() };
@@ -53,8 +57,9 @@ exports.handler = async (event) => {
     if (!existingRes.ok) {
       const text = await existingRes.text();
       const missing = schemaMissingResponse(existingRes.status, text, 'housekeeping_service_settings');
-      if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) };
-      return { statusCode: existingRes.status, headers, body: JSON.stringify({ success: false, error: text }) };
+      if (missing) return response(503, missing);
+      console.error('housekeeping-service-settings lookup failed:', existingRes.status);
+      return response(503, { success: false, error: 'Unable to load service settings' });
     }
     const existing = (await existingRes.json())[0] || null;
     let res;
@@ -66,11 +71,13 @@ exports.handler = async (event) => {
     const rows = await res.json();
     if (!res.ok) {
       const missing = schemaMissingResponse(res.status, rows, 'housekeeping_service_settings');
-      if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) };
-      return { statusCode: res.status, headers, body: JSON.stringify({ success: false, error: rows }) };
+      if (missing) return response(503, missing);
+      console.error('housekeeping-service-settings write failed:', res.status);
+      return response(503, { success: false, error: 'Unable to save service settings' });
     }
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, settings: rows[0] }) };
+    return response(200, { success: true, settings: rows[0] });
   } catch (error) {
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message || 'Failed to save service settings' }) };
+    console.error('housekeeping-service-settings fatal:', error);
+    return response(500, { success: false, error: 'Failed to save service settings' });
   }
 };

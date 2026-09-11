@@ -164,7 +164,7 @@ export async function resolveEffectivePlan(_supabaseIgnored, businessId) {
   let business = null;
   try {
     const rows = await supabaseFetch(
-      `businesses?id=eq.${encodeURIComponent(id)}&select=id,subscription_tier,current_plan,subscription_status,trial_end,billing_cycle&limit=1`
+      `businesses?id=eq.${encodeURIComponent(id)}&select=id,subscription_tier,current_plan,subscription_status,trial_end,billing_cycle,max_rooms&limit=1`
     );
     business = rows?.[0] || null;
   } catch (err) {

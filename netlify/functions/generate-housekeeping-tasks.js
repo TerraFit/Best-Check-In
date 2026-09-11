@@ -335,7 +335,7 @@ exports.handler = async (event) => {
     }
 
     async function patchRoom(roomIdVal, patch) {
-      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${roomIdVal}`, {
+      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${roomIdVal}&business_id=eq.${businessId}`, {
         method: 'PATCH',
         headers: patchHeaders,
         body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
@@ -343,7 +343,7 @@ exports.handler = async (event) => {
     }
 
     async function cancelOpenTask(task) {
-      await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${task.id}`, {
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${task.id}&business_id=eq.${businessId}`, {
         method: 'PATCH',
         headers: patchHeaders,
         body: JSON.stringify({
@@ -496,7 +496,7 @@ exports.handler = async (event) => {
     /** Checkout → Departure Pending + Not Ready (unless already in HK workflow) */
     async function ensureCheckoutNotReady(booking, resolved) {
       const roomRes = await fetch(
-        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=id,housekeeping_status`,
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&business_id=eq.${businessId}&select=id,housekeeping_status`,
         { headers: restGet }
       );
       const roomRows = roomRes.ok ? await roomRes.json() : [];
@@ -516,7 +516,7 @@ exports.handler = async (event) => {
     /** Stayover task → Not Ready (unless already in HK workflow) */
     async function ensureStayoverNotReady(resolved) {
       const roomRes = await fetch(
-        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&select=housekeeping_status`,
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${resolved.room_id}&business_id=eq.${businessId}&select=housekeeping_status`,
         { headers: restGet }
       );
       const rr = roomRes.ok ? await roomRes.json() : [];
@@ -755,18 +755,18 @@ exports.handler = async (event) => {
       }),
     };
   } catch (error) {
-    console.error('generate-housekeeping-tasks fatal:', error);
+    console.error('generate-housekeeping-tasks fatal:', error?.message || error);
 
     if (error && error.name === 'InsertError') {
+      console.error('housekeeping task insert failed', {
+        sqlError: error.sqlError,
+        failedColumn: error.failedColumn,
+        payload: error.payload,
+      });
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({
-          error: error.message,
-          sql_error: error.sqlError,
-          failed_column: error.failedColumn,
-          payload: error.payload,
-        }),
+        body: JSON.stringify({ error: 'Failed to generate housekeeping tasks' }),
       };
     }
 
@@ -774,7 +774,7 @@ exports.handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: error.message || 'Failed to generate housekeeping tasks',
+        error: 'Failed to generate housekeeping tasks',
       }),
     };
   }

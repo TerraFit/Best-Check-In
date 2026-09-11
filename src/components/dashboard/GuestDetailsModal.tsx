@@ -11,6 +11,7 @@ import { useGuestDetails } from '../../hooks/useGuestDetails';
 import { FoodRestrictions } from '../../types/guest';
 import GuestDetailsRoomSection from './GuestDetailsRoomSection';
 import { t } from '../../i18n';
+import { getAuthHeader, getBusinessId } from '../../utils/auth';
 
 interface GuestDetailsModalProps {
   isOpen: boolean;
@@ -65,28 +66,6 @@ const formatDate = (dateStr?: string): string => {
   }
 };
 
-const getBusinessIdFromStorage = (): string | null => {
-  try {
-    const authStr = localStorage.getItem('fastcheckin_auth');
-    if (authStr) {
-      const auth = JSON.parse(authStr);
-      return auth.user?.businessId || null;
-    }
-  } catch (e) {
-    console.warn('Could not get business_id from auth:', e);
-  }
-  try {
-    const businessStr = localStorage.getItem('business');
-    if (businessStr) {
-      const business = JSON.parse(businessStr);
-      return business.id || null;
-    }
-  } catch (e) {
-    console.warn('Could not get business_id from business storage:', e);
-  }
-  return null;
-};
-
 const createAuditLog = async (logData: {
   bookingId: string;
   action: string;
@@ -96,15 +75,13 @@ const createAuditLog = async (logData: {
   guestName?: string;
 }) => {
   try {
-    const authStr = localStorage.getItem('fastcheckin_auth');
-    const auth = authStr ? JSON.parse(authStr) : null;
-    const user = auth?.user || { id: '00000000-0000-0000-0000-000000000000', name: 'Unknown User' };
-    const businessId = logData.businessId || getBusinessIdFromStorage() || '7417fcbb-7771-4d44-8c7f-ccef573fa24b';
+    const businessId = logData.businessId || getBusinessId();
+    if (!businessId) {
+      return { success: false, error: 'Business context is required' };
+    }
+
     const auditLog = {
       business_id: businessId,
-      user_id: user.id || '00000000-0000-0000-0000-000000000000',
-      user_name: user.name || user.full_name || 'Unknown User',
-      user_role: user.role || 'owner',
       action: logData.action,
       details: logData.details,
       description: logData.description,
@@ -115,7 +92,10 @@ const createAuditLog = async (logData: {
     };
     const response = await fetch('/.netlify/functions/create-audit-log', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
       body: JSON.stringify(auditLog)
     });
     if (response.ok) return { success: true };
@@ -232,7 +212,7 @@ export default function GuestDetailsModal({
     setSaveSuccess(false);
     setError(null);
     try {
-      const businessId = businessIdProp || getBusinessIdFromStorage() || '';
+      const businessId = businessIdProp || getBusinessId() || '';
       await updateFoodRestrictions(bookingId, restrictions);
       await createAuditLog({
         bookingId,
@@ -257,7 +237,7 @@ export default function GuestDetailsModal({
     setSavingStay(true);
     setError(null);
     try {
-      const businessId = businessIdProp || getBusinessIdFromStorage() || '';
+      const businessId = businessIdProp || getBusinessId() || '';
       const result = await updateStayDetails(bookingId, stayEditData);
       if (result.success) {
         await createAuditLog({
@@ -293,7 +273,7 @@ export default function GuestDetailsModal({
   };
 
   const resolvedBusinessId =
-    businessIdProp || guestDetails?.business_id || getBusinessIdFromStorage() || '';
+    businessIdProp || guestDetails?.business_id || getBusinessId() || '';
 
   if (!isOpen) return null;
 

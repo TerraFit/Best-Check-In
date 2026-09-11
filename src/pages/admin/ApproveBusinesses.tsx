@@ -1,5 +1,6 @@
 // src/pages/admin/ApproveBusinesses.tsx
 import { useState, useEffect } from 'react';
+import { getAuthHeader } from '../../utils/auth';
 
 interface Director {
   name: string;
@@ -44,7 +45,9 @@ export default function ApproveBusinesses() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/.netlify/functions/get-pending-businesses');
+      const response = await fetch('/.netlify/functions/get-pending-businesses', {
+        headers: { ...getAuthHeader() }
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -76,7 +79,10 @@ export default function ApproveBusinesses() {
     try {
       const response = await fetch('/.netlify/functions/approve-business', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({ businessId })
       });
 

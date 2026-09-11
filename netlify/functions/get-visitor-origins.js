@@ -1,26 +1,28 @@
-const jwt = require('jsonwebtoken');
+import auth from './_auth.cjs';
 
 const createResponse = (statusCode, body) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' }, body: JSON.stringify(body) });
 const cache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
 const cacheKey = (params) => JSON.stringify(params);
 
-exports.handler = async (event) => {
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return createResponse(204, {});
   if (event.httpMethod !== 'GET') return createResponse(405, { success: false, error: 'Method Not Allowed' });
-  try {
-    const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) return createResponse(401, { success: false, error: 'No authorization token provided' });
-    let decoded;
-    try { decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET); }
-    catch (err) { if (err.name === 'TokenExpiredError') return createResponse(401, { success: false, error: 'Token has expired' }); return createResponse(401, { success: false, error: 'Invalid token signature' }); }
 
-    // Authorize from the signed JWT subject, not editable user_metadata.
-    const businessIdFromToken = decoded.sub;
-    if (!businessIdFromToken || decoded.role !== 'authenticated') return createResponse(403, { success: false, error: 'Token missing authenticated business identity' });
+  try {
+    const actor = requireBusinessActor(event);
+    if (!actor.ok) return authFailure(actor);
+
+    if (!requireBusinessPermission(actor.principal, 'canViewReports')) {
+      return authFailure({ status: 403, error: 'Forbidden' });
+    }
+
     const q = event.queryStringParameters || {};
-    const businessId = q.businessId || businessIdFromToken;
-    if (businessId !== businessIdFromToken) return createResponse(403, { success: false, error: 'Forbidden' });
+    const tenant = resolveTenant(actor.principal, q.businessId);
+    if (!tenant.ok) return authFailure(tenant);
+    const businessId = tenant.businessId;
 
     const level = (q.level || 'world').toLowerCase();
     const dateFrom = q.dateFrom || q.startDate || null;
@@ -51,6 +53,6 @@ exports.handler = async (event) => {
     return createResponse(200, { success: true, ...data, limits: getAnalyticsPlanLimits(plan), cached: false });
   } catch (err) {
     console.error('get-visitor-origins error:', err);
-    return createResponse(err.statusCode || 500, { success: false, error: err.message || 'Internal Server Error' });
+    return createResponse(500, { success: false, error: 'Internal Server Error' });
   }
 };

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
+import { getAuthHeader } from '../../utils/auth';
 
 interface MarketingConsentToggleProps {
   businessId: string;
@@ -16,12 +17,11 @@ export default function MarketingConsentToggle({
   initialEnabled = false,
   onToggle,
   className = ''
-}: MarketingConsentToggleProps) {
+}: MarketingConsentToggleProps): JSX.Element {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Load initial state from database
   useEffect(() => {
     if (businessId) {
       loadSettings();
@@ -31,7 +31,9 @@ export default function MarketingConsentToggle({
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/.netlify/functions/get-business-settings?businessId=${businessId}`);
+      const response = await fetch(`/.netlify/functions/get-business-settings?businessId=${businessId}`, {
+        headers: { ...getAuthHeader() }
+      });
       if (response.ok) {
         const data = await response.json();
         setEnabled(data.marketing_consent_enabled || false);
@@ -48,7 +50,10 @@ export default function MarketingConsentToggle({
       setSaving(true);
       const response = await fetch('/.netlify/functions/update-business-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({
           businessId,
           marketing_consent_enabled: newState
@@ -59,13 +64,11 @@ export default function MarketingConsentToggle({
         throw new Error('Failed to save settings');
       }
 
-      // Notify parent
       if (onToggle) {
         onToggle(newState);
       }
     } catch (error) {
       console.error('Error saving marketing consent settings:', error);
-      // Revert on error
       setEnabled(!newState);
       alert('Failed to save settings. Please try again.');
     } finally {
@@ -88,11 +91,10 @@ export default function MarketingConsentToggle({
   }
 
   return (
-    <div 
+    <div
       className={`bg-[#F2F2F2] border-2 border-[#7A7A7A] rounded-[999px] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 ${className}`}
       style={{ minHeight: '120px' }}
     >
-      {/* Left: Label */}
       <div className="flex items-center gap-4">
         <div className="flex-shrink-0">
           {enabled ? (
@@ -110,15 +112,14 @@ export default function MarketingConsentToggle({
             Marketing Consents
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            {enabled 
-              ? '✅ Guests will be asked for marketing consent during check-in' 
+            {enabled
+              ? '✅ Guests will be asked for marketing consent during check-in'
               : '⛔ Marketing consent collection is disabled'}
           </p>
         </div>
       </div>
 
-      {/* Right: Toggle Switch */}
-      <div 
+      <div
         className="relative flex-shrink-0 cursor-pointer"
         style={{ width: '480px', maxWidth: '100%', height: '90px' }}
         onClick={handleToggle}
@@ -133,20 +134,18 @@ export default function MarketingConsentToggle({
           }
         }}
       >
-        {/* Toggle Background */}
-        <div 
+        <div
           className="absolute inset-0 rounded-[999px] transition-all duration-300 ease-in-out overflow-hidden"
           style={{
-            background: enabled 
-              ? 'linear-gradient(145deg, #22c55e, #16a34a)' 
+            background: enabled
+              ? 'linear-gradient(145deg, #22c55e, #16a34a)'
               : 'linear-gradient(145deg, #d1d5db, #9ca3af)',
             boxShadow: enabled
               ? '0 4px 20px rgba(34, 197, 94, 0.3), inset 0 2px 4px rgba(255,255,255,0.2)'
               : '0 4px 15px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.3)'
           }}
         >
-          {/* Inner glow effect */}
-          <div 
+          <div
             className="absolute inset-0 rounded-[999px] pointer-events-none"
             style={{
               background: enabled
@@ -156,33 +155,27 @@ export default function MarketingConsentToggle({
           />
         </div>
 
-        {/* OFF Label (Left side) */}
         <div className="absolute inset-0 flex items-center">
           <div className="w-1/2 flex justify-center items-center">
-            <span 
+            <span
               className="text-4xl md:text-5xl font-bold transition-colors duration-300"
-              style={{
-                color: enabled ? 'rgba(255,255,255,0.3)' : '#000000'
-              }}
+              style={{ color: enabled ? 'rgba(255,255,255,0.3)' : '#000000' }}
             >
               OFF
             </span>
           </div>
           <div className="w-1/2 flex justify-center items-center">
-            <span 
+            <span
               className="text-4xl md:text-5xl font-bold transition-colors duration-300"
-              style={{
-                color: enabled ? '#ffffff' : 'rgba(0,0,0,0.3)'
-              }}
+              style={{ color: enabled ? '#ffffff' : 'rgba(0,0,0,0.3)' }}
             >
               ON
             </span>
           </div>
         </div>
 
-        {/* Sliding Knob */}
-        <div 
-          className={`absolute top-1 w-[calc(50%-8px)] h-[calc(100%-8px)] rounded-[999px] transition-all duration-300 ease-in-out shadow-lg flex items-center justify-center`}
+        <div
+          className="absolute top-1 w-[calc(50%-8px)] h-[calc(100%-8px)] rounded-[999px] transition-all duration-300 ease-in-out shadow-lg flex items-center justify-center"
           style={{
             left: enabled ? 'calc(50% + 4px)' : '4px',
             background: 'linear-gradient(145deg, #ffffff, #f3f4f6)',
@@ -191,15 +184,10 @@ export default function MarketingConsentToggle({
               : '0 2px 12px rgba(0,0,0,0.15), inset 0 -2px 4px rgba(0,0,0,0.05)'
           }}
         >
-          {/* Knob inner gloss */}
-          <div 
+          <div
             className="absolute inset-0 rounded-[999px] pointer-events-none"
-            style={{
-              background: 'radial-gradient(circle at 40% 30%, rgba(255,255,255,0.6) 0%, transparent 70%)'
-            }}
+            style={{ background: 'radial-gradient(circle at 40% 30%, rgba(255,255,255,0.6) 0%, transparent 70%)' }}
           />
-          
-          {/* Knob Icon */}
           {enabled ? (
             <Check size={32} className="text-green-600 relative z-10" />
           ) : (
@@ -207,7 +195,6 @@ export default function MarketingConsentToggle({
           )}
         </div>
 
-        {/* Disabled overlay when saving */}
         {saving && (
           <div className="absolute inset-0 rounded-[999px] bg-black/10 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>

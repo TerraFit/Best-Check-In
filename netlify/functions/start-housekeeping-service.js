@@ -1,56 +1,93 @@
 // Start a measured housekeeping service session.
 // Elapsed time is derived from the persisted server timestamp, not browser ticks.
-// Auth required (fail closed). business_id is bound from JWT.
+// Authorization and tenant identity are authoritative on the server.
 
-const {
-  authenticateHousekeepingServiceLive,
-  resolveBusinessId,
-  schemaMissingResponse,
-  MANAGE_HIERARCHY,
-} = require('./_housekeepingServiceAuth.cjs');
+import auth from './_auth.cjs';
+import rbac from './_rbac.cjs';
+
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 
 const DEFAULT_TARGETS = { refresh: 45, full_service: 60, deep_cleaning: 120, mattress_flip_air: 30, checkout_inspection: 10 };
+const MANAGEMENT_ROLES = new Set(['team leader', 'supervisor', 'foreman', 'manager', 'director', 'general manager', 'business owner']);
 
-exports.handler = async (event) => {
+function hasStartPermission(principal) {
+  if (!principal) return false;
+  if (principal.actorType === 'business') return true;
+  const role = String(principal.role || '').trim().toLowerCase();
+  return MANAGEMENT_ROLES.has(role) || rbac.requirePermission(principal, 'canStartHousekeepingTask');
+}
+
+function isManagement(principal) {
+  if (!principal || principal.actorType === 'business') return true;
+  const role = String(principal.role || '').trim().toLowerCase();
+  const permissions = rbac.resolvePermissions(principal);
+  return MANAGEMENT_ROLES.has(role) || permissions.has('canManageHousekeeping') || permissions.has('canAssignHousekeepingTasks');
+}
+
+async function assertEmployeeActive(principal, headers) {
+  if (principal.actorType !== 'employee' || !principal.employeeId) return null;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(principal.employeeId)}&business_id=eq.${encodeURIComponent(principal.businessId)}&select=id,business_id,status`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
+    if (!res.ok) return { statusCode: 503, headers, body: JSON.stringify({ success: false, error: 'Unable to verify employee status' }) };
+    const employee = (await res.json())[0];
+    if (!employee) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Employee account not found' }) };
+    if (String(employee.status || '').toLowerCase() === 'disabled') return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Account has been disabled. Please contact your administrator.', code: 'EMPLOYEE_DISABLED' }) };
+    if (String(employee.business_id) !== String(principal.businessId)) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Forbidden: business scope mismatch' }) };
+    return null;
+  } catch (error) {
+    console.error('employee status verification failed:', error?.message || error);
+    return { statusCode: 503, headers, body: JSON.stringify({ success: false, error: 'Unable to verify employee status' }) };
+  }
+}
+
+export const handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+
   try {
-    const gate = await authenticateHousekeepingServiceLive(event, 'execute');
-    if (!gate.ok) return { statusCode: gate.status || 401, headers, body: JSON.stringify({ success: false, error: gate.error, code: gate.code }) };
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch { return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Invalid JSON body' }) }; }
+
+    const authResult = requireBusinessActor(event);
+    if (!authResult.ok) return authFailure(authResult, headers);
+    const principal = authResult.principal;
+    const employeeStatusFailure = await assertEmployeeActive(principal, headers);
+    if (employeeStatusFailure) return employeeStatusFailure;
+    if (!hasStartPermission(principal)) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Missing permission: canStartHousekeepingTask' }) };
+
+    const scope = resolveTenant(principal, body.businessId || null);
+    if (!scope.ok) return authFailure(scope, headers);
+    const businessId = scope.businessId;
+    const { taskId, serviceType } = body;
+    if (!taskId || !serviceType) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'taskId and serviceType are required' }) };
+    if (!Object.prototype.hasOwnProperty.call(DEFAULT_TARGETS, serviceType)) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Unsupported service type' }) };
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
-    const body = JSON.parse(event.body || '{}');
-    const { taskId, serviceType } = body;
-    const scope = resolveBusinessId(gate.principal, body.businessId || null);
-    if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ success: false, error: scope.error }) };
-    const businessId = scope.businessId;
-    if (!taskId || !serviceType) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'taskId and serviceType are required' }) };
-    if (!Object.prototype.hasOwnProperty.call(DEFAULT_TARGETS, serviceType)) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Unsupported service type' }) };
     const read = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const write = { ...read, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const q = (v) => encodeURIComponent(v);
+
     const taskRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(taskId)}&business_id=eq.${q(businessId)}&select=*`, { headers: read });
-    if (!taskRes.ok) return { statusCode: taskRes.status, headers, body: JSON.stringify({ success: false, error: await taskRes.text() }) };
+    if (!taskRes.ok) { console.error('housekeeping task lookup failed:', taskRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load housekeeping task' }) }; }
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Housekeeping task not found' }) };
     if (task.status !== 'pending') return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: `Task is already ${task.status}`, task }) };
 
-    const isManagement = gate.principal.actorType === 'business' || gate.principal.actorType === 'super_admin' || MANAGE_HIERARCHY.has(gate.principal.normalizedRole) || gate.principal.permissions?.includes('canManageHousekeeping');
     const assignedEmployeeId = String(task.assigned_staff_id || '');
-    const currentEmployeeId = String(gate.principal.employeeId || '');
-    // Task Assignments is optional: an unassigned task is intentionally available to any
-    // authenticated employee with housekeeping execution permission. Once a task has an
-    // explicit assignment, only that employee (or management) may start it.
-    if (!isManagement && assignedEmployeeId && assignedEmployeeId !== currentEmployeeId) {
-      return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Forbidden: housekeeping task is assigned to another employee' }) };
-    }
+    const currentEmployeeId = String(principal.employeeId || '');
+    if (!isManagement(principal) && assignedEmployeeId && assignedEmployeeId !== currentEmployeeId) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Forbidden: housekeeping task is assigned to another employee' }) };
 
     const roomRes = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(task.room_id)}&business_id=eq.${q(businessId)}&select=id,room_type,room_name,room_number`, { headers: read });
-    if (!roomRes.ok) return { statusCode: roomRes.status, headers, body: JSON.stringify({ success: false, error: await roomRes.text() }) };
+    if (!roomRes.ok) { console.error('housekeeping room lookup failed:', roomRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load room' }) }; }
     const room = (await roomRes.json())[0];
     if (!room) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Room not found' }) };
+
     let settings = null;
     const settingsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_settings?business_id=eq.${q(businessId)}&select=*&limit=1`, { headers: read });
     if (settingsRes.ok) settings = (await settingsRes.json())[0] || null;
@@ -62,15 +99,24 @@ exports.handler = async (event) => {
     const targetMinutes = Number(override?.target_minutes || serviceDefault?.target_minutes || DEFAULT_TARGETS[serviceType]);
     const warningMinutes = Number(settings?.warning_minutes ?? 15);
     const startedAt = new Date().toISOString();
-    const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, { method: 'POST', headers: write, body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: gate.principal.employeeId, employee_name: gate.principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }) });
-    if (!sessionRes.ok) { const text = await sessionRes.text(); const missing = schemaMissingResponse(sessionRes.status, text, 'housekeeping_service_sessions'); if (missing) return { statusCode: 503, headers, body: JSON.stringify(missing) }; return { statusCode: sessionRes.status, headers, body: JSON.stringify({ success: false, error: text }) }; }
+
+    const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, { method: 'POST', headers: write, body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: principal.employeeId, employee_name: principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }) });
+    if (!sessionRes.ok) { console.error('housekeeping session creation failed:', sessionRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) }; }
     const session = (await sessionRes.json())[0];
+    if (!session) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
+
     const taskRes2 = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(task.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'in_progress', started_at: startedAt, updated_at: startedAt }) });
-    if (!taskRes2.ok) { await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'cancelled', updated_at: new Date().toISOString() }) }); return { statusCode: taskRes2.status, headers, body: JSON.stringify({ success: false, error: await taskRes2.text() }) }; }
-    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: { ...write, Prefer: 'return=minimal' }, body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }) });
+    if (!taskRes2.ok) {
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'cancelled', updated_at: new Date().toISOString() }) }).catch(() => {});
+      console.error('housekeeping task start update failed:', taskRes2.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
+    }
+
+    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: { ...write, Prefer: 'return=minimal' }, body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }) }).catch((error) => console.warn('room status update failed:', error?.message || error));
+
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, session, timer: { startedAt, targetMinutes, warningMinutes, finalCountdownSeconds: Number(settings?.final_countdown_seconds ?? 5), voiceEnabled: settings?.voice_enabled ?? true, soundEnabled: settings?.sound_enabled ?? true } }) };
   } catch (error) {
-    console.error('start-housekeeping-service fatal:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message || 'Failed to start housekeeping service' }) };
+    console.error('start-housekeeping-service fatal:', error?.message || error);
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
   }
 };

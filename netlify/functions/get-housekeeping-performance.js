@@ -31,9 +31,7 @@ function add(m, s) {
   const done = Math.min(total, Math.max(0, Number(s.checklist_completed_count) || 0));
   m.checklistDone += done;
   m.checklistTotal += total;
-  if (QUALITY_RESULTS.includes(s.quality_result)) {
-    m.quality[s.quality_result] = (m.quality[s.quality_result] || 0) + 1;
-  }
+  if (QUALITY_RESULTS.includes(s.quality_result)) m.quality[s.quality_result] = (m.quality[s.quality_result] || 0) + 1;
   return true;
 }
 function out(m) {
@@ -48,15 +46,11 @@ function out(m) {
     withinTargetRate: n ? Math.round((m.within / n) * 10000) / 100 : 0,
     overTargetRate: n ? Math.round((m.over / n) * 10000) / 100 : 0,
     averageIssues: n ? Math.round((m.issues / n) * 100) / 100 : 0,
-    checklistCompletionRate: m.checklistTotal
-      ? Math.round((m.checklistDone / m.checklistTotal) * 10000) / 100
-      : null,
+    checklistCompletionRate: m.checklistTotal ? Math.round((m.checklistDone / m.checklistTotal) * 10000) / 100 : null,
     qualityCounts: m.quality,
   };
 }
-function dateOnly(v) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
-}
+function dateOnly(v) { return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null; }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return response(204, {});
@@ -93,14 +87,13 @@ exports.handler = async (event) => {
     params.set('order', 'started_at.asc');
     params.set('limit', '5000');
 
-    const res = await fetch(`${url}/rest/v1/housekeeping_service_sessions?${params}`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
-    });
+    const res = await fetch(`${url}/rest/v1/housekeeping_service_sessions?${params}`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
     if (!res.ok) {
       const text = await res.text();
       const missing = schemaMissingResponse(res.status, text, 'housekeeping_service_sessions');
       if (missing) return response(503, missing);
-      return response(res.status, { success: false, error: text });
+      console.error('get-housekeeping-performance read failed:', res.status);
+      return response(503, { success: false, error: 'Unable to load housekeeping performance data' });
     }
     const sessions = await res.json();
     if (!Array.isArray(sessions)) return response(500, { success: false, error: 'Invalid performance data response' });
@@ -147,6 +140,6 @@ exports.handler = async (event) => {
     });
   } catch (error) {
     console.error('get-housekeeping-performance error:', error);
-    return response(error.statusCode || 500, { success: false, error: error.message || 'Internal Server Error' });
+    return response(500, { success: false, error: 'Failed to load housekeeping performance' });
   }
 };

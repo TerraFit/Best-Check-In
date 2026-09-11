@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
-import { getAuth, clearAuth } from '../utils/auth';
+import { getAuth, getAuthHeader, clearAuth } from '../utils/auth';
 
 interface Director {
   name: string;
@@ -191,7 +191,9 @@ export default function SuperAdminPortal() {
   
   const fetchBusinesses = async () => {
     try {
-      const response = await fetch('/.netlify/functions/get-approved-businesses');
+      const response = await fetch('/.netlify/functions/get-approved-businesses', {
+        headers: { ...getAuthHeader() }
+      });
       const result = await response.json();
       
       console.log('🔍 API Response:', result);
@@ -239,7 +241,9 @@ export default function SuperAdminPortal() {
 
   const fetchPendingCount = async () => {
     try {
-      const response = await fetch('/.netlify/functions/get-pending-businesses');
+      const response = await fetch('/.netlify/functions/get-pending-businesses', {
+        headers: { ...getAuthHeader() }
+      });
       const result = await response.json();
       
       let data = [];
@@ -257,7 +261,9 @@ export default function SuperAdminPortal() {
 
   const fetchChangeRequests = async () => {
     try {
-      const response = await fetch('/.netlify/functions/get-change-requests?status=pending');
+      const response = await fetch('/.netlify/functions/get-change-requests?status=pending', {
+        headers: { ...getAuthHeader() }
+      });
       if (response.ok) {
         const result = await response.json();
         
@@ -367,7 +373,10 @@ export default function SuperAdminPortal() {
     try {
       const response = await fetch('/.netlify/functions/send-payment-reminder', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({ businessId, daysOverdue })
       });
 
@@ -385,12 +394,19 @@ export default function SuperAdminPortal() {
   const toggleServicePause = async (businessId: string, currentStatus: boolean) => {
     setTogglingPause(businessId);
     try {
-      const response = await fetch('/.netlify/functions/update-business-profile', {
+      const response = await fetch('/.netlify/functions/update-business-locked-fields', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({
           businessId,
-          service_paused: !currentStatus
+          updates: {
+            service_paused: !currentStatus
+          },
+          reason: `Service pause ${!currentStatus ? 'enabled' : 'disabled'} from Super Admin portal`,
+          adminEmail: getAuth()?.user?.email
         })
       });
 
@@ -442,7 +458,10 @@ export default function SuperAdminPortal() {
     try {
       const response = await fetch('/.netlify/functions/update-business-locked-fields', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify({
           businessId: editingBusiness.id,
           updates: editFormData,
