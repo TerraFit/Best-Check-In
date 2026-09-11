@@ -136,7 +136,14 @@ export const handler: Handler = async (event, context) => {
       marketing_consent: booking.marketing_consent === true
     };
 
-    return legacyHandler({ ...event, body: JSON.stringify(authoritativeBooking) }, context);
+    return legacyHandler(
+      {
+        ...event,
+        body: JSON.stringify(authoritativeBooking),
+        _authoritativeNewsletterSettings: business
+      },
+      context
+    );
   } catch (error) {
     console.error('❌ Confirmation authorization error:', error);
     return response(500, { error: 'Unable to process confirmation request' });

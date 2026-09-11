@@ -1,6 +1,6 @@
 // netlify/functions/send-confirmation-email.ts - COMPLETE REST MIGRATION
 
-import type { Handler } from '@netlify/functions';
+import type { Handler, HandlerEvent } from '@netlify/functions';
 
 interface BookingData {
   guest_name: string;
@@ -14,6 +14,21 @@ interface BookingData {
   business_id?: string;
   indemnity_token?: string;
   marketing_consent?: boolean;
+}
+
+interface NewsletterSettings {
+  newsletter_enabled?: boolean | null;
+  newsletter_title?: string | null;
+  newsletter_prize?: string | null;
+  newsletter_cta?: string | null;
+  newsletter_terms?: string | null;
+  newsletter_draw_date?: string | null;
+  newsletter_share_text?: string | null;
+  trading_name?: string | null;
+}
+
+interface LegacyEvent extends HandlerEvent {
+  _authoritativeNewsletterSettings?: NewsletterSettings;
 }
 
 export const handler: Handler = async (event) => {
@@ -36,8 +51,11 @@ export const handler: Handler = async (event) => {
     const booking: BookingData = JSON.parse(event.body);
     console.log('📧 Sending email to:', booking.guest_email);
 
-    let newsletterSettings = null;
-    if (booking.business_id) {
+    const legacyEvent = event as LegacyEvent;
+    let newsletterSettings: NewsletterSettings | null =
+      legacyEvent._authoritativeNewsletterSettings || null;
+
+    if (!newsletterSettings && booking.business_id) {
       try {
         const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -178,3 +196,180 @@ export const handler: Handler = async (event) => {
     };
   }
 };
+
+function generateEmailTemplate(booking: BookingData, newsletterSettings?: NewsletterSettings | null): string {
+  const businessName = booking.business_name || 'your accommodation';
+  const checkInDate = new Date(booking.check_in_date).toLocaleDateString('en-ZA', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const checkOutDate = new Date(booking.check_out_date).toLocaleDateString('en-ZA', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Check-in Confirmed</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          line-height: 1.6;
+          color: #1e1e1e;
+          background-color: #f5f5f5;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 40px auto;
+          background: white;
+          border-radius: 24px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .header {
+          background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+          padding: 40px 30px;
+          text-align: center;
+        }
+        .header h1 {
+          color: white;
+          margin: 0;
+          font-size: 28px;
+          font-weight: 700;
+        }
+        .content {
+          padding: 40px 30px;
+        }
+        .booking-details {
+          background: #f9fafb;
+          border-radius: 16px;
+          padding: 24px;
+          margin: 24px 0;
+          border: 1px solid #e5e7eb;
+        }
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 12px 0;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .detail-row:last-child {
+          border-bottom: none;
+        }
+        .detail-label {
+          font-weight: 600;
+          color: #4b5563;
+        }
+        .detail-value {
+          color: #1e1e1e;
+          font-weight: 500;
+        }
+        .button {
+          display: inline-block;
+          background: #f59e0b;
+          color: white;
+          padding: 14px 32px;
+          text-decoration: none;
+          border-radius: 9999px;
+          font-weight: 600;
+          margin: 24px 0;
+          text-align: center;
+        }
+        .footer {
+          background: #f9fafb;
+          padding: 24px 30px;
+          text-align: center;
+          font-size: 12px;
+          color: #6b7280;
+          border-top: 1px solid #e5e7eb;
+        }
+        @media (max-width: 600px) {
+          .container {
+            margin: 20px;
+          }
+          .content {
+            padding: 24px 20px;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>✨ Check-in Confirmed!</h1>
+        </div>
+        
+        <div class="content">
+          <p style="font-size: 18px; margin-bottom: 16px;">
+            Hi <strong>${booking.guest_name}</strong>,
+          </p>
+          
+          <p>
+            Welcome to <strong>${businessName}</strong>! We're thrilled to have you stay with us.
+            Your check-in has been successfully completed.
+          </p>
+          
+          <div class="booking-details">
+            <h3 style="margin-top: 0; margin-bottom: 16px; color: #f59e0b;">
+              📋 Stay Details
+            </h3>
+            
+            <div class="detail-row">
+              <span class="detail-label">Check-in:</span>
+              <span class="detail-value">${checkInDate}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Check-out:</span>
+              <span class="detail-value">${checkOutDate}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Nights:</span>
+              <span class="detail-value">${booking.nights} nights</span>
+            </div>
+            
+            ${booking.total_amount ? `
+            <div class="detail-row">
+              <span class="detail-label">Total Amount:</span>
+              <span class="detail-value">R ${booking.total_amount.toLocaleString()}</span>
+            </div>
+            ` : ''}
+          </div>
+          
+          <div style="text-align: center;">
+            <a href="https://fastcheckin.co.za" class="button">
+              View Your Stay
+            </a>
+          </div>
+          
+          <div style="background: #fef3c7; padding: 16px; border-radius: 12px; margin-top: 24px;">
+            <p style="margin: 0; font-size: 14px;">
+              💡 <strong>Pro tip:</strong> Save this email for quick access to your stay details.
+            </p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p style="margin-bottom: 8px;">
+            Need help? Contact us at <a href="mailto:support@fastcheckin.co.za">support@fastcheckin.co.za</a>
+          </p>
+          <p style="margin: 0;">
+            © ${new Date().getFullYear()} FastCheckin. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
