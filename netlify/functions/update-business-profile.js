@@ -11,21 +11,8 @@ const EDITABLE_PROFILE_FIELDS = new Set([
   'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
   'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
   'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
-  'marketing_consent_enabled', 'directors', 'updated_at'
+  'marketing_consent_enabled', 'directors'
 ]);
-
-// Never return the full businesses row: it contains platform-controlled and sensitive
-// billing/payment/authentication fields that are not part of the profile API contract.
-const PROFILE_RESPONSE_FIELDS = [
-  'id', 'trading_name', 'slogan', 'welcome_message',
-  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
-  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
-  'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
-  'newsletter_enabled', 'newsletter_title', 'newsletter_prize', 'newsletter_cta',
-  'newsletter_terms', 'newsletter_draw_date', 'newsletter_share_text',
-  'marketing_consent_enabled', 'directors', 'updated_at'
-];
-const PROFILE_RESPONSE_FIELD_SET = new Set(PROFILE_RESPONSE_FIELDS);
 
 export const handler = async function(event) {
   const headers = {
@@ -71,7 +58,6 @@ export const handler = async function(event) {
 
     // When total_rooms is being changed, read the licensed ceiling from the authoritative
     // tenant row before allowing the mutation. Never trust a client-supplied max_rooms.
-    let maxRooms = null;
     if (Object.prototype.hasOwnProperty.call(filteredFields, 'total_rooms')) {
       const requestedTotalRooms = Number(filteredFields.total_rooms);
       if (!Number.isInteger(requestedTotalRooms) || requestedTotalRooms < 0) {
@@ -87,7 +73,8 @@ export const handler = async function(event) {
         }
       });
       if (!licenseResponse.ok) {
-        console.error('Business room license lookup failed:', licenseResponse.status);
+        const licenseError = await licenseResponse.text();
+        console.error('Business room license lookup failed:', licenseResponse.status, licenseError);
         return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to load room license', code: 'ROOM_LICENSE_LOOKUP_FAILED' }) };
       }
 
@@ -97,7 +84,7 @@ export const handler = async function(event) {
         return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
       }
 
-      maxRooms = license.max_rooms === null || license.max_rooms === undefined ? null : Number(license.max_rooms);
+      const maxRooms = license.max_rooms === null || license.max_rooms === undefined ? null : Number(license.max_rooms);
       if (maxRooms !== null && (!Number.isInteger(maxRooms) || maxRooms < 0)) {
         console.error('Invalid room license configuration for business:', tenant.businessId);
         return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Invalid room license configuration', code: 'ROOM_LICENSE_INVALID' }) };
@@ -117,15 +104,15 @@ export const handler = async function(event) {
       }
     }
 
-    filteredFields.updated_at = new Date().toISOString();
-
-    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}&select=${encodeURIComponent(PROFILE_RESPONSE_FIELDS.join(','))}`, {
+    // Do not force an updated_at column here. The profile mutation must depend only on
+    // columns that are actually being edited; database triggers can manage timestamps.
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(tenant.businessId)}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Prefer': 'return=minimal'
       },
       body: JSON.stringify(filteredFields)
     });
@@ -134,27 +121,17 @@ export const handler = async function(event) {
     if (!response.ok) {
       console.error('Business profile update failed:', response.status, responseText);
       if (response.status === 404) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
-      throw new Error(`HTTP ${response.status}`);
+      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Business profile could not be updated' }) };
     }
-
-    let updatedBusinesses;
-    try { updatedBusinesses = responseText ? JSON.parse(responseText) : []; }
-    catch { throw new Error('Business update returned an invalid database response'); }
-
-    if (!Array.isArray(updatedBusinesses) || updatedBusinesses.length !== 1) {
-      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business profile could not be updated' }) };
-    }
-
-    // Defense in depth: even if the upstream data layer ignores or violates the select
-    // projection, never serialize an unexpected businesses column to the client.
-    const safeBusiness = Object.fromEntries(
-      Object.entries(updatedBusinesses[0]).filter(([key]) => PROFILE_RESPONSE_FIELD_SET.has(key))
-    );
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: 'Profile updated successfully', updatedFields: Object.keys(filteredFields), data: safeBusiness })
+      body: JSON.stringify({
+        success: true,
+        message: 'Profile updated successfully',
+        updatedFields: Object.keys(filteredFields)
+      })
     };
   } catch (error) {
     console.error('Error updating business profile:', error?.message || error);

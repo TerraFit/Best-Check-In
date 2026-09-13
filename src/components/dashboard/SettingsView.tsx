@@ -14,7 +14,7 @@ interface SettingsViewProps {
     mobile_phone?: string;
     secondary_phone?: string;
     total_rooms?: number;
-    avg_price?: number;
+    max_rooms?: number;
     logo_url?: string;
     directors?: unknown;
   } | null;
@@ -35,7 +35,10 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
     );
   }
 
-  const editableFields = new Set(['email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone']);
+  const editableFields = new Set([
+    'Slogan', 'Total Rooms',
+    'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone'
+  ]);
 
   const directors = Array.isArray(business.directors)
     ? business.directors
@@ -57,7 +60,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
     locked: boolean = true,
     immutable: boolean = false,
   ) => {
-    const displayValue = value || t('common_not_set');
+    const displayValue = value === undefined || value === null || value === '' ? t('common_not_set') : value;
     const isEditable = !locked || editableFields.has(field);
 
     return (
@@ -72,9 +75,6 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           </button>
         ) : (
           <button type="button" onClick={() => onRequestChange(field, String(value || ''), label)} className="shrink-0 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
             {t('settings_request_change')}
           </button>
         ))}
@@ -89,9 +89,9 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           <p className="text-sm font-medium text-gray-700 mb-3">{t('dashboard_business_info')}</p>
           <div className="space-y-1 text-sm">
             {renderField(t('settings_business_id'), businessId, 'id', true, true)}
-            {renderField(t('settings_registered_name'), business.registered_name, 'registered_name', true)}
-            {renderField(t('dashboard_trading_name'), business.trading_name, 'trading_name', true)}
-            {renderField(t('settings_slogan'), business.slogan, 'slogan', true)}
+            {renderField(t('settings_registered_name'), business.registered_name, 'Registered Name', true)}
+            {renderField(t('dashboard_trading_name'), business.trading_name, 'Trading Name', true)}
+            {renderField(t('settings_slogan'), business.slogan, 'Slogan', true)}
             {renderField(t('dashboard_email'), business.email, 'email', false)}
             {renderField(t('settings_secondary_email'), business.secondary_email, 'secondary_email', false)}
             {renderField(t('dashboard_phone'), business.phone, 'phone', false)}
@@ -103,9 +103,11 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_property_details')}</p>
           <div className="space-y-1 text-sm">
-            {renderField(t('dashboard_total_rooms'), business.total_rooms, 'total_rooms', true)}
-            {renderField(t('dashboard_avg_price'), business.avg_price ? `R ${business.avg_price.toLocaleString()}` : t('common_not_set'), 'avg_price', true)}
+            {renderField(t('dashboard_total_rooms'), business.total_rooms, 'Total Rooms', true)}
           </div>
+          {business.max_rooms != null && (
+            <p className="mt-2 text-xs text-gray-500">Licensed room limit: {business.max_rooms}</p>
+          )}
 
           <div className="mt-4 pt-4 border-t border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_directors')}</p>
@@ -125,10 +127,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             ) : (
               <p className="text-sm text-gray-500">{t('settings_no_directors')}</p>
             )}
-            <button type="button" onClick={() => onRequestChange('directors', JSON.stringify(directors), t('settings_directors'))} className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232 18.768 8.768M16.732 3.732a2.5 2.5 0 0 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
+            <button type="button" onClick={() => onRequestChange('Directors', JSON.stringify(directors), t('settings_directors'))} className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
               {t('settings_request_change')}
             </button>
           </div>

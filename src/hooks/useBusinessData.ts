@@ -61,23 +61,29 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
         }),
         fetchWithAuth(`/.netlify/functions/get-business-settings?businessId=${encodeURIComponent(businessId)}${cacheBust}`, {
           signal: controller.signal, cache: 'no-store'
-        }).catch(() => null),
+        })
       ]);
       clearTimeout(timeoutId);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      if (!res.ok) throw new Error(`Business branding HTTP ${res.status}`);
+      if (!settingsRes.ok) {
+        let detail = '';
+        try {
+          const errorBody = await settingsRes.json();
+          detail = errorBody?.error ? `: ${errorBody.error}` : '';
+        } catch {}
+        throw new Error(`Business settings HTTP ${settingsRes.status}${detail}`);
+      }
 
       const data = await res.json();
       const businessData = data.success && data.data ? data.data : data;
       if (!businessData || businessData.id !== businessId) throw new Error('Fresh business profile was not returned');
 
-      // get-business-settings is authenticated and tenant-scoped. It supplies the
-      // operational room count and platform-controlled licensed ceiling without
-      // exposing either value through the public branding endpoint.
-      if (settingsRes?.ok) {
-        const settings = await settingsRes.json();
-        businessData.total_rooms = settings.total_rooms ?? null;
-        businessData.max_rooms = settings.max_rooms ?? null;
-      }
+      // Merge the authenticated, tenant-scoped profile projection. The public
+      // branding endpoint remains deliberately minimal.
+      const settings = await settingsRes.json();
+      Object.assign(businessData, settings);
+      businessData.id = businessId;
 
       if (isMountedRef.current) {
         setBusiness(businessData);
@@ -86,7 +92,7 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       }
       return businessData;
     } catch (err: any) {
-      if (err.name === 'AbortError') console.warn('⚠️ Business branding request timed out');
+      if (err.name === 'AbortError') console.warn('⚠️ Business profile request timed out');
       else console.error('❌ Failed to load business profile:', err);
       if (isMountedRef.current && !business) { setBusiness(null); setBusinessLoadError(true); }
       return null;
@@ -143,7 +149,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     lastFiltersRef.current = '';
     const freshBusiness = await loadBusinessProfile(true);
     if (freshBusiness && isMountedRef.current) {
-      // Do not depend on React state having committed yet. The caller receives the exact database response.
       await Promise.resolve();
       void loadBookings();
     }

@@ -6,7 +6,6 @@ interface BusinessInfoCardProps {
     email?: string
     phone?: string
     total_rooms?: number
-    avg_price?: number
   } | null
 }
 
@@ -38,12 +37,6 @@ export function BusinessInfoCard({ business }: BusinessInfoCardProps) {
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard_total_rooms')}</p>
               <p className="text-sm text-gray-700 mt-1">{business.total_rooms}</p>
-            </div>
-          )}
-          {business.avg_price && (
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard_avg_price')}</p>
-              <p className="text-sm text-gray-700 mt-1">R {business.avg_price.toLocaleString()}</p>
             </div>
           )}
         </div>
