@@ -14,6 +14,7 @@ interface SettingsViewProps {
     mobile_phone?: string;
     secondary_phone?: string;
     total_rooms?: number;
+    max_rooms?: number;
     avg_price?: number;
     logo_url?: string;
     directors?: unknown;
@@ -35,7 +36,12 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
     );
   }
 
-  const editableFields = new Set(['email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone']);
+  // These fields can be changed directly in the profile editor. Registered/trading
+  // names and directors remain approval-controlled through Request Change.
+  const editableFields = new Set([
+    'Slogan', 'Average Room Price', 'Total Rooms',
+    'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone'
+  ]);
 
   const directors = Array.isArray(business.directors)
     ? business.directors
@@ -57,7 +63,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
     locked: boolean = true,
     immutable: boolean = false,
   ) => {
-    const displayValue = value || t('common_not_set');
+    const displayValue = value === undefined || value === null || value === '' ? t('common_not_set') : value;
     const isEditable = !locked || editableFields.has(field);
 
     return (
@@ -106,6 +112,9 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             {renderField(t('dashboard_total_rooms'), business.total_rooms, 'Total Rooms', true)}
             {renderField(t('dashboard_avg_price'), business.avg_price ? `R ${business.avg_price.toLocaleString()}` : t('common_not_set'), 'Average Room Price', true)}
           </div>
+          {business.max_rooms != null && (
+            <p className="mt-2 text-xs text-gray-500">Licensed room limit: {business.max_rooms}</p>
+          )}
 
           <div className="mt-4 pt-4 border-t border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_directors')}</p>
