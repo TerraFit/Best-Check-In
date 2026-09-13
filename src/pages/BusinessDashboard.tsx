@@ -35,7 +35,7 @@ export default function BusinessDashboard() {
 
   useEffect(() => { const tab = searchParams.get('tab'); if (tab && tab !== activeTab) setActiveTab(tab); }, [searchParams, activeTab, setActiveTab]);
   useEffect(() => { if (business) { setNewsletterEnabled(business.newsletter_enabled ?? false); setNewsletterTitle(business.newsletter_title || 'Win Your Next Stay With Us'); setNewsletterPrize(business.newsletter_prize || 'TWO nights for TWO (B&B) + welcome bottle of champagne'); setNewsletterCta(business.newsletter_cta || 'Subscribe now, only takes 1 click.'); setNewsletterTerms(business.newsletter_terms || '*T&C\'s apply. Winner announced monthly.'); setNewsletterDrawDate(business.newsletter_draw_date || ''); setNewsletterShareText(business.newsletter_share_text || 'Want better odds? Share this with friends and family!'); } }, [business]);
-  useEffect(() => { if (business && editingProfile) { setProfileForm({ total_rooms: String(business.total_rooms ?? ''), avg_price: String(business.avg_price ?? ''), logo_url: business.logo_url || '', hero_image_url: business.hero_image_url || '', slogan: business.slogan || '', welcome_message: business.welcome_message || '', email: business.email || '', secondary_email: business.secondary_email || '', phone: business.phone || '', mobile_phone: business.mobile_phone || '', secondary_phone: business.secondary_phone || '' }); } }, [business, editingProfile, setProfileForm]);
+  useEffect(() => { if (business && editingProfile) { setProfileForm({ total_rooms: String(business.total_rooms ?? ''), avg_price: String(business.avg_price ?? ''), max_rooms: String(business.max_rooms ?? ''), logo_url: business.logo_url || '', hero_image_url: business.hero_image_url || '', slogan: business.slogan || '', welcome_message: business.welcome_message || '', email: business.email || '', secondary_email: business.secondary_email || '', phone: business.phone || '', mobile_phone: business.mobile_phone || '', secondary_phone: business.secondary_phone || '' }); } }, [business, editingProfile, setProfileForm]);
   const subscriptionTier = useMemo((): SubscriptionTier => { if (!business) return 'starter'; const planFields = [business.current_plan, business.plan, business.subscription_plan]; for (const field of planFields) { if (field) { const normalized = field.toLowerCase(); if (['starter','growth','pro','business','enterprise'].includes(normalized)) return normalized as SubscriptionTier; } } const tier = business.subscription_tier?.toLowerCase() || ''; if (['monthly','annual','trial','complimentary'].includes(tier)) { const rooms = business.total_rooms || 0; if (rooms >= 16) return 'business'; if (rooms >= 11) return 'pro'; if (rooms >= 6) return 'growth'; return 'starter'; } if (['starter','growth','pro','business'].includes(tier)) return tier as SubscriptionTier; const rooms = business.total_rooms || 0; if (rooms >= 16) return 'business'; if (rooms >= 11) return 'pro'; if (rooms >= 6) return 'growth'; return 'starter'; }, [business]);
   const displayTotalBookings = apiTotalBookings || localTotalBookingsCount || 0;
   const displayTotalPages = apiTotalPages || localTotalPages || 1;
@@ -46,19 +46,27 @@ export default function BusinessDashboard() {
     if (!business?.id) { alert(t('error_unexpected')); return; }
     setSavingProfile(true);
     try {
+      const requestedTotalRooms = Number(formData.total_rooms);
+      if (!Number.isInteger(requestedTotalRooms) || requestedTotalRooms < 0) {
+        throw new Error('Total Rooms must be a non-negative whole number.');
+      }
+      const requestedAvgPrice = Number(formData.avg_price);
+      if (!Number.isFinite(requestedAvgPrice) || requestedAvgPrice < 0) {
+        throw new Error('Average Room Price must be a valid non-negative number.');
+      }
       const updateData = {
         businessId: business.id,
-        total_rooms: parseInt(formData.total_rooms, 10) || 0,
-        avg_price: parseFloat(formData.avg_price) || 0,
+        total_rooms: requestedTotalRooms,
+        avg_price: requestedAvgPrice,
         slogan: formData.slogan || '',
         welcome_message: formData.welcome_message || '',
         logo_url: formData.logo_url || business.logo_url || '',
         hero_image_url: formData.hero_image_url || business.hero_image_url || '',
-        email: formData.email || '',
-        secondary_email: formData.secondary_email || '',
-        phone: formData.phone || '',
-        mobile_phone: formData.mobile_phone || '',
-        secondary_phone: formData.secondary_phone || ''
+        email: formData.email || business.email || '',
+        secondary_email: formData.secondary_email || business.secondary_email || '',
+        phone: formData.phone || business.phone || '',
+        mobile_phone: formData.mobile_phone || business.mobile_phone || '',
+        secondary_phone: formData.secondary_phone || business.secondary_phone || ''
       };
 
       console.log('📝 Saving business profile fields:', Object.keys(updateData).filter(key => key !== 'businessId'));
@@ -87,6 +95,7 @@ export default function BusinessDashboard() {
       setProfileForm({
         total_rooms: String(freshBusiness.total_rooms ?? ''),
         avg_price: String(freshBusiness.avg_price ?? ''),
+        max_rooms: String(freshBusiness.max_rooms ?? ''),
         logo_url: freshBusiness.logo_url || '',
         hero_image_url: freshBusiness.hero_image_url || '',
         slogan: freshBusiness.slogan || '',
