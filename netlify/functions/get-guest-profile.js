@@ -1,7 +1,6 @@
 // netlify/functions/get-guest-profile.js
 // Public returning-guest lookup. This endpoint remains public for the current
-// check-in UX, but it must be bound to the requested establishment and must
-// never expose identity documents or contact/location history.
+// check-in UX, but it is strictly bound to the requested establishment.
 
 export const handler = async function(event) {
   const headers = {
@@ -62,11 +61,10 @@ export const handler = async function(event) {
       return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Business not available' }) };
     }
 
-    // Returning-guest data must come only from a booking belonging to this
-    // establishment. Do not consult the legacy global guest_profiles table:
-    // that table is keyed only by email and is therefore not tenant-scoped.
+    // Returning-guest data comes only from a booking belonging to this
+    // establishment. Never consult the legacy global guest_profiles table.
     const bookingResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&guest_email=eq.${encodedEmail}&select=id,business_id,guest_name,guest_first_name,guest_last_name,guest_country&order=created_at.desc&limit=1`,
+      `${supabaseUrl}/rest/v1/bookings?business_id=eq.${encodedBusinessId}&guest_email=eq.${encodedEmail}&select=id,business_id,guest_name,guest_first_name,guest_last_name,guest_country,guest_phone,guest_id_number,guest_province,guest_city&order=created_at.desc&limit=1`,
       { headers: restHeaders }
     );
     if (!bookingResponse.ok) {
@@ -80,9 +78,6 @@ export const handler = async function(event) {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, profile: null }) };
     }
 
-    // Only return the minimal fields already held by this tenant's booking.
-    // Never expose ID documents, phone numbers, signatures, or location
-    // history through this public returning-guest endpoint.
     const fullName =
       booking.guest_name ||
       [booking.guest_first_name, booking.guest_last_name]
@@ -108,7 +103,11 @@ export const handler = async function(event) {
           full_name: fullName || '',
           first_name: firstName,
           last_name: lastName,
-          country: booking.guest_country || ''
+          country: booking.guest_country || '',
+          phone: booking.guest_phone || '',
+          passport_or_id: booking.guest_id_number || '',
+          province: booking.guest_province || '',
+          city: booking.guest_city || ''
         }
       })
     };
