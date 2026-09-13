@@ -85,7 +85,6 @@ export const handler = async (event) => {
   const businessId = scope.businessId;
 
   try {
-    // Keep the commercial feature gate authoritative and tenant-scoped.
     const denied = await assertFeatureAccess(null, businessId, 'marketing_export');
     if (denied) {
       return {
@@ -96,11 +95,10 @@ export const handler = async (event) => {
     }
 
     const filters = body.filters || {};
-    const params = new URLSearchParams({
-      select: 'guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,marketing_consent,created_at',
-      business_id: `eq.${businessId}`,
-      order: 'created_at.desc',
-    });
+    const params = new URLSearchParams();
+    params.set('select', 'guest_first_name,guest_last_name,guest_email,guest_phone,guest_country,marketing_consent,created_at');
+    params.set('business_id', `eq.${businessId}`);
+    params.set('order', 'created_at.desc');
 
     const marketingConsent = filters.marketingConsent;
     if (marketingConsent === 'subscribed' || marketingConsent === 'consent_given') {
@@ -110,18 +108,14 @@ export const handler = async (event) => {
     }
 
     if (filters.dateFrom) {
-      params.set('created_at', `gte.${filters.dateFrom}T00:00:00.000Z`);
+      params.append('created_at', `gte.${filters.dateFrom}T00:00:00.000Z`);
     }
 
     if (filters.dateTo) {
-      // Use an exclusive next-day boundary so the complete selected date is included.
       const end = new Date(`${filters.dateTo}T00:00:00.000Z`);
       if (!Number.isNaN(end.getTime())) {
         end.setUTCDate(end.getUTCDate() + 1);
-        const existing = params.get('created_at');
-        params.set('created_at', existing
-          ? `${existing}&created_at=lt.${end.toISOString()}`
-          : `lt.${end.toISOString()}`);
+        params.append('created_at', `lt.${end.toISOString()}`);
       }
     }
 
@@ -150,7 +144,6 @@ export const handler = async (event) => {
       body: csv,
     };
   } catch (error) {
-    // Keep sensitive backend details out of the response, but log the exact cause for Netlify.
     console.error('Marketing export failed:', {
       message: error?.message || String(error),
       businessId,
