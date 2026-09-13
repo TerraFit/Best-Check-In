@@ -60,6 +60,8 @@ export default function ChangeRequestModal({ fieldName, currentValue, label, bus
     }
   };
 
+  const isDirectorsField = fieldName.trim().toLowerCase() === 'directors';
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="change-request-title">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -69,7 +71,7 @@ export default function ChangeRequestModal({ fieldName, currentValue, label, bus
         </div>
         <div className="p-6 space-y-5">
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Current Value</label><div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-gray-700 break-words">{currentValue || '(empty)'}</div></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">New Value <span className="text-red-500">*</span></label>{fieldName === 'directors' ? <textarea rows={4} value={requestedValue} onChange={e => setRequestedValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500" /> : <input type="text" value={requestedValue} onChange={e => setRequestedValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500" />}</div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">New Value <span className="text-red-500">*</span></label>{isDirectorsField ? <textarea rows={4} value={requestedValue} onChange={e => setRequestedValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500" /> : <input type="text" value={requestedValue} onChange={e => setRequestedValue(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500" />}</div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Reason for Change <span className="text-red-500">*</span></label><textarea rows={4} value={reason} onChange={e => setReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500" /></div>
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         </div>
