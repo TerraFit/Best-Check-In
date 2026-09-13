@@ -28,7 +28,8 @@ const ALLOWED_FIELDS = new Set([
   'Registered Name',
   'Trading Name',
   'Slogan',
-  'Property Details',
+  'Total Rooms',
+  'Average Room Price',
   'Directors',
 ]);
 
@@ -124,7 +125,8 @@ export const handler = async function (event) {
       'Registered Name': business.registered_name ?? business.legal_name ?? '',
       'Trading Name': business.trading_name ?? '',
       'Slogan': business.slogan ?? '',
-      'Property Details': business.total_rooms == null ? '' : String(business.total_rooms),
+      'Total Rooms': business.total_rooms == null ? '' : String(business.total_rooms),
+      'Average Room Price': business.avg_price == null ? '' : String(business.avg_price),
       'Directors': Array.isArray(business.directors) ? JSON.stringify(business.directors) : (business.directors ?? ''),
     };
 
@@ -162,21 +164,11 @@ export const handler = async function (event) {
           } else {
             const uploadError = await uploadResponse.text();
             console.error('❌ Attachment upload error:', uploadResponse.status, uploadError);
-            attachmentUrls.push({
-              name: attachment.name,
-              type: attachment.type,
-              size: attachment.size,
-              data: attachment.data.substring(0, 200),
-            });
+            attachmentUrls.push({ name: attachment.name, type: attachment.type, size: attachment.size, data: attachment.data.substring(0, 200) });
           }
         } catch (uploadError) {
           console.error('❌ Attachment upload exception:', uploadError);
-          attachmentUrls.push({
-            name: attachment.name,
-            type: attachment.type,
-            size: attachment.size,
-            data: attachment.data.substring(0, 200),
-          });
+          attachmentUrls.push({ name: attachment.name, type: attachment.type, size: attachment.size, data: attachment.data.substring(0, 200) });
         }
       }
     }
@@ -184,11 +176,7 @@ export const handler = async function (event) {
     const now = new Date().toISOString();
     const insertResponse = await fetch(`${supabaseUrl}/rest/v1/change_requests`, {
       method: 'POST',
-      headers: {
-        ...authHeaders,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
+      headers: { ...authHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify({
         business_id: businessId,
         business_name: business.trading_name || business.registered_name || '',
@@ -222,37 +210,18 @@ export const handler = async function (event) {
     try {
       const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
-
       await resend.emails.send({
         from: 'FastCheckin <notifications@fastcheckin.co.za>',
         to: ['inquiry@fastcheckin.co.za'],
         subject: `📝 Change Request: ${business.trading_name || business.registered_name || businessId} - ${fieldName}`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Change Request Submitted</h2>
-            <p><strong>Business:</strong> ${business.trading_name || business.registered_name || businessId}</p>
-            <p><strong>Field:</strong> ${fieldName}</p>
-            <p><strong>Current Value:</strong> ${authoritativeValues[fieldName] || '(empty)'}</p>
-            <p><strong>Requested Value:</strong> ${requestedValue}</p>
-            <p><strong>Reason:</strong> ${reason}</p>
-            ${attachmentUrls.length > 0 ? `<p><strong>Attachments:</strong> ${attachmentUrls.length} file(s)</p>` : ''}
-            <hr>
-            <p><a href="https://fastcheckin.co.za/super-admin">Review in Super Admin Portal</a></p>
-          </div>
-        `,
+        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;"><h2>Change Request Submitted</h2><p><strong>Business:</strong> ${business.trading_name || business.registered_name || businessId}</p><p><strong>Field:</strong> ${fieldName}</p><p><strong>Current Value:</strong> ${authoritativeValues[fieldName] || '(empty)'}</p><p><strong>Requested Value:</strong> ${requestedValue}</p><p><strong>Reason:</strong> ${reason}</p>${attachmentUrls.length > 0 ? `<p><strong>Attachments:</strong> ${attachmentUrls.length} file(s)</p>` : ''}<hr><p><a href="https://fastcheckin.co.za/super-admin">Review in Super Admin Portal</a></p></div>`,
       });
     } catch (emailError) {
       console.error('Email notification error:', emailError);
     }
 
     console.log('✅ Change request submitted:', data?.id);
-
-    return createResponse(200, {
-      success: true,
-      message: 'Change request submitted successfully',
-      requestId: data?.id,
-      status: data?.status || 'pending',
-    });
+    return createResponse(200, { success: true, message: 'Change request submitted successfully', requestId: data?.id, status: data?.status || 'pending' });
   } catch (error) {
     console.error('🔥 Unhandled change request error:', error);
     return createResponse(500, { success: false, error: 'Internal Server Error' });
