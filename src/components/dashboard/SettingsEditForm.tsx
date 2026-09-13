@@ -94,10 +94,6 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
           {profileForm.max_rooms && <p className="mt-1 text-xs text-gray-500">Licensed room limit: {profileForm.max_rooms}. An upgrade prompt will appear if you request more.</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_avg_price_label')}</label>
-          <input type="number" min="0" value={profileForm.avg_price} onChange={e => updateField('avg_price', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-        </div>
-        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_slogan')}</label>
           <input type="text" value={profileForm.slogan} onChange={e => updateField('slogan', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
         </div>
