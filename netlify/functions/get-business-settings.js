@@ -22,17 +22,11 @@ export const handler = async (event) => {
     'Cache-Control': 'no-store, no-cache, must-revalidate'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authentication = requireBusinessActor(event);
   if (!authentication.ok) return authFailure(authentication, headers);
-
   if (!requireBusinessPermission(authentication.principal, 'canManageSettings')) {
     return authFailure({ status: 403, error: 'Missing permission: canManageSettings' }, headers);
   }
@@ -44,14 +38,9 @@ export const handler = async (event) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
     if (!supabaseUrl || !supabaseKey) {
       console.error('get-business-settings: missing Supabase configuration');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Server configuration error' })
-      };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
     const params = new URLSearchParams({
@@ -64,43 +53,34 @@ export const handler = async (event) => {
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
-        Accept: 'application/json'
+        Accept: 'application/json',
+        Prefer: 'count=exact'
       }
     });
 
+    const responseText = await response.text();
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('get-business-settings: Supabase REST error:', response.status, errorText);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to fetch settings' })
-      };
+      console.error('get-business-settings: Supabase REST error:', response.status, responseText);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Business profile could not be loaded' }) };
     }
 
-    const rows = await response.json();
-    const data = Array.isArray(rows) ? rows[0] : null;
+    let rows;
+    try {
+      rows = responseText ? JSON.parse(responseText) : [];
+    } catch (parseError) {
+      console.error('get-business-settings: invalid Supabase response:', parseError?.message || parseError);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Invalid business profile response' }) };
+    }
 
+    const data = Array.isArray(rows) ? rows[0] : null;
     if (!data) {
       console.error('get-business-settings: business not found:', tenant.businessId);
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'Business not found' })
-      };
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(data)
-    };
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
     console.error('Error fetching business settings:', error?.message || error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch settings' })
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch settings' }) };
   }
 };
