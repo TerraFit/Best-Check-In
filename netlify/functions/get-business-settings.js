@@ -3,15 +3,19 @@ import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
 
-// Keep this projection private and tenant-scoped. Only request columns that are
-// part of the registered business profile and required by the dashboard. The
-// public get-business-branding endpoint must not be used for private profile data.
+// Keep this projection private and tenant-scoped. The public
+// get-business-branding endpoint must not be used for private profile data.
+// These are the fields consumed by the authenticated business dashboard and
+// written by update-business-profile.js.
 const PROFILE_FIELDS = [
   'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
-  'email', 'phone', 'website',
+  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
   'total_rooms', 'establishment_type', 'tgsa_grading', 'max_rooms',
   'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
-  'directors'
+  'directors',
+  'newsletter_enabled', 'newsletter_title', 'newsletter_prize',
+  'newsletter_cta', 'newsletter_terms', 'newsletter_draw_date',
+  'newsletter_share_text', 'marketing_consent_enabled'
 ];
 
 export const handler = async (event) => {
