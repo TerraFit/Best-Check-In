@@ -39,7 +39,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
   // These fields can be changed directly in the profile editor. Registered/trading
   // names and directors remain approval-controlled through Request Change.
   const editableFields = new Set([
-    'Slogan', 'Average Room Price', 'Total Rooms',
+    'Slogan', 'Total Rooms',
     'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone'
   ]);
 
@@ -110,7 +110,6 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
           <p className="text-sm font-medium text-gray-700 mb-3">{t('settings_property_details')}</p>
           <div className="space-y-1 text-sm">
             {renderField(t('dashboard_total_rooms'), business.total_rooms, 'Total Rooms', true)}
-            {renderField(t('dashboard_avg_price'), business.avg_price ? `R ${business.avg_price.toLocaleString()}` : t('common_not_set'), 'Average Room Price', true)}
           </div>
           {business.max_rooms != null && (
             <p className="mt-2 text-xs text-gray-500">Licensed room limit: {business.max_rooms}</p>
@@ -137,7 +136,7 @@ export function SettingsView({ business, businessId, onEdit, onRequestChange }: 
             <button type="button" onClick={() => onRequestChange('Directors', JSON.stringify(directors), t('settings_directors'))} className="mt-2 text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232 18.768 8.768M16.732 3.732a2.5 2.5 0 0 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
+              </svg>
               {t('settings_request_change')}
             </button>
           </div>
