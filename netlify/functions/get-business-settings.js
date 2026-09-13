@@ -3,10 +3,10 @@ import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
 
-// Keep this projection private and tenant-scoped. The public
-// get-business-branding endpoint must not be used for private profile data.
-// These are the fields consumed by the authenticated business dashboard and
-// written by update-business-profile.js.
+// Keep this response private and tenant-scoped. Read the complete business row
+// first so this endpoint cannot fail merely because an optional profile field is
+// absent from a deployed schema. Only the dashboard's known profile contract is
+// returned to the authenticated business actor.
 const PROFILE_FIELDS = [
   'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
   'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
@@ -48,9 +48,13 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
+    // Deliberately use select=* here. A fixed PostgREST projection is fragile
+    // when optional columns differ between deployed schema versions. The row is
+    // already restricted to the authenticated tenant, and the response below
+    // remains explicitly whitelisted.
     const params = new URLSearchParams({
       id: `eq.${tenant.businessId}`,
-      select: PROFILE_FIELDS.join(','),
+      select: '*',
       limit: '1'
     });
 
@@ -76,11 +80,15 @@ export const handler = async (event) => {
       return { statusCode: 502, headers, body: JSON.stringify({ error: 'Invalid business profile response' }) };
     }
 
-    const data = Array.isArray(rows) ? rows[0] : null;
-    if (!data) {
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) {
       console.error('get-business-settings: business not found:', tenant.businessId);
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
     }
+
+    const data = Object.fromEntries(
+      PROFILE_FIELDS.map((field) => [field, row[field]])
+    );
 
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
