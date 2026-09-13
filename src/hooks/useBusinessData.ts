@@ -70,13 +70,13 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
       const businessData = data.success && data.data ? data.data : data;
       if (!businessData || businessData.id !== businessId) throw new Error('Fresh business profile was not returned');
 
-      // get-business-settings is authenticated and tenant-scoped. It supplies the
-      // operational room count and platform-controlled licensed ceiling without
-      // exposing either value through the public branding endpoint.
+      // get-business-settings is authenticated and tenant-scoped. Merge its complete
+      // profile projection into the branding response. The public branding endpoint
+      // remains deliberately minimal; private profile fields stay behind auth/RBAC.
       if (settingsRes?.ok) {
         const settings = await settingsRes.json();
-        businessData.total_rooms = settings.total_rooms ?? null;
-        businessData.max_rooms = settings.max_rooms ?? null;
+        Object.assign(businessData, settings);
+        businessData.id = businessId;
       }
 
       if (isMountedRef.current) {
@@ -143,7 +143,6 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     lastFiltersRef.current = '';
     const freshBusiness = await loadBusinessProfile(true);
     if (freshBusiness && isMountedRef.current) {
-      // Do not depend on React state having committed yet. The caller receives the exact database response.
       await Promise.resolve();
       void loadBookings();
     }
