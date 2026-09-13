@@ -5,7 +5,6 @@ import { t } from '../../i18n';
 interface SettingsEditFormProps {
   initialForm: {
     total_rooms: string
-    avg_price: string
     max_rooms: string
     slogan: string
     welcome_message: string
@@ -30,24 +29,19 @@ export function SettingsEditForm({ initialForm, onSave, onCancel, saving }: Sett
     setProfileForm(initialForm)
   }, [initialForm])
 
-  const handleSave = () => {
-    onSave(profileForm)
-  }
+  const handleSave = () => onSave(profileForm)
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file (PNG, JPG, etc.)')
       return
     }
-
     if (file.size > 2 * 1024 * 1024) {
       alert('File must be less than 2MB')
       return
     }
-
     setUploadingLogo(true)
     const reader = new FileReader()
     reader.onloadend = () => {
