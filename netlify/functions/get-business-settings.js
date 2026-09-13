@@ -3,14 +3,15 @@ import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
 
-// Keep this projection private and tenant-scoped. Do not add these fields to the
-// public get-business-branding endpoint.
+// Keep this projection private and tenant-scoped. Only request columns that are
+// part of the registered business profile and required by the dashboard. The
+// public get-business-branding endpoint must not be used for private profile data.
 const PROFILE_FIELDS = [
   'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
-  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
+  'email', 'phone', 'website',
   'total_rooms', 'establishment_type', 'tgsa_grading', 'max_rooms',
   'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
-  'marketing_consent_enabled', 'directors', 'updated_at'
+  'directors'
 ];
 
 export const handler = async (event) => {
@@ -53,8 +54,7 @@ export const handler = async (event) => {
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
-        Accept: 'application/json',
-        Prefer: 'count=exact'
+        Accept: 'application/json'
       }
     });
 
