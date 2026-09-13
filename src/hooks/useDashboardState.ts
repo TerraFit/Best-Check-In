@@ -11,13 +11,13 @@ export function useDashboardState() {
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalBookingsCount, setTotalBookingsCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  
+
   // UI states
   const [activeTab, setActiveTab] = useState('overview');
   const [showQRModal, setShowQRModal] = useState(false);
@@ -26,11 +26,11 @@ export function useDashboardState() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
-  
+
   // Chart type states
   const [guestChartType, setGuestChartType] = useState<'donut' | 'bar'>('donut');
   const [referralChartType, setReferralChartType] = useState<'donut' | 'bar'>('donut');
-  
+
   // Email/Phone inline editing states
   const [editingEmail, setEditingEmail] = useState(false);
   const [editingPhone, setEditingPhone] = useState(false);
@@ -38,15 +38,16 @@ export function useDashboardState() {
   const [newPhone, setNewPhone] = useState('');
   const [updatingEmail, setUpdatingEmail] = useState(false);
   const [updatingPhone, setUpdatingPhone] = useState(false);
-  
+
   // Trial state
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
-  
+
   // Profile form state
   const [profileForm, setProfileForm] = useState({
     total_rooms: '',
     avg_price: '',
+    max_rooms: '',
     logo_url: '',
     hero_image_url: '',
     slogan: '',
@@ -57,12 +58,12 @@ export function useDashboardState() {
     mobile_phone: '',
     secondary_phone: ''
   });
-  
+
   // Unique filter values
   const [uniqueProvinces, setUniqueProvinces] = useState<string[]>([]);
   const [uniqueCities, setUniqueCities] = useState<string[]>([]);
   const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
-  
+
   // Request Change Modal state
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestField, setRequestField] = useState('');
@@ -70,12 +71,12 @@ export function useDashboardState() {
   const [requestNewValue, setRequestNewValue] = useState('');
   const [requestReason, setRequestReason] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
-  
+
   // Appeal Modal state
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [rejectedRequest, setRejectedRequest] = useState<any>(null);
   const [changeRequests, setChangeRequests] = useState<any[]>([]);
-  
+
   // Newsletter states
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
   const [newsletterTitle, setNewsletterTitle] = useState('Win Your Next Stay With Us');
@@ -85,7 +86,7 @@ export function useDashboardState() {
   const [newsletterDrawDate, setNewsletterDrawDate] = useState('');
   const [newsletterShareText, setNewsletterShareText] = useState('Want better odds? Share this with friends and family!');
   const [savingNewsletter, setSavingNewsletter] = useState(false);
-  
+
   // Subscribers state
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [showSubscribers, setShowSubscribers] = useState(false);
