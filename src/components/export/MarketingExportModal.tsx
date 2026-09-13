@@ -20,18 +20,20 @@ interface MarketingExportModalProps {
 
 function getAuthToken(): string | null {
   try {
-    const mainAuth = localStorage.getItem('mainAuth');
-    const businessAuth = localStorage.getItem('businessAuth');
+    // Use the same canonical storage keys as useAuth.ts.
+    const authKeys = ['fastcheckin_auth', 'fastcheckin_business_auth'];
 
-    for (const raw of [mainAuth, businessAuth]) {
+    for (const key of authKeys) {
+      const raw = localStorage.getItem(key);
       if (!raw) continue;
+
       const parsed = JSON.parse(raw);
-      if (parsed?.type === 'business' && typeof parsed?.token === 'string' && parsed.token) {
+      if (typeof parsed?.token === 'string' && parsed.token) {
         return parsed.token;
       }
     }
   } catch (error) {
-    console.error('Unable to read business authentication token for marketing export:', error);
+    console.error('Unable to read authentication token for marketing export:', error);
   }
 
   return null;
