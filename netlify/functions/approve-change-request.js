@@ -7,6 +7,8 @@ const APPROVABLE_FIELDS = new Set([
   'legal name',
   'slogan',
   'location',
+  'total rooms',
+  'average room price',
   'directors',
   'email',
   'secondary email',
@@ -69,6 +71,29 @@ export const handler = async function(event) {
         case 'registered name': updateBusinessData = { registered_name: requestedValue }; break;
         case 'legal name': updateBusinessData = { legal_name: requestedValue }; break;
         case 'slogan': updateBusinessData = { slogan: requestedValue }; break;
+        case 'total rooms': {
+          const totalRooms = Number(requestedValue);
+          if (!Number.isInteger(totalRooms) || totalRooms < 0) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Total Rooms must be a non-negative integer' }) };
+          }
+          const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(changeRequest.business_id)}&select=max_rooms`, { headers: authHeaders });
+          if (!businessResponse.ok) throw new Error(`Failed to load room license: HTTP ${businessResponse.status}`);
+          const businesses = await businessResponse.json();
+          const maxRooms = businesses?.[0]?.max_rooms == null ? null : Number(businesses[0].max_rooms);
+          if (maxRooms !== null && totalRooms > maxRooms) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Requested room count exceeds the business licence. Upgrade the plan before increasing the room count.' }) };
+          }
+          updateBusinessData = { total_rooms: totalRooms };
+          break;
+        }
+        case 'average room price': {
+          const avgPrice = Number(requestedValue);
+          if (!Number.isFinite(avgPrice) || avgPrice < 0) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Average Room Price must be a non-negative number' }) };
+          }
+          updateBusinessData = { avg_price: avgPrice };
+          break;
+        }
         case 'location': {
           const parts = String(requestedValue || '').split(',').map(s => s.trim());
           const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(changeRequest.business_id)}&select=physical_address`, { headers: authHeaders });
