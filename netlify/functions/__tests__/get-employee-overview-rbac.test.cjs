@@ -14,7 +14,6 @@ function token({ role = 'housekeeper', department = null, permission_set = [] } 
   return jwt.sign({
     sub: EMPLOYEE_ID,
     role: 'employee',
-    iss: 'fastcheckin',
     user_metadata: {
       business_id: BUSINESS_ID,
       employee_id: EMPLOYEE_ID,
