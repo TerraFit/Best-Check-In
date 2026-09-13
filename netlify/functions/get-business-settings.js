@@ -4,6 +4,14 @@ import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
 
+const PROFILE_FIELDS = [
+  'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
+  'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
+  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
+  'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
+  'marketing_consent_enabled', 'directors', 'updated_at'
+];
+
 export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -39,7 +47,7 @@ export const handler = async (event) => {
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('marketing_consent_enabled,total_rooms,max_rooms')
+      .select(PROFILE_FIELDS.join(','))
       .eq('id', tenant.businessId)
       .single();
 
@@ -48,11 +56,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        marketing_consent_enabled: data?.marketing_consent_enabled || false,
-        total_rooms: data?.total_rooms ?? null,
-        max_rooms: data?.max_rooms ?? null
-      })
+      body: JSON.stringify(data || {})
     };
   } catch (error) {
     console.error('Error fetching business settings:', error?.message || error);
