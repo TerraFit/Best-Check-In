@@ -1,13 +1,14 @@
 // netlify/functions/get-business-settings.js
-import { createClient } from '@supabase/supabase-js';
 import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
 
+// Keep this projection private and tenant-scoped. Do not add these fields to the
+// public get-business-branding endpoint.
 const PROFILE_FIELDS = [
   'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
   'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
-  'total_rooms', 'avg_price', 'establishment_type', 'tgsa_grading', 'max_rooms',
+  'total_rooms', 'establishment_type', 'tgsa_grading', 'max_rooms',
   'logo_url', 'hero_image_url', 'physical_address', 'postal_address',
   'marketing_consent_enabled', 'directors', 'updated_at'
 ];
@@ -17,7 +18,8 @@ export const handler = async (event) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Cache-Control': 'no-store, no-cache, must-revalidate'
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -40,23 +42,58 @@ export const handler = async (event) => {
   if (!tenant.ok) return authFailure(tenant, headers);
 
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-    const { data, error } = await supabase
-      .from('businesses')
-      .select(PROFILE_FIELDS.join(','))
-      .eq('id', tenant.businessId)
-      .single();
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('get-business-settings: missing Supabase configuration');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
 
-    if (error) throw error;
+    const params = new URLSearchParams({
+      id: `eq.${tenant.businessId}`,
+      select: PROFILE_FIELDS.join(','),
+      limit: '1'
+    });
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?${params.toString()}`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('get-business-settings: Supabase REST error:', response.status, errorText);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to fetch settings' })
+      };
+    }
+
+    const rows = await response.json();
+    const data = Array.isArray(rows) ? rows[0] : null;
+
+    if (!data) {
+      console.error('get-business-settings: business not found:', tenant.businessId);
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Business not found' })
+      };
+    }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data || {})
+      body: JSON.stringify(data)
     };
   } catch (error) {
     console.error('Error fetching business settings:', error?.message || error);
