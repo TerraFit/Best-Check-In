@@ -6,7 +6,7 @@ import auth from './_auth.cjs';
 const { authenticateRequest } = auth;
 
 export const ALL = [
-  'canViewDashboard','canViewGuestDetails','canViewGuestLimited','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule','canAssignHousekeepingTasks','canViewHousekeepingReports','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewLaundryReports','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewLostFound','canCreateLostFound','canEditLostFound','canDisposeLostFound','canViewLostFoundReports','canViewOperationalReports','canViewFinancialReports','canViewMarketingReports','canViewGuestReports','canViewAuditReports','canExportReports','canManageMarketing','canManageStaff','canManageSettings','canViewAuditLog','canApproveRoomChanges','canAccessStaffPortal',
+  'canViewDashboard','canViewGuestOverview','canViewGuestPhone','canViewGuestFoodRestrictions','canViewGuestDetails','canViewGuestLimited','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canApproveInspection','canGenerateHousekeepingSchedule','canAssignHousekeepingTasks','canViewHousekeepingReports','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewLaundryReports','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewLostFound','canCreateLostFound','canEditLostFound','canDisposeLostFound','canViewLostFoundReports','canViewOperationalReports','canViewFinancialReports','canViewMarketingReports','canViewGuestReports','canViewAuditReports','canExportReports','canManageMarketing','canManageStaff','canManageSettings','canViewAuditLog','canApproveRoomChanges','canAccessStaffPortal',
   'canViewPlatformAnalytics','canViewOriginAnalytics','canViewEstablishmentPerformance',
 ];
 
@@ -19,15 +19,18 @@ function expandLegacy(set) {
   return set;
 }
 
-const HK_WORKER = ['canViewDashboard','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
+const GUEST_OVERVIEW = ['canViewDashboard','canViewGuestOverview'];
+const GUEST_OVERVIEW_FULL = GUEST_OVERVIEW.concat(['canViewGuestPhone','canViewGuestFoodRestrictions']);
+const GUEST_OVERVIEW_LIMITED = GUEST_OVERVIEW;
+const HK_WORKER = GUEST_OVERVIEW_LIMITED.concat(['canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited']);
 const HK_LEAD = HK_WORKER.concat(['canApproveInspection','canAssignHousekeepingTasks','canGenerateHousekeepingSchedule','canViewHousekeepingReports','canEditLostFound','canViewRooms']);
 export const ROLE_DEFAULTS = {
   super_admin: ALL,
   business_owner: ALL,
   general_manager: ALL,
-  supervisor: HK_LEAD.concat(['canViewRooms','canAllocateRooms','canViewGuestDetails','canManageBookings','canViewOperationalReports','canViewGuestReports','canAccessStaffPortal','canDisposeLostFound','canViewLostFoundReports']),
-  team_leader: HK_LEAD,
-  front_desk: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound'],
+  supervisor: HK_LEAD.concat(['canViewRooms','canAllocateRooms','canViewGuestDetails','canViewGuestPhone','canViewGuestFoodRestrictions','canManageBookings','canViewOperationalReports','canViewGuestReports','canAccessStaffPortal','canDisposeLostFound','canViewLostFoundReports']),
+  team_leader: HK_LEAD.concat(['canViewGuestPhone','canViewGuestFoodRestrictions']),
+  front_desk: GUEST_OVERVIEW_FULL.concat(['canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound']),
   housekeeper: HK_WORKER,
   laundry_attendant: ['canViewDashboard','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewHousekeeping','canViewLostFound','canViewGuestLimited'],
   maintenance: ['canViewDashboard','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewRooms','canApproveRoomChanges'],
@@ -37,7 +40,7 @@ export const ROLE_DEFAULTS = {
   night_auditor: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewOperationalReports','canViewAuditLog'],
   security: ['canViewDashboard','canViewRooms','canViewGuestLimited','canViewLostFound'],
   custom: ['canViewDashboard'],
-  EmployeeOverview: ['canViewDashboard','canViewGuestDetails','canManageBookings'],
+  EmployeeOverview: GUEST_OVERVIEW_FULL.concat(['canViewGuestDetails','canManageBookings']),
 };
 
 export function normalizeRole(role) {
@@ -47,12 +50,18 @@ export function normalizeRole(role) {
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-export function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
+export function resolvePermissions({ actorType, role, permission_set, permissions, active, department } = {}) {
   if (active === false) return new Set();
   if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
   if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
+  // Kitchen and restaurant/service staff need the operational guest overview,
+  // but not guest phone numbers. Food restrictions are an explicit capability.
+  if (department === 'kitchen' || department === 'restaurant' || department === 'food_beverage') {
+    GUEST_OVERVIEW.forEach((p) => base.add(p));
+    base.add('canViewGuestFoodRestrictions');
+  }
   const supplied = Array.isArray(permission_set) ? permission_set : (Array.isArray(permissions) ? permissions : []);
   if (supplied.length) {
     if (r === 'custom') return expandLegacy(new Set(supplied.filter((p) => typeof p === 'string')));
@@ -79,14 +88,12 @@ export function principalFromJwt(decoded) {
   if ((meta.role === 'super_admin' || meta.super_admin === true || meta.super_admin === 'true') && decoded.role !== 'super_admin') return null;
   if (decoded.role === 'super_admin') return { actorType:'super_admin', role:'super_admin', active:true, userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId:null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
   if (meta.business_id && !meta.employee_id) return { actorType:'business', role:'business_owner', active:meta.active !== false, businessId:meta.business_id, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
-  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false, businessId:meta.business_id || null, employeeId:meta.employee_id || decoded.sub || null, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
+  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', permission_set:meta.permission_set || null, active:meta.active !== false, department:meta.department || null, businessId:meta.business_id || null, employeeId:meta.employee_id || decoded.sub || null, userId:decoded.sub || null, permissions:Array.isArray(meta.permission_set) ? meta.permission_set : [] };
 }
 
 export function assertPermission(event, permission) {
   const authResult = authenticateRequest(event);
   if (!authResult.ok) return authResult;
-  // Use the canonical principal produced by _auth.cjs. Do not reconstruct
-  // identity from decoded mutable metadata in an authorization boundary.
   const principal = authResult.principal;
   if (!principal) return { ok:false, status:403, error:'Invalid application identity' };
   if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
