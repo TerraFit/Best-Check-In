@@ -20,7 +20,7 @@ import ScrollToTop from './components/ScrollToTop';
 import NewsletterSubscribe from './pages/NewsletterSubscribe';
 import Billing from './pages/Billing';
 import IndemnityView from './pages/IndemnityView';
-import { LanguageSelector } from './i18n';
+import { LanguageSelector, useTranslation } from './i18n';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
 import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeDashboard from './pages/EmployeeDashboard';
@@ -31,7 +31,11 @@ import PasswordRecovery from './pages/PasswordRecovery';
 function UnauthorizedPage() { return <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-red-500 mb-4">Unauthorized Access</h1><p className="text-stone-400 mb-6">You don't have permission to view this page.</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>; }
 function NotFoundPage() { return <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-white mb-4">404</h1><p className="text-stone-400 mb-6">Page not found</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>; }
 function AppContent() {
-  return <><div className="fixed top-[72px] right-4 z-30"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
+  // Subscribe the application shell to language changes so components that use the
+  // legacy synchronous `t()` helper also re-render immediately when the language changes.
+  const { language } = useTranslation();
+
+  return <><div className="fixed top-[72px] right-4 z-30"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-sm px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes key={language}>
     <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} />
     <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/password-recovery" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
     <Route path="/indemnity/:token" element={<IndemnityView />} /><Route path="/subscribe" element={<NewsletterSubscribe />} /><Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
