@@ -6,16 +6,33 @@ export function useAuth() {
 
   const getAuthHeaders = () => {
     let token = null;
-    
-    try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        token = auth.token;
-      }
-    } catch (e) {}
-    
+
+    // Business dashboard requests must use the authoritative business session.
+    // The app can legitimately have both a business and employee token in
+    // storage, so the generic fastcheckin_auth value is not sufficient here.
+    const isBusinessRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/business');
+
+    if (isBusinessRoute) {
+      try {
+        const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
+        if (businessAuthStr) {
+          const businessAuth = JSON.parse(businessAuthStr);
+          if (businessAuth?.type === 'business' && businessAuth?.token) token = businessAuth.token;
+        }
+      } catch (e) {}
+    }
+
     if (!token) {
+      try {
+        const authStr = localStorage.getItem('fastcheckin_auth');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          token = auth.token;
+        }
+      } catch (e) {}
+    }
+
+    if (!token && !isBusinessRoute) {
       try {
         const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
         if (businessAuthStr) {
@@ -24,14 +41,14 @@ export function useAuth() {
         }
       } catch (e) {}
     }
-    
+
     if (token) {
       return {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       };
     }
-    
+
     return { 'Content-Type': 'application/json' };
   };
 
@@ -64,7 +81,7 @@ export function useAuth() {
         return business.id || null;
       }
     } catch (e) {}
-    
+
     try {
       const authStr = localStorage.getItem('fastcheckin_business_auth');
       if (authStr) {
@@ -72,7 +89,7 @@ export function useAuth() {
         return auth.businessId || null;
       }
     } catch (e) {}
-    
+
     return null;
   };
 
