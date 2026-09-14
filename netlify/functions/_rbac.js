@@ -19,7 +19,7 @@ function expandLegacy(set) {
   return set;
 }
 
-const HK_WORKER = ['canViewDashboard','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
+const HK_WORKER = ['canViewDashboard','canViewGuestOverview','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
 const HK_LEAD = HK_WORKER.concat(['canApproveInspection','canAssignHousekeepingTasks','canGenerateHousekeepingSchedule','canViewHousekeepingReports','canEditLostFound','canViewRooms']);
 export const ROLE_DEFAULTS = {
   super_admin: ALL,
@@ -27,7 +27,7 @@ export const ROLE_DEFAULTS = {
   general_manager: ALL,
   supervisor: HK_LEAD.concat(['canViewRooms','canAllocateRooms','canViewGuestDetails','canManageBookings','canViewOperationalReports','canViewGuestReports','canAccessStaffPortal','canDisposeLostFound','canViewLostFoundReports']),
   team_leader: HK_LEAD,
-  front_desk: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound'],
+  front_desk: ['canViewDashboard','canViewGuestOverview','canViewGuestPhone','canViewGuestFoodRestrictions','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound'],
   housekeeper: HK_WORKER,
   laundry_attendant: ['canViewDashboard','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewHousekeeping','canViewLostFound','canViewGuestLimited'],
   maintenance: ['canViewDashboard','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewRooms','canApproveRoomChanges'],
@@ -37,7 +37,7 @@ export const ROLE_DEFAULTS = {
   night_auditor: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewOperationalReports','canViewAuditLog'],
   security: ['canViewDashboard','canViewRooms','canViewGuestLimited','canViewLostFound'],
   custom: ['canViewDashboard'],
-  EmployeeOverview: ['canViewDashboard','canViewGuestDetails','canManageBookings'],
+  EmployeeOverview: ['canViewDashboard','canViewGuestOverview','canViewGuestDetails','canManageBookings'],
 };
 
 export function normalizeRole(role) {
@@ -47,12 +47,17 @@ export function normalizeRole(role) {
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-export function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
+export function resolvePermissions({ actorType, role, permission_set, permissions, active, department }) {
   if (active === false) return new Set();
   if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
   if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
+  if (department === 'kitchen' || department === 'restaurant' || department === 'food_beverage') {
+    base.add('canViewDashboard');
+    base.add('canViewGuestOverview');
+    base.add('canViewGuestFoodRestrictions');
+  }
   const supplied = Array.isArray(permission_set) ? permission_set : (Array.isArray(permissions) ? permissions : []);
   if (supplied.length) {
     if (r === 'custom') return expandLegacy(new Set(supplied.filter((p) => typeof p === 'string')));

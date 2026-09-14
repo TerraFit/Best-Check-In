@@ -11,7 +11,22 @@ const SECRET = process.env.SUPABASE_JWT_SECRET;
 function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', expiresIn: '15m', ...options }); }
 function event(token, queryStringParameters, httpMethod = 'GET') { return { httpMethod, headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters }; }
 function employeeToken(businessId = 'biz-a', extraMetadata = {}) {
-  return sign({ sub: `emp-${businessId}`, user_metadata: { business_id: businessId, employee_id: `emp-${businessId}`, staff_role: 'EmployeeOverview', permission_set: ['canViewDashboard'], ...extraMetadata } });
+  const permissionSet = extraMetadata.permission_set || [
+    'canViewDashboard',
+    'canViewGuestOverview',
+    'canViewGuestFoodRestrictions',
+  ];
+
+  return sign({
+    sub: `emp-${businessId}`,
+    user_metadata: {
+      business_id: businessId,
+      employee_id: `emp-${businessId}`,
+      staff_role: 'EmployeeOverview',
+      ...extraMetadata,
+      permission_set: permissionSet,
+    },
+  });
 }
 function businessToken(businessId = 'biz-a') { return sign({ sub: `owner-${businessId}`, user_metadata: { business_id: businessId } }); }
 function platformToken(role = 'platform_analytics') { return sign({ sub: 'platform-1', platform_role: role }); }
@@ -71,9 +86,17 @@ test('employee overview: metadata-only super_admin spoof is rejected', async () 
   assert.equal(result.statusCode, 403);
 });
 
-test('employee overview: employee without dashboard permission is rejected', async () => {
+test('employee overview: employee without guest overview permission is rejected', async () => {
   const { handler } = await loadFunction();
-  const token = sign({ sub: 'emp-biz-a', user_metadata: { business_id: 'biz-a', employee_id: 'emp-biz-a', staff_role: 'EmployeeOverview', permission_set: [] } });
+  const token = sign({
+    sub: 'emp-biz-a',
+    user_metadata: {
+      business_id: 'biz-a',
+      employee_id: 'emp-biz-a',
+      staff_role: 'custom',
+      permission_set: ['canViewDashboard'],
+    },
+  });
   const result = await handler(event(token, { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 403);
 });

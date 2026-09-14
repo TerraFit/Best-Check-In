@@ -60,6 +60,13 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
   const role = normalizeRole(principal.role);
   let base = new Set(ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] || []);
 
+  const department = normalizeDepartment(principal.department);
+  if (department === 'kitchen' || department === 'restaurant' || department === 'food_beverage') {
+    base.add('canViewDashboard');
+    base.add('canViewGuestOverview');
+    base.add('canViewGuestFoodRestrictions');
+  }
+
   // Optional permission_set still merges (e.g. historical custom sets) without rewriting RBAC
   if (principal.permission_set && Array.isArray(principal.permission_set)) {
     for (const p of principal.permission_set) {

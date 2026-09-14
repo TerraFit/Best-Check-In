@@ -58,7 +58,7 @@ function principalFromDecoded(decoded) {
   const businessId = meta.business_id || decoded.business_id || null;
   if (!businessId) return null;
   if (!meta.employee_id) return { actorType:'business', role:'business_owner', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId, employeeId:null, permissions:asPermissions(meta.permission_set || decoded.permission_set), active:meta.active !== false };
-  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId, employeeId:meta.employee_id, permissions:asPermissions(meta.permission_set || decoded.permission_set), active:meta.active !== false };
+  return { actorType:'employee', role:meta.staff_role || meta.role || 'EmployeeOverview', userId:decoded.sub || null, email:decoded.email || meta.email || null, businessId, employeeId:meta.employee_id, department:meta.department || null, permissions:asPermissions(meta.permission_set || decoded.permission_set), active:meta.active !== false };
 }
 function strictSuperAdminVerification(event) {
   const verified = verifyToken(extractToken(event), { issuer:process.env.SUPER_ADMIN_JWT_ISSUER || APPLICATION_JWT_ISSUER, audience:process.env.SUPER_ADMIN_JWT_AUDIENCE || 'super-admin' });
