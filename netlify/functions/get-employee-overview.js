@@ -1,5 +1,5 @@
 import auth from './_auth.cjs';
-import { requirePermission, resolvePermissions } from './_rbac.js';
+import { resolvePermissions } from './_rbac.js';
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, OPTIONS'};
@@ -7,7 +7,7 @@ const response=(statusCode,body)=>({statusCode,headers,body:JSON.stringify(body)
 function todayInSouthAfrica(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function projectGuest(guest,permissions){
   const projected={id:guest.id,guest_name:guest.guest_name||'',guest_country:guest.guest_country||'',check_in_date:guest.check_in_date||null,check_out_date:guest.check_out_date||null,status:guest.status||null,room_id:guest.room_id||null,room_number:guest.room_number||null,room_name:guest.room_name||null};
-  if(requirePermission({permissions:[...permissions]},'canViewGuestPhone'))projected.guest_phone=guest.guest_phone||'';
+  if(permissions.has('canViewGuestPhone'))projected.guest_phone=guest.guest_phone||'';
   return projected;
 }
 export const handler=async(event)=>{

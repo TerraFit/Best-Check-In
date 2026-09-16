@@ -23,6 +23,7 @@ export interface PermissionPrincipal {
   permission_set?: string[] | Permission[] | null;
   active?: boolean | null;
   department?: string | null;
+  additional_departments?: string[] | null;
 }
 
 export function normalizeRole(role: string | null | undefined): StaffRole {
@@ -58,21 +59,69 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
   }
 
   const role = normalizeRole(principal.role);
-  let base = new Set(ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] || []);
+  const base = new Set(
+    ROLE_DEFAULT_PERMISSIONS[role] ||
+    ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] ||
+    []
+  );
 
-  const department = normalizeDepartment(principal.department);
-  if (department === 'kitchen' || department === 'restaurant' || department === 'food_beverage') {
-    base.add('canViewDashboard');
-    base.add('canViewGuestOverview');
-    base.add('canViewGuestFoodRestrictions');
+  // Guest-data access is department-controlled, not role-controlled.
+  // This mirrors the authoritative server policy.
+  const guestDataPermissions: Permission[] = [
+    'canViewGuestOverview',
+    'canViewGuestPhone',
+    'canViewGuestFoodRestrictions',
+  ];
+
+  for (const permission of guestDataPermissions) {
+    base.delete(permission);
   }
 
-  // Optional permission_set still merges (e.g. historical custom sets) without rewriting RBAC
-  if (principal.permission_set && Array.isArray(principal.permission_set)) {
-    for (const p of principal.permission_set) {
-      if (typeof p === 'string' && p.startsWith('can')) {
-        base.add(p as Permission);
-      }
+  const departmentGuestPermissions: Record<StaffDepartment, Permission[]> = {
+    front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+    housekeeping: ['canViewGuestOverview'],
+    laundry: ['canViewGuestOverview'],
+    maintenance: [],
+    administration: [],
+    marketing: [],
+    finance: [],
+    security: ['canViewGuestOverview'],
+    grounds_gardens: [],
+    activities: ['canViewGuestOverview'],
+    food_beverage: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+    kitchen: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+    restaurant: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+    custom: [],
+    management: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  };
+
+  const departments = [
+    principal.department,
+    ...(Array.isArray(principal.additional_departments)
+      ? principal.additional_departments
+      : []),
+  ];
+
+  for (const rawDepartment of departments) {
+    const department = normalizeDepartment(rawDepartment);
+    for (const permission of departmentGuestPermissions[department]) {
+      base.add(permission);
+    }
+  }
+
+  // permission_set remains supported for non-guest operational permissions,
+  // but it cannot manufacture guest-data access. Guest permissions are
+  // exclusively determined by primary/additional departments.
+  const supplied = Array.isArray(principal.permission_set)
+    ? principal.permission_set
+    : [];
+
+  for (const permission of supplied) {
+    if (
+      typeof permission === 'string' &&
+      !guestDataPermissions.includes(permission as Permission)
+    ) {
+      base.add(permission as Permission);
     }
   }
 
@@ -157,6 +206,7 @@ export function employeePrincipal(emp: {
   active?: boolean | null;
   status?: string | null;
   department?: string | null;
+  additional_departments?: string[] | null;
 }): PermissionPrincipal {
   const active =
     emp.active !== false &&
@@ -167,5 +217,6 @@ export function employeePrincipal(emp: {
     permission_set: emp.permission_set,
     active,
     department: emp.department,
+    additional_departments: emp.additional_departments,
   };
 }

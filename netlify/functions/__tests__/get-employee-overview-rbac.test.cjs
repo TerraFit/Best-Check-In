@@ -10,7 +10,12 @@ process.env.SUPABASE_SERVICE_KEY = 'service-key';
 const BUSINESS_ID = '11111111-1111-1111-1111-111111111111';
 const EMPLOYEE_ID = '22222222-2222-2222-2222-222222222222';
 
-function token({ role = 'housekeeper', department = null, permission_set = [] } = {}) {
+function token({
+  role = 'housekeeper',
+  department = null,
+  additional_departments = [],
+  permission_set = [],
+} = {}) {
   return jwt.sign({
     sub: EMPLOYEE_ID,
     role: 'employee',
@@ -19,6 +24,7 @@ function token({ role = 'housekeeper', department = null, permission_set = [] } 
       employee_id: EMPLOYEE_ID,
       staff_role: role,
       department,
+      additional_departments,
       permission_set,
       active: true,
     },
@@ -116,6 +122,25 @@ test('kitchen department receives food restrictions without phone', async () => 
   assert.equal(data.arrivals[0].food_restrictions.vegan, true);
 });
 
+test('employee with kitchen as an additional department receives food restrictions', async () => {
+  const { result } = await invoke({
+    role: 'housekeeper',
+    department: 'housekeeping',
+    additional_departments: ['kitchen'],
+  });
+
+  const data = body(result);
+
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(data.capabilities, {
+    guestOverview: true,
+    guestPhone: false,
+    foodRestrictions: true,
+  });
+  assert.equal('guest_phone' in data.arrivals[0], false);
+  assert.equal(data.arrivals[0].food_restrictions.vegan, true);
+});
+
 test('cross-tenant employee request is rejected before data access', async () => {
   const mock = installFetchMock();
   try {
@@ -126,4 +151,28 @@ test('cross-tenant employee request is rejected before data access', async () =>
   } finally {
     mock.restore();
   }
+});
+test('general manager in maintenance is denied guest overview', async () => {
+  const { result } = await invoke({
+    role: 'general_manager',
+    department: 'maintenance',
+  });
+
+  assert.equal(result.statusCode, 403);
+});
+
+test('general manager in front office receives department guest permissions', async () => {
+  const { result } = await invoke({
+    role: 'general_manager',
+    department: 'front_office',
+  });
+
+  const data = body(result);
+
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(data.capabilities, {
+    guestOverview: true,
+    guestPhone: true,
+    foodRestrictions: true,
+  });
 });

@@ -47,22 +47,88 @@ export function normalizeRole(role) {
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-export function resolvePermissions({ actorType, role, permission_set, permissions, active, department }) {
+const GUEST_DATA_PERMISSIONS = [
+  'canViewGuestOverview',
+  'canViewGuestPhone',
+  'canViewGuestFoodRestrictions',
+];
+
+const DEPARTMENT_GUEST_PERMISSIONS = {
+  front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  housekeeping: ['canViewGuestOverview'],
+  laundry: ['canViewGuestOverview'],
+  maintenance: [],
+  administration: [],
+  marketing: [],
+  finance: [],
+  security: ['canViewGuestOverview'],
+  grounds_gardens: [],
+  activities: ['canViewGuestOverview'],
+  food_beverage: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+  kitchen: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+  restaurant: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  custom: [],
+  management: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+};
+
+function normalizeDepartments(department, additional_departments) {
+  const values = [
+    department,
+    ...(Array.isArray(additional_departments) ? additional_departments : []),
+  ];
+
+  return [...new Set(
+    values.filter((value) => typeof value === 'string' && value in DEPARTMENT_GUEST_PERMISSIONS)
+  )];
+}
+
+export function resolvePermissions({
+  actorType,
+  role,
+  permission_set,
+  permissions,
+  active,
+  department,
+  additional_departments,
+}) {
   if (active === false) return new Set();
-  if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
-  if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
+
+  if (actorType === 'super_admin' || role === 'super_admin') {
+    return expandLegacy(new Set(ALL));
+  }
+
+  if (actorType === 'business' || role === 'business_owner' || role === 'owner') {
+    return expandLegacy(new Set(ALL));
+  }
+
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
-  if (department === 'kitchen' || department === 'restaurant' || department === 'food_beverage') {
-    base.add('canViewDashboard');
-    base.add('canViewGuestOverview');
-    base.add('canViewGuestFoodRestrictions');
+
+  // Guest-data access is department-controlled, not role-controlled.
+  // This prevents a Manager/Director/other authority role in a
+  // non-guest-facing department from receiving guest data merely
+  // because their role has broad administrative permissions.
+  GUEST_DATA_PERMISSIONS.forEach((permission) => base.delete(permission));
+
+  for (const dept of normalizeDepartments(department, additional_departments)) {
+    for (const permission of DEPARTMENT_GUEST_PERMISSIONS[dept]) {
+      base.add(permission);
+    }
   }
-  const supplied = Array.isArray(permission_set) ? permission_set : (Array.isArray(permissions) ? permissions : []);
-  if (supplied.length) {
-    if (r === 'custom') return expandLegacy(new Set(supplied.filter((p) => typeof p === 'string')));
-    supplied.forEach((p) => { if (typeof p === 'string') base.add(p); });
+
+  // permission_set remains supported for non-guest operational permissions,
+  // but it cannot manufacture guest-data access. Guest permissions are
+  // exclusively determined by primary/additional departments.
+  const supplied = Array.isArray(permission_set)
+    ? permission_set
+    : (Array.isArray(permissions) ? permissions : []);
+
+  for (const permission of supplied) {
+    if (typeof permission === 'string' && !GUEST_DATA_PERMISSIONS.includes(permission)) {
+      base.add(permission);
+    }
   }
+
   return expandLegacy(base);
 }
 
