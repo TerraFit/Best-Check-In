@@ -110,7 +110,7 @@ test('employee overview: employee cannot substitute another tenant', async () =>
 test('employee overview: authorized employee queries only the authenticated tenant', async () => {
   const calls = mockFetch();
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   assert.equal(calls.length, 3);
   for (const call of calls) assert.match(call.url, /business_id=eq\.biz-a/);
@@ -133,7 +133,7 @@ test('employee overview: food restriction lookup is limited to booking IDs retur
     return { ok: true, status: 200, json: async () => [{ id: 'booking-a', guest_name: 'Guest', check_in_date: '2026-09-03', check_out_date: '2026-09-04' }], text: async () => '' };
   };
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   const restrictionCall = calls.find((call) => call.url.includes('booking_food_restrictions'));
   assert.ok(restrictionCall);
@@ -149,7 +149,7 @@ test('employee overview: response preserves arrivals, stayovers and departures s
     text: async () => ''
   });
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   const body = JSON.parse(result.body);
   assert.equal(body.success, true);
@@ -163,7 +163,7 @@ test('employee overview: response preserves arrivals, stayovers and departures s
 test('employee overview: booking query failure is sanitized', async () => {
   global.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: 'SECRET database schema and credentials' }), text: async () => 'SECRET database schema and credentials' });
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 500);
   const body = JSON.parse(result.body);
   assert.equal(body.error, 'Unable to load employee overview');
