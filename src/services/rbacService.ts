@@ -34,9 +34,7 @@ export function normalizeRole(role: string | null | undefined): StaffRole {
   return normalizeHierarchyRole(role);
 }
 
-export function normalizeDepartment(
-  dept: string | null | undefined
-): StaffDepartment {
+export function normalizeDepartment(dept: string | null | undefined): StaffDepartment {
   if (!dept) return 'custom';
   if (dept in DEPARTMENT_LABELS) return dept as StaffDepartment;
   return 'custom';
@@ -50,35 +48,33 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
     return expandLegacyPermissions(new Set(ALL_PERMISSIONS));
   }
 
-  if (
-    principal.actorType === 'business' ||
-    principal.role === 'business_owner' ||
-    principal.role === 'owner'
-  ) {
+  if (principal.actorType === 'business' || principal.role === 'business_owner' || principal.role === 'owner') {
     return expandLegacyPermissions(new Set(ALL_PERMISSIONS));
   }
 
   const role = normalizeRole(principal.role);
   const base = new Set(
-    ROLE_DEFAULT_PERMISSIONS[role] ||
-    ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] ||
-    []
+    ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS['Employee (Legacy)'] || []
   );
 
-  // Guest-data access is department-controlled, not role-controlled.
-  // This mirrors the authoritative server policy.
   const guestDataPermissions: Permission[] = [
     'canViewGuestOverview',
     'canViewGuestPhone',
     'canViewGuestFoodRestrictions',
   ];
 
-  for (const permission of guestDataPermissions) {
-    base.delete(permission);
-  }
+  for (const permission of guestDataPermissions) base.delete(permission);
 
-  const departmentGuestPermissions: Record<StaffDepartment, Permission[]> = {
-    front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  const departmentPermissions: Record<StaffDepartment, Permission[]> = {
+    front_office: [
+      'canViewGuestOverview',
+      'canViewGuestPhone',
+      'canViewGuestFoodRestrictions',
+      'canManageBookings',
+      'canCheckGuestsIn',
+      'canAllocateRooms',
+      'canViewRooms',
+    ],
     housekeeping: ['canViewGuestOverview'],
     laundry: ['canViewGuestOverview'],
     maintenance: [],
@@ -97,30 +93,17 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
 
   const departments = [
     principal.department,
-    ...(Array.isArray(principal.additional_departments)
-      ? principal.additional_departments
-      : []),
+    ...(Array.isArray(principal.additional_departments) ? principal.additional_departments : []),
   ];
 
   for (const rawDepartment of departments) {
     const department = normalizeDepartment(rawDepartment);
-    for (const permission of departmentGuestPermissions[department]) {
-      base.add(permission);
-    }
+    for (const permission of departmentPermissions[department]) base.add(permission);
   }
 
-  // permission_set remains supported for non-guest operational permissions,
-  // but it cannot manufacture guest-data access. Guest permissions are
-  // exclusively determined by primary/additional departments.
-  const supplied = Array.isArray(principal.permission_set)
-    ? principal.permission_set
-    : [];
-
+  const supplied = Array.isArray(principal.permission_set) ? principal.permission_set : [];
   for (const permission of supplied) {
-    if (
-      typeof permission === 'string' &&
-      !guestDataPermissions.includes(permission as Permission)
-    ) {
+    if (typeof permission === 'string' && !guestDataPermissions.includes(permission as Permission)) {
       base.add(permission as Permission);
     }
   }
@@ -128,59 +111,38 @@ export function resolvePermissions(principal: PermissionPrincipal): Set<Permissi
   return expandLegacyPermissions(base);
 }
 
-export function hasPermission(
-  principal: PermissionPrincipal,
-  permission: Permission
-): boolean {
+export function hasPermission(principal: PermissionPrincipal, permission: Permission): boolean {
   const set = resolvePermissions(principal);
   if (set.has(permission)) return true;
   if (
-    (permission === 'canStartHousekeepingTask' ||
-      permission === 'canCompleteHousekeepingTask' ||
-      permission === 'canApproveInspection' ||
-      permission === 'canGenerateHousekeepingSchedule') &&
+    (permission === 'canStartHousekeepingTask' || permission === 'canCompleteHousekeepingTask' || permission === 'canApproveInspection' || permission === 'canGenerateHousekeepingSchedule') &&
     set.has('canManageHousekeeping' as Permission)
-  ) {
-    return true;
-  }
+  ) return true;
   return false;
 }
 
-export function hasAnyPermission(
-  principal: PermissionPrincipal,
-  permissions: Permission[]
-): boolean {
+export function hasAnyPermission(principal: PermissionPrincipal, permissions: Permission[]): boolean {
   return permissions.some((p) => hasPermission(principal, p));
 }
 
-export function hasAllPermissions(
-  principal: PermissionPrincipal,
-  permissions: Permission[]
-): boolean {
+export function hasAllPermissions(principal: PermissionPrincipal, permissions: Permission[]): boolean {
   return permissions.every((p) => hasPermission(principal, p));
 }
 
-export function canAccessTab(
-  principal: PermissionPrincipal,
-  tabId: string
-): boolean {
+export function canAccessTab(principal: PermissionPrincipal, tabId: string): boolean {
   const required = TAB_REQUIRED_PERMISSION[tabId];
   if (!required) return true;
   if (Array.isArray(required)) return hasAnyPermission(principal, required);
   return hasPermission(principal, required);
 }
 
-export function filterTabs<
-  T extends { id: string; name: string }
->(principal: PermissionPrincipal, tabs: T[]): T[] {
+export function filterTabs<T extends { id: string; name: string }>(principal: PermissionPrincipal, tabs: T[]): T[] {
   return tabs.filter((t) => canAccessTab(principal, t.id));
 }
 
 export function getEmployeeMenu(principal: PermissionPrincipal): EmployeeMenuItem[] {
   return EMPLOYEE_MENU_ITEMS.filter((item) => {
-    if (Array.isArray(item.required)) {
-      return hasAnyPermission(principal, item.required);
-    }
+    if (Array.isArray(item.required)) return hasAnyPermission(principal, item.required);
     return hasPermission(principal, item.required);
   });
 }
@@ -208,9 +170,7 @@ export function employeePrincipal(emp: {
   department?: string | null;
   additional_departments?: string[] | null;
 }): PermissionPrincipal {
-  const active =
-    emp.active !== false &&
-    (emp.status === undefined || emp.status === null || emp.status === 'Active');
+  const active = emp.active !== false && (emp.status === undefined || emp.status === null || emp.status === 'Active');
   return {
     actorType: 'employee',
     role: emp.staff_role || emp.role,
