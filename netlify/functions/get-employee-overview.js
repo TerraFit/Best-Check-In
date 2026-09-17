@@ -49,6 +49,6 @@ export const handler=async(event)=>{
     }
     const restrictionsByBooking=new Map((restrictions||[]).map(r=>[r.booking_id,r]));
     const project=(guest)=>{const out=projectGuest(guest,permissions);if(permissions.has('canViewGuestFoodRestrictions'))out.food_restrictions=restrictionsByBooking.get(guest.id)||null;return out;};
-    return response(200,{success:true,date:today,capabilities:{guestOverview:true,guestPhone:permissions.has('canViewGuestPhone'),foodRestrictions:permissions.has('canViewGuestFoodRestrictions')},arrivals:(rawArrivals||[]).map(project),stayovers:(rawStayovers||[]).map(project),departures:(rawDepartures||[]).map(project)});
+    return response(200,{success:true,date:today,capabilities:{guestOverview:true,guestPhone:permissions.has('canViewGuestPhone'),foodRestrictions:permissions.has('canViewGuestFoodRestrictions'),frontDeskActions:permissions.has('canCheckGuestsIn')&&permissions.has('canAllocateRooms')},arrivals:(rawArrivals||[]).map(project),stayovers:(rawStayovers||[]).map(project),departures:(rawDepartures||[]).map(project)});
   }catch(error){console.error('get-employee-overview error:',error);return response(500,{error:'Unable to load employee overview'});}
 };
