@@ -43,7 +43,7 @@ export const ROLE_DEFAULTS = {
 export function normalizeRole(role) {
   if (!role) return 'EmployeeOverview';
   if (ROLE_DEFAULTS[role]) return role;
-  const aliases = { owner:'business_owner', business:'business_owner', gm:'general_manager', receptionist:'front_desk', reception:'front_desk', hk:'housekeeper', housekeeping:'housekeeper' };
+  const aliases = { owner:'business_owner', business:'business_owner', gm:'general_manager', manager:'general_manager', receptionist:'front_desk', reception:'front_desk', hk:'housekeeper', housekeeping:'housekeeper' };
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
@@ -54,7 +54,7 @@ const GUEST_DATA_PERMISSIONS = [
 ];
 
 const DEPARTMENT_GUEST_PERMISSIONS = {
-  front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions', 'canManageBookings', 'canCheckGuestsIn', 'canAllocateRooms', 'canViewRooms'],
   housekeeping: ['canViewGuestOverview'],
   laundry: ['canViewGuestOverview'],
   maintenance: [],
@@ -117,8 +117,7 @@ export function resolvePermissions({
   }
 
   // permission_set remains supported for non-guest operational permissions,
-  // but it cannot manufacture guest-data access. Guest permissions are
-  // exclusively determined by primary/additional departments.
+  // but it cannot manufacture the three guest-data permissions.
   const supplied = Array.isArray(permission_set)
     ? permission_set
     : (Array.isArray(permissions) ? permissions : []);
@@ -156,8 +155,6 @@ export function principalFromJwt(decoded) {
 export function assertPermission(event, permission) {
   const authResult = authenticateRequest(event);
   if (!authResult.ok) return authResult;
-  // Use the canonical principal produced by _auth.cjs. Do not reconstruct
-  // identity from decoded mutable metadata in an authorization boundary.
   const principal = authResult.principal;
   if (!principal) return { ok:false, status:403, error:'Invalid application identity' };
   if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
