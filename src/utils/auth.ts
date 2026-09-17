@@ -83,7 +83,7 @@ export const getApiAuthToken = (): string | null => {
 };
 
 export const getAuthHeader = (): { Authorization?: string } => {
-  const token = getAuthToken();
+  const token = getApiAuthToken();
   if (!token) {
     console.warn('⚠️ getAuthHeader: No token found');
     return {};
