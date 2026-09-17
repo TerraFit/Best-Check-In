@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 test('service UI reduces to timer without pausing elapsed time', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
   assert.match(source, /setReduced\(true\)/);
   assert.match(source, /Resume Checklist/);
   assert.match(source, /Timer is calculated from the server-recorded start time and continues while the checklist is reduced/);
@@ -13,7 +13,7 @@ test('service UI reduces to timer without pausing elapsed time', () => {
 });
 
 test('service UI provides required cancellation reason and explicit confirmation', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
   assert.match(source, /Cancel Service/);
   assert.match(source, /Reason <span className="text-red-600">\*<\/span>/);
   assert.match(source, /Confirm Cancellation/);
@@ -26,7 +26,7 @@ test('service UI provides required cancellation reason and explicit confirmation
 });
 
 test('reduced service can auto-expand after returning to a visible tab', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../../../src/components/housekeeping/HousekeepingServiceModal.tsx'), 'utf8');
   assert.match(source, /document\.visibilityState !== 'visible'/);
   assert.match(source, /setTimeout\(\(\) => setReduced\(false\), 10000\)/);
 });
