@@ -132,22 +132,8 @@ export const handler = async (event) => {
       taken_over_by: principal.employeeId || principal.userId || null,
     };
 
-    const newSessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, {
-      method: 'POST',
-      headers: write,
-      body: JSON.stringify(newSessionPayload),
-    });
-    if (!newSessionRes.ok) {
-      const text = await newSessionRes.text();
-      if (/PGRST205|relation .* does not exist|schema cache/i.test(text)) {
-        return response(503, headers, { success: false, error: 'Housekeeping takeover schema is not installed', code: 'HOUSEKEEPING_TAKEOVER_SCHEMA_MISSING', hint: 'Apply migration 018_housekeeping_service_takeover.sql' });
-      }
-      console.error('takeover-housekeeping-service new session failed:', newSessionRes.status);
-      return response(500, headers, { success: false, error: 'Failed to create takeover service session' });
-    }
-    const newSession = (await newSessionRes.json())[0];
-    if (!newSession) return response(500, headers, { success: false, error: 'Failed to create takeover service session' });
-
+    // Close the previous active session first. The database has a unique active-session-per-task index,
+    // so this ordering is required before the replacement session can be inserted.
     const oldSessionUpdate = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}&status=eq.active`,
       {
@@ -164,19 +150,52 @@ export const handler = async (event) => {
       }
     );
     if (!oldSessionUpdate.ok) {
-      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(newSession.id)}&business_id=eq.${q(businessId)}&status=eq.active`, {
+      return response(409, headers, { success: false, error: 'The service changed while it was being taken over. Please refresh and try again.', code: 'TAKEOVER_CONFLICT' });
+    }
+
+    const newSessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, {
+      method: 'POST',
+      headers: write,
+      body: JSON.stringify(newSessionPayload),
+    });
+    if (!newSessionRes.ok) {
+      const text = await newSessionRes.text();
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}&status=eq.cancelled&cancelled_at=eq.${q(takeoverAt)}`, {
         method: 'PATCH',
         headers: write,
         body: JSON.stringify({
-          status: 'cancelled',
-          completed_at: takeoverAt,
-          cancelled_at: takeoverAt,
-          cancelled_by: principal.employeeId || principal.userId || null,
-          cancellation_reason: 'Takeover could not be completed because the previous session could not be closed.',
-          updated_at: takeoverAt,
+          status: 'active',
+          completed_at: null,
+          cancelled_at: null,
+          cancelled_by: null,
+          cancellation_reason: null,
+          updated_at: new Date().toISOString(),
+        }),
+      }).catch((restoreError) => console.error('takeover-housekeeping-service failed to restore previous session:', restoreError?.message || restoreError));
+      if (/PGRST205|relation .* does not exist|schema cache/i.test(text)) {
+        return response(503, headers, { success: false, error: 'Housekeeping takeover schema is not installed', code: 'HOUSEKEEPING_TAKEOVER_SCHEMA_MISSING', hint: 'Apply migration 018_housekeeping_service_takeover.sql' });
+      }
+      if (newSessionRes.status === 409) {
+        return response(409, headers, { success: false, error: 'The service changed while it was being taken over. Please refresh and try again.', code: 'TAKEOVER_CONFLICT' });
+      }
+      console.error('takeover-housekeeping-service new session failed:', newSessionRes.status);
+      return response(500, headers, { success: false, error: 'Failed to create takeover service session' });
+    }
+    const newSession = (await newSessionRes.json())[0];
+    if (!newSession) {
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}&status=eq.cancelled&cancelled_at=eq.${q(takeoverAt)}`, {
+        method: 'PATCH',
+        headers: write,
+        body: JSON.stringify({
+          status: 'active',
+          completed_at: null,
+          cancelled_at: null,
+          cancelled_by: null,
+          cancellation_reason: null,
+          updated_at: new Date().toISOString(),
         }),
       }).catch(() => {});
-      return response(409, headers, { success: false, error: 'The service changed while it was being taken over. Please refresh and try again.', code: 'TAKEOVER_CONFLICT' });
+      return response(500, headers, { success: false, error: 'Failed to create takeover service session' });
     }
 
     return response(200, headers, {
