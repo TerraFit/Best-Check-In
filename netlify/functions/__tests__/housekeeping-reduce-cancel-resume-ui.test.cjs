@@ -30,3 +30,14 @@ test('reduced service can auto-expand after returning to a visible tab', () => {
   assert.match(source, /document\.visibilityState !== 'visible'/);
   assert.match(source, /setTimeout\(\(\) => setReduced\(false\), 10000\)/);
 });
+
+
+test('stale start conflict refreshes the task and opens takeover when another employee has started it', () => {
+  const api = fs.readFileSync(path.join(__dirname, '../../../src/services/housekeepingApi.ts'), 'utf8');
+  const ui = fs.readFileSync(path.join(__dirname, '../../../src/pages/tabs/HousekeepingTab.tsx'), 'utf8');
+  assert.match(api, /error\.status = response\.status/);
+  assert.match(ui, /apiError\.status === 409/);
+  assert.match(ui, /fetchHousekeepingTasks\(\{ businessId, view \}\)/);
+  assert.match(ui, /current\?\.status === 'in_progress' && current\.active_session/);
+  assert.match(ui, /setTakeoverTask\(current\)/);
+});
