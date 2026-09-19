@@ -77,7 +77,17 @@ export const handler = async (event) => {
     if (!taskRes.ok) { console.error('housekeeping task lookup failed:', taskRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load housekeeping task' }) }; }
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Housekeeping task not found' }) };
-    if (task.status !== 'pending') {\n      let conflictTask = task;\n      if (task.status === 'in_progress') {\n        const activeSessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${q(businessId)}&housekeeping_task_id=eq.${q(task.id)}&status=eq.active&select=*&order=started_at.desc&limit=1`, { headers: read });\n        if (activeSessionRes.ok) {\n          const activeSession = (await activeSessionRes.json())[0];\n          if (activeSession) conflictTask = { ...task, active_session: activeSession };\n        }\n      }\n      return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: `Task is already ${task.status}`, task: conflictTask }) };\n    }
+    if (task.status !== 'pending') {
+      let conflictTask = task;
+      if (task.status === 'in_progress') {
+        const activeSessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${q(businessId)}&housekeeping_task_id=eq.${q(task.id)}&status=eq.active&select=*&order=started_at.desc&limit=1`, { headers: read });
+        if (activeSessionRes.ok) {
+          const activeSession = (await activeSessionRes.json())[0];
+          if (activeSession) conflictTask = { ...task, active_session: activeSession };
+        }
+      }
+      return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: `Task is already ${task.status}`, task: conflictTask }) };
+    }
 
     const assignedEmployeeId = String(task.assigned_staff_id || '');
     const currentEmployeeId = String(principal.employeeId || '');
