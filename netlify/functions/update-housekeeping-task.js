@@ -168,10 +168,6 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Use the oldest overdue Refresh skip workflow for skipped housekeeping tasks' }) };
     }
 
-    if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }) };
-    }
-
     if (hasAssignmentMutation && assigned_staff_id !== undefined) {
       const employeeCheck = await verifyAssignedEmployee(businessId, assigned_staff_id);
       if (!employeeCheck.ok) return { statusCode: employeeCheck.status || 500, headers, body: JSON.stringify({ error: employeeCheck.error }) };
