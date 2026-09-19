@@ -10,7 +10,6 @@ const { resolvePermissions } = rbac;
 const STATUS_PERMISSIONS = Object.freeze({
   in_progress: 'canStartHousekeepingTask',
   completed: 'canCompleteHousekeepingTask',
-  skipped: 'canCompleteHousekeepingTask',
 });
 
 const MANAGE_ROLES = new Set(['team_leader', 'supervisor', 'foreman', 'manager', 'general_manager', 'business_owner']);
@@ -163,6 +162,10 @@ export const handler = async (event) => {
       if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
       }
+    }
+
+    if (status === 'skipped') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Use the oldest overdue Refresh skip workflow for skipped housekeeping tasks' }) };
     }
 
     if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
