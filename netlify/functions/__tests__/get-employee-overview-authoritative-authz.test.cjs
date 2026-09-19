@@ -11,7 +11,22 @@ const SECRET = process.env.SUPABASE_JWT_SECRET;
 function sign(payload, options = {}) { return jwt.sign(payload, SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', expiresIn: '15m', ...options }); }
 function event(token, queryStringParameters, httpMethod = 'GET') { return { httpMethod, headers: token ? { authorization: `Bearer ${token}` } : {}, queryStringParameters }; }
 function employeeToken(businessId = 'biz-a', extraMetadata = {}) {
-  return sign({ sub: `emp-${businessId}`, user_metadata: { business_id: businessId, employee_id: `emp-${businessId}`, staff_role: 'EmployeeOverview', permission_set: ['canViewDashboard'], ...extraMetadata } });
+  const permissionSet = extraMetadata.permission_set || [
+    'canViewDashboard',
+    'canViewGuestOverview',
+    'canViewGuestFoodRestrictions',
+  ];
+
+  return sign({
+    sub: `emp-${businessId}`,
+    user_metadata: {
+      business_id: businessId,
+      employee_id: `emp-${businessId}`,
+      staff_role: 'EmployeeOverview',
+      ...extraMetadata,
+      permission_set: permissionSet,
+    },
+  });
 }
 function businessToken(businessId = 'biz-a') { return sign({ sub: `owner-${businessId}`, user_metadata: { business_id: businessId } }); }
 function platformToken(role = 'platform_analytics') { return sign({ sub: 'platform-1', platform_role: role }); }
@@ -71,9 +86,17 @@ test('employee overview: metadata-only super_admin spoof is rejected', async () 
   assert.equal(result.statusCode, 403);
 });
 
-test('employee overview: employee without dashboard permission is rejected', async () => {
+test('employee overview: employee without guest overview permission is rejected', async () => {
   const { handler } = await loadFunction();
-  const token = sign({ sub: 'emp-biz-a', user_metadata: { business_id: 'biz-a', employee_id: 'emp-biz-a', staff_role: 'EmployeeOverview', permission_set: [] } });
+  const token = sign({
+    sub: 'emp-biz-a',
+    user_metadata: {
+      business_id: 'biz-a',
+      employee_id: 'emp-biz-a',
+      staff_role: 'custom',
+      permission_set: ['canViewDashboard'],
+    },
+  });
   const result = await handler(event(token, { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 403);
 });
@@ -87,7 +110,7 @@ test('employee overview: employee cannot substitute another tenant', async () =>
 test('employee overview: authorized employee queries only the authenticated tenant', async () => {
   const calls = mockFetch();
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   assert.equal(calls.length, 3);
   for (const call of calls) assert.match(call.url, /business_id=eq\.biz-a/);
@@ -110,7 +133,7 @@ test('employee overview: food restriction lookup is limited to booking IDs retur
     return { ok: true, status: 200, json: async () => [{ id: 'booking-a', guest_name: 'Guest', check_in_date: '2026-09-03', check_out_date: '2026-09-04' }], text: async () => '' };
   };
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   const restrictionCall = calls.find((call) => call.url.includes('booking_food_restrictions'));
   assert.ok(restrictionCall);
@@ -126,7 +149,7 @@ test('employee overview: response preserves arrivals, stayovers and departures s
     text: async () => ''
   });
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 200);
   const body = JSON.parse(result.body);
   assert.equal(body.success, true);
@@ -140,7 +163,7 @@ test('employee overview: response preserves arrivals, stayovers and departures s
 test('employee overview: booking query failure is sanitized', async () => {
   global.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: 'SECRET database schema and credentials' }), text: async () => 'SECRET database schema and credentials' });
   const { handler } = await loadFunction();
-  const result = await handler(event(employeeToken('biz-a'), { businessId: 'biz-a' }));
+  const result = await handler(event(employeeToken('biz-a', { department: 'front_office' }), { businessId: 'biz-a' }));
   assert.equal(result.statusCode, 500);
   const body = JSON.parse(result.body);
   assert.equal(body.error, 'Unable to load employee overview');

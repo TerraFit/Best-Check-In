@@ -76,8 +76,21 @@ export default function Login() {
             id: data.employee.id,
             email: data.employee.phone_number,
             name: data.employee.full_name,
+            full_name: data.employee.full_name,
+            phone_number: data.employee.phone_number,
             businessId: data.employee.business_id,
-            role: data.employee.role || 'EmployeeOverview'
+            business_id: data.employee.business_id,
+            role: data.employee.role || data.employee.staff_role || 'EmployeeOverview',
+            staff_role: data.employee.staff_role || data.employee.role || 'EmployeeOverview',
+            department: data.employee.department || null,
+            additional_departments: Array.isArray(data.employee.additional_departments)
+              ? data.employee.additional_departments
+              : [],
+            permission_set: Array.isArray(data.employee.permission_set)
+              ? data.employee.permission_set
+              : [],
+            status: data.employee.status || 'Active',
+            active: data.employee.active !== false,
           }
         };
         localStorage.setItem('fastcheckin_employee_auth', JSON.stringify(authData));
