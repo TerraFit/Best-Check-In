@@ -271,7 +271,7 @@ test('Phase 1 completion flow: employee can review persisted issues before compl
 
 test('Phase 1 inspection flow: management can approve or reject a completed task', () => {
   const source = readSource('src/pages/tabs/HousekeepingTab.tsx');
-  assert.match(source, /action: 'skip' \| 'approve' \| 'reject'/);
+  assert.match(source, /act = async \(task: HousekeepingTask, action: 'approve' \| 'reject'\)/);
   assert.match(source, /inspection_status: 'approved'/);
   assert.match(source, /inspection_status: 'rejected', status: 'in_progress'/);
 });
@@ -282,4 +282,33 @@ test('Phase 1 assignment contract: UI assignment is optional and supports return
   assert.match(source, /Any housekeeper — unassign/);
   assert.match(source, /assigned_staff_id: assignedStaffId/);
   assert.match(source, /assigned_staff_name: assignedStaffName/);
+});
+
+
+test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tasks can be deliberately skipped', () => {
+  const ui = readSource('src/pages/tabs/HousekeepingTab.tsx');
+  const api = readSource('src/services/housekeepingApi.ts');
+  const endpoint = readSource('netlify/functions/skip-oldest-housekeeping-service.js');
+  assert.match(ui, /skippableTaskIds/);
+  assert.match(ui, /Skip oldest service/);
+  assert.match(ui, /Why is this service being skipped/);
+  assert.match(ui, /Room was cleaned but not recorded/);
+  assert.match(ui, /Client did not want the room cleaned/);
+  assert.match(ui, /Room was unavailable/);
+  assert.match(ui, /Service was no longer required/);
+  assert.match(ui, /Other/);
+  assert.match(ui, /skipOldestOverdueHousekeepingService/);
+  assert.match(api, /skip-oldest-housekeeping-service/);
+  assert.match(endpoint, /overdueTasks\.length < 2/);
+  assert.match(endpoint, /Only the oldest overdue Refresh service can be skipped/);
+  assert.match(endpoint, /task\.status !== 'pending'/);
+  assert.match(endpoint, /task\.scheduled_date >= today/);
+  assert.match(endpoint, /A skip reason is required/);
+  assert.match(endpoint, /housekeeping_task_skipped/);
+});
+
+test('Phase 1 overdue skip flow: generic task updates cannot bypass the audited skip workflow', () => {
+  const source = readSource('netlify/functions/update-housekeeping-task.js');
+  assert.doesNotMatch(source, /skipped: 'canCompleteHousekeepingTask'/);
+  assert.match(source, /Use the oldest overdue Refresh skip workflow for skipped housekeeping tasks/);
 });

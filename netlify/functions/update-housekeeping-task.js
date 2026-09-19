@@ -10,7 +10,6 @@ const { resolvePermissions } = rbac;
 const STATUS_PERMISSIONS = Object.freeze({
   in_progress: 'canStartHousekeepingTask',
   completed: 'canCompleteHousekeepingTask',
-  skipped: 'canCompleteHousekeepingTask',
 });
 
 const MANAGE_ROLES = new Set(['team_leader', 'supervisor', 'foreman', 'manager', 'general_manager', 'business_owner']);
@@ -165,8 +164,8 @@ export const handler = async (event) => {
       }
     }
 
-    if (status === 'skipped' && (task.task_type !== 'refresh' || task.is_checkout)) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only non-checkout Refresh tasks can be skipped' }) };
+    if (status === 'skipped') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Use the oldest overdue Refresh skip workflow for skipped housekeeping tasks' }) };
     }
 
     if (hasAssignmentMutation && assigned_staff_id !== undefined) {
