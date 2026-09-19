@@ -19,7 +19,7 @@ const SESSION_SELECT = [
   'warning_minutes_snapshot', 'started_at', 'completed_at', 'actual_seconds', 'status',
   'checklist_completed_count', 'checklist_total_count', 'issues_reported_count',
   'checklist_state', 'quality_result', 'rework_started_at', 'rework_completed_at',
-  'rework_seconds', 'notes', 'takeover_from_session_id', 'takeover_reason', 'taken_over_at', 'taken_over_by', 'timer_config', 'created_at', 'updated_at',
+  'rework_seconds', 'notes', 'takeover_from_session_id', 'takeover_reason', 'taken_over_at', 'taken_over_by', 'created_at', 'updated_at',
 ].join(',');
 
 function isReadyStatus(s) { return ['ready', 'clean', 'inspected'].includes(s); }
@@ -88,8 +88,11 @@ exports.handler = async (event) => {
 
     const activeSessionsByTask = {};
     const sessionsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&status=eq.active&select=${SESSION_SELECT}&order=started_at.desc`, { headers: restHeaders });
-    if (!sessionsRes.ok) console.error('get-housekeeping-tasks sessions lookup failed:', { status: sessionsRes.status });
-    else for (const session of await sessionsRes.json()) {
+    if (!sessionsRes.ok) {
+      const e = upstreamFailure(sessionsRes.status, 'active service sessions');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    for (const session of await sessionsRes.json()) {
       const taskKey = session.housekeeping_task_id || session.task_id;
       if (taskKey && !activeSessionsByTask[taskKey]) activeSessionsByTask[taskKey] = session;
     }
