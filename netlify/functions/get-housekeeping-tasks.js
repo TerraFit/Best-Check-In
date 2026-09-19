@@ -19,7 +19,7 @@ const SESSION_SELECT = [
   'warning_minutes_snapshot', 'started_at', 'completed_at', 'actual_seconds', 'status',
   'checklist_completed_count', 'checklist_total_count', 'issues_reported_count',
   'checklist_state', 'quality_result', 'rework_started_at', 'rework_completed_at',
-  'rework_seconds', 'notes', 'timer_config', 'created_at', 'updated_at',
+  'rework_seconds', 'notes', 'takeover_from_session_id', 'takeover_reason', 'taken_over_at', 'taken_over_by', 'timer_config', 'created_at', 'updated_at',
 ].join(',');
 
 function isReadyStatus(s) { return ['ready', 'clean', 'inspected'].includes(s); }
