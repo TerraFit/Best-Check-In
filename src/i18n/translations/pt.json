@@ -122,6 +122,7 @@
   "housekeeping_complete": "Concluir",
   "housekeeping_skip": "Saltar",
   "housekeeping_previous_cleaning_cancelled": "Tentativa de limpeza anterior cancelada",
+  "housekeeping_previous_cleaning_cancelled": "Tentativa de limpeza anterior cancelada",
   "housekeeping_skip_oldest": "Ignorar serviço mais antigo",
   "housekeeping_skip_overdue_title": "Ignorar serviço de limpeza em atraso",
   "housekeeping_skip_overdue_description": "Este quarto tem vários serviços de renovação em atraso. Apenas o serviço mais antigo pode ser ignorado aqui.",
