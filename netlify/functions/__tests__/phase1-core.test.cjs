@@ -290,6 +290,8 @@ test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tas
   const employeeUi = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
   const api = readSource('src/services/housekeepingApi.ts');
   const endpoint = readSource('netlify/functions/skip-oldest-housekeeping-service.js');
+  const taskLoader = readSource('netlify/functions/get-housekeeping-tasks.js');
+  const taskTypes = readSource('src/types/housekeeping.ts');
   assert.match(ui, /skippableTaskIds/);
   assert.match(ui, /housekeeping_skip_oldest/);
   assert.match(ui, /SKIP_REASONS/);
@@ -304,7 +306,14 @@ test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tas
   assert.match(ui, /skipOldestOverdueHousekeepingService/);
   assert.match(api, /skip-oldest-housekeeping-service/);
   assert.match(endpoint, /overdueTasks\.length < 2/);
+  assert.match(endpoint, /hasOlderSkipped/);
+  assert.match(endpoint, /status=eq\.skipped/);
+  assert.match(endpoint, /room_id=is\.null/);
   assert.match(endpoint, /Only the oldest overdue Refresh service can be skipped/);
+  assert.match(taskLoader, /can_skip_oldest/);
+  assert.match(taskLoader, /status=eq\.skipped/);
+  assert.match(taskLoader, /list\.length >= 2 \|\| priorSkipped/);
+  assert.match(taskTypes, /can_skip_oldest\?: boolean/);
   assert.match(endpoint, /task\.status !== 'pending'/);
   assert.match(endpoint, /task\.scheduled_date >= today/);
   assert.match(endpoint, /A skip reason is required/);
