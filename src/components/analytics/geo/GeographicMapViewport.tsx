@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkItl1, loadUkConstituentCountries, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
+import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkConstituentCountries, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
 import { canonicalCountryName, findNodeForFeature, regionNamesMatch } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -213,36 +213,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           return { ...filtered, id: filtered.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } };
         }).filter(Boolean) as FeatureLike[];
 
-        // The bookings store "England" as guest_province. For the UK, that
-        // is too coarse for the map: ONS ITL1 provides the nine actual English
-        // regions. Use those boundaries at the region drill-down level.
-        if (country === 'United Kingdom' && regionNamesMatch(String(selectedRegion || ''), 'England')) {
-          try {
-            const itl1 = await loadUkItl1();
-            const englandRegions = itl1.features
-              .filter(feature => isUkEnglandItl1Region(featureItl1Name(feature.properties || {})))
-              .map((feature, index) => ({
-                ...feature,
-                id: feature.id ?? 'uk-itl1-' + index,
-                properties: {
-                  ...feature.properties,
-                  name: featureItl1Name(feature.properties || {}),
-                  subregionName: featureItl1Name(feature.properties || {}),
-                  count: 0,
-                  percentage: 0,
-                  hasGuests: false,
-                  isSubdivision: true,
-                  fillColor: '#f5f5f4',
-                },
-              })) as FeatureLike[];
-            if (englandRegions.length) {
-              features = englandRegions;
-              setLayerVisibility(map, SUBREGION_LABEL_LAYER, true);
-            }
-          } catch {
-            // Retain the Admin-1 England geometry if the ONS service is unavailable.
-          }
-        }
+
       } else {
         features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent ? featureForContinent(feature, selectedContinent) : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
       }
