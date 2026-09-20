@@ -121,6 +121,7 @@
   "housekeeping_start": "Inizia",
   "housekeeping_complete": "Completa",
   "housekeeping_skip": "Salta",
+  "housekeeping_previous_cleaning_cancelled": "Precedente tentativo di pulizia annullato",
   "housekeeping_skip_oldest": "Salta il servizio più vecchio",
   "housekeeping_skip_overdue_title": "Salta il servizio di pulizia in ritardo",
   "housekeeping_skip_overdue_description": "Questa camera ha più servizi di riassetto in ritardo. Solo il servizio più vecchio può essere saltato da qui.",
