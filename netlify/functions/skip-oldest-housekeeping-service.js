@@ -113,8 +113,11 @@ export const handler = async (event) => {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'This Refresh service is not overdue' }) };
     }
 
+    const roomFilter = task.room_id
+      ? `room_id=eq.${encodeURIComponent(task.room_id)}`
+      : 'room_id=is.null';
     const openRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(task.room_id)}&task_type=eq.refresh&is_checkout=eq.false&status=eq.pending&scheduled_date=lt.${encodeURIComponent(today)}&select=id,scheduled_date,created_at,status&order=scheduled_date.asc,created_at.asc,id.asc`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&${roomFilter}&task_type=eq.refresh&is_checkout=eq.false&status=eq.pending&scheduled_date=lt.${encodeURIComponent(today)}&select=id,scheduled_date,created_at,status&order=scheduled_date.asc,created_at.asc,id.asc`,
       { headers: restHeaders },
     );
     if (!openRes.ok) {
@@ -122,11 +125,37 @@ export const handler = async (event) => {
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
     const overdueTasks = await openRes.json();
-    if (overdueTasks.length < 2) {
-      return { statusCode: 409, headers, body: JSON.stringify({ error: 'There is only one overdue Refresh service for this room; it should be performed rather than skipped.' }) };
+
+    // Once an older overdue Refresh has been skipped, its immediate successor becomes
+    // the new oldest and is eligible even if it is now the only pending overdue task.
+    const skippedRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&${roomFilter}&task_type=eq.refresh&is_checkout=eq.false&status=eq.skipped&scheduled_date=lt.${encodeURIComponent(today)}&select=id,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
+      { headers: restHeaders },
+    );
+    if (!skippedRes.ok) {
+      const e = upstream(skippedRes.status, 'skipped Refresh lookup');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
+    const skippedTasks = await skippedRes.json();
+
+    const compareTaskOrder = (a, b) =>
+      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+      String(a.id).localeCompare(String(b.id));
 
     const oldest = overdueTasks[0];
+    const hasOlderSkipped = skippedTasks.some((skipped) => compareTaskOrder(skipped, oldest) < 0);
+    if (overdueTasks.length < 2 && !hasOlderSkipped) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          error: 'There is only one overdue Refresh service for this room and no previously skipped older service; it should be performed rather than skipped.',
+          code: 'SINGLE_OVERDUE_REFRESH',
+        }),
+      };
+    }
+
     if (oldest.id !== task.id) {
       return {
         statusCode: 409,
