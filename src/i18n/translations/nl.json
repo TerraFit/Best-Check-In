@@ -121,6 +121,7 @@
   "housekeeping_start": "Starten",
   "housekeeping_complete": "Voltooien",
   "housekeeping_skip": "Overslaan",
+  "housekeeping_previous_cleaning_cancelled": "Vorige schoonmaakpoging geannuleerd",
   "housekeeping_skip_oldest": "Oudste service overslaan",
   "housekeeping_skip_overdue_title": "Achterstallige huishoudservice overslaan",
   "housekeeping_skip_overdue_description": "Deze kamer heeft meerdere achterstallige refresh-services. Alleen de oudste service kan hier worden overgeslagen.",
