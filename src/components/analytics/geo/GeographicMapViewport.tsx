@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadAdmin2, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureAdmin2Name } from './loadGeo';
+import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkItl1, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
 import { canonicalCountryName, findNodeForFeature, regionNamesMatch } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -161,7 +161,16 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       if (level === 'cities') {
         setCityLoading(true); setLayerVisibility(map, FILL_LAYER, false); setLayerVisibility(map, LINE_LAYER, false); setLayerVisibility(map, CITY_LAYER, true); setLayerVisibility(map, CITY_LABEL_LAYER, true); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
         try {
-          const points = await geocodeCities(nodes, selectedCountry, selectedRegion); if (cancelled) return;
+          const apiRegion = selectedCountry === 'United Kingdom' && isUkEnglandItl1Region(selectedRegion) ? 'England' : selectedRegion;
+          let points = await geocodeCities(nodes, selectedCountry, apiRegion);
+          if (selectedCountry === 'United Kingdom' && isUkEnglandItl1Region(selectedRegion)) {
+            try {
+              const itl1 = await loadUkItl1();
+              const selected = itl1.features.find(feature => regionNamesMatch(featureItl1Name(feature.properties || {}), selectedRegion));
+              if (selected) points = points.filter(point => pointInGeometry([point.longitude, point.latitude], selected.geometry));
+            } catch { /* retain geocoded England points if the optional ONS filter is unavailable */ }
+          }
+          if (cancelled) return;
           const features = points.map((point, index) => ({ type: 'Feature' as const, id: `city-${index}-${point.name}`, geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] }, properties: { name: point.name, count: point.count, percentage: point.percentage, hasGuests: point.count > 0, fillColor: heatColor(point.count) } }));
           map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
           if (!preserveCamera) {
@@ -194,32 +203,21 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           return { ...filtered, id: filtered.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } };
         }).filter(Boolean) as FeatureLike[];
 
-        // Some countries have another useful geographic layer beneath the
-        // stored Admin-1 value. England is the important example: "England"
-        // is the stored region, while the nine English regions sit beneath it.
-        // Show that subdivision layer without pretending the existing booking
-        // data contains second-order counts.
-        try {
-          const world = await loadWorldCountries();
-          const countryFeature = world.features.find(feature => countryMatches(feature, country));
-          const iso3 = String(countryFeature?.properties?.ISO_A3 || countryFeature?.properties?.ADM0_A3 || '').trim().toUpperCase();
-          const selectedRegionFeature = features.find(feature => regionNamesMatch(String(feature.properties?.name || ''), selectedRegion));
-          if (iso3 && selectedRegionFeature) {
-            const admin2 = await loadAdmin2(iso3);
-            const subregions = admin2.features
-              .filter(feature => {
-                const p = feature.properties || {};
-                const group = String(p.shapeGroup || p.shapeISO || p.ISO_A3 || '').trim().toUpperCase();
-                return group === iso3;
-              })
-              .filter(feature => admin2BelongsToRegion(feature, selectedRegionFeature.geometry))
+        // The bookings store "England" as guest_province. For the UK, that
+        // is too coarse for the map: ONS ITL1 provides the nine actual English
+        // regions. Use those boundaries at the region drill-down level.
+        if (country === 'United Kingdom' && regionNamesMatch(String(selectedRegion || ''), 'England')) {
+          try {
+            const itl1 = await loadUkItl1();
+            const englandRegions = itl1.features
+              .filter(feature => isUkEnglandItl1Region(featureItl1Name(feature.properties || {})))
               .map((feature, index) => ({
                 ...feature,
-                id: feature.id ?? `subregion-${index}`,
+                id: feature.id ?? 'uk-itl1-' + index,
                 properties: {
                   ...feature.properties,
-                  name: featureAdmin2Name(feature.properties || {}) || 'Subdivision',
-                  subregionName: featureAdmin2Name(feature.properties || {}) || '',
+                  name: featureItl1Name(feature.properties || {}),
+                  subregionName: featureItl1Name(feature.properties || {}),
                   count: 0,
                   percentage: 0,
                   hasGuests: false,
@@ -227,13 +225,13 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
                   fillColor: '#f5f5f4',
                 },
               })) as FeatureLike[];
-            if (subregions.length) {
-              features = subregions;
+            if (englandRegions.length) {
+              features = englandRegions;
               setLayerVisibility(map, SUBREGION_LABEL_LAYER, true);
             }
+          } catch {
+            // Retain the Admin-1 England geometry if the ONS service is unavailable.
           }
-        } catch {
-          // Admin-2 is an enhancement; retain the reliable Admin-1 map if unavailable.
         }
       } else {
         features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent ? featureForContinent(feature, selectedContinent) : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
@@ -274,7 +272,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
 
   useEffect(() => {
     const map = mapRef.current; if (!map || !mapReady) return;
-    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; if (feature?.properties?.isSubdivision) return; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
+    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
     const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => { const feature = event.features?.[0]; if (!feature?.properties?.name) { setHover(null); return; } const displayName = level === 'world' ? featureContinent(feature, getContinent) : String(feature.properties.name); setHover({ name: displayName, count: Number(feature.properties.count) || 0, percentage: Number(feature.properties.percentage) || 0, isSubdivision: feature.properties.isSubdivision === true, x: event.point?.x ?? 0, y: event.point?.y ?? 0 }); try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* optional */ } };
     const onLeave = () => { setHover(null); try { map.getCanvas().style.cursor = ''; } catch { /* optional */ } };
     for (const layer of [FILL_LAYER, CITY_LAYER]) { map.on('click', layer, onClick); map.on('mousemove', layer, onMove); map.on('mouseleave', layer, onLeave); }
