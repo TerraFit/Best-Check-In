@@ -82,7 +82,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   const handleHome = () => { setSelectedContinent(null); setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('world'); loadLevel('world', {}); };
   const jumpToContinent = () => { if (!selectedContinent) return; setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('countries'); loadLevel('countries', { continent: selectedContinent }); };
   const jumpToCountry = () => { if (!selectedCountry) return; setSelectedRegion(null); setSelectedCity(null); if (limits.canViewRegions) { setCurrentLevel('regions'); loadLevel('regions', { continent: selectedContinent, country: selectedCountry }); } else { setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry }); } };
-  const jumpToRegion = () => { if (!selectedRegion) return; setSelectedCity(null); setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region: selectedRegion }); };
+  const jumpToRegion = () => { if (!selectedRegion) return; setSelectedCity(null); if (selectedCountry === 'United Kingdom' && regionNamesEqual(selectedRegion, 'England')) { setCurrentLevel('ukEngland'); loadLevel('ukEngland', { continent: selectedContinent, country: selectedCountry, region: 'England' }); return; } setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region: selectedRegion }); };
 
   const isBusy = loading || parentLoading;
   const continentNodes = useMemo(() => aggregateContinents(nodes), [nodes]);
