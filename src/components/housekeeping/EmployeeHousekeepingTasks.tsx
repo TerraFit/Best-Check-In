@@ -29,20 +29,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
   useEffect(() => { void loadTasks(); }, [loadTasks]);
   const today = localDateString();
   const buckets = useMemo(() => { const grouped: Record<TaskBucket, HousekeepingTask[]> = { pending: [], behind: [], completed_today: [] }; for (const task of tasks) { const bucket = bucketForTask(task, today); if (bucket) grouped[bucket].push(task); } return grouped; }, [tasks, today]);
-  const skippableTaskIds = useMemo(() => {
-    const byRoom = new Map<string, HousekeepingTask[]>();
-    tasks.filter((task) => task.status === 'pending' && task.task_type === 'refresh' && !task.is_checkout && task.scheduled_date < today).forEach((task) => {
-      const key = task.room_id || `${task.room_number ?? ''}:${task.room_name ?? ''}`;
-      const list = byRoom.get(key) || []; list.push(task); byRoom.set(key, list);
-    });
-    const ids = new Set<string>();
-    byRoom.forEach((list) => {
-      if (list.length < 2) return;
-      list.sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)) || String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id).localeCompare(String(b.id)));
-      ids.add(list[0].id);
-    });
-    return ids;
-  }, [tasks, today]);
+  const skippableTaskIds = useMemo(() => new Set(tasks.filter((task) => task.can_skip_oldest).map((task) => task.id)), [tasks]);
   const skipValue = skipReason === 'Other' ? skipOther.trim() : skipReason.trim();
   const confirmSkipOldest = async () => {
     if (!skipTask || !skipValue || skipBusy) return;
