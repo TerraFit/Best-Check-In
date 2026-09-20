@@ -35,20 +35,6 @@ export type CityPoint = {
 const cache = new Map<string, GeoJSONFeatureCollection>();
 const cityCache = new Map<string, CityPoint | null>();
 
-function pointInRing(point: [number, number], ring: number[][]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
-    const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
-    if (!Number.isFinite(xi + yi + xj + yj)) continue;
-    const intersects =
-      ((yi > point[1]) !== (yj > point[1])) &&
-      point[0] < ((xj - xi) * (point[1] - yi)) / ((yj - yi) || Number.EPSILON) + xi;
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
 const ONS_ITL1_GEOJSON = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/ITL1_JAN_2025_UK_BGC/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson';
 
 async function fetchJson(url: string): Promise<any> {
@@ -294,51 +280,4 @@ export async function loadUkConstituentCountries(): Promise<GeoJSONFeatureCollec
   const fc = { type: 'FeatureCollection' as const, features };
   cache.set(key, fc);
   return fc;
-}
-
-/**
- * Build guest counts for England's nine ITL1 regions from the city-level
- * visitor nodes. The bookings currently store England as guest_province,
- * so the API cannot distinguish the nine regions by province alone.
- */
-export async function aggregateUkEnglandRegions(
-  cityNodes: Array<{ name: string; count: number; percentage: number; code?: string }>,
-): Promise<Array<{ name: string; count: number; percentage: number; code?: string }>> {
-  const itl1 = await loadUkItl1();
-  const regions = itl1.features.filter((feature) =>
-    isUkEnglandItl1Region(featureItl1Name(feature.properties || {}))
-  );
-
-  const points = await geocodeCities(cityNodes, 'United Kingdom', 'England');
-  const counts = new Map<string, number>();
-  regions.forEach((feature) => counts.set(featureItl1Name(feature.properties || {}), 0));
-
-  points.forEach((point) => {
-    const containing = regions.find((feature) => {
-      const geometry = feature.geometry;
-      if (geometry.type === 'Polygon') {
-        return geometry.coordinates.some((polygon) => polygon.length > 0 && pointInRing([point.longitude, point.latitude], polygon[0] as number[][]));
-      }
-      if (geometry.type === 'MultiPolygon') {
-        return geometry.coordinates.some((polygon) =>
-          polygon.some((ring) => ring.length > 0 && pointInRing([point.longitude, point.latitude], ring as number[][]))
-        );
-      }
-      return false;
-    });
-    if (containing) {
-      const name = featureItl1Name(containing.properties || {});
-      counts.set(name, (counts.get(name) || 0) + point.count);
-    }
-  });
-
-  const total = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
-  return Array.from(counts.entries())
-    .map(([name, count]) => ({
-      name,
-      count,
-      percentage: total ? Math.round((count / total) * 10000) / 100 : 0,
-      code: name.substring(0, 3).toUpperCase(),
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
