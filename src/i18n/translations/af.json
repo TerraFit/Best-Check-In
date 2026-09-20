@@ -122,6 +122,7 @@
   "housekeeping_start": "Begin",
   "housekeeping_complete": "Voltooi",
   "housekeeping_skip": "Slaan oor",
+  "housekeeping_previous_cleaning_cancelled": "Vorige skoonmaakpoging gekanselleer",
   "housekeeping_skip_oldest": "Slaan oudste diens oor",
   "housekeeping_skip_overdue_title": "Slaan agterstallige huishoudingsdiens oor",
   "housekeeping_skip_overdue_description": "Hierdie kamer het verskeie agterstallige verversingsdienste. Slegs die oudste diens kan hier oorgeslaan word.",
