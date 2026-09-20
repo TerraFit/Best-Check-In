@@ -184,7 +184,17 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to skip housekeeping task' }) };
     }
     const updatedRows = await updateRes.json();
-    const updated = updatedRows[0] || { ...task, status: 'skipped', notes: nextNotes, updated_at: now };
+    if (!updatedRows.length) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          error: 'This housekeeping task was already changed; refresh the task list and try again if it is still eligible.',
+          code: 'TASK_CHANGED',
+        }),
+      };
+    }
+    const updated = updatedRows[0];
 
     try {
       await fetch(`${supabaseUrl}/rest/v1/room_events`, {
