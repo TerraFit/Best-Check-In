@@ -122,6 +122,7 @@
   "housekeeping_start": "Start",
   "housekeeping_complete": "Complete",
   "housekeeping_skip": "Skip",
+  "housekeeping_previous_cleaning_cancelled": "Previous cleaning attempt cancelled",
   "housekeeping_skip_oldest": "Skip oldest service",
   "housekeeping_skip_overdue_title": "Skip overdue housekeeping service",
   "housekeeping_skip_overdue_description": "This room has multiple overdue Refresh services. Only the oldest service can be skipped from here.",
