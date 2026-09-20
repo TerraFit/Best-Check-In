@@ -145,11 +145,10 @@ exports.handler = async (event) => {
 
     const enrichedTasks = tasks.map((task) => ({
       ...task,
-      can_skip_oldest: canSkipTaskIds.has(task.id),
-      ...task,
       room_type: roomsById[task.room_id]?.room_type || task.room_type || null,
       room_floor: roomsById[task.room_id]?.floor ?? task.room_floor ?? null,
       active_session: activeSessionsByTask[task.id] || null,
+      can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
     const roomsRes = await fetch(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`, { headers: restHeaders });
