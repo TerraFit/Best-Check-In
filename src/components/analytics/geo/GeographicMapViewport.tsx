@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkItl1, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
+import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkItl1, loadUkConstituentCountries, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
 import { canonicalCountryName, findNodeForFeature, regionNamesMatch } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -186,12 +186,22 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       setCityLoading(false); setLayerVisibility(map, FILL_LAYER, true); setLayerVisibility(map, LINE_LAYER, level !== 'world'); setLayerVisibility(map, CITY_LAYER, false); setLayerVisibility(map, CITY_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
       const worldLevel = level === 'world';
       const regionLevel = level === 'regions' && !!selectedCountry;
-      const fc = worldLevel ? await loadWorldCountries() : regionLevel ? await loadAdmin1() : await loadCountries50m().catch(() => loadCountries110m());
+      const ukRegionLevel = regionLevel && canonicalCountryName(selectedCountry || '').toLowerCase() === 'united kingdom' && !regionNamesMatch(String(selectedRegion || ''), 'England');
+      const fc = worldLevel
+        ? await loadWorldCountries()
+        : ukRegionLevel
+          ? await loadUkConstituentCountries()
+          : regionLevel
+            ? await loadAdmin1()
+            : await loadCountries50m().catch(() => loadCountries110m());
       if (cancelled) return;
       let features: FeatureLike[];
       if (regionLevel) {
         const country = selectedCountry!;
-        const countryFeatures = fc.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(country).toLowerCase());
+        const isUk = canonicalCountryName(country).toLowerCase() === 'united kingdom';
+        const countryFeatures = isUk
+          ? fc.features
+          : fc.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(country).toLowerCase());
         if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
         features = countryFeatures.map((feature, index) => {
           const props = feature.properties || {};
