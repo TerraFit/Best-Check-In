@@ -94,7 +94,58 @@ exports.handler = async (event) => {
       if (taskKey && !activeSessionsByTask[taskKey]) activeSessionsByTask[taskKey] = session;
     }
 
+    // Determine skip eligibility server-side so Employee and Business portals use the same rule.
+    // A Refresh may be skipped when it is the oldest currently-pending overdue Refresh
+    // for the room AND either there are at least two pending overdue Refresh services,
+    // or an older overdue Refresh has already been skipped. This makes the next-oldest
+    // task eligible immediately after the oldest is skipped, without allowing a lone
+    // first-time overdue Refresh to be skipped.
+    const overdueRefreshOpen = tasks.filter((task) =>
+      task.status === 'pending' &&
+      task.task_type === 'refresh' &&
+      !task.is_checkout &&
+      task.scheduled_date < todayStr,
+    );
+    const skippedRefreshRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.skipped&task_type=eq.refresh&is_checkout=eq.false&scheduled_date=lt.${encodeURIComponent(todayStr)}&select=id,room_id,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
+      { headers: restHeaders },
+    );
+    const skippedRefreshTasks = skippedRefreshRes.ok ? await skippedRefreshRes.json() : [];
+    if (!skippedRefreshRes.ok) console.error('get-housekeeping-tasks skipped Refresh lookup failed:', { status: skippedRefreshRes.status });
+
+    const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
+    const compareTasks = (a, b) =>
+      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+      String(a.id).localeCompare(String(b.id));
+    const openByRoom = new Map();
+    for (const task of overdueRefreshOpen) {
+      const key = roomKey(task);
+      const list = openByRoom.get(key) || [];
+      list.push(task);
+      openByRoom.set(key, list);
+    }
+    for (const list of openByRoom.values()) list.sort(compareTasks);
+
+    const skippedByRoom = new Map();
+    for (const task of skippedRefreshTasks) {
+      const key = roomKey(task);
+      const list = skippedByRoom.get(key) || [];
+      list.push(task);
+      skippedByRoom.set(key, list);
+    }
+
+    const canSkipTaskIds = new Set();
+    for (const [key, list] of openByRoom.entries()) {
+      if (!list.length) continue;
+      const oldestOpen = list[0];
+      const priorSkipped = (skippedByRoom.get(key) || []).some((skipped) => compareTasks(skipped, oldestOpen) < 0);
+      if (list.length >= 2 || priorSkipped) canSkipTaskIds.add(oldestOpen.id);
+    }
+
     const enrichedTasks = tasks.map((task) => ({
+      ...task,
+      can_skip_oldest: canSkipTaskIds.has(task.id),
       ...task,
       room_type: roomsById[task.room_id]?.room_type || task.room_type || null,
       room_floor: roomsById[task.room_id]?.floor ?? task.room_floor ?? null,
