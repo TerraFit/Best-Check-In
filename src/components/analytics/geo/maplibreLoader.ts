@@ -15,6 +15,7 @@ export type MapLibreMap = {
   addLayer: (layer: unknown) => void;
   getLayer: (id: string) => unknown;
   setPaintProperty: (layer: string, prop: string, value: unknown) => void;
+  setLayoutProperty: (layer: string, prop: string, value: unknown) => void;
   setFilter: (layer: string, filter: unknown) => void;
   flyTo: (opts: Record<string, unknown>) => void;
   fitBounds: (bounds: number[][], opts?: Record<string, unknown>) => void;
