@@ -7,7 +7,7 @@ import { SubscriptionTier, SubscriptionLimits } from '../../types';
 import { Globe2, Layers, Zap } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { fetchVisitorOrigins, type OriginNode, type CityDashboard, type DrillLevel } from '../../services/analyticsApi';
-import { isUkEnglandItl1Region } from './geo/loadGeo';
+import { aggregateUkEnglandRegions, isUkEnglandItl1Region } from './geo/loadGeo';
 import { canonicalCountryName } from './geo/nameMatch';
 function regionNamesEqual(a: string | null | undefined, b: string): boolean { return String(a || '').trim().toLowerCase() === b.trim().toLowerCase(); }
 function isUnitedKingdom(country: string | null | undefined): boolean { return canonicalCountryName(String(country || '')).trim().toLowerCase() === 'united kingdom'; }
@@ -61,7 +61,22 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
       const res = await fetchVisitorOrigins({ businessId, level: toApiLevel(uiLevel), dateFrom, dateTo, continent: parent.continent, country: parent.country, region: parent.region, city: parent.city });
       if (res.upgradeRequired) { setModalTargetTier((res.requiredPlan as SubscriptionTier) || 'growth'); setModalFeatureName(res.error || 'Upgrade required'); setShowUpgradeModal(true); return; }
       if (!res.success) { setFetchError(res.error || 'Failed to load origins'); setNodes([]); setQualityNote(null); return; }
-      setNodes(res.nodes || []); setTotalVisitors(res.meta?.totalVisitors || 0); setDomesticCount(res.meta?.domesticCount || 0); setInternationalCount(res.meta?.internationalCount || 0); if (res.cityDashboard) setCityPanel(res.cityDashboard);
+      let levelNodes = res.nodes || [];
+      if (uiLevel === 'ukEngland') {
+        const cityRes = await fetchVisitorOrigins({
+          businessId,
+          level: 'city',
+          dateFrom,
+          dateTo,
+          continent: parent.continent,
+          country: parent.country,
+          region: 'England',
+        });
+        if (cityRes.success) {
+          levelNodes = await aggregateUkEnglandRegions(cityRes.nodes || []);
+        }
+      }
+      setNodes(levelNodes); setTotalVisitors(res.meta?.totalVisitors || 0); setDomesticCount(res.meta?.domesticCount || 0); setInternationalCount(res.meta?.internationalCount || 0); if (res.cityDashboard) setCityPanel(res.cityDashboard);
       const q = res.meta?.quality as { eligibleStays?: number; excludedByStatus?: number } | undefined;
       if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) setQualityNote(t('reports_quality_no_eligible', { count: q.excludedByStatus })); else if (q && (q.excludedByStatus || 0) > 0) setQualityNote(t('reports_quality_partial_eligible', { eligible: q.eligibleStays ?? 0, excluded: q.excludedByStatus })); else setQualityNote(null);
       
@@ -91,8 +106,8 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   const displayNodes = currentLevel === 'world' ? continentNodes : nodes;
   const geoLevel = currentLevel === 'cityDetail' ? 'cities' : currentLevel === 'ukEngland' ? 'regions' : currentLevel;
   const gridLevel = currentLevel === 'world' ? 'continents' : currentLevel === 'countries' ? 'countries' : (currentLevel === 'regions' || currentLevel === 'ukEngland') ? 'regions' : 'cities';
-  const gridTitle = currentLevel === 'world' ? 'Bookings by continent' : currentLevel === 'countries' ? `Bookings by country · ${selectedContinent || 'Continent'}` : (currentLevel === 'regions' || currentLevel === 'ukEngland') ? `Bookings by province / state / region · ${selectedCountry || ''}` : `Bookings by city · ${selectedRegion || selectedCountry || ''}`;
-  const gridSubtitle = currentLevel === 'world' ? 'Select a continent to see its country distribution.' : currentLevel === 'countries' ? 'Select a country to see provinces, states, cantons or lands.' : (currentLevel === 'regions' || currentLevel === 'ukEngland') ? 'Select an administrative area to see its cities.' : 'Select a city to open detailed visitor insights.';
+  const gridTitle = currentLevel === 'world' ? 'Bookings by continent' : currentLevel === 'countries' ? `Bookings by country · ${selectedContinent || 'Continent'}` : currentLevel === 'regions' ? (isUnitedKingdom(selectedCountry) ? 'Bookings by UK constituent country' : `Bookings by province / state / region · ${selectedCountry || ''}`) : currentLevel === 'ukEngland' ? 'Bookings by English region' : `Bookings by city · ${selectedRegion || selectedCountry || ''}`;
+  const gridSubtitle = currentLevel === 'world' ? 'Select a continent to see its country distribution.' : currentLevel === 'countries' ? 'Select a country to see provinces, states, cantons or lands.' : currentLevel === 'regions' ? (isUnitedKingdom(selectedCountry) ? 'Select England, Scotland, Wales or Northern Ireland to continue.' : 'Select an administrative area to see its cities.') : currentLevel === 'ukEngland' ? 'Select an English region to see its cities.' : 'Select a city to open detailed visitor insights.';
   const gridSelect = currentLevel === 'world' ? handleContinentClick : currentLevel === 'countries' ? handleCountryClick : (currentLevel === 'regions' || currentLevel === 'ukEngland') ? handleRegionClick : handleCityClick;
   const gridNodes = displayNodes.map(node => ({ name: node.name, count: node.count, percentage: node.percentage, code: node.code }));
 
