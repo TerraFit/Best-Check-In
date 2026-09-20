@@ -70,35 +70,47 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
         { signal: controller.signal, cache: 'no-store' }
       );
 
-      const [brandingResult, settingsResult] = await Promise.allSettled([brandingPromise, settingsPromise]);
-
+      // Resolve branding first and publish it immediately. Settings may be slower,
+      // but it must never prevent the business name/logo from appearing on first load.
       let businessData: any = null;
       let settingsData: any = null;
 
-      if (brandingResult.status === 'fulfilled' && brandingResult.value.ok) {
-        const data = await brandingResult.value.json();
-        const candidate = data.success && data.data ? data.data : data;
-        if (candidate?.id === businessId) {
-          businessData = { ...candidate };
-          if (isMountedRef.current) {
-            setBusiness(businessData);
-            setBusinessLoadError(false);
-            console.log('✅ Business branding loaded:', businessData?.trading_name);
+      try {
+        const brandingResponse = await brandingPromise;
+        if (brandingResponse.ok) {
+          const data = await brandingResponse.json();
+          const candidate = data.success && data.data ? data.data : data;
+          if (candidate?.id === businessId) {
+            businessData = { ...candidate };
+            if (isMountedRef.current) {
+              setBusiness(businessData);
+              setBusinessLoadError(false);
+              console.log('✅ Business branding loaded:', businessData?.trading_name);
+            }
           }
+        } else {
+          console.warn('⚠️ Business branding request returned HTTP', brandingResponse.status);
         }
-      } else if (brandingResult.status === 'fulfilled') {
-        console.warn('⚠️ Business branding request returned HTTP', brandingResult.value.status);
-      } else if (brandingResult.reason?.name !== 'AbortError') {
-        console.warn('⚠️ Business branding request failed:', brandingResult.reason?.message || brandingResult.reason);
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.warn('⚠️ Business branding request failed:', error?.message || error);
+        }
       }
 
-      if (settingsResult.status === 'fulfilled' && settingsResult.value.ok) {
-        settingsData = await settingsResult.value.json();
-        if (settingsData?.id && settingsData.id !== businessId) settingsData = null;
-      } else if (settingsResult.status === 'fulfilled') {
-        console.warn('⚠️ Business settings request returned HTTP', settingsResult.value.status);
-      } else if (settingsResult.reason?.name !== 'AbortError') {
-        console.warn('⚠️ Business settings request failed:', settingsResult.reason?.message || settingsResult.reason);
+      // The private settings request was started in parallel with branding.
+      // Merge it when available without replacing already-rendered branding.
+      try {
+        const settingsResponse = await settingsPromise;
+        if (settingsResponse.ok) {
+          settingsData = await settingsResponse.json();
+          if (settingsData?.id && settingsData.id !== businessId) settingsData = null;
+        } else {
+          console.warn('⚠️ Business settings request returned HTTP', settingsResponse.status);
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.warn('⚠️ Business settings request failed:', error?.message || error);
+        }
       }
 
       if (settingsData) {
