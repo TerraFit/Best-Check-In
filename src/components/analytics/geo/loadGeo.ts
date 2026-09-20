@@ -35,6 +35,8 @@ export type CityPoint = {
 const cache = new Map<string, GeoJSONFeatureCollection>();
 const cityCache = new Map<string, CityPoint | null>();
 
+const ONS_ITL1_GEOJSON = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/ITL1_JAN_2025_UK_BGC/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson';
+
 async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load geo ${url}: ${res.status}`);
@@ -109,6 +111,21 @@ export function featureAdmin2Name(props: Record<string, unknown>): string {
     props.shapeName, props.SHAPENAME, props.name_en, props.NAME_2,
     props.NAME_1, props.name, props.NAME, props.name_alt, props.NAME_ALT,
   ];
+  const named = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof named === 'string' ? named.trim() : '';
+}
+
+/** Official ONS 2025 UK ITL1 boundaries (the nine English regions plus the UK nations). */
+export async function loadUkItl1(): Promise<GeoJSONFeatureCollection> {
+  const key = 'uk-itl1-2025';
+  if (cache.has(key)) return cache.get(key)!;
+  const fc = await fetchJson(ONS_ITL1_GEOJSON) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
+export function featureItl1Name(props: Record<string, unknown>): string {
+  const candidates = [props.ITL125NM, props.ITL1NM, props.name_en, props.NAME_EN, props.name, props.NAME];
   const named = candidates.find((value) => typeof value === 'string' && value.trim());
   return typeof named === 'string' ? named.trim() : '';
 }
@@ -209,4 +226,15 @@ export function featureRegionCountry(props: Record<string, unknown>): string {
 export function featureRegionCode(props: Record<string, unknown>): string {
   const value = props?.iso_3166_2 ?? props?.ISO_3166_2 ?? props?.code;
   return typeof value === 'string' ? value : '';
+}
+
+
+export const UK_ENGLAND_ITL1_REGIONS = [
+  'North East (England)', 'North West (England)', 'Yorkshire and The Humber',
+  'East Midlands (England)', 'West Midlands (England)', 'East (England)',
+  'London', 'South East (England)', 'South West (England)',
+] as const;
+
+export function isUkEnglandItl1Region(value: string | null | undefined): boolean {
+  return !!value && (UK_ENGLAND_ITL1_REGIONS as readonly string[]).some((name) => normalizeRegionLookupKey(name) === normalizeRegionLookupKey(value));
 }
