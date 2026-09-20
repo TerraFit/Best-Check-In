@@ -42,16 +42,22 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 /**
- * World/continent view deliberately uses the same proven world-atlas country
- * geometry as the country drill-down. This keeps the initial map on the
- * reliable existing source and avoids a second external GeoJSON dependency.
+ * World/continent view uses Natural Earth country geometry. If that source is
+ * temporarily unavailable, fall back to the bundled world-atlas geometry so
+ * the drill-down remains usable.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
   const key = 'world-110m-natural-earth';
   if (cache.has(key)) return cache.get(key)!;
-  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
-  cache.set(key, fc);
-  return fc;
+  try {
+    const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
+    cache.set(key, fc);
+    return fc;
+  } catch {
+    const fallback = await loadCountries110m();
+    cache.set(key, fallback);
+    return fallback;
+  }
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
