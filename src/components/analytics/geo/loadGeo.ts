@@ -35,6 +35,20 @@ export type CityPoint = {
 const cache = new Map<string, GeoJSONFeatureCollection>();
 const cityCache = new Map<string, CityPoint | null>();
 
+function pointInRing(point: [number, number], ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
+    const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
+    if (!Number.isFinite(xi + yi + xj + yj)) continue;
+    const intersects =
+      ((yi > point[1]) !== (yj > point[1])) &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
 const ONS_ITL1_GEOJSON = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/ITL1_JAN_2025_UK_BGC/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson';
 
 async function fetchJson(url: string): Promise<any> {
