@@ -121,6 +121,7 @@
   "housekeeping_start": "התחל",
   "housekeeping_complete": "השלם",
   "housekeeping_skip": "דלג",
+  "housekeeping_previous_cleaning_cancelled": "ניסיון הניקוי הקודם בוטל",
   "housekeeping_skip_oldest": "דלג על השירות הישן ביותר",
   "housekeeping_skip_overdue_title": "דלג על שירות ניקיון באיחור",
   "housekeeping_skip_overdue_description": "בחדר זה יש כמה שירותי Refresh באיחור. ניתן לדלג כאן רק על השירות הישן ביותר.",
