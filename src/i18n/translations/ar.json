@@ -121,6 +121,7 @@
   "housekeeping_start": "بدء",
   "housekeeping_complete": "إكمال",
   "housekeeping_skip": "تخطي",
+  "housekeeping_previous_cleaning_cancelled": "تم إلغاء محاولة التنظيف السابقة",
   "housekeeping_skip_oldest": "تخطي الخدمة الأقدم",
   "housekeeping_skip_overdue_title": "تخطي خدمة التدبير المتأخرة",
   "housekeeping_skip_overdue_description": "توجد عدة خدمات Refresh متأخرة لهذه الغرفة. يمكن تخطي أقدم خدمة فقط من هنا.",
