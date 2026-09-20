@@ -88,6 +88,32 @@ export async function loadAdmin1(): Promise<GeoJSONFeatureCollection> {
 }
 
 /**
+ * Load second-order administrative boundaries for a country from geoBoundaries.
+ * The endpoint returns metadata first so we can use the current simplified
+ * GeoJSON rather than hard-coding country-specific download URLs.
+ */
+export async function loadAdmin2(countryIso3: string): Promise<GeoJSONFeatureCollection> {
+  const iso3 = String(countryIso3 || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(iso3)) throw new Error('Invalid country ISO-3 code');
+  const key = `admin2-${iso3}`;
+  if (cache.has(key)) return cache.get(key)!;
+  const metadata = await fetchJson(`https://www.geoboundaries.org/api/current/gbOpen/${iso3}/ADM2/`) as { gjDownloadURL?: string };
+  if (!metadata?.gjDownloadURL) throw new Error(`No Admin-2 geometry available for ${iso3}`);
+  const fc = await fetchJson(metadata.gjDownloadURL) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
+export function featureAdmin2Name(props: Record<string, unknown>): string {
+  const candidates = [
+    props.shapeName, props.SHAPENAME, props.name_en, props.NAME_2,
+    props.NAME_1, props.name, props.NAME, props.name_alt, props.NAME_ALT,
+  ];
+  const named = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof named === 'string' ? named.trim() : '';
+}
+
+/**
  * Resolve city names to real WGS84 coordinates for the city drill-down.
  * Open-Meteo's geocoder accepts a city plus country/admin-1 qualifier and
  * returns latitude/longitude; results are cached for the session.
