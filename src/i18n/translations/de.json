@@ -122,6 +122,7 @@
   "housekeeping_start": "Starten",
   "housekeeping_complete": "Abschließen",
   "housekeeping_skip": "Überspringen",
+  "housekeeping_previous_cleaning_cancelled": "Vorheriger Reinigungsversuch abgebrochen",
   "housekeeping_skip_oldest": "Ältesten Service überspringen",
   "housekeeping_skip_overdue_title": "Überfälligen Housekeeping-Service überspringen",
   "housekeeping_skip_overdue_description": "Für dieses Zimmer sind mehrere Refresh-Services überfällig. Nur der älteste Service kann hier übersprungen werden.",
