@@ -287,16 +287,20 @@ test('Phase 1 assignment contract: UI assignment is optional and supports return
 
 test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tasks can be deliberately skipped', () => {
   const ui = readSource('src/pages/tabs/HousekeepingTab.tsx');
+  const employeeUi = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
   const api = readSource('src/services/housekeepingApi.ts');
   const endpoint = readSource('netlify/functions/skip-oldest-housekeeping-service.js');
   assert.match(ui, /skippableTaskIds/);
-  assert.match(ui, /Skip oldest service/);
-  assert.match(ui, /Why is this service being skipped/);
-  assert.match(ui, /Room was cleaned but not recorded/);
-  assert.match(ui, /Client did not want the room cleaned/);
-  assert.match(ui, /Room was unavailable/);
-  assert.match(ui, /Service was no longer required/);
-  assert.match(ui, /Other/);
+  assert.match(ui, /housekeeping_skip_oldest/);
+  assert.match(ui, /SKIP_REASONS/);
+  assert.match(employeeUi, /housekeeping_skip_oldest/);
+  assert.match(employeeUi, /skipOldestOverdueHousekeepingService/);
+  assert.match(employeeUi, /SKIP_REASONS/);
+  assert.match(employeeUi, /housekeeping_skip_reason_cleaned_not_recorded/);
+  assert.match(employeeUi, /housekeeping_skip_reason_client_declined/);
+  assert.match(employeeUi, /housekeeping_skip_reason_room_unavailable/);
+  assert.match(employeeUi, /housekeeping_skip_reason_no_longer_required/);
+  assert.match(employeeUi, /housekeeping_skip_reason_other/);
   assert.match(ui, /skipOldestOverdueHousekeepingService/);
   assert.match(api, /skip-oldest-housekeeping-service/);
   assert.match(endpoint, /overdueTasks\.length < 2/);
