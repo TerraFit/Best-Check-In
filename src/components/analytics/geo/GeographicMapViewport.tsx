@@ -23,8 +23,8 @@ const LINE_LAYER = 'analytics-geo-line';
 const CITY_LAYER = 'analytics-geo-cities';
 const CITY_LABEL_LAYER = 'analytics-geo-city-labels';
 const CONTINENT_BOUNDS: Record<string, [number, number, number, number]> = {
-  Africa: [-20, -36, 53, 38], Europe: [-11, 35, 40, 71], 'North America': [-170, 5, -50, 75],
-  'South America': [-86, -57, -30, 14], Asia: [25, -10, 180, 80], Oceania: [105, -50, 180, 5], Other: [-180, -60, 180, 80],
+  Africa: [-25, -38, 55, 40], Europe: [-15, 34, 42, 73], 'North America': [-175, 2, -45, 78],
+  'South America': [-90, -60, -25, 16], Asia: [20, -12, 182, 82], Oceania: [100, -52, 182, 8], Other: [-180, -60, 180, 82],
 };
 const normalizeContinent = (value: unknown): string => {
   if (typeof value !== 'string') return 'Other';
@@ -34,6 +34,16 @@ const normalizeContinent = (value: unknown): string => {
 function coordinateBounds(coordinates: unknown): [number, number, number, number] | null { let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; const walk = (value: unknown): void => { if (!Array.isArray(value)) return; if (typeof value[0] === 'number' && typeof value[1] === 'number') { minX = Math.min(minX, value[0]); minY = Math.min(minY, value[1]); maxX = Math.max(maxX, value[0]); maxY = Math.max(maxY, value[1]); return; } value.forEach(walk); }; walk(coordinates); return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY) ? [minX, minY, maxX, maxY] : null; }
 function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null { if (!geometry) return null; if (geometry.type === 'GeometryCollection') return mergeBounds(geometry.geometries.map(geometryBounds)); return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates); }
 function mergeBounds(bounds: Array<[number, number, number, number] | null>): [number, number, number, number] | null { return bounds.reduce<[number, number, number, number] | null>((acc, b) => b ? (acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b) : acc, null); }
+function boundsIntersect(a: [number, number, number, number], b: [number, number, number, number]): boolean { return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1]; }
+function filterGeometryToContinent(geometry: GeoJSON.Geometry | null | undefined, continent: string | null): GeoJSON.Geometry | null {
+  if (!geometry || !continent || continent === 'Other') return geometry || null;
+  const target = CONTINENT_BOUNDS[normalizeContinent(continent)]; if (!target) return geometry;
+  if (geometry.type === 'Polygon') return boundsIntersect(coordinateBounds(geometry.coordinates) || target, target) ? geometry : null;
+  if (geometry.type === 'MultiPolygon') { const polygons = geometry.coordinates.filter((polygon) => { const b = coordinateBounds(polygon); return b ? boundsIntersect(b, target) : false; }); return polygons.length ? { ...geometry, coordinates: polygons } : null; }
+  if (geometry.type === 'GeometryCollection') { const geometries = geometry.geometries.map((g) => filterGeometryToContinent(g, continent)).filter(Boolean) as GeoJSON.Geometry[]; return geometries.length ? { ...geometry, geometries } : null; }
+  return geometry;
+}
+function featureForContinent(feature: FeatureLike, continent: string | null): FeatureLike | null { const geometry = filterGeometryToContinent(feature.geometry, continent); return geometry ? { ...feature, geometry } : null; }
 function countryMatches(feature: FeatureLike, countryName: string): boolean { const featureName = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); return !!findNodeForFeature(countryName, [{ name: featureName, count: 0 }], feature.id); }
 function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean {
   const props = feature.properties || {};
@@ -109,7 +119,11 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
     (async () => {
       const depth = levelDepth(level); const previousKey = stateKeyRef.current; const previousDepth = stateDepthRef.current;
       if (pendingRestoreKeyRef.current && pendingRestoreKeyRef.current !== stateKey) pendingRestoreKeyRef.current = null;
-      const isBack = !!previousKey && depth < previousDepth; const restore = isBack ? cameraHistoryRef.current.pop() : null; const restoringExistingState = pendingRestoreKeyRef.current === stateKey;
+      const returningToWorld = level === 'world' && !selectedContinent && depth < previousDepth;
+      const isBack = !!previousKey && depth < previousDepth;
+      const restore = returningToWorld ? null : (isBack ? cameraHistoryRef.current.pop() : null);
+      if (returningToWorld) { cameraHistoryRef.current = []; pendingRestoreKeyRef.current = null; }
+      const restoringExistingState = pendingRestoreKeyRef.current === stateKey;
       if (!isBack && previousKey && depth > previousDepth) { try { const center = map.getCenter?.(); const zoom = map.getZoom?.(); if (center && typeof zoom === 'number') cameraHistoryRef.current.push({ key: previousKey, center: [Number(center.lng), Number(center.lat)], zoom, bearing: map.getBearing?.(), pitch: map.getPitch?.() }); } catch { /* optional */ } }
       stateKeyRef.current = stateKey; stateDepthRef.current = depth; setGeoError(null); setHover(null);
       if (restore) { pendingRestoreKeyRef.current = stateKey; try { map.flyTo({ center: restore.center, zoom: restore.zoom, bearing: restore.bearing, pitch: restore.pitch, duration: 650 }); } catch { /* optional */ } }
@@ -124,7 +138,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           if (!preserveCamera) {
             if (points.length === 1) { const point = points[0]; try { map.flyTo({ center: [point.longitude, point.latitude], zoom: 10, duration: 800 }); } catch { /* optional */ } }
             else if (points.length > 1) fitBoundsToMap(map, mergeBounds(points.map(point => [point.longitude, point.latitude, point.longitude, point.latitude])), 800, 11);
-            else if (selectedRegion) { const admin1 = await loadAdmin1(); const matching = admin1.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(selectedCountry || '').toLowerCase() && regionNamesMatch(featureRegionName(feature.properties || {}), selectedRegion)); fitBoundsToMap(map, mergeBounds(matching.map(feature => geometryBounds(feature.geometry))), 700, 9); }
+            else if (selectedRegion) { const admin1 = await loadAdmin1(); const matching = admin1.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(selectedCountry || '').toLowerCase() && regionNamesMatch(featureRegionName(feature.properties || {}), selectedRegion)).map(feature => featureForContinent(feature, selectedContinent)).filter(Boolean) as FeatureLike[]; fitBoundsToMap(map, mergeBounds(matching.map(feature => geometryBounds(feature.geometry))), 700, 9); }
             else if (selectedCountry) { const countries = await loadCountries50m().catch(() => loadCountries110m()); const match = countries.features.find(feature => countryMatches(feature, selectedCountry)); fitBoundsToMap(map, match ? geometryBounds(match.geometry) : null, 700, 9); }
           }
         } finally { if (!cancelled) setCityLoading(false); }
@@ -139,9 +153,9 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       let features: FeatureLike[];
       if (regionLevel) {
         const country = selectedCountry!; const countryFeatures = fc.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(country).toLowerCase()); if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
-        features = countryFeatures.map((feature, index) => { const props = feature.properties || {}; const name = featureRegionName(props) || 'Unknown region'; const node = nodes.find(candidate => regionMatchesNode(feature, candidate)); const count = node?.count ?? 0; return { ...feature, id: feature.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } }; });
+        features = countryFeatures.map((feature, index) => { const props = feature.properties || {}; const name = featureRegionName(props) || 'Unknown region'; const node = nodes.find(candidate => regionMatchesNode(feature, candidate)); const count = node?.count ?? 0; const filtered = featureForContinent({ ...feature, id: feature.id ?? `${country}-${index}` }, selectedContinent); if (!filtered) return null; return { ...filtered, id: filtered.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } }; }).filter(Boolean) as FeatureLike[];
       } else {
-        features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const continent = getContinent(name); const node = level === 'world' ? nodeByContinent.get(featureContinent(feature, getContinent).toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; return { ...feature, id: feature.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; });
+        features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent ? featureForContinent(feature, selectedContinent) : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
       }
       map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
       if (!preserveCamera) {
@@ -155,7 +169,8 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
             const adminFeatures = admin1.features.filter(feature =>
               canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === countryKey
             );
-            const adminBounds = mergeBounds(adminFeatures.map(feature => geometryBounds(feature.geometry)));
+            const visibleAdminFeatures = adminFeatures.map(feature => featureForContinent(feature, selectedContinent)).filter(Boolean) as FeatureLike[];
+            const adminBounds = mergeBounds(visibleAdminFeatures.map(feature => geometryBounds(feature.geometry)));
 
             if (adminBounds) {
               const span = Math.max(adminBounds[2] - adminBounds[0], adminBounds[3] - adminBounds[1]);
@@ -178,7 +193,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
 
   useEffect(() => {
     const map = mapRef.current; if (!map || !mapReady) return;
-    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = getContinent(name); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
+    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
     const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => { const feature = event.features?.[0]; if (!feature?.properties?.name) { setHover(null); return; } setHover({ name: String(feature.properties.name), count: Number(feature.properties.count) || 0, percentage: Number(feature.properties.percentage) || 0, x: event.point?.x ?? 0, y: event.point?.y ?? 0 }); try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* optional */ } };
     const onLeave = () => { setHover(null); try { map.getCanvas().style.cursor = ''; } catch { /* optional */ } };
     for (const layer of [FILL_LAYER, CITY_LAYER]) { map.on('click', layer, onClick); map.on('mousemove', layer, onMove); map.on('mouseleave', layer, onLeave); }
