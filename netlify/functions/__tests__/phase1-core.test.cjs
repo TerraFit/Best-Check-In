@@ -320,6 +320,14 @@ test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tas
   assert.match(endpoint, /housekeeping_task_skipped/);
 });
 
+test('Phase 1 employee housekeeping: prior cancellation context is surfaced on the successor task', () => {
+  const source = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
+  assert.match(source, /function previousCancellationReason\(task: HousekeepingTask\)/);
+  assert.match(source, /Previous cleaning attempt cancelled:/);
+  assert.match(source, /housekeeping_previous_cleaning_cancelled/);
+  assert.match(source, /previousCancellationReason\(task\)/);
+});
+
 test('Phase 1 overdue skip flow: generic task updates cannot bypass the audited skip workflow', () => {
   const source = readSource('netlify/functions/update-housekeeping-task.js');
   assert.doesNotMatch(source, /skipped: 'canCompleteHousekeepingTask'/);
