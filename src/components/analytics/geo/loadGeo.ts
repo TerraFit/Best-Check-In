@@ -238,3 +238,93 @@ export const UK_ENGLAND_ITL1_REGIONS = [
 export function isUkEnglandItl1Region(value: string | null | undefined): boolean {
   return !!value && (UK_ENGLAND_ITL1_REGIONS as readonly string[]).some((name) => normalizeRegionLookupKey(name) === normalizeRegionLookupKey(value));
 }
+
+
+/** Official UK drill-down geometry: England, Scotland, Wales and Northern Ireland. */
+export async function loadUkConstituentCountries(): Promise<GeoJSONFeatureCollection> {
+  const key = 'uk-constituent-countries-2025';
+  if (cache.has(key)) return cache.get(key)!;
+
+  const itl1 = await loadUkItl1();
+  const constituentNames = new Set(['Scotland', 'Wales', 'Northern Ireland']);
+  const englandFeatures = itl1.features.filter((feature) =>
+    isUkEnglandItl1Region(featureItl1Name(feature.properties || {}))
+  );
+  const directFeatures = itl1.features.filter((feature) =>
+    constituentNames.has(featureItl1Name(feature.properties || {}))
+  );
+
+  const englandPolygons: GeoJSON.Position[][][] = [];
+  englandFeatures.forEach((feature) => {
+    if (feature.geometry.type === 'Polygon') {
+      englandPolygons.push(feature.geometry.coordinates);
+    } else if (feature.geometry.type === 'MultiPolygon') {
+      feature.geometry.coordinates.forEach((polygon) => englandPolygons.push(polygon));
+    }
+  });
+
+  const features = [
+    {
+      type: 'Feature' as const,
+      id: 'uk-england',
+      properties: { ...Object.fromEntries([['ITL1NM', 'England']]), name: 'England' },
+      geometry: { type: 'MultiPolygon' as const, coordinates: englandPolygons },
+    },
+    ...directFeatures.map((feature, index) => ({
+      ...feature,
+      id: feature.id ?? `uk-constituent-${index}`,
+      properties: { ...feature.properties, name: featureItl1Name(feature.properties || {}) },
+    })),
+  ];
+
+  const fc = { type: 'FeatureCollection' as const, features };
+  cache.set(key, fc);
+  return fc;
+}
+
+/**
+ * Build guest counts for England's nine ITL1 regions from the city-level
+ * visitor nodes. The bookings currently store England as guest_province,
+ * so the API cannot distinguish the nine regions by province alone.
+ */
+export async function aggregateUkEnglandRegions(
+  cityNodes: Array<{ name: string; count: number; percentage: number; code?: string }>,
+): Promise<Array<{ name: string; count: number; percentage: number; code?: string }>> {
+  const itl1 = await loadUkItl1();
+  const regions = itl1.features.filter((feature) =>
+    isUkEnglandItl1Region(featureItl1Name(feature.properties || {}))
+  );
+
+  const points = await geocodeCities(cityNodes, 'United Kingdom', 'England');
+  const counts = new Map<string, number>();
+  regions.forEach((feature) => counts.set(featureItl1Name(feature.properties || {}), 0));
+
+  points.forEach((point) => {
+    const containing = regions.find((feature) => {
+      const geometry = feature.geometry;
+      if (geometry.type === 'Polygon') {
+        return geometry.coordinates.some((polygon) => polygon.length > 0 && pointInRing([point.longitude, point.latitude], polygon[0] as number[][]));
+      }
+      if (geometry.type === 'MultiPolygon') {
+        return geometry.coordinates.some((polygon) =>
+          polygon.some((ring) => ring.length > 0 && pointInRing([point.longitude, point.latitude], ring as number[][]))
+        );
+      }
+      return false;
+    });
+    if (containing) {
+      const name = featureItl1Name(containing.properties || {});
+      counts.set(name, (counts.get(name) || 0) + point.count);
+    }
+  });
+
+  const total = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({
+      name,
+      count,
+      percentage: total ? Math.round((count / total) * 10000) / 100 : 0,
+      code: name.substring(0, 3).toUpperCase(),
+    }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
