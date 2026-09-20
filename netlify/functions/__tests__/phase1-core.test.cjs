@@ -271,7 +271,7 @@ test('Phase 1 completion flow: employee can review persisted issues before compl
 
 test('Phase 1 inspection flow: management can approve or reject a completed task', () => {
   const source = readSource('src/pages/tabs/HousekeepingTab.tsx');
-  assert.match(source, /action: 'skip' \| 'approve' \| 'reject'/);
+  assert.match(source, /act = async \(task: HousekeepingTask, action: 'approve' \| 'reject'\)/);
   assert.match(source, /inspection_status: 'approved'/);
   assert.match(source, /inspection_status: 'rejected', status: 'in_progress'/);
 });
@@ -282,4 +282,54 @@ test('Phase 1 assignment contract: UI assignment is optional and supports return
   assert.match(source, /Any housekeeper — unassign/);
   assert.match(source, /assigned_staff_id: assignedStaffId/);
   assert.match(source, /assigned_staff_name: assignedStaffName/);
+});
+
+
+test('Phase 1 overdue skip flow: only the oldest of multiple overdue Refresh tasks can be deliberately skipped', () => {
+  const ui = readSource('src/pages/tabs/HousekeepingTab.tsx');
+  const employeeUi = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
+  const api = readSource('src/services/housekeepingApi.ts');
+  const endpoint = readSource('netlify/functions/skip-oldest-housekeeping-service.js');
+  const taskLoader = readSource('netlify/functions/get-housekeeping-tasks.js');
+  const taskTypes = readSource('src/types/housekeeping.ts');
+  assert.match(ui, /skippableTaskIds/);
+  assert.match(ui, /housekeeping_skip_oldest/);
+  assert.match(ui, /SKIP_REASONS/);
+  assert.match(employeeUi, /housekeeping_skip_oldest/);
+  assert.match(employeeUi, /skipOldestOverdueHousekeepingService/);
+  assert.match(employeeUi, /SKIP_REASONS/);
+  assert.match(employeeUi, /housekeeping_skip_reason_cleaned_not_recorded/);
+  assert.match(employeeUi, /housekeeping_skip_reason_client_declined/);
+  assert.match(employeeUi, /housekeeping_skip_reason_room_unavailable/);
+  assert.match(employeeUi, /housekeeping_skip_reason_no_longer_required/);
+  assert.match(employeeUi, /housekeeping_skip_reason_other/);
+  assert.match(ui, /skipOldestOverdueHousekeepingService/);
+  assert.match(api, /skip-oldest-housekeeping-service/);
+  assert.match(endpoint, /overdueTasks\.length < 2/);
+  assert.match(endpoint, /hasOlderSkipped/);
+  assert.match(endpoint, /status=eq\.skipped/);
+  assert.match(endpoint, /room_id=is\.null/);
+  assert.match(endpoint, /Only the oldest overdue Refresh service can be skipped/);
+  assert.match(taskLoader, /can_skip_oldest/);
+  assert.match(taskLoader, /status=eq\.skipped/);
+  assert.match(taskLoader, /list\.length >= 2 \|\| priorSkipped/);
+  assert.match(taskTypes, /can_skip_oldest\?: boolean/);
+  assert.match(endpoint, /task\.status !== 'pending'/);
+  assert.match(endpoint, /task\.scheduled_date >= today/);
+  assert.match(endpoint, /A skip reason is required/);
+  assert.match(endpoint, /housekeeping_task_skipped/);
+});
+
+test('Phase 1 employee housekeeping: prior cancellation context is surfaced on the successor task', () => {
+  const source = readSource('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
+  assert.match(source, /function previousCancellationReason\(task: HousekeepingTask\)/);
+  assert.match(source, /Previous cleaning attempt cancelled:/);
+  assert.match(source, /housekeeping_previous_cleaning_cancelled/);
+  assert.match(source, /previousCancellationReason\(task\)/);
+});
+
+test('Phase 1 overdue skip flow: generic task updates cannot bypass the audited skip workflow', () => {
+  const source = readSource('netlify/functions/update-housekeeping-task.js');
+  assert.doesNotMatch(source, /skipped: 'canCompleteHousekeepingTask'/);
+  assert.match(source, /Use the oldest overdue Refresh skip workflow for skipped housekeeping tasks/);
 });
