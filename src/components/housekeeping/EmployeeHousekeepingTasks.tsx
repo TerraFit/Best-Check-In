@@ -16,7 +16,7 @@ function localDateString(date = new Date()): string { const parts = new Intl.Dat
 function bucketForTask(task: HousekeepingTask, today: string): TaskBucket | null { if (task.status === 'completed') { if (task.completed_at?.slice(0, 10) === today || task.scheduled_date === today) return 'completed_today'; return null; } if (task.status === 'pending' || task.status === 'in_progress') return task.scheduled_date < today ? 'behind' : 'pending'; return null; }
 function taskLabel(task: HousekeepingTask): string { if (task.task_type === 'full_service') return task.is_checkout ? 'Full Service · Checkout' : 'Full Service'; return 'Refresh'; }
 function previousCancellationReason(task: HousekeepingTask): string | null {
-  const match = String(task.notes || '').match(/Previous cleaning attempt cancelled:\\s*(.+)/i);
+  const match = String(task.notes || '').match(/Previous cleaning attempt cancelled:\s*(.+)/i);
   return match?.[1]?.trim() || null;
 }
 const SKIP_REASONS = [
