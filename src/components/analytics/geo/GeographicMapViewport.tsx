@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkConstituentCountries, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureItl1Name, isUkEnglandItl1Region } from './loadGeo';
+import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadUkConstituentCountries, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode } from './loadGeo';
 import { canonicalCountryName, findNodeForFeature, regionNamesMatch } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -161,15 +161,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       if (level === 'cities') {
         setCityLoading(true); setLayerVisibility(map, FILL_LAYER, false); setLayerVisibility(map, LINE_LAYER, false); setLayerVisibility(map, CITY_LAYER, true); setLayerVisibility(map, CITY_LABEL_LAYER, true); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
         try {
-          const apiRegion = selectedCountry === 'United Kingdom' && isUkEnglandItl1Region(selectedRegion) ? 'England' : selectedRegion;
-          let points = await geocodeCities(nodes, selectedCountry, apiRegion);
-          if (selectedCountry === 'United Kingdom' && isUkEnglandItl1Region(selectedRegion)) {
-            try {
-              const itl1 = await loadUkItl1();
-              const selected = itl1.features.find(feature => regionNamesMatch(featureItl1Name(feature.properties || {}), selectedRegion));
-              if (selected) points = points.filter(point => pointInGeometry([point.longitude, point.latitude], selected.geometry));
-            } catch { /* retain geocoded England points if the optional ONS filter is unavailable */ }
-          }
+          const points = await geocodeCities(nodes, selectedCountry, selectedRegion);
           if (cancelled) return;
           const features = points.map((point, index) => ({ type: 'Feature' as const, id: `city-${index}-${point.name}`, geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] }, properties: { name: point.name, count: point.count, percentage: point.percentage, hasGuests: point.count > 0, fillColor: heatColor(point.count) } }));
           map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
