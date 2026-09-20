@@ -122,6 +122,7 @@
   "housekeeping_start": "开始",
   "housekeeping_complete": "完成",
   "housekeeping_skip": "跳过",
+  "housekeeping_previous_cleaning_cancelled": "上一次清洁尝试已取消",
   "housekeeping_skip_oldest": "跳过最早的服务",
   "housekeeping_skip_overdue_title": "跳过逾期客房服务",
   "housekeeping_skip_overdue_description": "此房间有多个逾期的刷新服务。这里只能跳过最早的服务。",
