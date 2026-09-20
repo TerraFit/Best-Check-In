@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from '../../../i18n';
 import { BASEMAP_STYLE, WORLD_VIEW, heatColor } from './mapConfig';
-import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode } from './loadGeo';
+import { loadWorldCountries, loadCountries50m, loadCountries110m, loadAdmin1, loadAdmin2, geocodeCities, featureCountryName, featureRegionName, featureRegionCountry, featureRegionCode, featureAdmin2Name } from './loadGeo';
 import { canonicalCountryName, findNodeForFeature, regionNamesMatch } from './nameMatch';
 import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
@@ -22,6 +22,7 @@ const FILL_LAYER = 'analytics-geo-fill';
 const LINE_LAYER = 'analytics-geo-line';
 const CITY_LAYER = 'analytics-geo-cities';
 const CITY_LABEL_LAYER = 'analytics-geo-city-labels';
+const SUBREGION_LABEL_LAYER = 'analytics-geo-subregion-labels';
 const CONTINENT_BOUNDS: Record<string, [number, number, number, number]> = {
   Africa: [-25, -38, 55, 40], Europe: [-15, 34, 42, 73], 'North America': [-175, 2, -45, 78],
   'South America': [-90, -60, -25, 16], Asia: [20, -12, 182, 82], Oceania: [100, -52, 182, 8], Other: [-180, -60, 180, 82],
@@ -35,6 +36,33 @@ function coordinateBounds(coordinates: unknown): [number, number, number, number
 function geometryBounds(geometry: GeoJSON.Geometry | null | undefined): [number, number, number, number] | null { if (!geometry) return null; if (geometry.type === 'GeometryCollection') return mergeBounds(geometry.geometries.map(geometryBounds)); return coordinateBounds((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates); }
 function mergeBounds(bounds: Array<[number, number, number, number] | null>): [number, number, number, number] | null { return bounds.reduce<[number, number, number, number] | null>((acc, b) => b ? (acc ? [Math.min(acc[0], b[0]), Math.min(acc[1], b[1]), Math.max(acc[2], b[2]), Math.max(acc[3], b[3])] : b) : acc, null); }
 function boundsIntersect(a: [number, number, number, number], b: [number, number, number, number]): boolean { return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1]; }
+function pointInRing(point: [number, number], ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
+    const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
+    if (!Number.isFinite(xi + yi + xj + yj)) continue;
+    const intersects = ((yi > point[1]) !== (yj > point[1])) &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+function pointInGeometry(point: [number, number], geometry: GeoJSON.Geometry | null | undefined): boolean {
+  if (!geometry) return false;
+  if (geometry.type === 'Polygon') return geometry.coordinates.length > 0 && pointInRing(point, geometry.coordinates[0]);
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.some((polygon) => polygon.length > 0 && pointInRing(point, polygon[0]));
+  if (geometry.type === 'GeometryCollection') return geometry.geometries.some((child) => pointInGeometry(point, child));
+  return false;
+}
+function geometryRepresentativePoint(geometry: GeoJSON.Geometry | null | undefined): [number, number] | null {
+  const bounds = geometryBounds(geometry);
+  return bounds ? [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2] : null;
+}
+function admin2BelongsToRegion(feature: FeatureLike, regionGeometry: GeoJSON.Geometry | null): boolean {
+  const point = geometryRepresentativePoint(feature.geometry);
+  return !!point && pointInGeometry(point, regionGeometry);
+}
 function filterGeometryToContinent(geometry: GeoJSON.Geometry | null | undefined, continent: string | null): GeoJSON.Geometry | null {
   if (!geometry || !continent || continent === 'Other') return geometry || null;
   const target = CONTINENT_BOUNDS[normalizeContinent(continent)]; if (!target) return geometry;
@@ -106,6 +134,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
         map.addLayer({ id: LINE_LAYER, type: 'line', source: SOURCE_ID, paint: { 'line-color': '#9ca3af', 'line-width': 0.8, 'line-opacity': 0.95 } });
         map.addLayer({ id: CITY_LAYER, type: 'circle', source: SOURCE_ID, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['get', 'count'], 1, 7, 5, 10, 10, 14, 20, 18], 'circle-color': ['get', 'fillColor'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-opacity': 0.95 } });
         map.addLayer({ id: CITY_LABEL_LAYER, type: 'symbol', source: SOURCE_ID, layout: { visibility: 'none', 'text-field': ['get', 'name'], 'text-size': 11, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-allow-overlap': false }, paint: { 'text-color': '#44403c', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
+        map.addLayer({ id: SUBREGION_LABEL_LAYER, type: 'symbol', source: SOURCE_ID, layout: { visibility: 'none', 'text-field': ['get', 'subregionName'], 'text-size': 10, 'text-anchor': 'center', 'text-allow-overlap': false }, paint: { 'text-color': '#57534e', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 } });
         map.resize(); setMapReady(true); setGeoError(null);
       } catch (error) { setGeoError(error instanceof Error ? error.message : 'Failed to load map data'); } });
       mapRef.current = map;
@@ -130,7 +159,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       const preserveCamera = !!restore || restoringExistingState;
 
       if (level === 'cities') {
-        setCityLoading(true); setLayerVisibility(map, FILL_LAYER, false); setLayerVisibility(map, LINE_LAYER, false); setLayerVisibility(map, CITY_LAYER, true); setLayerVisibility(map, CITY_LABEL_LAYER, true);
+        setCityLoading(true); setLayerVisibility(map, FILL_LAYER, false); setLayerVisibility(map, LINE_LAYER, false); setLayerVisibility(map, CITY_LAYER, true); setLayerVisibility(map, CITY_LABEL_LAYER, true); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
         try {
           const points = await geocodeCities(nodes, selectedCountry, selectedRegion); if (cancelled) return;
           const features = points.map((point, index) => ({ type: 'Feature' as const, id: `city-${index}-${point.name}`, geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] }, properties: { name: point.name, count: point.count, percentage: point.percentage, hasGuests: point.count > 0, fillColor: heatColor(point.count) } }));
@@ -145,15 +174,67 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
         return;
       }
 
-      setCityLoading(false); setLayerVisibility(map, FILL_LAYER, true); setLayerVisibility(map, LINE_LAYER, level !== 'world'); setLayerVisibility(map, CITY_LAYER, false); setLayerVisibility(map, CITY_LABEL_LAYER, false);
+      setCityLoading(false); setLayerVisibility(map, FILL_LAYER, true); setLayerVisibility(map, LINE_LAYER, level !== 'world'); setLayerVisibility(map, CITY_LAYER, false); setLayerVisibility(map, CITY_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
       const worldLevel = level === 'world';
       const regionLevel = level === 'regions' && !!selectedCountry;
       const fc = worldLevel ? await loadWorldCountries() : regionLevel ? await loadAdmin1() : await loadCountries50m().catch(() => loadCountries110m());
       if (cancelled) return;
       let features: FeatureLike[];
       if (regionLevel) {
-        const country = selectedCountry!; const countryFeatures = fc.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(country).toLowerCase()); if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
-        features = countryFeatures.map((feature, index) => { const props = feature.properties || {}; const name = featureRegionName(props) || 'Unknown region'; const node = nodes.find(candidate => regionMatchesNode(feature, candidate)); const count = node?.count ?? 0; const filtered = featureForContinent({ ...feature, id: feature.id ?? `${country}-${index}` }, selectedContinent); if (!filtered) return null; return { ...filtered, id: filtered.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } }; }).filter(Boolean) as FeatureLike[];
+        const country = selectedCountry!;
+        const countryFeatures = fc.features.filter(feature => canonicalCountryName(featureRegionCountry(feature.properties || {})).toLowerCase() === canonicalCountryName(country).toLowerCase());
+        if (!countryFeatures.length) throw new Error(`No Admin-1 geometry found for ${country}`);
+        features = countryFeatures.map((feature, index) => {
+          const props = feature.properties || {};
+          const name = featureRegionName(props) || 'Unknown region';
+          const node = nodes.find(candidate => regionMatchesNode(feature, candidate));
+          const count = node?.count ?? 0;
+          const filtered = featureForContinent({ ...feature, id: feature.id ?? `${country}-${index}` }, selectedContinent);
+          if (!filtered) return null;
+          return { ...filtered, id: filtered.id ?? `${country}-${index}`, properties: { ...props, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count) } };
+        }).filter(Boolean) as FeatureLike[];
+
+        // Some countries have another useful geographic layer beneath the
+        // stored Admin-1 value. England is the important example: "England"
+        // is the stored region, while the nine English regions sit beneath it.
+        // Show that subdivision layer without pretending the existing booking
+        // data contains second-order counts.
+        try {
+          const world = await loadWorldCountries();
+          const countryFeature = world.features.find(feature => countryMatches(feature, country));
+          const iso3 = String(countryFeature?.properties?.ISO_A3 || countryFeature?.properties?.ADM0_A3 || '').trim().toUpperCase();
+          const selectedRegionFeature = features.find(feature => regionNamesMatch(String(feature.properties?.name || ''), selectedRegion));
+          if (iso3 && selectedRegionFeature) {
+            const admin2 = await loadAdmin2(iso3);
+            const subregions = admin2.features
+              .filter(feature => {
+                const p = feature.properties || {};
+                const group = String(p.shapeGroup || p.shapeISO || p.ISO_A3 || '').trim().toUpperCase();
+                return group === iso3;
+              })
+              .filter(feature => admin2BelongsToRegion(feature, selectedRegionFeature.geometry))
+              .map((feature, index) => ({
+                ...feature,
+                id: feature.id ?? `subregion-${index}`,
+                properties: {
+                  ...feature.properties,
+                  name: featureAdmin2Name(feature.properties || {}) || 'Subdivision',
+                  subregionName: featureAdmin2Name(feature.properties || {}) || '',
+                  count: 0,
+                  percentage: 0,
+                  hasGuests: false,
+                  isSubdivision: true,
+                  fillColor: '#f5f5f4',
+                },
+              })) as FeatureLike[];
+            if (subregions.length) {
+              features = subregions;
+              setLayerVisibility(map, SUBREGION_LABEL_LAYER, true);
+            }
+          }
+        } catch {
+          // Admin-2 is an enhancement; retain the reliable Admin-1 map if unavailable.
+        }
       } else {
         features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent ? featureForContinent(feature, selectedContinent) : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
       }
@@ -193,7 +274,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
 
   useEffect(() => {
     const map = mapRef.current; if (!map || !mapReady) return;
-    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
+    const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; if (feature?.properties?.isSubdivision) return; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
     const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => { const feature = event.features?.[0]; if (!feature?.properties?.name) { setHover(null); return; } const displayName = level === 'world' ? featureContinent(feature, getContinent) : String(feature.properties.name); setHover({ name: displayName, count: Number(feature.properties.count) || 0, percentage: Number(feature.properties.percentage) || 0, x: event.point?.x ?? 0, y: event.point?.y ?? 0 }); try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* optional */ } };
     const onLeave = () => { setHover(null); try { map.getCanvas().style.cursor = ''; } catch { /* optional */ } };
     for (const layer of [FILL_LAYER, CITY_LAYER]) { map.on('click', layer, onClick); map.on('mousemove', layer, onMove); map.on('mouseleave', layer, onLeave); }
