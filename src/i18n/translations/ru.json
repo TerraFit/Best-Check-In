@@ -121,6 +121,7 @@
   "housekeeping_start": "Начать",
   "housekeeping_complete": "Завершить",
   "housekeeping_skip": "Пропустить",
+  "housekeeping_previous_cleaning_cancelled": "Предыдущая попытка уборки отменена",
   "housekeeping_skip_oldest": "Пропустить самую старую услугу",
   "housekeeping_skip_overdue_title": "Пропустить просроченную уборку",
   "housekeeping_skip_overdue_description": "Для этого номера есть несколько просроченных услуг Refresh. Здесь можно пропустить только самую старую услугу.",
