@@ -58,6 +58,8 @@ export interface HousekeepingTask {
   inspection_status?: InspectionStatus | null;
   policy_used?: string | null;
   active_session?: HousekeepingServiceSession | null;
+  /** Server-authoritative eligibility for the audited oldest-overdue skip workflow. */
+  can_skip_oldest?: boolean;
   created_at?: string;
   updated_at?: string;
 }
