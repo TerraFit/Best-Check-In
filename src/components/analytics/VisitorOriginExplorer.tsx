@@ -7,6 +7,7 @@ import { SubscriptionTier, SubscriptionLimits } from '../../types';
 import { Globe2, Layers, Zap } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { fetchVisitorOrigins, type OriginNode, type CityDashboard, type DrillLevel } from '../../services/analyticsApi';
+import { isUkEnglandItl1Region } from './geo/loadGeo';
 
 export interface VisitorOriginExplorerProps { businessId: string; dateFrom?: string; dateTo?: string; limits: SubscriptionLimits; canInteractiveMap?: boolean; isLoading?: boolean; data?: any[]; onTierChange?: (tier: SubscriptionTier) => void; }
 type UiLevel = 'world' | 'countries' | 'regions' | 'cities' | 'cityDetail';
@@ -60,7 +61,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
       setNodes(res.nodes || []); setTotalVisitors(res.meta?.totalVisitors || 0); setDomesticCount(res.meta?.domesticCount || 0); setInternationalCount(res.meta?.internationalCount || 0); if (res.cityDashboard) setCityPanel(res.cityDashboard);
       const q = res.meta?.quality as { eligibleStays?: number; excludedByStatus?: number } | undefined;
       if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) setQualityNote(t('reports_quality_no_eligible', { count: q.excludedByStatus })); else if (q && (q.excludedByStatus || 0) > 0) setQualityNote(t('reports_quality_partial_eligible', { eligible: q.eligibleStays ?? 0, excluded: q.excludedByStatus })); else setQualityNote(null);
-      if (uiLevel === 'regions' && res.skipToCity && parent.country) { setCurrentLevel('cities'); setSelectedRegion(null); const cityRes = await fetchVisitorOrigins({ businessId, level: 'city', dateFrom, dateTo, continent: parent.continent, country: parent.country }); if (cityRes.success) setNodes(cityRes.nodes || []); }
+      
     } catch (e: any) { setFetchError(e?.message || 'Failed to load origins'); }
     finally { setLoading(false); }
   }, [businessId, dateFrom, dateTo, interactive, t]);
@@ -68,7 +69,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
   useEffect(() => { if (!businessId) return; if (!interactive) { setCurrentLevel('world'); return; } loadLevel('world', {}); }, [businessId, dateFrom, dateTo, interactive, loadLevel]);
   const handleContinentClick = (continent: string) => { if (!limits.canViewCountries) { setModalTargetTier('growth'); setModalFeatureName('Country-Level Distribution'); setShowUpgradeModal(true); return; } setSelectedContinent(continent); setSelectedCountry(null); setSelectedRegion(null); setSelectedCity(null); setCurrentLevel('countries'); loadLevel('countries', { continent }); };
   const handleCountryClick = (country: string) => { if (!limits.canViewRegions && !limits.canViewCities) { setModalTargetTier('pro'); setModalFeatureName('Province, Region & City Analytics'); setShowUpgradeModal(true); return; } setSelectedCountry(country); setSelectedRegion(null); setSelectedCity(null); if (limits.canViewRegions) { setCurrentLevel('regions'); loadLevel('regions', { continent: selectedContinent, country }); } else { setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country }); } };
-  const handleRegionClick = (region: string) => { if (!limits.canViewCities) { setModalTargetTier('pro'); setModalFeatureName('City Insights'); setShowUpgradeModal(true); return; } setSelectedRegion(region); setSelectedCity(null); setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region }); };
+  const handleRegionClick = (region: string) => { if (!limits.canViewCities) { setModalTargetTier('pro'); setModalFeatureName('City Insights'); setShowUpgradeModal(true); return; } setSelectedRegion(region); setSelectedCity(null); setCurrentLevel('cities'); const apiRegion = selectedCountry === 'United Kingdom' && isUkEnglandItl1Region(region) ? 'England' : region; loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region: apiRegion }); };
   const handleCityClick = (city: string) => { setSelectedCity(city); setCurrentLevel('cityDetail'); loadLevel('cityDetail', { continent: selectedContinent, country: selectedCountry, region: selectedRegion, city }); };
   const handleBack = () => {
     if (currentLevel === 'cityDetail') { setSelectedCity(null); setCurrentLevel('cities'); loadLevel('cities', { continent: selectedContinent, country: selectedCountry, region: selectedRegion }); return; }
