@@ -7,7 +7,7 @@ import { loadMapLibre, type MapLibreMap } from './maplibreLoader';
 
 export type GeoLevel = 'world' | 'continents' | 'countries' | 'regions' | 'cities';
 export type GeoNode = { name: string; count: number; percentage: number; intensity?: number; code?: string };
-type HoverInfo = { name: string; count: number; percentage: number; x: number; y: number };
+type HoverInfo = { name: string; count: number; percentage: number; x: number; y: number; isSubdivision?: boolean };
 type FeatureLike = { id?: string | number; properties?: Record<string, unknown>; geometry?: GeoJSON.Geometry };
 type CameraSnapshot = { center: [number, number]; zoom: number; bearing?: number; pitch?: number; key: string };
 
@@ -275,7 +275,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
   useEffect(() => {
     const map = mapRef.current; if (!map || !mapReady) return;
     const onClick = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => { if (!interactive) return; const feature = event.features?.[0]; if (feature?.properties?.isSubdivision) return; const name = feature?.properties?.name ? String(feature.properties.name) : ''; if (!name) return; const count = Number(feature.properties?.count) || 0; if (level === 'cities') { if (onCityClick && count > 0) onCityClick(name); } else if (level === 'world') { const continent = featureContinent(feature, getContinent); if (continent !== 'Other' && onContinentClick) onContinentClick(continent); } else if (level === 'countries' && onCountryClick) onCountryClick(name); else if (level === 'regions' && onRegionClick) onRegionClick(name); };
-    const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => { const feature = event.features?.[0]; if (!feature?.properties?.name) { setHover(null); return; } const displayName = level === 'world' ? featureContinent(feature, getContinent) : String(feature.properties.name); setHover({ name: displayName, count: Number(feature.properties.count) || 0, percentage: Number(feature.properties.percentage) || 0, x: event.point?.x ?? 0, y: event.point?.y ?? 0 }); try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* optional */ } };
+    const onMove = (event: { point?: { x: number; y: number }; features?: Array<{ properties?: Record<string, unknown> }> }) => { const feature = event.features?.[0]; if (!feature?.properties?.name) { setHover(null); return; } const displayName = level === 'world' ? featureContinent(feature, getContinent) : String(feature.properties.name); setHover({ name: displayName, count: Number(feature.properties.count) || 0, percentage: Number(feature.properties.percentage) || 0, isSubdivision: feature.properties.isSubdivision === true, x: event.point?.x ?? 0, y: event.point?.y ?? 0 }); try { map.getCanvas().style.cursor = interactive ? 'pointer' : 'default'; } catch { /* optional */ } };
     const onLeave = () => { setHover(null); try { map.getCanvas().style.cursor = ''; } catch { /* optional */ } };
     for (const layer of [FILL_LAYER, CITY_LAYER]) { map.on('click', layer, onClick); map.on('mousemove', layer, onMove); map.on('mouseleave', layer, onLeave); }
     return () => { try { for (const layer of [FILL_LAYER, CITY_LAYER]) { map.off('click', layer, onClick); map.off('mousemove', layer, onMove); map.off('mouseleave', layer, onLeave); } } catch { /* optional */ } };
@@ -303,8 +303,8 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
       {hover && (
         <div className="pointer-events-none absolute z-50 max-w-[220px] rounded-lg border border-stone-700 bg-stone-900 px-3 py-2 text-xs text-white shadow-lg" style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip">
           <p className="text-sm font-bold">{hover.name}</p>
-          <p className="mt-0.5 text-orange-300">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>
-          {hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}
+          <>{!hover.isSubdivision && <p className="mt-0.5 text-orange-300">{t('reports_guest_checkins_count', { count: hover.count.toLocaleString() })}</p>}
+          {!hover.isSubdivision && hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}</>
         </div>
       )}
       <div className="absolute bottom-3 right-3 z-20 rounded-lg border border-stone-200 bg-white/95 px-2.5 py-1.5 shadow-sm">
