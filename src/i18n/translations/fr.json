@@ -121,6 +121,7 @@
   "housekeeping_start": "Démarrer",
   "housekeeping_complete": "Terminer",
   "housekeeping_skip": "Ignorer",
+  "housekeeping_previous_cleaning_cancelled": "Tentative de nettoyage précédente annulée",
   "housekeeping_skip_oldest": "Ignorer le service le plus ancien",
   "housekeeping_skip_overdue_title": "Ignorer un service de ménage en retard",
   "housekeeping_skip_overdue_description": "Cette chambre a plusieurs services de rafraîchissement en retard. Seul le service le plus ancien peut être ignoré ici.",
