@@ -67,7 +67,7 @@ export function VisitorOriginContributionGrid({ level, nodes, title, subtitle, o
           );
         })}
       </div>
-      <div className={`${overlay ? 'mt-2 pt-2' : 'mt-5 pt-3'} flex items-center justify-between gap-2 border-t border-stone-200/70 text-[9px] font-mono text-stone-400`}><span>Total: <strong className="text-stone-700">{total.toLocaleString()}</strong></span>{!overlay && <span>Colour intensity = relative visitor contribution</span>}</div>
+      {!overlay && <div className="mt-5 pt-3 flex items-center justify-between gap-2 border-t border-stone-200/70 text-[9px] font-mono text-stone-400"><span>Total: <strong className="text-stone-700">{total.toLocaleString()}</strong></span><span>Colour intensity = relative visitor contribution</span></div>}
     </section>
   );
 }
