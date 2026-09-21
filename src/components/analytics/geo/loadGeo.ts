@@ -44,16 +44,21 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 /**
- * World/continent view uses world-atlas country topology converted to GeoJSON.
- * Keeping the source as topology avoids the malformed/oversized polygon
- * artefacts previously seen around the antimeridian.
+ * World/continent view uses Natural Earth admin-0 GeoJSON. It is kept
+ * separate from world-atlas topology used for country drill-down geometry.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  const key = 'world-110m-world-atlas';
+  const key = 'world-110m-natural-earth';
   if (cache.has(key)) return cache.get(key)!;
-  const fc = await loadCountries110m();
-  cache.set(key, fc);
-  return fc;
+  try {
+    const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
+    cache.set(key, fc);
+    return fc;
+  } catch {
+    const fallback = await loadCountries110m();
+    cache.set(key, fallback);
+    return fallback;
+  }
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
