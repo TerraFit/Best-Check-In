@@ -3,6 +3,7 @@ import { VisitorOriginExplorer } from '../../components/analytics/VisitorOriginE
 import { GuestOriginsChart } from '../../components/dashboard/GuestOriginsChart';
 import { ReferralSourcesChart } from '../../components/dashboard/ReferralSourcesChart';
 import { TravelPatternsCard } from '../../components/analytics/TravelPatternsCard';
+import { FinancialInfoModal, type AnalyticsFinancials } from '../../components/analytics/FinancialInfoModal';
 import { LengthOfStayChart } from '../../components/dashboard/LengthOfStayChart';
 import { RoomPerformancePanel } from '../../components/analytics/RoomPerformancePanel';
 import { SubscriptionTier, SubscriptionLimits, Booking } from '../../types';
@@ -15,6 +16,8 @@ import {
   fetchAnalyticsSummary,
   downloadAnalyticsSnapshot,
   downloadBiReport,
+  fetchAnalyticsFinancials,
+  saveAnalyticsFinancials,
   defaultAnalyticsRange,
   type AnalyticsSummaryResponse,
 } from '../../services/analyticsApi';
@@ -37,6 +40,9 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState<'snapshot' | 'bi' | null>(null);
+  const [financialModalOpen, setFinancialModalOpen] = useState(false);
+  const [financials, setFinancials] = useState<AnalyticsFinancials | null>(null);
+  const [financialLoading, setFinancialLoading] = useState(false);
 
   const businessId = getBusinessId() || '';
 
@@ -100,18 +106,58 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
 
   const handleSnapshot = async () => {
     if (!businessId || !analyticsLimits.canSnapshotPdf) return;
+    setFinancialLoading(true);
+    try {
+      const existing = await fetchAnalyticsFinancials({ businessId, dateFrom, dateTo });
+      setFinancials(existing);
+      setFinancialModalOpen(true);
+    } catch (e: any) {
+      alert(e?.message || 'Could not load financial information');
+    } finally {
+      setFinancialLoading(false);
+    }
+  };
+
+  const downloadSnapshot = async (includeFinancials: boolean) => {
+    if (!businessId || !analyticsLimits.canSnapshotPdf) return;
     setPdfLoading('snapshot');
     try {
-      const blob = await downloadAnalyticsSnapshot({ businessId, dateFrom, dateTo });
+      const blob = await downloadAnalyticsSnapshot({
+        businessId,
+        dateFrom,
+        dateTo,
+        includeFinancials,
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `FastCheckIn-Analytics-Snapshot-${dateFrom}-${dateTo}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      setFinancialModalOpen(false);
     } catch (e: any) {
       alert(e?.message || 'Could not download snapshot');
     } finally {
+      setPdfLoading(null);
+    }
+  };
+
+  const handleSkipSnapshot = () => downloadSnapshot(false);
+
+  const handleSaveFinancials = async (nextFinancials: AnalyticsFinancials) => {
+    if (!businessId) return;
+    setPdfLoading('snapshot');
+    try {
+      const saved = await saveAnalyticsFinancials({
+        businessId,
+        dateFrom,
+        dateTo,
+        financials: nextFinancials,
+      });
+      setFinancials(saved);
+      await downloadSnapshot(true);
+    } catch (e: any) {
+      alert(e?.message || 'Could not save financial information');
       setPdfLoading(null);
     }
   };
@@ -166,10 +212,10 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
             <button
               type="button"
               onClick={handleSnapshot}
-              disabled={!!pdfLoading}
+              disabled={!!pdfLoading || financialLoading}
               className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
             >
-              {pdfLoading === 'snapshot' ? (
+              {pdfLoading === 'snapshot' || financialLoading ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <FileDown size={12} />
@@ -194,6 +240,17 @@ export function ReportsTab({ bookings: _bookings }: ReportsTabProps) {
           )}
         </div>
       </div>
+
+      <FinancialInfoModal
+        isOpen={financialModalOpen}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        initialFinancials={financials}
+        saving={pdfLoading === 'snapshot'}
+        onClose={() => setFinancialModalOpen(false)}
+        onSkip={handleSkipSnapshot}
+        onSave={handleSaveFinancials}
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
