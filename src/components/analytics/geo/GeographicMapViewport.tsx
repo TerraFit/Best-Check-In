@@ -179,7 +179,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
         return;
       }
 
-      setCityLoading(false); setLayerVisibility(map, FILL_LAYER, true); setLayerVisibility(map, LINE_LAYER, level !== 'world'); setLayerVisibility(map, CITY_LAYER, false); setLayerVisibility(map, CITY_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
+      setCityLoading(false); setLayerVisibility(map, FILL_LAYER, true); setLayerVisibility(map, LINE_LAYER, true); setLayerVisibility(map, CITY_LAYER, false); setLayerVisibility(map, CITY_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false); setLayerVisibility(map, SUBREGION_LABEL_LAYER, false);
       const worldLevel = level === 'world';
       const regionLevel = level === 'regions' && !!selectedCountry;
       const isUkRegionLevel = regionLevel && canonicalCountryName(selectedCountry || '').toLowerCase() === 'united kingdom';
