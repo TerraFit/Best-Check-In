@@ -2,7 +2,6 @@
  * Lazy-load and cache static GeoJSON/TopoJSON for MapLibre.
  */
 
-import { feature as topoFeature } from 'topojson-client';
 import { GEO_PATHS } from './mapConfig';
 import { canonicalCountryName } from './nameMatch';
 
@@ -44,37 +43,30 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 /**
- * World/continent view uses Natural Earth admin-0 GeoJSON. It is kept
- * separate from world-atlas topology used for country drill-down geometry.
+ * All country-level views use the same Natural Earth admin-0 GeoJSON.
+ *
+ * Do not use world-atlas TopoJSON here: its browser-side conversion was
+ * producing malformed polygons during country/continent drill-down, with
+ * large grey triangles/rectangles rendered over the ocean. Keeping one
+ * validated GeoJSON geometry source for world and country views prevents
+ * the geometry from changing when the user drills into a continent.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  const key = 'world-110m-natural-earth';
-  if (cache.has(key)) return cache.get(key)!;
-  try {
-    const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
-    cache.set(key, fc);
-    return fc;
-  } catch {
-    const fallback = await loadCountries110m();
-    cache.set(key, fallback);
-    return fallback;
-  }
+  return loadNaturalEarthCountries();
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
-  const key = 'countries-110m';
-  if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchJson(GEO_PATHS.countries110m);
-  const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
-  cache.set(key, fc);
-  return fc;
+  return loadNaturalEarthCountries();
 }
 
 export async function loadCountries50m(): Promise<GeoJSONFeatureCollection> {
-  const key = 'countries-50m';
+  return loadNaturalEarthCountries();
+}
+
+async function loadNaturalEarthCountries(): Promise<GeoJSONFeatureCollection> {
+  const key = 'countries-natural-earth-admin0';
   if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchJson(GEO_PATHS.countries50m);
-  const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
+  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
   cache.set(key, fc);
   return fc;
 }
