@@ -111,6 +111,8 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
   const [geoError, setGeoError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [cityLoading, setCityLoading] = useState(false);
+  const [densityCollapsed, setDensityCollapsed] = useState(false);
+  const mapTotal = useMemo(() => nodes.reduce((sum, node) => sum + (Number(node.count) || 0), 0), [nodes]);
 
   const stateKey = `${level}|${selectedContinent || ''}|${selectedCountry || ''}|${selectedRegion || ''}`;
   const getContinent = useCallback((country: string) => continentOfCountry?.(country) || 'Other', [continentOfCountry]);
@@ -207,7 +209,9 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
 
 
       } else {
-        features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent ? featureForContinent(feature, selectedContinent) : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
+        features = fc.features.map((feature, index) => { const name = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); const featureContinentName = featureContinent(feature, getContinent); const node = level === 'world' ? nodeByContinent.get(featureContinentName.toLowerCase()) || null : findNodeForFeature(name, nodes, feature.id) || nodeByCountry.get(canonicalCountryName(name).toLowerCase()) || null; const count = node?.count ?? 0; const filtered = level === 'countries' && selectedContinent
+          ? (featureContinent(feature, getContinent).toLowerCase() === normalizeContinent(selectedContinent).toLowerCase() ? feature : null)
+          : feature; if (!filtered) return null; return { ...filtered, id: filtered.id ?? index, properties: { ...feature.properties, name, count, percentage: node?.percentage ?? 0, hasGuests: count > 0, fillColor: heatColor(count), isSelected: !!selectedCountry && canonicalCountryName(name).toLowerCase() === canonicalCountryName(selectedCountry).toLowerCase() } }; }).filter(Boolean) as FeatureLike[];
       }
       map.getSource(SOURCE_ID)?.setData?.({ type: 'FeatureCollection', features });
       if (!preserveCamera) {
@@ -265,12 +269,6 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           <p className="max-w-sm text-center text-sm text-stone-600">{geoError}</p>
         </div>
       )}
-      {interactive && (onBack || onHome) && (
-        <div className="absolute left-3 top-3 z-40 flex items-center gap-1 rounded-xl border border-stone-200 bg-white/95 p-1.5 shadow-lg backdrop-blur-sm">
-          {onBack && <button type="button" onClick={onBack} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100">← Back</button>}
-          {onHome && <button type="button" onClick={onHome} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-600 hover:bg-stone-100">World</button>}
-        </div>
-      )}
       {hover && (
         <div className="pointer-events-none absolute z-50 max-w-[220px] rounded-lg border border-stone-700 bg-stone-900 px-3 py-2 text-xs text-white shadow-lg" style={{ left: Math.min(hover.x + 12, (containerRef.current?.clientWidth || 300) - 170), top: Math.max(8, hover.y - 8) }} role="tooltip">
           <p className="text-sm font-bold">{hover.name}</p>
@@ -278,12 +276,26 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           {!hover.isSubdivision && hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}</>
         </div>
       )}
-      <div className="absolute bottom-3 right-3 z-20 rounded-lg border border-stone-200 bg-white/95 px-2.5 py-1.5 shadow-sm">
-        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-stone-400">{t('reports_guest_density')}</p>
-        <div className="flex items-center gap-0.5">
-          {['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map(color => <span key={color} className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: color }} aria-hidden="true" />)}
+      <div className="absolute bottom-3 right-3 z-20 min-w-[230px] rounded-xl border border-stone-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-stone-500">{t('reports_guest_density')}</p>
+          <button type="button" onClick={() => setDensityCollapsed(value => !value)} className="rounded-md px-1.5 py-0.5 text-[9px] font-bold text-stone-500 hover:bg-stone-100 hover:text-stone-800" aria-expanded={!densityCollapsed} aria-label={densityCollapsed ? 'Expand density legend' : 'Collapse density legend'}>{densityCollapsed ? '⌄' : '⌃'}</button>
         </div>
-        <div className="mt-0.5 flex justify-between text-[9px] text-stone-400"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div>
+        {!densityCollapsed && (
+          <div className="mt-1.5">
+            <div className="flex items-center gap-0.5">
+              {['#e5e7eb', '#fed7aa', '#fdba74', '#fb923c', '#ea580c', '#c2410c'].map(color => <span key={color} className="h-2.5 flex-1 rounded-sm" style={{ backgroundColor: color }} aria-hidden="true" />)}
+            </div>
+            <div className="mt-0.5 flex justify-between text-[9px] text-stone-400"><span>{t('reports_density_none')}</span><span>{t('reports_density_high')}</span></div>
+          </div>
+        )}
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-stone-200 pt-2">
+          <span className="text-[10px] font-mono text-stone-600">Total: <strong className="text-stone-900">{mapTotal.toLocaleString()}</strong></span>
+          <div className="flex items-center gap-1">
+            {onBack && <button type="button" onClick={onBack} disabled={level === 'world'} className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-stone-700 shadow-sm hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40">← Back</button>}
+            {onHome && <button type="button" onClick={onHome} className="rounded-lg bg-stone-800 px-2.5 py-1.5 text-[10px] font-extrabold text-white shadow-sm hover:bg-stone-700">World</button>}
+          </div>
+        </div>
       </div>
     </div>
   );
