@@ -1051,7 +1051,7 @@
   "reports_loading_city_insights": "Loading city insights…",
   "reports_close_modal": "Close modal",
   "reports_region_level": "REGION_LEVEL:",
-  "reports_cities_in_region": "Cities in {region}"
+  "reports_cities_in_region": "Cities in {region}",
   "reports_financial_title": "Add financial information",
   "reports_financial_intro": "Add financial figures for this reporting period. All fields are optional.",
   "reports_financial_revenue": "Revenue",
