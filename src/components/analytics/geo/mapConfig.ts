@@ -27,10 +27,12 @@ export function heatColor(count: number): string {
 export const BASEMAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 export const GEO_PATHS = {
-  // Natural Earth admin-0 carries reliable CONTINENT attributes. It is used
-  // only for the world/continent view; country drill-down continues to use
-  // the existing world-atlas geometry and matching logic.
-  world110m: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson',
+  // Use the world-atlas TopoJSON for world/continent rendering. Converting the
+  // topology to GeoJSON here avoids the malformed/oversized polygon artefacts
+  // seen with the Natural Earth GeoJSON source around the antimeridian.
+  // Continent membership is resolved from the country feature name, so the
+  // world view does not depend on a CONTINENT property in the source file.
+  world110m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   countries110m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   countries50m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json',
   // Natural Earth Admin-1: first-order administrative boundaries worldwide.
