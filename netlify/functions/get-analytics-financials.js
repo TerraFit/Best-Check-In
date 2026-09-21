@@ -110,7 +110,7 @@ exports.handler = async (event) => {
       updated_by: decoded.sub,
     };
 
-    const result = await fetch(baseUrl, {
+    const result = await fetch(`${baseUrl}?on_conflict=business_id,date_from,date_to`, {
       method: 'POST',
       headers: supabaseHeaders({
         Prefer: 'resolution=merge-duplicates,return=representation',
