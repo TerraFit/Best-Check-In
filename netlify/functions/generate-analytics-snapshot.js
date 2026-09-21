@@ -40,10 +40,30 @@ exports.handler = async (event) => {
     const dateFrom = q.dateFrom || q.startDate;
     const dateTo = q.dateTo || q.endDate;
     const summary = await buildAnalyticsSummary({ businessId, dateFrom, dateTo });
+    let financials = null;
+    if (q.includeFinancials !== 'false') {
+      const financialUrl = `${process.env.SUPABASE_URL}/rest/v1/analytics_financial_inputs?select=revenue,cost_of_sale,operating_costs,updated_at&business_id=eq.${encodeURIComponent(businessId)}&date_from=eq.${encodeURIComponent(dateFrom)}&date_to=eq.${encodeURIComponent(dateTo)}&limit=1`;
+      const financialResponse = await fetch(financialUrl, {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+        },
+      });
+      if (!financialResponse.ok) throw new Error(`Supabase REST error ${financialResponse.status}: ${await financialResponse.text()}`);
+      const rows = await financialResponse.json();
+      if (rows[0]) {
+        financials = {
+          revenue: rows[0].revenue == null ? null : Number(rows[0].revenue),
+          costOfSale: rows[0].cost_of_sale == null ? null : Number(rows[0].cost_of_sale),
+          operatingCosts: rows[0].operating_costs == null ? null : Number(rows[0].operating_costs),
+          updatedAt: rows[0].updated_at || null,
+        };
+      }
+    }
     let roomPerformance = null;
     try { roomPerformance = await buildRoomPerformance({ businessId, dateFrom, dateTo }); }
     catch (roomError) { console.warn('Snapshot room-performance unavailable:', roomError?.message || roomError); }
-    const pdf = await buildSnapshotPdfPayload({ ...summary, roomPerformance });
+    const pdf = await buildSnapshotPdfPayload({ ...summary, roomPerformance, financials });
     const filename = `FastCheckIn-Snapshot-${summary.meta.dateFrom}-${summary.meta.dateTo}.pdf`;
     return { statusCode: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename=\"${filename}\"`, 'Access-Control-Allow-Origin': '*' }, isBase64Encoded: true, body: pdf.toString('base64') };
   } catch (err) {
