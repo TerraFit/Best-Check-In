@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 export interface AnalyticsFinancials {
   revenue: number | null;
@@ -14,7 +15,7 @@ interface FinancialInfoModalProps {
   dateTo: string;
   initialFinancials: AnalyticsFinancials | null;
   saving: boolean;
-  onClose: () => void;
+  on{t('reports_financial_close')}: () => void;
   onSkip: () => void;
   onSave: (financials: AnalyticsFinancials) => void;
 }
@@ -33,7 +34,8 @@ export function FinancialInfoModal({
   onSkip,
   onSave,
 }: FinancialInfoModalProps) {
-  const [revenue, setRevenue] = useState('');
+  const { t } = useTranslation();
+  const [revenue, set{t('reports_financial_revenue')}] = useState('');
   const [costOfSale, setCostOfSale] = useState('');
   const [operatingCosts, setOperatingCosts] = useState('');
 
@@ -84,7 +86,7 @@ export function FinancialInfoModal({
         <div className="flex items-start justify-between border-b border-stone-200 px-6 py-5">
           <div>
             <h2 id="financial-info-title" className="text-lg font-bold text-stone-900">
-              Add financial information
+              {t('reports_financial_title')}
             </h2>
             <p className="mt-1 text-xs text-stone-500">
               {dateFrom} – {dateTo}
@@ -103,14 +105,14 @@ export function FinancialInfoModal({
 
         <div className="space-y-5 px-6 py-6">
           <p className="text-sm text-stone-600">
-            Add financial figures for this reporting period. All fields are optional.
+            {t('reports_financial_intro')}
           </p>
 
           <div className="space-y-4">
             {[
               ['Revenue', revenue, setRevenue],
-              ['Cost of Sale', costOfSale, setCostOfSale],
-              ['Operating Costs', operatingCosts, setOperatingCosts],
+              ['{t('reports_financial_cost_of_sale')}', costOfSale, setCostOfSale],
+              ['{t('reports_financial_operating_costs')}', operatingCosts, setOperatingCosts],
             ].map(([label, value, setter]) => (
               <label key={label as string} className="block">
                 <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-stone-500">
@@ -135,11 +137,11 @@ export function FinancialInfoModal({
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                  Operating Profit
+                  {t('reports_financial_operating_profit')}
                 </span>
                 <span className="text-base font-bold text-stone-900">
                   {operatingProfit === null
-                    ? 'Calculated automatically'
+                    ? '{t('reports_financial_calculated')}'
                     : `R ${operatingProfit.toLocaleString('en-ZA', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -148,15 +150,14 @@ export function FinancialInfoModal({
               </div>
               {operatingProfit === null && (
                 <p className="mt-1 text-[11px] text-stone-400">
-                  Enter Revenue, Cost of Sale and Operating Costs to calculate profit.
+                  {t('reports_financial_profit_hint')}
                 </p>
               )}
             </div>
           </div>
 
           <p className="text-[11px] leading-5 text-stone-400">
-            Financial figures are manually provided and are not taken from FastCheckIn booking data.
-            Saved figures are marked as Manual in the PDF.
+            {t('reports_financial_manual_note')}
           </p>
         </div>
 
@@ -167,7 +168,7 @@ export function FinancialInfoModal({
             disabled={saving}
             className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-100 disabled:opacity-50"
           >
-            Skip &amp; Download PDF
+            {t('reports_financial_skip')}
           </button>
           <button
             type="button"
@@ -176,7 +177,7 @@ export function FinancialInfoModal({
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-stone-800 disabled:opacity-50"
           >
             {saving && <Loader2 size={13} className="animate-spin" />}
-            Save &amp; Download PDF
+            {t('reports_financial_save')}
           </button>
         </div>
       </div>
