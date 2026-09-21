@@ -44,9 +44,9 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 /**
- * World/continent view uses Natural Earth country geometry. If that source is
- * temporarily unavailable, fall back to the bundled world-atlas geometry so
- * the drill-down remains usable.
+ * World/continent view uses world-atlas country topology converted to GeoJSON.
+ * Keeping the source as topology avoids the malformed/oversized polygon
+ * artefacts previously seen around the antimeridian.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
   const key = 'world-110m-world-atlas';
