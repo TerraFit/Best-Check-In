@@ -276,7 +276,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           {!hover.isSubdivision && hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}</>
         </div>
       )}
-      <div className="absolute bottom-3 right-3 z-20 min-w-[230px] rounded-xl border border-stone-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
+      <div className="absolute bottom-3 left-3 z-20 min-w-[230px] rounded-xl border border-stone-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[9px] font-bold uppercase tracking-wider text-stone-500">{t('reports_guest_density')}</p>
           <button type="button" onClick={() => setDensityCollapsed(value => !value)} className="rounded-md px-1.5 py-0.5 text-[9px] font-bold text-stone-500 hover:bg-stone-100 hover:text-stone-800" aria-expanded={!densityCollapsed} aria-label={densityCollapsed ? 'Expand density legend' : 'Collapse density legend'}>{densityCollapsed ? '⌄' : '⌃'}</button>
