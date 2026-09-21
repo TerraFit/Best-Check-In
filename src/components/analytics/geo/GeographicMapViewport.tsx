@@ -63,15 +63,17 @@ function admin2BelongsToRegion(feature: FeatureLike, regionGeometry: GeoJSON.Geo
   const point = geometryRepresentativePoint(feature.geometry);
   return !!point && pointInGeometry(point, regionGeometry);
 }
-function filterGeometryToContinent(geometry: GeoJSON.Geometry | null | undefined, continent: string | null): GeoJSON.Geometry | null {
-  if (!geometry || !continent || continent === 'Other') return geometry || null;
-  const target = CONTINENT_BOUNDS[normalizeContinent(continent)]; if (!target) return geometry;
-  if (geometry.type === 'Polygon') return boundsIntersect(coordinateBounds(geometry.coordinates) || target, target) ? geometry : null;
-  if (geometry.type === 'MultiPolygon') { const polygons = geometry.coordinates.filter((polygon) => { const b = coordinateBounds(polygon); return b ? boundsIntersect(b, target) : false; }); return polygons.length ? { ...geometry, coordinates: polygons } : null; }
-  if (geometry.type === 'GeometryCollection') { const geometries = geometry.geometries.map((g) => filterGeometryToContinent(g, continent)).filter(Boolean) as GeoJSON.Geometry[]; return geometries.length ? { ...geometry, geometries } : null; }
-  return geometry;
+function filterGeometryToContinent(geometry: GeoJSON.Geometry | null | undefined, _continent: string | null): GeoJSON.Geometry | null {
+  // Do not clip polygons to rectangular continent boxes. Rectangular clipping
+  // can create artificial polygons over the ocean, especially near coastlines
+  // and the antimeridian. Country/admin datasets already carry their own
+  // geographic boundaries, so retain the source geometry intact.
+  return geometry || null;
 }
-function featureForContinent(feature: FeatureLike, continent: string | null): FeatureLike | null { const geometry = filterGeometryToContinent(feature.geometry, continent); return geometry ? { ...feature, geometry } : null; }
+function featureForContinent(feature: FeatureLike, continent: string | null): FeatureLike | null {
+  const geometry = filterGeometryToContinent(feature.geometry, continent);
+  return geometry ? { ...feature, geometry } : null;
+}
 function countryMatches(feature: FeatureLike, countryName: string): boolean { const featureName = featureCountryName(feature.properties || {}, feature.id ?? feature.properties?.id as string | number | undefined); return !!findNodeForFeature(countryName, [{ name: featureName, count: 0 }], feature.id); }
 function regionMatchesNode(feature: FeatureLike, node: GeoNode): boolean {
   const props = feature.properties || {};
@@ -276,7 +278,7 @@ function GeographicMapViewportInner({ level, nodes, selectedContinent, selectedC
           {!hover.isSubdivision && hover.percentage > 0 && <p className="text-stone-300">{hover.percentage}%</p>}</>
         </div>
       )}
-      <div className="absolute bottom-3 left-3 z-20 min-w-[230px] rounded-xl border border-stone-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
+      <div className="absolute bottom-3 right-3 z-20 min-w-[230px] rounded-xl border border-stone-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[9px] font-bold uppercase tracking-wider text-stone-500">{t('reports_guest_density')}</p>
           <button type="button" onClick={() => setDensityCollapsed(value => !value)} className="rounded-md px-1.5 py-0.5 text-[9px] font-bold text-stone-500 hover:bg-stone-100 hover:text-stone-800" aria-expanded={!densityCollapsed} aria-label={densityCollapsed ? 'Expand density legend' : 'Collapse density legend'}>{densityCollapsed ? '⌄' : '⌃'}</button>
