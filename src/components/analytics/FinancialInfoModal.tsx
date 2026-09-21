@@ -15,7 +15,7 @@ interface FinancialInfoModalProps {
   dateTo: string;
   initialFinancials: AnalyticsFinancials | null;
   saving: boolean;
-  on{t('reports_financial_close')}: () => void;
+  onClose: () => void;
   onSkip: () => void;
   onSave: (financials: AnalyticsFinancials) => void;
 }
@@ -35,7 +35,7 @@ export function FinancialInfoModal({
   onSave,
 }: FinancialInfoModalProps) {
   const { t } = useTranslation();
-  const [revenue, set{t('reports_financial_revenue')}] = useState('');
+  const [revenue, setRevenue] = useState('');
   const [costOfSale, setCostOfSale] = useState('');
   const [operatingCosts, setOperatingCosts] = useState('');
 
@@ -97,7 +97,7 @@ export function FinancialInfoModal({
             onClick={onClose}
             disabled={saving}
             className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
-            aria-label="Close"
+            aria-label={t('reports_financial_close')}
           >
             <X size={18} />
           </button>
@@ -110,9 +110,9 @@ export function FinancialInfoModal({
 
           <div className="space-y-4">
             {[
-              ['Revenue', revenue, setRevenue],
-              ['{t('reports_financial_cost_of_sale')}', costOfSale, setCostOfSale],
-              ['{t('reports_financial_operating_costs')}', operatingCosts, setOperatingCosts],
+              [t('reports_financial_revenue'), revenue, setRevenue],
+              [t('reports_financial_cost_of_sale'), costOfSale, setCostOfSale],
+              [t('reports_financial_operating_costs'), operatingCosts, setOperatingCosts],
             ].map(([label, value, setter]) => (
               <label key={label as string} className="block">
                 <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-stone-500">
@@ -141,7 +141,7 @@ export function FinancialInfoModal({
                 </span>
                 <span className="text-base font-bold text-stone-900">
                   {operatingProfit === null
-                    ? '{t('reports_financial_calculated')}'
+                    ? t('reports_financial_calculated')
                     : `R ${operatingProfit.toLocaleString('en-ZA', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
