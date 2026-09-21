@@ -22,6 +22,32 @@ function referralLabel(value) {
 }
 function maxCount(items) { return Math.max(1, ...(items || []).map((n) => Number(n.count || 0))); }
 
+function drawFinancialSection(commands, financials, x, y, w) {
+  if (!financials) return y;
+  const hasAny = [financials.revenue, financials.costOfSale, financials.operatingCosts].some((v) => v !== null && v !== undefined);
+  if (!hasAny) return y;
+  commands.push(textCmd('Financial information', x, y, 11, INK, true));
+  commands.push(textCmd('Manual figures supplied for this reporting period.', x, y - 14, 7, MUTED));
+  const values = [
+    ['REVENUE', financials.revenue],
+    ['COST OF SALE', financials.costOfSale],
+    ['OPERATING COSTS', financials.operatingCosts],
+    ['OPERATING PROFIT', financials.revenue != null && financials.costOfSale != null && financials.operatingCosts != null
+      ? Number(financials.revenue) - Number(financials.costOfSale) - Number(financials.operatingCosts)
+      : null],
+  ];
+  const gap = 7;
+  const cardW = (w - gap * 3) / 4;
+  values.forEach(([label, value], i) => {
+    const xx = x + i * (cardW + gap);
+    commands.push(rectCmd(xx, y - 76, cardW, 50, '#ffffff', BORDER));
+    commands.push(textCmd(label, xx + 8, y - 42, 5.8, MUTED, true));
+    commands.push(textCmd(value == null ? '—' : money(value), xx + 8, y - 61, 9.5, INK, true));
+  });
+  commands.push(textCmd('Source: Manual · Not taken from FastCheckIn booking data', x, y - 89, 6.5, '#94a3b8'));
+  return y - 98;
+}
+
 function addHeader(commands, businessName, meta, section) {
   commands.push(rectCmd(0, 0, 595, 842, '#ffffff'));
   commands.push(rectCmd(0, 785, 595, 57, '#ffffff'));
@@ -95,11 +121,14 @@ function drawRoomPerformance(commands, rooms, topY = 500) {
 export function buildSnapshotPdfPayload(summary) {
   const meta = summary.meta || {}; const s = summary.summary || {}; const occ = s.occupancy || {}; const businessName = meta.businessName || 'Accommodation Business';
   const page1 = []; addHeader(page1, businessName, meta, 'Executive overview');
-  page1.push(textCmd('Management snapshot', 50, 730, 18, INK, true)); page1.push(textCmd('A concise view of guest demand, visitor markets and commercial performance.', 50, 712, 8.5, MUTED));
-  kpi(page1, 50, 620, 118, 'CHECK-INS', String(s.totalBookings ?? 0), ORANGE, `${s.domesticCount ?? 0} domestic · ${s.internationalCount ?? 0} international`); kpi(page1, 178, 620, 118, 'GUESTS', String(s.totalGuests ?? 0), BLUE, `Average party ${s.averagePartySize ?? 0}`); kpi(page1, 306, 620, 118, 'OCCUPANCY', pct(occ.occupancyRate), TEAL, `${occ.roomNightsSold ?? 0} room-nights sold`); kpi(page1, 434, 620, 111, 'REVENUE', money(s.totalRevenue), GREEN, 'Reporting period');
+  page1.push(textCmd('Management snapshot', 50, 730, 18, INK, true)); page1.push(textCmd('A concise view of guest demand, visitor markets and operational performance.', 50, 712, 8.5, MUTED));
+  kpi(page1, 50, 620, 155, 'CHECK-INS', String(s.totalBookings ?? 0), ORANGE, `${s.domesticCount ?? 0} domestic · ${s.internationalCount ?? 0} international`); kpi(page1, 220, 620, 155, 'GUESTS', String(s.totalGuests ?? 0), BLUE, `Average party ${s.averagePartySize ?? 0}`); kpi(page1, 390, 620, 155, 'OCCUPANCY', pct(occ.occupancyRate), TEAL, `${occ.roomNightsSold ?? 0} room-nights sold`);
   page1.push(textCmd('Visitor mix', 50, 590, 11, INK, true)); page1.push(rectCmd(50, 545, 495, 28, '#f8fafc', BORDER)); const domesticW = 495 * (Number(s.domesticPercentage || 0) / 100); page1.push(rectCmd(50, 545, domesticW, 28, ORANGE));
   page1.push(textCmd(`South Africa · ${s.domesticCount ?? 0} (${pct(s.domesticPercentage)})`, 60, 556, 7, '#ffffff', true)); page1.push(textCmd(`International · ${s.internationalCount ?? 0} (${pct(s.internationalPercentage)})`, 55 + domesticW, 556, 7, INK, true)); page1.push(textCmd(`Average stay ${s.averageStay ?? 0} nights · Marketing consent ${pct(s.consentRate)} · Returning guests ${pct(s.returningRate)}`, 50, 528, 7.5, MUTED));
-  drawBarList(page1, summary.originCountries || [], 50, 490, 495, 'Visitor origin', (n) => String(n.name || ''), 9, ORANGE, 28); page1.push(textCmd('Countries with no bookings are intentionally omitted from this ranked business view.', 50, 190, 6.5, '#94a3b8'));
+  const financialBottom = drawFinancialSection(page1, summary.financials, 50, 500, 495);
+  const originTop = summary.financials ? 385 : 490;
+  const originBottom = drawBarList(page1, summary.originCountries || [], 50, originTop, 495, 'Visitor origin', (n) => String(n.name || ''), summary.financials ? 6 : 9, ORANGE, 28);
+  page1.push(textCmd('Countries with no bookings are intentionally omitted from this ranked business view.', 50, Math.max(70, originBottom - 5), 6.5, '#94a3b8'));
 
   const page2 = []; addHeader(page2, businessName, meta, 'Acquisition intelligence'); page2.push(textCmd('How Guests Found You', 50, 730, 18, INK, true)); page2.push(textCmd('Acquisition performance and the relationship between guest market and booking channel.', 50, 712, 8.5, MUTED));
   drawBarList(page2, summary.referralData || [], 50, 680, 495, 'Overall acquisition', (n) => referralLabel(n.name), 8, ORANGE, 29);
