@@ -4,7 +4,7 @@ const headers = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
 };
 
 const response = (statusCode, body) => ({
@@ -50,10 +50,25 @@ exports.handler = async (event) => {
 
   try {
     const decoded = authenticate(event);
-    const businessId = assertTenant(event, decoded);
     const q = event.queryStringParameters || {};
-    const dateFrom = q.dateFrom || q.startDate;
-    const dateTo = q.dateTo || q.endDate;
+
+    let body = null;
+    if (event.httpMethod === 'PUT') {
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch {
+        return response(400, { success: false, error: 'Invalid JSON body' });
+      }
+    }
+
+    const requestedBusinessId = q.businessId || body?.businessId || decoded.sub;
+    if (requestedBusinessId !== decoded.sub) {
+      return response(403, { success: false, error: 'Forbidden' });
+    }
+    const businessId = requestedBusinessId;
+
+    const dateFrom = q.dateFrom || q.startDate || body?.dateFrom || body?.startDate;
+    const dateTo = q.dateTo || q.endDate || body?.dateTo || body?.endDate;
 
     if (!dateFrom || !dateTo) {
       return response(400, { success: false, error: 'dateFrom and dateTo are required' });
@@ -82,9 +97,6 @@ exports.handler = async (event) => {
         } : null,
       });
     }
-
-    let body;
-    try { body = JSON.parse(event.body || '{}'); } catch { return response(400, { success: false, error: 'Invalid JSON body' }); }
 
     const values = ['revenue', 'costOfSale', 'operatingCosts'];
     const normalized = {};
