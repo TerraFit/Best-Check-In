@@ -125,8 +125,9 @@ export function buildSnapshotPdfPayload(summary) {
   kpi(page1, 50, 620, 155, 'CHECK-INS', String(s.totalBookings ?? 0), ORANGE, `${s.domesticCount ?? 0} domestic · ${s.internationalCount ?? 0} international`); kpi(page1, 220, 620, 155, 'GUESTS', String(s.totalGuests ?? 0), BLUE, `Average party ${s.averagePartySize ?? 0}`); kpi(page1, 390, 620, 155, 'OCCUPANCY', pct(occ.occupancyRate), TEAL, `${occ.roomNightsSold ?? 0} room-nights sold`);
   page1.push(textCmd('Visitor mix', 50, 590, 11, INK, true)); page1.push(rectCmd(50, 545, 495, 28, '#f8fafc', BORDER)); const domesticW = 495 * (Number(s.domesticPercentage || 0) / 100); page1.push(rectCmd(50, 545, domesticW, 28, ORANGE));
   page1.push(textCmd(`South Africa · ${s.domesticCount ?? 0} (${pct(s.domesticPercentage)})`, 60, 556, 7, '#ffffff', true)); page1.push(textCmd(`International · ${s.internationalCount ?? 0} (${pct(s.internationalPercentage)})`, 55 + domesticW, 556, 7, INK, true)); page1.push(textCmd(`Average stay ${s.averageStay ?? 0} nights · Marketing consent ${pct(s.consentRate)} · Returning guests ${pct(s.returningRate)}`, 50, 528, 7.5, MUTED));
-  const financialBottom = drawFinancialSection(page1, summary.financials, 50, 500, 495);
-  const originTop = summary.financials ? 385 : 490;
+  const hasFinancials = !!summary.financials && [summary.financials.revenue, summary.financials.costOfSale, summary.financials.operatingCosts].some((v) => v !== null && v !== undefined);
+  drawFinancialSection(page1, summary.financials, 50, 500, 495);
+  const originTop = hasFinancials ? 385 : 490;
   const originBottom = drawBarList(page1, summary.originCountries || [], 50, originTop, 495, 'Visitor origin', (n) => String(n.name || ''), summary.financials ? 6 : 9, ORANGE, 28);
   page1.push(textCmd('Countries with no bookings are intentionally omitted from this ranked business view.', 50, Math.max(70, originBottom - 5), 6.5, '#94a3b8'));
 
