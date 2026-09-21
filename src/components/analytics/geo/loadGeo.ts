@@ -49,17 +49,11 @@ async function fetchJson(url: string): Promise<any> {
  * the drill-down remains usable.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  const key = 'world-110m-natural-earth';
+  const key = 'world-110m-world-atlas';
   if (cache.has(key)) return cache.get(key)!;
-  try {
-    const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
-    cache.set(key, fc);
-    return fc;
-  } catch {
-    const fallback = await loadCountries110m();
-    cache.set(key, fallback);
-    return fallback;
-  }
+  const fc = await loadCountries110m();
+  cache.set(key, fc);
+  return fc;
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
