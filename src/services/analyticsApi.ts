@@ -4,6 +4,7 @@
  */
 
 import { getAuthToken } from '../utils/auth';
+import type { AnalyticsFinancials } from '../components/analytics/FinancialInfoModal';
 
 export type DrillLevel = 'world' | 'continent' | 'country' | 'region' | 'city';
 
@@ -250,15 +251,62 @@ export async function fetchAnalyticsSummary(options: {
   return res.json();
 }
 
+export async function fetchAnalyticsFinancials(options: {
+  businessId: string;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<AnalyticsFinancials | null> {
+  const query = qs({
+    businessId: options.businessId,
+    dateFrom: options.dateFrom,
+    dateTo: options.dateTo,
+  });
+  const res = await fetch(`/.netlify/functions/get-analytics-financials${query}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || `Financial information failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.financials || null;
+}
+
+export async function saveAnalyticsFinancials(options: {
+  businessId: string;
+  dateFrom: string;
+  dateTo: string;
+  financials: AnalyticsFinancials;
+}): Promise<AnalyticsFinancials> {
+  const res = await fetch('/.netlify/functions/get-analytics-financials', {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      businessId: options.businessId,
+      dateFrom: options.dateFrom,
+      dateTo: options.dateTo,
+      ...options.financials,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || `Financial information save failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.financials;
+}
+
 export async function downloadAnalyticsSnapshot(options: {
   businessId: string;
   dateFrom?: string;
   dateTo?: string;
+  includeFinancials?: boolean;
 }): Promise<Blob> {
   const query = qs({
     businessId: options.businessId,
     dateFrom: options.dateFrom,
     dateTo: options.dateTo,
+    includeFinancials: options.includeFinancials === false ? 'false' : 'true',
   });
   const res = await fetch(`/.netlify/functions/generate-analytics-snapshot${query}`, {
     headers: authHeaders(),

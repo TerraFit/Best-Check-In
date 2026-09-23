@@ -163,6 +163,14 @@ export async function buildVisitorOrigins({ businessId, dateFrom, dateTo, level 
   const quality = buildQualityMeta(bookings, eligibleRaw, from, to);
   const parent = { continent, country, region, city };
   const agg = aggregateAtLevel(enriched, level, parent);
+  // Build country nodes from the same fetched/enriched booking set. The map needs
+  // country-level data even when the visible drill level is world/continent;
+  // doing this here avoids a second full business + bookings query.
+  const mapNodes = aggregateAtLevel(
+    enriched,
+    'country',
+    level === 'continent' ? { continent } : {}
+  ).nodes;
   const summary = summarizeBookings(enriched, business.total_rooms, from, to);
   let cityPanel = null;
   if (level === 'city' && city) {
@@ -171,7 +179,7 @@ export async function buildVisitorOrigins({ businessId, dateFrom, dateTo, level 
   }
   return {
     meta: { businessId, businessName: business.trading_name || business.registered_name || null, dateFrom: from, dateTo: to, totalVisitors: enriched.length, domesticCount: summary.domesticCount, internationalCount: summary.internationalCount, plan, totalRooms: business.total_rooms, totalRoomsSource: business.total_rooms_source, generatedAt: new Date().toISOString(), timezone: ANALYTICS_TIMEZONE, quality },
-    level: agg.level, parent, nodes: agg.nodes, skipToCity: agg.skipToCity || false, cityDashboard: cityPanel,
+    level: agg.level, parent, nodes: agg.nodes, mapNodes, skipToCity: agg.skipToCity || false, cityDashboard: cityPanel,
   };
 }
 
