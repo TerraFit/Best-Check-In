@@ -119,7 +119,6 @@ exports.handler = async (event) => {
       revenue: normalized.revenue,
       cost_of_sale: normalized.costOfSale,
       operating_costs: normalized.operatingCosts,
-      updated_by: decoded.sub,
     };
 
     const result = await fetch(`${baseUrl}?on_conflict=business_id,date_from,date_to`, {
