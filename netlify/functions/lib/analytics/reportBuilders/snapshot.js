@@ -126,8 +126,14 @@ export function buildSnapshotPdfPayload(summary) {
   page1.push(textCmd('Visitor mix', 50, 590, 11, INK, true)); page1.push(rectCmd(50, 545, 495, 28, '#f8fafc', BORDER)); const domesticW = 495 * (Number(s.domesticPercentage || 0) / 100); page1.push(rectCmd(50, 545, domesticW, 28, ORANGE));
   page1.push(textCmd(`South Africa · ${s.domesticCount ?? 0} (${pct(s.domesticPercentage)})`, 60, 556, 7, '#ffffff', true)); page1.push(textCmd(`International · ${s.internationalCount ?? 0} (${pct(s.internationalPercentage)})`, 55 + domesticW, 556, 7, INK, true)); page1.push(textCmd(`Average stay ${s.averageStay ?? 0} nights · Marketing consent ${pct(s.consentRate)} · Returning guests ${pct(s.returningRate)}`, 50, 528, 7.5, MUTED));
   const hasFinancials = !!summary.financials && [summary.financials.revenue, summary.financials.costOfSale, summary.financials.operatingCosts].some((v) => v !== null && v !== undefined);
-  drawFinancialSection(page1, summary.financials, 50, 500, 495);
-  const originTop = hasFinancials ? 385 : 490;
+  // Financial information belongs directly below the KPI row and before the visitor mix.
+  const financialBottom = drawFinancialSection(page1, summary.financials, 50, 590, 495);
+  const visitorMixY = hasFinancials ? financialBottom - 20 : 590;
+  page1.push(textCmd('Visitor mix', 50, visitorMixY, 11, INK, true));
+  const visitorBarY = visitorMixY - 45;
+  page1.push(rectCmd(50, visitorBarY, 495, 28, '#f8fafc', BORDER)); const domesticW = 495 * (Number(s.domesticPercentage || 0) / 100); page1.push(rectCmd(50, visitorBarY, domesticW, 28, ORANGE));
+  page1.push(textCmd(`South Africa · ${s.domesticCount ?? 0} (${pct(s.domesticPercentage)})`, 60, visitorBarY + 11, 7, '#ffffff', true)); page1.push(textCmd(`International · ${s.internationalCount ?? 0} (${pct(s.internationalPercentage)})`, 55 + domesticW, visitorBarY + 11, 7, INK, true)); page1.push(textCmd(`Average stay ${s.averageStay ?? 0} nights · Marketing consent ${pct(s.consentRate)} · Returning guests ${pct(s.returningRate)}`, 50, visitorBarY - 17, 7.5, MUTED));
+  const originTop = hasFinancials ? visitorBarY - 55 : 490;
   const originBottom = drawBarList(page1, summary.originCountries || [], 50, originTop, 495, 'Visitor origin', (n) => String(n.name || ''), summary.financials ? 6 : 9, ORANGE, 28);
   page1.push(textCmd('Countries with no bookings are intentionally omitted from this ranked business view.', 50, Math.max(70, originBottom - 5), 6.5, '#94a3b8'));
 
