@@ -3,7 +3,19 @@
  * Pro+ — Analytics Snapshot PDF
  */
 
-const jwt = require('jsonwebtoken');
+import auth from './_auth.cjs';
+import { buildAnalyticsSummary, fetchBusiness, resolveBusinessPlan } from './lib/analytics/pipeline.js';
+import { buildRoomPerformance } from './lib/analytics/roomPerformance.js';
+import { assertSnapshotAllowed } from './lib/analytics/packageGates.js';
+import { buildSnapshotPdfPayload } from './lib/analytics/reportBuilders/snapshot.js';
+
+const {
+  requireBusinessActor,
+  requireBusinessPermission,
+  resolveTenant,
+  authFailure,
+} = auth;
+
 const headersJson = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
@@ -11,27 +23,24 @@ const headersJson = {
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
 };
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: headersJson, body: '' };
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers: headersJson, body: JSON.stringify({ success: false, error: 'Method Not Allowed' }) };
   try {
-    const token = event.headers.authorization?.replace('Bearer ', '');
-    if (!token) return { statusCode: 401, headers: headersJson, body: JSON.stringify({ success: false, error: 'No authorization token provided' }) };
-    let decoded;
-    try { decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET); }
-    catch (err) { return { statusCode: 401, headers: headersJson, body: JSON.stringify({ success: false, error: err.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid token' }) }; }
+    const actor = requireBusinessActor(event);
+    if (!actor.ok) return authFailure(actor, headersJson);
 
-    // The signed JWT subject is the authoritative business identity.
-    const businessIdFromToken = decoded.sub;
-    if (!businessIdFromToken || decoded.role !== 'authenticated') return { statusCode: 403, headers: headersJson, body: JSON.stringify({ success: false, error: 'Token missing authenticated business identity' }) };
+    if (!requireBusinessPermission(actor.principal, 'canExportReports')) {
+      return authFailure(
+        { status: 403, error: 'Missing permission: canExportReports' },
+        headersJson
+      );
+    }
+
     const q = event.queryStringParameters || {};
-    const businessId = q.businessId || businessIdFromToken;
-    if (businessId !== businessIdFromToken) return { statusCode: 403, headers: headersJson, body: JSON.stringify({ success: false, error: 'Forbidden' }) };
-
-    const { buildAnalyticsSummary, fetchBusiness, resolveBusinessPlan } = await import('./lib/analytics/pipeline.js');
-    const { buildRoomPerformance } = await import('./lib/analytics/roomPerformance.js');
-    const { assertSnapshotAllowed } = await import('./lib/analytics/packageGates.js');
-    const { buildSnapshotPdfPayload } = await import('./lib/analytics/reportBuilders/snapshot.js');
+    const tenant = resolveTenant(actor.principal, q.businessId);
+    if (!tenant.ok) return authFailure(tenant, headersJson);
+    const businessId = tenant.businessId;
     const business = await fetchBusiness(businessId);
     if (!business) return { statusCode: 404, headers: headersJson, body: JSON.stringify({ success: false, error: 'Business not found' }) };
     const plan = resolveBusinessPlan(business);
