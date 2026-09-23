@@ -161,7 +161,7 @@ export function FinancialInfoModal({
           </p>
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-stone-200 bg-stone-50 px-6 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-row items-center justify-end gap-2 border-t border-stone-200 bg-stone-50 px-6 py-4">
           <button
             type="button"
             onClick={onSkip}
