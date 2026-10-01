@@ -50,108 +50,54 @@ export function useBusinessData(activeTab: string, currentPage: number, pageSize
     }
 
     loadingBusinessRef.current = true;
-    const brandingController = new AbortController();
-    const settingsController = new AbortController();
-    const brandingTimeout = setTimeout(() => brandingController.abort(), 10000);
-    const settingsTimeout = setTimeout(() => settingsController.abort(), 10000);
-
     try {
       console.log('📡 Loading business profile...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const cacheBust = `&_=${Date.now()}`;
+      const [res, settingsRes] = await Promise.all([
+        fetchWithAuth(`/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        }),
+        fetchWithAuth(`/.netlify/functions/get-business-settings?businessId=${encodeURIComponent(businessId)}${cacheBust}`, {
+          signal: controller.signal, cache: 'no-store'
+        })
+      ]);
+      clearTimeout(timeoutId);
 
-      // The authenticated settings projection is the authoritative dashboard
-      // profile. It must be able to render independently of public branding,
-      // whose endpoint has stricter availability rules.
-      const brandingPromise = fetchWithAuth(
-        `/.netlify/functions/get-business-branding?id=${encodeURIComponent(businessId)}`,
-        { signal: brandingController.signal, cache: 'no-store' }
-      );
-      const settingsPromise = fetchWithAuth(
-        `/.netlify/functions/get-business-settings?businessId=${encodeURIComponent(businessId)}`,
-        { signal: settingsController.signal, cache: 'no-store' }
-      );
-
-      let businessData: any = null;
-
-      // Await the private profile first. If it succeeds, the dashboard can
-      // render even when the public branding request is slow or unavailable.
-      try {
-        const settingsResponse = await settingsPromise;
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json();
-          if (!settingsData?.id || settingsData.id === businessId) {
-            businessData = { ...(settingsData || {}), id: businessId };
-            if (isMountedRef.current) {
-              setBusiness(businessData);
-              setBusinessLoadError(false);
-              setLoading(false);
-              initialLoadDoneRef.current = true;
-              console.log('✅ Business profile loaded:', businessData?.trading_name);
-            }
-          } else {
-            console.warn('⚠️ Business settings response had unexpected business ID');
-          }
-        } else {
-          console.warn('⚠️ Business settings request returned HTTP', settingsResponse.status);
-        }
-      } catch (error: any) {
-        if (error?.name !== 'AbortError') {
-          console.warn('⚠️ Business settings request failed:', error?.message || error);
-        } else {
-          console.warn('⚠️ Business settings request timed out');
-        }
+      if (!res.ok) throw new Error(`Business branding HTTP ${res.status}`);
+      if (!settingsRes.ok) {
+        let detail = '';
+        try {
+          const errorBody = await settingsRes.json();
+          detail = errorBody?.error ? `: ${errorBody.error}` : '';
+        } catch {}
+        throw new Error(`Business settings HTTP ${settingsRes.status}${detail}`);
       }
 
-      // Branding is supplemental and is merged only when it is available.
-      try {
-        const brandingResponse = await brandingPromise;
-        if (brandingResponse.ok) {
-          const data = await brandingResponse.json();
-          const brandingData = data.success && data.data ? data.data : data;
-          if (brandingData?.id === businessId) {
-            businessData = { ...(businessData || {}), ...brandingData, id: businessId };
-            if (isMountedRef.current) {
-              setBusiness(businessData);
-              setBusinessLoadError(false);
-              console.log('✅ Business branding loaded:', businessData?.trading_name);
-            }
-          }
-        } else {
-          console.warn('⚠️ Business branding request returned HTTP', brandingResponse.status);
-        }
-      } catch (error: any) {
-        if (error?.name !== 'AbortError') {
-          console.warn('⚠️ Business branding request failed:', error?.message || error);
-        } else {
-          console.warn('⚠️ Business branding request timed out');
-        }
-      }
+      const data = await res.json();
+      const businessData = data.success && data.data ? data.data : data;
+      if (!businessData || businessData.id !== businessId) throw new Error('Fresh business profile was not returned');
 
-      if (!businessData) {
-        if (isMountedRef.current) {
-          setBusiness(null);
-          setBusinessLoadError(true);
-        }
-        return null;
-      }
+      // Merge the authenticated, tenant-scoped profile projection. The public
+      // branding endpoint remains deliberately minimal.
+      const settings = await settingsRes.json();
+      Object.assign(businessData, settings);
+      businessData.id = businessId;
 
+      if (isMountedRef.current) {
+        setBusiness(businessData);
+        setBusinessLoadError(false);
+        console.log('✅ Business profile loaded:', businessData?.trading_name);
+      }
       return businessData;
     } catch (err: any) {
       if (err.name === 'AbortError') console.warn('⚠️ Business profile request timed out');
       else console.error('❌ Failed to load business profile:', err);
-      if (isMountedRef.current && !business) {
-        setBusiness(null);
-        setBusinessLoadError(true);
-      }
+      if (isMountedRef.current && !business) { setBusiness(null); setBusinessLoadError(true); }
       return null;
     } finally {
-      clearTimeout(brandingTimeout);
-      clearTimeout(settingsTimeout);
-      brandingController.abort();
-      settingsController.abort();
-      if (isMountedRef.current) {
-        setLoading(false);
-        initialLoadDoneRef.current = true;
-      }
+      if (isMountedRef.current) { setLoading(false); initialLoadDoneRef.current = true; }
       loadingBusinessRef.current = false;
     }
   }, [fetchWithAuth, getBusinessId, business]);
