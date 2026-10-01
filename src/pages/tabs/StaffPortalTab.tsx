@@ -43,7 +43,12 @@ export function StaffPortalTab({ businessId }: StaffPortalTabProps) {
     
     setLoadingEmployees(true);
     try {
-      const headers = getAuthHeaders();
+      const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
+      const businessAuth = businessAuthStr ? JSON.parse(businessAuthStr) : null;
+      const token = businessAuth?.type === 'business' ? businessAuth?.token : null;
+      const headers = token
+        ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        : getAuthHeaders();
       const response = await fetch(`/.netlify/functions/manage-employees?businessId=${businessId}`, {
         headers
       });

@@ -19,7 +19,7 @@ function expandLegacy(set) {
   return set;
 }
 
-const HK_WORKER = ['canViewDashboard','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
+const HK_WORKER = ['canViewDashboard','canViewGuestOverview','canViewHousekeeping','canStartHousekeepingTask','canCompleteHousekeepingTask','canViewLostFound','canCreateLostFound','canViewGuestLimited'];
 const HK_LEAD = HK_WORKER.concat(['canApproveInspection','canAssignHousekeepingTasks','canGenerateHousekeepingSchedule','canViewHousekeepingReports','canEditLostFound','canViewRooms']);
 export const ROLE_DEFAULTS = {
   super_admin: ALL,
@@ -27,7 +27,7 @@ export const ROLE_DEFAULTS = {
   general_manager: ALL,
   supervisor: HK_LEAD.concat(['canViewRooms','canAllocateRooms','canViewGuestDetails','canManageBookings','canViewOperationalReports','canViewGuestReports','canAccessStaffPortal','canDisposeLostFound','canViewLostFoundReports']),
   team_leader: HK_LEAD,
-  front_desk: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound'],
+  front_desk: ['canViewDashboard','canViewGuestOverview','canViewGuestPhone','canViewGuestFoodRestrictions','canManageBookings','canCheckGuestsIn','canAllocateRooms','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewLostFound','canCreateLostFound'],
   housekeeper: HK_WORKER,
   laundry_attendant: ['canViewDashboard','canViewLaundry','canManageLaundry','canReceiveLinen','canIssueLinen','canViewHousekeeping','canViewLostFound','canViewGuestLimited'],
   maintenance: ['canViewDashboard','canViewMaintenance','canCreateMaintenanceJob','canCompleteMaintenanceJob','canTakeRoomOffline','canReturnRoomToService','canViewRooms','canApproveRoomChanges'],
@@ -37,27 +37,97 @@ export const ROLE_DEFAULTS = {
   night_auditor: ['canViewDashboard','canManageBookings','canCheckGuestsIn','canViewRooms','canViewGuestDetails','canViewHousekeeping','canViewOperationalReports','canViewAuditLog'],
   security: ['canViewDashboard','canViewRooms','canViewGuestLimited','canViewLostFound'],
   custom: ['canViewDashboard'],
-  EmployeeOverview: ['canViewDashboard','canViewGuestDetails','canManageBookings'],
+  EmployeeOverview: ['canViewDashboard','canViewGuestOverview','canViewGuestDetails','canManageBookings'],
 };
 
 export function normalizeRole(role) {
   if (!role) return 'EmployeeOverview';
   if (ROLE_DEFAULTS[role]) return role;
-  const aliases = { owner:'business_owner', business:'business_owner', gm:'general_manager', receptionist:'front_desk', reception:'front_desk', hk:'housekeeper', housekeeping:'housekeeper' };
+  const aliases = { owner:'business_owner', business:'business_owner', gm:'general_manager', manager:'general_manager', receptionist:'front_desk', reception:'front_desk', hk:'housekeeper', housekeeping:'housekeeper' };
   return aliases[String(role).toLowerCase()] || 'custom';
 }
 
-export function resolvePermissions({ actorType, role, permission_set, permissions, active }) {
+const GUEST_DATA_PERMISSIONS = [
+  'canViewGuestOverview',
+  'canViewGuestPhone',
+  'canViewGuestFoodRestrictions',
+];
+
+const DEPARTMENT_GUEST_PERMISSIONS = {
+  front_office: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions', 'canManageBookings', 'canCheckGuestsIn', 'canAllocateRooms', 'canViewRooms'],
+  housekeeping: ['canViewGuestOverview'],
+  laundry: ['canViewGuestOverview'],
+  maintenance: [],
+  administration: [],
+  marketing: [],
+  finance: [],
+  security: ['canViewGuestOverview'],
+  grounds_gardens: [],
+  activities: ['canViewGuestOverview'],
+  food_beverage: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+  kitchen: ['canViewGuestOverview', 'canViewGuestFoodRestrictions'],
+  restaurant: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+  custom: [],
+  management: ['canViewGuestOverview', 'canViewGuestPhone', 'canViewGuestFoodRestrictions'],
+};
+
+function normalizeDepartments(department, additional_departments) {
+  const values = [
+    department,
+    ...(Array.isArray(additional_departments) ? additional_departments : []),
+  ];
+
+  return [...new Set(
+    values.filter((value) => typeof value === 'string' && value in DEPARTMENT_GUEST_PERMISSIONS)
+  )];
+}
+
+export function resolvePermissions({
+  actorType,
+  role,
+  permission_set,
+  permissions,
+  active,
+  department,
+  additional_departments,
+}) {
   if (active === false) return new Set();
-  if (actorType === 'super_admin' || role === 'super_admin') return expandLegacy(new Set(ALL));
-  if (actorType === 'business' || role === 'business_owner' || role === 'owner') return expandLegacy(new Set(ALL));
+
+  if (actorType === 'super_admin' || role === 'super_admin') {
+    return expandLegacy(new Set(ALL));
+  }
+
+  if (actorType === 'business' || role === 'business_owner' || role === 'owner') {
+    return expandLegacy(new Set(ALL));
+  }
+
   const r = normalizeRole(role);
   const base = new Set(ROLE_DEFAULTS[r] || []);
-  const supplied = Array.isArray(permission_set) ? permission_set : (Array.isArray(permissions) ? permissions : []);
-  if (supplied.length) {
-    if (r === 'custom') return expandLegacy(new Set(supplied.filter((p) => typeof p === 'string')));
-    supplied.forEach((p) => { if (typeof p === 'string') base.add(p); });
+
+  // Guest-data access is department-controlled, not role-controlled.
+  // This prevents a Manager/Director/other authority role in a
+  // non-guest-facing department from receiving guest data merely
+  // because their role has broad administrative permissions.
+  GUEST_DATA_PERMISSIONS.forEach((permission) => base.delete(permission));
+
+  for (const dept of normalizeDepartments(department, additional_departments)) {
+    for (const permission of DEPARTMENT_GUEST_PERMISSIONS[dept]) {
+      base.add(permission);
+    }
   }
+
+  // permission_set remains supported for non-guest operational permissions,
+  // but it cannot manufacture the three guest-data permissions.
+  const supplied = Array.isArray(permission_set)
+    ? permission_set
+    : (Array.isArray(permissions) ? permissions : []);
+
+  for (const permission of supplied) {
+    if (typeof permission === 'string' && !GUEST_DATA_PERMISSIONS.includes(permission)) {
+      base.add(permission);
+    }
+  }
+
   return expandLegacy(base);
 }
 
@@ -85,8 +155,6 @@ export function principalFromJwt(decoded) {
 export function assertPermission(event, permission) {
   const authResult = authenticateRequest(event);
   if (!authResult.ok) return authResult;
-  // Use the canonical principal produced by _auth.cjs. Do not reconstruct
-  // identity from decoded mutable metadata in an authorization boundary.
   const principal = authResult.principal;
   if (!principal) return { ok:false, status:403, error:'Invalid application identity' };
   if (!requirePermission(principal, permission)) return { ok:false, status:403, error:'Missing permission: ' + permission, principal };
