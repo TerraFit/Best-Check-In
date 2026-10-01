@@ -1069,5 +1069,17 @@
   "reports_loading_city_insights": "טוען תובנות עיר…",
   "reports_close_modal": "סגור חלון",
   "reports_region_level": "רמת_אזור:",
-  "reports_cities_in_region": "ערים ב-{region}"
+  "reports_cities_in_region": "ערים ב-{region}",
+  "reports_financial_calculated": "מחושב אוטומטית",
+  "reports_financial_close": "סגירה",
+  "reports_financial_cost_of_sale": "עלות המכירות",
+  "reports_financial_intro": "הוסיפו נתונים פיננסיים לתקופת הדיווח הזו. כל השדות הם אופציונליים.",
+  "reports_financial_manual_note": "הנתונים הפיננסיים מוזנים ידנית ואינם נלקחים מנתוני ההזמנות של FastCheckIn.",
+  "reports_financial_operating_costs": "הוצאות תפעול",
+  "reports_financial_operating_profit": "רווח תפעולי",
+  "reports_financial_profit_hint": "הזינו הכנסות, עלות מכירות והוצאות תפעול כדי לחשב את הרווח.",
+  "reports_financial_revenue": "הכנסות",
+  "reports_financial_save": "שמירה והורדת PDF",
+  "reports_financial_skip": "דילוג והורדת PDF",
+  "reports_financial_title": "הוספת מידע פיננסי"
 }
