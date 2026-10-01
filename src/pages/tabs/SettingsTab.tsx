@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SettingsView, SettingsEditForm } from '../../components/dashboard';
 import ChangeRequestModal from '../../components/ChangeRequestModal';
 import { useTranslation } from '../../i18n';
+import HousekeepingInventorySettings from '../../components/housekeeping/HousekeepingInventorySettings';
 
 interface SettingsTabProps {
   business: any;
@@ -161,6 +162,8 @@ export function SettingsTab(props: SettingsTabProps) {
           )}
         </div>
       </div>
+
+      <HousekeepingInventorySettings businessId={props.businessId} />
 
       {/* Change Request Modal */}
       {changeRequestField && (
