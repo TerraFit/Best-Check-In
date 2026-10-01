@@ -36,7 +36,7 @@ function AppContent() {
   // use the synchronous `t()` helper instead of `useTranslation()`.
   useTranslation();
 
-  return <><div className="fixed top-3 right-3 md:top-4 md:right-6 z-30 md:z-[100] pointer-events-auto"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
+  return <><div className="fixed top-[76px] right-3 md:top-[84px] md:right-6 z-[100] pointer-events-auto"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
     <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} />
     <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/password-recovery" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
     <Route path="/indemnity/:token" element={<IndemnityView />} /><Route path="/subscribe" element={<NewsletterSubscribe />} /><Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
