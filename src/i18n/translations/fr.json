@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Chargement des aperçus de ville…",
   "reports_close_modal": "Fermer la fenêtre",
   "reports_region_level": "NIVEAU_RÉGION :",
-  "reports_cities_in_region": "Villes à {region}"
+  "reports_cities_in_region": "Villes à {region}",
+  "reports_financial_calculated": "Calculé automatiquement",
+  "reports_financial_close": "Fermer",
+  "reports_financial_cost_of_sale": "Coût des ventes",
+  "reports_financial_intro": "Ajoutez des chiffres financiers pour cette période de rapport. Tous les champs sont facultatifs.",
+  "reports_financial_manual_note": "Les chiffres financiers sont fournis manuellement et ne proviennent pas des données de réservation FastCheckIn.",
+  "reports_financial_operating_costs": "Charges d’exploitation",
+  "reports_financial_operating_profit": "Résultat d’exploitation",
+  "reports_financial_profit_hint": "Saisissez le chiffre d’affaires, le coût des ventes et les charges d’exploitation pour calculer le résultat.",
+  "reports_financial_revenue": "Chiffre d’affaires",
+  "reports_financial_save": "Enregistrer et télécharger le PDF",
+  "reports_financial_skip": "Ignorer et télécharger le PDF",
+  "reports_financial_title": "Ajouter des informations financières"
 }
