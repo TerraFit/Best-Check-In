@@ -87,7 +87,7 @@ export const handler = async (event) => {
         check_out_date: booking?.check_out_date || null,
         employee_name: employee?.full_name || null,
         sales_value: Number(row.quantity_taken || 0) * Number(row.unit_price_snapshot || 0),
-        stay_day: row.created_at ? String(row.created_at).slice(0, 10) : null,
+        stay_day: row.created_at ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(new Date(row.created_at)) : null,
       };
     });
     return response(200, { success: true, records: enriched });
