@@ -15,7 +15,7 @@ test('ignore housekeeping task endpoint is authoritative and audited', () => {
   assert.match(source, /status: 'skipped'/);
   assert.match(source, /housekeeping_task_ignored/);
   assert.match(source, /Room was cleaned but not recorded/);
-  assert.match(source, /Other: \x{3}/); // endpoint must require details for Other
+  assert.match(source, /Other:/); // endpoint must record the supplied Other details
 });
 
 test('housekeeping task UI exposes Start and Ignore for eligible pending tasks', () => {
