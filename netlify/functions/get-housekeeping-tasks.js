@@ -151,6 +151,9 @@ exports.handler = async (event) => {
       room_type: roomsById[task.room_id]?.room_type || task.room_type || null,
       room_floor: roomsById[task.room_id]?.floor ?? task.room_floor ?? null,
       active_session: activeSessionsByTask[task.id] || null,
+      // Any pending task without an active session may be deliberately removed from
+      // the operational queue. The authoritative endpoint re-checks this server-side.
+      can_ignore: task.status === 'pending' && !activeSessionsByTask[task.id],
       can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
