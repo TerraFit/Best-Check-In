@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Laai stadsinsigte…",
   "reports_close_modal": "Maak modal toe",
   "reports_region_level": "STREEK_VLAK:",
-  "reports_cities_in_region": "Stede in {region}"
+  "reports_cities_in_region": "Stede in {region}",
+  "reports_financial_calculated": "Outomaties bereken",
+  "reports_financial_close": "Sluit",
+  "reports_financial_cost_of_sale": "Koste van verkope",
+  "reports_financial_intro": "Voeg finansiële syfers vir hierdie verslagtydperk by. Alle velde is opsioneel.",
+  "reports_financial_manual_note": "Finansiële syfers word handmatig verskaf en kom nie uit FastCheckIn-besprekingsdata nie.",
+  "reports_financial_operating_costs": "Bedryfskoste",
+  "reports_financial_operating_profit": "Bedryfswins",
+  "reports_financial_profit_hint": "Voer inkomste, koste van verkope en bedryfskoste in om wins te bereken.",
+  "reports_financial_revenue": "Inkomste",
+  "reports_financial_save": "Stoor en laai PDF af",
+  "reports_financial_skip": "Slaan oor en laai PDF af",
+  "reports_financial_title": "Voeg finansiële inligting by"
 }
