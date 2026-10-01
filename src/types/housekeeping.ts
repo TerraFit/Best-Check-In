@@ -62,6 +62,10 @@ export interface HousekeepingTask {
   can_skip_oldest?: boolean;
   /** Server-authoritative eligibility for removing a pending task from the operational queue. */
   can_ignore?: boolean;
+  /** Derived operational urgency: pending/in-progress task has passed the 14:00 check-in cutoff. */
+  is_overdue?: boolean;
+  /** ISO timestamp representing when the task became overdue (14:00 South Africa time). */
+  overdue_since?: string | null;
   created_at?: string;
   updated_at?: string;
 }
