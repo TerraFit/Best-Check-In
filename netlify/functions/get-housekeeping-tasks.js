@@ -51,6 +51,13 @@ exports.handler = async (event) => {
     const todayStr = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const todayStart = new Date(`${todayStr}T00:00:00+02:00`);
     const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const cutoffToday = new Date(`${todayStr}T14:00:00+02:00`);
+    const isOverdue = (task) => {
+      if (!['pending', 'in_progress'].includes(task.status)) return false;
+      if (task.scheduled_date < todayStr) return true;
+      return task.scheduled_date === todayStr && now >= cutoffToday;
+    };
 
     let tasks;
     if (view === 'today') {
@@ -154,6 +161,8 @@ exports.handler = async (event) => {
       // Any pending task without an active session may be deliberately removed from
       // the operational queue. The authoritative endpoint re-checks this server-side.
       can_ignore: task.status === 'pending' && !activeSessionsByTask[task.id],
+      is_overdue: isOverdue(task),
+      overdue_since: isOverdue(task) ? (task.scheduled_date < todayStr ? `${task.scheduled_date}T14:00:00+02:00` : `${todayStr}T14:00:00+02:00`) : null,
       can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
@@ -167,7 +176,8 @@ exports.handler = async (event) => {
     const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
     if (!completedTodayRes.ok) console.error('get-housekeeping-tasks completed stats lookup failed:', { status: completedTodayRes.status });
     const overdueRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id`, { headers: restHeaders });
-    const overdueTasks = overdueRes.ok ? await overdueRes.json() : [];
+    const historicalOverdueTasks = overdueRes.ok ? await overdueRes.json() : [];
+    const overdueTasks = [...historicalOverdueTasks, ...todayOpenTasks.filter((task) => isOverdue(task))];
     if (!overdueRes.ok) console.error('get-housekeeping-tasks overdue stats lookup failed:', { status: overdueRes.status });
 
     let roomsReady = 0, roomsNotReady = 0, roomsCleaning = 0, roomsAwaiting = 0, roomsMaintenance = 0;
