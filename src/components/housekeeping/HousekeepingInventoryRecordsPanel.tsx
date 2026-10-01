@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileDown, Mail, RefreshCw, X } from 'lucide-react';
+import { getApiAuthToken } from '../../utils/auth';
 import {
   fetchHousekeepingInventoryNotificationSettings,
   fetchHousekeepingInventoryRecords,
@@ -39,12 +40,26 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   const dates=[...new Set(records.map(r=>r.stay_day).filter(Boolean) as string[])].sort().reverse();
   const detailRows=selected?records.filter(r=>r.stay_day===selected.stay_day && (selected.booking_id ? r.booking_id===selected.booking_id : r.room_id===selected.room_id)):[];
   const detailSales=detailRows.reduce((n,r)=>n+Number(r.sales_value||0),0);
-  const downloadPdf=(record?:HousekeepingInventoryRecord)=>{
+  const downloadPdf=async(record?:HousekeepingInventoryRecord)=>{
     const qs=new URLSearchParams({businessId});
     if(record?.booking_id)qs.set('bookingId',record.booking_id);
     if(record?.room_id)qs.set('roomId',record.room_id);
     if(record?.stay_day)qs.set('date',record.stay_day);
-    window.open('/.netlify/functions/generate-housekeeping-inventory-snapshot?'+qs.toString(),'_blank','noopener,noreferrer');
+    try{
+      const token=getApiAuthToken();
+      const response=await fetch('/.netlify/functions/generate-housekeeping-inventory-snapshot?'+qs.toString(),{headers:token?{Authorization:'Bearer '+token}:{}});
+      if(!response.ok){
+        const data=await response.json().catch(()=>({}));
+        throw new Error(data.error||'Unable to download inventory snapshot');
+      }
+      const blob=await response.blob();
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement('a');
+      anchor.href=url;
+      anchor.download=(record?.room_number?'room-'+record.room_number+'-':'')+'amenities-snapshot-'+(record?.stay_day||'overview')+'.pdf';
+      document.body.appendChild(anchor);anchor.click();anchor.remove();
+      URL.revokeObjectURL(url);
+    }catch(error){setError(error instanceof Error?error.message:'Unable to download inventory snapshot');}
   };
   const savePrefs=async(next= settings)=>{
     setSavingSettings(true);setError(null);
