@@ -36,7 +36,7 @@ test('housekeeping takeover closes the previous session as an auditable handover
 });
 
 test('housekeeping takeover migration adds explicit audit fields', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../../../docs/migrations/018_housekeeping_service_takeover.sql'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../../../docs/migrations/019_housekeeping_service_takeover.sql'), 'utf8');
   assert.match(source, /takeover_from_session_id/);
   assert.match(source, /takeover_reason/);
   assert.match(source, /taken_over_at/);
