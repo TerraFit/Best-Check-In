@@ -1069,5 +1069,17 @@
   "reports_loading_city_insights": "正在加载城市洞察…",
   "reports_close_modal": "关闭对话框",
   "reports_region_level": "区域层级：",
-  "reports_cities_in_region": "{region} 的城市"
+  "reports_cities_in_region": "{region} 的城市",
+  "reports_financial_calculated": "自动计算",
+  "reports_financial_close": "关闭",
+  "reports_financial_cost_of_sale": "销售成本",
+  "reports_financial_intro": "为此报告期间添加财务数据。所有字段均为选填。",
+  "reports_financial_manual_note": "财务数据由人工提供，并非来自 FastCheckIn 预订数据。",
+  "reports_financial_operating_costs": "运营成本",
+  "reports_financial_operating_profit": "营业利润",
+  "reports_financial_profit_hint": "输入收入、销售成本和运营成本以计算利润。",
+  "reports_financial_revenue": "收入",
+  "reports_financial_save": "保存并下载 PDF",
+  "reports_financial_skip": "跳过并下载 PDF",
+  "reports_financial_title": "添加财务信息"
 }
