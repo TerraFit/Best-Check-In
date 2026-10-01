@@ -1,0 +1,9 @@
+import { clearEmployeeAuth, getAuthToken } from '../utils/auth';
+
+export interface HousekeepingInventoryItem { id:string; business_id:string; name:string; category:'minibar'|'coffee'|'other'; unit:string; price:number|null; currency:string; active:boolean; sort_order:number; nightbridge_item_id?:string|null; }
+export interface HousekeepingInventoryRecordInput { inventoryItemId:string; quantityTaken:number; quantityRestocked:number; notes?:string; clientReference?:string; }
+function headers(extra:Record<string,string>={}){const h={...extra};const token=getAuthToken();if(token)h.Authorization='Bearer '+token;return h;}
+async function json(response:Response){const data=await response.json().catch(()=>({}));if(!response.ok){if(response.status===403&&data.code==='EMPLOYEE_DISABLED'){clearEmployeeAuth();}throw new Error(data.error||data.message||'Inventory request failed');}return data;}
+export async function fetchHousekeepingInventory(businessId:string):Promise<HousekeepingInventoryItem[]>{const r=await fetch('/.netlify/functions/get-housekeeping-inventory?businessId='+encodeURIComponent(businessId),{headers:headers()});const d=await json(r);return d.items||[];}
+export async function saveHousekeepingInventory(businessId:string,items:Partial<HousekeepingInventoryItem>[]):Promise<HousekeepingInventoryItem[]>{const r=await fetch('/.netlify/functions/save-housekeeping-inventory',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({businessId,items})});const d=await json(r);return d.items||[];}
+export async function recordHousekeepingInventory(businessId:string,sessionId:string,items:HousekeepingInventoryRecordInput[]){const r=await fetch('/.netlify/functions/record-housekeeping-inventory',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({businessId,sessionId,items})});return json(r);}
