@@ -25,6 +25,15 @@ export const handler = async (event) => {
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_KEY; if (!url || !key) return response(500, headers, { success:false, error:'Server configuration error' });
   const read = { apikey:key, Authorization:'Bearer '+key, Accept:'application/json' }, write = { ...read, 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates,return=representation' };
   try {
+    const ids = items.filter((item) => item.id).map((item) => item.id);
+    if (ids.length) {
+      const existingRes = await fetch(url + '/rest/v1/housekeeping_inventory_items?business_id=eq.' + encodeURIComponent(scope.businessId) + '&id=in.(' + ids.map(encodeURIComponent).join(',') + ')&select=id', { headers: read });
+      if (!existingRes.ok) return response(502, headers, { success:false, error:'Unable to validate inventory items' });
+      const existing = await existingRes.json();
+      const existingIds = new Set(existing.map((row) => String(row.id)));
+      const foreignId = ids.find((id) => !existingIds.has(String(id)));
+      if (foreignId) return response(403, headers, { success:false, error:'Inventory item does not belong to this business' });
+    }
     const deactivate = await fetch(url + '/rest/v1/housekeeping_inventory_items?business_id=eq.' + encodeURIComponent(scope.businessId), { method:'PATCH', headers:write, body:JSON.stringify({ active:false, updated_at:new Date().toISOString() }) });
     if (!deactivate.ok) return response(502, headers, { success:false, error:'Unable to update inventory catalogue' });
     if (items.length) {
