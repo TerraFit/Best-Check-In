@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS analytics_financial_inputs (
   revenue NUMERIC(14,2),
   cost_of_sale NUMERIC(14,2),
   operating_costs NUMERIC(14,2),
-  updated_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT analytics_financial_inputs_period_chk CHECK (date_to >= date_from),
