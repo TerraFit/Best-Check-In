@@ -1069,5 +1069,17 @@
   "reports_loading_city_insights": "Загрузка обзора города…",
   "reports_close_modal": "Закрыть окно",
   "reports_region_level": "УРОВЕНЬ_РЕГИОНА:",
-  "reports_cities_in_region": "Города в {region}"
+  "reports_cities_in_region": "Города в {region}",
+  "reports_financial_calculated": "Рассчитывается автоматически",
+  "reports_financial_close": "Закрыть",
+  "reports_financial_cost_of_sale": "Себестоимость продаж",
+  "reports_financial_intro": "Добавьте финансовые показатели за этот отчётный период. Все поля необязательны.",
+  "reports_financial_manual_note": "Финансовые показатели вводятся вручную и не берутся из данных бронирования FastCheckIn.",
+  "reports_financial_operating_costs": "Операционные расходы",
+  "reports_financial_operating_profit": "Операционная прибыль",
+  "reports_financial_profit_hint": "Введите выручку, себестоимость продаж и операционные расходы для расчёта прибыли.",
+  "reports_financial_revenue": "Выручка",
+  "reports_financial_save": "Сохранить и скачать PDF",
+  "reports_financial_skip": "Пропустить и скачать PDF",
+  "reports_financial_title": "Добавить финансовую информацию"
 }
