@@ -8,7 +8,6 @@ const PUBLIC_BRANDING_FIELDS = [
   'newsletter_prize', 'newsletter_cta', 'newsletter_terms', 'newsletter_draw_date',
   'newsletter_share_text'
 ];
-const SUPABASE_TIMEOUT_MS = 8000;
 
 export const handler = async function(event) {
   const headers = {
@@ -26,61 +25,51 @@ export const handler = async function(event) {
 
   try {
     const businessId = event.queryStringParameters?.id;
-    if (!businessId) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
+    if (!businessId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
+    }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !supabaseKey) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
-
-    const select = PUBLIC_BRANDING_FIELDS.join(',');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
-    const startedAt = Date.now();
-
-    try {
-      console.log('get-business-branding: querying Supabase', { businessId });
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.approved&service_paused=eq.false&select=${select}`,
-        {
-          signal: controller.signal,
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      console.log('get-business-branding: Supabase response', {
-        status: response.status,
-        durationMs: Date.now() - startedAt
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Business branding lookup failed:', response.status, errorText);
-        return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to load branding' }) };
-      }
-
-      const data = await response.json();
-      const business = data[0];
-      if (!business) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
-
-      const publicBusiness = Object.fromEntries(
-        PUBLIC_BRANDING_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(business, field))
-          .map((field) => [field, business[field]])
-      );
-
-      return { statusCode: 200, headers, body: JSON.stringify(publicBusiness) };
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        console.error(`get-business-branding: Supabase request timed out after ${SUPABASE_TIMEOUT_MS}ms`);
-        return { statusCode: 504, headers, body: JSON.stringify({ success: false, error: 'Branding service timed out' }) };
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
+    if (!supabaseUrl || !supabaseKey) {
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server configuration error' }) };
     }
+
+    // IMPORTANT: this endpoint is intentionally public for QR check-in.
+    // Only approved, active establishments may expose guest-facing branding.
+    // Never add private business/contact/subscription/director fields here.
+    const select = PUBLIC_BRANDING_FIELDS.join(',');
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.approved&service_paused=eq.false&select=${select}`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Business branding lookup failed:', response.status, errorText);
+      return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Failed to load branding' }) };
+    }
+
+    const data = await response.json();
+    const business = data[0];
+    if (!business) {
+      return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Business not found' }) };
+    }
+
+    // Defense in depth: never echo unexpected columns even if an upstream
+    // data source returns more fields than requested by the SELECT clause.
+    const publicBusiness = Object.fromEntries(
+      PUBLIC_BRANDING_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(business, field))
+        .map((field) => [field, business[field]])
+    );
+
+    return { statusCode: 200, headers, body: JSON.stringify(publicBusiness) };
   } catch (error) {
     console.error('Business branding function error:', error?.message || 'unknown error');
     return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Internal server error' }) };
