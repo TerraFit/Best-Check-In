@@ -31,7 +31,7 @@ export function NavigationTabs({ tabs, activeTab, onTabChange }: NavigationTabsP
   };
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div className="relative z-50 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between md:hidden py-2">
           <span className="text-sm font-semibold text-gray-700">{labelFor(tabs.find((tab) => tab.id === activeTab) || { id: activeTab, name: activeTab })}</span>
