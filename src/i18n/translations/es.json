@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Cargando información de la ciudad…",
   "reports_close_modal": "Cerrar modal",
   "reports_region_level": "NIVEL_REGIÓN:",
-  "reports_cities_in_region": "Ciudades en {region}"
+  "reports_cities_in_region": "Ciudades en {region}",
+  "reports_financial_calculated": "Calculado automáticamente",
+  "reports_financial_close": "Cerrar",
+  "reports_financial_cost_of_sale": "Coste de ventas",
+  "reports_financial_intro": "Añada cifras financieras para este período del informe. Todos los campos son opcionales.",
+  "reports_financial_manual_note": "Las cifras financieras se introducen manualmente y no proceden de los datos de reservas de FastCheckIn.",
+  "reports_financial_operating_costs": "Gastos operativos",
+  "reports_financial_operating_profit": "Resultado operativo",
+  "reports_financial_profit_hint": "Introduzca los ingresos, el coste de ventas y los gastos operativos para calcular el resultado.",
+  "reports_financial_revenue": "Ingresos",
+  "reports_financial_save": "Guardar y descargar PDF",
+  "reports_financial_skip": "Omitir y descargar PDF",
+  "reports_financial_title": "Añadir información financiera"
 }
