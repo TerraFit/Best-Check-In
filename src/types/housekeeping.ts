@@ -60,6 +60,8 @@ export interface HousekeepingTask {
   active_session?: HousekeepingServiceSession | null;
   /** Server-authoritative eligibility for the audited oldest-overdue skip workflow. */
   can_skip_oldest?: boolean;
+  /** Server-authoritative eligibility for removing a pending task from the operational queue. */
+  can_ignore?: boolean;
   created_at?: string;
   updated_at?: string;
 }
