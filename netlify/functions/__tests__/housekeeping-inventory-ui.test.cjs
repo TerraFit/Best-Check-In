@@ -8,7 +8,7 @@ test('housekeeping inventory feature is wired for catalogue management and futur
   const settings = read('src/components/housekeeping/HousekeepingInventorySettings.tsx');
   const modal = read('src/components/housekeeping/HousekeepingServiceModal.tsx');
   const api = read('src/services/housekeepingInventoryApi.ts');
-  const schema = read('docs/migrations/018_housekeeping_inventory_catalogue.sql');
+  const schema = read('docs/migrations/020_housekeeping_inventory_catalogue.sql');
   const record = read('netlify/functions/record-housekeeping-inventory.js');
 
   assert.match(settings, /saveHousekeepingInventory/);
