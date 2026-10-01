@@ -173,7 +173,7 @@ export const handler = async (event) => {
         }),
       }).catch((restoreError) => console.error('takeover-housekeeping-service failed to restore previous session:', restoreError?.message || restoreError));
       if (/PGRST205|relation .* does not exist|schema cache/i.test(text)) {
-        return response(503, headers, { success: false, error: 'Housekeeping takeover schema is not installed', code: 'HOUSEKEEPING_TAKEOVER_SCHEMA_MISSING', hint: 'Apply migration 018_housekeeping_service_takeover.sql' });
+        return response(503, headers, { success: false, error: 'Housekeeping takeover schema is not installed', code: 'HOUSEKEEPING_TAKEOVER_SCHEMA_MISSING', hint: 'Apply migration 019_housekeeping_service_takeover.sql' });
       }
       if (newSessionRes.status === 409) {
         return response(409, headers, { success: false, error: 'The service changed while it was being taken over. Please refresh and try again.', code: 'TAKEOVER_CONFLICT' });
