@@ -2,8 +2,11 @@
 import auth from './_auth.cjs';
 
 const { requireBusinessActor, resolveTenant, requireBusinessPermission, authFailure } = auth;
-const SUPABASE_TIMEOUT_MS = 8000;
 
+// Keep this response private and tenant-scoped. Read the complete business row
+// first so this endpoint cannot fail merely because an optional profile field is
+// absent from a deployed schema. Only the dashboard's known profile contract is
+// returned to the authenticated business actor.
 const PROFILE_FIELDS = [
   'id', 'registered_name', 'legal_name', 'trading_name', 'slogan',
   'email', 'secondary_email', 'phone', 'mobile_phone', 'secondary_phone', 'website',
@@ -45,63 +48,49 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     }
 
+    // Deliberately use select=* here. A fixed PostgREST projection is fragile
+    // when optional columns differ between deployed schema versions. The row is
+    // already restricted to the authenticated tenant, and the response below
+    // remains explicitly whitelisted.
     const params = new URLSearchParams({
       id: `eq.${tenant.businessId}`,
       select: '*',
       limit: '1'
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
-    const startedAt = Date.now();
-
-    try {
-      console.log('get-business-settings: querying Supabase', { businessId: tenant.businessId });
-      const response = await fetch(`${supabaseUrl}/rest/v1/businesses?${params.toString()}`, {
-        signal: controller.signal,
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          Accept: 'application/json'
-        }
-      });
-
-      const responseText = await response.text();
-      console.log('get-business-settings: Supabase response', {
-        status: response.status,
-        durationMs: Date.now() - startedAt
-      });
-
-      if (!response.ok) {
-        console.error('get-business-settings: Supabase REST error:', response.status, responseText);
-        return { statusCode: 502, headers, body: JSON.stringify({ error: 'Business profile could not be loaded' }) };
+    const response = await fetch(`${supabaseUrl}/rest/v1/businesses?${params.toString()}`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        Accept: 'application/json'
       }
+    });
 
-      let rows;
-      try {
-        rows = responseText ? JSON.parse(responseText) : [];
-      } catch (parseError) {
-        console.error('get-business-settings: invalid Supabase response:', parseError?.message || parseError);
-        return { statusCode: 502, headers, body: JSON.stringify({ error: 'Invalid business profile response' }) };
-      }
-
-      const row = Array.isArray(rows) ? rows[0] : null;
-      if (!row) {
-        console.error('get-business-settings: business not found:', tenant.businessId);
-        return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
-      }
-
-      const data = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, row[field]]));
-      return { statusCode: 200, headers, body: JSON.stringify(data) };
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        console.error(`get-business-settings: Supabase request timed out after ${SUPABASE_TIMEOUT_MS}ms`);
-        return { statusCode: 504, headers, body: JSON.stringify({ error: 'Business profile service timed out' }) };
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error('get-business-settings: Supabase REST error:', response.status, responseText);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Business profile could not be loaded' }) };
     }
+
+    let rows;
+    try {
+      rows = responseText ? JSON.parse(responseText) : [];
+    } catch (parseError) {
+      console.error('get-business-settings: invalid Supabase response:', parseError?.message || parseError);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Invalid business profile response' }) };
+    }
+
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) {
+      console.error('get-business-settings: business not found:', tenant.businessId);
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
+    }
+
+    const data = Object.fromEntries(
+      PROFILE_FIELDS.map((field) => [field, row[field]])
+    );
+
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
     console.error('Error fetching business settings:', error?.message || error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch settings' }) };
