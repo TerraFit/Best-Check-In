@@ -1069,5 +1069,17 @@
   "reports_loading_city_insights": "جاري تحميل رؤى المدينة…",
   "reports_close_modal": "إغلاق النافذة",
   "reports_region_level": "مستوى_المنطقة:",
-  "reports_cities_in_region": "مدن في {region}"
+  "reports_cities_in_region": "مدن في {region}",
+  "reports_financial_calculated": "يُحسب تلقائياً",
+  "reports_financial_close": "إغلاق",
+  "reports_financial_cost_of_sale": "تكلفة المبيعات",
+  "reports_financial_intro": "أضف الأرقام المالية لهذه الفترة. جميع الحقول اختيارية.",
+  "reports_financial_manual_note": "تُدخل الأرقام المالية يدوياً ولا تُستمد من بيانات حجوزات FastCheckIn.",
+  "reports_financial_operating_costs": "تكاليف التشغيل",
+  "reports_financial_operating_profit": "الربح التشغيلي",
+  "reports_financial_profit_hint": "أدخل الإيرادات وتكلفة المبيعات وتكاليف التشغيل لحساب الربح.",
+  "reports_financial_revenue": "الإيرادات",
+  "reports_financial_save": "حفظ وتنزيل PDF",
+  "reports_financial_skip": "تخطي وتنزيل PDF",
+  "reports_financial_title": "إضافة معلومات مالية"
 }
