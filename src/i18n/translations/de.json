@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Stadteinblicke werden geladen…",
   "reports_close_modal": "Modal schließen",
   "reports_region_level": "REGIONSEBENE:",
-  "reports_cities_in_region": "Städte in {region}"
+  "reports_cities_in_region": "Städte in {region}",
+  "reports_financial_calculated": "Automatisch berechnet",
+  "reports_financial_close": "Schließen",
+  "reports_financial_cost_of_sale": "Umsatzkosten",
+  "reports_financial_intro": "Fügen Sie Finanzzahlen für diesen Berichtszeitraum hinzu. Alle Felder sind optional.",
+  "reports_financial_manual_note": "Finanzzahlen werden manuell eingegeben und stammen nicht aus FastCheckIn-Buchungsdaten.",
+  "reports_financial_operating_costs": "Betriebskosten",
+  "reports_financial_operating_profit": "Betriebsgewinn",
+  "reports_financial_profit_hint": "Geben Sie Umsatz, Umsatzkosten und Betriebskosten ein, um den Gewinn zu berechnen.",
+  "reports_financial_revenue": "Umsatz",
+  "reports_financial_save": "Speichern und PDF herunterladen",
+  "reports_financial_skip": "Überspringen und PDF herunterladen",
+  "reports_financial_title": "Finanzinformationen hinzufügen"
 }
