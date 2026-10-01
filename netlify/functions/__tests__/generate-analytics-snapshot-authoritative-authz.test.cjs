@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
 process.env.SUPABASE_JWT_SECRET = 'test-secret-for-authoritative-auth';
+process.env.FASTCHECKIN_JWT_ISSUER = 'fastcheckin';
 process.env.SUPER_ADMIN_JWT_ISSUER = 'fastcheckin';
 process.env.SUPER_ADMIN_JWT_AUDIENCE = 'super-admin';
 
@@ -14,9 +15,15 @@ const baseEvent = (token, queryStringParameters = {}) => ({
   queryStringParameters,
 });
 
-const sign = (claims, options = {}) => jwt.sign(claims, process.env.SUPABASE_JWT_SECRET, {
-  ...options,
-});
+const sign = (claims, options = {}) => jwt.sign(
+  claims,
+  process.env.SUPABASE_JWT_SECRET,
+  {
+    issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin',
+    expiresIn: '15m',
+    ...options,
+  }
+);
 
 const businessToken = () => sign({
   sub: 'business-user-1',
