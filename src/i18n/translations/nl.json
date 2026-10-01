@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Stadsinzichten laden…",
   "reports_close_modal": "Modal sluiten",
   "reports_region_level": "REGIO_NIVEAU:",
-  "reports_cities_in_region": "Steden in {region}"
+  "reports_cities_in_region": "Steden in {region}",
+  "reports_financial_calculated": "Automatisch berekend",
+  "reports_financial_close": "Sluiten",
+  "reports_financial_cost_of_sale": "Kostprijs van de omzet",
+  "reports_financial_intro": "Voeg financiële cijfers toe voor deze verslagperiode. Alle velden zijn optioneel.",
+  "reports_financial_manual_note": "Financiële cijfers worden handmatig ingevoerd en zijn niet afkomstig uit FastCheckIn-boekingsgegevens.",
+  "reports_financial_operating_costs": "Bedrijfskosten",
+  "reports_financial_operating_profit": "Bedrijfsresultaat",
+  "reports_financial_profit_hint": "Voer omzet, kostprijs van de omzet en bedrijfskosten in om het resultaat te berekenen.",
+  "reports_financial_revenue": "Omzet",
+  "reports_financial_save": "Opslaan en PDF downloaden",
+  "reports_financial_skip": "Overslaan en PDF downloaden",
+  "reports_financial_title": "Financiële informatie toevoegen"
 }
