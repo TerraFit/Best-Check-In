@@ -1070,5 +1070,17 @@
   "reports_loading_city_insights": "Caricamento insight città…",
   "reports_close_modal": "Chiudi finestra",
   "reports_region_level": "LIVELLO_REGIONE:",
-  "reports_cities_in_region": "Città in {region}"
+  "reports_cities_in_region": "Città in {region}",
+  "reports_financial_calculated": "Calcolato automaticamente",
+  "reports_financial_close": "Chiudi",
+  "reports_financial_cost_of_sale": "Costo del venduto",
+  "reports_financial_intro": "Aggiungi dati finanziari per questo periodo di rendicontazione. Tutti i campi sono facoltativi.",
+  "reports_financial_manual_note": "I dati finanziari sono inseriti manualmente e non provengono dai dati delle prenotazioni FastCheckIn.",
+  "reports_financial_operating_costs": "Costi operativi",
+  "reports_financial_operating_profit": "Utile operativo",
+  "reports_financial_profit_hint": "Inserisci ricavi, costo del venduto e costi operativi per calcolare l’utile.",
+  "reports_financial_revenue": "Ricavi",
+  "reports_financial_save": "Salva e scarica PDF",
+  "reports_financial_skip": "Salta e scarica PDF",
+  "reports_financial_title": "Aggiungi informazioni finanziarie"
 }
