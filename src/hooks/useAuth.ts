@@ -7,15 +7,29 @@ export function useAuth() {
   const getAuthHeaders = () => {
     let token = null;
     
-    try {
-      const authStr = localStorage.getItem('fastcheckin_auth');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        token = auth.token;
-      }
-    } catch (e) {}
-    
+    const isBusinessRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/business');
+
+    if (isBusinessRoute) {
+      try {
+        const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
+        if (businessAuthStr) {
+          const businessAuth = JSON.parse(businessAuthStr);
+          if (businessAuth?.type === 'business' && businessAuth?.token) token = businessAuth.token;
+        }
+      } catch (e) {}
+    }
+
     if (!token) {
+      try {
+        const authStr = localStorage.getItem('fastcheckin_auth');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          token = auth.token;
+        }
+      } catch (e) {}
+    }
+
+    if (!token && !isBusinessRoute) {
       try {
         const businessAuthStr = localStorage.getItem('fastcheckin_business_auth');
         if (businessAuthStr) {
