@@ -32,14 +32,64 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   useEffect(()=>{void load();},[businessId]);
 
   const filtered=useMemo(()=>date?records.filter(r=>r.stay_day===date):records,[records,date]);
+
+  type RoomDayGroup = {
+    key:string;
+    stay_day:string;
+    room_id:string|null;
+    booking_id:string|null;
+    room_number:string|null;
+    room_name:string|null;
+    guest_name:string|null;
+    currency:string;
+    records:HousekeepingInventoryRecord[];
+    taken:number;
+    restocked:number;
+    sales:number;
+    representative:HousekeepingInventoryRecord;
+  };
+
+  const roomDayGroups=useMemo<RoomDayGroup[]>(()=>{
+    const groups=new Map<string,RoomDayGroup>();
+    for(const record of filtered){
+      const key=record.stay_day+'|'+(record.booking_id||record.room_id||'unknown');
+      const existing=groups.get(key);
+      if(existing){
+        existing.records.push(record);
+        existing.taken+=Number(record.quantity_taken||0);
+        existing.restocked+=Number(record.quantity_restocked||0);
+        existing.sales+=Number(record.sales_value||0);
+      }else{
+        groups.set(key,{
+          key,
+          stay_day:record.stay_day,
+          room_id:record.room_id,
+          booking_id:record.booking_id,
+          room_number:record.room_number,
+          room_name:record.room_name,
+          guest_name:record.guest_name,
+          currency:record.currency||'ZAR',
+          records:[record],
+          taken:Number(record.quantity_taken||0),
+          restocked:Number(record.quantity_restocked||0),
+          sales:Number(record.sales_value||0),
+          representative:record,
+        });
+      }
+    }
+    return [...groups.values()].sort((a,b)=>a.stay_day.localeCompare(b.stay_day)||String(a.room_number||a.room_name||'').localeCompare(String(b.room_number||b.room_name||'')));
+  },[filtered]);
+
   const totals=useMemo(()=>({
     taken:filtered.reduce((n,r)=>n+Number(r.quantity_taken||0),0),
     restocked:filtered.reduce((n,r)=>n+Number(r.quantity_restocked||0),0),
     sales:filtered.reduce((n,r)=>n+Number(r.sales_value||0),0)
   }),[filtered]);
+
   const dates=[...new Set(records.map(r=>r.stay_day).filter(Boolean) as string[])].sort().reverse();
-  const detailRows=selected?records.filter(r=>r.stay_day===selected.stay_day && (selected.booking_id ? r.booking_id===selected.booking_id : r.room_id===selected.room_id)):[];
-  const detailSales=detailRows.reduce((n,r)=>n+Number(r.sales_value||0),0);
+  const selectedGroup=selected?roomDayGroups.find(g=>g.stay_day===selected.stay_day && (selected.booking_id ? g.booking_id===selected.booking_id : g.room_id===selected.room_id)):null;
+  const detailRows=selectedGroup?.records||[];
+  const detailSales=selectedGroup?.sales||0;
   const downloadPdf=async(record?:HousekeepingInventoryRecord)=>{
     const qs=new URLSearchParams({businessId});
     if(record?.booking_id)qs.set('bookingId',record.booking_id);
@@ -84,8 +134,9 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
       <select value={date} onChange={e=>setDate(e.target.value)} className="px-3 py-2 text-xs border border-gray-300 rounded-lg"><option value="">All stay days</option>{dates.map(d=><option key={d} value={d}>{dateLabel(d)}</option>)}</select>
       <span className="text-xs text-gray-500">{filtered.length} transaction{filtered.length===1?'':'s'}</span>
     </div>
-    {loading?<p className="py-8 text-center text-sm text-gray-400">Loading inventory…</p>:filtered.length===0?<p className="py-8 text-center text-sm text-gray-400">No inventory has been recorded yet.</p>:
-      <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-gray-50 text-left text-gray-500 uppercase tracking-wider"><tr><th className="px-3 py-2">Stay day</th><th className="px-3 py-2">Room / guest</th><th className="px-3 py-2">Amenity</th><th className="px-3 py-2">Taken</th><th className="px-3 py-2">Restocked</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2"></th></tr></thead><tbody className="divide-y divide-gray-100">{filtered.map(r=><tr key={r.id} className="hover:bg-orange-50/40"><td className="px-3 py-2">{dateLabel(r.stay_day)}</td><td className="px-3 py-2"><button type="button" onClick={()=>setSelected(r)} className="text-left"><span className="font-semibold text-gray-900">{r.room_number?'Room '+r.room_number:r.room_name||'Room'}</span><span className="block text-gray-500">{r.guest_name||'—'}</span></button></td><td className="px-3 py-2 font-medium">{r.item_name_snapshot}</td><td className="px-3 py-2">{r.quantity_taken}</td><td className="px-3 py-2">{r.quantity_restocked}</td><td className="px-3 py-2 font-semibold">{r.quantity_taken>0?money(r.sales_value,r.currency):'—'}</td><td className="px-3 py-2"><button type="button" onClick={()=>downloadPdf(r)} title="Download room snapshot PDF" className="p-1.5 rounded hover:bg-gray-100"><FileDown size={14}/></button></td></tr>)}</tbody></table></div>}
+    {loading?<p className="py-8 text-center text-sm text-gray-400">Loading inventory…</p>:roomDayGroups.length===0?<p className="py-8 text-center text-sm text-gray-400">No inventory has been recorded yet.</p>:
+      <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-gray-50 text-left text-gray-500 uppercase tracking-wider"><tr><th className="px-3 py-2">Stay day</th><th className="px-3 py-2">Room / guest</th><th className="px-3 py-2">Items taken</th><th className="px-3 py-2">Items restocked</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2"></th></tr></thead><tbody className="divide-y divide-gray-100">{roomDayGroups.map(g=><tr key={g.key} className="hover:bg-orange-50/40"><td className="px-3 py-2 whitespace-nowrap">{dateLabel(g.stay_day)}</td><td className="px-3 py-2"><button type="button" onClick={()=>setSelected(g.representative)} className="text-left"><span className="font-semibold text-gray-900">{g.room_number?'Room '+g.room_number:g.room_name||'Room'}</span><span className="block text-gray-500">{g.guest_name||'—'}</span><span className="block text-[10px] text-gray-400">{g.records.length} amenity line{g.records.length===1?'':'s'}</span></button></td><td className="px-3 py-2">{g.taken}</td><td className="px-3 py-2">{g.restocked}</td><td className="px-3 py-2 font-semibold">{g.taken>0?money(g.sales,g.currency):'—'}</td><td className="px-3 py-2"><button type="button" onClick={()=>downloadPdf(g.representative)} title="Download room snapshot PDF" className="p-1.5 rounded hover:bg-gray-100"><FileDown size={14}/></button></td></tr>)}</tbody></table></div>}
+
     <div className="border-t border-gray-100 pt-4 space-y-3">
       <div><h4 className="text-sm font-semibold text-gray-900">Inventory notifications</h4><p className="text-xs text-gray-500">Use the dashboard, email, or both.</p></div>
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={settings.dashboardEnabled} onChange={e=>void savePrefs({...settings,dashboardEnabled:e.target.checked})}/><span>Show inventory activity on dashboard</span></label>
