@@ -16,7 +16,7 @@ function sign(payload, options = {}) {
   return jwt.sign(payload, SECRET, { expiresIn: '1h', ...options });
 }
 
-function token({ sub = 'user-1', role = 'authenticated', businessId = 'biz-1', employeeId, staffRole, permissions, platformRole, meta = {}, issuer, audience } = {}) {
+function token({ sub = 'user-1', role = 'authenticated', businessId = 'biz-1', employeeId, staffRole, permissions, platformRole, meta = {}, issuer = process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', audience } = {}) {
   return sign({
     sub,
     role,
