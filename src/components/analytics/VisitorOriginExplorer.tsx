@@ -63,7 +63,7 @@ export function VisitorOriginExplorer({ businessId, dateFrom, dateTo, limits, ca
       setNodes(levelNodes); setTotalVisitors(res.meta?.totalVisitors || 0); setDomesticCount(res.meta?.domesticCount || 0); setInternationalCount(res.meta?.internationalCount || 0); if (res.cityDashboard) setCityPanel(res.cityDashboard);
       const q = res.meta?.quality as { eligibleStays?: number; excludedByStatus?: number } | undefined;
       if (q && (q.excludedByStatus || 0) > 0 && (q.eligibleStays || 0) === 0) setQualityNote(t('reports_quality_no_eligible', { count: q.excludedByStatus })); else if (q && (q.excludedByStatus || 0) > 0) setQualityNote(t('reports_quality_partial_eligible', { eligible: q.eligibleStays ?? 0, excluded: q.excludedByStatus })); else setQualityNote(null);
-      
+
     } catch (e: any) { setFetchError(e?.message || 'Failed to load origins'); }
     finally { setLoading(false); }
   }, [businessId, dateFrom, dateTo, interactive, t]);
