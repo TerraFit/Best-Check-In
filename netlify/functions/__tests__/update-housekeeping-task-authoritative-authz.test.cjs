@@ -25,7 +25,7 @@ const TASK = {
   guest_name: 'Guest',
 };
 
-function token({ role = 'authenticated', sub = 'user-1', businessId = 'biz-1', employeeId, staffRole, permissions, platformRole, issuer, audience, meta = {} } = {}) {
+function token({ role = 'authenticated', sub = 'user-1', businessId = 'biz-1', employeeId, staffRole, permissions, platformRole, issuer = process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin', audience, meta = {} } = {}) {
   const user_metadata = {
     business_id: businessId,
     ...(employeeId ? { employee_id: employeeId } : {}),
