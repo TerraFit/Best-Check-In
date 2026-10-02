@@ -60,8 +60,30 @@ export const getAuthToken = (): string | null => {
   return null;
 };
 
+/**
+ * Return the token for the current application context.
+ *
+ * Business dashboard requests must use the authoritative business session
+ * when both business and employee sessions are present. Employee-facing
+ * routes continue to use the normal employee/main session.
+ */
+export const getApiAuthToken = (): string | null => {
+  const isBusinessRoute =
+    typeof window !== 'undefined' &&
+    window.location.pathname.startsWith('/business');
+
+  if (isBusinessRoute) {
+    const businessAuth = getBusinessAuth();
+    if (businessAuth?.type === 'business' && businessAuth.token) {
+      return businessAuth.token;
+    }
+  }
+
+  return getAuthToken();
+};
+
 export const getAuthHeader = (): { Authorization?: string } => {
-  const token = getAuthToken();
+  const token = getApiAuthToken();
   if (!token) {
     console.warn('⚠️ getAuthHeader: No token found');
     return {};

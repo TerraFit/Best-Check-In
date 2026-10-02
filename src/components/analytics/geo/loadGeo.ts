@@ -2,7 +2,6 @@
  * Lazy-load and cache static GeoJSON/TopoJSON for MapLibre.
  */
 
-import { feature as topoFeature } from 'topojson-client';
 import { GEO_PATHS } from './mapConfig';
 import { canonicalCountryName } from './nameMatch';
 
@@ -35,6 +34,8 @@ export type CityPoint = {
 const cache = new Map<string, GeoJSONFeatureCollection>();
 const cityCache = new Map<string, CityPoint | null>();
 
+const ONS_ITL1_GEOJSON = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/ITL1_JAN_2025_UK_BGC/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson';
+
 async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load geo ${url}: ${res.status}`);
@@ -42,32 +43,30 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 /**
- * World/continent view deliberately uses the same proven world-atlas country
- * geometry as the country drill-down. This keeps the initial map on the
- * reliable existing source and avoids a second external GeoJSON dependency.
+ * All country-level views use the same Natural Earth admin-0 GeoJSON.
+ *
+ * Do not use world-atlas TopoJSON here: its browser-side conversion was
+ * producing malformed polygons during country/continent drill-down, with
+ * large grey triangles/rectangles rendered over the ocean. Keeping one
+ * validated GeoJSON geometry source for world and country views prevents
+ * the geometry from changing when the user drills into a continent.
  */
 export async function loadWorldCountries(): Promise<GeoJSONFeatureCollection> {
-  const key = 'world-110m-natural-earth';
-  if (cache.has(key)) return cache.get(key)!;
-  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
-  cache.set(key, fc);
-  return fc;
+  return loadNaturalEarthCountries();
 }
 
 export async function loadCountries110m(): Promise<GeoJSONFeatureCollection> {
-  const key = 'countries-110m';
-  if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchJson(GEO_PATHS.countries110m);
-  const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
-  cache.set(key, fc);
-  return fc;
+  return loadNaturalEarthCountries();
 }
 
 export async function loadCountries50m(): Promise<GeoJSONFeatureCollection> {
-  const key = 'countries-50m';
+  return loadNaturalEarthCountries();
+}
+
+async function loadNaturalEarthCountries(): Promise<GeoJSONFeatureCollection> {
+  const key = 'countries-natural-earth-admin0';
   if (cache.has(key)) return cache.get(key)!;
-  const topo = await fetchJson(GEO_PATHS.countries50m);
-  const fc = topoFeature(topo, topo.objects.countries) as unknown as GeoJSONFeatureCollection;
+  const fc = await fetchJson(GEO_PATHS.world110m) as GeoJSONFeatureCollection;
   cache.set(key, fc);
   return fc;
 }
@@ -79,6 +78,47 @@ export async function loadAdmin1(): Promise<GeoJSONFeatureCollection> {
   const fc = await fetchJson(GEO_PATHS.admin1) as GeoJSONFeatureCollection;
   cache.set(key, fc);
   return fc;
+}
+
+/**
+ * Load second-order administrative boundaries for a country from geoBoundaries.
+ * The endpoint returns metadata first so we can use the current simplified
+ * GeoJSON rather than hard-coding country-specific download URLs.
+ */
+export async function loadAdmin2(countryIso3: string): Promise<GeoJSONFeatureCollection> {
+  const iso3 = String(countryIso3 || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(iso3)) throw new Error('Invalid country ISO-3 code');
+  const key = `admin2-${iso3}`;
+  if (cache.has(key)) return cache.get(key)!;
+  const metadata = await fetchJson(`https://www.geoboundaries.org/api/current/gbOpen/${iso3}/ADM2/`) as { gjDownloadURL?: string };
+  if (!metadata?.gjDownloadURL) throw new Error(`No Admin-2 geometry available for ${iso3}`);
+  const fc = await fetchJson(metadata.gjDownloadURL) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
+export function featureAdmin2Name(props: Record<string, unknown>): string {
+  const candidates = [
+    props.shapeName, props.SHAPENAME, props.name_en, props.NAME_2,
+    props.NAME_1, props.name, props.NAME, props.name_alt, props.NAME_ALT,
+  ];
+  const named = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof named === 'string' ? named.trim() : '';
+}
+
+/** Official ONS 2025 UK ITL1 boundaries (the nine English regions plus the UK nations). */
+export async function loadUkItl1(): Promise<GeoJSONFeatureCollection> {
+  const key = 'uk-itl1-2025';
+  if (cache.has(key)) return cache.get(key)!;
+  const fc = await fetchJson(ONS_ITL1_GEOJSON) as GeoJSONFeatureCollection;
+  cache.set(key, fc);
+  return fc;
+}
+
+export function featureItl1Name(props: Record<string, unknown>): string {
+  const candidates = [props.ITL125NM, props.ITL1NM, props.name_en, props.NAME_EN, props.name, props.NAME];
+  const named = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof named === 'string' ? named.trim() : '';
 }
 
 /**
@@ -177,4 +217,58 @@ export function featureRegionCountry(props: Record<string, unknown>): string {
 export function featureRegionCode(props: Record<string, unknown>): string {
   const value = props?.iso_3166_2 ?? props?.ISO_3166_2 ?? props?.code;
   return typeof value === 'string' ? value : '';
+}
+
+
+export const UK_ENGLAND_ITL1_REGIONS = [
+  'North East (England)', 'North West (England)', 'Yorkshire and The Humber',
+  'East Midlands (England)', 'West Midlands (England)', 'East (England)',
+  'London', 'South East (England)', 'South West (England)',
+] as const;
+
+export function isUkEnglandItl1Region(value: string | null | undefined): boolean {
+  return !!value && (UK_ENGLAND_ITL1_REGIONS as readonly string[]).some((name) => normalizeRegionLookupKey(name) === normalizeRegionLookupKey(value));
+}
+
+
+/** Official UK drill-down geometry: England, Scotland, Wales and Northern Ireland. */
+export async function loadUkConstituentCountries(): Promise<GeoJSONFeatureCollection> {
+  const key = 'uk-constituent-countries-2025';
+  if (cache.has(key)) return cache.get(key)!;
+
+  const itl1 = await loadUkItl1();
+  const constituentNames = new Set(['Scotland', 'Wales', 'Northern Ireland']);
+  const englandFeatures = itl1.features.filter((feature) =>
+    isUkEnglandItl1Region(featureItl1Name(feature.properties || {}))
+  );
+  const directFeatures = itl1.features.filter((feature) =>
+    constituentNames.has(featureItl1Name(feature.properties || {}))
+  );
+
+  const englandPolygons: GeoJSON.Position[][][] = [];
+  englandFeatures.forEach((feature) => {
+    if (feature.geometry.type === 'Polygon') {
+      englandPolygons.push(feature.geometry.coordinates);
+    } else if (feature.geometry.type === 'MultiPolygon') {
+      feature.geometry.coordinates.forEach((polygon) => englandPolygons.push(polygon));
+    }
+  });
+
+  const features = [
+    {
+      type: 'Feature' as const,
+      id: 'uk-england',
+      properties: { ...Object.fromEntries([['ITL1NM', 'England']]), name: 'England' },
+      geometry: { type: 'MultiPolygon' as const, coordinates: englandPolygons },
+    },
+    ...directFeatures.map((feature, index) => ({
+      ...feature,
+      id: feature.id ?? `uk-constituent-${index}`,
+      properties: { ...feature.properties, name: featureItl1Name(feature.properties || {}) },
+    })),
+  ];
+
+  const fc = { type: 'FeatureCollection' as const, features };
+  cache.set(key, fc);
+  return fc;
 }

@@ -27,9 +27,9 @@ export function heatColor(count: number): string {
 export const BASEMAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 export const GEO_PATHS = {
-  // Natural Earth admin-0 carries reliable CONTINENT attributes. It is used
-  // only for the world/continent view; country drill-down continues to use
-  // the existing world-atlas geometry and matching logic.
+  // Use Natural Earth admin-0 GeoJSON for the world/continent view. It carries
+  // explicit country/continent attributes and is kept separate from the
+  // world-atlas topology used for country drill-down geometry.
   world110m: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson',
   countries110m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   countries50m: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json',

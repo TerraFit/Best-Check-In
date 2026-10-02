@@ -1,16 +1,23 @@
 import auth from './_auth.cjs';
+import { resolvePermissions } from './_rbac.js';
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
-const headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, OPTIONS'};
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
+const headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, OPTIONS'};
 const response=(statusCode,body)=>({statusCode,headers,body:JSON.stringify(body)});
 function todayInSouthAfrica(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+function projectGuest(guest,permissions){
+  const projected={id:guest.id,guest_name:guest.guest_name||'',guest_country:guest.guest_country||'',check_in_date:guest.check_in_date||null,check_out_date:guest.check_out_date||null,status:guest.status||null,room_id:guest.room_id||null,room_number:guest.room_number||null,room_name:guest.room_name||null};
+  if(permissions.has('canViewGuestPhone'))projected.guest_phone=guest.guest_phone||'';
+  return projected;
+}
 export const handler=async(event)=>{
   if(event.httpMethod==='OPTIONS')return{statusCode:204,headers,body:''};
   if(event.httpMethod!=='GET')return response(405,{error:'Method not allowed'});
   const authResult=requireBusinessActor(event);
   if(!authResult.ok)return authFailure(authResult,headers);
   if(authResult.principal.actorType!=='employee')return authFailure({status:403,error:'Employee authorization required'},headers);
-  if(!requireBusinessPermission(authResult.principal,'canViewDashboard'))return authFailure({status:403,error:'Missing permission: canViewDashboard'},headers);
+  const permissions=resolvePermissions(authResult.principal);
+  if(!permissions.has('canViewGuestOverview'))return authFailure({status:403,error:'Missing permission: canViewGuestOverview'},headers);
   const requestedBusinessId=event.queryStringParameters?.businessId||null;
   const tenant=resolveTenant(authResult.principal,requestedBusinessId);
   if(!tenant.ok)return authFailure(tenant,headers);
@@ -30,18 +37,18 @@ export const handler=async(event)=>{
       fetch(`${base}&check_in_date=lt.${encodeURIComponent(today)}&check_out_date=gt.${encodeURIComponent(today)}&status=eq.checked_in`,{headers:read}),
     ]);
     for(const r of [a,d,s])if(!r.ok)throw new Error(`Bookings query failed with HTTP ${r.status}`);
-    const [arrivals,departures,stayovers]=await Promise.all([a.json(),d.json(),s.json()]);
-    const guests=[...(arrivals||[]),...(stayovers||[]),...(departures||[])];
+    const [rawArrivals,rawDepartures,rawStayovers]=await Promise.all([a.json(),d.json(),s.json()]);
+    const guests=[...(rawArrivals||[]),...(rawStayovers||[]),...(rawDepartures||[])];
     const bookingIds=[...new Set(guests.map(g=>g.id).filter(Boolean))];
     let restrictions=[];
-    if(bookingIds.length){
+    if(bookingIds.length&&permissions.has('canViewGuestFoodRestrictions')){
       const filter=bookingIds.join(',');
       const r=await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=in.(${encodeURIComponent(filter)})&select=${restrictionsFields}`,{headers:read});
       if(!r.ok)throw new Error(`Food restrictions query failed with HTTP ${r.status}`);
       restrictions=await r.json();
     }
     const restrictionsByBooking=new Map((restrictions||[]).map(r=>[r.booking_id,r]));
-    const attachRestrictions=(guest)=>({...guest,food_restrictions:restrictionsByBooking.get(guest.id)||null});
-    return response(200,{success:true,date:today,arrivals:(arrivals||[]).map(attachRestrictions),stayovers:(stayovers||[]).map(attachRestrictions),departures:(departures||[]).map(attachRestrictions)});
+    const project=(guest)=>{const out=projectGuest(guest,permissions);if(permissions.has('canViewGuestFoodRestrictions'))out.food_restrictions=restrictionsByBooking.get(guest.id)||null;return out;};
+    return response(200,{success:true,date:today,capabilities:{guestOverview:true,guestPhone:permissions.has('canViewGuestPhone'),foodRestrictions:permissions.has('canViewGuestFoodRestrictions'),frontDeskActions:permissions.has('canCheckGuestsIn')&&permissions.has('canAllocateRooms')},arrivals:(rawArrivals||[]).map(project),stayovers:(rawStayovers||[]).map(project),departures:(rawDepartures||[]).map(project)});
   }catch(error){console.error('get-employee-overview error:',error);return response(500,{error:'Unable to load employee overview'});}
 };

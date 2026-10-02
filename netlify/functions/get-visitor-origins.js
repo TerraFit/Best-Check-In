@@ -43,12 +43,13 @@ export const handler = async (event) => {
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) return createResponse(200, { success: true, ...hit.data, limits: getAnalyticsPlanLimits(plan), cached: true });
     const data = await buildVisitorOrigins({ businessId, dateFrom, dateTo, level, continent, country, region, city });
-    if (level === 'world' || level === 'continent') {
-      const countryData = await buildVisitorOrigins({ businessId, dateFrom, dateTo, level: 'country', continent: level === 'continent' ? continent : null, country: null, region: null, city: null });
-      data.nodes = countryData.nodes || [];
-      data.mapNodes = countryData.nodes || [];
-    } else if (level === 'country') data.mapNodes = data.nodes || [];
-    else data.mapNodes = [];
+    // buildVisitorOrigins now derives country map nodes from the same booking
+    // set, avoiding a second full analytics query for world/continent views.
+    if (level === 'world' || level === 'continent' || level === 'country') {
+      data.mapNodes = data.mapNodes || data.nodes || [];
+    } else {
+      data.mapNodes = [];
+    }
     cache.set(key, { at: Date.now(), data });
     return createResponse(200, { success: true, ...data, limits: getAnalyticsPlanLimits(plan), cached: false });
   } catch (err) {
