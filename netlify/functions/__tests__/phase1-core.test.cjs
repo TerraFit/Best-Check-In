@@ -211,6 +211,31 @@ test('Phase 1 checklist: Guest Property / Lost & Found is first and contains the
   assert.equal(checklist[1].id, 'full-ventilation');
 });
 
+test('Phase 1 checklist: every item has a unique id and bedroom/bathroom floors are independent', () => {
+  const ids = housekeepingDefinitions.getChecklistItemIds('full_service');
+  assert.equal(new Set(ids).size, ids.length);
+
+  const checklist = housekeepingDefinitions.getHousekeepingChecklist('full_service');
+  const bedroom = checklist.find((section) => section.id === 'full-bedroom');
+  const bathroom = checklist.find((section) => section.id === 'full-bathroom');
+
+  assert.ok(bedroom);
+  assert.ok(bathroom);
+
+  const bedroomFloor = bedroom.items.find((item) => item.label === 'Vacuum/sweep and clean floor thoroughly');
+  const bathroomFloor = bathroom.items.find((item) => item.label === 'Deep clean bathroom floor');
+
+  assert.ok(bedroomFloor);
+  assert.ok(bathroomFloor);
+  assert.equal(bedroomFloor.id, 'full-bedroom-floor');
+  assert.equal(bathroomFloor.id, 'full-bathroom-floor');
+  assert.notEqual(bedroomFloor.id, bathroomFloor.id);
+
+  const initialState = housekeepingDefinitions.createInitialChecklistState('full_service');
+  assert.equal(initialState[bedroomFloor.id], false);
+  assert.equal(initialState[bathroomFloor.id], false);
+});
+
 test('Phase 1 checklist: final visual inspection precedes securing the room', () => {
   const checklist = housekeepingDefinitions.getHousekeepingChecklist('full_service');
   const finalSection = checklist.find((section) => section.id === 'full-final');
