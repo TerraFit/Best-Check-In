@@ -172,6 +172,9 @@ export default function HomePage() {
                 {t('landing_redesign_explore')}
               </button>
             </div>
+            <button onClick={() => setDownloadDocument('brochure')} className="mt-5 rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition">
+              Download Brochure
+            </button>
 
             <div className="mt-10 flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm text-stone-200">
               {[t('landing_badge_popia'), t('landing_badge_indemnity'), t('landing_badge_id_capture'), t('landing_badge_registry')].map((item) => (
@@ -497,7 +500,7 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-      <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} />
+      <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
     </div>
   );
