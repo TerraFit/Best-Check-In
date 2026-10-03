@@ -141,6 +141,8 @@ const businessSnapshotPages = () => [
   ]},
 ];
 
+const escapeHtml = (value) => clean(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
 async function notifyLead(lead, document) {
   if (!process.env.RESEND_API_KEY) {
     console.warn('RESEND_API_KEY is not configured; resource generated without email notification.');
@@ -152,11 +154,11 @@ async function notifyLead(lead, document) {
     const documentLabel = document === 'brochure' ? 'FastCheckIn Brochure' : document === 'visitor-origin' ? 'Visitor Origin Explorer Snapshot' : 'Business Snapshot';
     const html = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h2>FastCheckIn resource download</h2>' +
       '<p><strong>Resource:</strong> ' + documentLabel + '</p>' +
-      '<p><strong>Name:</strong> ' + lead.fullName + '</p>' +
-      '<p><strong>Company / hotel:</strong> ' + lead.companyName + '</p>' +
-      '<p><strong>Email:</strong> ' + lead.email + '</p>' +
-      '<p><strong>Telephone:</strong> ' + lead.telephone + '</p>' +
-      '<p><strong>Address:</strong> ' + lead.address + '</p></div>';
+      '<p><strong>Name:</strong> ' + escapeHtml(lead.fullName) + '</p>' +
+      '<p><strong>Company / hotel:</strong> ' + escapeHtml(lead.companyName) + '</p>' +
+      '<p><strong>Email:</strong> ' + escapeHtml(lead.email) + '</p>' +
+      '<p><strong>Telephone:</strong> ' + escapeHtml(lead.telephone) + '</p>' +
+      '<p><strong>Address:</strong> ' + escapeHtml(lead.address) + '</p></div>';
     await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
       to: ['inquiry@fastcheckin.co.za'],
@@ -168,12 +170,59 @@ async function notifyLead(lead, document) {
   }
 }
 
-export const handler = async (event) => {
+async function notifyInquiry(lead, topic, comments) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY is not configured; inquiry cannot be notified by email.');
+    return false;
+  }
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const html = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h2>FastCheckIn website enquiry</h2>' +
+      '<p><strong>Topic:</strong> ' + escapeHtml(topic) + '</p>' +
+      '<p><strong>Name:</strong> ' + escapeHtml(lead.fullName) + '</p>' +
+      '<p><strong>Company / hotel:</strong> ' + escapeHtml(lead.companyName) + '</p>' +
+      '<p><strong>Email:</strong> ' + escapeHtml(lead.email) + '</p>' +
+      '<p><strong>Telephone:</strong> ' + escapeHtml(lead.telephone) + '</p>' +
+      '<p><strong>Address:</strong> ' + escapeHtml(lead.address) + '</p>' +
+      '<p><strong>Comments:</strong><br>' + escapeHtml(comments) + '</p></div>';
+    await resend.emails.send({
+      from: 'FastCheckin <notifications@fastcheckin.co.za>',
+      to: ['inquiry@fastcheckin.co.za'],
+      subject: 'FastCheckIn website enquiry: ' + clean(topic, 120),
+      html,
+    });
+    return true;
+  } catch (error) {
+    console.error('Homepage enquiry notification failed:', error);
+    return false;
+  }
+}
+
+export const handler = async (event) =>
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: JSON_HEADERS, body: '' };
   if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'Method Not Allowed' });
 
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Invalid JSON body' }); }
+
+  if (body.action === 'inquiry') {
+    const leadError = validateLead(body.lead);
+    if (leadError) return jsonResponse(400, { error: leadError });
+    const topic = clean(body.topic, 160);
+    const comments = clean(body.comments, 3000);
+    if (!topic || !comments) return jsonResponse(400, { error: 'Please select a topic and enter your comments.' });
+    const lead = {
+      fullName: clean(body.lead.fullName),
+      companyName: clean(body.lead.companyName),
+      email: clean(body.lead.email, 320),
+      telephone: clean(body.lead.telephone, 80),
+      address: clean(body.lead.address),
+    };
+    const notified = await notifyInquiry(lead, topic, comments);
+    if (!notified) return jsonResponse(503, { error: 'The enquiry service is temporarily unavailable. Please email sales@fastcheckin.co.za.' });
+    return jsonResponse(200, { success: true });
+  }
 
   if (body.action !== 'download') return jsonResponse(400, { error: 'Unsupported action' });
   const document = ['brochure', 'visitor-origin', 'business-snapshot'].includes(body.document) ? body.document : null;
