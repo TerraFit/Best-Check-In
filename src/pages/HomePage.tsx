@@ -4,6 +4,7 @@ import { useTranslation } from '../i18n';
 import LanguageSelector from '../i18n/LanguageSelector';
 import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
 import HomepageLegalModal from '../components/HomepageLegalModal';
+import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
 import {
   BarChart3,
   BedDouble,
@@ -27,6 +28,7 @@ export default function HomePage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [downloadDocument, setDownloadDocument] = useState<HomepageDocument | null>(null);
   const [legalDocument, setLegalDocument] = useState<'privacy' | 'terms' | null>(null);
+  const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
   const [inquiryBusy, setInquiryBusy] = useState(false);
   const [inquiryMessage, setInquiryMessage] = useState('');
   const { t } = useTranslation();
@@ -431,7 +433,7 @@ export default function HomePage() {
             <h3 className="text-2xl font-bold">{t('landing_enterprise_title')}</h3>
             <p className="text-amber-400 font-semibold mt-2">{t('landing_enterprise_pricing')}</p>
             <p className="text-stone-400 max-w-2xl mx-auto mt-3">{t('landing_enterprise_f1')}</p>
-            <button onClick={() => window.location.href = 'mailto:sales@fastcheckin.co.za'} className="mt-6 rounded-full border border-amber-500 px-7 py-3 text-amber-400 font-semibold hover:bg-amber-500/10 transition">
+            <button onClick={() => setEnterpriseInquiryOpen(true)} className="mt-6 rounded-full border border-amber-500 px-7 py-3 text-amber-400 font-semibold hover:bg-amber-500/10 transition">
               {t('landing_contact_us')}
             </button>
           </div>
@@ -502,6 +504,7 @@ export default function HomePage() {
       </footer>
       <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
+      <EnterpriseInquiryModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
     </div>
   );
 }
