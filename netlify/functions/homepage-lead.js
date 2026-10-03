@@ -1,3 +1,5 @@
+import { supabaseInsert } from './lib/supabase-rest.js';
+
 const PDF_HEADERS = {
   'Content-Type': 'application/pdf',
   'Access-Control-Allow-Origin': '*',
@@ -106,8 +108,30 @@ export const handler = async (event) => {
       telephone: clean(body.lead.telephone, 80),
       address: clean(body.lead.address),
     };
+    try {
+      const portfolio = body.portfolio && typeof body.portfolio === 'object' ? body.portfolio : {};
+      await supabaseInsert('website_enquiries', {
+        topic,
+        status: 'new',
+        full_name: lead.fullName,
+        company_name: lead.companyName,
+        email: lead.email,
+        telephone: lead.telephone,
+        address: lead.address,
+        website: clean(portfolio.website, 500) || null,
+        total_rooms: Number.isFinite(Number(portfolio.totalRooms)) ? Number(portfolio.totalRooms) : null,
+        total_establishments: Number.isFinite(Number(portfolio.totalEstablishments)) ? Number(portfolio.totalEstablishments) : null,
+        sa_establishments: Number.isFinite(Number(portfolio.saEstablishments)) ? Number(portfolio.saEstablishments) : null,
+        sa_provinces: Array.isArray(portfolio.saProvinces) ? portfolio.saProvinces.map((v) => clean(v, 100)).filter(Boolean) : [],
+        international_establishments: Number.isFinite(Number(portfolio.internationalEstablishments)) ? Number(portfolio.internationalEstablishments) : 0,
+        international_countries: Array.isArray(portfolio.internationalCountries) ? portfolio.internationalCountries.map((v) => clean(v, 100)).filter(Boolean) : [],
+        comments,
+      });
+    } catch (error) {
+      console.error('Website enquiry persistence failed:', error);
+      return jsonResponse(500, { error: 'Unable to save your enquiry. Please try again.' });
+    }
     const notified = await notifyInquiry(lead, topic, comments);
-    if (!notified) return jsonResponse(503, { error: 'The enquiry service is temporarily unavailable. Please email sales@fastcheckin.co.za.' });
     return jsonResponse(200, { success: true });
   }
 
