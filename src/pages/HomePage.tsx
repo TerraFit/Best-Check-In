@@ -130,8 +130,8 @@ export default function HomePage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=85')" }}
         />
-        <div className="absolute inset-0 bg-stone-950/65" />
-        <div className="absolute inset-0 bg-gradient-to-b from-stone-950/30 via-stone-950/45 to-stone-950" />
+        <div className="absolute inset-0 bg-stone-950/35" />
+        <div className="absolute inset-0 bg-gradient-to-b from-stone-950/10 via-stone-950/20 to-stone-950" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
