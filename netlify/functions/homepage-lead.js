@@ -241,7 +241,18 @@ export const handler = async (event) => {
 
   await notifyLead(lead, document);
 
-  const pages = document === 'brochure' ? brochurePages() : document === 'visitor-origin' ? visitorOriginPages() : businessSnapshotPages();
+  if (document === 'brochure') {
+    return {
+      statusCode: 302,
+      headers: {
+        ...PDF_HEADERS,
+        Location: '/FastCheckIn_Platform_Overview_Brochure.pdf',
+      },
+      body: '',
+    };
+  }
+
+  const pages = document === 'visitor-origin' ? visitorOriginPages() : businessSnapshotPages();
   const subtitle = document === 'brochure' ? 'FastCheckIn - Platform Overview' : document === 'visitor-origin' ? 'FastCheckIn Analytics - Visitor Origin Explorer' : 'FastCheckIn Analytics - Business Snapshot';
   return pdfResponse(buildSimplePdf(pages, { subtitle, footer: 'FastCheckIn - Illustrative marketing sample - fastcheckin.co.za' }));
 };
