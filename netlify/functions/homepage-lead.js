@@ -1,5 +1,3 @@
-import { buildVisitorOriginSamplePdf, buildBusinessSnapshotSamplePdf } from './lib/analytics/reportBuilders/marketingSamples.js';
-
 const PDF_HEADERS = {
   'Content-Type': 'application/pdf',
   'Access-Control-Allow-Origin': '*',
@@ -12,13 +10,6 @@ const jsonResponse = (statusCode, body) => ({
   statusCode,
   headers: JSON_HEADERS,
   body: JSON.stringify(body),
-});
-
-const pdfResponse = (buffer) => ({
-  statusCode: 200,
-  headers: PDF_HEADERS,
-  body: buffer.toString('base64'),
-  isBase64Encoded: true,
 });
 
 const clean = (value, max = 300) => String(value ?? '').trim().slice(0, max);
@@ -88,6 +79,13 @@ async function notifyInquiry(lead, topic, comments) {
   }
 }
 
+/** Static marketing PDFs in /public — same pattern as Platform Overview brochure */
+const STATIC_DOCUMENTS = {
+  brochure: '/FastCheckIn_Platform_Overview_Brochure.pdf',
+  'visitor-origin': '/FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf',
+  'business-snapshot': '/FastCheckIn_Business_Snapshot.pdf',
+};
+
 export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: JSON_HEADERS, body: '' };
   if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'Method Not Allowed' });
@@ -130,21 +128,15 @@ export const handler = async (event) => {
 
   await notifyLead(lead, document);
 
-  // Brochure: static Platform Overview PDF already in public/
-  if (document === 'brochure') {
-    return {
-      statusCode: 302,
-      headers: {
-        ...PDF_HEADERS,
-        Location: '/FastCheckIn_Platform_Overview_Brochure.pdf',
-      },
-      body: '',
-    };
-  }
+  const location = STATIC_DOCUMENTS[document];
+  if (!location) return jsonResponse(400, { error: 'Unsupported document' });
 
-  // Sample analytics reports — brochure-aligned illustrative data
-  if (document === 'visitor-origin') {
-    return pdfResponse(buildVisitorOriginSamplePdf());
-  }
-  return pdfResponse(buildBusinessSnapshotSamplePdf());
+  return {
+    statusCode: 302,
+    headers: {
+      ...PDF_HEADERS,
+      Location: location,
+    },
+    body: '',
+  };
 };
