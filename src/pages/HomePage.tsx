@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { FormEvent, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from '../i18n';
 import LanguageSelector from '../i18n/LanguageSelector';
-import HomepageLeadModal, { HomepageDocument } from '../components/HomepageLeadModal';
+import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
 import HomepageLegalModal from '../components/HomepageLegalModal';
 import {
   BarChart3,
@@ -212,6 +212,11 @@ export default function HomePage() {
               })}
             </div>
           </div>
+          <div className="mt-10 text-center">
+            <button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">
+              Download Brochure
+            </button>
+          </div>
         </div>
       </section>
 
@@ -368,6 +373,11 @@ export default function HomePage() {
               <p className="mt-6 text-lg text-stone-600 leading-relaxed">{t('landing_snapshot_body')}</p>
             </div>
           </div>
+          <div className="text-center">
+            <button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">
+              Download Brochure
+            </button>
+          </div>
         </div>
       </section>
 
@@ -461,6 +471,9 @@ export default function HomePage() {
             {t('landing_cta_get_started')}
           </button>
           <p className="mt-4 text-sm text-stone-700">{t('landing_cta_trial_note')}</p>
+          <button onClick={() => setDownloadDocument('brochure')} className="mt-7 rounded-full border border-stone-900/30 px-7 py-3 font-bold text-stone-950 hover:bg-white/20 transition">
+            Download Brochure
+          </button>
         </div>
       </section>
 
