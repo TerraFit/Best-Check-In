@@ -147,7 +147,7 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
         <div className="flex items-start justify-between border-b border-stone-200 px-6 py-5 md:px-8">
           <div className="pr-8">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">Enterprise</p>
-            <h2 id="enterprise-inquiry-title" className="mt-2 text-2xl font-bold md:text-3xl">Tell us about your portfolio</h2>
+            <h2 id="enterprise-inquiry-title" className="mt-2 text-2xl font-bold md:text-3xl">Request Enterprise pricing</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600">
               Share a few details about your portfolio and we’ll prepare an Enterprise pricing discussion.
             </p>
