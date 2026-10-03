@@ -43,7 +43,7 @@ async function notifyLead(lead, document) {
       '<p><strong>Address:</strong> ' + escapeHtml(lead.address) + '</p></div>';
     await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
-      to: ['inquiry@fastcheckin.co.za'],
+      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'sales@fastcheckin.co.za'],
       subject: 'Homepage resource download: ' + documentLabel,
       html,
     });
@@ -70,7 +70,7 @@ async function notifyInquiry(lead, topic, comments) {
       '<p><strong>Comments:</strong><br>' + escapeHtml(comments) + '</p></div>';
     await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
-      to: ['inquiry@fastcheckin.co.za'],
+      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'sales@fastcheckin.co.za'],
       subject: 'FastCheckIn website enquiry: ' + clean(topic, 120),
       html,
     });
