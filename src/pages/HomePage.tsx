@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useTranslation } from '../i18n';
 import LanguageSelector from '../i18n/LanguageSelector';
+import HomepageLeadModal, { HomepageDocument } from '../components/HomepageLeadModal';
+import HomepageLegalModal from '../components/HomepageLegalModal';
 import {
   BarChart3,
   BedDouble,
@@ -23,6 +25,10 @@ import {
 export default function HomePage() {
   const navigate = useNavigate();
   const [loginLoading, setLoginLoading] = useState(false);
+  const [downloadDocument, setDownloadDocument] = useState<HomepageDocument | null>(null);
+  const [legalDocument, setLegalDocument] = useState<'privacy' | 'terms' | null>(null);
+  const [inquiryBusy, setInquiryBusy] = useState(false);
+  const [inquiryMessage, setInquiryMessage] = useState('');
   const { t } = useTranslation();
 
   const pricingPlans = [
@@ -79,6 +85,39 @@ export default function HomePage() {
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const submitInquiry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setInquiryBusy(true);
+    setInquiryMessage('');
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch('/.netlify/functions/homepage-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'inquiry',
+          lead: {
+            fullName: form.get('fullName'),
+            companyName: form.get('companyName'),
+            email: form.get('email'),
+            telephone: form.get('telephone'),
+            address: form.get('address'),
+          },
+          topic: form.get('topic'),
+          comments: form.get('comments'),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to send your enquiry.');
+      event.currentTarget.reset();
+      setInquiryMessage('Thank you. Your enquiry has been sent and our team will be in touch.');
+    } catch (error) {
+      setInquiryMessage(error instanceof Error ? error.message : 'Unable to send your enquiry.');
+    } finally {
+      setInquiryBusy(false);
+    }
   };
 
   return (
@@ -159,8 +198,8 @@ export default function HomePage() {
             <div className="grid sm:grid-cols-2 gap-4">
               {[
                 [Globe2, 'landing_story_point1'],
-                [Users, 'landing_story_point2'],
-                [Sparkles, 'landing_story_point3'],
+                [IdCard, 'landing_story_point2'],
+                [Wrench, 'landing_story_point3'],
                 [Hotel, 'landing_story_point4']
               ].map(([Icon, key]) => {
                 const IconComponent = Icon as typeof Globe2;
@@ -198,6 +237,11 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+          <div className="mt-10 text-center">
+            <button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">
+              Download Brochure
+            </button>
+          </div>
         </div>
       </section>
 
@@ -220,7 +264,8 @@ export default function HomePage() {
             ))}
           </div>
 
-          <div className="mt-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="mt-8 flex flex-col gap-5">
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-6 w-6 text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
@@ -229,6 +274,10 @@ export default function HomePage() {
               </div>
             </div>
             <span className="text-xs uppercase tracking-widest text-amber-400 font-bold whitespace-nowrap">{t('landing_compliance_sa')}</span>
+            </div>
+            <button onClick={() => setDownloadDocument('brochure')} className="self-start rounded-full border border-stone-700 px-6 py-3 text-sm font-bold text-amber-400 hover:border-amber-400 transition">
+              Download Brochure
+            </button>
           </div>
         </div>
       </section>
@@ -273,6 +322,9 @@ export default function HomePage() {
                 <BarChart3 className="h-5 w-5 text-amber-400" />
                 {t('landing_market_visual_note')}
               </div>
+              <button onClick={() => setDownloadDocument('visitor-origin')} className="mt-6 w-full rounded-xl border border-amber-500/50 px-5 py-3 text-sm font-bold text-amber-400 hover:bg-amber-500/10 transition">
+                Download Visitor Origin Snapshot
+              </button>
             </div>
           </div>
 
@@ -304,6 +356,9 @@ export default function HomePage() {
                     <div key={index} className="flex-1 rounded-t bg-amber-400/80" style={{ height: `${height}%` }} />
                   ))}
                 </div>
+                <button onClick={() => setDownloadDocument('business-snapshot')} className="mt-5 w-full rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-amber-400 hover:bg-stone-800 transition">
+                  Download Business Snapshot
+                </button>
               </div>
             </div>
 
@@ -353,6 +408,12 @@ export default function HomePage() {
             ))}
           </div>
 
+          <div className="mt-10 text-center">
+            <button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">
+              Download Brochure
+            </button>
+          </div>
+
           <div className="mt-8 rounded-3xl bg-stone-950 p-8 text-center text-white">
             <h3 className="text-2xl font-bold">{t('landing_enterprise_title')}</h3>
             <p className="text-amber-400 font-semibold mt-2">{t('landing_enterprise_pricing')}</p>
@@ -361,6 +422,31 @@ export default function HomePage() {
               {t('landing_contact_us')}
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Enquiry */}
+      <section className="bg-white py-24 text-stone-900">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">Let's talk</p>
+            <h2 className="mt-4 text-4xl md:text-5xl font-bold">Tell us what you need.</h2>
+            <p className="mt-5 text-lg text-stone-600">Ask a question, request a demonstration or explore how FastCheckIn could fit your property.</p>
+          </div>
+          <form onSubmit={submitInquiry} className="rounded-3xl border border-stone-200 bg-stone-50 p-6 md:p-8">
+            <div className="grid gap-5 md:grid-cols-2">
+              <label><span className="mb-1.5 block text-sm font-semibold">Full name</span><input name="fullName" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
+              <label><span className="mb-1.5 block text-sm font-semibold">Company / hotel name</span><input name="companyName" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
+              <label><span className="mb-1.5 block text-sm font-semibold">Email address</span><input name="email" type="email" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
+              <label><span className="mb-1.5 block text-sm font-semibold">Telephone</span><input name="telephone" type="tel" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
+              <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">Business / property address</span><input name="address" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
+              <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">What can we help you with?</span><select name="topic" required defaultValue="" className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3"><option value="" disabled>Select an option</option><option>General enquiry</option><option>Request a demonstration</option><option>Pricing and plans</option><option>Digital check-in and guest experience</option><option>Guest management and compliance</option><option>Housekeeping and hotel operations</option><option>Analytics and Visitor Origin Explorer</option><option>Business Snapshot and reporting</option><option>Multi-property / Enterprise</option><option>Payments and card tokenization</option><option>Partnership or integration</option></select></label>
+              <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">Comments</span><textarea name="comments" rows={5} required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" placeholder="Tell us what you would like to discuss…" /></label>
+            </div>
+            {inquiryMessage && <p className="mt-5 rounded-xl bg-white px-4 py-3 text-sm text-stone-700 border border-stone-200">{inquiryMessage}</p>}
+            <button disabled={inquiryBusy} type="submit" className="mt-6 rounded-xl bg-stone-950 px-7 py-3.5 font-bold text-amber-400 hover:bg-stone-800 disabled:opacity-60">{inquiryBusy ? 'Sending…' : 'Send Enquiry'}</button>
+            <p className="mt-4 text-xs text-stone-500">Your information is handled in accordance with our Privacy Policy.</p>
+          </form>
         </div>
       </section>
 
@@ -389,8 +475,7 @@ export default function HomePage() {
             <div className="flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm">
               <button onClick={() => scrollTo('platform-section')} className="hover:text-white transition">{t('landing_redesign_platform_link')}</button>
               <button onClick={() => scrollTo('pricing-section')} className="hover:text-white transition">{t('landing_redesign_pricing_link')}</button>
-              <a href="#" className="hover:text-white transition">{t('landing_footer_privacy')}</a>
-              <a href="#" className="hover:text-white transition">{t('landing_footer_terms')}</a>
+              <button onClick={() => setLegalDocument('privacy')} className="hover:text-white transition">Privacy & Terms</button>
               <button onClick={() => navigate('/super-admin-login')} className="hover:text-white transition">{t('landing_footer_super_admin')}</button>
             </div>
           </div>
@@ -399,6 +484,8 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+      <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} />
+      <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
     </div>
   );
 }
