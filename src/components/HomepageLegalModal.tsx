@@ -22,7 +22,7 @@ export default function HomepageLegalModal({ document, onClose }: HomepageLegalM
           <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-stone-500 hover:bg-stone-100"><X className="h-6 w-6" /></button>
         </div>
         <div className="overflow-y-auto px-6 py-7 text-sm leading-7 text-stone-700 md:px-10">
-          {isPrivacy ? <PrivacyContent /> : <TermsContent />}
+          {isPrivacy ? <><PrivacyContent /><div className="my-10 border-t-2 border-stone-200 pt-10"><TermsContent /></div></> : <TermsContent />}
         </div>
       </div>
     </div>
