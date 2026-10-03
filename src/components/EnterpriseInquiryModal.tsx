@@ -83,8 +83,6 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
     const totalRooms = String(form.get('totalRooms') || '').trim();
     const totalEstablishments = String(form.get('totalEstablishments') || '').trim();
     const saEstablishments = String(form.get('saEstablishments') || '').trim();
-    const comments = String(form.get('comments') || '').trim();
-
     const details = [
       'Enterprise enquiry',
       '',
@@ -103,9 +101,8 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
       'Establishments outside South Africa: ' + internationalCount,
       'Other countries: ' + (selectedCountries.length ? selectedCountries.join(', ') : 'None specified'),
       '',
-      'REQUIREMENTS',
-      'Areas of interest: ' + (form.getAll('interests').join(', ') || 'None specified'),
-      'Additional requirements: ' + (comments || 'None provided'),
+      'REQUEST',
+      'Enterprise pricing enquiry',
     ].join('\n');
 
     try {
@@ -138,7 +135,7 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/75 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/65 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="enterprise-inquiry-title"
@@ -152,7 +149,7 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">Enterprise</p>
             <h2 id="enterprise-inquiry-title" className="mt-2 text-2xl font-bold md:text-3xl">Tell us about your portfolio</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600">
-              Share a few details so we can understand your requirements and prepare an Enterprise discussion around your portfolio.
+              Share a few details about your portfolio and we’ll prepare an Enterprise pricing discussion.
             </p>
           </div>
           <button
@@ -273,33 +270,6 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
                 </div>
               </section>
 
-              <section className="border-t border-stone-200 pt-7">
-                <h3 className="text-lg font-bold">What are you looking for?</h3>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {[
-                    'Enterprise platform',
-                    'Multi-establishment management',
-                    'Digital guest check-in',
-                    'Guest management and compliance',
-                    'Hotel operations and housekeeping',
-                    'Analytics and reporting',
-                    'Visitor Origin Explorer',
-                    'Business Snapshot',
-                    'Payments and card tokenization',
-                    'Integration / API',
-                    'Other',
-                  ].map((interest) => (
-                    <label key={interest} className="flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50">
-                      <input type="checkbox" name="interests" value={interest} className="h-4 w-4 rounded border-stone-300 accent-amber-500" />
-                      {interest}
-                    </label>
-                  ))}
-                </div>
-                <label className="mt-5 block">
-                  <span className="mb-1.5 block text-sm font-semibold">Additional requirements</span>
-                  <textarea name="comments" rows={4} className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" placeholder="Tell us about any specific requirements, integrations, reporting needs or other considerations…" />
-                </label>
-              </section>
             </div>
 
             {message && <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p>}
