@@ -50,10 +50,10 @@ const brochurePages = () => [
     'Capture useful information during the guest journey so your team can provide a more informed experience.',
     '',
     '## Guest information',
-    '• Dietary and food restrictions',
-    '• Country and place of origin',
-    '• Arriving-from and next-destination information',
-    '• Referral source and stay information',
+    '- Dietary and food restrictions',
+    '- Country and place of origin',
+    '- Arriving-from and next-destination information',
+    '- Referral source and stay information',
     '',
     '## Connected operations',
     'Bring guest information together with arrivals, stays, rooms and housekeeping workflows.',
@@ -78,7 +78,7 @@ const brochurePages = () => [
 
 const visitorOriginPages = () => [
   { title: 'Visitor Origin Explorer', lines: [
-    'FastCheckIn Analytics — Illustrative Sample',
+    'FastCheckIn Analytics - Illustrative Sample',
     '',
     '## Guest check-ins',
     '122 guest check-ins',
@@ -95,7 +95,7 @@ const visitorOriginPages = () => [
     '## From continent to city',
     'FastCheckIn analytics can progressively explore visitor-origin information.',
     '',
-    'World → Continent → Country → Region → City',
+    'World -> Continent -> Country -> Region -> City',
     '',
     'The purpose is to help accommodation businesses understand where their guests are coming from and identify markets worth investigating.',
   ]},
@@ -109,7 +109,7 @@ const visitorOriginPages = () => [
 
 const businessSnapshotPages = () => [
   { title: 'Business Snapshot', lines: [
-    'FastCheckIn Analytics — Illustrative Sample',
+    'FastCheckIn Analytics - Illustrative Sample',
     '',
     '## Operational reporting',
     'A concise view of key measures for a selected reporting period.',
@@ -242,6 +242,6 @@ export const handler = async (event) =>
   await notifyLead(lead, document);
 
   const pages = document === 'brochure' ? brochurePages() : document === 'visitor-origin' ? visitorOriginPages() : businessSnapshotPages();
-  const subtitle = document === 'brochure' ? 'FastCheckIn — Platform Overview' : document === 'visitor-origin' ? 'FastCheckIn Analytics — Visitor Origin Explorer' : 'FastCheckIn Analytics — Business Snapshot';
+  const subtitle = document === 'brochure' ? 'FastCheckIn - Platform Overview' : document === 'visitor-origin' ? 'FastCheckIn Analytics - Visitor Origin Explorer' : 'FastCheckIn Analytics - Business Snapshot';
   return pdfResponse(buildSimplePdf(pages, { subtitle, footer: 'FastCheckIn · Illustrative marketing sample · fastcheckin.co.za' }));
 };
