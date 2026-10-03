@@ -199,7 +199,7 @@ async function notifyInquiry(lead, topic, comments) {
   }
 }
 
-export const handler = async (event) =>
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: JSON_HEADERS, body: '' };
   if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'Method Not Allowed' });
 
@@ -243,5 +243,5 @@ export const handler = async (event) =>
 
   const pages = document === 'brochure' ? brochurePages() : document === 'visitor-origin' ? visitorOriginPages() : businessSnapshotPages();
   const subtitle = document === 'brochure' ? 'FastCheckIn - Platform Overview' : document === 'visitor-origin' ? 'FastCheckIn Analytics - Visitor Origin Explorer' : 'FastCheckIn Analytics - Business Snapshot';
-  return pdfResponse(buildSimplePdf(pages, { subtitle, footer: 'FastCheckIn · Illustrative marketing sample · fastcheckin.co.za' }));
+  return pdfResponse(buildSimplePdf(pages, { subtitle, footer: 'FastCheckIn - Illustrative marketing sample - fastcheckin.co.za' }));
 };
