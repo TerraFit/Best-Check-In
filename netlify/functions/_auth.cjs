@@ -2,7 +2,7 @@
 const jwt = require('jsonwebtoken');
 
 const ACTOR_TYPES = Object.freeze({ SUPER_ADMIN: 'super_admin', PLATFORM: 'platform', BUSINESS: 'business', EMPLOYEE: 'employee' });
-const PLATFORM_PERMISSIONS = Object.freeze(['platform:businesses:read','platform:businesses:write','platform:change_requests:read','platform:change_requests:write','platform:subscriptions:read','platform:subscriptions:write','platform:payments:read','platform:analytics:read','platform:analytics:export','platform:reports:read','platform:reports:export','platform:audit:read','platform:compliance:read','platform:developers:manage','platform:system:diagnostics']);
+const PLATFORM_PERMISSIONS = Object.freeze(['platform:businesses:read','platform:businesses:write','platform:change_requests:read','platform:website_enquiries:read','platform:change_requests:write','platform:subscriptions:read','platform:subscriptions:write','platform:payments:read','platform:analytics:read','platform:analytics:export','platform:reports:read','platform:reports:export','platform:audit:read','platform:compliance:read','platform:developers:manage','platform:system:diagnostics']);
 const PLATFORM_ROLE_PERMISSIONS = Object.freeze({
   super_admin: PLATFORM_PERMISSIONS,
   platform_operations: ['platform:businesses:read','platform:businesses:write','platform:change_requests:read','platform:change_requests:write','platform:subscriptions:read','platform:subscriptions:write','platform:payments:read','platform:audit:read'],
