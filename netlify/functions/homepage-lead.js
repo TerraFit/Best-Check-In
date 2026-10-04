@@ -1,5 +1,6 @@
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { supabaseInsert } from './lib/supabase-rest.js';
 import { createClient } from '@supabase/supabase-js';
 
@@ -122,9 +123,15 @@ async function prepareProtectedResource(resource) {
   }
 
   if (!exists) {
+    const functionDir = path.dirname(fileURLToPath(import.meta.url));
     const candidates = [
       path.resolve(process.cwd(), 'public', resource.fileName),
+      path.resolve(process.cwd(), resource.fileName),
+      path.resolve(functionDir, 'public', resource.fileName),
+      path.resolve(functionDir, '../public', resource.fileName),
+      path.resolve(functionDir, '../../public', resource.fileName),
       process.env.LAMBDA_TASK_ROOT ? path.resolve(process.env.LAMBDA_TASK_ROOT, 'public', resource.fileName) : null,
+      process.env.LAMBDA_TASK_ROOT ? path.resolve(process.env.LAMBDA_TASK_ROOT, resource.fileName) : null,
     ].filter(Boolean);
 
     let filePath = null;
