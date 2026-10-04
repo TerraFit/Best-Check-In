@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && npm run build"
+  command = "npm install && npm run build && rm -f dist/FastCheckIn_Platform_Overview_Brochure.pdf dist/FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf dist/FastCheckIn_Business_Snapshot.pdf"
   publish = "dist"
 
 [build.environment]
@@ -8,6 +8,7 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  included_files = ["public/*.pdf"]
 
 # ⚡ Force rebuild of marketing-export.v2 function
 [functions."marketing-export.v2"]
