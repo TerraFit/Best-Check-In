@@ -80,6 +80,10 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
 
   const submitEnterpriseInquiry = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!turnstileToken) {
+      setMessage('Please complete the security verification.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     const form = new FormData(event.currentTarget);
@@ -113,7 +117,7 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'inquiry',
+          action: 'enterprise-inquiry',
           lead: {
             fullName: form.get('fullName'),
             companyName: form.get('companyName'),
@@ -278,7 +282,7 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
 
             </div>
 
-            <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <TurnstileWidget action="enterprise-enquiry" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
             {message && <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p>}
 
