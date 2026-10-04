@@ -7,6 +7,7 @@ declare global {
         container: HTMLElement,
         options: {
           sitekey: string;
+          action: string;
           callback: (token: string) => void;
           'expired-callback'?: () => void;
           'error-callback'?: () => void;
@@ -18,6 +19,7 @@ declare global {
 }
 
 type TurnstileWidgetProps = {
+  action: 'homepage-download' | 'homepage-enquiry' | 'enterprise-enquiry';
   onToken: (token: string) => void;
   resetKey?: number;
 };
@@ -25,7 +27,7 @@ type TurnstileWidgetProps = {
 const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 const SCRIPT_ID = 'fastcheckin-turnstile-script';
 
-export default function TurnstileWidget({ onToken, resetKey = 0 }: TurnstileWidgetProps) {
+export default function TurnstileWidget({ action, onToken, resetKey = 0 }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
 
@@ -41,6 +43,7 @@ export default function TurnstileWidget({ onToken, resetKey = 0 }: TurnstileWidg
       } else {
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: SITE_KEY,
+          action,
           callback: onToken,
           'expired-callback': () => onToken(''),
           'error-callback': () => onToken(''),
@@ -65,7 +68,7 @@ export default function TurnstileWidget({ onToken, resetKey = 0 }: TurnstileWidg
     return () => {
       cancelled = true;
     };
-  }, [onToken]);
+  }, [action, onToken]);
 
   useEffect(() => {
     if (resetKey > 0 && widgetIdRef.current && window.turnstile) {
