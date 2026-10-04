@@ -5,6 +5,7 @@ import LanguageSelector from '../i18n/LanguageSelector';
 import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
 import HomepageLegalModal from '../components/HomepageLegalModal';
 import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
+import TurnstileWidget from '../components/TurnstileWidget';
 import {
   BarChart3,
   BedDouble,
@@ -31,6 +32,8 @@ export default function HomePage() {
   const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
   const [inquiryBusy, setInquiryBusy] = useState(false);
   const [inquiryMessage, setInquiryMessage] = useState('');
+  const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
+  const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
 
   const pricingPlans = [
@@ -110,11 +113,14 @@ export default function HomePage() {
           },
           topic: form.get('topic'),
           comments: form.get('comments'),
+          turnstileToken: inquiryTurnstileToken,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Unable to send your enquiry.');
       formElement.reset();
+      setInquiryTurnstileToken('');
+      setInquiryTurnstileResetKey((value) => value + 1);
       setInquiryMessage('Thank you. Your enquiry has been sent and our team will be in touch.');
     } catch (error) {
       setInquiryMessage(error instanceof Error ? error.message : 'Unable to send your enquiry.');
