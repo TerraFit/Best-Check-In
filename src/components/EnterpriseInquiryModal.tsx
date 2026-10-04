@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { X } from 'lucide-react';
+import TurnstileWidget from './TurnstileWidget';
 
 const SOUTH_AFRICAN_PROVINCES = [
   'Eastern Cape',
@@ -43,6 +44,8 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
   const [internationalCount, setInternationalCount] = useState(0);
   const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -120,11 +123,14 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
           },
           topic: 'Enterprise enquiry',
           comments: details,
+          turnstileToken,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Unable to send your enquiry.');
       setSuccess(true);
+      setTurnstileToken('');
+      setTurnstileResetKey((value) => value + 1);
       setMessage('Thank you. Your Enterprise enquiry has been sent. Our team will be in touch.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to send your enquiry.');
@@ -271,6 +277,8 @@ export default function EnterpriseInquiryModal({ open, onClose }: EnterpriseInqu
               </section>
 
             </div>
+
+            <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
             {message && <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p>}
 
