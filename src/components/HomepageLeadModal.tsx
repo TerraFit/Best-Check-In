@@ -53,6 +53,10 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
   };
 
   async function requestDownload(currentLead: Lead, requestedDocument: HomepageDocument) {
+    if (!turnstileToken) {
+      setError('Please complete the security verification.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -119,7 +123,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
           <div className="grid gap-4 sm:grid-cols-2">{field('email', 'Email address', 'email')}{field('telephone', 'Telephone', 'tel')}</div>
           {field('address', 'Business / property address')}
           <p className="text-xs leading-5 text-stone-500">We use these details to provide the requested resource and respond to related enquiries. <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">Privacy Policy</button> and <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">Terms</button> apply.</p>
-          <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+          <TurnstileWidget action="homepage-download" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
           {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           <button disabled={busy} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-5 py-3.5 font-bold text-amber-400 transition hover:bg-stone-800 disabled:cursor-wait disabled:opacity-60"><Download className="h-5 w-5" />{busy ? 'Preparing download…' : 'Download'}</button>
         </form>
