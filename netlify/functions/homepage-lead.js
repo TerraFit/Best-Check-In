@@ -16,13 +16,13 @@ const jsonResponse = (statusCode, body) => ({
 
 const clean = (value, max = 300) => String(value ?? '').trim().slice(0, max);
 
-async function verifyTurnstile(token, event) {
+async function verifyTurnstile(token, event, expectedAction) {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     console.error('TURNSTILE_SECRET_KEY is not configured.');
     return { ok: false, error: 'CAPTCHA is temporarily unavailable. Please try again later.' };
   }
-  if (!token || typeof token !== 'string') {
+  if (!token || typeof token !== 'string' || token.length > 2048) {
     return { ok: false, error: 'Please complete the CAPTCHA verification.' };
   }
 
@@ -39,10 +39,22 @@ async function verifyTurnstile(token, event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: payload.toString(),
+      signal: AbortSignal.timeout(5000),
     });
     const result = await response.json();
     if (!response.ok || !result.success) {
       console.warn('Turnstile verification failed:', result['error-codes'] || []);
+      return { ok: false, error: 'CAPTCHA verification failed. Please try again.' };
+    }
+
+    const allowedHostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'fastcheckin.co.za,www.fastcheckin.co.za')
+      .split(',').map((hostname) => hostname.trim().toLowerCase()).filter(Boolean);
+    if (!result.hostname || !allowedHostnames.includes(String(result.hostname).toLowerCase())) {
+      console.warn('Turnstile verification rejected an unexpected hostname.');
+      return { ok: false, error: 'CAPTCHA verification failed. Please try again.' };
+    }
+    if (!expectedAction || result.action !== expectedAction) {
+      console.warn('Turnstile verification rejected an unexpected action.');
       return { ok: false, error: 'CAPTCHA verification failed. Please try again.' };
     }
     return { ok: true };
@@ -79,7 +91,7 @@ async function notifyLead(lead, document) {
       '<p><strong>Address:</strong> ' + escapeHtml(lead.address) + '</p></div>';
     await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
-      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'sales@fastcheckin.co.za'],
+      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za'],
       subject: 'Homepage resource download: ' + documentLabel,
       html,
     });
@@ -106,7 +118,7 @@ async function notifyInquiry(lead, topic, comments) {
       '<p><strong>Comments:</strong><br>' + escapeHtml(comments) + '</p></div>';
     await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
-      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'sales@fastcheckin.co.za'],
+      to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za'],
       subject: 'FastCheckIn website enquiry: ' + clean(topic, 120),
       html,
     });
@@ -131,8 +143,9 @@ export const handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Invalid JSON body' }); }
 
-  if (body.action === 'inquiry') {
-    const captcha = await verifyTurnstile(body.turnstileToken, event);
+  if (body.action === 'inquiry' || body.action === 'enterprise-inquiry') {
+    const expectedAction = body.action === 'enterprise-inquiry' ? 'enterprise-enquiry' : 'homepage-enquiry';
+    const captcha = await verifyTurnstile(body.turnstileToken, event, expectedAction);
     if (!captcha.ok) return jsonResponse(400, { error: captcha.error });
     const leadError = validateLead(body.lead);
     if (leadError) return jsonResponse(400, { error: leadError });
@@ -177,7 +190,7 @@ export const handler = async (event) => {
   const document = ['brochure', 'visitor-origin', 'business-snapshot'].includes(body.document) ? body.document : null;
   if (!document) return jsonResponse(400, { error: 'Unsupported document' });
 
-  const captcha = await verifyTurnstile(body.turnstileToken, event);
+  const captcha = await verifyTurnstile(body.turnstileToken, event, 'homepage-download');
   if (!captcha.ok) return jsonResponse(400, { error: captcha.error });
 
   const leadError = validateLead(body.lead);
