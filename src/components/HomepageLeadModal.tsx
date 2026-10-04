@@ -75,11 +75,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
       }
       const anchor = window.document.createElement('a');
       anchor.href = data.downloadUrl;
-      anchor.target = '_blank';
-      anchor.rel = 'noopener';
-      window.document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      window.location.assign(data.downloadUrl);
       setTurnstileToken('');
       setTurnstileResetKey((value) => value + 1);
       onDownloaded();
