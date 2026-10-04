@@ -94,6 +94,10 @@ export default function HomePage() {
 
   const submitInquiry = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!inquiryTurnstileToken) {
+      setInquiryMessage('Please complete the security verification.');
+      return;
+    }
     setInquiryBusy(true);
     setInquiryMessage('');
     const formElement = event.currentTarget;
@@ -465,6 +469,7 @@ export default function HomePage() {
               <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">What can we help you with?</span><select name="topic" required defaultValue="" className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3"><option value="" disabled>Select an option</option><option>General enquiry</option><option>Request a demonstration</option><option>Pricing and plans</option><option>Digital check-in and guest experience</option><option>Guest management and compliance</option><option>Housekeeping and hotel operations</option><option>Analytics and Visitor Origin Explorer</option><option>Business Snapshot and reporting</option><option>Multi-property / Enterprise</option><option>Payments and card tokenization</option><option>Partnership or integration</option></select></label>
               <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">Comments</span><textarea name="comments" rows={5} required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" placeholder="Tell us what you would like to discuss…" /></label>
             </div>
+            <TurnstileWidget action="homepage-enquiry" onToken={setInquiryTurnstileToken} resetKey={inquiryTurnstileResetKey} />
             {inquiryMessage && <p className="mt-5 rounded-xl bg-white px-4 py-3 text-sm text-stone-700 border border-stone-200">{inquiryMessage}</p>}
             <button disabled={inquiryBusy} type="submit" className="mt-6 rounded-xl bg-stone-950 px-7 py-3.5 font-bold text-amber-400 hover:bg-stone-800 disabled:opacity-60">{inquiryBusy ? 'Sending…' : 'Send Enquiry'}</button>
             <p className="mt-4 text-xs text-stone-500">Your information is handled in accordance with our Privacy Policy.</p>
