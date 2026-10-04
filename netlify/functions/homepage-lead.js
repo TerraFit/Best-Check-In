@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { supabaseInsert } from './lib/supabase-rest.js';
 
 const PDF_HEADERS = {
@@ -130,10 +132,19 @@ async function notifyInquiry(lead, topic, comments) {
 }
 
 /** Static marketing PDFs in /public — same pattern as Platform Overview brochure */
-const STATIC_DOCUMENTS = {
-  brochure: '/FastCheckIn_Platform_Overview_Brochure.pdf',
-  'visitor-origin': '/FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf',
-  'business-snapshot': '/FastCheckIn_Business_Snapshot.pdf',
+const PROTECTED_DOCUMENTS = {
+  brochure: {
+    fileName: 'FastCheckIn_Platform_Overview_Brochure.pdf',
+    label: 'FastCheckIn Brochure',
+  },
+  'visitor-origin': {
+    fileName: 'FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf',
+    label: 'Visitor Origin Explorer Snapshot',
+  },
+  'business-snapshot': {
+    fileName: 'FastCheckIn_Business_Snapshot.pdf',
+    label: 'Business Snapshot',
+  },
 };
 
 export const handler = async (event) => {
@@ -204,17 +215,49 @@ export const handler = async (event) => {
     address: clean(body.lead.address),
   };
 
+  const resource = PROTECTED_DOCUMENTS[document];
+  if (!resource) return jsonResponse(400, { error: 'Unsupported document' });
+
+  try {
+    await supabaseInsert('website_enquiries', {
+      topic: 'Resource download: ' + resource.label,
+      status: 'new',
+      full_name: lead.fullName,
+      company_name: lead.companyName,
+      email: lead.email,
+      telephone: lead.telephone,
+      address: lead.address,
+      website: null,
+      total_rooms: null,
+      total_establishments: null,
+      sa_establishments: null,
+      sa_provinces: [],
+      international_establishments: 0,
+      international_countries: [],
+      comments: 'Homepage resource download: ' + resource.label,
+    });
+  } catch (error) {
+    console.error('Resource download lead persistence failed:', error);
+    return jsonResponse(500, { error: 'Unable to record your download request. Please try again.' });
+  }
+
   await notifyLead(lead, document);
 
-  const location = STATIC_DOCUMENTS[document];
-  if (!location) return jsonResponse(400, { error: 'Unsupported document' });
-
-  return {
-    statusCode: 302,
-    headers: {
-      ...PDF_HEADERS,
-      Location: location,
-    },
-    body: '',
-  };
+  try {
+    const filePath = path.join(process.cwd(), 'public', resource.fileName);
+    const pdf = await readFile(filePath);
+    return {
+      statusCode: 200,
+      headers: {
+        ...PDF_HEADERS,
+        'Content-Disposition': 'attachment; filename="' + resource.fileName + '"',
+        'Content-Length': String(pdf.length),
+      },
+      isBase64Encoded: true,
+      body: pdf.toString('base64'),
+    };
+  } catch (error) {
+    console.error('Protected resource read failed:', error);
+    return jsonResponse(500, { error: 'The requested resource is temporarily unavailable. Please try again later.' });
+  }
 };
