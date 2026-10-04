@@ -13,7 +13,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-const { handler } = await import('../homepage-lead.mjs');
+const { handler } = await import('../homepage-lead.js');
 
 function mockFetch(siteverifyResult, { resourceExists = false } = {}) {
   let insertCalls = 0;
