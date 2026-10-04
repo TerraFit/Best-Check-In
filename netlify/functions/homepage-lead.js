@@ -16,6 +16,42 @@ const jsonResponse = (statusCode, body) => ({
 
 const clean = (value, max = 300) => String(value ?? '').trim().slice(0, max);
 
+async function verifyTurnstile(token, event) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) {
+    console.error('TURNSTILE_SECRET_KEY is not configured.');
+    return { ok: false, error: 'CAPTCHA is temporarily unavailable. Please try again later.' };
+  }
+  if (!token || typeof token !== 'string') {
+    return { ok: false, error: 'Please complete the CAPTCHA verification.' };
+  }
+
+  const remoteip = event?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || undefined;
+  const payload = new URLSearchParams({
+    secret,
+    response: token,
+  });
+  if (remoteip) payload.set('remoteip', remoteip);
+  if (process.env.TURNSTILE_SITE_KEY) payload.set('sitekey', process.env.TURNSTILE_SITE_KEY);
+
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload.toString(),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      console.warn('Turnstile verification failed:', result['error-codes'] || []);
+      return { ok: false, error: 'CAPTCHA verification failed. Please try again.' };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error('Turnstile verification request failed:', error);
+    return { ok: false, error: 'CAPTCHA verification is temporarily unavailable. Please try again.' };
+  }
+}
+
 function validateLead(lead) {
   const fields = ['fullName', 'companyName', 'email', 'telephone', 'address'];
   if (!lead || fields.some((field) => !clean(lead[field]))) return 'Please complete all required fields.';
@@ -96,6 +132,8 @@ export const handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Invalid JSON body' }); }
 
   if (body.action === 'inquiry') {
+    const captcha = await verifyTurnstile(body.turnstileToken, event);
+    if (!captcha.ok) return jsonResponse(400, { error: captcha.error });
     const leadError = validateLead(body.lead);
     if (leadError) return jsonResponse(400, { error: leadError });
     const topic = clean(body.topic, 160);
@@ -138,6 +176,9 @@ export const handler = async (event) => {
   if (body.action !== 'download') return jsonResponse(400, { error: 'Unsupported action' });
   const document = ['brochure', 'visitor-origin', 'business-snapshot'].includes(body.document) ? body.document : null;
   if (!document) return jsonResponse(400, { error: 'Unsupported document' });
+
+  const captcha = await verifyTurnstile(body.turnstileToken, event);
+  if (!captcha.ok) return jsonResponse(400, { error: captcha.error });
 
   const leadError = validateLead(body.lead);
   if (leadError) return jsonResponse(400, { error: leadError });
