@@ -1,6 +1,5 @@
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { supabaseInsert } from './lib/supabase-rest.js';
 
 const PDF_HEADERS = {
@@ -127,16 +126,12 @@ async function prepareProtectedResource(resource) {
     bucket: MARKETING_BUCKET,
   });
 
-  const functionDir = path.dirname(fileURLToPath(import.meta.url));
   const lambdaRoot = process.env.LAMBDA_TASK_ROOT || process.cwd();
   const candidates = [
     path.resolve(process.cwd(), 'public', resource.fileName),
     path.resolve(lambdaRoot, 'public', resource.fileName),
     path.resolve(process.cwd(), resource.fileName),
     path.resolve(lambdaRoot, resource.fileName),
-    path.resolve(functionDir, 'public', resource.fileName),
-    path.resolve(functionDir, '../public', resource.fileName),
-    path.resolve(functionDir, '../../public', resource.fileName),
   ];
 
   let filePath = null;
