@@ -17,6 +17,8 @@ const { handler } = await import('../homepage-lead.js');
 
 function mockFetch(siteverifyResult) {
   let insertCalls = 0;
+  let storageUploadCalls = 0;
+  let storageSignCalls = 0;
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
@@ -26,9 +28,19 @@ function mockFetch(siteverifyResult) {
       insertCalls += 1;
       return new Response(JSON.stringify([{ id: 'test-enquiry-id' }]), { status: 201 });
     }
+    if (url.startsWith('https://supabase.test/storage/v1/object/')) {
+      if (url.includes('/sign/')) {
+        storageSignCalls += 1;
+        return new Response(JSON.stringify({
+          signedURL: '/storage/v1/object/sign/fastcheckin-marketing/FastCheckIn_Platform_Overview_Brochure.pdf?token=test-signed-token',
+        }), { status: 200 });
+      }
+      storageUploadCalls += 1;
+      return new Response(JSON.stringify({ Key: 'fastcheckin-marketing/FastCheckIn_Platform_Overview_Brochure.pdf' }), { status: 200 });
+    }
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
-  return () => insertCalls;
+  return () => ({ insertCalls, storageUploadCalls, storageSignCalls });
 }
 
 function event(body, httpMethod = 'POST') {
@@ -145,11 +157,14 @@ test('returns the protected PDF only after download-specific Turnstile verificat
   }));
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.headers['Content-Type'], 'application/pdf');
-  assert.equal(response.headers['Content-Disposition'], 'attachment; filename="FastCheckIn_Platform_Overview_Brochure.pdf"');
-  assert.equal(response.isBase64Encoded, true);
-  assert.ok(response.body.length > 100);
-  assert.equal(insertCalls(), 1);
+  assert.equal(response.headers['Content-Type'], 'application/json');
+  const body = JSON.parse(response.body);
+  assert.equal(body.success, true);
+  assert.match(body.downloadUrl, /signed-token/);
+  const calls = insertCalls();
+  assert.equal(calls.insertCalls, 1);
+  assert.equal(calls.storageUploadCalls, 1);
+  assert.equal(calls.storageSignCalls, 1);
 });
 
 test('rejects unsupported HTTP methods', async () => {
