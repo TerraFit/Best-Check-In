@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { supabaseInsert } from './lib/supabase-rest.js';
+import { createClient } from '@supabase/supabase-js';
 
 const PDF_HEADERS = {
   'Content-Type': 'application/pdf',
@@ -9,6 +10,8 @@ const PDF_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 const JSON_HEADERS = { ...PDF_HEADERS, 'Content-Type': 'application/json' };
+const MARKETING_BUCKET = 'fastcheckin-marketing';
+const SIGNED_URL_EXPIRES_IN = 300;
 
 const jsonResponse = (statusCode, body) => ({
   statusCode,
@@ -100,6 +103,49 @@ async function notifyLead(lead, document) {
   } catch (error) {
     console.error('Homepage lead notification failed:', error);
   }
+}
+
+async function prepareProtectedResource(resource) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    throw new Error('Supabase Storage credentials are not configured.');
+  }
+
+  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const storage = supabase.storage.from(MARKETING_BUCKET);
+  const { data: exists, error: existsError } = await storage.exists(resource.fileName);
+
+  if (existsError) {
+    throw new Error('Unable to check protected resource: ' + existsError.message);
+  }
+
+  if (!exists) {
+    const filePath = path.join(process.cwd(), 'public', resource.fileName);
+    const pdf = await readFile(filePath);
+    const { error: uploadError } = await storage.upload(resource.fileName, pdf, {
+      contentType: 'application/pdf',
+      cacheControl: '3600',
+      upsert: true,
+    });
+
+    if (uploadError) {
+      throw new Error('Unable to store protected resource: ' + uploadError.message);
+    }
+  }
+
+  const { data, error: signedUrlError } = await storage.createSignedUrl(
+    resource.fileName,
+    SIGNED_URL_EXPIRES_IN,
+    { download: true },
+  );
+
+  if (signedUrlError || !data?.signedUrl) {
+    throw new Error('Unable to create protected download URL: ' + (signedUrlError?.message || 'missing signed URL'));
+  }
+
+  return data.signedUrl;
 }
 
 async function notifyInquiry(lead, topic, comments) {
@@ -244,20 +290,10 @@ export const handler = async (event) => {
   await notifyLead(lead, document);
 
   try {
-    const filePath = path.join(process.cwd(), 'public', resource.fileName);
-    const pdf = await readFile(filePath);
-    return {
-      statusCode: 200,
-      headers: {
-        ...PDF_HEADERS,
-        'Content-Disposition': 'attachment; filename="' + resource.fileName + '"',
-        'Content-Length': String(pdf.length),
-      },
-      isBase64Encoded: true,
-      body: pdf.toString('base64'),
-    };
+    const downloadUrl = await prepareProtectedResource(resource);
+    return jsonResponse(200, { success: true, downloadUrl });
   } catch (error) {
-    console.error('Protected resource read failed:', error);
+    console.error('Protected resource preparation failed:', error);
     return jsonResponse(500, { error: 'The requested resource is temporarily unavailable. Please try again later.' });
   }
 };

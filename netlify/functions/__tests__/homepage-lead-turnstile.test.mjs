@@ -15,9 +15,12 @@ afterEach(() => {
 
 const { handler } = await import('../homepage-lead.js');
 
-function mockFetch(siteverifyResult) {
+function mockFetch(siteverifyResult, { resourceExists = false } = {}) {
   let insertCalls = 0;
-  globalThis.fetch = async (input) => {
+  let storageExistsCalls = 0;
+  let storageUploadCalls = 0;
+  let storageSignCalls = 0;
+  globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
     if (url === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
       return new Response(JSON.stringify(siteverifyResult), { status: 200 });
@@ -26,9 +29,23 @@ function mockFetch(siteverifyResult) {
       insertCalls += 1;
       return new Response(JSON.stringify([{ id: 'test-enquiry-id' }]), { status: 201 });
     }
+    if (url.startsWith('https://supabase.test/storage/v1/object/')) {
+      if (init.method === 'HEAD') {
+        storageExistsCalls += 1;
+        return new Response(null, { status: resourceExists ? 200 : 404 });
+      }
+      if (url.includes('/sign/')) {
+        storageSignCalls += 1;
+        return new Response(JSON.stringify({
+          signedURL: '/storage/v1/object/sign/fastcheckin-marketing/FastCheckIn_Platform_Overview_Brochure.pdf?token=test-signed-token',
+        }), { status: 200 });
+      }
+      storageUploadCalls += 1;
+      return new Response(JSON.stringify({ Key: 'fastcheckin-marketing/FastCheckIn_Platform_Overview_Brochure.pdf' }), { status: 200 });
+    }
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
-  return () => insertCalls;
+  return () => ({ insertCalls, storageExistsCalls, storageUploadCalls, storageSignCalls });
 }
 
 function event(body, httpMethod = 'POST') {
@@ -145,11 +162,34 @@ test('returns the protected PDF only after download-specific Turnstile verificat
   }));
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.headers['Content-Type'], 'application/pdf');
-  assert.equal(response.headers['Content-Disposition'], 'attachment; filename="FastCheckIn_Platform_Overview_Brochure.pdf"');
-  assert.equal(response.isBase64Encoded, true);
-  assert.ok(response.body.length > 100);
-  assert.equal(insertCalls(), 1);
+  assert.equal(response.headers['Content-Type'], 'application/json');
+  const body = JSON.parse(response.body);
+  assert.equal(body.success, true);
+  assert.match(body.downloadUrl, /signed-token/);
+  const calls = insertCalls();
+  assert.equal(calls.insertCalls, 1);
+  assert.equal(calls.storageExistsCalls, 1);
+  assert.equal(calls.storageUploadCalls, 1);
+  assert.equal(calls.storageSignCalls, 1);
+});
+
+test('reuses an existing protected PDF without uploading it again', async () => {
+  const insertCalls = mockFetch({ ...validCaptcha, action: 'homepage-download' }, { resourceExists: true });
+
+  const response = await handler(event({
+    action: 'download',
+    document: 'brochure',
+    lead,
+    turnstileToken: 'test-token',
+  }));
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).success, true);
+  const calls = insertCalls();
+  assert.equal(calls.insertCalls, 1);
+  assert.equal(calls.storageExistsCalls, 1);
+  assert.equal(calls.storageUploadCalls, 0);
+  assert.equal(calls.storageSignCalls, 1);
 });
 
 test('rejects unsupported HTTP methods', async () => {
