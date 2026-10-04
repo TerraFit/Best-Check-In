@@ -122,7 +122,6 @@
   "housekeeping_complete": "Completar",
   "housekeeping_skip": "Omitir",
   "housekeeping_previous_cleaning_cancelled": "Intento de limpieza anterior cancelado",
-  "housekeeping_previous_cleaning_cancelled": "Intento de limpieza anterior cancelado",
   "housekeeping_skip_oldest": "Omitir servicio más antiguo",
   "housekeeping_skip_overdue_title": "Omitir servicio de limpieza atrasado",
   "housekeeping_skip_overdue_description": "Esta habitación tiene varios servicios de refresco atrasados. Solo se puede omitir aquí el servicio más antiguo.",
@@ -1082,8 +1081,7 @@
   "reports_financial_revenue": "Ingresos",
   "reports_financial_save": "Guardar y descargar PDF",
   "reports_financial_skip": "Omitir y descargar PDF",
-  "reports_financial_title": "Añadir información financiera"
-,
+  "reports_financial_title": "Añadir información financiera",
   "landing_redesign_eyebrow": "Hospitalidad, conectada",
   "landing_redesign_hero_support": "La plataforma digital que ayuda a hoteles y casas de huéspedes a ofrecer mejores experiencias, comprender sus mercados y tomar decisiones empresariales más inteligentes.",
   "landing_redesign_explore": "Explorar FastCheckIn",
