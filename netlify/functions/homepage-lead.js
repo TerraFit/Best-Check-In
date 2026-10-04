@@ -122,9 +122,10 @@ async function prepareProtectedResource(resource) {
     .join('/');
   const bucketPath = encodeURIComponent(MARKETING_BUCKET);
   const objectUrl = `${storageBaseUrl}/object/${bucketPath}/${objectPath}`;
-  const objectInfoUrl = `${storageBaseUrl}/object/info/${bucketPath}/${objectPath}`;
-
-  const existsResponse = await fetch(objectInfoUrl, {
+  // Use the Storage object's existence endpoint. Supabase's Storage JS client
+  // implements `exists()` with HEAD /object/{bucket}/{path}; the /object/info
+  // endpoint is an info endpoint and is not required for this check.
+  const existsResponse = await fetch(objectUrl, {
     method: 'HEAD',
     headers: authHeaders,
   });
