@@ -11,6 +11,13 @@
   included_files = ["public/*.pdf"]
 
 # ⚡ Force rebuild of marketing-export.v2 function
+[functions."homepage-lead"]
+  included_files = [
+    "public/FastCheckIn_Platform_Overview_Brochure.pdf",
+    "public/FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf",
+    "public/FastCheckIn_Business_Snapshot.pdf"
+  ]
+
 [functions."marketing-export.v2"]
   memory = 1024
   timeout = 30
