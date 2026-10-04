@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { supabaseInsert } from './lib/supabase-rest.js';
 import { createClient } from '@supabase/supabase-js';
@@ -122,7 +122,34 @@ async function prepareProtectedResource(resource) {
   }
 
   if (!exists) {
-    const filePath = path.join(process.cwd(), 'public', resource.fileName);
+    const candidates = [
+      path.resolve(process.cwd(), 'public', resource.fileName),
+      process.env.LAMBDA_TASK_ROOT ? path.resolve(process.env.LAMBDA_TASK_ROOT, 'public', resource.fileName) : null,
+    ].filter(Boolean);
+
+    let filePath = null;
+    let lastReadError = null;
+    for (const candidate of candidates) {
+      try {
+        await access(candidate);
+        filePath = candidate;
+        break;
+      } catch (error) {
+        lastReadError = error;
+      }
+    }
+
+    if (!filePath) {
+      console.error('Protected resource file is missing from the function bundle:', {
+        resource: resource.fileName,
+        cwd: process.cwd(),
+        lambdaTaskRoot: process.env.LAMBDA_TASK_ROOT || null,
+        candidates,
+        error: lastReadError?.message || 'unknown file access error',
+      });
+      throw new Error('Protected resource file is unavailable in the deployed function bundle.');
+    }
+
     const pdf = await readFile(filePath);
     const { error: uploadError } = await storage.upload(resource.fileName, pdf, {
       contentType: 'application/pdf',
@@ -131,6 +158,14 @@ async function prepareProtectedResource(resource) {
     });
 
     if (uploadError) {
+      console.error('Protected resource upload failed:', {
+        resource: resource.fileName,
+        filePath,
+        size: pdf.length,
+        statusCode: uploadError.statusCode || null,
+        name: uploadError.name || null,
+        message: uploadError.message,
+      });
       throw new Error('Unable to store protected resource: ' + uploadError.message);
     }
   }
