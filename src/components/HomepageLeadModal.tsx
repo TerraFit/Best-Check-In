@@ -69,19 +69,17 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Unable to prepare the download.');
       }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const data = await response.json().catch(() => ({}));
+      if (!data.downloadUrl || typeof data.downloadUrl !== 'string') {
+        throw new Error('Unable to prepare the download.');
+      }
       const anchor = window.document.createElement('a');
-      anchor.href = url;
-      anchor.download = requestedDocument === 'brochure'
-        ? 'FastCheckIn-Brochure.pdf'
-        : requestedDocument === 'visitor-origin'
-          ? 'FastCheckIn-Visitor-Origin-Explorer-Snapshot.pdf'
-          : 'FastCheckIn-Business-Snapshot.pdf';
+      anchor.href = data.downloadUrl;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener';
       window.document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
       setTurnstileToken('');
       setTurnstileResetKey((value) => value + 1);
       onDownloaded();
@@ -112,12 +110,12 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
 
   return (
     <div className="fixed inset-0 z-[190] flex items-center justify-center bg-stone-950/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-      <div className="w-full max-w-xl overflow-hidden rounded-3xl bg-white text-stone-900 shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white text-stone-900 shadow-2xl">
         <div className="flex items-start justify-between border-b border-stone-200 px-6 py-5 md:px-8">
           <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">FastCheckIn</p><h2 className="mt-1 text-2xl font-bold">{labels[document].title}</h2><p className="mt-2 text-sm leading-6 text-stone-600">{labels[document].body}</p></div>
           <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-stone-500 hover:bg-stone-100"><X className="h-5 w-5" /></button>
         </div>
-        <form onSubmit={submit} className="space-y-4 px-6 py-6 md:px-8">
+        <form onSubmit={submit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6 md:px-8">
           {field('fullName', 'Full name')}
           {field('companyName', 'Company / hotel name')}
           <div className="grid gap-4 sm:grid-cols-2">{field('email', 'Email address', 'email')}{field('telephone', 'Telephone', 'tel')}</div>
