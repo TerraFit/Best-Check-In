@@ -134,7 +134,7 @@ test('uses a separate expected action for Enterprise enquiries', async () => {
   assert.equal(insertCalls(), 0);
 });
 
-test('returns a PDF redirect only after download-specific Turnstile verification', async () => {
+test('returns the protected PDF only after download-specific Turnstile verification and records the lead', async () => {
   const insertCalls = mockFetch({ ...validCaptcha, action: 'homepage-download' });
 
   const response = await handler(event({
@@ -144,9 +144,12 @@ test('returns a PDF redirect only after download-specific Turnstile verification
     turnstileToken: 'test-token',
   }));
 
-  assert.equal(response.statusCode, 302);
-  assert.equal(response.headers.Location, '/FastCheckIn_Platform_Overview_Brochure.pdf');
-  assert.equal(insertCalls(), 0);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['Content-Type'], 'application/pdf');
+  assert.equal(response.headers['Content-Disposition'], 'attachment; filename="FastCheckIn_Platform_Overview_Brochure.pdf"');
+  assert.equal(response.isBase64Encoded, true);
+  assert.ok(response.body.length > 100);
+  assert.equal(insertCalls(), 1);
 });
 
 test('rejects unsupported HTTP methods', async () => {
