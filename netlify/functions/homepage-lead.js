@@ -106,9 +106,6 @@ async function notifyLead(lead, document) {
 }
 
 async function prepareProtectedResource(resource) {
-  const filePath = path.join(process.cwd(), 'public', resource.fileName);
-  const pdf = await readFile(filePath);
-
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     throw new Error('Supabase Storage credentials are not configured.');
   }
@@ -118,14 +115,24 @@ async function prepareProtectedResource(resource) {
   });
 
   const storage = supabase.storage.from(MARKETING_BUCKET);
-  const { error: uploadError } = await storage.upload(resource.fileName, pdf, {
-    contentType: 'application/pdf',
-    cacheControl: '3600',
-    upsert: true,
-  });
+  const { data: exists, error: existsError } = await storage.exists(resource.fileName);
 
-  if (uploadError) {
-    throw new Error('Unable to store protected resource: ' + uploadError.message);
+  if (existsError) {
+    throw new Error('Unable to check protected resource: ' + existsError.message);
+  }
+
+  if (!exists) {
+    const filePath = path.join(process.cwd(), 'public', resource.fileName);
+    const pdf = await readFile(filePath);
+    const { error: uploadError } = await storage.upload(resource.fileName, pdf, {
+      contentType: 'application/pdf',
+      cacheControl: '3600',
+      upsert: true,
+    });
+
+    if (uploadError) {
+      throw new Error('Unable to store protected resource: ' + uploadError.message);
+    }
   }
 
   const { data, error: signedUrlError } = await storage.createSignedUrl(
