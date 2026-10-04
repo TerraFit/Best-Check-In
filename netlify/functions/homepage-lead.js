@@ -93,11 +93,18 @@ async function notifyLead(lead, document) {
       '<p><strong>Email:</strong> ' + escapeHtml(lead.email) + '</p>' +
       '<p><strong>Telephone:</strong> ' + escapeHtml(lead.telephone) + '</p>' +
       '<p><strong>Address:</strong> ' + escapeHtml(lead.address) + '</p></div>';
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: 'FastCheckin <notifications@fastcheckin.co.za>',
       to: [process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za'],
       subject: 'Homepage resource download: ' + documentLabel,
       html,
+    });
+    console.info('Homepage lead notification sent:', {
+      resource: documentLabel,
+      emailId: result?.data?.id || null,
+      hasError: Boolean(result?.error),
+      errorName: result?.error?.name || null,
+      errorMessage: result?.error?.message || null,
     });
   } catch (error) {
     console.error('Homepage lead notification failed:', error);
