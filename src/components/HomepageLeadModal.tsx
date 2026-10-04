@@ -115,15 +115,20 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
           <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">FastCheckIn</p><h2 className="mt-1 text-2xl font-bold">{labels[document].title}</h2><p className="mt-2 text-sm leading-6 text-stone-600">{labels[document].body}</p></div>
           <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-stone-500 hover:bg-stone-100"><X className="h-5 w-5" /></button>
         </div>
-        <form onSubmit={submit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6 md:px-8">
-          {field('fullName', 'Full name')}
-          {field('companyName', 'Company / hotel name')}
-          <div className="grid gap-4 sm:grid-cols-2">{field('email', 'Email address', 'email')}{field('telephone', 'Telephone', 'tel')}</div>
-          {field('address', 'Business / property address')}
-          <p className="text-xs leading-5 text-stone-500">We use these details to provide the requested resource and respond to related enquiries. <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">Privacy Policy</button> and <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">Terms</button> apply.</p>
-          <TurnstileWidget action="homepage-download" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
-          {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          <button disabled={busy} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-5 py-3.5 font-bold text-amber-400 transition hover:bg-stone-800 disabled:cursor-wait disabled:opacity-60"><Download className="h-5 w-5" />{busy ? 'Preparing download…' : 'Download'}</button>
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6 md:px-8">
+            {field('fullName', 'Full name')}
+            {field('companyName', 'Company / hotel name')}
+            <div className="grid gap-4 sm:grid-cols-2">{field('email', 'Email address', 'email')}{field('telephone', 'Telephone', 'tel')}</div>
+            {field('address', 'Business / property address')}
+            <p className="text-xs leading-5 text-stone-500">We use these details to provide the requested resource and respond to related enquiries. <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">Privacy Policy</button> and <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">Terms</button> apply.</p>
+            <TurnstileWidget action="homepage-download" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          </div>
+          <div className="flex shrink-0 gap-3 border-t border-stone-200 bg-white px-6 py-4 md:px-8">
+            <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl border border-stone-300 bg-white px-5 py-3.5 font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+            <button disabled={busy} type="submit" className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-stone-950 px-5 py-3.5 font-bold text-amber-400 transition hover:bg-stone-800 disabled:cursor-wait disabled:opacity-60"><Download className="h-5 w-5" />{busy ? 'Preparing download…' : 'Download'}</button>
+          </div>
         </form>
       </div>
     </div>
