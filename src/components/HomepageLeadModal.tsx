@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Download, X } from 'lucide-react';
+import TurnstileWidget from './TurnstileWidget';
 
 export type HomepageDocument = 'brochure' | 'visitor-origin' | 'business-snapshot';
 
@@ -33,14 +34,13 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
   const [lead, setLead] = useState<Lead>({ fullName: '', companyName: '', email: '', telephone: '', address: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   useEffect(() => {
     if (document) {
       const stored = getStoredHomepageLead();
-      if (stored) {
-        setLead(stored);
-        void requestDownload(stored, document);
-      }
+      if (stored) setLead(stored);
     }
   }, [document]);
 
@@ -59,7 +59,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
       const response = await fetch('/.netlify/functions/homepage-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'download', document: requestedDocument, lead: currentLead })
+        body: JSON.stringify({ action: 'download', document: requestedDocument, lead: currentLead, turnstileToken })
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -78,6 +78,8 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
+      setTurnstileToken('');
+      setTurnstileResetKey((value) => value + 1);
       onDownloaded();
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : 'Unable to prepare the download.');
@@ -117,6 +119,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
           <div className="grid gap-4 sm:grid-cols-2">{field('email', 'Email address', 'email')}{field('telephone', 'Telephone', 'tel')}</div>
           {field('address', 'Business / property address')}
           <p className="text-xs leading-5 text-stone-500">We use these details to provide the requested resource and respond to related enquiries. <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">Privacy Policy</button> and <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">Terms</button> apply.</p>
+          <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
           {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           <button disabled={busy} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-5 py-3.5 font-bold text-amber-400 transition hover:bg-stone-800 disabled:cursor-wait disabled:opacity-60"><Download className="h-5 w-5" />{busy ? 'Preparing download…' : 'Download'}</button>
         </form>
