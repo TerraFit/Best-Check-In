@@ -110,17 +110,17 @@ async function prepareProtectedResource(resource) {
     throw new Error('Supabase Storage credentials are not configured.');
   }
 
-  const storageBaseUrl = \`\${process.env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1\`;
+  const storageBaseUrl = `${process.env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1`;
   const serviceKey = process.env.SUPABASE_SERVICE_KEY;
   const authHeaders = {
-    Authorization: \`Bearer \${serviceKey}\`,
+    Authorization: `Bearer ${serviceKey}`,
     apikey: serviceKey,
   };
 
   // These are controlled static filenames. Uploading with x-upsert avoids
   // relying on Storage HEAD/not-found semantics and keeps the flow deterministic.
   const objectPath = resource.fileName;
-  const objectUrl = \`\${storageBaseUrl}/object/\${MARKETING_BUCKET}/\${objectPath}\`;
+  const objectUrl = `${storageBaseUrl}/object/${MARKETING_BUCKET}/${objectPath}`;
 
   console.info('prepareProtectedResource:start', {
     resource: resource.fileName,
@@ -196,12 +196,12 @@ async function prepareProtectedResource(resource) {
       message: details || uploadResponse.statusText,
     });
     throw new Error(
-      \`Unable to store protected resource: HTTP \${uploadResponse.status}\${details ? \` — \${details}\` : ''}\`,
+      `Unable to store protected resource: HTTP ${uploadResponse.status}${details ? ` — ${details}` : ''}`,
     );
   }
 
   const signResponse = await fetch(
-    \`\${storageBaseUrl}/object/sign/\${MARKETING_BUCKET}/\${objectPath}\`,
+    `${storageBaseUrl}/object/sign/${MARKETING_BUCKET}/${objectPath}`,
     {
       method: 'POST',
       headers: {
@@ -220,7 +220,7 @@ async function prepareProtectedResource(resource) {
   if (!signResponse.ok) {
     const details = await signResponse.text().catch(() => '');
     throw new Error(
-      \`Unable to create protected download URL: HTTP \${signResponse.status}\${details ? \` — \${details}\` : ''}\`,
+      `Unable to create protected download URL: HTTP ${signResponse.status}${details ? ` — ${details}` : ''}`,
     );
   }
 
@@ -232,7 +232,7 @@ async function prepareProtectedResource(resource) {
 
   const downloadUrl = relativeOrAbsolute.startsWith('http')
     ? relativeOrAbsolute
-    : \`\${storageBaseUrl}\${relativeOrAbsolute.startsWith('/') ? '' : '/'}\${relativeOrAbsolute}\`;
+    : `${storageBaseUrl}${relativeOrAbsolute.startsWith('/') ? '' : '/'}${relativeOrAbsolute}`;
 
   const signedUrl = new URL(downloadUrl);
   signedUrl.searchParams.set('download', 'true');
