@@ -13,8 +13,11 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   const authentication = authenticateRequest(event);
   if (!authentication.ok) return authFailure(authentication, headers);
-  if (!requirePlatformPermission(authentication.principal, 'platform:website_enquiries:read')) {
+  if (event.httpMethod === 'GET' && !requirePlatformPermission(authentication.principal, 'platform:website_enquiries:read')) {
     return authFailure({ status: 403, error: 'Missing permission: platform:website_enquiries:read' }, headers);
+  }
+  if (event.httpMethod === 'PATCH' && !requirePlatformPermission(authentication.principal, 'platform:website_enquiries:write')) {
+    return authFailure({ status: 403, error: 'Missing permission: platform:website_enquiries:write' }, headers);
   }
 
   try {
