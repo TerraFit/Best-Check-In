@@ -116,91 +116,92 @@ async function prepareProtectedResource(resource) {
     Authorization: `Bearer ${serviceKey}`,
     apikey: serviceKey,
   };
-  const objectPath = resource.fileName
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-  const bucketPath = encodeURIComponent(MARKETING_BUCKET);
-  const objectUrl = `${storageBaseUrl}/object/${bucketPath}/${objectPath}`;
-  // Use the Storage object's existence endpoint. Supabase's Storage JS client
-  // implements `exists()` with HEAD /object/{bucket}/{path}; the /object/info
-  // endpoint is an info endpoint and is not required for this check.
-  const existsResponse = await fetch(objectUrl, {
-    method: 'HEAD',
-    headers: authHeaders,
+
+  // These are controlled static filenames. Uploading with x-upsert avoids
+  // relying on Storage HEAD/not-found semantics and keeps the flow deterministic.
+  const objectPath = resource.fileName;
+  const objectUrl = `${storageBaseUrl}/object/${MARKETING_BUCKET}/${objectPath}`;
+
+  console.info('prepareProtectedResource:start', {
+    resource: resource.fileName,
+    bucket: MARKETING_BUCKET,
   });
 
-  if (!existsResponse.ok && existsResponse.status !== 404) {
-    const details = await existsResponse.text().catch(() => '');
+  const functionDir = path.dirname(fileURLToPath(import.meta.url));
+  const lambdaRoot = process.env.LAMBDA_TASK_ROOT || process.cwd();
+  const candidates = [
+    path.resolve(process.cwd(), 'public', resource.fileName),
+    path.resolve(lambdaRoot, 'public', resource.fileName),
+    path.resolve(process.cwd(), resource.fileName),
+    path.resolve(lambdaRoot, resource.fileName),
+    path.resolve(functionDir, 'public', resource.fileName),
+    path.resolve(functionDir, '../public', resource.fileName),
+    path.resolve(functionDir, '../../public', resource.fileName),
+  ];
+
+  let filePath = null;
+  let lastReadError = null;
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      filePath = candidate;
+      break;
+    } catch (error) {
+      lastReadError = error;
+    }
+  }
+
+  if (!filePath) {
+    console.error('Protected resource file is missing from the function bundle:', {
+      resource: resource.fileName,
+      cwd: process.cwd(),
+      lambdaTaskRoot: process.env.LAMBDA_TASK_ROOT || null,
+      candidates,
+      error: lastReadError?.message || 'unknown file access error',
+    });
+    throw new Error('Protected resource file is unavailable in the deployed function bundle.');
+  }
+
+  const pdf = await readFile(filePath);
+  console.info('prepareProtectedResource:bundle', {
+    resource: resource.fileName,
+    filePath,
+    size: pdf.length,
+  });
+
+  const uploadResponse = await fetch(objectUrl, {
+    method: 'POST',
+    headers: {
+      ...authHeaders,
+      'Content-Type': 'application/pdf',
+      'Cache-Control': 'max-age=3600',
+      'x-upsert': 'true',
+    },
+    body: pdf,
+  });
+
+  console.info('prepareProtectedResource:upload', {
+    resource: resource.fileName,
+    status: uploadResponse.status,
+    size: pdf.length,
+  });
+
+  if (!uploadResponse.ok) {
+    const details = await uploadResponse.text().catch(() => '');
+    console.error('Protected resource upload failed:', {
+      resource: resource.fileName,
+      filePath,
+      size: pdf.length,
+      statusCode: uploadResponse.status,
+      message: details || uploadResponse.statusText,
+    });
     throw new Error(
-      `Unable to check protected resource: HTTP ${existsResponse.status}${details ? ` — ${details}` : ''}`,
+      `Unable to store protected resource: HTTP ${uploadResponse.status}${details ? ` — ${details}` : ''}`,
     );
   }
 
-  if (existsResponse.status === 404) {
-    const functionDir = path.dirname(fileURLToPath(import.meta.url));
-    const candidates = [
-      path.resolve(process.cwd(), 'public', resource.fileName),
-      path.resolve(process.cwd(), resource.fileName),
-      path.resolve(functionDir, 'public', resource.fileName),
-      path.resolve(functionDir, '../public', resource.fileName),
-      path.resolve(functionDir, '../../public', resource.fileName),
-      process.env.LAMBDA_TASK_ROOT ? path.resolve(process.env.LAMBDA_TASK_ROOT, 'public', resource.fileName) : null,
-      process.env.LAMBDA_TASK_ROOT ? path.resolve(process.env.LAMBDA_TASK_ROOT, resource.fileName) : null,
-    ].filter(Boolean);
-
-    let filePath = null;
-    let lastReadError = null;
-    for (const candidate of candidates) {
-      try {
-        await access(candidate);
-        filePath = candidate;
-        break;
-      } catch (error) {
-        lastReadError = error;
-      }
-    }
-
-    if (!filePath) {
-      console.error('Protected resource file is missing from the function bundle:', {
-        resource: resource.fileName,
-        cwd: process.cwd(),
-        lambdaTaskRoot: process.env.LAMBDA_TASK_ROOT || null,
-        candidates,
-        error: lastReadError?.message || 'unknown file access error',
-      });
-      throw new Error('Protected resource file is unavailable in the deployed function bundle.');
-    }
-
-    const pdf = await readFile(filePath);
-    const uploadResponse = await fetch(objectUrl, {
-      method: 'POST',
-      headers: {
-        ...authHeaders,
-        'Content-Type': 'application/pdf',
-        'Cache-Control': '3600',
-        'x-upsert': 'true',
-      },
-      body: pdf,
-    });
-
-    if (!uploadResponse.ok) {
-      const details = await uploadResponse.text().catch(() => '');
-      console.error('Protected resource upload failed:', {
-        resource: resource.fileName,
-        filePath,
-        size: pdf.length,
-        statusCode: uploadResponse.status,
-        message: details || uploadResponse.statusText,
-      });
-      throw new Error(
-        `Unable to store protected resource: HTTP ${uploadResponse.status}${details ? ` — ${details}` : ''}`,
-      );
-    }
-  }
-
   const signResponse = await fetch(
-    `${storageBaseUrl}/object/sign/${bucketPath}/${objectPath}`,
+    `${storageBaseUrl}/object/sign/${MARKETING_BUCKET}/${objectPath}`,
     {
       method: 'POST',
       headers: {
@@ -211,6 +212,11 @@ async function prepareProtectedResource(resource) {
     },
   );
 
+  console.info('prepareProtectedResource:sign', {
+    resource: resource.fileName,
+    status: signResponse.status,
+  });
+
   if (!signResponse.ok) {
     const details = await signResponse.text().catch(() => '');
     throw new Error(
@@ -219,15 +225,27 @@ async function prepareProtectedResource(resource) {
   }
 
   const signedData = await signResponse.json();
-  if (!signedData?.signedURL) {
+  const relativeOrAbsolute = signedData?.signedURL || signedData?.signedUrl;
+  if (!relativeOrAbsolute) {
     throw new Error('Unable to create protected download URL: missing signed URL');
   }
 
-  const signedUrl = new URL(signedData.signedURL, `${storageBaseUrl}/`);
+  const downloadUrl = relativeOrAbsolute.startsWith('http')
+    ? relativeOrAbsolute
+    : `${storageBaseUrl}${relativeOrAbsolute.startsWith('/') ? '' : '/'}${relativeOrAbsolute}`;
+
+  const signedUrl = new URL(downloadUrl);
   signedUrl.searchParams.set('download', 'true');
+
+  console.info('prepareProtectedResource:complete', {
+    resource: resource.fileName,
+    host: signedUrl.hostname,
+    path: signedUrl.pathname,
+    hasToken: signedUrl.searchParams.has('token'),
+  });
+
   return signedUrl.toString();
 }
-
 async function notifyInquiry(lead, topic, comments) {
   if (!process.env.RESEND_API_KEY) {
     console.warn('RESEND_API_KEY is not configured; inquiry cannot be notified by email.');
