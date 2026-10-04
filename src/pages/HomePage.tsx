@@ -93,7 +93,8 @@ export default function HomePage() {
     event.preventDefault();
     setInquiryBusy(true);
     setInquiryMessage('');
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch('/.netlify/functions/homepage-lead', {
         method: 'POST',
@@ -113,7 +114,7 @@ export default function HomePage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Unable to send your enquiry.');
-      event.currentTarget.reset();
+      formElement.reset();
       setInquiryMessage('Thank you. Your enquiry has been sent and our team will be in touch.');
     } catch (error) {
       setInquiryMessage(error instanceof Error ? error.message : 'Unable to send your enquiry.');
