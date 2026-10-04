@@ -110,7 +110,7 @@ async function prepareProtectedResource(resource) {
     throw new Error('Supabase Storage credentials are not configured.');
   }
 
-  const storageBaseUrl = `${process.env.SUPABASE_URL.replace(/\\/$/, '')}/storage/v1`;
+  const storageBaseUrl = `${process.env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1`;
   const serviceKey = process.env.SUPABASE_SERVICE_KEY;
   const authHeaders = {
     Authorization: `Bearer ${serviceKey}`,
