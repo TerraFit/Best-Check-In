@@ -2,7 +2,6 @@ import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { supabaseInsert } from './lib/supabase-rest.js';
-import { createClient } from '@supabase/supabase-js';
 
 const PDF_HEADERS = {
   'Content-Type': 'application/pdf',
@@ -111,18 +110,33 @@ async function prepareProtectedResource(resource) {
     throw new Error('Supabase Storage credentials are not configured.');
   }
 
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const storageBaseUrl = `${process.env.SUPABASE_URL.replace(/\\/$/, '')}/storage/v1`;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+  const authHeaders = {
+    Authorization: `Bearer ${serviceKey}`,
+    apikey: serviceKey,
+  };
+  const objectPath = resource.fileName
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  const bucketPath = encodeURIComponent(MARKETING_BUCKET);
+  const objectUrl = `${storageBaseUrl}/object/${bucketPath}/${objectPath}`;
+  const objectInfoUrl = `${storageBaseUrl}/object/info/${bucketPath}/${objectPath}`;
+
+  const existsResponse = await fetch(objectInfoUrl, {
+    method: 'HEAD',
+    headers: authHeaders,
   });
 
-  const storage = supabase.storage.from(MARKETING_BUCKET);
-  const { data: exists, error: existsError } = await storage.exists(resource.fileName);
-
-  if (existsError) {
-    throw new Error('Unable to check protected resource: ' + existsError.message);
+  if (!existsResponse.ok && existsResponse.status !== 404) {
+    const details = await existsResponse.text().catch(() => '');
+    throw new Error(
+      `Unable to check protected resource: HTTP ${existsResponse.status}${details ? ` — ${details}` : ''}`,
+    );
   }
 
-  if (!exists) {
+  if (existsResponse.status === 404) {
     const functionDir = path.dirname(fileURLToPath(import.meta.url));
     const candidates = [
       path.resolve(process.cwd(), 'public', resource.fileName),
@@ -158,36 +172,59 @@ async function prepareProtectedResource(resource) {
     }
 
     const pdf = await readFile(filePath);
-    const { error: uploadError } = await storage.upload(resource.fileName, pdf, {
-      contentType: 'application/pdf',
-      cacheControl: '3600',
-      upsert: true,
+    const uploadResponse = await fetch(objectUrl, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/pdf',
+        'Cache-Control': '3600',
+        'x-upsert': 'true',
+      },
+      body: pdf,
     });
 
-    if (uploadError) {
+    if (!uploadResponse.ok) {
+      const details = await uploadResponse.text().catch(() => '');
       console.error('Protected resource upload failed:', {
         resource: resource.fileName,
         filePath,
         size: pdf.length,
-        statusCode: uploadError.statusCode || null,
-        name: uploadError.name || null,
-        message: uploadError.message,
+        statusCode: uploadResponse.status,
+        message: details || uploadResponse.statusText,
       });
-      throw new Error('Unable to store protected resource: ' + uploadError.message);
+      throw new Error(
+        `Unable to store protected resource: HTTP ${uploadResponse.status}${details ? ` — ${details}` : ''}`,
+      );
     }
   }
 
-  const { data, error: signedUrlError } = await storage.createSignedUrl(
-    resource.fileName,
-    SIGNED_URL_EXPIRES_IN,
-    { download: true },
+  const signResponse = await fetch(
+    `${storageBaseUrl}/object/sign/${bucketPath}/${objectPath}`,
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ expiresIn: SIGNED_URL_EXPIRES_IN }),
+    },
   );
 
-  if (signedUrlError || !data?.signedUrl) {
-    throw new Error('Unable to create protected download URL: ' + (signedUrlError?.message || 'missing signed URL'));
+  if (!signResponse.ok) {
+    const details = await signResponse.text().catch(() => '');
+    throw new Error(
+      `Unable to create protected download URL: HTTP ${signResponse.status}${details ? ` — ${details}` : ''}`,
+    );
   }
 
-  return data.signedUrl;
+  const signedData = await signResponse.json();
+  if (!signedData?.signedURL) {
+    throw new Error('Unable to create protected download URL: missing signed URL');
+  }
+
+  const signedUrl = new URL(signedData.signedURL, `${storageBaseUrl}/`);
+  signedUrl.searchParams.set('download', 'true');
+  return signedUrl.toString();
 }
 
 async function notifyInquiry(lead, topic, comments) {
