@@ -55,7 +55,7 @@ export const handler=async(event)=>{
     if(body.assignedEmployeeId===null||body.assignedEmployeeId===''){updates.assigned_employee_id=null;updates.assigned_employee_name=null;updates.assigned_at=null;}
     else{const eid=String(body.assignedEmployeeId);const emp=(await supabaseFetch('platform_employees?id=eq.'+encodeURIComponent(eid)+'&active=eq.true&select=id,full_name,email,role'))[0];if(!emp)return json(400,{success:false,error:'Active platform employee not found'});updates.assigned_employee_id=emp.id;updates.assigned_employee_name=emp.full_name;updates.assigned_at=new Date().toISOString();}
    }
-   if(body.archived===true){updates.archived_at=new Date().toISOString();updates.archived_by=authentication.principal.email||authentication.principal.userId||'super-admin';}
+   if(body.archived===true){const resultingStatus=updates.status||current.status;if(!['unqualified','converted'].includes(resultingStatus))return json(400,{success:false,error:'Only disqualified or converted enquiries can be archived'});updates.archived_at=new Date().toISOString();updates.archived_by=authentication.principal.email||authentication.principal.userId||'super-admin';}
    else if(body.archived===false){updates.archived_at=null;updates.archived_by=null;}
    const data=await supabaseUpdate('website_enquiries',id,updates);
    if(body.takeover===true&&updates.assigned_employee_id)await supabaseInsert('website_enquiry_activities',{enquiry_id:id,employee_id:updates.assigned_employee_id,employee_name:updates.assigned_employee_name,activity_type:'note',comment:'Inquiry taken over by '+updates.assigned_employee_name+'.'});
