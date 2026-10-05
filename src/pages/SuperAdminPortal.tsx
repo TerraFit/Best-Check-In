@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
+import SuperAdminMiniCRM from '../components/SuperAdminMiniCRM';
 import { getAuth, getAuthHeader, clearAuth } from '../utils/auth';
 
 interface Director {
@@ -768,7 +769,7 @@ export default function SuperAdminPortal() {
                 onClick={() => setShowWebsiteEnquiries(!showWebsiteEnquiries)}
                 className="relative px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
               >
-                <span>Website Enquiries</span>
+                <span>Mini-CRM</span>
                 {websiteEnquiries.filter((item) => item.status === 'new').length > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white">
                     {websiteEnquiries.filter((item) => item.status === 'new').length > 99 ? '99+' : websiteEnquiries.filter((item) => item.status === 'new').length}
@@ -825,62 +826,9 @@ export default function SuperAdminPortal() {
         </div>
       </div>
 
-      {/* Website Enquiries Panel */}
+      {/* Website Enquiries / Mini-CRM Panel */}
       {showWebsiteEnquiries && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 bg-amber-50 border-b border-amber-200">
-              <h2 className="text-lg font-semibold text-amber-800">Website Enquiries ({websiteEnquiries.length})</h2>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {websiteEnquiries.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">No website enquiries</div>
-              ) : websiteEnquiries.map((enquiry) => (
-                <div key={enquiry.id} className="p-5 hover:bg-gray-50">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{enquiry.topic}</h3>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase">{enquiry.status}</span>
-                        <span className="text-xs text-gray-500">{new Date(enquiry.created_at).toLocaleString()}</span>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-                        <div><strong>Name:</strong> {enquiry.full_name}</div>
-                        <div><strong>Company:</strong> {enquiry.company_name}</div>
-                        <div><strong>Email:</strong> <a className="text-blue-600 hover:underline" href={`mailto:${enquiry.email}`}>{enquiry.email}</a></div>
-                        <div><strong>Telephone:</strong> {enquiry.telephone}</div>
-                        {enquiry.website && <div><strong>Website:</strong> {enquiry.website}</div>}
-                        {enquiry.total_rooms != null && <div><strong>Total rooms:</strong> {enquiry.total_rooms}</div>}
-                        {enquiry.total_establishments != null && <div><strong>Establishments:</strong> {enquiry.total_establishments}</div>}
-                        {enquiry.sa_establishments != null && <div><strong>South Africa:</strong> {enquiry.sa_establishments}</div>}
-                        {enquiry.international_establishments != null && <div><strong>Outside SA:</strong> {enquiry.international_establishments}</div>}
-                      </div>
-                      {(enquiry.sa_provinces?.length || enquiry.international_countries?.length) && (
-                        <div className="mt-3 text-sm text-gray-600">
-                          {enquiry.sa_provinces?.length ? <div><strong>SA provinces:</strong> {enquiry.sa_provinces.join(', ')}</div> : null}
-                          {enquiry.international_countries?.length ? <div><strong>Other countries:</strong> {enquiry.international_countries.join(', ')}</div> : null}
-                        </div>
-                      )}
-                      {enquiry.comments && <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-xs text-gray-600">{enquiry.comments}</pre>}
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-2 lg:w-36">
-                      <label className="text-xs font-semibold text-gray-500">Status</label>
-                      <select
-                        value={enquiry.status}
-                        onChange={(event) => updateWebsiteEnquiryStatus(enquiry.id, event.target.value as WebsiteEnquiry['status'])}
-                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                      >
-                        <option value="new">New</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="closed">Closed</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <SuperAdminMiniCRM />
       )}
 
       {/* Change Requests Panel */}
