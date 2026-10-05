@@ -200,12 +200,30 @@ export const getBusinessAuth = (): AuthSession | null => {
   }
 };
 
+const isJwtExpired = (token: string): boolean => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+};
+
 export const getSuperAdminAuth = (): AuthSession | null => {
   const stored = localStorage.getItem(SUPER_ADMIN_AUTH_KEY);
   if (!stored) return null;
   
   try {
-    return JSON.parse(stored);
+    const session = JSON.parse(stored) as AuthSession;
+    if (session?.type !== 'super_admin' || !session.token || isJwtExpired(session.token)) {
+      localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
+      const auth = getAuth();
+      if (auth?.type === 'super_admin') localStorage.removeItem(AUTH_KEY);
+      return null;
+    }
+    return session;
   } catch {
     return null;
   }
