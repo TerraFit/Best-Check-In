@@ -1,6 +1,6 @@
 // src/utils/auth.ts - COMPLETE PRODUCTION READY WITH EMPLOYEE SUPPORT
 
-export type AuthType = 'business' | 'super_admin' | 'employee';
+export type AuthType = 'business' | 'super_admin' | 'employee' | 'platform';
 
 export interface AuthUser {
   id: string;
@@ -21,6 +21,7 @@ const AUTH_KEY = 'fastcheckin_auth';
 const BUSINESS_AUTH_KEY = 'fastcheckin_business_auth';
 const SUPER_ADMIN_AUTH_KEY = 'fastcheckin_admin_auth';
 const EMPLOYEE_AUTH_KEY = 'fastcheckin_employee_auth';
+const PLATFORM_AUTH_KEY = 'fastcheckin_platform_auth';
 
 // ============================================================
 // CORE AUTH FUNCTIONS
@@ -80,6 +81,12 @@ export const getApiAuthToken = (): string | null => {
     }
   }
 
+  // Platform employee requests must use their dedicated session.
+  if (pathname.startsWith('/platform')) {
+    const platformAuth = getPlatformAuth();
+    if (platformAuth?.type === 'platform' && platformAuth.token) return platformAuth.token;
+  }
+
   // Business dashboard requests must use the authoritative business session
   // when both business and employee sessions are present.
   if (pathname.startsWith('/business')) {
@@ -114,6 +121,7 @@ export const setAuth = (session: AuthSession): void => {
     localStorage.setItem(BUSINESS_AUTH_KEY, JSON.stringify(session));
     localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
     localStorage.removeItem(EMPLOYEE_AUTH_KEY);
+  localStorage.removeItem(PLATFORM_AUTH_KEY);
     
     localStorage.setItem('business', JSON.stringify({
       id: session.user.businessId || session.user.id,
@@ -130,6 +138,12 @@ export const setAuth = (session: AuthSession): void => {
       email: session.user.email,
       token: session.token
     }));
+  } else if (session.type === 'platform') {
+    localStorage.setItem(PLATFORM_AUTH_KEY, JSON.stringify(session));
+    localStorage.removeItem(BUSINESS_AUTH_KEY);
+    localStorage.removeItem(SUPER_ADMIN_AUTH_KEY);
+    localStorage.removeItem(EMPLOYEE_AUTH_KEY);
+    localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   } else if (session.type === 'employee') {
     localStorage.setItem(EMPLOYEE_AUTH_KEY, JSON.stringify(session));
     localStorage.setItem(AUTH_KEY, JSON.stringify(session));
@@ -227,6 +241,21 @@ export const getSuperAdminAuth = (): AuthSession | null => {
   } catch {
     return null;
   }
+};
+
+export const getPlatformAuth = (): AuthSession | null => {
+  const stored = localStorage.getItem(PLATFORM_AUTH_KEY);
+  if (!stored) return null;
+  try {
+    const session = JSON.parse(stored) as AuthSession;
+    if (session?.type !== 'platform' || !session.token || isJwtExpired(session.token)) {
+      localStorage.removeItem(PLATFORM_AUTH_KEY);
+      const auth = getAuth();
+      if (auth?.type === 'platform') localStorage.removeItem(AUTH_KEY);
+      return null;
+    }
+    return session;
+  } catch { return null; }
 };
 
 export const getEmployeeAuth = (): AuthSession | null => {
