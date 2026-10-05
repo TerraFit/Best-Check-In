@@ -38,14 +38,27 @@ export const handler=async(event)=>{
    if(!current)return json(404,{success:false,error:'Inquiry not found'});
    const updates={updated_at:new Date().toISOString()};
    if(body.status!==undefined){const s=String(body.status);if(!STATUSES.has(s))return json(400,{success:false,error:'Invalid inquiry status'});updates.status=s;}
-   if(body.assignedEmployeeId!==undefined){
+   if(body.takeover===true){
+    const actorEmail=authentication.principal.email;
+    if(!actorEmail)return json(403,{success:false,error:'Authenticated platform identity has no email'});
+    let emp=(await supabaseFetch('platform_employees?email=eq.'+encodeURIComponent(actorEmail)+'&active=eq.true&select=id,full_name,email,role'))[0];
+    if(!emp){
+      const actorName=authentication.principal.actorType==='super_admin'?'Super Administrator':actorEmail;
+      const created=await supabaseInsert('platform_employees',{full_name:actorName,email:actorEmail,role:authentication.principal.role||'platform',active:true});
+      emp=created?.[0]||created;
+    }
+    if(!emp?.id)return json(500,{success:false,error:'Could not resolve current platform employee'});
+    updates.assigned_employee_id=emp.id;
+    updates.assigned_employee_name=emp.full_name;
+    updates.assigned_at=new Date().toISOString();
+   } else if(body.assignedEmployeeId!==undefined){
     if(body.assignedEmployeeId===null||body.assignedEmployeeId===''){updates.assigned_employee_id=null;updates.assigned_employee_name=null;updates.assigned_at=null;}
     else{const eid=String(body.assignedEmployeeId);const emp=(await supabaseFetch('platform_employees?id=eq.'+encodeURIComponent(eid)+'&active=eq.true&select=id,full_name,email,role'))[0];if(!emp)return json(400,{success:false,error:'Active platform employee not found'});updates.assigned_employee_id=emp.id;updates.assigned_employee_name=emp.full_name;updates.assigned_at=new Date().toISOString();}
    }
    if(body.archived===true){updates.archived_at=new Date().toISOString();updates.archived_by=authentication.principal.email||authentication.principal.userId||'super-admin';}
    else if(body.archived===false){updates.archived_at=null;updates.archived_by=null;}
    const data=await supabaseUpdate('website_enquiries',id,updates);
-   if(body.takeover===true&&updates.assigned_employee_id)await supabaseInsert('website_enquiry_activities',{enquiry_id:id,employee_id:updates.assigned_employee_id,employee_name:updates.assigned_employee_name,activity_type:'note',comment:'Inquiry taken over by '+updates.assigned_employee_name+'.'},false);
+   if(body.takeover===true&&updates.assigned_employee_id)await supabaseInsert('website_enquiry_activities',{enquiry_id:id,employee_id:updates.assigned_employee_id,employee_name:updates.assigned_employee_name,activity_type:'note',comment:'Inquiry taken over by '+updates.assigned_employee_name+'.'});
    return json(200,{success:true,data});
   }
   if(event.httpMethod==='POST'){
