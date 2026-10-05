@@ -1,20 +1,22 @@
 // src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
-import { getBusinessAuth, getSuperAdminAuth, getEmployeeAuth } from '../utils/auth';
+import { getBusinessAuth, getSuperAdminAuth, getEmployeeAuth, getPlatformAuth } from '../utils/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'business' | 'super_admin' | 'employee';
+  requiredRole?: 'business' | 'super_admin' | 'employee' | 'platform';
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const businessAuth = getBusinessAuth();
   const superAdminAuth = getSuperAdminAuth();
   const employeeAuth = getEmployeeAuth();
+  const platformAuth = getPlatformAuth();
   
   const isBusinessAuthed = businessAuth?.type === 'business';
   const isSuperAdminAuthed = superAdminAuth?.type === 'super_admin';
   const isEmployeeAuthed = employeeAuth?.type === 'employee';
+  const isPlatformAuthed = platformAuth?.type === 'platform';
   
   console.log('🔒 ProtectedRoute check:', {
     requiredRole,
@@ -24,6 +26,11 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     path: window.location.pathname
   });
   
+  if (requiredRole === 'platform') {
+    if (isPlatformAuthed) return <>{children}</>;
+    return <Navigate to="/platform/employee/login" replace />;
+  }
+
   // ✅ Employee routes - ONLY check employee auth
   if (requiredRole === 'employee') {
     if (isEmployeeAuthed) {
