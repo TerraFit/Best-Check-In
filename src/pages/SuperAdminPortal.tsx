@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
 import SuperAdminMiniCRM from '../components/SuperAdminMiniCRM';
+import PlatformEmployeeManagement from '../components/PlatformEmployeeManagement';
 import { getAuth, getSuperAdminAuth, getAuthHeader, clearAuth } from '../utils/auth';
 
 interface Director {
@@ -131,6 +132,7 @@ export default function SuperAdminPortal() {
   // the badge reappear while the CRM remains open.
   const [crmBadgeDismissed, setCrmBadgeDismissed] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
+  const [showPlatformEmployees, setShowPlatformEmployees] = useState(false);
   
   // Business Overview state
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
@@ -795,6 +797,8 @@ export default function SuperAdminPortal() {
                 )}
               </button>
 
+              <button onClick={() => setShowPlatformEmployees((v) => !v)} className="px-4 py-2 bg-stone-700 text-white rounded-lg hover:bg-stone-800 transition-colors">FC Employees</button>
+
               {/* Change Requests Button */}
               <button
                 onClick={() => setShowChangeRequests(!showChangeRequests)}
@@ -843,6 +847,8 @@ export default function SuperAdminPortal() {
           </div>
         </div>
       </div>
+
+      {showPlatformEmployees && <PlatformEmployeeManagement />}
 
       {/* Website Enquiries / Mini-CRM Panel */}
       {showWebsiteEnquiries && (
