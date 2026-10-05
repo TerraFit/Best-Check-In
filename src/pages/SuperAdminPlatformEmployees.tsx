@@ -1,0 +1,2 @@
+import PlatformEmployeeManagement from '../components/PlatformEmployeeManagement';
+export default function SuperAdminPlatformEmployees(){return <div className="min-h-screen bg-gray-100"><div className="bg-white shadow"><div className="max-w-7xl mx-auto px-4 py-4"><h1 className="text-xl font-bold text-stone-900">FastCheckIn Employees</h1><p className="text-sm text-stone-500">Internal platform personnel</p></div></div><PlatformEmployeeManagement/></div>}
