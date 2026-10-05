@@ -73,9 +73,14 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
       if (!data.downloadUrl || typeof data.downloadUrl !== 'string') {
         throw new Error('Unable to prepare the download.');
       }
-      const anchor = window.document.createElement('a');
-      anchor.href = data.downloadUrl;
-      window.location.assign(data.downloadUrl);
+      const downloadUrl = new URL(data.downloadUrl);
+      const downloadFilenames: Record<HomepageDocument, string> = {
+        brochure: 'fastcheckin_brochure.pdf',
+        'visitor-origin': 'fastcheckin_presentation.pdf',
+        'business-snapshot': 'fastcheckin.pdf',
+      };
+      downloadUrl.searchParams.set('download', downloadFilenames[requestedDocument]);
+      window.location.assign(downloadUrl.toString());
       setTurnstileToken('');
       setTurnstileResetKey((value) => value + 1);
       onDownloaded();
