@@ -24,7 +24,7 @@ export const handler=async(event)=>{
    if(query.from)parts.push('created_at=gte.'+encodeURIComponent(query.from));
    if(query.to)parts.push('created_at=lte.'+encodeURIComponent(query.to));
    if(query.topic)parts.push('topic=eq.'+encodeURIComponent(query.topic));
-   parts.push(query.archived==='true'?'archived_at=not.is.null':'archived_at=is.null');
+   if(query.status==='archived'||query.archived==='true')parts.push('archived_at=not.is.null'); else parts.push('archived_at=is.null');
    parts.push('order=created_at.desc');
    const enquiries=await supabaseFetch('website_enquiries?'+parts.join('&'));
    const employees=await supabaseFetch('platform_employees?select=id,full_name,email,role,active&active=eq.true&order=full_name.asc');
