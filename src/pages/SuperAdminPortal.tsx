@@ -206,6 +206,15 @@ export default function SuperAdminPortal() {
   }, [navigate]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!getSuperAdminAuth()) {
+        navigate('/super-admin-login', { replace: true });
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [navigate]);
+
+  useEffect(() => {
     applyFilters();
   }, [businesses, filters]);
 
