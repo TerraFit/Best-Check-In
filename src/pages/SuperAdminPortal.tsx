@@ -126,6 +126,9 @@ export default function SuperAdminPortal() {
   const [showChangeRequests, setShowChangeRequests] = useState(false);
   const [websiteEnquiries, setWebsiteEnquiries] = useState<WebsiteEnquiry[]>([]);
   const [showWebsiteEnquiries, setShowWebsiteEnquiries] = useState(false);
+  // Once the CRM has been opened in this portal session, its notification
+  // badge is dismissed. Message status changes inside the CRM must not make
+  // the badge reappear while the CRM remains open.
   const [crmBadgeDismissed, setCrmBadgeDismissed] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
   
@@ -769,6 +772,8 @@ export default function SuperAdminPortal() {
               <button
                 onClick={() => {
                   setShowWebsiteEnquiries((current) => !current);
+                  // Opening the CRM marks the notification as seen for this
+                  // portal session, regardless of individual enquiry status.
                   setCrmBadgeDismissed(true);
                 }}
                 className="relative px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
