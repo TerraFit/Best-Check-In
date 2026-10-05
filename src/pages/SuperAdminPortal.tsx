@@ -126,6 +126,7 @@ export default function SuperAdminPortal() {
   const [showChangeRequests, setShowChangeRequests] = useState(false);
   const [websiteEnquiries, setWebsiteEnquiries] = useState<WebsiteEnquiry[]>([]);
   const [showWebsiteEnquiries, setShowWebsiteEnquiries] = useState(false);
+  const [crmBadgeDismissed, setCrmBadgeDismissed] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
   
   // Business Overview state
@@ -766,11 +767,14 @@ export default function SuperAdminPortal() {
             <div className="flex items-center gap-4">
               {/* Website Enquiries Button */}
               <button
-                onClick={() => setShowWebsiteEnquiries(!showWebsiteEnquiries)}
+                onClick={() => {
+                  setShowWebsiteEnquiries((current) => !current);
+                  setCrmBadgeDismissed(true);
+                }}
                 className="relative px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
               >
                 <span>CRM</span>
-                {websiteEnquiries.filter((item) => item.status === 'new').length > 0 && (
+                {!crmBadgeDismissed && websiteEnquiries.filter((item) => item.status === 'new').length > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white">
                     {websiteEnquiries.filter((item) => item.status === 'new').length > 99 ? '99+' : websiteEnquiries.filter((item) => item.status === 'new').length}
                   </span>
