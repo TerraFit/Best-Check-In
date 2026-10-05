@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SuperAdminMiniCRM from './components/SuperAdminMiniCRM';
 import SuperAdminLogin from './pages/SuperAdminLogin';
+import PlatformEmployeeActivation from './pages/PlatformEmployeeActivation';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
 import ApproveBusinesses from './pages/admin/ApproveBusinesses';
@@ -37,7 +38,7 @@ function AppContent() {
     <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} />
     <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/password-recovery" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
     <Route path="/indemnity/:token" element={<IndemnityView />} /><Route path="/subscribe" element={<NewsletterSubscribe />} /><Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
-    <Route path="/employee/login" element={<Login />} /><Route path="/employee/dashboard" element={<ProtectedRoute requiredRole="employee"><EmployeeDashboard /></ProtectedRoute>} /><Route path="/business/login" element={<Login />} /><Route path="/login" element={<Login />} /><Route path="/super-admin-login" element={<SuperAdminLogin />} />
+    <Route path="/employee/login" element={<Login />} /><Route path="/employee/dashboard" element={<ProtectedRoute requiredRole="employee"><EmployeeDashboard /></ProtectedRoute>} /><Route path="/business/login" element={<Login />} /><Route path="/login" element={<Login />} /><Route path="/super-admin-login" element={<SuperAdminLogin />} /><Route path="/platform/employee/invite/:token" element={<PlatformEmployeeActivation />} />
     <Route path="/business/pending" element={<ProtectedRoute requiredRole="business"><BusinessPending /></ProtectedRoute>} />
     <Route path="/business/dashboard" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} /><Route path="/business/rooms" element={<ProtectedRoute requiredRole="business"><Navigate to="/business/dashboard?tab=rooms" replace /></ProtectedRoute>} />
     <Route path="/business/housekeeping-settings" element={<ProtectedRoute requiredRole="business"><HousekeepingSettings /></ProtectedRoute>} /><Route path="/business/messages" element={<ProtectedRoute requiredRole="business"><BusinessMessages /></ProtectedRoute>} /><Route path="/business/billing" element={<ProtectedRoute requiredRole="business"><Billing /></ProtectedRoute>} />
