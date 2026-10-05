@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import BusinessOverview from '../components/BusinessOverview';
 import QRCodeModal from '../components/QRCodeModal';
 import SuperAdminMiniCRM from '../components/SuperAdminMiniCRM';
-import { getAuth, getAuthHeader, clearAuth } from '../utils/auth';
+import { getAuth, getSuperAdminAuth, getAuthHeader, clearAuth } from '../utils/auth';
 
 interface Director {
   name: string;
@@ -192,7 +192,7 @@ export default function SuperAdminPortal() {
   // ============================================================
   
   useEffect(() => {
-    const auth = getAuth();
+    const auth = getSuperAdminAuth();
     console.log('🔍 SuperAdminPortal - auth:', auth);
     
     if (!auth || auth.type !== 'super_admin') {
