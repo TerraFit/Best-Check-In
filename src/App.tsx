@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessProvider } from './context/AccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPortal from './pages/SuperAdminPortal';
+import SuperAdminMiniCRM from './components/SuperAdminMiniCRM';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import CheckInApp from './CheckInApp';
 import BusinessRegistration from './pages/BusinessRegistration';
@@ -31,11 +32,7 @@ import PasswordRecovery from './pages/PasswordRecovery';
 function UnauthorizedPage() { return <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-red-500 mb-4">Unauthorized Access</h1><p className="text-stone-400 mb-6">You don't have permission to view this page.</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>; }
 function NotFoundPage() { return <div className="min-h-screen flex items-center justify-center bg-stone-900"><div className="text-center"><h1 className="text-4xl font-bold text-white mb-4">404</h1><p className="text-stone-400 mb-6">Page not found</p><a href="/" className="text-amber-500 hover:text-amber-400 underline">Return to Home</a></div></div>; }
 function AppContent() {
-  // Keep the application shell subscribed to language changes. This forces the
-  // route tree to reconcile immediately, including legacy components that still
-  // use the synchronous `t()` helper instead of `useTranslation()`.
   useTranslation();
-
   return <><div className="fixed top-[76px] right-3 md:top-[84px] md:right-6 z-[100] pointer-events-auto"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
     <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} />
     <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/password-recovery" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
@@ -44,7 +41,7 @@ function AppContent() {
     <Route path="/business/pending" element={<ProtectedRoute requiredRole="business"><BusinessPending /></ProtectedRoute>} />
     <Route path="/business/dashboard" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} /><Route path="/business/rooms" element={<ProtectedRoute requiredRole="business"><Navigate to="/business/dashboard?tab=rooms" replace /></ProtectedRoute>} />
     <Route path="/business/housekeeping-settings" element={<ProtectedRoute requiredRole="business"><HousekeepingSettings /></ProtectedRoute>} /><Route path="/business/messages" element={<ProtectedRoute requiredRole="business"><BusinessMessages /></ProtectedRoute>} /><Route path="/business/billing" element={<ProtectedRoute requiredRole="business"><Billing /></ProtectedRoute>} />
-    <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><SuperAdminPortal /></ProtectedRoute>} /><Route path="/super-admin/approve" element={<ProtectedRoute requiredRole="super_admin"><ApproveBusinesses /></ProtectedRoute>} /><Route path="/super-admin/messages" element={<ProtectedRoute requiredRole="super_admin"><AdminMessages /></ProtectedRoute>} />
+    <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><SuperAdminPortal /></ProtectedRoute>} /><Route path="/super-admin/crm" element={<ProtectedRoute requiredRole="super_admin"><SuperAdminMiniCRM /></ProtectedRoute>} /><Route path="/super-admin/approve" element={<ProtectedRoute requiredRole="super_admin"><ApproveBusinesses /></ProtectedRoute>} /><Route path="/super-admin/messages" element={<ProtectedRoute requiredRole="super_admin"><AdminMessages /></ProtectedRoute>} />
     <Route path="/admin" element={<Navigate to="/super-admin-login" replace />} /><Route path="/admin/messages" element={<Navigate to="/super-admin/messages" replace />} /><Route path="/unauthorized" element={<UnauthorizedPage />} /><Route path="*" element={<NotFoundPage />} />
   </Routes></>;
 }
