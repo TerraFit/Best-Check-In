@@ -28,6 +28,11 @@ alter table public.website_enquiries
   add column if not exists archived_at timestamptz,
   add column if not exists archived_by text;
 
+-- Preserve the existing legacy "contacted" records by mapping them to the closest new CRM state.
+update public.website_enquiries
+set status = 'attempted_to_contact'
+where status = 'contacted';
+
 alter table public.website_enquiries
   drop constraint if exists website_enquiries_status_check;
 
