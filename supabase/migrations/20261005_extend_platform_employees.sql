@@ -1,0 +1,32 @@
+-- Extend the existing FastCheckIn platform employee directory.
+-- platform_employees is intentionally separate from business employees.
+alter table public.platform_employees add column if not exists phone text;
+alter table public.platform_employees add column if not exists platform_role text;
+alter table public.platform_employees add column if not exists status text;
+alter table public.platform_employees add column if not exists password_hash text;
+alter table public.platform_employees add column if not exists invitation_token_hash text;
+alter table public.platform_employees add column if not exists invitation_expires_at timestamptz;
+alter table public.platform_employees add column if not exists invited_at timestamptz;
+alter table public.platform_employees add column if not exists invited_by uuid;
+alter table public.platform_employees add column if not exists activated_at timestamptz;
+alter table public.platform_employees add column if not exists last_login timestamptz;
+alter table public.platform_employees add column if not exists archived_at timestamptz;
+alter table public.platform_employees add column if not exists archived_by uuid;
+update public.platform_employees set platform_role=role where platform_role is null and role in ('platform_operations','platform_developer','platform_finance','platform_analytics','platform_compliance','platform_support');
+update public.platform_employees set status=case when active=false then 'Archived' else 'Active' end where status is null;
+alter table public.platform_employees alter column platform_role set not null;
+alter table public.platform_employees alter column status set default 'Invited';
+alter table public.platform_employees add constraint platform_employees_platform_role_check check (platform_role in ('platform_operations','platform_developer','platform_finance','platform_analytics','platform_compliance','platform_support')) not valid;
+alter table public.platform_employees validate constraint platform_employees_platform_role_check;
+alter table public.platform_employees add constraint platform_employees_status_check check (status in ('Invited','Active','Archived')) not valid;
+alter table public.platform_employees validate constraint platform_employees_status_check;
+create unique index if not exists uq_platform_employees_email_lower on public.platform_employees(lower(email));
+create index if not exists idx_platform_employees_status on public.platform_employees(status);
+create index if not exists idx_platform_employees_role on public.platform_employees(platform_role);
+alter table public.platform_employees enable row level security;
+revoke all on public.platform_employees from anon, authenticated;
+create table if not exists public.platform_employee_audit (id uuid primary key default gen_random_uuid(),platform_employee_id uuid references public.platform_employees(id) on delete set null,action text not null,actor_id text,actor_email text,details jsonb not null default '{}'::jsonb,created_at timestamptz not null default now());
+create index if not exists idx_platform_employee_audit_employee on public.platform_employee_audit(platform_employee_id,created_at desc);
+create index if not exists idx_platform_employee_audit_created on public.platform_employee_audit(created_at desc);
+alter table public.platform_employee_audit enable row level security;
+revoke all on public.platform_employee_audit from anon, authenticated;
