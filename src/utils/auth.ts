@@ -68,11 +68,21 @@ export const getAuthToken = (): string | null => {
  * routes continue to use the normal employee/main session.
  */
 export const getApiAuthToken = (): string | null => {
-  const isBusinessRoute =
-    typeof window !== 'undefined' &&
-    window.location.pathname.startsWith('/business');
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
-  if (isBusinessRoute) {
+  // Super Admin requests must always use the dedicated Super Admin session.
+  // getAuth() can contain a stale/other application session when multiple
+  // authentication contexts have existed in the same browser.
+  if (pathname.startsWith('/super-admin')) {
+    const superAdminAuth = getSuperAdminAuth();
+    if (superAdminAuth?.type === 'super_admin' && superAdminAuth.token) {
+      return superAdminAuth.token;
+    }
+  }
+
+  // Business dashboard requests must use the authoritative business session
+  // when both business and employee sessions are present.
+  if (pathname.startsWith('/business')) {
     const businessAuth = getBusinessAuth();
     if (businessAuth?.type === 'business' && businessAuth.token) {
       return businessAuth.token;
