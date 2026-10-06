@@ -35,15 +35,11 @@ export function FiltersBar({
       <div className="flex flex-wrap gap-4 items-center">
         <div className="flex items-center gap-2">
           <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16v2.586l-6.414 6.414a1 1 0 00-.293 0V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
           <select
             value={filters.dateRange}
-            onChange={(e) => {
-              updateFilter('dateRange', e.target.value);
-              updateFilter('startDate', '');
-              updateFilter('endDate', '');
-            }}
+            onChange={(e) => updateFilter('dateRange', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           >
             <option value="7days">7 {t('filters_days')}</option>
@@ -59,10 +55,7 @@ export function FiltersBar({
           <input
             type="date"
             value={filters.startDate}
-            onChange={(e) => {
-              updateFilter('startDate', e.target.value);
-              updateFilter('dateRange', 'all');
-            }}
+            onChange={(e) => updateFilter('startDate', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           />
         </div>
@@ -72,10 +65,7 @@ export function FiltersBar({
           <input
             type="date"
             value={filters.endDate}
-            onChange={(e) => {
-              updateFilter('endDate', e.target.value);
-              updateFilter('dateRange', 'all');
-            }}
+            onChange={(e) => updateFilter('endDate', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           />
         </div>
@@ -83,7 +73,7 @@ export function FiltersBar({
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
             <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path className="stroke-current" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
@@ -114,9 +104,7 @@ export function FiltersBar({
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
           <option value="">{t('filters_all_provinces')}</option>
-          {uniqueProvinces.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+          {uniqueProvinces.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         
         <select
@@ -125,9 +113,7 @@ export function FiltersBar({
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
           <option value="">{t('filters_all_cities')}</option>
-          {uniqueCities.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
+          {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         
         <select
@@ -136,16 +122,11 @@ export function FiltersBar({
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
         >
           <option value="">{t('filters_all_countries')}</option>
-          {uniqueCountries.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
+          {uniqueCountries.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         
         {isFilterActive() && (
-          <button
-            onClick={clearCurrentFilters}
-            className="text-sm text-orange-600 hover:text-orange-700"
-          >
+          <button onClick={clearCurrentFilters} className="text-sm text-orange-600 hover:text-orange-700">
             {t('filters_clear')}
           </button>
         )}
