@@ -203,12 +203,14 @@ export default function HomePage() {
         </div>
 
         <div
-          className="pointer-events-none absolute bottom-8 left-1/2 z-10 -translate-x-1/2 flex flex-col items-center gap-2"
+          className="pointer-events-none absolute bottom-7 left-1/2 z-10 -translate-x-1/2 flex flex-col items-center"
           aria-hidden="true"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">Explore FastCheckIn</span>
-          <div className="fastcheckin-scroll-track" aria-hidden="true">
-            <span className="fastcheckin-scroll-dot" />
+          <span className="fastcheckin-explore-label">Explore FastCheckIn</span>
+          <div className="fastcheckin-chevron-cascade" aria-hidden="true">
+            <span className="fastcheckin-chevron fastcheckin-chevron-1" />
+            <span className="fastcheckin-chevron fastcheckin-chevron-2" />
+            <span className="fastcheckin-chevron fastcheckin-chevron-3" />
           </div>
         </div>
 
