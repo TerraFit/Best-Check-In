@@ -169,7 +169,7 @@ export default function HomePage() {
               {t('landing_redesign_hero_support')}
             </p>
 
-            <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="mt-10 flex flex-col items-center gap-4">
               <button
                 onClick={() => navigate('/register')}
                 className="rounded-full bg-amber-500 px-8 py-4 font-bold text-stone-950 shadow-xl shadow-amber-900/20 hover:bg-amber-400 transition"
@@ -177,15 +177,27 @@ export default function HomePage() {
                 {t('landing_cta_trial')}
               </button>
               <button
-                onClick={() => scrollTo('platform-section')}
-                className="rounded-full border border-white/40 bg-white/10 px-8 py-4 font-semibold text-white backdrop-blur hover:bg-white/20 transition"
+                onClick={handleBusinessLogin}
+                disabled={loginLoading}
+                className="rounded-full border border-white/40 bg-white/10 px-8 py-4 font-semibold text-white backdrop-blur hover:bg-white/20 transition disabled:opacity-60"
               >
-                {t('landing_redesign_explore')}
+                {loginLoading ? t('common_processing') : 'Login — Businesses & Employees'}
+              </button>
+              <button
+                onClick={() => setDownloadDocument('brochure')}
+                className="rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition"
+              >
+                {t('landing_download_brochure')}
+              </button>
+              <button
+                onClick={() => scrollTo('platform-section')}
+                className="mt-1 font-semibold text-white/90 hover:text-amber-400 transition inline-flex items-center gap-2"
+                aria-label={t('landing_redesign_explore')}
+              >
+                <span aria-hidden="true">↓</span>
+                <span>{t('landing_redesign_explore')}</span>
               </button>
             </div>
-            <button onClick={() => setDownloadDocument('brochure')} className="mt-5 rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition">
-              {t('landing_download_brochure')}
-            </button>
 
             <div className="mt-10 flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm text-stone-200">
               {[t('landing_badge_popia'), t('landing_badge_indemnity'), t('landing_badge_id_capture'), t('landing_badge_registry')].map((item) => (
