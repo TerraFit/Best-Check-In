@@ -98,6 +98,15 @@ h1, h2, h3, .font-serif {
     50% { opacity: 0.5; }
 }
 
+@keyframes fastcheckinFloat {
+    0%, 100% {
+        transform: translate(-50%, 0);
+    }
+    50% {
+        transform: translate(-50%, -8px);
+    }
+}
+
 @keyframes bounce {
     0%, 100% {
         transform: translateY(0);
@@ -158,6 +167,10 @@ h1, h2, h3, .font-serif {
 
 .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-fastcheckin-float {
+    animation: fastcheckinFloat 2.8s ease-in-out infinite;
 }
 
 .animate-bounce {
