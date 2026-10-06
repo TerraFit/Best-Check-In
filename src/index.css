@@ -98,20 +98,31 @@ h1, h2, h3, .font-serif {
     50% { opacity: 0.5; }
 }
 
-@keyframes fastcheckinScroll {
-    0% {
-        transform: translateY(-2px);
-        opacity: 0.35;
+@keyframes fastcheckinExploreLabel {
+    0%, 100% {
+        transform: scale(0.96);
+        opacity: 0.72;
     }
-    15% {
+    50% {
+        transform: scale(1.04);
         opacity: 1;
     }
-    65% {
-        transform: translateY(20px);
+}
+
+@keyframes fastcheckinChevronCascade {
+    0% {
+        transform: translateY(-8px) scale(0.82);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.95;
+    }
+    50% {
+        transform: translateY(8px) scale(1);
         opacity: 1;
     }
     80%, 100% {
-        transform: translateY(20px);
+        transform: translateY(16px) scale(0.82);
         opacity: 0;
     }
 }
@@ -182,27 +193,60 @@ h1, h2, h3, .font-serif {
     animation: bounce 1s infinite;
 }
 
-.fastcheckin-scroll-track {
-    position: relative;
-    width: 22px;
-    height: 40px;
-    border: 1px solid rgba(255, 255, 255, 0.65);
-    border-radius: 9999px;
-    background: rgba(28, 25, 23, 0.18);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(4px);
+.fastcheckin-explore-label {
+    margin-bottom: 6px;
+    color: #fbbf24;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    line-height: 1;
+    text-transform: uppercase;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    animation: fastcheckinExploreLabel 2.6s ease-in-out infinite;
 }
 
-.fastcheckin-scroll-dot {
+.fastcheckin-chevron-cascade {
+    position: relative;
+    width: 34px;
+    height: 42px;
+}
+
+.fastcheckin-chevron {
     position: absolute;
-    top: 5px;
     left: 50%;
-    width: 4px;
-    height: 9px;
-    border-radius: 9999px;
-    background: #fbbf24;
-    transform: translateX(-50%);
-    animation: fastcheckinScroll 2s ease-in-out infinite;
+    top: 2px;
+    width: 11px;
+    height: 11px;
+    border-right: 2px solid #fbbf24;
+    border-bottom: 2px solid #fbbf24;
+    transform: translateX(-50%) rotate(45deg);
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
+    animation: fastcheckinChevronCascade 1.8s ease-in-out infinite;
+}
+
+.fastcheckin-chevron-2 {
+    animation-delay: 0.2s;
+}
+
+.fastcheckin-chevron-3 {
+    animation-delay: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fastcheckin-explore-label,
+    .fastcheckin-chevron {
+        animation: none;
+    }
+
+    .fastcheckin-explore-label {
+        opacity: 1;
+        transform: none;
+    }
+
+    .fastcheckin-chevron {
+        opacity: 0.9;
+        transform: translateX(-50%) rotate(45deg);
+    }
 }
 
 .animate-shimmer {
