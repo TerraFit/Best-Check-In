@@ -189,14 +189,13 @@ export default function HomePage() {
               >
                 {t('landing_download_brochure')}
               </button>
-              <button
-                onClick={() => scrollTo('platform-section')}
-                className="mt-1 font-semibold text-white/90 hover:text-amber-400 transition inline-flex items-center gap-2"
-                aria-label={t('landing_redesign_explore')}
-              >
-                <span aria-hidden="true">↓</span>
-                <span>{t('landing_redesign_explore')}</span>
-              </button>
+              <div
+              className="mt-1 inline-flex items-center gap-2 font-semibold text-white/90"
+              aria-hidden="true"
+            >
+              <span className="animate-bounce text-amber-400">↓</span>
+              <span>{t('landing_redesign_explore')}</span>
+            </div>
             </div>
 
             <div className="mt-10 flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm text-stone-200">
@@ -207,6 +206,16 @@ export default function HomePage() {
                 </span>
               ))}
             </div>
+          </div>
+        </div>
+
+        <div
+          className="pointer-events-none absolute bottom-7 left-1/2 z-10 -translate-x-1/2 animate-fastcheckin-float whitespace-nowrap"
+          aria-hidden="true"
+        >
+          <div className="rounded-full border border-white/25 bg-stone-950/50 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md sm:text-base">
+            <span className="mr-2 inline-block text-amber-400">↓</span>
+            {t('landing_redesign_explore')}
           </div>
         </div>
       </section>
