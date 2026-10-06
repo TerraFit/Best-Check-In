@@ -98,12 +98,21 @@ h1, h2, h3, .font-serif {
     50% { opacity: 0.5; }
 }
 
-@keyframes fastcheckinFloat {
-    0%, 100% {
-        transform: translate(-50%, 0);
+@keyframes fastcheckinScroll {
+    0% {
+        transform: translateY(-2px);
+        opacity: 0.35;
     }
-    50% {
-        transform: translate(-50%, -8px);
+    15% {
+        opacity: 1;
+    }
+    65% {
+        transform: translateY(20px);
+        opacity: 1;
+    }
+    80%, 100% {
+        transform: translateY(20px);
+        opacity: 0;
     }
 }
 
@@ -169,12 +178,31 @@ h1, h2, h3, .font-serif {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.animate-fastcheckin-float {
-    animation: fastcheckinFloat 2.8s ease-in-out infinite;
-}
-
 .animate-bounce {
     animation: bounce 1s infinite;
+}
+
+.fastcheckin-scroll-track {
+    position: relative;
+    width: 22px;
+    height: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 9999px;
+    background: rgba(28, 25, 23, 0.18);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(4px);
+}
+
+.fastcheckin-scroll-dot {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 4px;
+    height: 9px;
+    border-radius: 9999px;
+    background: #fbbf24;
+    transform: translateX(-50%);
+    animation: fastcheckinScroll 2s ease-in-out infinite;
 }
 
 .animate-shimmer {
