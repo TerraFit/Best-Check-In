@@ -189,13 +189,6 @@ export default function HomePage() {
               >
                 {t('landing_download_brochure')}
               </button>
-              <div
-              className="mt-1 inline-flex items-center gap-2 font-semibold text-white/90"
-              aria-hidden="true"
-            >
-              <span className="animate-bounce text-amber-400">↓</span>
-              <span>{t('landing_redesign_explore')}</span>
-            </div>
             </div>
 
             <div className="mt-10 flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm text-stone-200">
