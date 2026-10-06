@@ -34,6 +34,19 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   };
   useEffect(()=>{void load();},[businessId]);
 
+  useEffect(()=>{
+    if(!calendarOpen) return;
+    const handlePointerDown=(event:MouseEvent)=>{
+      const target=event.target as Node;
+      if(!(target instanceof Node)) return;
+      const calendar=target instanceof Element ? target.closest('[data-amenity-filter-popover]') : null;
+      const trigger=target instanceof Element ? target.closest('[data-amenity-filter-trigger]') : null;
+      if(!calendar && !trigger) setCalendarOpen(false);
+    };
+    document.addEventListener('mousedown',handlePointerDown);
+    return()=>document.removeEventListener('mousedown',handlePointerDown);
+  },[calendarOpen]);
+
   const filtered=useMemo(()=>records.filter(r=>
     (!date || r.stay_day===date) &&
     (!roomFilter || (r.room_id||'')===roomFilter)
@@ -171,12 +184,13 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
           onClick={()=>setCalendarOpen(open=>!open)}
           aria-expanded={calendarOpen}
           aria-haspopup="dialog"
+          data-amenity-filter-trigger
           className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold border border-gray-300 rounded-lg bg-white hover:bg-gray-50"
         >
           <span aria-hidden>▣</span>
           <span>{date ? dateLabel(date) : 'Filter'}</span>
         </button>
-        {calendarOpen&&<div role="dialog" aria-label="Amenity activity calendar" className="absolute left-0 top-full z-30 mt-2 w-[310px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
+        {calendarOpen&&<div role="dialog" aria-label="Amenity activity calendar" data-amenity-filter-popover className="absolute left-0 top-full z-30 mt-2 w-[310px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
           <div className="flex items-center justify-between gap-2 mb-3">
             <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex-1,1))} aria-label="Previous month" className="p-1.5 rounded-lg hover:bg-gray-50"><ChevronLeft size={16}/></button>
             <div className="text-sm font-bold text-gray-900">{calendarMonthLabel}</div>
@@ -205,7 +219,10 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
           </div>
           <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-gray-500">
             <span><span className="inline-block h-3 w-3 rounded-sm border border-orange-200 bg-orange-50 align-[-2px] mr-1"></span> = amenities taken</span>
-            {date&&<button type="button" onClick={()=>setDate('')} className="font-semibold text-orange-700 hover:text-orange-800">Clear date</button>}
+            <div className="flex items-center gap-3">
+              {date&&<button type="button" onClick={()=>setDate('')} className="font-semibold text-orange-700 hover:text-orange-800">Clear date</button>}
+              <button type="button" onClick={()=>setCalendarOpen(false)} className="font-semibold text-gray-600 hover:text-gray-900">Close</button>
+            </div>
           </div>
         </div>}
       </div>
