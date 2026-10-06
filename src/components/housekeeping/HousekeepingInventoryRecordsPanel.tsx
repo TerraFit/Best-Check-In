@@ -221,19 +221,6 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
     <div className="text-xs text-gray-500">
       {date ? <><span className="font-semibold text-gray-800">{dateLabel(date)}</span>{roomFilter?' · filtered by room':''}</> : 'Select a date from the calendar to view amenity activity.'}
     </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <label className="text-xs font-semibold text-gray-600" htmlFor="housekeeping-inventory-room-filter">Room</label>
-          <select id="housekeeping-inventory-room-filter" value={roomFilter} onChange={e=>setRoomFilter(e.target.value)} className="min-w-[220px] px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white">
-            <option value="">All rooms</option>
-            {roomOptions.map(([id,label])=><option key={id} value={id}>{label}</option>)}
-          </select>
-          <span className="text-xs text-gray-500">{filtered.length} transaction{filtered.length===1?'':'s'}</span>
-        </div>
-        <div className="text-xs text-gray-500">
-          {date ? <><span className="font-semibold text-gray-800">{dateLabel(date)}</span>{roomFilter?' · filtered by room':''}</> : 'Select a date on the calendar to view amenity activity.'}
-        </div>
-      </div>
-    </div>
     {loading?<p className="py-8 text-center text-sm text-gray-400">Loading inventory…</p>:roomDayGroups.length===0?<p className="py-8 text-center text-sm text-gray-400">No inventory has been recorded yet.</p>:
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-gray-50 text-left text-gray-500 uppercase tracking-wider"><tr><th className="px-3 py-2">Stay day</th><th className="px-3 py-2">Room / guest</th><th className="px-3 py-2">Items taken</th><th className="px-3 py-2">Items restocked</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2"></th></tr></thead><tbody className="divide-y divide-gray-100">{roomDayGroups.map(g=><tr key={g.key} className="hover:bg-orange-50/40"><td className="px-3 py-2 whitespace-nowrap">{dateLabel(g.stay_day)}</td><td className="px-3 py-2"><button type="button" onClick={()=>setSelected(g.representative)} className="text-left"><span className="font-semibold text-gray-900">{g.room_number?'Room '+g.room_number:g.room_name||'Room'}</span><span className="block text-gray-500">{g.guest_name||'—'}</span><span className="block text-[10px] text-gray-400">{g.records.length} amenity line{g.records.length===1?'':'s'}</span></button></td><td className="px-3 py-2">{g.taken}</td><td className="px-3 py-2">{g.restocked}</td><td className="px-3 py-2 font-semibold">{g.taken>0?money(g.sales,g.currency):'—'}</td><td className="px-3 py-2"><button type="button" onClick={()=>downloadPdf(g.representative)} title="Download room snapshot PDF" className="p-1.5 rounded hover:bg-gray-100"><FileDown size={14}/></button></td></tr>)}</tbody></table></div>}
 
