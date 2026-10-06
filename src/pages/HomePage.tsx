@@ -203,14 +203,15 @@ export default function HomePage() {
         </div>
 
         <div
-          className="pointer-events-none absolute bottom-7 left-1/2 z-10 -translate-x-1/2 animate-fastcheckin-float whitespace-nowrap"
+          className="pointer-events-none absolute bottom-8 left-1/2 z-10 -translate-x-1/2 flex flex-col items-center gap-2"
           aria-hidden="true"
         >
-          <div className="rounded-full border border-white/25 bg-stone-950/50 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md sm:text-base">
-            <span className="mr-2 inline-block text-amber-400">↓</span>
-            {t('landing_redesign_explore')}
+          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">Explore FastCheckIn</span>
+          <div className="fastcheckin-scroll-track" aria-hidden="true">
+            <span className="fastcheckin-scroll-dot" />
           </div>
         </div>
+
       </section>
 
       {/* Story */}
