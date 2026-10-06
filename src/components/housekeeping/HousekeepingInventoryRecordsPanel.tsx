@@ -18,6 +18,7 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   const [date,setDate]=useState('');
   const [roomFilter,setRoomFilter]=useState('');
   const [calendarMonth,setCalendarMonth]=useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1);});
+  const [calendarOpen,setCalendarOpen]=useState(false);
   const [loading,setLoading]=useState(false);
   const [settings,setSettings]=useState({dashboardEnabled:true,emailEnabled:false,email:''});
   const [savingSettings,setSavingSettings]=useState(false);
@@ -163,40 +164,63 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
       <div className="rounded-xl bg-stone-50 border border-stone-100 p-3"><p className="text-[10px] uppercase text-stone-500">Items restocked</p><p className="text-xl font-bold">{totals.restocked}</p></div>
       <div className="rounded-xl bg-stone-50 border border-stone-100 p-3"><p className="text-[10px] uppercase text-stone-500">Recorded days</p><p className="text-xl font-bold">{dates.length}</p></div>
     </div>
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,360px)_1fr] gap-4">
-      <div className="rounded-2xl border border-gray-200 bg-stone-50/60 p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex-1,1))} aria-label="Previous month" className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-gray-200"><ChevronLeft size={16}/></button>
-          <div className="text-sm font-bold text-gray-900">{calendarMonthLabel}</div>
-          <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex+1,1))} aria-label="Next month" className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-gray-200"><ChevronRight size={16}/></button>
-        </div>
-        <div className="grid grid-cols-7 mb-1">
-          {['Su','Mo','Tu','We','Th','Fr','Sa'].map(day=><div key={day} className="text-center text-[10px] font-semibold text-gray-400 py-1">{day}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {calendarCells.map((day,index)=>{
-            if(!day) return <div key={'empty-'+index} className="h-9"/>;
-            const key=calendarDateKey(day);
-            const hasTaken=roomFilter
-              ? records.some(r=>r.stay_day===key && (r.room_id||'')===roomFilter && Number(r.quantity_taken||0)>0)
-              : takenDates.has(key);
-            const selectedDay=date===key;
-            return <button
-              key={key}
-              type="button"
-              onClick={()=>setDate(selectedDay?'':key)}
-              aria-label={dateLabel(key)+(hasTaken?' — amenities taken':'')}
-              aria-pressed={selectedDay}
-              className={`h-9 rounded-lg text-xs transition-colors ${selectedDay?'bg-orange-500 text-white':'hover:bg-white text-gray-700'} ${hasTaken?'font-extrabold':'font-medium'}`}
-            >{day.getDate()}</button>;
-          })}
-        </div>
-        <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-gray-500">
-          <span><strong className="font-extrabold text-gray-800">Bold</strong> = amenities taken</span>
-          {date&&<button type="button" onClick={()=>setDate('')} className="font-semibold text-orange-700 hover:text-orange-800">Clear date</button>}
-        </div>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={()=>setCalendarOpen(open=>!open)}
+          aria-expanded={calendarOpen}
+          aria-haspopup="dialog"
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold border border-gray-300 rounded-lg bg-white hover:bg-gray-50"
+        >
+          <span aria-hidden>▣</span>
+          <span>{date ? dateLabel(date) : 'Calendar'}</span>
+        </button>
+        {calendarOpen&&<div role="dialog" aria-label="Amenity activity calendar" className="absolute left-0 top-full z-30 mt-2 w-[310px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex-1,1))} aria-label="Previous month" className="p-1.5 rounded-lg hover:bg-gray-50"><ChevronLeft size={16}/></button>
+            <div className="text-sm font-bold text-gray-900">{calendarMonthLabel}</div>
+            <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex+1,1))} aria-label="Next month" className="p-1.5 rounded-lg hover:bg-gray-50"><ChevronRight size={16}/></button>
+          </div>
+          <div className="grid grid-cols-7 mb-1">
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(day=><div key={day} className="text-center text-[10px] font-semibold text-gray-400 py-1">{day}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarCells.map((day,index)=>{
+              if(!day) return <div key={'empty-'+index} className="h-9"/>;
+              const key=calendarDateKey(day);
+              const hasTaken=roomFilter
+                ? records.some(r=>r.stay_day===key && (r.room_id||'')===roomFilter && Number(r.quantity_taken||0)>0)
+                : takenDates.has(key);
+              const selectedDay=date===key;
+              return <button
+                key={key}
+                type="button"
+                onClick={()=>{setDate(selectedDay?'':key);setCalendarOpen(false);}}
+                aria-label={dateLabel(key)+(hasTaken?' — amenities taken':'')}
+                aria-pressed={selectedDay}
+                className={`h-9 rounded-lg text-xs transition-colors ${selectedDay?'bg-orange-500 text-white':'hover:bg-gray-50 text-gray-700'} ${hasTaken?'font-extrabold':'font-medium'}`}
+              >{day.getDate()}</button>;
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-gray-500">
+            <span><strong className="font-extrabold text-gray-800">Bold</strong> = amenities taken</span>
+            {date&&<button type="button" onClick={()=>setDate('')} className="font-semibold text-orange-700 hover:text-orange-800">Clear date</button>}
+          </div>
+        </div>}
       </div>
-      <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 items-center">
+        <label className="text-xs font-semibold text-gray-600" htmlFor="housekeeping-inventory-room-filter">Room</label>
+        <select id="housekeeping-inventory-room-filter" value={roomFilter} onChange={e=>setRoomFilter(e.target.value)} className="min-w-[220px] px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white">
+          <option value="">All rooms</option>
+          {roomOptions.map(([id,label])=><option key={id} value={id}>{label}</option>)}
+        </select>
+        <span className="text-xs text-gray-500">{filtered.length} transaction{filtered.length===1?'':'s'}</span>
+      </div>
+    </div>
+    <div className="text-xs text-gray-500">
+      {date ? <><span className="font-semibold text-gray-800">{dateLabel(date)}</span>{roomFilter?' · filtered by room':''}</> : 'Select a date from the calendar to view amenity activity.'}
+    </div>
         <div className="flex flex-wrap gap-2 items-center">
           <label className="text-xs font-semibold text-gray-600" htmlFor="housekeeping-inventory-room-filter">Room</label>
           <select id="housekeeping-inventory-room-filter" value={roomFilter} onChange={e=>setRoomFilter(e.target.value)} className="min-w-[220px] px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white">
