@@ -41,8 +41,6 @@ export function FiltersBar({
             value={filters.dateRange}
             onChange={(e) => {
               updateFilter('dateRange', e.target.value);
-              updateFilter('startDate', '');
-              updateFilter('endDate', '');
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           >
@@ -61,7 +59,6 @@ export function FiltersBar({
             value={filters.startDate}
             onChange={(e) => {
               updateFilter('startDate', e.target.value);
-              updateFilter('dateRange', 'all');
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           />
@@ -74,7 +71,6 @@ export function FiltersBar({
             value={filters.endDate}
             onChange={(e) => {
               updateFilter('endDate', e.target.value);
-              updateFilter('dateRange', 'all');
             }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500"
           />

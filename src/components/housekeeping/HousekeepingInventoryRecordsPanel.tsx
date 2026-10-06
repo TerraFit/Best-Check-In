@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileDown, Mail, RefreshCw, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, Mail, RefreshCw, X } from 'lucide-react';
 import { getApiAuthToken } from '../../utils/auth';
 import {
   fetchHousekeepingInventoryNotificationSettings,
@@ -16,6 +16,9 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   const [records,setRecords]=useState<HousekeepingInventoryRecord[]>([]);
   const [selected,setSelected]=useState<HousekeepingInventoryRecord|null>(null);
   const [date,setDate]=useState('');
+  const [roomFilter,setRoomFilter]=useState('');
+  const [calendarMonth,setCalendarMonth]=useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1);});
+  const [calendarOpen,setCalendarOpen]=useState(false);
   const [loading,setLoading]=useState(false);
   const [settings,setSettings]=useState({dashboardEnabled:true,emailEnabled:false,email:''});
   const [savingSettings,setSavingSettings]=useState(false);
@@ -31,7 +34,51 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
   };
   useEffect(()=>{void load();},[businessId]);
 
-  const filtered=useMemo(()=>date?records.filter(r=>r.stay_day===date):records,[records,date]);
+  useEffect(()=>{
+    if(!calendarOpen) return;
+    const handlePointerDown=(event:MouseEvent)=>{
+      const target=event.target as Node;
+      if(!(target instanceof Node)) return;
+      const calendar=target instanceof Element ? target.closest('[data-amenity-filter-popover]') : null;
+      const trigger=target instanceof Element ? target.closest('[data-amenity-filter-trigger]') : null;
+      if(!calendar && !trigger) setCalendarOpen(false);
+    };
+    document.addEventListener('mousedown',handlePointerDown);
+    return()=>document.removeEventListener('mousedown',handlePointerDown);
+  },[calendarOpen]);
+
+  const filtered=useMemo(()=>records.filter(r=>
+    (!date || r.stay_day===date) &&
+    (!roomFilter || (r.room_id||'')===roomFilter)
+  ),[records,date,roomFilter]);
+
+  const roomOptions=useMemo(()=>{
+    const map=new Map<string,string>();
+    for(const record of records){
+      const id=record.room_id||'';
+      if(!id) continue;
+      map.set(id,record.room_number ? 'Room '+record.room_number+(record.room_name?' — '+record.room_name:'') : (record.room_name||'Room'));
+    }
+    return [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  },[records]);
+
+  const calendarYear=calendarMonth.getFullYear();
+  const calendarMonthIndex=calendarMonth.getMonth();
+  const calendarDaysInMonth=new Date(calendarYear,calendarMonthIndex+1,0).getDate();
+  const calendarStartOffset=new Date(calendarYear,calendarMonthIndex,1).getDay();
+  const calendarCells=Array.from({length:calendarStartOffset+calendarDaysInMonth},(_,index)=>{
+    const day=index-calendarStartOffset+1;
+    return day>0 ? new Date(calendarYear,calendarMonthIndex,day) : null;
+  });
+  const takenDates=useMemo(()=>new Set(
+    records.filter(r=>Number(r.quantity_taken||0)>0).map(r=>r.stay_day)
+  ),[records]);
+  const calendarDateKey=(d:Date)=>[
+    d.getFullYear(),
+    String(d.getMonth()+1).padStart(2,'0'),
+    String(d.getDate()).padStart(2,'0')
+  ].join('-');
+  const calendarMonthLabel=calendarMonth.toLocaleDateString('en-ZA',{month:'long',year:'numeric'});
 
   type RoomDayGroup = {
     key:string;
@@ -130,9 +177,66 @@ export default function HousekeepingInventoryRecordsPanel({businessId}:Props){
       <div className="rounded-xl bg-stone-50 border border-stone-100 p-3"><p className="text-[10px] uppercase text-stone-500">Items restocked</p><p className="text-xl font-bold">{totals.restocked}</p></div>
       <div className="rounded-xl bg-stone-50 border border-stone-100 p-3"><p className="text-[10px] uppercase text-stone-500">Recorded days</p><p className="text-xl font-bold">{dates.length}</p></div>
     </div>
-    <div className="flex flex-wrap gap-2 items-center">
-      <select value={date} onChange={e=>setDate(e.target.value)} className="px-3 py-2 text-xs border border-gray-300 rounded-lg"><option value="">All stay days</option>{dates.map(d=><option key={d} value={d}>{dateLabel(d)}</option>)}</select>
-      <span className="text-xs text-gray-500">{filtered.length} transaction{filtered.length===1?'':'s'}</span>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={()=>setCalendarOpen(open=>!open)}
+          aria-expanded={calendarOpen}
+          aria-haspopup="dialog"
+          data-amenity-filter-trigger
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold border border-gray-300 rounded-lg bg-white hover:bg-gray-50"
+        >
+          <span aria-hidden>▣</span>
+          <span>{date ? dateLabel(date) : 'Filter'}</span>
+        </button>
+        {calendarOpen&&<div role="dialog" aria-label="Amenity activity calendar" data-amenity-filter-popover className="absolute left-0 top-full z-30 mt-2 w-[310px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex-1,1))} aria-label="Previous month" className="p-1.5 rounded-lg hover:bg-gray-50"><ChevronLeft size={16}/></button>
+            <div className="text-sm font-bold text-gray-900">{calendarMonthLabel}</div>
+            <button type="button" onClick={()=>setCalendarMonth(new Date(calendarYear,calendarMonthIndex+1,1))} aria-label="Next month" className="p-1.5 rounded-lg hover:bg-gray-50"><ChevronRight size={16}/></button>
+          </div>
+          <div className="grid grid-cols-7 mb-1">
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(day=><div key={day} className="text-center text-[10px] font-semibold text-gray-400 py-1">{day}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarCells.map((day,index)=>{
+              if(!day) return <div key={'empty-'+index} className="h-9"/>;
+              const key=calendarDateKey(day);
+              const hasTaken=roomFilter
+                ? records.some(r=>r.stay_day===key && (r.room_id||'')===roomFilter && Number(r.quantity_taken||0)>0)
+                : takenDates.has(key);
+              const selectedDay=date===key;
+              return <button
+                key={key}
+                type="button"
+                onClick={()=>{setDate(selectedDay?'':key);setCalendarOpen(false);}}
+                aria-label={dateLabel(key)+(hasTaken?' — amenities taken':'')}
+                aria-pressed={selectedDay}
+                className={`h-9 rounded-lg border text-xs transition-colors ${selectedDay?'border-orange-500 bg-orange-500 text-white':'border-transparent hover:bg-gray-50 text-gray-700'} ${hasTaken&&!selectedDay?'border-orange-200 bg-orange-50 font-semibold':'font-medium'}`}
+              >{day.getDate()}</button>;
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-gray-500">
+            <span><span className="inline-block h-3 w-3 rounded-sm border border-orange-200 bg-orange-50 align-[-2px] mr-1"></span> = amenities taken</span>
+            <div className="flex items-center gap-3">
+              {date&&<button type="button" onClick={()=>setDate('')} className="font-semibold text-orange-700 hover:text-orange-800">Clear date</button>}
+              <button type="button" onClick={()=>setCalendarOpen(false)} className="font-semibold text-gray-600 hover:text-gray-900">Close</button>
+            </div>
+          </div>
+        </div>}
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <label className="text-xs font-semibold text-gray-600" htmlFor="housekeeping-inventory-room-filter">Room</label>
+        <select id="housekeeping-inventory-room-filter" value={roomFilter} onChange={e=>setRoomFilter(e.target.value)} className="min-w-[220px] px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white">
+          <option value="">All rooms</option>
+          {roomOptions.map(([id,label])=><option key={id} value={id}>{label}</option>)}
+        </select>
+        <span className="text-xs text-gray-500">{filtered.length} transaction{filtered.length===1?'':'s'}</span>
+      </div>
+    </div>
+    <div className="text-xs text-gray-500">
+      {date ? <><span className="font-semibold text-gray-800">{dateLabel(date)}</span>{roomFilter?' · filtered by room':''}</> : 'Select a date from the calendar to view amenity activity.'}
     </div>
     {loading?<p className="py-8 text-center text-sm text-gray-400">Loading inventory…</p>:roomDayGroups.length===0?<p className="py-8 text-center text-sm text-gray-400">No inventory has been recorded yet.</p>:
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-gray-50 text-left text-gray-500 uppercase tracking-wider"><tr><th className="px-3 py-2">Stay day</th><th className="px-3 py-2">Room / guest</th><th className="px-3 py-2">Items taken</th><th className="px-3 py-2">Items restocked</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2"></th></tr></thead><tbody className="divide-y divide-gray-100">{roomDayGroups.map(g=><tr key={g.key} className="hover:bg-orange-50/40"><td className="px-3 py-2 whitespace-nowrap">{dateLabel(g.stay_day)}</td><td className="px-3 py-2"><button type="button" onClick={()=>setSelected(g.representative)} className="text-left"><span className="font-semibold text-gray-900">{g.room_number?'Room '+g.room_number:g.room_name||'Room'}</span><span className="block text-gray-500">{g.guest_name||'—'}</span><span className="block text-[10px] text-gray-400">{g.records.length} amenity line{g.records.length===1?'':'s'}</span></button></td><td className="px-3 py-2">{g.taken}</td><td className="px-3 py-2">{g.restocked}</td><td className="px-3 py-2 font-semibold">{g.taken>0?money(g.sales,g.currency):'—'}</td><td className="px-3 py-2"><button type="button" onClick={()=>downloadPdf(g.representative)} title="Download room snapshot PDF" className="p-1.5 rounded hover:bg-gray-100"><FileDown size={14}/></button></td></tr>)}</tbody></table></div>}
