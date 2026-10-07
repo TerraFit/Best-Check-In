@@ -5,6 +5,8 @@ import HomepageLeadModal, { type HomepageDocument } from '../components/Homepage
 import HomepageLegalModal from '../components/HomepageLegalModal';
 import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
 import TurnstileWidget from '../components/TurnstileWidget';
+import GlobalMarketSelector from '../components/GlobalMarketSelector';
+import { useMarket } from '../context/MarketContext';
 import {
   BarChart3,
   BedDouble,
@@ -34,6 +36,7 @@ export default function HomePage() {
   const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
   const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
+  const { setChooserOpen, region, detected, isSouthAfricanMarket } = useMarket();
 
   const pricingPlans = [
     {
@@ -147,6 +150,13 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <img src="/fastcheckin-logo.png" alt={t('landing_logo_alt')} className="h-16 md:h-20 w-auto object-contain" />
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setChooserOpen(true)}
+                className="hidden sm:inline-flex items-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-white/20 transition"
+                aria-label="Change market"
+              >
+                {isSouthAfricanMarket ? 'South Africa' : region.replace('-', ' ')}
+              </button>
               <button
                 onClick={handleBusinessLogin}
                 disabled={loginLoading}
@@ -529,6 +539,7 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+      <GlobalMarketSelector />
       <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
       <EnterpriseInquiryModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
