@@ -3,7 +3,7 @@ export type MarketRegion = 'africa' | 'europe' | 'north-america' | 'south-americ
 export interface MarketConfig {
   region: MarketRegion;
   name: string;
-  currency: string;
+  currency: 'USD' | 'EUR';
   pricingMultiplier: number;
 }
 
@@ -14,7 +14,7 @@ export const MARKET_CONFIG: Record<MarketRegion, MarketConfig> = {
   'south-america': { region: 'south-america', name: 'South America', currency: 'USD', pricingMultiplier: 1.1 },
   'middle-east': { region: 'middle-east', name: 'Middle East', currency: 'USD', pricingMultiplier: 1.2 },
   asia: { region: 'asia', name: 'Asia', currency: 'USD', pricingMultiplier: 1.15 },
-  oceania: { region: 'oceania', name: 'Oceania', currency: 'AUD', pricingMultiplier: 1.3 },
+  oceania: { region: 'oceania', name: 'Oceania', currency: 'USD', pricingMultiplier: 1.3 },
 };
 
 const COUNTRY_REGION: Record<string, MarketRegion> = {
