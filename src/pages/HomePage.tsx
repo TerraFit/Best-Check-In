@@ -36,7 +36,7 @@ export default function HomePage() {
   const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
   const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
-  const { setChooserOpen, region, detected, isSouthAfricanMarket } = useMarket();
+  const { setChooserOpen, region, isSouthAfricanMarket } = useMarket();
 
   const pricingPlans = [
     {
