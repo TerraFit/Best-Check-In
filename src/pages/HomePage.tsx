@@ -448,7 +448,10 @@ export default function HomePage() {
                 <h3 className="text-2xl font-bold">{t(plan.nameKey)}</h3>
                 <p className="text-sm text-stone-500 mt-1">{t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
                 <div className="mt-6">
-                  <span className="text-4xl font-black text-stone-900">{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '
+                  <span className="text-4xl font-black text-stone-900">{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceMonthly}</span>
+                  <span className="text-stone-500"> {t('landing_plan_per_month')}</span>
+                </div>
+                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceYearly}</strong>{t('landing_plan_per_year')}</p>
                 <ul className="mt-7 space-y-3 min-h-[150px]">
                   {plan.featureKeys.map((featureKey) => (
                     <li key={featureKey} className="flex gap-2 text-sm text-stone-600">
