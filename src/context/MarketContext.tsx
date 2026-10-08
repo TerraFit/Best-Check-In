@@ -36,9 +36,21 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!data?.countryCode) return;
+
         const suggestedRegion = regionForCountry(data.countryCode);
-        setDetected({ countryCode: data.countryCode, countryName: data.countryName || null, suggestedRegion });
-        if (!saved && !confirmed && !isSouthAfrica(data.countryCode)) setChooserOpen(true);
+        setDetected({
+          countryCode: data.countryCode,
+          countryName: data.countryName || null,
+          suggestedRegion,
+        });
+
+        // On a first visit, use the detected market as the initial
+        // suggestion in the chooser. A previously saved market remains
+        // authoritative so returning visitors are not overridden.
+        if (!saved && !confirmed) {
+          setRegion(suggestedRegion);
+          if (!isSouthAfrica(data.countryCode)) setChooserOpen(true);
+        }
       })
       .catch(() => undefined);
   }, []);
