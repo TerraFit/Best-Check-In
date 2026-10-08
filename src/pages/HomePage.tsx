@@ -5,6 +5,9 @@ import HomepageLeadModal, { type HomepageDocument } from '../components/Homepage
 import HomepageLegalModal from '../components/HomepageLegalModal';
 import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
 import TurnstileWidget from '../components/TurnstileWidget';
+import GlobalMarketSelector from '../components/GlobalMarketSelector';
+import { useMarket } from '../context/MarketContext';
+import { getRegionalPricing } from '../config/pricing';
 import {
   BarChart3,
   BedDouble,
@@ -34,36 +37,38 @@ export default function HomePage() {
   const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
   const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
+  const { setChooserOpen, region, isSouthAfricanMarket } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket);
 
   const pricingPlans = [
     {
       nameKey: 'landing_plan_starter' as const,
-      priceMonthly: 349,
-      priceYearly: 3490,
+      priceMonthly: regionalPricing.prices[0].monthly,
+      priceYearly: regionalPricing.prices[0].yearly,
       maxRooms: 5,
       featureKeys: ['landing_plan_starter_f1', 'landing_plan_starter_f2', 'landing_plan_starter_f3', 'landing_plan_starter_f4'] as const,
       isPopular: false
     },
     {
       nameKey: 'landing_plan_growth' as const,
-      priceMonthly: 649,
-      priceYearly: 6490,
+      priceMonthly: regionalPricing.prices[1].monthly,
+      priceYearly: regionalPricing.prices[1].yearly,
       maxRooms: 10,
       featureKeys: ['landing_plan_growth_f1', 'landing_plan_growth_f2', 'landing_plan_growth_f3', 'landing_plan_growth_f4', 'landing_plan_growth_f5'] as const,
       isPopular: true
     },
     {
       nameKey: 'landing_plan_pro' as const,
-      priceMonthly: 949,
-      priceYearly: 9490,
+      priceMonthly: regionalPricing.prices[2].monthly,
+      priceYearly: regionalPricing.prices[2].yearly,
       maxRooms: 15,
       featureKeys: ['landing_plan_pro_f1', 'landing_plan_pro_f2', 'landing_plan_pro_f3', 'landing_plan_pro_f4', 'landing_plan_pro_f5'] as const,
       isPopular: false
     },
     {
       nameKey: 'landing_plan_business' as const,
-      priceMonthly: 1290,
-      priceYearly: 12900,
+      priceMonthly: regionalPricing.prices[3].monthly,
+      priceYearly: regionalPricing.prices[3].yearly,
       maxRooms: 20,
       featureKeys: ['landing_plan_business_f1', 'landing_plan_business_f2', 'landing_plan_business_f3', 'landing_plan_business_f4'] as const,
       isPopular: false
@@ -147,6 +152,13 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <img src="/fastcheckin-logo.png" alt={t('landing_logo_alt')} className="h-16 md:h-20 w-auto object-contain" />
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setChooserOpen(true)}
+                className="hidden sm:inline-flex items-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-white/20 transition"
+                aria-label="Change market"
+              >
+                {isSouthAfricanMarket ? 'South Africa' : region.replace('-', ' ')}
+              </button>
               <button
                 onClick={handleBusinessLogin}
                 disabled={loginLoading}
@@ -421,6 +433,12 @@ export default function HomePage() {
             <p className="mt-4 text-stone-600">{t('landing_pricing_subheading')}</p>
           </div>
 
+          <p className="mt-2 max-w-3xl text-sm text-stone-500">
+            {isSouthAfricanMarket
+              ? 'South African pricing is shown in ZAR.'
+              : <>Prices are fixed in {regionalPricing.currency} for your selected market. Payment is processed in South African rand (ZAR), so the ZAR amount may vary with exchange rates.</>}
+          </p>
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {pricingPlans.map((plan) => (
               <div key={plan.nameKey} className={`relative rounded-3xl bg-white p-7 shadow-sm border ${plan.isPopular ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-stone-200'}`}>
@@ -430,10 +448,10 @@ export default function HomePage() {
                 <h3 className="text-2xl font-bold">{t(plan.nameKey)}</h3>
                 <p className="text-sm text-stone-500 mt-1">{t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
                 <div className="mt-6">
-                  <span className="text-4xl font-black text-stone-900">R{plan.priceMonthly}</span>
+                  <span className="text-4xl font-black text-stone-900">{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceMonthly}</span>
                   <span className="text-stone-500"> {t('landing_plan_per_month')}</span>
                 </div>
-                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">R{plan.priceYearly}</strong>{t('landing_plan_per_year')}</p>
+                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceYearly}</strong>{t('landing_plan_per_year')}</p>
                 <ul className="mt-7 space-y-3 min-h-[150px]">
                   {plan.featureKeys.map((featureKey) => (
                     <li key={featureKey} className="flex gap-2 text-sm text-stone-600">
@@ -529,9 +547,11 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+      <GlobalMarketSelector />
       <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
       <EnterpriseInquiryModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
     </div>
   );
 }
+
