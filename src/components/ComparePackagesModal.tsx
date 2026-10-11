@@ -17,7 +17,7 @@ const plans = ['Starter', 'Growth', 'Pro', 'Business', 'Enterprise'];
 
 const snapshotPayg = 'Business Snapshot vouchers: 1 for R99, 2 for R190, 3 for R280 or 4 for R370. Each voucher covers one selected reporting period and is valid for 3 months.';
 const snapshotUnlimited = 'Optional unlimited Business Snapshot access for R249/month on Pro. Business and Enterprise include unlimited access.';
-const multiEstablishment = 'Optional corporate add-on: R2,890/month for the first two establishments, then R1,999/month for each additional establishment. Subscription room capacity and volume discounts are calculated separately for each establishment.';
+const multiEstablishment = 'Multi-establishment fee: R2,890/month for each additional establishment after the first. Two establishments add R2,890/month; three establishments add R5,780/month. This fee is separate from each establishment's Enterprise room subscription.';
 const enterpriseRooms = 'Enterprise starts at R1,698/month per establishment for up to 25 rooms. Add capacity in 5-room blocks at R349 per block: 30 rooms R2,047/month; 35 rooms R2,396/month, before any applicable volume discount.';
 const volumeDiscounts = 'Volume discounts apply per establishment, not pooled across a group: rooms 1–50: 0%; rooms 51–100: 10% discount on that bracket; rooms 101–300: 12% on that bracket; rooms 301+: 15% on that bracket.';
 
@@ -101,7 +101,7 @@ const rows: ComparisonRow[] = [
       { label: 'R349/mo · R3,839/yr', detail: 'Starter: R349/month or R3,839/year (11 monthly payments). Includes up to 5 rooms and 3 staff.' },
       { label: 'R797/mo · R8,767/yr', detail: 'Growth: R797/month or R8,767/year. Includes up to 10 rooms and 8 staff. Lost & Found is an optional R99/month add-on.' },
       { label: 'R1,049/mo · R11,539/yr', detail: 'Pro: R1,049/month or R11,539/year. Includes up to 15 rooms and 20 staff. Business Snapshot unlimited is optional at R249/month; individual vouchers remain available pay-as-you-go.' },
-      { label: 'R1,429/mo · R15,719/yr', detail: 'Business: R1,429/month or R15,719/year. Includes up to 20 rooms, unlimited staff and unlimited Business Snapshot. Multi-establishment is an optional paid add-on.' },
+      { label: 'R1,429/mo · R15,719/yr', detail: 'Business: R1,429/month or R15,719/year. Includes up to 20 rooms, unlimited staff and unlimited Business Snapshot. Multi-establishment is an optional paid add-on at R2,890/month for each additional establishment after the first.' },
       { label: 'From R1,698/mo', detail: enterpriseRooms + ' ' + volumeDiscounts + ' Annual pricing depends on the configured room capacity and discount brackets; request a quote for the establishment.' },
     ],
   },
