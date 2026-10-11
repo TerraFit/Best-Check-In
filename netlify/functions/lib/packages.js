@@ -15,7 +15,7 @@ export const PACKAGES = {
     description: 'Replace paper. Digitise reception. Ensure legal compliance.',
     upgradeOrder: 0,
     priceMonthly: 349,
-    priceYearly: 3490,
+    priceYearly: 3839,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -29,8 +29,8 @@ export const PACKAGES = {
     maxStaff: 8,
     description: 'Improve daily operations, staff capacity, and country-level insight.',
     upgradeOrder: 1,
-    priceMonthly: 649,
-    priceYearly: 6490,
+    priceMonthly: 797,
+    priceYearly: 8767,
     currency: 'ZAR',
     popular: true,
     contactSales: false,
@@ -44,8 +44,8 @@ export const PACKAGES = {
     maxStaff: 20,
     description: 'Professional management: audit, advanced reporting, regional analytics.',
     upgradeOrder: 2,
-    priceMonthly: 949,
-    priceYearly: 9490,
+    priceMonthly: 1049,
+    priceYearly: 11539,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -56,11 +56,11 @@ export const PACKAGES = {
     name: 'Business',
     minRooms: 16,
     maxRooms: 20,
-    maxStaff: 50,
+    maxStaff: null,
     description: 'Manage multiple establishments from one hospitality business dashboard.',
     upgradeOrder: 3,
-    priceMonthly: 1290,
-    priceYearly: 12900,
+    priceMonthly: 1429,
+    priceYearly: 15719,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -69,16 +69,16 @@ export const PACKAGES = {
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise',
-    minRooms: 20,
+    minRooms: 25,
     maxRooms: null,
     maxStaff: null,
-    description: 'White label, API, custom integrations, dedicated support and security.',
+    description: 'Enterprise pricing from R1,698/month per establishment, with capacity-based volume discounts.',
     upgradeOrder: 4,
-    priceMonthly: 0,
-    priceYearly: 0,
+    priceMonthly: 1698,
+    priceYearly: 18678,
     currency: 'ZAR',
     popular: false,
-    contactSales: true,
+    contactSales: false,
     color: 'stone',
   },
 };
@@ -109,7 +109,6 @@ export function recommendUpgrade(currentPlan, requiredPlan) {
   if (planSatisfies(current, required)) return current;
   const curOrder = getUpgradeOrder(current);
   const reqOrder = getUpgradeOrder(required);
-  // Prefer next step after current if it reaches required; else required itself
   const nextOrder = Math.min(curOrder + 1, reqOrder);
   return PLAN_ORDER[Math.max(nextOrder, reqOrder)] || required;
 }
