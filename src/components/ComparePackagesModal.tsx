@@ -17,7 +17,7 @@ const plans = ['Starter', 'Growth', 'Pro', 'Business', 'Enterprise'];
 
 const snapshotPayg = 'Business Snapshot vouchers: 1 for R99, 2 for R190, 3 for R280 or 4 for R370. Each voucher covers one selected reporting period and is valid for 3 months.';
 const snapshotUnlimited = 'Optional unlimited Business Snapshot access for R249/month on Pro. Business and Enterprise include unlimited access.';
-const multiEstablishment = 'Multi-establishment fee: R2,890/month for each additional establishment after the first. Two establishments add R2,890/month; three establishments add R5,780/month. This fee is separate from each establishment's Enterprise room subscription.';
+const multiEstablishment = "Multi-establishment fee: R2,890/month for each additional establishment after the first. Two establishments add R2,890/month; three establishments add R5,780/month. This fee is separate from each establishment's Enterprise room subscription.";
 const enterpriseRooms = 'Enterprise starts at R1,698/month per establishment for up to 25 rooms. Add capacity in 5-room blocks at R349 per block: 30 rooms R2,047/month; 35 rooms R2,396/month, before any applicable volume discount.';
 const volumeDiscounts = 'Volume discounts apply per establishment, not pooled across a group: rooms 1–50: 0%; rooms 51–100: 10% discount on that bracket; rooms 101–300: 12% on that bracket; rooms 301+: 15% on that bracket.';
 
