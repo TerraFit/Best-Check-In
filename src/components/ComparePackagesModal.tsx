@@ -50,7 +50,7 @@ const rows: ComparisonRow[] = [
   {
     label: 'Housekeeping',
     detail: 'Basic covers core housekeeping workflow. Advanced adds room allocation. Enterprise Advance+ provides the enhanced operational capability for larger or more complex establishments.',
-    values: ['—', 'Basic', 'Advanced (room allocation)', 'Advanced (room allocation)', 'Enterprise Advance+'],
+    values: ['—', 'Basic', 'Advanced', 'Advanced', 'Enterprise Advance+'],
   },
   {
     label: 'Analytics & market insight',
