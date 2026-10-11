@@ -12,23 +12,13 @@ export interface RegionalPlanPricing {
   exchangeRateVariable: true;
 }
 
-/**
- * Existing South African commercial prices.
- * International pricing is derived from these base values and the
- * regional pricing structure below, without changing the SA price list.
- */
-export const BASE_ZAR_MONTHLY = [349, 649, 949, 1290] as const;
+/** Current South African commercial prices. */
+export const BASE_ZAR_MONTHLY = [349, 797, 1049, 1429] as const;
 
-/**
- * Initial Africa international price ladder. Regional multipliers are
- * applied to these prices for all non-European markets.
- */
-export const BASE_AFRICA_USD_MONTHLY = [20, 35, 50, 70] as const;
+/** Initial Africa international price ladder. */
+export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75] as const;
 
-/**
- * Europe uses the agreed commercial planning rate of R20 = €1,
- * applied to the ZAR base and then multiplied by Europe's 1.30 factor.
- */
+/** Europe uses the agreed commercial planning rate of R20 = €1. */
 export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
 
 const roundCurrency = (value: number) => Math.round(value);
@@ -37,7 +27,7 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   if (southAfrican) {
     return {
       currency: 'ZAR',
-      prices: BASE_ZAR_MONTHLY.map((monthly) => ({ monthly, yearly: monthly * 10 })),
+      prices: BASE_ZAR_MONTHLY.map((monthly) => ({ monthly, yearly: monthly * 11 })),
       billingCurrency: 'ZAR',
       exchangeRateVariable: true,
     };
@@ -51,7 +41,7 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
 
   return {
     currency: config.currency,
-    prices: monthly.map((value) => ({ monthly: value, yearly: value * 10 })),
+    prices: monthly.map((value) => ({ monthly: value, yearly: value * 11 })),
     billingCurrency: 'ZAR',
     exchangeRateVariable: true,
   };
