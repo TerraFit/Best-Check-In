@@ -107,19 +107,25 @@ const rows: ComparisonRow[] = [
   },
 ];
 
-function InfoValue({ value }: { value: ComparisonValue }) {
+function InfoValue({ value, edge }: { value: ComparisonValue; edge?: 'left' | 'right' }) {
   if (typeof value === 'string') {
     return value === 'Included'
       ? <span className="inline-flex items-center gap-1 font-semibold text-stone-800"><Check className="h-4 w-4 text-amber-600" />Included</span>
       : <span>{value}</span>;
   }
 
+  const tooltipPosition = edge === 'left'
+    ? 'left-0 translate-x-0'
+    : edge === 'right'
+      ? 'right-0 translate-x-0'
+      : 'left-1/2 -translate-x-1/2';
+
   return (
     <span className="inline-flex items-center justify-center gap-1.5">
       <span>{value.label}</span>
       <span className="group relative inline-flex shrink-0 cursor-help align-middle" tabIndex={0} aria-label={value.detail}>
         <Info className="h-4 w-4 text-amber-600" />
-        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-72 -translate-x-1/2 rounded-xl bg-stone-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus:block">
+        <span className={`pointer-events-none absolute bottom-full z-30 mb-2 hidden w-72 rounded-xl bg-stone-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus:block ${tooltipPosition}`}>
           {value.detail}
         </span>
       </span>
@@ -173,7 +179,7 @@ export default function ComparePackagesModal({ open, onClose }: ComparePackagesM
                       {row.label}
                       <span className="group relative inline-flex cursor-help" tabIndex={0} aria-label={row.detail}>
                         <Info className="h-4 w-4 text-stone-400" />
-                        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-64 -translate-x-1/2 rounded-xl bg-stone-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus:block">
+                        <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-64 translate-x-0 rounded-xl bg-stone-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus:block">
                           {row.detail}
                         </span>
                       </span>
@@ -181,7 +187,10 @@ export default function ComparePackagesModal({ open, onClose }: ComparePackagesM
                   </th>
                   {row.values.map((value, valueIndex) => (
                     <td key={`${row.label}-${plans[valueIndex]}`} className="border-b border-stone-200 px-4 py-4 text-center align-top text-stone-600">
-                      <InfoValue value={value} />
+                      <InfoValue
+                        value={value}
+                        edge={valueIndex === 0 ? 'left' : valueIndex === plans.length - 1 ? 'right' : undefined}
+                      />
                     </td>
                   ))}
                 </tr>
