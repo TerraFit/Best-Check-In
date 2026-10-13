@@ -26,6 +26,7 @@ type TurnstileWidgetProps = {
 
 const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 const SCRIPT_ID = 'fastcheckin-turnstile-script';
+const siteKeyFingerprint = SITE_KEY ? `${SITE_KEY.slice(0, 6)}…${SITE_KEY.slice(-4)}` : 'missing';
 
 export default function TurnstileWidget({ action, onToken, resetKey = 0 }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -41,7 +42,7 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
       if (cancelled || !containerRef.current) return;
       if (!window.turnstile) {
         const message = 'Cloudflare Turnstile loaded without exposing its API.';
-        console.error(`[FastCheckIn Turnstile] ${message}`, { action });
+        console.error(`[FastCheckIn Turnstile] ${message}`, { action, hostname: window.location.hostname, siteKeyFingerprint });
         setWidgetError(message);
         return;
       }
@@ -66,7 +67,7 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
               console.error(`[FastCheckIn Turnstile] ${message}`, {
                 action,
                 hostname: window.location.hostname,
-                siteKeyConfigured: Boolean(SITE_KEY),
+                siteKeyFingerprint,
               });
               setWidgetError(message);
             },
@@ -77,7 +78,7 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
         console.error('[FastCheckIn Turnstile] Widget render failed.', {
           action,
           hostname: window.location.hostname,
-          siteKeyConfigured: Boolean(SITE_KEY),
+          siteKeyFingerprint,
           error: message,
         });
         setWidgetError(`Security verification could not start: ${message}`);
@@ -100,6 +101,7 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
         console.error(`[FastCheckIn Turnstile] ${message}`, {
           action,
           hostname: window.location.hostname,
+          siteKeyFingerprint,
         });
         setWidgetError(message);
       }, { once: true });
