@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 declare global {
   interface Window {
@@ -10,7 +10,7 @@ declare global {
           action: string;
           callback: (token: string) => void;
           'expired-callback'?: () => void;
-          'error-callback'?: () => void;
+          'error-callback'?: (errorCode?: string) => void;
         }
       ) => string;
       reset: (widgetId?: string) => void;
@@ -26,10 +26,12 @@ type TurnstileWidgetProps = {
 
 const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 const SCRIPT_ID = 'fastcheckin-turnstile-script';
+const siteKeyFingerprint = SITE_KEY ? `${SITE_KEY.slice(0, 6)}…${SITE_KEY.slice(-4)}` : 'missing';
 
 export default function TurnstileWidget({ action, onToken, resetKey = 0 }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [widgetError, setWidgetError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!SITE_KEY || !containerRef.current) return;
@@ -37,17 +39,49 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
     let cancelled = false;
 
     const render = () => {
-      if (cancelled || !containerRef.current || !window.turnstile) return;
-      if (widgetIdRef.current) {
-        window.turnstile.reset(widgetIdRef.current);
-      } else {
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
-          sitekey: SITE_KEY,
+      if (cancelled || !containerRef.current) return;
+      if (!window.turnstile) {
+        const message = 'Cloudflare Turnstile loaded without exposing its API.';
+        console.error(`[FastCheckIn Turnstile] ${message}`, { action, hostname: window.location.hostname, siteKeyFingerprint });
+        setWidgetError(message);
+        return;
+      }
+      try {
+        setWidgetError(null);
+        if (widgetIdRef.current) {
+          window.turnstile.reset(widgetIdRef.current);
+        } else {
+          widgetIdRef.current = window.turnstile.render(containerRef.current, {
+            sitekey: SITE_KEY,
+            action,
+            callback: (token) => {
+              setWidgetError(null);
+              onToken(token);
+            },
+            'expired-callback': () => onToken(''),
+            'error-callback': (errorCode) => {
+              onToken('');
+              const message = errorCode
+                ? `Cloudflare Turnstile reported error ${errorCode}.`
+                : 'Cloudflare Turnstile could not initialize or verify this hostname.';
+              console.error(`[FastCheckIn Turnstile] ${message}`, {
+                action,
+                hostname: window.location.hostname,
+                siteKeyFingerprint,
+              });
+              setWidgetError(message);
+            },
+          });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[FastCheckIn Turnstile] Widget render failed.', {
           action,
-          callback: onToken,
-          'expired-callback': () => onToken(''),
-          'error-callback': () => onToken(''),
+          hostname: window.location.hostname,
+          siteKeyFingerprint,
+          error: message,
         });
+        setWidgetError(`Security verification could not start: ${message}`);
       }
     };
 
@@ -62,6 +96,15 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
       script.async = true;
       script.defer = true;
       script.addEventListener('load', render, { once: true });
+      script.addEventListener('error', () => {
+        const message = 'Cloudflare Turnstile script failed to load.';
+        console.error(`[FastCheckIn Turnstile] ${message}`, {
+          action,
+          hostname: window.location.hostname,
+          siteKeyFingerprint,
+        });
+        setWidgetError(message);
+      }, { once: true });
       document.head.appendChild(script);
     }
 
@@ -85,5 +128,14 @@ export default function TurnstileWidget({ action, onToken, resetKey = 0 }: Turns
     );
   }
 
-  return <div ref={containerRef} className="min-h-[65px]" aria-label="Security verification" />;
+  return (
+    <div>
+      <div ref={containerRef} className="min-h-[65px]" aria-label="Security verification" />
+      {widgetError && (
+        <p role="alert" className="mt-2 text-sm text-red-700">
+          Security verification failed to start. Please refresh and try again. ({widgetError})
+        </p>
+      )}
+    </div>
+  );
 }
