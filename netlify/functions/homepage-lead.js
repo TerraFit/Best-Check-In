@@ -34,13 +34,18 @@ function validateLead(lead) {
   return null;
 }
 
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, reportRecipientError = false }) {
   if (!process.env.RESEND_API_KEY) { console.warn('RESEND_API_KEY is not configured.'); return false; }
   try {
     const { Resend } = await import('resend');
     const resend = new Resend(process.env.RESEND_API_KEY);
     const result = await resend.emails.send({ from:'FastCheckin <notifications@fastcheckin.co.za>', to:Array.isArray(to)?to:[to], subject, html });
-    if (result?.error) { console.error('Resend returned an error:',result.error); return false; }
+    if (result?.error) {
+      console.error('Resend returned an error:',result.error);
+      const message = `${result.error.message || ''} ${result.error.name || ''}`;
+      if (reportRecipientError && /invalid recipient|invalid email|email address.*invalid|recipient.*invalid/i.test(message)) return { sent:false, invalidRecipient:true };
+      return false;
+    }
     return true;
   } catch (error) { console.error('Email send failed:',error); return false; }
 }
@@ -75,7 +80,7 @@ async function sendBrochureThankYou(lead) {
   <p style="font-size:15px;line-height:1.7;margin:28px 0 0">You can also <a href="${siteUrl}" style="color:#547600;font-weight:bold">explore FastCheckIn online</a> at any time.</p>
   <p style="margin:24px 0 0">Kind regards,<br><strong>The FastCheckIn Team</strong><br><span style="color:#60727b">Hospitality, connected</span></p></div>
   <div style="padding:20px 32px;background:#f3f8f7;font-size:12px;line-height:1.6;color:#60727b;text-align:center">FastCheckIn · Aemara Group Pty Ltd · South Africa<br><a href="mailto:inquiry@fastcheckin.co.za" style="color:#547600">inquiry@fastcheckin.co.za</a> · +27 (0)83 778 9487</div></div></div>`;
-  return sendEmail({ to:lead.email, subject:'Thank you for your interest in FastCheckIn', html });
+  return sendEmail({ to:lead.email, subject:'Thank you for your interest in FastCheckIn', html, reportRecipientError:true });
 }
 
 async function prepareProtectedResource(resource) {
@@ -139,8 +144,9 @@ export const handler=async event=>{
   } catch (error) { console.error('Resource request persistence failed:',error); return jsonResponse(500,{error:'Unable to save your request. Please try again.'}); }
   await notifyLead(lead,document);
   if (document==='brochure') {
-    const emailSent=await sendBrochureThankYou(lead);
-    if (!emailSent) return jsonResponse(502,{success:false,error:'We could not send the confirmation email. Please check the email address and try again.'});
+    const emailResult=await sendBrochureThankYou(lead);
+    if (emailResult && typeof emailResult==='object' && emailResult.invalidRecipient) return jsonResponse(422,{success:false,emailRejected:true,error:'We could not recognise this email address. Please check it and edit it to continue.'});
+    if (emailResult !== true) return jsonResponse(502,{success:false,error:'We could not send the confirmation email. Please try again.'});
     return jsonResponse(200,{success:true,brochureUrl:'/FastCheckIn_Brochure.html',emailSent:true});
   }
   try { const downloadUrl=await prepareProtectedResource(PROTECTED_DOCUMENTS[document]); return jsonResponse(200,{success:true,downloadUrl}); }
