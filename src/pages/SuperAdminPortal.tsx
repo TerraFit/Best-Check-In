@@ -69,6 +69,22 @@ interface WebsiteEnquiry {
   international_establishments?: number;
   international_countries?: string[];
   comments?: string;
+  email_activity?: Array<{
+    id: string;
+    email_type: string;
+    recipient: string;
+    subject: string;
+    send_status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'failed';
+    sent_at?: string | null;
+    delivered_at?: string | null;
+    opened_at?: string | null;
+    clicked_at?: string | null;
+    bounced_at?: string | null;
+    complained_at?: string | null;
+    last_event_at?: string | null;
+    error_message?: string | null;
+    created_at: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
@@ -861,6 +877,38 @@ export default function SuperAdminPortal() {
                           {enquiry.international_countries?.length ? <div><strong>Other countries:</strong> {enquiry.international_countries.join(', ')}</div> : null}
                         </div>
                       )}
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-slate-800">Email activity</h4>
+                          <span className="text-xs text-slate-500">{enquiry.email_activity?.length || 0} message(s)</span>
+                        </div>
+                        {!enquiry.email_activity?.length ? (
+                          <p className="text-xs text-slate-500">No email activity recorded yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {enquiry.email_activity.map((email) => (
+                              <div key={email.id} className="rounded-md border border-slate-200 bg-white p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="break-words text-sm font-medium text-slate-800">{email.subject || email.email_type}</p>
+                                    <p className="break-all text-xs text-slate-500">To: {email.recipient}</p>
+                                  </div>
+                                  <span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${email.send_status === 'failed' || email.send_status === 'bounced' || email.send_status === 'complained' ? 'bg-red-100 text-red-700' : email.send_status === 'opened' || email.send_status === 'clicked' ? 'bg-emerald-100 text-emerald-700' : email.send_status === 'delivered' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>{email.send_status}</span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                  {email.sent_at && <span>Sent: {new Date(email.sent_at).toLocaleString()}</span>}
+                                  {email.delivered_at && <span>Delivered: {new Date(email.delivered_at).toLocaleString()}</span>}
+                                  {email.opened_at && <span>Opened: {new Date(email.opened_at).toLocaleString()}</span>}
+                                  {email.clicked_at && <span>Link clicked: {new Date(email.clicked_at).toLocaleString()}</span>}
+                                  {email.bounced_at && <span>Bounced: {new Date(email.bounced_at).toLocaleString()}</span>}
+                                  {email.complained_at && <span>Marked as spam: {new Date(email.complained_at).toLocaleString()}</span>}
+                                </div>
+                                {email.error_message && <p className="mt-2 text-xs text-red-700">Send error: {email.error_message}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {enquiry.comments && <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-xs text-gray-600">{enquiry.comments}</pre>}
                     </div>
                     <div className="flex shrink-0 flex-col gap-2 lg:w-36">
