@@ -58,6 +58,12 @@
   status = 200
 
 [[headers]]
+  for = "/FastCheckIn_Brochure.html"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    Content-Security-Policy = "frame-ancestors 'self'"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
