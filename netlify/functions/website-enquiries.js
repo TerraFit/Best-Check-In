@@ -23,7 +23,15 @@ export const handler = async (event) => {
   try {
     if (event.httpMethod === 'GET') {
       const data = await supabaseFetch('website_enquiries?select=*&order=created_at.desc');
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: data || [] }) };
+      const emails = await supabaseFetch('website_enquiry_emails?select=id,enquiry_id,email_type,recipient,subject,send_status,sent_at,delivered_at,opened_at,clicked_at,bounced_at,complained_at,last_event_at,error_message,created_at&order=created_at.desc');
+      const byEnquiry = new Map();
+      for (const email of (emails || [])) {
+        if (!email.enquiry_id) continue;
+        if (!byEnquiry.has(email.enquiry_id)) byEnquiry.set(email.enquiry_id, []);
+        byEnquiry.get(email.enquiry_id).push(email);
+      }
+      const enriched = (data || []).map(enquiry => ({ ...enquiry, email_activity: byEnquiry.get(enquiry.id) || [] }));
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: enriched }) };
     }
 
     if (event.httpMethod === 'PATCH') {
