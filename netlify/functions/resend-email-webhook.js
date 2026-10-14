@@ -57,16 +57,17 @@ export const handler = async event => {
     const row = Array.isArray(rows) ? rows[0] : null;
     // Ask Resend to retry if its webhook beats the API response/log insert.
     if (!row) return reply(500, { success: false, error: 'Email record not available yet; retry webhook' });
+    const update = { last_event_at: occurredAt };
+    if ((status === 'failed' && ['sent', 'failed'].includes(row.send_status)) || priority[status] >= priority[row.send_status || 'sent']) update.send_status = status;
+    const column = { delivered: 'delivered_at', opened: 'opened_at', clicked: 'clicked_at', bounced: 'bounced_at', complained: 'complained_at' }[status];
+    if (column) update[column] = occurredAt;
+    await supabaseUpdate('website_enquiry_emails', row.id, update);
+    // Persist the deduplication key only after the summary update succeeds, so a retry can recover failures.
     await supabaseInsert('website_email_events', {
       event_id: eventId, resend_email_id: resendId, event_type: eventType,
       occurred_at: occurredAt,
       payload: { type: eventType, email_id: resendId, created_at: occurredAt, click: data.click ? { link: data.click.link } : undefined }
     }, false);
-    const update = { last_event_at: occurredAt };
-    if (priority[status] >= priority[row.send_status || 'sent']) update.send_status = status;
-    const column = { delivered: 'delivered_at', opened: 'opened_at', clicked: 'clicked_at', bounced: 'bounced_at', complained: 'complained_at' }[status];
-    if (column) update[column] = occurredAt;
-    await supabaseUpdate('website_enquiry_emails', row.id, update);
     return reply(200, { success: true });
   } catch (error) {
     console.error('Resend webhook processing failed:', error?.message || error);
