@@ -6,7 +6,7 @@ const MARKETING_BUCKET = 'fastcheckin-marketing';
 const SIGNED_URL_EXPIRES_IN = 300;
 const JSON_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const clean = (value, max = 300) => String(value ?? '').trim().slice(0, max);
-const escapeHtml = value => clean(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+const escapeHtml = value => clean(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');
 const jsonResponse = (statusCode, body) => ({ statusCode, headers: JSON_HEADERS, body: JSON.stringify(body) });
 
 async function verifyTurnstile(token, event, expectedAction) {
@@ -54,10 +54,27 @@ async function notifyLead(lead, document) {
 
 async function sendBrochureThankYou(lead) {
   const brochureUrl='https://fastcheckin.co.za/FastCheckIn_Brochure.html';
+  const compareUrl='https://fastcheckin.co.za/#pricing-section';
+  const siteUrl='https://fastcheckin.co.za';
   const demoUrl='mailto:inquiry@fastcheckin.co.za?subject=FastCheckIn%20demonstration';
   const callUrl='tel:+27837789487';
+  const heroImageUrl='https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=82';
+  const logoUrl='https://fastcheckin.co.za/fastcheckin-logo.png';
   const firstName=clean(lead.fullName).split(/\s+/)[0] || 'there';
-  const html=`<div style="margin:0;background:#eef3f4;padding:30px 12px;font-family:Arial,Helvetica,sans-serif;color:#18313c"><div style="max-width:640px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dce7e7"><div style="background:#082c3a;padding:28px 32px;color:#fff"><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c3ec5b;font-weight:bold">Hospitality, connected</div><h1 style="margin:8px 0 0;font-size:30px">Thank you for your interest in FastCheckIn</h1></div><div style="padding:32px"><p>Dear ${escapeHtml(firstName)},</p><p>Thank you for your interest in FastCheckIn. We invite you to explore our platform and see how digital check-in, guest information, operations and business intelligence can work together for your property.</p><p style="margin:26px 0"><a href="${brochureUrl}" style="display:inline-block;background:#a6d631;color:#17333c;text-decoration:none;font-weight:bold;padding:14px 20px;border-radius:8px">View the FastCheckIn brochure</a></p><p>If you would like to see FastCheckIn in action, we would be delighted to arrange a personal demonstration or speak with you about your property and requirements.</p><p style="margin:26px 0"><a href="${demoUrl}" style="display:inline-block;background:#082c3a;color:#fff;text-decoration:none;font-weight:bold;padding:13px 18px;border-radius:8px;margin-right:8px">Book a demonstration</a><a href="${callUrl}" style="display:inline-block;border:1px solid #082c3a;color:#082c3a;text-decoration:none;font-weight:bold;padding:12px 18px;border-radius:8px">Request a phone call</a></p><p>We look forward to hearing from you.</p><p style="margin-bottom:0">Kind regards,<br><strong>The FastCheckIn Team</strong><br>Hospitality, connected</p></div><div style="padding:20px 32px;background:#f3f8f7;font-size:12px;color:#60727b">FastCheckIn · Aemara Group Pty Ltd · South Africa<br>inquiry@fastcheckin.co.za · +27 (0)83 778 9487</div></div></div>`;
+  const button=(href,label,background='#082c3a',color='#ffffff') => `<a href="${href}" style="display:inline-block;background:${background};color:${color};text-decoration:none;font-weight:bold;padding:13px 18px;border-radius:8px;margin:4px">${label}</a>`;
+  const html=`<div style="margin:0;background:#eef3f4;padding:24px 10px;font-family:Arial,Helvetica,sans-serif;color:#18313c"><div style="max-width:680px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #dce7e7;box-shadow:0 4px 18px rgba(8,44,58,.08)">
+  <div style="padding:22px 30px 16px;text-align:center;background:#082c3a"><img src="${logoUrl}" alt="FastCheckIn" style="display:block;width:210px;max-width:80%;height:auto;margin:0 auto 12px"><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c3ec5b;font-weight:bold">Hospitality, connected</div></div>
+  <img src="${heroImageUrl}" alt="Hospitality and guest experience" style="display:block;width:100%;height:250px;object-fit:cover">
+  <div style="padding:30px 32px 34px"><p style="margin:0 0 10px;color:#a06a00;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:bold">FastCheckIn</p><h1 style="margin:0 0 16px;font-size:31px;line-height:1.15;color:#082c3a">Turn every guest check-in into <span style="color:#6d9800">better business intelligence.</span></h1>
+  <p style="font-size:16px;line-height:1.7;margin:0 0 16px">Dear ${escapeHtml(firstName)},</p>
+  <p style="font-size:16px;line-height:1.7;margin:0 0 14px">Thank you for your interest in FastCheckIn. We hope the brochure gives you a clear picture of how digital check-in, guest information, hotel operations and business intelligence can work together to help your property make smarter decisions.</p>
+  <p style="font-size:16px;line-height:1.7;margin:0 0 22px">Explore the platform, compare the available packages, and when you are ready, let us show you FastCheckIn in action with a personal demonstration.</p>
+  <div style="text-align:center;margin:24px 0 26px">${button(brochureUrl,'Open / download brochure','#a6d631','#17333c')}${button(compareUrl,'Compare packages','#082c3a','#ffffff')}</div>
+  <p style="font-size:14px;line-height:1.6;color:#60727b;margin:0 0 20px;text-align:center">The brochure opens online and includes <strong>Print / Save as PDF</strong> and <strong>Download HTML</strong> options.</p>
+  <div style="border-top:1px solid #e4eceb;padding-top:24px;text-align:center"><p style="font-size:17px;font-weight:bold;color:#082c3a;margin:0 0 14px">Would you like to see what FastCheckIn can do for your property?</p>${button(demoUrl,'Book a demonstration','#082c3a','#ffffff')}${button(callUrl,'Request a phone call','#ffffff','#082c3a')}</div>
+  <p style="font-size:15px;line-height:1.7;margin:28px 0 0">You can also <a href="${siteUrl}" style="color:#547600;font-weight:bold">explore FastCheckIn online</a> at any time.</p>
+  <p style="margin:24px 0 0">Kind regards,<br><strong>The FastCheckIn Team</strong><br><span style="color:#60727b">Hospitality, connected</span></p></div>
+  <div style="padding:20px 32px;background:#f3f8f7;font-size:12px;line-height:1.6;color:#60727b;text-align:center">FastCheckIn · Aemara Group Pty Ltd · South Africa<br><a href="mailto:inquiry@fastcheckin.co.za" style="color:#547600">inquiry@fastcheckin.co.za</a> · +27 (0)83 778 9487</div></div></div>`;
   return sendEmail({ to:lead.email, subject:'Thank you for your interest in FastCheckIn', html });
 }
 
