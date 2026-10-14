@@ -34,31 +34,70 @@ function validateLead(lead) {
   return null;
 }
 
-async function sendEmail({ to, subject, html }) {
-  if (!process.env.RESEND_API_KEY) { console.warn('RESEND_API_KEY is not configured.'); return false; }
+async function sendEmail({ to, subject, html, enquiryId = null, emailType = 'website-notification' }) {
+  const recipient = Array.isArray(to) ? to.join(', ') : String(to || '');
+  const sentAt = new Date().toISOString();
+  let resendEmailId = null;
+  let sendStatus = 'failed';
+  let errorMessage = null;
+  if (!process.env.RESEND_API_KEY) {
+    errorMessage = 'RESEND_API_KEY is not configured.';
+    console.warn(errorMessage);
+  } else {
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const result = await resend.emails.send({
+        from: 'FastCheckin <notifications@fastcheckin.co.za>',
+        to: Array.isArray(to) ? to : [to],
+        subject, html,
+        open_tracking: true,
+        click_tracking: true,
+        tags: [{ name: 'source', value: 'fastcheckin-website' }, { name: 'email_type', value: String(emailType).slice(0, 256) }]
+      });
+      if (result?.error) {
+        errorMessage = String(result.error.message || result.error.name || 'Resend rejected the email');
+        console.error('Resend returned an error:', result.error);
+      } else {
+        resendEmailId = result?.data?.id || result?.id || null;
+        sendStatus = 'sent';
+      }
+    } catch (error) {
+      errorMessage = String(error?.message || error || 'Email send failed').slice(0, 1000);
+      console.error('Email send failed:', error);
+    }
+  }
   try {
-    const { Resend } = await import('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const result = await resend.emails.send({ from:'FastCheckin <notifications@fastcheckin.co.za>', to:Array.isArray(to)?to:[to], subject, html });
-    if (result?.error) { console.error('Resend returned an error:',result.error); return false; }
-    return true;
-  } catch (error) { console.error('Email send failed:',error); return false; }
+    await supabaseInsert('website_enquiry_emails', {
+      enquiry_id: enquiryId,
+      resend_email_id: resendEmailId,
+      email_type: String(emailType).slice(0, 120),
+      recipient,
+      subject: String(subject || '').slice(0, 500),
+      send_status: sendStatus,
+      sent_at: sendStatus === 'sent' ? sentAt : null,
+      error_message: errorMessage
+    }, false);
+  } catch (error) {
+    console.error('Email tracking persistence failed:', error?.message || error);
+  }
+  return sendStatus === 'sent';
 }
 
-async function notifyLead(lead, document) {
+async function notifyLead(lead, document, enquiryId = null) {
   const labels={brochure:'FastCheckIn Brochure','visitor-origin':'Visitor Origin Explorer Snapshot','business-snapshot':'Business Snapshot'};
   const documentLabel=labels[document] || 'FastCheckIn resource';
   const html='<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h2>FastCheckIn resource request</h2><p><strong>Resource:</strong> '+documentLabel+'</p><p><strong>Name:</strong> '+escapeHtml(lead.fullName)+'</p><p><strong>Company / hotel:</strong> '+escapeHtml(lead.companyName)+'</p><p><strong>Email:</strong> '+escapeHtml(lead.email)+'</p><p><strong>Telephone:</strong> '+escapeHtml(lead.telephone)+'</p><p><strong>Address:</strong> '+escapeHtml(lead.address)+'</p></div>';
-  return sendEmail({ to:process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za', subject:'Homepage resource request: '+documentLabel, html });
+  return sendEmail({ to:process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za', subject:'Homepage resource request: '+documentLabel, html, enquiryId, emailType:'resource-request-notification' });
 }
 
-async function sendBrochureThankYou(lead) {
+async function sendBrochureThankYou(lead, enquiryId = null) {
   const brochureUrl='https://fastcheckin.co.za/FastCheckIn_Brochure.html';
   const demoUrl='mailto:inquiry@fastcheckin.co.za?subject=FastCheckIn%20demonstration';
   const callUrl='tel:+27837789487';
   const firstName=clean(lead.fullName).split(/\s+/)[0] || 'there';
   const html=`<div style="margin:0;background:#eef3f4;padding:30px 12px;font-family:Arial,Helvetica,sans-serif;color:#18313c"><div style="max-width:640px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dce7e7"><div style="background:#082c3a;padding:28px 32px;color:#fff"><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c3ec5b;font-weight:bold">Hospitality, connected</div><h1 style="margin:8px 0 0;font-size:30px">Thank you for your interest in FastCheckIn</h1></div><div style="padding:32px"><p>Dear ${escapeHtml(firstName)},</p><p>Thank you for your interest in FastCheckIn. We invite you to explore our platform and see how digital check-in, guest information, operations and business intelligence can work together for your property.</p><p style="margin:26px 0"><a href="${brochureUrl}" style="display:inline-block;background:#a6d631;color:#17333c;text-decoration:none;font-weight:bold;padding:14px 20px;border-radius:8px">View the FastCheckIn brochure</a></p><p>If you would like to see FastCheckIn in action, we would be delighted to arrange a personal demonstration or speak with you about your property and requirements.</p><p style="margin:26px 0"><a href="${demoUrl}" style="display:inline-block;background:#082c3a;color:#fff;text-decoration:none;font-weight:bold;padding:13px 18px;border-radius:8px;margin-right:8px">Book a demonstration</a><a href="${callUrl}" style="display:inline-block;border:1px solid #082c3a;color:#082c3a;text-decoration:none;font-weight:bold;padding:12px 18px;border-radius:8px">Request a phone call</a></p><p>We look forward to hearing from you.</p><p style="margin-bottom:0">Kind regards,<br><strong>The FastCheckIn Team</strong><br>Hospitality, connected</p></div><div style="padding:20px 32px;background:#f3f8f7;font-size:12px;color:#60727b">FastCheckIn · Aemara Group Pty Ltd · South Africa<br>inquiry@fastcheckin.co.za · +27 (0)83 778 9487</div></div></div>`;
-  return sendEmail({ to:lead.email, subject:'Thank you for your interest in FastCheckIn', html });
+  return sendEmail({ to:lead.email, subject:'Thank you for your interest in FastCheckIn', html, enquiryId, emailType:'brochure-thank-you' });
 }
 
 async function prepareProtectedResource(resource) {
@@ -85,9 +124,9 @@ async function prepareProtectedResource(resource) {
   return url.toString();
 }
 
-async function notifyInquiry(lead, topic, comments) {
+async function notifyInquiry(lead, topic, comments, enquiryId = null) {
   const html='<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h2>FastCheckIn website enquiry</h2><p><strong>Topic:</strong> '+escapeHtml(topic)+'</p><p><strong>Name:</strong> '+escapeHtml(lead.fullName)+'</p><p><strong>Company / hotel:</strong> '+escapeHtml(lead.companyName)+'</p><p><strong>Email:</strong> '+escapeHtml(lead.email)+'</p><p><strong>Telephone:</strong> '+escapeHtml(lead.telephone)+'</p><p><strong>Address:</strong> '+escapeHtml(lead.address)+'</p><p><strong>Comments:</strong><br>'+escapeHtml(comments)+'</p></div>';
-  return sendEmail({to:process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za',subject:'FastCheckIn website enquiry: '+clean(topic,120),html});
+  return sendEmail({to:process.env.FASTCHECKIN_INQUIRY_EMAIL || 'inquiry@fastcheckin.co.za',subject:'FastCheckIn website enquiry: '+clean(topic,120),html,enquiryId,emailType:'website-enquiry-notification'});
 }
 
 const PROTECTED_DOCUMENTS={brochure:{fileName:'FastCheckIn_Platform_Overview_Brochure.pdf'},'visitor-origin':{fileName:'FastCheckIn_Visitor_Origin_Explorer_Snapshot.pdf'},'business-snapshot':{fileName:'FastCheckIn_Business_Snapshot.pdf'}};
@@ -103,11 +142,13 @@ export const handler=async event=>{
     const leadError=validateLead(body.lead); if (leadError) return jsonResponse(400,{error:leadError});
     const topic=clean(body.topic,160), comments=clean(body.comments,3000); if (!topic || !comments) return jsonResponse(400,{error:'Please select a topic and enter your comments.'});
     const lead={fullName:clean(body.lead.fullName),companyName:clean(body.lead.companyName),email:clean(body.lead.email,320),telephone:clean(body.lead.telephone,80),address:clean(body.lead.address)};
+    let enquiry;
     try {
       const portfolio=body.portfolio && typeof body.portfolio==='object' ? body.portfolio : {};
-      await supabaseInsert('website_enquiries',{topic,status:'new',full_name:lead.fullName,company_name:lead.companyName,email:lead.email,telephone:lead.telephone,address:lead.address,website:clean(portfolio.website,500)||null,total_rooms:Number.isFinite(Number(portfolio.totalRooms))?Number(portfolio.totalRooms):null,total_establishments:Number.isFinite(Number(portfolio.totalEstablishments))?Number(portfolio.totalEstablishments):null,sa_establishments:Number.isFinite(Number(portfolio.saEstablishments))?Number(portfolio.saEstablishments):null,sa_provinces:Array.isArray(portfolio.saProvinces)?portfolio.saProvinces.map(v=>clean(v,100)).filter(Boolean):[],international_establishments:Number.isFinite(Number(portfolio.internationalEstablishments))?Number(portfolio.internationalEstablishments):0,international_countries:Array.isArray(portfolio.internationalCountries)?portfolio.internationalCountries.map(v=>clean(v,100)).filter(Boolean):[],comments});
+      const inserted=await supabaseInsert('website_enquiries',{topic,status:'new',full_name:lead.fullName,company_name:lead.companyName,email:lead.email,telephone:lead.telephone,address:lead.address,website:clean(portfolio.website,500)||null,total_rooms:Number.isFinite(Number(portfolio.totalRooms))?Number(portfolio.totalRooms):null,total_establishments:Number.isFinite(Number(portfolio.totalEstablishments))?Number(portfolio.totalEstablishments):null,sa_establishments:Number.isFinite(Number(portfolio.saEstablishments))?Number(portfolio.saEstablishments):null,sa_provinces:Array.isArray(portfolio.saProvinces)?portfolio.saProvinces.map(v=>clean(v,100)).filter(Boolean):[],international_establishments:Number.isFinite(Number(portfolio.internationalEstablishments))?Number(portfolio.internationalEstablishments):0,international_countries:Array.isArray(portfolio.internationalCountries)?portfolio.internationalCountries.map(v=>clean(v,100)).filter(Boolean):[],comments});
+      enquiry=Array.isArray(inserted)?inserted[0]:null;
     } catch (error) { console.error('Website enquiry persistence failed:',error); return jsonResponse(500,{error:'Unable to save your enquiry. Please try again.'}); }
-    await notifyInquiry(lead,topic,comments);
+    await notifyInquiry(lead,topic,comments,enquiry?.id || null);
     return jsonResponse(200,{success:true});
   }
 
@@ -117,9 +158,19 @@ export const handler=async event=>{
   const captcha=await verifyTurnstile(body.turnstileToken,event,'homepage-download'); if (!captcha.ok) return jsonResponse(400,{error:captcha.error});
   const leadError=validateLead(body.lead); if (leadError) return jsonResponse(400,{error:leadError});
   const lead={fullName:clean(body.lead.fullName),companyName:clean(body.lead.companyName),email:clean(body.lead.email,320),telephone:clean(body.lead.telephone,80),address:clean(body.lead.address)};
-  await notifyLead(lead,document);
+  let enquiryId = null;
+  try {
+    const inserted = await supabaseInsert('website_enquiries', {
+      topic: document === 'brochure' ? 'Brochure request' : 'Resource request: ' + document,
+      status: 'new', full_name: lead.fullName, company_name: lead.companyName,
+      email: lead.email, telephone: lead.telephone, address: lead.address,
+      comments: 'Requested resource: ' + document
+    });
+    enquiryId = Array.isArray(inserted) ? inserted[0]?.id || null : null;
+  } catch (error) { console.error('Resource enquiry persistence failed:', error?.message || error); }
+  await notifyLead(lead,document,enquiryId);
   if (document==='brochure') {
-    const emailSent=await sendBrochureThankYou(lead);
+    const emailSent=await sendBrochureThankYou(lead,enquiryId);
     return jsonResponse(200,{success:true,brochureUrl:'/FastCheckIn_Brochure.html',emailSent});
   }
   try { const downloadUrl=await prepareProtectedResource(PROTECTED_DOCUMENTS[document]); return jsonResponse(200,{success:true,downloadUrl}); }
