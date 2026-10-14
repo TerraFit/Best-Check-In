@@ -134,6 +134,9 @@ export const handler=async event=>{
   const captcha=await verifyTurnstile(body.turnstileToken,event,'homepage-download'); if (!captcha.ok) return jsonResponse(400,{error:captcha.error});
   const leadError=validateLead(body.lead); if (leadError) return jsonResponse(400,{error:leadError});
   const lead={fullName:clean(body.lead.fullName),companyName:clean(body.lead.companyName),email:clean(body.lead.email,320),telephone:clean(body.lead.telephone,80),address:clean(body.lead.address)};
+  try {
+    await supabaseInsert('website_enquiries',{topic:'Homepage resource request: '+document,status:'new',full_name:lead.fullName,company_name:lead.companyName,email:lead.email,telephone:lead.telephone,address:lead.address,comments:'Requested resource: '+document});
+  } catch (error) { console.error('Resource request persistence failed:',error); return jsonResponse(500,{error:'Unable to save your request. Please try again.'}); }
   await notifyLead(lead,document);
   if (document==='brochure') {
     const emailSent=await sendBrochureThankYou(lead);
