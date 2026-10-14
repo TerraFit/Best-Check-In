@@ -100,7 +100,7 @@ test('rejects missing Turnstile token without contacting Siteverify or the datab
 });
 
 test('rejects a valid Turnstile response for an unapproved hostname', async () => {
-  const insertCalls = mockFetch({ ...validCaptcha, hostname: 'deploy-preview-52--fastcheckin.netlify.app' });
+  const calls = mockFetch({ ...validCaptcha, hostname: 'deploy-preview-52--fastcheckin.netlify.app' });
 
   const response = await handler(event({
     action: 'inquiry',
@@ -111,11 +111,11 @@ test('rejects a valid Turnstile response for an unapproved hostname', async () =
   }));
 
   assert.equal(response.statusCode, 400);
-  assert.equal(insertCalls(), 0);
+  assert.equal(calls().insertCalls, 0);
 });
 
 test('rejects a valid Turnstile response with the wrong action', async () => {
-  const insertCalls = mockFetch({ ...validCaptcha, action: 'homepage-download' });
+  const calls = mockFetch({ ...validCaptcha, action: 'homepage-download' });
 
   const response = await handler(event({
     action: 'inquiry',
@@ -126,11 +126,11 @@ test('rejects a valid Turnstile response with the wrong action', async () => {
   }));
 
   assert.equal(response.statusCode, 400);
-  assert.equal(insertCalls(), 0);
+  assert.equal(calls().insertCalls, 0);
 });
 
 test('accepts a verified general enquiry and persists it', async () => {
-  const insertCalls = mockFetch(validCaptcha);
+  const calls = mockFetch(validCaptcha);
 
   const response = await handler(event({
     action: 'inquiry',
@@ -142,11 +142,11 @@ test('accepts a verified general enquiry and persists it', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.equal(JSON.parse(response.body).success, true);
-  assert.equal(insertCalls(), 1);
+  assert.equal(calls().insertCalls, 1);
 });
 
 test('uses a separate expected action for Enterprise enquiries', async () => {
-  const insertCalls = mockFetch({ ...validCaptcha, action: 'homepage-enquiry' });
+  const calls = mockFetch({ ...validCaptcha, action: 'homepage-enquiry' });
 
   const response = await handler(event({
     action: 'enterprise-inquiry',
@@ -157,7 +157,7 @@ test('uses a separate expected action for Enterprise enquiries', async () => {
   }));
 
   assert.equal(response.statusCode, 400);
-  assert.equal(insertCalls(), 0);
+  assert.equal(calls().insertCalls, 0);
 });
 
 test('sends the brochure confirmation email before returning modal access and records the lead', async () => {
