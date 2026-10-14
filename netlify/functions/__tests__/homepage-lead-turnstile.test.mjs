@@ -179,7 +179,7 @@ test('sends the brochure confirmation email before returning modal access and re
   const result = calls();
   assert.equal(result.insertCalls, 1);
   assert.equal(result.resendCalls, 2, 'lead notification and visitor confirmation should both be sent');
-  assert.ok(result.resendRequests.some(request => Array.isArray(request.to) && request.to.includes(lead.email)));
+  assert.ok(Array.isArray(result.resendRequests[1]?.to) && result.resendRequests[1].to.includes(lead.email), 'visitor confirmation should be sent after the internal lead notification');
   assert.equal(result.storageExistsCalls, 0);
   assert.equal(result.storageUploadCalls, 0);
   assert.equal(result.storageSignCalls, 0);
@@ -207,7 +207,9 @@ test('does not offer brochure access when the visitor confirmation email fails',
   assert.equal(body.success, false);
   assert.match(body.error, /confirmation email/i);
   assert.equal(body.brochureUrl, undefined);
-  assert.equal(calls().resendCalls, 2);
+  const result = calls();
+  assert.equal(result.resendCalls, 2);
+  assert.ok(Array.isArray(result.resendRequests[1]?.to) && result.resendRequests[1].to.includes(lead.email));
 });
 
 test('rejects unsupported HTTP methods', async () => {
