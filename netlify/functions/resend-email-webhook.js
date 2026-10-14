@@ -30,7 +30,9 @@ const eventMap = {
   'email.opened': 'opened',
   'email.clicked': 'clicked',
   'email.bounced': 'bounced',
-  'email.complained': 'complained'
+  'email.complained': 'complained',
+  'email.failed': 'failed',
+  'email.suppressed': 'failed'
 };
 const priority = { failed: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, bounced: 5, complained: 6 };
 
