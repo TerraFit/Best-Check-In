@@ -32,7 +32,7 @@ const eventMap = {
   'email.bounced': 'bounced',
   'email.complained': 'complained'
 };
-const priority = { sent: 1, delivered: 2, opened: 3, clicked: 4, bounced: 5, complained: 6 };
+const priority = { failed: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, bounced: 5, complained: 6 };
 
 export const handler = async event => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
@@ -51,19 +51,20 @@ export const handler = async event => {
   try {
     const duplicate = await supabaseFetch(`website_email_events?select=event_id&event_id=eq.${encodeURIComponent(eventId)}&limit=1`);
     if (Array.isArray(duplicate) && duplicate.length) return reply(200, { success: true, duplicate: true });
-    await supabaseInsert('website_email_events', {
-      event_id: eventId, resend_email_id: resendId, event_type: eventType,
-      occurred_at: occurredAt, payload
-    }, false);
     const rows = await supabaseFetch(`website_enquiry_emails?select=id,send_status&resend_email_id=eq.${encodeURIComponent(resendId)}&limit=1`);
     const row = Array.isArray(rows) ? rows[0] : null;
-    if (row) {
-      const update = { last_event_at: occurredAt };
-      if (priority[status] >= priority[row.send_status || 'sent']) update.send_status = status;
-      const column = { delivered: 'delivered_at', opened: 'opened_at', clicked: 'clicked_at', bounced: 'bounced_at', complained: 'complained_at' }[status];
-      if (column) update[column] = occurredAt;
-      await supabaseUpdate('website_enquiry_emails', row.id, update);
-    }
+    // Ask Resend to retry if its webhook beats the API response/log insert.
+    if (!row) return reply(500, { success: false, error: 'Email record not available yet; retry webhook' });
+    await supabaseInsert('website_email_events', {
+      event_id: eventId, resend_email_id: resendId, event_type: eventType,
+      occurred_at: occurredAt,
+      payload: { type: eventType, email_id: resendId, created_at: occurredAt, click: data.click ? { link: data.click.link } : undefined }
+    }, false);
+    const update = { last_event_at: occurredAt };
+    if (priority[status] >= priority[row.send_status || 'sent']) update.send_status = status;
+    const column = { delivered: 'delivered_at', opened: 'opened_at', clicked: 'clicked_at', bounced: 'bounced_at', complained: 'complained_at' }[status];
+    if (column) update[column] = occurredAt;
+    await supabaseUpdate('website_enquiry_emails', row.id, update);
     return reply(200, { success: true });
   } catch (error) {
     console.error('Resend webhook processing failed:', error?.message || error);
