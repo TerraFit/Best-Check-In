@@ -137,7 +137,8 @@ export const handler=async event=>{
   await notifyLead(lead,document);
   if (document==='brochure') {
     const emailSent=await sendBrochureThankYou(lead);
-    return jsonResponse(200,{success:true,brochureUrl:'/FastCheckIn_Brochure.html',emailSent});
+    if (!emailSent) return jsonResponse(502,{success:false,error:'We could not send the confirmation email. Please check the email address and try again.'});
+    return jsonResponse(200,{success:true,brochureUrl:'/FastCheckIn_Brochure.html',emailSent:true});
   }
   try { const downloadUrl=await prepareProtectedResource(PROTECTED_DOCUMENTS[document]); return jsonResponse(200,{success:true,downloadUrl}); }
   catch (error) { console.error('Protected resource preparation failed:',error); return jsonResponse(500,{error:'Unable to prepare the download. Please try again.'}); }
