@@ -51,8 +51,6 @@ async function sendEmail({ to, subject, html, enquiryId = null, emailType = 'web
         from: 'FastCheckin <notifications@fastcheckin.co.za>',
         to: Array.isArray(to) ? to : [to],
         subject, html,
-        open_tracking: true,
-        click_tracking: true,
         tags: [{ name: 'source', value: 'fastcheckin-website' }, { name: 'email_type', value: String(emailType).slice(0, 256) }]
       });
       if (result?.error) {
