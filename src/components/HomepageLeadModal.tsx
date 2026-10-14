@@ -26,7 +26,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
       const response = await fetch('/.netlify/functions/homepage-lead', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'download', document:requestedDocument, lead:currentLead, turnstileToken }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (requestedDocument === 'brochure' && data.emailRejected === true) { setEmailRejected(true); setError(''); return; }
+        if (requestedDocument === 'brochure' && data.emailRejected === true) { setTurnstileToken(''); setTurnstileResetKey(value => value + 1); setEmailRejected(true); setError(''); return; }
         throw new Error(data.error || 'Unable to prepare the requested resource.');
       }
       setTurnstileToken(''); setTurnstileResetKey(value => value + 1); setEmailRejected(false); setEditEmail(false);
