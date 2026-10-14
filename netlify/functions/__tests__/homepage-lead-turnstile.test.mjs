@@ -202,14 +202,40 @@ test('does not offer brochure access when the visitor confirmation email fails',
     turnstileToken: 'test-token',
   }));
 
-  assert.equal(response.statusCode, 502);
+  assert.equal(response.statusCode, 422);
   const body = JSON.parse(response.body);
   assert.equal(body.success, false);
-  assert.match(body.error, /confirmation email/i);
+  assert.equal(body.emailRejected, true);
+  assert.match(body.error, /recognise this email address/i);
   assert.equal(body.brochureUrl, undefined);
   const result = calls();
   assert.equal(result.resendCalls, 2);
   assert.ok(Array.isArray(result.resendRequests[1]?.to) && result.resendRequests[1].to.includes(lead.email));
+});
+
+test('treats temporary email delivery failures differently from rejected recipients', async () => {
+  process.env.RESEND_API_KEY = 're_test_key';
+  const calls = mockFetch(
+    { ...validCaptcha, action: 'homepage-download' },
+    { resendResponses: [
+      { status: 200, body: { id: 'lead-notification-id' } },
+      { status: 500, body: { message: 'Internal server error' } },
+    ] },
+  );
+
+  const response = await handler(event({
+    action: 'download',
+    document: 'brochure',
+    lead,
+    turnstileToken: 'test-token',
+  }));
+
+  assert.equal(response.statusCode, 502);
+  const body = JSON.parse(response.body);
+  assert.equal(body.emailRejected, undefined);
+  assert.match(body.error, /try again/i);
+  assert.equal(body.brochureUrl, undefined);
+  assert.equal(calls().resendCalls, 2);
 });
 
 test('rejects unsupported HTTP methods', async () => {
