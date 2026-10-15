@@ -48,7 +48,8 @@ export default function HomePage() {
       maxRooms: 5,
       staff: '3',
       featureKeys: ['landing_plan_starter_f1', 'landing_plan_starter_f2', 'landing_plan_starter_f3', 'landing_plan_starter_f4'] as const,
-      isPopular: false
+      isPopular: false,
+      isFrom: false
     },
     {
       nameKey: 'landing_plan_growth' as const,
@@ -57,7 +58,8 @@ export default function HomePage() {
       maxRooms: 10,
       staff: '8',
       featureKeys: ['landing_plan_growth_f1', 'landing_plan_growth_f2', 'landing_plan_growth_f3', 'landing_plan_growth_f4', 'landing_plan_growth_f5'] as const,
-      isPopular: true
+      isPopular: true,
+      isFrom: false
     },
     {
       nameKey: 'landing_plan_pro' as const,
@@ -66,7 +68,8 @@ export default function HomePage() {
       maxRooms: 15,
       staff: '20',
       featureKeys: ['landing_plan_pro_f1', 'landing_plan_pro_f2', 'landing_plan_pro_f3', 'landing_plan_pro_f4', 'landing_plan_pro_f5'] as const,
-      isPopular: false
+      isPopular: false,
+      isFrom: false
     },
     {
       nameKey: 'landing_plan_business' as const,
