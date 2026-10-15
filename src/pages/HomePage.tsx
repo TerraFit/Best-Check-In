@@ -464,13 +464,12 @@ export default function HomePage() {
                   <span className="absolute -top-3 left-6 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-stone-950">{t('landing_plan_most_popular')}</span>
                 )}
                 <h3 className="text-2xl font-bold">{t(plan.nameKey)}</h3>
-                <p className="text-sm text-stone-500 mt-1">{plan.isFrom ? '25+ rooms' : t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
-                <p className="text-xs text-stone-500 mt-1">Staff: {plan.staff}</p>
+                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
                 <div className="mt-6">
-                  <span className="text-4xl font-black text-stone-900">{plan.isFrom ? 'From ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceMonthly}</span>
+                  <span className="text-4xl font-black text-stone-900">{plan.isFrom ? 'From ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '</span>
                   <span className="text-stone-500"> {t('landing_plan_per_month')}</span>
                 </div>
-                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">{plan.isFrom ? 'from ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceYearly}</strong>{t('landing_plan_per_year')}</p>
+                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">{plan.isFrom ? 'from ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '</strong>{t('landing_plan_per_year')}</p>
                 <ul className="mt-7 space-y-3 min-h-[150px]">
                   {plan.featureKeys.map((featureKey) => (
                     <li key={featureKey} className="flex gap-2 text-sm text-stone-600">
