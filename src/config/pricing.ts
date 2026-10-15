@@ -16,7 +16,7 @@ export interface RegionalPlanPricing {
 export const BASE_ZAR_MONTHLY = [349, 797, 1190, 1589, 1975] as const;
 
 /** Initial Africa international price ladder. */
-export const BASE_AFRICA_USD_MONTHLY = [20, 40, 60, 80, 99] as const;
+export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
 
 /** Europe uses the agreed commercial planning rate of R20 = €1. */
 export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
