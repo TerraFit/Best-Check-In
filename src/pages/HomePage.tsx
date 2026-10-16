@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from '../i18n';
 import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
 import HomepageLegalModal from '../components/HomepageLegalModal';
-import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
+import EnterpriseComingSoonModal from '../components/EnterpriseComingSoonModal';
 import TurnstileWidget from '../components/TurnstileWidget';
 import GlobalMarketSelector from '../components/GlobalMarketSelector';
 import { useMarket } from '../context/MarketContext';
@@ -31,7 +31,7 @@ export default function HomePage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [downloadDocument, setDownloadDocument] = useState<HomepageDocument | null>(null);
   const [legalDocument, setLegalDocument] = useState<'privacy' | 'terms' | null>(null);
-  const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
+  const [enterpriseComingSoonOpen, setEnterpriseComingSoonOpen] = useState(false);
   const [inquiryBusy, setInquiryBusy] = useState(false);
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
@@ -478,8 +478,8 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => navigate('/register')} className={`w-full rounded-xl py-3 font-bold transition ${plan.isPopular ? 'bg-amber-500 text-stone-950 hover:bg-amber-400' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
-                  {t('landing_plan_start_trial')}
+                <button onClick={() => plan.isFrom ? setEnterpriseComingSoonOpen(true) : navigate('/register')} className={`w-full rounded-xl py-3 font-bold transition ${plan.isPopular ? 'bg-amber-500 text-stone-950 hover:bg-amber-400' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
+                  {plan.isFrom ? 'Get a quotation' : t('landing_plan_start_trial')}
                 </button>
               </div>
             ))}
@@ -491,14 +491,6 @@ export default function HomePage() {
             </button>
           </div>
 
-          <div className="mt-8 rounded-3xl bg-stone-950 p-8 text-center text-white">
-            <h3 className="text-2xl font-bold">{t('landing_enterprise_title')}</h3>
-            <p className="text-amber-400 font-semibold mt-2">{t('landing_enterprise_pricing')}</p>
-            <p className="text-stone-400 max-w-2xl mx-auto mt-3">{t('landing_enterprise_f1')}</p>
-            <button onClick={() => setEnterpriseInquiryOpen(true)} className="mt-6 rounded-full border border-amber-500 px-7 py-3 text-amber-400 font-semibold hover:bg-amber-500/10 transition">
-              {t('landing_contact_us')}
-            </button>
-          </div>
         </div>
       </section>
 
@@ -568,7 +560,7 @@ export default function HomePage() {
       <GlobalMarketSelector />
       <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
-      <EnterpriseInquiryModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
+      <EnterpriseComingSoonModal open={enterpriseComingSoonOpen} onClose={() => setEnterpriseComingSoonOpen(false)} />
     </div>
   );
 }
