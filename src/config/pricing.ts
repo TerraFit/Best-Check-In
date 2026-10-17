@@ -13,10 +13,10 @@ export interface RegionalPlanPricing {
 }
 
 /** Current South African commercial prices. */
-export const BASE_ZAR_MONTHLY = [349, 797, 1049, 1429] as const;
+export const BASE_ZAR_MONTHLY = [349, 797, 1190, 1589, 1975] as const;
 
 /** Initial Africa international price ladder. */
-export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75] as const;
+export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
 
 /** Europe uses the agreed commercial planning rate of R20 = €1. */
 export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
@@ -44,5 +44,113 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
     prices: monthly.map((value) => ({ monthly: value, yearly: value * 11 })),
     billingCurrency: 'ZAR',
     exchangeRateVariable: true,
+  };
+}
+
+/**
+ * Private revised pricing rules. These calculations are intentionally not displayed
+ * as live public quotations until the pricing release is approved.
+ */
+export type FastCheckInPackage = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
+
+export const ROOM_BLOCK_SIZE = 5;
+export const ROOM_BLOCK_MONTHLY_PRICE = 349;
+
+/** Minimum qualifying room count for each package. There is no maximum room count. */
+export const PACKAGE_MIN_ROOMS: Record<FastCheckInPackage, number> = {
+  starter: 1,
+  growth: 6,
+  pro: 11,
+  business: 20,
+  enterprise: 20,
+};
+
+export const PACKAGE_MONTHLY_SURCHARGES: Record<FastCheckInPackage, number> = {
+  starter: 0,
+  growth: 51,
+  pro: 290.70,
+  business: 514.80,
+  // Business feature bundle at its R572 standalone value + R299 Enterprise setup.
+  enterprise: 871,
+};
+
+/** Marketing Download is included in Pro, Business and Enterprise. */
+export const MARKETING_DOWNLOAD_MONTHLY_PRICE = 39;
+export const MARKETING_DOWNLOAD_VOUCHER_PRICE = 149;
+export const MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS = 3;
+export const MARKETING_DOWNLOAD_VOUCHER_DATA_PERIOD_MONTHS = 3;
+
+export function packageAcceptsRoomCount(packageName: FastCheckInPackage, rooms: number): boolean {
+  const roomCount = Math.max(1, Math.ceil(Number.isFinite(rooms) ? rooms : 1));
+  return roomCount >= PACKAGE_MIN_ROOMS[packageName];
+}
+
+export function calculateRoomCapacityBase(rooms: number): number {
+  const safeRooms = Math.max(1, Math.ceil(Number.isFinite(rooms) ? rooms : 1));
+  return Math.ceil(safeRooms / ROOM_BLOCK_SIZE) * ROOM_BLOCK_MONTHLY_PRICE;
+}
+
+/**
+ * Apply an already-determined eligible volume discount to room capacity only.
+ * Feature surcharges are fixed per establishment and are never multiplied by blocks.
+ */
+export function getBusinessEnterpriseVolumeDiscountRate(eligiblePortfolioRooms: number): number {
+  if (eligiblePortfolioRooms >= 301) return 0.15;
+  if (eligiblePortfolioRooms >= 101) return 0.12;
+  if (eligiblePortfolioRooms >= 51) return 0.10;
+  return 0;
+}
+
+export function calculateSubscriptionMonthlyPrice(
+  rooms: number,
+  packageName: FastCheckInPackage,
+  roomCapacityDiscountRate = 0,
+): number {
+  if (!packageAcceptsRoomCount(packageName, rooms)) return 0;
+
+  // Volume discounts apply only to Business/Enterprise room-capacity charges.
+  const isVolumeEligible = packageName === 'business' || packageName === 'enterprise';
+  const discountRate = isVolumeEligible
+    ? Math.min(1, Math.max(0, roomCapacityDiscountRate))
+    : 0;
+  const discountedRoomBase = calculateRoomCapacityBase(rooms) * (1 - discountRate);
+  return Math.round((discountedRoomBase + PACKAGE_MONTHLY_SURCHARGES[packageName]) * 100) / 100;
+}
+
+export function calculateSubscriptionAnnualPrice(
+  rooms: number,
+  packageName: FastCheckInPackage,
+  roomCapacityDiscountRate = 0,
+): number {
+  const monthly = calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate);
+  return Math.round(monthly * 11 * 100) / 100;
+}
+
+/** Enterprise establishment fees are separate from room and package pricing. */
+export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber: number): number {
+  if (!Number.isInteger(establishmentNumber) || establishmentNumber < 3) return 0;
+  if (establishmentNumber <= 5) return Math.round(299 * 0.85 * 100) / 100;
+  return 199;
+}
+
+/**
+ * Optional Marketing Download add-on. Starter and Growth can purchase this once per
+ * establishment; Pro, Business and Enterprise already include it.
+ */
+export function calculateMarketingDownloadMonthlyAddon(packageName: FastCheckInPackage): number {
+  return packageName === 'starter' || packageName === 'growth'
+    ? MARKETING_DOWNLOAD_MONTHLY_PRICE
+    : 0;
+}
+
+export function calculateMarketingDownloadVoucher(): {
+  price: number;
+  validityMonths: number;
+  dataPeriodMonths: number;
+} {
+  return {
+    price: MARKETING_DOWNLOAD_VOUCHER_PRICE,
+    validityMonths: MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS,
+    dataPeriodMonths: MARKETING_DOWNLOAD_VOUCHER_DATA_PERIOD_MONTHS,
   };
 }
