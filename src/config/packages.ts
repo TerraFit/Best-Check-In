@@ -83,14 +83,21 @@ export function listSellablePackages(): PackageDefinition[] {
 }
 
 /**
- * Enterprise establishment pricing.
- * Room capacity is calculated separately in 5-room blocks under the revised pricing model.
- * Volume discounts apply to eligible room-capacity charges, not package feature surcharges.
+ * Legacy Enterprise price helper retained for existing quotation/inquiry flows.
+ * The new private room-block calculator in src/config/pricing.ts is the revised pricing SSOT.
  */
 export function calculateEnterpriseMonthlyPrice(roomCount: number): number {
-  const rooms = Math.max(20, Math.ceil(roomCount / 5) * 5);
-  const blocks = Math.ceil(rooms / 5);
-  const base = blocks * 349;
-  const surcharge = 871;
-  return Math.round((base + surcharge) * 100) / 100;
+  const rooms = Math.max(25, Math.ceil(roomCount / 5) * 5);
+  if (rooms <= 25) return 1698;
+
+  const blocks = (rooms - 25) / 5;
+  let price = 1698;
+
+  for (let block = 1; block <= blocks; block += 1) {
+    const roomStart = 26 + (block - 1) * 5;
+    const discount = roomStart >= 301 ? 0.15 : roomStart >= 101 ? 0.12 : roomStart >= 51 ? 0.10 : 0;
+    price += 349 * (1 - discount);
+  }
+
+  return Math.round(price);
 }
