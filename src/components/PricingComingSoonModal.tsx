@@ -96,7 +96,7 @@ export default function PricingComingSoonModal({ open, onClose }: Props) {
             <label><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_telephone')}</span><input name="telephone" type="tel" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
             <label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_address')}</span><input name="address" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label>
           </div>
-          <TurnstileWidget action="pricing-availability" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+          <TurnstileWidget action="homepage-enquiry" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
           {message && <p role="status" className="mt-5 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">{message}</p>}
           <div className="mt-6 flex flex-wrap justify-end gap-3">
             <button type="button" onClick={onClose} disabled={busy} className="rounded-full border border-stone-300 px-6 py-3 text-sm font-bold text-stone-700 hover:bg-stone-50 disabled:opacity-40">{t('common_close')}</button>
