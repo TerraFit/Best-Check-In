@@ -453,11 +453,11 @@ export default function HomePage() {
 
           <p className="mt-2 max-w-3xl text-sm text-stone-500">
             {isSouthAfricanMarket
-              ? 'South African pricing is shown in ZAR.'
-              : <>Prices are fixed in {regionalPricing.currency} for your selected market. Payment is processed in South African rand (ZAR), so the ZAR amount may vary with exchange rates.</>}
+              ? 'Our revised room-based pricing is being finalised. Request a notification when quotations become available.'
+              : <>Our revised regional pricing is being finalised for {regionalPricing.currency}. Request a notification when quotations become available.</>}
           </p>
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {pricingPlans.map((plan) => (
               <div key={plan.nameKey} className={`relative rounded-3xl bg-white p-7 shadow-sm border ${plan.isPopular ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-stone-200'}`}>
                 {plan.isPopular && (
