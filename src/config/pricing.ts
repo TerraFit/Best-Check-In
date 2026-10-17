@@ -75,12 +75,24 @@ export function calculateRoomCapacityBase(rooms: number): number {
  * Apply an already-determined eligible volume discount to room capacity only.
  * Feature surcharges are fixed per establishment and are never multiplied by blocks.
  */
+/** Returns the eligible Business/Enterprise room-capacity discount for a portfolio. */
+export function getBusinessEnterpriseVolumeDiscountRate(eligiblePortfolioRooms: number): number {
+  if (eligiblePortfolioRooms >= 301) return 0.15;
+  if (eligiblePortfolioRooms >= 101) return 0.12;
+  if (eligiblePortfolioRooms >= 51) return 0.10;
+  return 0;
+}
+
 export function calculateSubscriptionMonthlyPrice(
   rooms: number,
   packageName: FastCheckInPackage,
   roomCapacityDiscountRate = 0,
 ): number {
-  const discountRate = Math.min(1, Math.max(0, roomCapacityDiscountRate));
+  // Volume discounts apply only to Business/Enterprise room-capacity charges.
+  const isVolumeEligible = packageName === 'business' || packageName === 'enterprise';
+  const discountRate = isVolumeEligible
+    ? Math.min(1, Math.max(0, roomCapacityDiscountRate))
+    : 0;
   const discountedRoomBase = calculateRoomCapacityBase(rooms) * (1 - discountRate);
   return Math.round((discountedRoomBase + PACKAGE_MONTHLY_SURCHARGES[packageName]) * 100) / 100;
 }
