@@ -47,7 +47,6 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   };
 }
 
-
 /**
  * Private revised pricing rules. These calculations are intentionally not displayed
  * as live public quotations until the pricing release is approved.
@@ -56,6 +55,15 @@ export type FastCheckInPackage = 'starter' | 'growth' | 'pro' | 'business' | 'en
 
 export const ROOM_BLOCK_SIZE = 5;
 export const ROOM_BLOCK_MONTHLY_PRICE = 349;
+
+/** Minimum qualifying room count for each package. There is no maximum room count. */
+export const PACKAGE_MIN_ROOMS: Record<FastCheckInPackage, number> = {
+  starter: 1,
+  growth: 6,
+  pro: 11,
+  business: 20,
+  enterprise: 20,
+};
 
 export const PACKAGE_MONTHLY_SURCHARGES: Record<FastCheckInPackage, number> = {
   starter: 0,
@@ -66,6 +74,17 @@ export const PACKAGE_MONTHLY_SURCHARGES: Record<FastCheckInPackage, number> = {
   enterprise: 871,
 };
 
+/** Marketing Download is included in Pro, Business and Enterprise. */
+export const MARKETING_DOWNLOAD_MONTHLY_PRICE = 39;
+export const MARKETING_DOWNLOAD_VOUCHER_PRICE = 149;
+export const MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS = 3;
+export const MARKETING_DOWNLOAD_VOUCHER_DATA_PERIOD_MONTHS = 3;
+
+export function packageAcceptsRoomCount(packageName: FastCheckInPackage, rooms: number): boolean {
+  const roomCount = Math.max(1, Math.ceil(Number.isFinite(rooms) ? rooms : 1));
+  return roomCount >= PACKAGE_MIN_ROOMS[packageName];
+}
+
 export function calculateRoomCapacityBase(rooms: number): number {
   const safeRooms = Math.max(1, Math.ceil(Number.isFinite(rooms) ? rooms : 1));
   return Math.ceil(safeRooms / ROOM_BLOCK_SIZE) * ROOM_BLOCK_MONTHLY_PRICE;
@@ -75,7 +94,6 @@ export function calculateRoomCapacityBase(rooms: number): number {
  * Apply an already-determined eligible volume discount to room capacity only.
  * Feature surcharges are fixed per establishment and are never multiplied by blocks.
  */
-/** Returns the eligible Business/Enterprise room-capacity discount for a portfolio. */
 export function getBusinessEnterpriseVolumeDiscountRate(eligiblePortfolioRooms: number): number {
   if (eligiblePortfolioRooms >= 301) return 0.15;
   if (eligiblePortfolioRooms >= 101) return 0.12;
@@ -88,6 +106,8 @@ export function calculateSubscriptionMonthlyPrice(
   packageName: FastCheckInPackage,
   roomCapacityDiscountRate = 0,
 ): number {
+  if (!packageAcceptsRoomCount(packageName, rooms)) return 0;
+
   // Volume discounts apply only to Business/Enterprise room-capacity charges.
   const isVolumeEligible = packageName === 'business' || packageName === 'enterprise';
   const discountRate = isVolumeEligible
@@ -102,7 +122,8 @@ export function calculateSubscriptionAnnualPrice(
   packageName: FastCheckInPackage,
   roomCapacityDiscountRate = 0,
 ): number {
-  return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * 11 * 100) / 100;
+  const monthly = calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate);
+  return Math.round(monthly * 11 * 100) / 100;
 }
 
 /** Enterprise establishment fees are separate from room and package pricing. */
@@ -110,4 +131,26 @@ export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishme
   if (!Number.isInteger(establishmentNumber) || establishmentNumber < 3) return 0;
   if (establishmentNumber <= 5) return Math.round(299 * 0.85 * 100) / 100;
   return 199;
+}
+
+/**
+ * Optional Marketing Download add-on. Starter and Growth can purchase this once per
+ * establishment; Pro, Business and Enterprise already include it.
+ */
+export function calculateMarketingDownloadMonthlyAddon(packageName: FastCheckInPackage): number {
+  return packageName === 'starter' || packageName === 'growth'
+    ? MARKETING_DOWNLOAD_MONTHLY_PRICE
+    : 0;
+}
+
+export function calculateMarketingDownloadVoucher(): {
+  price: number;
+  validityMonths: number;
+  dataPeriodMonths: number;
+} {
+  return {
+    price: MARKETING_DOWNLOAD_VOUCHER_PRICE,
+    validityMonths: MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS,
+    dataPeriodMonths: MARKETING_DOWNLOAD_VOUCHER_DATA_PERIOD_MONTHS,
+  };
 }
