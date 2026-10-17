@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from '../i18n';
 import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
 import HomepageLegalModal from '../components/HomepageLegalModal';
-import EnterpriseInquiryModal from '../components/EnterpriseInquiryModal';
+import PricingComingSoonModal from '../components/PricingComingSoonModal';
 import TurnstileWidget from '../components/TurnstileWidget';
 import GlobalMarketSelector from '../components/GlobalMarketSelector';
 import { useMarket } from '../context/MarketContext';
@@ -464,12 +464,11 @@ export default function HomePage() {
                   <span className="absolute -top-3 left-6 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-stone-950">{t('landing_plan_most_popular')}</span>
                 )}
                 <h3 className="text-2xl font-bold">{t(plan.nameKey)}</h3>
-                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
-                <div className="mt-6">
-                  <span className="text-4xl font-black text-stone-900">{plan.isFrom ? 'From ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceMonthly}</span>
-                  <span className="text-stone-500"> {t('landing_plan_per_month')}</span>
+                <p className="text-sm text-stone-500 mt-1">{plan.nameKey === 'landing_plan_business' || plan.nameKey === 'landing_plan_enterprise' ? 'Minimum 20 rooms' : 'Flexible room-based pricing'}</p>
+                <div className="mt-6 min-h-[76px]">
+                  <span className="text-2xl font-black text-stone-900">Pricing coming soon</span>
+                  <p className="mt-2 text-sm text-stone-500">Room capacity plus your selected package features.</p>
                 </div>
-                <p className="text-sm text-stone-500 mt-1">{t('landing_plan_or_year')} <strong className="text-stone-800">{plan.isFrom ? 'from ' : ''}{regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$'}{plan.priceYearly}</strong>{t('landing_plan_per_year')}</p>
                 <ul className="mt-7 space-y-3 min-h-[150px]">
                   {plan.featureKeys.map((featureKey) => (
                     <li key={featureKey} className="flex gap-2 text-sm text-stone-600">
@@ -478,8 +477,8 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => navigate('/register')} className={`w-full rounded-xl py-3 font-bold transition ${plan.isPopular ? 'bg-amber-500 text-stone-950 hover:bg-amber-400' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
-                  {t('landing_plan_start_trial')}
+                <button onClick={() => setEnterpriseInquiryOpen(true)} className={`w-full rounded-xl py-3 font-bold transition ${plan.isPopular ? 'bg-amber-500 text-stone-950 hover:bg-amber-400' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
+                  Get a quotation
                 </button>
               </div>
             ))}
@@ -493,10 +492,10 @@ export default function HomePage() {
 
           <div className="mt-8 rounded-3xl bg-stone-950 p-8 text-center text-white">
             <h3 className="text-2xl font-bold">{t('landing_enterprise_title')}</h3>
-            <p className="text-amber-400 font-semibold mt-2">{t('landing_enterprise_pricing')}</p>
-            <p className="text-stone-400 max-w-2xl mx-auto mt-3">{t('landing_enterprise_f1')}</p>
+            <p className="text-amber-400 font-semibold mt-2">Pricing coming soon · 20+ rooms</p>
+            <p className="text-stone-400 max-w-2xl mx-auto mt-3">Enterprise includes multi-establishment management and consolidated portfolio intelligence. Request a notification when quotations become available.</p>
             <button onClick={() => setEnterpriseInquiryOpen(true)} className="mt-6 rounded-full border border-amber-500 px-7 py-3 text-amber-400 font-semibold hover:bg-amber-500/10 transition">
-              {t('landing_contact_us')}
+              Get a quotation
             </button>
           </div>
         </div>
@@ -568,7 +567,7 @@ export default function HomePage() {
       <GlobalMarketSelector />
       <HomepageLeadModal document={downloadDocument} onClose={() => setDownloadDocument(null)} onDownloaded={() => setDownloadDocument(null)} onOpenLegal={(document) => { setDownloadDocument(null); setLegalDocument(document); }} />
       <HomepageLegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
-      <EnterpriseInquiryModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
+      <PricingComingSoonModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
     </div>
   );
 }
