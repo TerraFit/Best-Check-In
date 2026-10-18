@@ -593,7 +593,7 @@ export default function BusinessRegistration() {
           {/* Combined room capacity across the portfolio */}
           <div className="max-w-md mx-auto mb-10 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
-              How many rooms do your property or properties have in total?
+              How many rooms are there across all your properties?
             </label>
             <input
               type="number"
@@ -747,7 +747,7 @@ export default function BusinessRegistration() {
                   <span className="text-2xl font-bold text-white">
                     R{(billingCycle === 'monthly'
                       ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
-                      : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount)).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount)).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </span>
                   <span className="text-stone-400 text-sm">
                     /{billingCycle === 'monthly' ? 'month' : 'year'}
