@@ -3,7 +3,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuthHeader, getBusinessId } from '../utils/auth';
 import SubscriptionStatus from '../components/Billing/SubscriptionStatus';
-import { PlanType } from '../types/entitlements';
+import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice } from '../config/pricing';
 import { t } from '../i18n'
 
 // ============================================================
@@ -16,7 +17,7 @@ interface Plan {
   priceMonthly: number;
   priceYearly: number;
   minRooms: number;
-  maxRooms: number;
+  maxRooms: number | null;
   description: string;
   features: string[];
   popular?: boolean;
@@ -27,86 +28,25 @@ interface Plan {
 // PLAN DATA
 // ============================================================
 
-const plans: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    priceMonthly: 349,
-    priceYearly: 3490,
-    minRooms: 1,
-    maxRooms: 5,
-    description: 'Perfect for small guesthouses starting out',
-    features: [
-      'Digital guest check-in forms',
-      'Booking dashboard',
-      'Guest data export (CSV)',
-      'Basic branding',
-      'Email support',
-      'World Map (View Only)'
-    ],
-    color: 'green'
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    priceMonthly: 649,
-    priceYearly: 6490,
-    minRooms: 6,
-    maxRooms: 10,
-    description: 'Best for growing guesthouses',
-    features: [
-      'Everything in Starter',
-      'Automated email confirmations',
-      'Guest history tracking',
-      'Regional data auto-fill',
-      'Priority email support',
-      'Guest Origins by Country',
-      'How Guests Found You',
-      'Continental Map Drill-down'
-    ],
-    popular: true,
-    color: 'amber'
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    priceMonthly: 949,
-    priceYearly: 9490,
-    minRooms: 11,
-    maxRooms: 15,
-    description: 'For established properties needing team access',
-    features: [
-      'Everything in Growth',
-      'Custom branding (logo + colors)',
-      'Analytics dashboard',
-      'Multi-user access',
-      'Export to integrations',
-      'Travel Pattern Tracking',
-      'Country-level Drill-down',
-      'Province/Region Analytics'
-    ],
-    color: 'blue'
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    priceMonthly: 1290,
-    priceYearly: 12900,
-    minRooms: 16,
-    maxRooms: 20,
-    description: 'For larger operations that need insights',
-    features: [
-      'Everything in Pro',
-      'Advanced analytics',
-      'Priority support (fast response)',
-      'Early access to new features',
-      'Dedicated account manager',
-      'City-level Analytics',
-      'Full Geographic Drill-down'
-    ],
-    color: 'purple'
-  }
-];
+const featureLists: Record<PlanType, string[]> = {
+  starter: ['Digital guest check-in forms', 'Booking dashboard', 'Guest data export (CSV)', 'Basic branding', 'Email support', 'World Map (View Only)'],
+  growth: ['Everything in Starter', 'Automated email confirmations', 'Guest history tracking', 'Regional data auto-fill', 'Priority email support', 'Guest Origins by Country', 'How Guests Found You', 'Continental Map Drill-down'],
+  pro: ['Everything in Growth', 'Custom branding (logo + colors)', 'Analytics dashboard', 'Multi-user access', 'Export to integrations', 'Marketing Download included', 'Travel Pattern Tracking', 'Province/Region Analytics'],
+  business: ['Everything in Pro', 'Advanced analytics', 'Priority support', 'Early access to new features', 'Dedicated account manager', 'Unlimited Business Snapshots'],
+  enterprise: ['Everything in Business', 'Consolidated portfolio management', 'High-level portfolio intelligence', 'Enterprise establishment fee rules'],
+};
+const plans: Plan[] = PLAN_ORDER.map((id) => ({
+  id,
+  name: PACKAGES[id].name,
+  priceMonthly: PACKAGES[id].priceMonthly,
+  priceYearly: PACKAGES[id].priceYearly,
+  minRooms: PACKAGES[id].minRooms,
+  maxRooms: PACKAGES[id].maxRooms,
+  description: PACKAGES[id].description,
+  features: featureLists[id],
+  popular: PACKAGES[id].popular,
+  color: id === 'starter' ? 'green' : id === 'growth' ? 'amber' : id === 'pro' ? 'blue' : 'purple',
+}));
 
 // ============================================================
 // COLOR STYLES
@@ -224,14 +164,7 @@ export default function Billing() {
     // Sort plans by minRooms
     const sorted = [...plans].sort((a, b) => a.minRooms - b.minRooms);
     
-    for (const plan of sorted) {
-      if (rooms >= plan.minRooms && rooms <= plan.maxRooms) {
-        return plan;
-      }
-    }
-    
-    // If rooms > 20, return the highest plan
-    return plans[plans.length - 1];
+    return sorted.filter((plan) => rooms >= plan.minRooms).at(-1) || sorted[0] || null;
   };
 
   // Check if a plan is eligible for downgrade
@@ -354,7 +287,10 @@ export default function Billing() {
               planId,
               billingCycle,
               email: business?.email,
-              amount: billingCycle === 'monthly' ? targetPlan.priceMonthly : targetPlan.priceYearly
+              rooms: totalRooms,
+              amount: billingCycle === 'monthly'
+                ? calculateSubscriptionMonthlyPrice(Math.max(totalRooms, targetPlan.minRooms), targetPlan.id)
+                : calculateSubscriptionAnnualPrice(Math.max(totalRooms, targetPlan.minRooms), targetPlan.id)
             })
           });
 
@@ -397,8 +333,8 @@ export default function Billing() {
       return { monthly: 0, yearly: 0 };
     }
     return {
-      monthly: plan.priceMonthly,
-      yearly: plan.priceYearly
+      monthly: calculateSubscriptionMonthlyPrice(Math.max(totalRooms, plan.minRooms), plan.id),
+      yearly: calculateSubscriptionAnnualPrice(Math.max(totalRooms, plan.minRooms), plan.id)
     };
   };
 
@@ -491,7 +427,7 @@ export default function Billing() {
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Yearly <span className="text-xs ml-1 text-green-600">{t('billing_save_17')}</span>
+                Yearly <span className="text-xs ml-1 text-green-600">Save 8.33%</span>
               </button>
             </div>
           </div>
@@ -590,11 +526,7 @@ export default function Billing() {
                   </div>
                   
                   <p className="text-sm text-stone-500 mt-2">
-                    {plan.minRooms}–{plan.maxRooms} rooms
-                    {plan.id === 'starter' && ' (1-5)'}
-                    {plan.id === 'growth' && ' (6-10)'}
-                    {plan.id === 'pro' && ' (11-15)'}
-                    {plan.id === 'business' && ' (16-20)'}
+                    {plan.minRooms}+ rooms · no maximum
                   </p>
                   
                   <ul className="mt-6 space-y-2">
