@@ -12,7 +12,7 @@ export const PACKAGES = {
     minRooms: 1,
     maxRooms: null,
     maxStaff: 3,
-    description: 'Replace paper. Digitise reception. Ensure legal compliance.',
+    description: 'Professional digital check-in for B&Bs and small-to-medium-sized guest houses.',
     upgradeOrder: 0,
     priceMonthly: 349,
     priceYearly: 3839,
@@ -27,10 +27,10 @@ export const PACKAGES = {
     minRooms: 6,
     maxRooms: null,
     maxStaff: 8,
-    description: 'Improve daily operations, staff capacity, and country-level insight.',
+    description: 'Digital check-in plus basic housekeeping and employee portal functionality for growing accommodation businesses.',
     upgradeOrder: 1,
-    priceMonthly: 797,
-    priceYearly: 8767,
+    priceMonthly: 749,
+    priceYearly: 8239,
     currency: 'ZAR',
     popular: true,
     contactSales: false,
@@ -42,10 +42,10 @@ export const PACKAGES = {
     minRooms: 11,
     maxRooms: null,
     maxStaff: 20,
-    description: 'Professional management: audit, advanced reporting, regional analytics and Marketing Download.',
+    description: 'Broader operational management, advanced analytics and marketing intelligence for established accommodation businesses.',
     upgradeOrder: 2,
-    priceMonthly: 1049,
-    priceYearly: 11539,
+    priceMonthly: 1338,
+    priceYearly: 14715,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -57,10 +57,10 @@ export const PACKAGES = {
     minRooms: 20,
     maxRooms: null,
     maxStaff: null,
-    description: 'Manage multiple establishments from one hospitality business dashboard.',
+    description: 'Complete operational management and unlimited Business Snapshot access for larger establishments.',
     upgradeOrder: 3,
-    priceMonthly: 1429,
-    priceYearly: 15719,
+    priceMonthly: 1911,
+    priceYearly: 21019,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -72,10 +72,10 @@ export const PACKAGES = {
     minRooms: 20,
     maxRooms: null,
     maxStaff: null,
-    description: 'Enterprise portfolio management with scalable room capacity and Marketing Download included.',
+    description: 'Elite portfolio management and high-level business intelligence for hotel groups and multi-establishment operators.',
     upgradeOrder: 4,
-    priceMonthly: 1698,
-    priceYearly: 18678,
+    priceMonthly: 2267,
+    priceYearly: 24937,
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -97,12 +97,10 @@ export function getUpgradeOrder(planId) {
   return getPackage(planId).upgradeOrder;
 }
 
-/** True if current plan is at least as high as required. */
 export function planSatisfies(currentPlan, requiredPlan) {
   return getUpgradeOrder(currentPlan) >= getUpgradeOrder(requiredPlan);
 }
 
-/** Next logical package (never skips unless required is higher than next). */
 export function recommendUpgrade(currentPlan, requiredPlan) {
   const current = normalizePlanId(currentPlan);
   const required = normalizePlanId(requiredPlan);
