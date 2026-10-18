@@ -35,7 +35,7 @@ const featureLists: Record<PlanType, string[]> = {
   business: ['Everything in Pro', 'Advanced analytics', 'Priority support', 'Early access to new features', 'Dedicated account manager', 'Unlimited Business Snapshots'],
   enterprise: ['Everything in Business', 'Consolidated portfolio management', 'High-level portfolio intelligence', 'Enterprise establishment fee rules'],
 };
-const plans: Plan[] = PLAN_ORDER.map((id) => ({
+const plans: Plan[] = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({
   id,
   name: PACKAGES[id].name,
   priceMonthly: PACKAGES[id].priceMonthly,
