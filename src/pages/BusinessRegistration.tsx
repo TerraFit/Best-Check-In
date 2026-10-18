@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
-import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice } from '../config/pricing';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, calculateEnterprisePortfolioAnnualPrice } from '../config/pricing';
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -168,6 +168,7 @@ export default function BusinessRegistration() {
   // Plan Selection State
   const [selectedPlanId, setSelectedPlanId] = useState('starter');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [propertyCount, setPropertyCount] = useState(2);
   const [roomsCount, setRoomsCount] = useState(5);
   const [showRoomError, setShowRoomError] = useState(false);
   
@@ -563,7 +564,7 @@ export default function BusinessRegistration() {
             className="h-16 w-auto mx-auto mb-4 object-contain"
           />
           <h1 className="text-4xl font-bold text-white">Register Your Business</h1>
-          <p className="text-stone-400 mt-2">Choose the right plan based on your property size</p>
+          <p className="text-stone-400 mt-2">Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.</p>
         </div>
 
         {/* ============================================================ */}
@@ -571,20 +572,39 @@ export default function BusinessRegistration() {
         {/* ============================================================ */}
         <div id="pricing-section" className="mb-12">
           
-          {/* Room Input - Decision Driver */}
-          <div className="max-w-md mx-auto mb-10 text-center">
+          {/* Property count comes first because Enterprise pricing includes portfolio fees. */}
+          <div className="max-w-md mx-auto mb-6 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
-              How many rooms does your property have?
+              How many properties does your company have?
             </label>
             <input
               type="number"
               min="1"
-               value={roomsCount}
-              onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
+              step="1"
+              value={propertyCount}
+              onChange={(e) => setPropertyCount(Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1)))}
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
-              Enter the number of rooms to get a recommendation
+              Enter the number of establishments operated by your company.
+            </p>
+          </div>
+
+          {/* Combined room capacity across the portfolio */}
+          <div className="max-w-md mx-auto mb-10 text-center">
+            <label className="block text-lg font-medium text-stone-300 mb-3">
+              How many rooms do your property or properties have in total?
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={roomsCount}
+              onChange={(e) => handleRoomsChange(Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1)))}
+              className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
+            />
+            <p className="text-stone-500 text-sm mt-2">
+              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 20 rooms.
             </p>
           </div>
 
@@ -712,56 +732,45 @@ export default function BusinessRegistration() {
               );
             })}
 
-            {/* Enterprise Card - 20+ rooms / Custom Pricing */}
+            {/* Enterprise portfolio pricing is calculated now; activation remains unavailable until launch. */}
             <div
-              onClick={() => handleSelectPlan('enterprise')}
-              className={`
-                relative rounded-xl border-2 p-5 cursor-pointer transition-all bg-stone-800/50 border-stone-700
-                hover:scale-105 hover:shadow-xl
-                ${selectedPlanId === 'enterprise' ? 'border-purple-500 ring-2 ring-amber-500 bg-stone-800' : ''}
-                ${recommendedPlanId === 'enterprise' ? 'scale-105 shadow-lg ring-2 ring-green-500/50' : ''}
-              `}
+              className="relative rounded-xl border-2 p-5 bg-stone-800/50 border-stone-700"
             >
-              {recommendedPlanId === 'enterprise' && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                    Recommended
-                  </span>
-                </div>
-              )}
               <div className="text-center">
                 <h3 className="text-xl font-bold text-purple-400">
                   Enterprise
                 </h3>
                 <p className="text-xs text-stone-400 mt-1">
-                  20+ rooms
+                  20+ rooms across your portfolio · first 2 properties included
                 </p>
                 <div className="mt-3">
                   <span className="text-2xl font-bold text-white">
-                    Custom
+                    R{(billingCycle === 'monthly'
+                      ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
+                      : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount)).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   <span className="text-stone-400 text-sm">
-                    /pricing
+                    /{billingCycle === 'monthly' ? 'month' : 'year'}
                   </span>
                 </div>
+                <p className="text-xs text-stone-400 mt-1">
+                  {propertyCount > 2 ? `Includes ${propertyCount - 2} additional propert${propertyCount - 2 === 1 ? 'y' : 'ies'}` : 'Includes up to 2 properties'}
+                </p>
                 
                 {/* Enterprise Feature List */}
                 <div className="mt-4 text-left space-y-2">
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Unlimited Rooms</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom Integrations</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Dedicated Support</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Consolidated portfolio management</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> High-level portfolio intelligence</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom integrations and dedicated support</p>
                 </div>
                 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectPlan('enterprise');
-                  }}
-                  className="mt-4 w-full py-2 rounded-lg font-semibold transition-colors bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  Contact Sales
-                </button>
+                <div className="mt-4 w-full py-2 rounded-lg font-semibold text-center bg-stone-700 text-amber-300 border border-stone-600">
+                  Coming soon
+                </div>
+                <p className="text-xs text-stone-500 mt-2">
+                  Portfolio pricing is calculated for planning purposes; Enterprise subscriptions are not yet available.
+                </p>
               </div>
             </div>
           </div>
@@ -1498,7 +1507,8 @@ export default function BusinessRegistration() {
                     <p>Type: <span className="text-white">{businessData.establishmentType || 'Not specified'}</span></p>
                     <p>TGSA: <span className="text-white">{businessData.tgsaGrading}</span></p>
                     <p>Plan: <span className="text-white">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>
-                    <p>Rooms: <span className="text-white">{roomsCount}</span></p>
+                    <p>Properties: <span className="text-white">{propertyCount}</span></p>
+                    <p>Total rooms: <span className="text-white">{roomsCount}</span></p>
                     <p>Director: <span className="text-white">{directorData.name} {directorData.surname}</span></p>
                     <p>Email: <span className="text-white">{businessData.email}</span></p>
                     <p>Phone: <span className="text-white">{businessData.mobilePhone}</span></p>
@@ -1527,7 +1537,7 @@ export default function BusinessRegistration() {
                         : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
                     }`}
                   >
-                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save ~17%</span>
+                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
                   </button>
                 </div>
 
