@@ -164,7 +164,8 @@ export default function Billing() {
     // Sort plans by minRooms
     const sorted = [...plans].sort((a, b) => a.minRooms - b.minRooms);
     
-    return sorted.filter((plan) => rooms >= plan.minRooms).at(-1) || sorted[0] || null;
+    const eligible = sorted.filter((plan) => rooms >= plan.minRooms);
+    return eligible[eligible.length - 1] || sorted[0] || null;
   };
 
   // Check if a plan is eligible for downgrade
@@ -441,7 +442,7 @@ export default function Billing() {
             const isComplimentary = subscriptionStatus?.status === 'complimentary';
             const prices = getEffectivePrice(plan);
             const priceDisplay = getPriceDisplay(plan);
-            const savings = getAnnualSavings(plan.priceMonthly, plan.priceYearly);
+            const savings = getAnnualSavings(prices.monthly, prices.yearly);
             
             const currentIndex = plans.findIndex(p => p.id === currentPlan);
             const targetIndex = plans.findIndex(p => p.id === plan.id);
