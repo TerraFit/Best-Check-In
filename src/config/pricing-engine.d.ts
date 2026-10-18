@@ -14,7 +14,7 @@ export function packageAcceptsRoomCount(packageName: FastCheckInPackage, rooms: 
 export function calculateRoomCapacityBase(rooms: number): number;
 export function getBusinessEnterpriseVolumeDiscountRate(rooms: number): number;
 export function calculateSubscriptionMonthlyPrice(rooms: number, packageName: FastCheckInPackage, discountRate?: number | null): number;
-export function calculateSubscriptionAnnualPrice(rooms: number, packageName: FastCheckInPackage, discountRate?: number): number;
+export function calculateSubscriptionAnnualPrice(rooms: number, packageName: FastCheckInPackage, discountRate?: number | null): number;
 export function calculateEnterpriseMonthlyPrice(rooms: number): number;
 export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber: number): number;
 export function calculateMarketingDownloadMonthlyAddon(packageName: FastCheckInPackage): number;
