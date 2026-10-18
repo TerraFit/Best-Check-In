@@ -12,42 +12,6 @@ export interface RegionalPlanPricing {
   exchangeRateVariable: true;
 }
 
-/** Public South African starting prices for the revised room-block model. */
-export const BASE_ZAR_MONTHLY = [349, 749, 1338, 1911, 2267] as const;
-export const BASE_ZAR_YEARLY = [3839, 8239, 14715, 21019, 24937] as const;
-
-/** Initial Africa international price ladder, derived from the revised public starting-price ladder. */
-export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
-
-/** Europe uses the agreed commercial planning rate of R20 = €1. */
-export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
-
-const roundCurrency = (value: number) => Math.round(value);
-
-export function getRegionalPricing(region: MarketRegion, southAfrican = false): RegionalPlanPricing {
-  if (southAfrican) {
-    return {
-      currency: 'ZAR',
-      prices: BASE_ZAR_MONTHLY.map((monthly, index) => ({ monthly, yearly: BASE_ZAR_YEARLY[index] })),
-      billingCurrency: 'ZAR',
-      exchangeRateVariable: true,
-    };
-  }
-
-  const config = MARKET_CONFIG[region];
-
-  const monthly = region === 'europe'
-    ? BASE_ZAR_MONTHLY.map((zar) => roundCurrency((zar / EURO_PLANNING_RATE_ZAR_PER_EUR) * config.pricingMultiplier))
-    : BASE_AFRICA_USD_MONTHLY.map((usd) => roundCurrency(usd * config.pricingMultiplier));
-
-  return {
-    currency: config.currency,
-    prices: monthly.map((value) => ({ monthly: value, yearly: value * 11 })),
-    billingCurrency: 'ZAR',
-    exchangeRateVariable: true,
-  };
-}
-
 /** Revised pricing rules. Room capacity is charged in 5-room blocks. */
 export type FastCheckInPackage = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
 
@@ -120,6 +84,16 @@ export function calculateSubscriptionAnnualPrice(
   return Math.round(monthly * 11 * 100) / 100;
 }
 
+/**
+ * Compatibility helper for existing Enterprise quotation/inquiry flows.
+ * Enterprise uses the same room-block model and applies volume discounts to room capacity only.
+ */
+export function calculateEnterpriseMonthlyPrice(roomCount: number): number {
+  const rooms = Math.max(PACKAGE_MIN_ROOMS.enterprise, Math.ceil(Math.max(1, roomCount) / ROOM_BLOCK_SIZE) * ROOM_BLOCK_SIZE);
+  const discountRate = getBusinessEnterpriseVolumeDiscountRate(rooms);
+  return calculateSubscriptionMonthlyPrice(rooms, 'enterprise', discountRate);
+}
+
 /** Enterprise establishment fees are separate from room and package pricing. */
 export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber: number): number {
   if (!Number.isInteger(establishmentNumber) || establishmentNumber < 3) return 0;
@@ -143,5 +117,50 @@ export function calculateMarketingDownloadVoucher(): {
     price: MARKETING_DOWNLOAD_VOUCHER_PRICE,
     validityMonths: MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS,
     dataPeriodMonths: MARKETING_DOWNLOAD_VOUCHER_DATA_PERIOD_MONTHS,
+  };
+}
+
+/** Public South African starting prices derived directly from the room-block pricing model. */
+export const BASE_ZAR_MONTHLY = PACKAGE_MIN_ROOMS
+  ? (['starter', 'growth', 'pro', 'business', 'enterprise'] as FastCheckInPackage[]).map((plan) =>
+      calculateSubscriptionMonthlyPrice(PACKAGE_MIN_ROOMS[plan], plan),
+    ) as [number, number, number, number, number]
+  : [349, 749, 1338, 1911, 2267];
+
+export const BASE_ZAR_YEARLY = PACKAGE_MIN_ROOMS
+  ? (['starter', 'growth', 'pro', 'business', 'enterprise'] as FastCheckInPackage[]).map((plan) =>
+      calculateSubscriptionAnnualPrice(PACKAGE_MIN_ROOMS[plan], plan),
+    ) as [number, number, number, number, number]
+  : [3839, 8239, 14715, 21019, 24937];
+
+/** Initial Africa international price ladder, derived from the revised public starting-price ladder. */
+export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
+
+/** Europe uses the agreed commercial planning rate of R20 = €1. */
+export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
+
+const roundCurrency = (value: number) => Math.round(value);
+
+export function getRegionalPricing(region: MarketRegion, southAfrican = false): RegionalPlanPricing {
+  if (southAfrican) {
+    return {
+      currency: 'ZAR',
+      prices: BASE_ZAR_MONTHLY.map((monthly, index) => ({ monthly, yearly: BASE_ZAR_YEARLY[index] })),
+      billingCurrency: 'ZAR',
+      exchangeRateVariable: true,
+    };
+  }
+
+  const config = MARKET_CONFIG[region];
+
+  const monthly = region === 'europe'
+    ? BASE_ZAR_MONTHLY.map((zar) => roundCurrency((zar / EURO_PLANNING_RATE_ZAR_PER_EUR) * config.pricingMultiplier))
+    : BASE_AFRICA_USD_MONTHLY.map((usd) => roundCurrency(usd * config.pricingMultiplier));
+
+  return {
+    currency: config.currency,
+    prices: monthly.map((value) => ({ monthly: value, yearly: value * 11 })),
+    billingCurrency: 'ZAR',
+    exchangeRateVariable: true,
   };
 }
