@@ -5,6 +5,8 @@ import { useTranslation } from '../i18n';
 
 type Props = { open: boolean; onClose: () => void };
 
+const ENTERPRISE_MESSAGE = 'Enterprise multi-establishment portfolio management with high-level business analytics is coming soon. Complete the form, and we will contact you as soon as this unique portfolio management solution becomes available.';
+
 export default function PricingComingSoonModal({ open, onClose }: Props) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -57,8 +59,8 @@ export default function PricingComingSoonModal({ open, onClose }: Props) {
             telephone: form.get('telephone'),
             address: form.get('address'),
           },
-          topic: 'Pricing availability notification',
-          comments: 'Please notify me when the revised FastCheckIn pricing and quotation calculator become available.',
+          topic: 'Enterprise portfolio management availability',
+          comments: ENTERPRISE_MESSAGE,
           turnstileToken,
         }),
       });
@@ -67,7 +69,7 @@ export default function PricingComingSoonModal({ open, onClose }: Props) {
       formElement.reset();
       setTurnstileToken('');
       setTurnstileResetKey((value) => value + 1);
-      setMessage('Thank you. We will notify you when revised pricing is available.');
+      setMessage('Thank you. We will contact you when Enterprise portfolio management becomes available.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t('landing_form_error'));
     } finally {
@@ -78,13 +80,13 @@ export default function PricingComingSoonModal({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="pricing-coming-soon-title" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="enterprise-coming-soon-title" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
       <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white text-stone-900 shadow-2xl">
         <div className="flex items-start justify-between border-b border-stone-200 px-6 py-5 md:px-8">
           <div className="pr-6">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">FastCheckIn pricing</p>
-            <h2 id="pricing-coming-soon-title" className="mt-2 text-2xl font-bold md:text-3xl">Coming soon</h2>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">We are preparing our revised room-based pricing and quotation calculator. Leave your details and we will let you know when it is available.</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-600">FastCheckIn Enterprise</p>
+            <h2 id="enterprise-coming-soon-title" className="mt-2 text-2xl font-bold md:text-3xl">Enterprise is coming soon</h2>
+            <p className="mt-3 text-sm leading-relaxed text-stone-600">{ENTERPRISE_MESSAGE}</p>
           </div>
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="rounded-full p-2 text-stone-500 hover:bg-stone-100 disabled:opacity-40"><X className="h-6 w-6" /></button>
         </div>
