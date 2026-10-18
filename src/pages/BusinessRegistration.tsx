@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { t } from '../i18n'
+import { t } from '../i18n';
+import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice } from '../config/pricing';
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -138,58 +140,17 @@ const getRegionLabel = (country: string): string => {
   return labels[country] || 'Region';
 };
 
-// Pricing Plans Data
-const pricingPlans = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    maxRooms: 5,
-    priceMonthly: 349,
-    priceYearly: 3490,
-    color: 'green',
-    borderColor: 'border-green-500',
-    textColor: 'text-green-500',
-    buttonColor: 'bg-green-600 hover:bg-green-700',
-    bgHover: 'hover:border-green-500'
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    maxRooms: 10,
-    priceMonthly: 649,
-    priceYearly: 6490,
-    color: 'blue',
-    borderColor: 'border-blue-500',
-    textColor: 'text-blue-500',
-    buttonColor: 'bg-blue-600 hover:bg-blue-700',
-    bgHover: 'hover:border-blue-500',
-    mostPopular: true
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    maxRooms: 15,
-    priceMonthly: 949,
-    priceYearly: 9490,
-    color: 'purple',
-    borderColor: 'border-purple-500',
-    textColor: 'text-purple-500',
-    buttonColor: 'bg-purple-600 hover:bg-purple-700',
-    bgHover: 'hover:border-purple-500'
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    maxRooms: 20,
-    priceMonthly: 1290,
-    priceYearly: 12900,
-    color: 'orange',
-    borderColor: 'border-orange-500',
-    textColor: 'text-orange-500',
-    buttonColor: 'bg-orange-600 hover:bg-orange-700',
-    bgHover: 'hover:border-orange-500'
-  }
-];
+// Package display metadata comes from the shared package registry; all amounts are calculated by the shared pricing engine.
+const pricingStyles = {
+  starter: { color: 'green', borderColor: 'border-green-500', textColor: 'text-green-500', buttonColor: 'bg-green-600 hover:bg-green-700', bgHover: 'hover:border-green-500' },
+  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500', mostPopular: true },
+  pro: { color: 'purple', borderColor: 'border-purple-500', textColor: 'text-purple-500', buttonColor: 'bg-purple-600 hover:bg-purple-700', bgHover: 'hover:border-purple-500' },
+  business: { color: 'orange', borderColor: 'border-orange-500', textColor: 'text-orange-500', buttonColor: 'bg-orange-600 hover:bg-orange-700', bgHover: 'hover:border-orange-500' },
+} as const;
+const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({
+  ...PACKAGES[id],
+  ...pricingStyles[id as Exclude<PlanType, 'enterprise'>],
+}));
 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
@@ -211,15 +172,19 @@ export default function BusinessRegistration() {
   const [showRoomError, setShowRoomError] = useState(false);
   
   // Get selected plan data
-  const selectedPlan = pricingPlans.find(p => p.id === selectedPlanId);
+  const selectedPlanBase = pricingPlans.find(p => p.id === selectedPlanId);
+  const selectedPlan = selectedPlanBase ? {
+    ...selectedPlanBase,
+    priceMonthly: calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id),
+    priceYearly: calculateSubscriptionAnnualPrice(roomsCount, selectedPlanBase.id),
+  } : undefined;
   
   // Determine recommended plan based on room count
-  const getRecommendedPlanId = () => {
-    if (roomsCount <= 5) return 'starter';
-    if (roomsCount <= 10) return 'growth';
-    if (roomsCount <= 15) return 'pro';
-    if (roomsCount <= 20) return 'business';
-    return 'enterprise';
+  const getRecommendedPlanId = (): PlanType => {
+    if (roomsCount < 6) return 'starter';
+    if (roomsCount < 11) return 'growth';
+    if (roomsCount < 20) return 'pro';
+    return 'business';
   };
   const recommendedPlanId = getRecommendedPlanId();
   
@@ -292,10 +257,10 @@ export default function BusinessRegistration() {
   const handleRoomsChange = (rooms: number) => {
     setRoomsCount(rooms);
     setShowRoomError(false);
-    if (rooms <= 5) setSelectedPlanId('starter');
-    else if (rooms <= 10) setSelectedPlanId('growth');
-    else if (rooms <= 15) setSelectedPlanId('pro');
-    else if (rooms <= 20) setSelectedPlanId('business');
+    if (rooms < 6) setSelectedPlanId('starter');
+    else if (rooms < 11) setSelectedPlanId('growth');
+    else if (rooms < 20) setSelectedPlanId('pro');
+    else setSelectedPlanId('business');
   };
 
   // Handle plan selection with validation
@@ -307,7 +272,7 @@ export default function BusinessRegistration() {
       return;
     }
     const plan = pricingPlans.find(p => p.id === planId);
-    if (plan && roomsCount > plan.maxRooms) {
+    if (plan && roomsCount < plan.minRooms) {
       setShowRoomError(true);
       return;
     }
@@ -509,7 +474,7 @@ export default function BusinessRegistration() {
             // Plan details
             total_rooms: roomsCount,
             plan: selectedPlanId === 'enterprise' ? 'enterprise' : selectedPlanId,
-            max_rooms: selectedPlan?.maxRooms || 999,
+            max_rooms: null,
             billing_cycle: billingCycle,
             status: 'pending'
           }
@@ -562,7 +527,7 @@ export default function BusinessRegistration() {
               <div>
                 <p className="text-sm text-stone-400">Rooms</p>
                 <p className="text-white">
-                  {roomsCount} / {selectedPlanId === 'enterprise' ? '∞' : selectedPlan?.maxRooms}
+                  {roomsCount} rooms
                 </p>
               </div>
               <div>
@@ -614,8 +579,7 @@ export default function BusinessRegistration() {
             <input
               type="number"
               min="1"
-              max="100"
-              value={roomsCount}
+               value={roomsCount}
               onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
@@ -628,7 +592,7 @@ export default function BusinessRegistration() {
           {showRoomError && (
             <div className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500 rounded-lg p-3 text-center">
               <p className="text-red-400 text-sm">
-                ⚠️ Your property exceeds this plan's room limit. Please upgrade to continue.
+                ⚠️ This package requires at least the minimum number of rooms shown. Please choose an eligible package.
               </p>
             </div>
           )}
@@ -640,7 +604,7 @@ export default function BusinessRegistration() {
             {pricingPlans.map((plan) => {
               const isRecommended = recommendedPlanId === plan.id;
               const isSelected = selectedPlanId === plan.id;
-              const isDisabled = roomsCount > plan.maxRooms;
+              const isDisabled = roomsCount < plan.minRooms;
               
               return (
                 <div
@@ -678,7 +642,7 @@ export default function BusinessRegistration() {
                       {plan.name}
                     </h3>
                     <p className="text-xs text-stone-400 mt-1">
-                      Up to {plan.maxRooms} rooms
+                      {plan.minRooms}+ rooms · no maximum
                     </p>
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
@@ -728,7 +692,7 @@ export default function BusinessRegistration() {
                     
                     {isDisabled && (
                       <p className="text-xs text-red-400 mt-2">
-                        Requires upgrade
+                        Requires at least {plan.minRooms} rooms
                       </p>
                     )}
                     <button
