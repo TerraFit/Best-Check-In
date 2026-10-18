@@ -321,7 +321,8 @@ export class EntitlementService {
     businessId: string,
     billingPlan: PlanType,
     billingCycle: 'monthly' | 'yearly',
-    entitlements: SubscriptionEntitlement[]
+    entitlements: SubscriptionEntitlement[],
+    roomCount: number = PACKAGE_MIN_ROOMS[billingPlan]
   ): {
     status: string;
     message: string;
@@ -333,7 +334,8 @@ export class EntitlementService {
       businessId,
       billingPlan,
       billingCycle,
-      entitlements
+      entitlements,
+      roomCount
     );
 
     return {
