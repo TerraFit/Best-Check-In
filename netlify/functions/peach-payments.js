@@ -48,6 +48,7 @@ async function createPeachPayment(event) {
 
     const planId = normalizePlanId(requestedPlanId);
     const pkg = getPackage(planId);
+    const pricing = getPlanPricing(planId, billingCycle);
     if (!pkg || pricing.contactSales || pricing.amount <= 0) {
       return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not available for online payment' }) };
     }
