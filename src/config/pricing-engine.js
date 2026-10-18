@@ -39,7 +39,7 @@ export function calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapaci
   const discount = isVolumeEligible ? Math.min(1, Math.max(0, requestedDiscount)) : 0;
   return Math.round((calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName]) * 100) / 100;
 }
-export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacityDiscountRate = 0) {
+export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacityDiscountRate = null) {
   return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * ANNUAL_BILLING_MONTHS * 100) / 100;
 }
 export function calculateEnterpriseMonthlyPrice(roomCount) {
