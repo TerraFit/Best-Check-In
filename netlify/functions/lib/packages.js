@@ -5,6 +5,7 @@ import {
   calculateSubscriptionAnnualPrice,
   getBusinessEnterpriseVolumeDiscountRate,
   getStartingPrice,
+  packageAcceptsRoomCount,
 } from '../../../src/config/pricing-engine.js';
 
 export const PLAN_ORDER = ['starter', 'growth', 'pro', 'business', 'enterprise'];
@@ -118,7 +119,12 @@ export function recommendUpgrade(currentPlan, requiredPlan) {
 export function getPlanPricing(planId, billingCycle = 'monthly', rooms = null, explicitDiscountRate = null) {
   const pkg = getPackage(planId);
   if (pkg.contactSales) return { amount: 0, currency: pkg.currency, contactSales: true };
-  const roomCount = Math.max(pkg.minRooms, Number.isFinite(Number(rooms)) && rooms !== null ? Math.ceil(Number(rooms)) : pkg.minRooms);
+  const roomCount = rooms === null || rooms === undefined
+    ? pkg.minRooms
+    : Math.max(1, Math.ceil(Number.isFinite(Number(rooms)) ? Number(rooms) : 1));
+  if (!packageAcceptsRoomCount(pkg.id, roomCount)) {
+    return { amount: 0, currency: pkg.currency, contactSales: false, rooms: roomCount, discountRate: 0 };
+  }
   const discountRate = explicitDiscountRate === null
     ? ((pkg.id === 'business' || pkg.id === 'enterprise') ? getBusinessEnterpriseVolumeDiscountRate(roomCount) : 0)
     : explicitDiscountRate;
