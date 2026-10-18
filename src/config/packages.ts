@@ -1,5 +1,5 @@
 /**
- * Package SSOT — package metadata is kept here, while all pricing rules live in pricing.ts.
+ * Package metadata lives here; all commercial price calculations are implemented in the shared pricing engine.
  */
 
 import {
