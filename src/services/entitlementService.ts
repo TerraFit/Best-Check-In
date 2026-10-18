@@ -6,18 +6,9 @@ import {
   EntitlementType,
   PromotionCode 
 } from '../types/entitlements';
+import { PACKAGE_MIN_ROOMS, calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice } from '../config/pricing';
 
-// ============================================================
-// PLAN PRICING
-// ============================================================
-
-const PLAN_PRICING: Record<PlanType, { monthly: number; yearly: number }> = {
-  starter: { monthly: 349, yearly: 3490 },
-  growth: { monthly: 649, yearly: 6490 },
-  pro: { monthly: 949, yearly: 9490 },
-  business: { monthly: 1290, yearly: 12900 },
-  enterprise: { monthly: 0, yearly: 0 } // Custom pricing
-};
+// Subscription amounts are calculated by the shared pricing engine.
 
 const PLAN_FEATURES: Record<PlanType, string[]> = {
   starter: [
@@ -79,7 +70,8 @@ export class EntitlementService {
     businessId: string,
     billingPlan: PlanType,
     billingCycle: 'monthly' | 'yearly',
-    entitlements: SubscriptionEntitlement[]
+    entitlements: SubscriptionEntitlement[],
+    roomCount: number = PACKAGE_MIN_ROOMS[billingPlan]
   ): BusinessSubscription {
     // Find active entitlements
     const now = new Date();
@@ -128,10 +120,9 @@ export class EntitlementService {
       };
     }
 
-    // Calculate base price
-    const pricing = PLAN_PRICING[billingPlan];
-    let monthlyPrice = pricing.monthly;
-    let yearlyPrice = pricing.yearly;
+    // Calculate room-based subscription price through the shared engine.
+    let monthlyPrice = calculateSubscriptionMonthlyPrice(roomCount, billingPlan);
+    let yearlyPrice = calculateSubscriptionAnnualPrice(roomCount, billingPlan);
 
     // Apply discounts
     const percentageDiscounts = activeEntitlements.filter(e => e.type === 'discount_percentage');
@@ -147,7 +138,7 @@ export class EntitlementService {
     // Apply fixed discounts
     for (const discount of fixedDiscounts) {
       monthlyPrice = Math.max(0, monthlyPrice - (discount.value || 0));
-      yearlyPrice = Math.max(0, yearlyPrice - (discount.value || 0) * 12);
+      yearlyPrice = Math.max(0, yearlyPrice - (discount.value || 0) * 11);
     }
 
     // Round to 2 decimal places
