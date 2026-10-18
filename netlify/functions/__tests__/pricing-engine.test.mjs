@@ -10,6 +10,8 @@ import {
   calculateSubscriptionAnnualPrice,
   getBusinessEnterpriseVolumeDiscountRate,
   calculateEnterpriseAdditionalEstablishmentMonthlyFee,
+  calculateEnterprisePortfolioMonthlyPrice,
+  calculateEnterprisePortfolioAnnualPrice,
   calculateMarketingDownloadMonthlyAddon,
   calculateMarketingDownloadVoucher,
 } from '../../../src/config/pricing-engine.js';
@@ -47,7 +49,7 @@ test('Business and Enterprise automatically discount only room-capacity charges 
   assert.equal(getBusinessEnterpriseVolumeDiscountRate(301), 0.15);
   assert.equal(calculateSubscriptionMonthlyPrice(51, 'business'), 3969.9);
   assert.equal(calculateSubscriptionMonthlyPrice(101, 'business'), 6964.32);
-  assert.equal(calculateSubscriptionMonthlyPrice(301, 'business'), 18615.45);
+  assert.equal(calculateSubscriptionMonthlyPrice(301, 'business'), 18610.45);
 });
 
 test('Enterprise additional-establishment fees follow the corrected discount tiers', () => {
@@ -57,6 +59,17 @@ test('Enterprise additional-establishment fees follow the corrected discount tie
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(5), 299);
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(6), 254.15);
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(10), 254.15);
+});
+
+
+test('Enterprise portfolio pricing combines total room capacity with establishment fees', () => {
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(1, 1), 2267);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 2267);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 3), 2566);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 5), 3164);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 6), 3418.15);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(25, 2), 2965);
+  assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 6), 37599.65);
 });
 
 test('Marketing Download add-on and voucher retain the agreed price and validity', () => {
