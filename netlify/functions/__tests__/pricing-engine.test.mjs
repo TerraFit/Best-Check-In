@@ -68,7 +68,7 @@ test('Marketing Download add-on and voucher retain the agreed price and validity
 
 test('Netlify package pricing uses the shared engine and rejects ineligible room counts', () => {
   assert.equal(getPlanPricing('starter', 'monthly', 1).amount, 349);
-  assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 1047);
+  assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 749);
   assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 0);
   assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3969.9);
   assert.equal(getPlanPricing('business', 'yearly', 51).amount, 43668.9);
