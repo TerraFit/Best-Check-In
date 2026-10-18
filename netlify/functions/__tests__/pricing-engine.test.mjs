@@ -13,6 +13,7 @@ import {
   calculateMarketingDownloadMonthlyAddon,
   calculateMarketingDownloadVoucher,
 } from '../../../src/config/pricing-engine.js';
+import { getPlanPricing } from '../lib/packages.js';
 
 test('shared engine uses five-room blocks and the agreed package minimums', () => {
   assert.equal(ROOM_BLOCK_SIZE, 5);
@@ -63,4 +64,12 @@ test('Marketing Download add-on and voucher retain the agreed price and validity
   assert.equal(calculateMarketingDownloadMonthlyAddon('growth'), 39);
   assert.equal(calculateMarketingDownloadMonthlyAddon('pro'), 0);
   assert.deepEqual(calculateMarketingDownloadVoucher(), { price: 149, validityMonths: 3, dataPeriodMonths: 3 });
+});
+
+test('Netlify package pricing uses the shared engine and rejects ineligible room counts', () => {
+  assert.equal(getPlanPricing('starter', 'monthly', 1).amount, 349);
+  assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 1047);
+  assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 0);
+  assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3969.9);
+  assert.equal(getPlanPricing('business', 'yearly', 51).amount, 43668.9);
 });
