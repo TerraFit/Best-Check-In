@@ -12,10 +12,11 @@ export interface RegionalPlanPricing {
   exchangeRateVariable: true;
 }
 
-/** Current South African commercial prices. */
-export const BASE_ZAR_MONTHLY = [349, 797, 1190, 1589, 1975] as const;
+/** Public South African starting prices for the revised room-block model. */
+export const BASE_ZAR_MONTHLY = [349, 749, 1338, 1911, 2267] as const;
+export const BASE_ZAR_YEARLY = [3839, 8239, 14715, 21019, 24937] as const;
 
-/** Initial Africa international price ladder. */
+/** Initial Africa international price ladder, derived from the revised public starting-price ladder. */
 export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
 
 /** Europe uses the agreed commercial planning rate of R20 = €1. */
@@ -27,7 +28,7 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   if (southAfrican) {
     return {
       currency: 'ZAR',
-      prices: BASE_ZAR_MONTHLY.map((monthly) => ({ monthly, yearly: monthly * 11 })),
+      prices: BASE_ZAR_MONTHLY.map((monthly, index) => ({ monthly, yearly: BASE_ZAR_YEARLY[index] })),
       billingCurrency: 'ZAR',
       exchangeRateVariable: true,
     };
@@ -47,10 +48,7 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   };
 }
 
-/**
- * Private revised pricing rules. These calculations are intentionally not displayed
- * as live public quotations until the pricing release is approved.
- */
+/** Revised pricing rules. Room capacity is charged in 5-room blocks. */
 export type FastCheckInPackage = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
 
 export const ROOM_BLOCK_SIZE = 5;
@@ -90,10 +88,7 @@ export function calculateRoomCapacityBase(rooms: number): number {
   return Math.ceil(safeRooms / ROOM_BLOCK_SIZE) * ROOM_BLOCK_MONTHLY_PRICE;
 }
 
-/**
- * Apply an already-determined eligible volume discount to room capacity only.
- * Feature surcharges are fixed per establishment and are never multiplied by blocks.
- */
+/** Apply an already-determined eligible volume discount to room capacity only. */
 export function getBusinessEnterpriseVolumeDiscountRate(eligiblePortfolioRooms: number): number {
   if (eligiblePortfolioRooms >= 301) return 0.15;
   if (eligiblePortfolioRooms >= 101) return 0.12;
@@ -108,7 +103,6 @@ export function calculateSubscriptionMonthlyPrice(
 ): number {
   if (!packageAcceptsRoomCount(packageName, rooms)) return 0;
 
-  // Volume discounts apply only to Business/Enterprise room-capacity charges.
   const isVolumeEligible = packageName === 'business' || packageName === 'enterprise';
   const discountRate = isVolumeEligible
     ? Math.min(1, Math.max(0, roomCapacityDiscountRate))
@@ -130,13 +124,10 @@ export function calculateSubscriptionAnnualPrice(
 export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber: number): number {
   if (!Number.isInteger(establishmentNumber) || establishmentNumber < 3) return 0;
   if (establishmentNumber <= 5) return Math.round(299 * 0.85 * 100) / 100;
-  return 199;
+  return 299;
 }
 
-/**
- * Optional Marketing Download add-on. Starter and Growth can purchase this once per
- * establishment; Pro, Business and Enterprise already include it.
- */
+/** Optional Marketing Download add-on. Starter and Growth can purchase this once per establishment. */
 export function calculateMarketingDownloadMonthlyAddon(packageName: FastCheckInPackage): number {
   return packageName === 'starter' || packageName === 'growth'
     ? MARKETING_DOWNLOAD_MONTHLY_PRICE
