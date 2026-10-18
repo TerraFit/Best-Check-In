@@ -166,7 +166,7 @@ export default function BusinessRegistration() {
   const [loading, setLoading] = useState(false);
   
   // Plan Selection State
-  const [selectedPlanId, setSelectedPlanId] = useState('growth');
+  const [selectedPlanId, setSelectedPlanId] = useState('starter');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [roomsCount, setRoomsCount] = useState(5);
   const [showRoomError, setShowRoomError] = useState(false);
@@ -602,6 +602,8 @@ export default function BusinessRegistration() {
             
             {/* Starter, Growth, Pro, Business Cards */}
             {pricingPlans.map((plan) => {
+              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
+              const displayAnnualPrice = calculateSubscriptionAnnualPrice(roomsCount, plan.id);
               const isRecommended = recommendedPlanId === plan.id;
               const isSelected = selectedPlanId === plan.id;
               const isDisabled = roomsCount < plan.minRooms;
@@ -646,7 +648,7 @@ export default function BusinessRegistration() {
                     </p>
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
-                        {billingCycle === 'monthly' ? `R${plan.priceMonthly}` : `R${plan.priceYearly}`}
+                        {billingCycle === 'monthly' ? `R${displayMonthlyPrice}` : `R${displayAnnualPrice}`}
                       </span>
                       <span className="text-stone-400 text-sm">
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
