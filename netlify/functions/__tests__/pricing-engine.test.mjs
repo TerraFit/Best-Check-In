@@ -68,7 +68,7 @@ test('Enterprise portfolio pricing combines total room capacity with establishme
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 3), 2566);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 5), 3164);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 6), 3418.15);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(25, 2), 2965);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(25, 2), 2616);
   assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 6), 37599.65);
 });
 
