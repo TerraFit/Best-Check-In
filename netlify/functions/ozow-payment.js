@@ -64,11 +64,13 @@ async function createOzowPayment(event) {
     const pricing = getPlanPricing(planId, billingCycle);
     if (!pkg || pricing.contactSales || pricing.amount <= 0) return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not available for online payment' }) };
 
-    const { data: business, error: businessError } = await supabase.from('businesses').select('id, email, status').eq('id', scope.businessId).single();
+    const { data: business, error: businessError } = await supabase.from('businesses').select('id, email, status, total_rooms').eq('id', scope.businessId).single();
     if (businessError || !business || business.status !== 'approved') return { statusCode: 403, headers: jsonHeaders, body: JSON.stringify({ error: 'Business account is not eligible for payment' }) };
 
     const transactionId = `OZ-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const authoritativeAmount = pricing.amount;
+    const authoritativePricing = getPlanPricing(planId, billingCycle, business.total_rooms);
+    if (authoritativePricing.amount <= 0) return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not eligible for this room count' }) };
+    const authoritativeAmount = authoritativePricing.amount;
     const customerEmail = gate.principal.email || business.email;
     const { error: transactionError } = await supabase.from('transactions').insert({ id: transactionId, business_id: scope.businessId, plan_id: planId, billing_cycle: billingCycle, amount: authoritativeAmount, status: 'pending', gateway: 'ozow', created_at: new Date().toISOString() });
     if (transactionError) throw transactionError;
