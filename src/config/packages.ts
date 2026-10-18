@@ -1,8 +1,14 @@
 /**
- * Package SSOT — keep in sync with netlify/functions/lib/packages.js
+ * Package SSOT — package metadata is kept here, while all pricing rules live in pricing.ts.
  */
 
-export type PlanType = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
+import {
+  calculateSubscriptionAnnualPrice,
+  calculateSubscriptionMonthlyPrice,
+  type FastCheckInPackage,
+} from './pricing';
+
+export type PlanType = FastCheckInPackage;
 
 export interface PackageDefinition {
   id: PlanType;
@@ -22,33 +28,52 @@ export interface PackageDefinition {
 
 export const PLAN_ORDER: PlanType[] = ['starter', 'growth', 'pro', 'business', 'enterprise'];
 
-export const PACKAGES: Record<PlanType, PackageDefinition> = {
+const packageMeta: Record<PlanType, Omit<PackageDefinition, 'priceMonthly' | 'priceYearly' | 'minRooms'>> = {
   starter: {
-    id: 'starter', name: 'Starter', minRooms: 1, maxRooms: null, maxStaff: 3,
+    id: 'starter', name: 'Starter', maxRooms: null, maxStaff: 3,
     description: 'Professional digital check-in for B&Bs and small-to-medium-sized guest houses.', upgradeOrder: 0,
-    priceMonthly: 349, priceYearly: 3839, currency: 'ZAR', popular: false, contactSales: false, color: 'green',
+    currency: 'ZAR', popular: false, contactSales: false, color: 'green',
   },
   growth: {
-    id: 'growth', name: 'Growth', minRooms: 6, maxRooms: null, maxStaff: 8,
+    id: 'growth', name: 'Growth', maxRooms: null, maxStaff: 8,
     description: 'Digital check-in plus basic housekeeping and employee portal functionality for growing accommodation businesses.', upgradeOrder: 1,
-    priceMonthly: 749, priceYearly: 8239, currency: 'ZAR', popular: true, contactSales: false, color: 'amber',
+    currency: 'ZAR', popular: true, contactSales: false, color: 'amber',
   },
   pro: {
-    id: 'pro', name: 'Pro', minRooms: 11, maxRooms: null, maxStaff: 20,
+    id: 'pro', name: 'Pro', maxRooms: null, maxStaff: 20,
     description: 'Broader operational management, advanced analytics and marketing intelligence for established accommodation businesses.', upgradeOrder: 2,
-    priceMonthly: 1338, priceYearly: 14715, currency: 'ZAR', popular: false, contactSales: false, color: 'blue',
+    currency: 'ZAR', popular: false, contactSales: false, color: 'blue',
   },
   business: {
-    id: 'business', name: 'Business', minRooms: 20, maxRooms: null, maxStaff: null,
+    id: 'business', name: 'Business', maxRooms: null, maxStaff: null,
     description: 'Complete operational management and unlimited Business Snapshot access for larger establishments.', upgradeOrder: 3,
-    priceMonthly: 1911, priceYearly: 21019, currency: 'ZAR', popular: false, contactSales: false, color: 'purple',
+    currency: 'ZAR', popular: false, contactSales: false, color: 'purple',
   },
   enterprise: {
-    id: 'enterprise', name: 'Enterprise', minRooms: 20, maxRooms: null, maxStaff: null,
+    id: 'enterprise', name: 'Enterprise', maxRooms: null, maxStaff: null,
     description: 'Elite portfolio management and high-level business intelligence for hotel groups and multi-establishment operators.', upgradeOrder: 4,
-    priceMonthly: 2267, priceYearly: 24937, currency: 'ZAR', popular: false, contactSales: false, color: 'stone',
+    currency: 'ZAR', popular: false, contactSales: false, color: 'stone',
   },
 };
+
+export const PACKAGES: Record<PlanType, PackageDefinition> = Object.fromEntries(
+  PLAN_ORDER.map((id) => {
+    const meta = packageMeta[id];
+    const minRooms = {
+      starter: 1,
+      growth: 6,
+      pro: 11,
+      business: 20,
+      enterprise: 20,
+    }[id];
+    return [id, {
+      ...meta,
+      minRooms,
+      priceMonthly: calculateSubscriptionMonthlyPrice(minRooms, id),
+      priceYearly: calculateSubscriptionAnnualPrice(minRooms, id),
+    }];
+  }),
+) as Record<PlanType, PackageDefinition>;
 
 export function normalizePlanId(plan?: string | null): PlanType {
   if (!plan) return 'starter';
@@ -83,16 +108,7 @@ export function listSellablePackages(): PackageDefinition[] {
 }
 
 /**
- * Legacy Enterprise price helper retained for existing quotation/inquiry flows.
- * The revised room-block pricing in src/config/pricing.ts remains the pricing SSOT.
+ * Compatibility helper for existing quotation/inquiry flows.
+ * Revised room-block pricing remains defined in pricing.ts.
  */
-export function calculateEnterpriseMonthlyPrice(roomCount: number): number {
-  const rooms = Math.max(20, Math.ceil(Math.max(1, roomCount) / 5) * 5);
-  const roomBlocks = Math.ceil(rooms / 5);
-  const roomCapacityBase = roomBlocks * 349;
-  let discountRate = 0;
-  if (rooms >= 301) discountRate = 0.15;
-  else if (rooms >= 101) discountRate = 0.12;
-  else if (rooms >= 51) discountRate = 0.10;
-  return Math.round((roomCapacityBase * (1 - discountRate) + 871) * 100) / 100;
-}
+export { calculateEnterpriseMonthlyPrice } from './pricing';
