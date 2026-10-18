@@ -16,6 +16,8 @@ export function getBusinessEnterpriseVolumeDiscountRate(rooms: number): number;
 export function calculateSubscriptionMonthlyPrice(rooms: number, packageName: FastCheckInPackage, discountRate?: number | null): number;
 export function calculateSubscriptionAnnualPrice(rooms: number, packageName: FastCheckInPackage, discountRate?: number | null): number;
 export function calculateEnterpriseMonthlyPrice(rooms: number): number;
+export function calculateEnterprisePortfolioMonthlyPrice(rooms: number, propertyCount?: number): number;
+export function calculateEnterprisePortfolioAnnualPrice(rooms: number, propertyCount?: number): number;
 export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber: number): number;
 export function calculateMarketingDownloadMonthlyAddon(packageName: FastCheckInPackage): number;
 export function calculateMarketingDownloadVoucher(): { price: number; validityMonths: number; dataPeriodMonths: number };
