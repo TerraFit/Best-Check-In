@@ -30,10 +30,13 @@ export function getBusinessEnterpriseVolumeDiscountRate(eligiblePortfolioRooms) 
   if (rooms >= 51) return 0.10;
   return 0;
 }
-export function calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate = 0) {
+export function calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate = null) {
   if (!packageAcceptsRoomCount(packageName, rooms)) return 0;
-  const discount = packageName === 'business' || packageName === 'enterprise'
-    ? Math.min(1, Math.max(0, Number(roomCapacityDiscountRate) || 0)) : 0;
+  const isVolumeEligible = packageName === 'business' || packageName === 'enterprise';
+  const requestedDiscount = roomCapacityDiscountRate === null
+    ? (isVolumeEligible ? getBusinessEnterpriseVolumeDiscountRate(rooms) : 0)
+    : Number(roomCapacityDiscountRate) || 0;
+  const discount = isVolumeEligible ? Math.min(1, Math.max(0, requestedDiscount)) : 0;
   return Math.round((calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName]) * 100) / 100;
 }
 export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacityDiscountRate = 0) {
