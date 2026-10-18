@@ -66,16 +66,18 @@ async function createPayFastPayment(event) {
       return safeError(400, 'Selected plan is not available for online payment');
     }
 
-    const authoritativeAmount = pricing.amount;
     const authoritativeBusinessId = scope.businessId;
 
     const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('id,trading_name,email,status')
+      .select('id,trading_name,email,status,total_rooms')
       .eq('id', authoritativeBusinessId)
       .single();
     if (businessError || !business) return safeError(404, 'Business not found');
     if (business.status !== 'approved') return safeError(403, 'Business is not approved');
+    const pricingForRooms = getPlanPricing(planId, billingCycle, business.total_rooms);
+    if (pricingForRooms.amount <= 0) return safeError(400, 'Selected plan is not eligible for this room count');
+    const authoritativeAmount = pricingForRooms.amount;
 
     const transactionId = `PF-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
     const { error: transactionError } = await supabase.from('transactions').insert({
