@@ -21,6 +21,7 @@ interface MarketContextValue {
 
 const STORAGE_KEY = 'fastcheckin.market.region';
 const CONFIRMED_KEY = 'fastcheckin.market.confirmed';
+const FX_RATES_KEY = 'fastcheckin.pricing.fxRates';
 
 const MarketContext = createContext<MarketContextValue | null>(null);
 
@@ -28,7 +29,13 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   const [region, setRegion] = useState<MarketRegion>('africa');
   const [detected, setDetected] = useState<MarketDetection | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
-  const [fxRates, setFxRates] = useState<Partial<Record<'USD' | 'EUR', PricingFxRate>>>({});
+  const [fxRates, setFxRates] = useState<Partial<Record<'USD' | 'EUR', PricingFxRate>>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FX_RATES_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as MarketRegion | null;
@@ -38,7 +45,9 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     fetch('/.netlify/functions/pricing-fx', { headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (data?.rates) setFxRates(data.rates);
+        if (!data?.rates) return;
+        setFxRates(data.rates);
+        localStorage.setItem(FX_RATES_KEY, JSON.stringify(data.rates));
       })
       .catch(() => undefined);
 
