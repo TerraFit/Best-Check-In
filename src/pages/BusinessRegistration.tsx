@@ -168,7 +168,7 @@ export default function BusinessRegistration() {
   // Plan Selection State
   const [selectedPlanId, setSelectedPlanId] = useState('starter');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const [propertyCount, setPropertyCount] = useState(2);
+  const [propertyCount, setPropertyCount] = useState(1);
   const [roomsCount, setRoomsCount] = useState(5);
   const [showRoomError, setShowRoomError] = useState(false);
   
@@ -184,7 +184,7 @@ export default function BusinessRegistration() {
   const getRecommendedPlanId = (): PlanType => {
     if (roomsCount < 6) return 'starter';
     if (roomsCount < 11) return 'growth';
-    if (roomsCount < 20) return 'pro';
+    if (roomsCount < 21) return 'pro';
     return 'business';
   };
   const recommendedPlanId = getRecommendedPlanId();
@@ -260,7 +260,7 @@ export default function BusinessRegistration() {
     setShowRoomError(false);
     if (rooms < 6) setSelectedPlanId('starter');
     else if (rooms < 11) setSelectedPlanId('growth');
-    else if (rooms < 20) setSelectedPlanId('pro');
+    else if (rooms < 21) setSelectedPlanId('pro');
     else setSelectedPlanId('business');
   };
 
@@ -604,7 +604,7 @@ export default function BusinessRegistration() {
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
-              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 20 rooms.
+              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.
             </p>
           </div>
 
@@ -741,13 +741,15 @@ export default function BusinessRegistration() {
                   Enterprise
                 </h3>
                 <p className="text-xs text-stone-400 mt-1">
-                  20+ rooms across your portfolio · first 2 properties included
+                  21+ rooms across your portfolio · first 2 properties included
                 </p>
                 <div className="mt-3">
                   <span className="text-2xl font-bold text-white">
-                    R{(billingCycle === 'monthly'
-                      ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
-                      : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount)).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    R{(propertyCount >= 2 && roomsCount >= 21
+                      ? (billingCycle === 'monthly'
+                        ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
+                        : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount))
+                      : 0).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </span>
                   <span className="text-stone-400 text-sm">
                     /{billingCycle === 'monthly' ? 'month' : 'year'}
