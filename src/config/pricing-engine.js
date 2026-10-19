@@ -7,7 +7,7 @@ export const PACKAGE_IDS = ['starter', 'growth', 'pro', 'business', 'enterprise'
 export const ROOM_BLOCK_SIZE = 5;
 export const ROOM_BLOCK_MONTHLY_PRICE = 349;
 export const ANNUAL_BILLING_MONTHS = 11;
-export const PACKAGE_MIN_ROOMS = Object.freeze({ starter: 1, growth: 6, pro: 11, business: 20, enterprise: 20 });
+export const PACKAGE_MIN_ROOMS = Object.freeze({ starter: 1, growth: 6, pro: 11, business: 21, enterprise: 21 });
 export const PACKAGE_MONTHLY_SURCHARGES = Object.freeze({ starter: 0, growth: 51, pro: 290.70, business: 514.80, enterprise: 871 });
 export const MARKETING_DOWNLOAD_MONTHLY_PRICE = 39;
 export const MARKETING_DOWNLOAD_VOUCHER_PRICE = 149;
@@ -47,16 +47,17 @@ export function calculateEnterpriseMonthlyPrice(roomCount) {
   const rooms = Math.max(PACKAGE_MIN_ROOMS.enterprise, normalizeRoomCount(roomCount));
   return calculateSubscriptionMonthlyPrice(rooms, 'enterprise', getBusinessEnterpriseVolumeDiscountRate(rooms));
 }
-/** Enterprise portfolio price: combined room capacity (minimum 20 rooms) plus establishment fees. The first two establishments are included. */
-export function calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount = 2) {
+/** Enterprise portfolio price: combined room capacity plus establishment fees. Enterprise is only applicable to portfolios of 2+ establishments. */
+export function calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount = 1) {
   const properties = Math.max(1, Math.floor(Number(propertyCount) || 1));
+  if (properties < 2) return 0;
   let establishmentFees = 0;
   for (let establishmentNumber = 3; establishmentNumber <= properties; establishmentNumber += 1) {
     establishmentFees += calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber);
   }
   return Math.round(calculateEnterpriseMonthlyPrice(roomCount) + establishmentFees);
 }
-export function calculateEnterprisePortfolioAnnualPrice(roomCount, propertyCount = 2) {
+export function calculateEnterprisePortfolioAnnualPrice(roomCount, propertyCount = 1) {
   return Math.round(calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount) * ANNUAL_BILLING_MONTHS);
 }
 /** Establishments 1–2 included; 3–5 R299 each; from establishment 6 onward R299 less 15% = R254.15 each. */
