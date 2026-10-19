@@ -69,8 +69,9 @@ test('Enterprise additional-establishment fees are rounded to whole ZAR', () => 
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(10), 254);
 });
 
-test('Enterprise portfolio pricing requires at least two establishments', () => {
+test('Enterprise portfolio pricing requires at least two establishments and 21 combined rooms', () => {
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(1, 1), 0);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 1), 0);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 1), 0);
   assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 1), 0);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 0);
