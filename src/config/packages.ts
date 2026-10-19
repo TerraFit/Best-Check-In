@@ -63,8 +63,8 @@ export const PACKAGES: Record<PlanType, PackageDefinition> = Object.fromEntries(
       starter: 1,
       growth: 6,
       pro: 11,
-      business: 20,
-      enterprise: 20,
+      business: 21,
+      enterprise: 21,
     }[id];
     return [id, {
       ...meta,
