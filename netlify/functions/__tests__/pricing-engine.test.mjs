@@ -20,25 +20,32 @@ import { getPlanPricing } from '../lib/packages.js';
 test('shared engine uses five-room blocks and the agreed package minimums', () => {
   assert.equal(ROOM_BLOCK_SIZE, 5);
   assert.equal(ROOM_BLOCK_MONTHLY_PRICE, 349);
-  assert.deepEqual(PACKAGE_MIN_ROOMS, { starter: 1, growth: 6, pro: 11, business: 20, enterprise: 20 });
+  assert.deepEqual(PACKAGE_MIN_ROOMS, { starter: 1, growth: 6, pro: 11, business: 21, enterprise: 21 });
   assert.equal(calculateRoomCapacityBase(1), 349);
   assert.equal(calculateRoomCapacityBase(5), 349);
   assert.equal(calculateRoomCapacityBase(6), 698);
   assert.equal(calculateRoomCapacityBase(27), 2094);
   assert.equal(packageAcceptsRoomCount('starter', 500), true);
   assert.equal(packageAcceptsRoomCount('growth', 5), false);
+  assert.equal(packageAcceptsRoomCount('business', 20), false);
+  assert.equal(packageAcceptsRoomCount('business', 21), true);
+  assert.equal(packageAcceptsRoomCount('enterprise', 20), false);
+  assert.equal(packageAcceptsRoomCount('enterprise', 21), true);
 });
 
 test('customer-facing subscription prices are rounded to whole currency units', () => {
   assert.equal(calculateSubscriptionMonthlyPrice(1, 'starter'), 349);
   assert.equal(calculateSubscriptionMonthlyPrice(6, 'growth'), 749);
   assert.equal(calculateSubscriptionMonthlyPrice(11, 'pro'), 1338);
-  assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 1911);
-  assert.equal(calculateSubscriptionMonthlyPrice(20, 'enterprise'), 2267);
+  assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 0);
+  assert.equal(calculateSubscriptionMonthlyPrice(21, 'business'), 2260);
+  assert.equal(calculateSubscriptionMonthlyPrice(20, 'enterprise'), 0);
+  assert.equal(calculateSubscriptionMonthlyPrice(21, 'enterprise'), 2616);
   assert.equal(calculateSubscriptionAnnualPrice(1, 'starter'), 3839);
   assert.equal(calculateSubscriptionAnnualPrice(6, 'growth'), 8239);
   assert.equal(calculateSubscriptionAnnualPrice(11, 'pro'), 14718);
-  assert.equal(calculateSubscriptionAnnualPrice(20, 'business'), 21021);
+  assert.equal(calculateSubscriptionAnnualPrice(21, 'business'), 24860);
+  assert.equal(calculateSubscriptionAnnualPrice(21, 'enterprise'), 28776);
 });
 
 test('Business and Enterprise automatically discount only room-capacity charges at each threshold', () => {
@@ -62,14 +69,16 @@ test('Enterprise additional-establishment fees are rounded to whole ZAR', () => 
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(10), 254);
 });
 
-test('Enterprise portfolio pricing combines total room capacity with establishment fees', () => {
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(1, 1), 2267);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 2267);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 3), 2566);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 5), 3164);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 6), 3418);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(25, 2), 2616);
-  assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 6), 37598);
+test('Enterprise portfolio pricing requires at least two establishments', () => {
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(1, 1), 0);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 1), 0);
+  assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 1), 0);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 0);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 2), 2616);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 3), 2915);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 5), 3513);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 6), 3767);
+  assert.equal(calculateEnterprisePortfolioAnnualPrice(21, 6), 41437);
 });
 
 test('Marketing Download add-on and voucher retain the agreed price and validity', () => {
@@ -83,6 +92,8 @@ test('Netlify package pricing uses the shared engine and rejects ineligible room
   assert.equal(getPlanPricing('starter', 'monthly', 1).amount, 349);
   assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 749);
   assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 0);
+  assert.equal(getPlanPricing('business', 'monthly', 20).amount, 0);
+  assert.equal(getPlanPricing('business', 'monthly', 21).amount, 2260);
   assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3970);
   assert.equal(getPlanPricing('business', 'yearly', 51).amount, 43670);
 });
