@@ -182,6 +182,9 @@ export default function BusinessRegistration() {
   
   // Determine recommended plan based on room count
   const getRecommendedPlanId = (): PlanType => {
+    // A qualifying multi-establishment portfolio should be guided to Enterprise,
+    // even when the combined room count would otherwise recommend Business.
+    if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
     if (roomsCount < 6) return 'starter';
     if (roomsCount < 11) return 'growth';
     if (roomsCount < 21) return 'pro';
@@ -743,8 +746,18 @@ export default function BusinessRegistration() {
 
             {/* Enterprise portfolio pricing is calculated now; activation remains unavailable until launch. */}
             <div
-              className="relative rounded-xl border-2 p-5 bg-stone-800/50 border-stone-700"
+              className={`relative rounded-xl border-2 p-5 transition-all bg-stone-800/50
+                ${recommendedPlanId === 'enterprise'
+                  ? 'border-purple-500 ring-2 ring-green-500/50 scale-105 shadow-lg'
+                  : 'border-stone-700'}`}
             >
+              {recommendedPlanId === 'enterprise' && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    Recommended
+                  </span>
+                </div>
+              )}
               <div className="text-center">
                 <h3 className="text-xl font-bold text-purple-400">
                   Enterprise
