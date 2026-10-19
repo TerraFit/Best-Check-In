@@ -83,7 +83,7 @@ export const PACKAGES = {
     priceYearly: getStartingPrice('enterprise', 'yearly'),
     currency: 'ZAR',
     popular: false,
-    contactSales: false,
+    contactSales: true,
     color: 'stone',
   },
 };

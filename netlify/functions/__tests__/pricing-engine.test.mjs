@@ -89,6 +89,12 @@ test('Marketing Download add-on and voucher retain the agreed price and validity
   assert.deepEqual(calculateMarketingDownloadVoucher(), { price: 149, validityMonths: 3, dataPeriodMonths: 3 });
 });
 
+test('Enterprise is enquiry-only and is blocked from online payment pricing', () => {
+  const enterprise = getPlanPricing('enterprise', 'monthly', 21);
+  assert.equal(enterprise.amount, 0);
+  assert.equal(enterprise.contactSales, true);
+});
+
 test('Netlify package pricing uses the shared engine and rejects ineligible room counts', () => {
   assert.equal(getPlanPricing('starter', 'monthly', 1).amount, 349);
   assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 749);

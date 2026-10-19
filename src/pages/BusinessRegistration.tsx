@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
-import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, calculateEnterprisePortfolioAnnualPrice } from '../config/pricing';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, calculateEnterprisePortfolioAnnualPrice, convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
+import PricingComingSoonModal from '../components/PricingComingSoonModal';
+import { useMarket } from '../context/MarketContext';
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -155,6 +157,1472 @@ const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { region, isSouthAfricanMarket } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket);
+  const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '
+  
+  // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+  
+  // Phase Management
+  const [phase, setPhase] = useState(1);
+  const [loading, setLoading] = useState(false);
+  
+  // Plan Selection State
+  const [selectedPlanId, setSelectedPlanId] = useState('starter');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [propertyCount, setPropertyCount] = useState(1);
+  const [roomsCount, setRoomsCount] = useState(5);
+  const [showRoomError, setShowRoomError] = useState(false);
+  
+  // Get selected plan data
+  const selectedPlanBase = pricingPlans.find(p => p.id === selectedPlanId);
+  const selectedPlan = selectedPlanBase ? {
+    ...selectedPlanBase,
+    priceMonthly: calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id),
+    priceYearly: calculateSubscriptionAnnualPrice(roomsCount, selectedPlanBase.id),
+  } : undefined;
+  
+  // Determine recommended plan based on room count
+  const getRecommendedPlanId = (): PlanType => {
+    // A qualifying multi-establishment portfolio should be guided to Enterprise,
+    // even when the combined room count would otherwise recommend Business.
+    if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
+    if (roomsCount < 6) return 'starter';
+    if (roomsCount < 11) return 'growth';
+    if (roomsCount < 21) return 'pro';
+    return 'business';
+  };
+  const recommendedPlanId = getRecommendedPlanId();
+  
+  // Phase 1: Business Information (ADDED establishmentType and tgsaGrading)
+  const [businessData, setBusinessData] = useState({
+    legalName: '',
+    registrationNumber: '',
+    vatNumber: '',
+    tradingName: '',
+    establishmentType: '',
+    tgsaGrading: 'NA',
+    physicalStreet: '',
+    physicalCity: '',
+    physicalProvince: '',
+    physicalCountry: 'South Africa',
+    physicalPostalCode: '',
+    sameAsPhysical: false,
+    postalStreet: '',
+    postalCity: '',
+    postalProvince: '',
+    postalCountry: 'South Africa',
+    postalPostalCode: '',
+    email: '',
+    confirmEmail: '',
+    fixedPhone: '',
+    mobilePhone: '',
+    website: ''
+  });
+
+  // Get available provinces for selected country
+  const availableProvinces = REGIONS_BY_COUNTRY[businessData.physicalCountry] || [];
+  const regionLabel = getRegionLabel(businessData.physicalCountry);
+
+  // Phase 2: Director Details
+  const [directorData, setDirectorData] = useState({
+    name: '',
+    surname: '',
+    idNumber: '',
+    idPhoto: '',
+    idPhotoPreview: '',
+    sameAddress: true,
+    address: '',
+    email: '',
+    confirmEmail: '',
+    fixedPhone: '',
+    mobilePhone: '',
+    acknowledgeCorrect: false
+  });
+
+  // Phase 3: Waiver
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
+  const [captchaText, setCaptchaText] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+
+  // Generate CAPTCHA
+  const generateCaptcha = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCaptchaText(result);
+  };
+
+  React.useEffect(() => {
+    generateCaptcha();
+  }, []);
+
+  // Handle room count change - auto recommends plan
+  const handleRoomsChange = (rooms: number) => {
+    setRoomsCount(rooms);
+    setShowRoomError(false);
+    if (rooms < 6) setSelectedPlanId('starter');
+    else if (rooms < 11) setSelectedPlanId('growth');
+    else if (rooms < 21) setSelectedPlanId('pro');
+    else setSelectedPlanId('business');
+  };
+
+  // Handle plan selection with validation
+  const handleSelectPlan = (planId: string) => {
+    if (planId === 'enterprise') {
+      setSelectedPlanId('enterprise');
+      setShowRoomError(false);
+      document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    const plan = pricingPlans.find(p => p.id === planId);
+    if (plan && roomsCount < plan.minRooms) {
+      setShowRoomError(true);
+      return;
+    }
+    setShowRoomError(false);
+    setSelectedPlanId(planId);
+    document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Handle director ID photo upload
+  const handleDirectorIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File must be less than 2MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setDirectorData(prev => ({
+        ...prev,
+        idPhoto: reader.result as string,
+        idPhotoPreview: reader.result as string
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Validate Phase 1 (UPDATED to include establishmentType)
+  const validatePhase1 = (): boolean => {
+    if (!businessData.legalName) {
+      alert('Legal name is required');
+      return false;
+    }
+    if (!businessData.tradingName) {
+      alert('Trading name is required');
+      return false;
+    }
+    if (!businessData.establishmentType) {
+      alert('Please select your establishment type');
+      return false;
+    }
+    if (!businessData.physicalStreet) {
+      alert('Physical address is required');
+      return false;
+    }
+    if (!businessData.physicalCity) {
+      alert('City is required');
+      return false;
+    }
+    if (!businessData.physicalCountry) {
+      alert('Country is required');
+      return false;
+    }
+    if (!businessData.physicalProvince) {
+      alert(`${regionLabel} is required`);
+      return false;
+    }
+    if (!businessData.email) {
+      alert('Email is required');
+      return false;
+    }
+    if (businessData.email !== businessData.confirmEmail) {
+      alert('Emails do not match');
+      return false;
+    }
+    if (!businessData.mobilePhone) {
+      alert('Mobile phone is required');
+      return false;
+    }
+    return true;
+  };
+
+  // Validate Phase 2
+  const validatePhase2 = (): boolean => {
+    if (!directorData.name) {
+      alert('Director name is required');
+      return false;
+    }
+    if (!directorData.surname) {
+      alert('Director surname is required');
+      return false;
+    }
+    if (!directorData.idNumber) {
+      alert('ID/Passport number is required');
+      return false;
+    }
+    if (!directorData.idPhoto) {
+      alert('ID photo is required');
+      return false;
+    }
+    if (!directorData.email) {
+      alert('Director email is required');
+      return false;
+    }
+    if (directorData.email !== directorData.confirmEmail) {
+      alert('Director emails do not match');
+      return false;
+    }
+    if (!directorData.acknowledgeCorrect) {
+      alert('Please acknowledge that the information is correct');
+      return false;
+    }
+    return true;
+  };
+
+  // Phase 1 Submit
+  const handlePhase1Submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validatePhase1()) {
+      setPhase(2);
+      setTimeout(() => {
+        document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  // Phase 2 Submit
+  const handlePhase2Submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validatePhase2()) {
+      setPhase(3);
+      setTimeout(() => {
+        document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  // Final Submit (UPDATED to include registered_name and establishment_type and tgsa_grading)
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (captchaInput.toUpperCase() !== captchaText) {
+      alert('CAPTCHA verification failed. Please try again.');
+      generateCaptcha();
+      setCaptchaInput('');
+      return;
+    }
+    
+    if (!waiverAccepted) {
+      alert('Please accept the waiver agreement to continue');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await fetch('/.netlify/functions/register-business', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business: {
+            // REQUIRED FIELDS
+            registered_name: businessData.legalName,  // ← CRITICAL: This is the NOT NULL column
+            legal_name: businessData.legalName,
+            trading_name: businessData.tradingName,
+            email: businessData.email,
+            mobile_phone: businessData.mobilePhone,
+            
+            // Optional fields
+            registration_number: businessData.registrationNumber,
+            vat_number: businessData.vatNumber,
+            establishment_type: businessData.establishmentType,
+            tgsa_grading: businessData.tgsaGrading,
+            fixed_phone: businessData.fixedPhone,
+            website: businessData.website,
+            
+            // Addresses
+            physical_address: {
+              street: businessData.physicalStreet,
+              city: businessData.physicalCity,
+              province: businessData.physicalProvince,
+              country: businessData.physicalCountry,
+              postalCode: businessData.physicalPostalCode
+            },
+            postal_address: businessData.sameAsPhysical ? null : {
+              street: businessData.postalStreet,
+              city: businessData.postalCity,
+              province: businessData.postalProvince,
+              country: businessData.postalCountry,
+              postalCode: businessData.postalPostalCode
+            },
+            
+            // Director info
+            director: {
+              name: directorData.name,
+              surname: directorData.surname,
+              id_number: directorData.idNumber,
+              id_photo: directorData.idPhoto,
+              address: directorData.sameAddress ? null : directorData.address,
+              email: directorData.email,
+              fixed_phone: directorData.fixedPhone,
+              mobile_phone: directorData.mobilePhone
+            },
+            
+            // Plan details
+            total_rooms: roomsCount,
+            plan: selectedPlanId === 'enterprise' ? 'enterprise' : selectedPlanId,
+            max_rooms: null,
+            billing_cycle: billingCycle,
+            status: 'pending'
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        navigate('/registration-pending', {
+          state: {
+            businessName: businessData.tradingName,
+            email: businessData.email
+          }
+        });
+      } else {
+        alert(data.error || 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Scroll to registration form
+  const scrollToRegistration = () => {
+    document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-900">
+      {/* Sticky Plan Banner - Shows after plan selection */}
+      {(phase > 1 || selectedPlanId) && (
+        <div className="sticky top-0 z-50 bg-stone-800 border-b border-stone-700 shadow-lg py-3 px-4">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <img
+                src="/fastcheckin-logo.png"
+                alt="FastCheckin"
+                className="h-8 w-auto"
+              />
+              <div>
+                <p className="text-sm text-stone-400">Selected Plan</p>
+                <p className="font-bold text-white">
+                  {selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-stone-400">Rooms</p>
+                <p className="text-white">
+                  {roomsCount} rooms
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-stone-400">Price</p>
+                <p className="text-white">
+                  {selectedPlanId === 'enterprise'
+                    ? 'Custom'
+                    : (billingCycle === 'monthly'
+                      ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
+                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceYearly || 0, region, isSouthAfricanMarket)}/year`)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setPhase(1);
+                document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-sm text-amber-500 hover:text-amber-400"
+            >
+              Change Plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto py-12 px-4">
+        {/* Header with Logo */}
+        <div id="form-top" className="text-center mb-8">
+          <img
+            src="/fastcheckin-logo.png"
+            alt="FastCheckin"
+            className="h-16 w-auto mx-auto mb-4 object-contain"
+          />
+          <h1 className="text-4xl font-bold text-white">Register Your Business</h1>
+          <p className="text-stone-400 mt-2">Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.</p>
+        </div>
+
+        {/* ============================================================ */}
+        {/* PRICING SECTION - MUST APPEAR FIRST */}
+        {/* ============================================================ */}
+        <div id="pricing-section" className="mb-12">
+          
+          {/* Property count comes first because Enterprise pricing includes portfolio fees. */}
+          <div className="max-w-md mx-auto mb-6 text-center">
+            <label className="block text-lg font-medium text-stone-300 mb-3">
+              How many properties does your company have?
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={propertyCount}
+              onChange={(e) => {
+                const nextPropertyCount = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
+                setPropertyCount(nextPropertyCount);
+                // Enterprise requires at least 2 properties and 21 combined rooms.
+                // Guide the user to the minimum as soon as they select a portfolio.
+                if (nextPropertyCount >= 2 && roomsCount < 21) {
+                  setRoomsCount(21);
+                  setShowRoomError(false);
+                }
+              }}
+              className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
+            />
+            <p className="text-stone-500 text-sm mt-2">
+              Enter the number of establishments operated by your company.
+            </p>
+          </div>
+
+          {/* Combined room capacity across the portfolio */}
+          <div className="max-w-md mx-auto mb-10 text-center">
+            <label className="block text-lg font-medium text-stone-300 mb-3">
+              How many rooms are there across all your properties?
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={roomsCount}
+              onChange={(e) => handleRoomsChange(Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1)))}
+              className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
+            />
+            <p className="text-stone-500 text-sm mt-2">
+              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.
+            </p>
+          </div>
+
+          {/* Room Limit Error Message */}
+          {showRoomError && (
+            <div className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500 rounded-lg p-3 text-center">
+              <p className="text-red-400 text-sm">
+                ⚠️ This package requires at least the minimum number of rooms shown. Please choose an eligible package.
+              </p>
+            </div>
+          )}
+
+          {/* Pricing Cards - All Packages Displayed */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            
+            {/* Starter, Growth, Pro, Business Cards */}
+            {pricingPlans.map((plan) => {
+              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
+              const displayAnnualPrice = calculateSubscriptionAnnualPrice(roomsCount, plan.id);
+              const isRecommended = recommendedPlanId === plan.id;
+              const isSelected = selectedPlanId === plan.id;
+              const isDisabled = roomsCount < plan.minRooms;
+              
+              return (
+                <div
+                  key={plan.id}
+                  onClick={() => !isDisabled && handleSelectPlan(plan.id)}
+                  className={`
+                    relative rounded-xl border-2 p-5 cursor-pointer transition-all
+                    ${isRecommended
+                      ? `${plan.borderColor} bg-stone-800 scale-105 shadow-lg ring-2 ring-green-500/50`
+                      : 'border-stone-700 bg-stone-800/50'}
+                    ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
+                  `}
+                >
+                  {/* ✅ Recommended Badge (Dynamic - Green) */}
+                  {isRecommended && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                        Recommended
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* ⭐ Most Popular Badge (Static - Amber) - Only on Growth when not recommended */}
+                  {plan.mostPopular && !isRecommended && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="text-center">
+                    <h3 className={`text-xl font-bold ${plan.textColor}`}>
+                      {plan.name}
+                    </h3>
+                    <p className="text-xs text-stone-400 mt-1">
+                      {plan.minRooms}+ rooms · no maximum
+                    </p>
+                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
+                    <div className="mt-3">
+                      <span className="text-2xl font-bold text-white">
+                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayAnnualPrice, region, isSouthAfricanMarket)}`}
+                      </span>
+                      <span className="text-stone-400 text-sm">
+                        /{billingCycle === 'monthly' ? 'month' : 'year'}
+                      </span>
+                    </div>
+                    
+                    {/* Feature List */}
+                    <div className="mt-4 text-left space-y-2">
+                      {plan.id === 'starter' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest Check-In System</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Digital Registration Forms</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Email Confirmations</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('reg_basic_dashboard')}</p>
+                        </>
+                      )}
+                      {plan.id === 'growth' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Starter</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-Room Management</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest History Tracking</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Priority Support</p>
+                        </>
+                      )}
+                      {plan.id === 'pro' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Growth</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Advanced Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Custom Branding</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Data Export</p>
+                        </>
+                      )}
+                      {plan.id === 'business' && (
+                        <>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Pro</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-User Access</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Staff Permissions</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> API / Integrations</p>
+                        </>
+                      )}
+                    </div>
+                    
+                    {isDisabled && (
+                      <p className="text-xs text-red-400 mt-2">
+                        Requires at least {plan.minRooms} rooms
+                      </p>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectPlan(plan.id);
+                      }}
+                      disabled={isDisabled}
+                      className={`mt-4 w-full py-2 rounded-lg font-semibold transition-colors ${plan.buttonColor} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      Select Plan
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Enterprise portfolio pricing is calculated now; activation remains unavailable until launch. */}
+            <div
+              className={`relative rounded-xl border-2 p-5 transition-all bg-stone-800/50
+                ${recommendedPlanId === 'enterprise'
+                  ? 'border-purple-500 ring-2 ring-green-500/50 scale-105 shadow-lg'
+                  : 'border-stone-700'}`}
+            >
+              {recommendedPlanId === 'enterprise' && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    Recommended
+                  </span>
+                </div>
+              )}
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-purple-400">
+                  Enterprise
+                </h3>
+                <p className="text-xs text-stone-400 mt-1">
+                  21+ rooms across your portfolio · first 2 properties included
+                </p>
+                <div className="mt-3">
+                  <span className="text-2xl font-bold text-white">
+                    {currencySymbol}{convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21
+                      ? (billingCycle === 'monthly'
+                        ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
+                        : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount))
+                      : 0, region, isSouthAfricanMarket).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                  <span className="text-stone-400 text-sm">
+                    /{billingCycle === 'monthly' ? 'month' : 'year'}
+                  </span>
+                </div>
+                <p className="text-xs text-stone-400 mt-1">
+                  {propertyCount > 2 ? `Includes ${propertyCount - 2} additional propert${propertyCount - 2 === 1 ? 'y' : 'ies'}` : 'Includes up to 2 properties'}
+                </p>
+                
+                {/* Enterprise Feature List */}
+                <div className="mt-4 text-left space-y-2">
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Consolidated portfolio management</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> High-level portfolio intelligence</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom integrations and dedicated support</p>
+                </div>
+                
+                <button type="button" onClick={() => setEnterpriseInquiryOpen(true)} className="mt-4 w-full py-2 rounded-lg font-semibold text-center bg-stone-700 text-amber-300 border border-stone-600 hover:bg-stone-600 transition-colors">
+                  Coming Soon · Notify Me
+                </button>
+                <p className="text-xs text-stone-500 mt-2">
+                  Regional display price only. Enterprise is not yet available for online purchase; Peach Payments billing will be in ZAR.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* SUBTLE SCROLL ARROW - VISIBLE AND FUNCTIONAL */}
+          <div className="text-center mt-12 animate-bounce">
+            <button 
+              onClick={scrollToRegistration}
+              className="text-stone-500 text-sm flex items-center justify-center gap-2 hover:text-stone-400 transition-colors group"
+            >
+              <span>{t('reg_register_here')}</span>
+              <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* REGISTRATION FORM - Appears After Plan Selection */}
+        {/* ============================================================ */}
+        {selectedPlanId && (
+          <div id="registration-form" className="mt-8">
+            
+            {/* Phase Indicator */}
+            <div className="flex justify-center mb-8">
+              <div className="flex items-center space-x-4">
+                {[1, 2, 3].map((p) => (
+                  <div key={p} className="flex items-center">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                        phase >= p
+                          ? 'bg-amber-500 text-stone-900'
+                          : 'bg-stone-700 text-stone-400'
+                      }`}
+                    >
+                      {p}
+                    </div>
+                    {p < 3 && (
+                      <div
+                        className={`w-16 h-0.5 mx-2 ${
+                          phase > p ? 'bg-amber-500' : 'bg-stone-700'
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ============================================================ */}
+            {/* PHASE 1: Business Information */}
+            {/* ============================================================ */}
+            {phase === 1 && (
+              <form onSubmit={handlePhase1Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+                <h2 className="text-2xl font-bold text-white mb-6">
+                  Business Information
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Legal Name (as per CIPC) *
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.legalName}
+                      onChange={(e) => setBusinessData({ ...businessData, legalName: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Registration Number (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.registrationNumber}
+                      onChange={(e) => setBusinessData({ ...businessData, registrationNumber: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      VAT Number (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.vatNumber}
+                      onChange={(e) => setBusinessData({ ...businessData, vatNumber: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Trading Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.tradingName}
+                      onChange={(e) => setBusinessData({ ...businessData, tradingName: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+
+                  {/* NEW: Establishment Type Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Type of Establishment *
+                    </label>
+                    <select
+                      value={businessData.establishmentType}
+                      onChange={(e) => setBusinessData({ ...businessData, establishmentType: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    >
+                      <option value="">{t('reg_select_establishment')}</option>
+                      {ESTABLISHMENT_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* NEW: TGSA Grading Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      TGSA Grading (Optional)
+                    </label>
+                    <select
+                      value={businessData.tgsaGrading}
+                      onChange={(e) => setBusinessData({ ...businessData, tgsaGrading: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    >
+                      {TGSA_GRADING.map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Physical Address */}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
+                  Physical Address
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Street Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.physicalStreet}
+                      onChange={(e) => {
+                        setBusinessData({ ...businessData, physicalStreet: e.target.value });
+                        if (businessData.sameAsPhysical) {
+                          setBusinessData(prev => ({ ...prev, postalStreet: e.target.value }));
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      City / Town *
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.physicalCity}
+                      onChange={(e) => {
+                        setBusinessData({ ...businessData, physicalCity: e.target.value });
+                        if (businessData.sameAsPhysical) {
+                          setBusinessData(prev => ({ ...prev, postalCity: e.target.value }));
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Country *
+                    </label>
+                    <select
+                      value={businessData.physicalCountry}
+                      onChange={(e) => {
+                        const newCountry = e.target.value;
+                        setBusinessData({ 
+                          ...businessData, 
+                          physicalCountry: newCountry,
+                          physicalProvince: ''
+                        });
+                        if (businessData.sameAsPhysical) {
+                          setBusinessData(prev => ({ 
+                            ...prev, 
+                            postalCountry: newCountry,
+                            postalProvince: ''
+                          }));
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    >
+                      <option value="">{t('reg_select_country')}</option>
+                      {SADC_COUNTRIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      {regionLabel} *
+                    </label>
+                    {availableProvinces.length > 0 ? (
+                      <select
+                        value={businessData.physicalProvince}
+                        onChange={(e) => {
+                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
+                          if (businessData.sameAsPhysical) {
+                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        required
+                      >
+                        <option value="">Select {regionLabel}</option>
+                        {availableProvinces.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={businessData.physicalProvince}
+                        onChange={(e) => {
+                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
+                          if (businessData.sameAsPhysical) {
+                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
+                          }
+                        }}
+                        placeholder={`Enter ${regionLabel.toLowerCase()}`}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        required
+                      />
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Postal Code
+                    </label>
+                    <input
+                      type="text"
+                      value={businessData.physicalPostalCode}
+                      onChange={(e) => {
+                        setBusinessData({ ...businessData, physicalPostalCode: e.target.value });
+                        if (businessData.sameAsPhysical) {
+                          setBusinessData(prev => ({ ...prev, postalPostalCode: e.target.value }));
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Postal Address */}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
+                  Postal Address
+                </h3>
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={businessData.sameAsPhysical}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setBusinessData(prev => ({ ...prev, sameAsPhysical: isChecked }));
+                        if (isChecked) {
+                          setBusinessData(prev => ({
+                            ...prev,
+                            postalStreet: prev.physicalStreet,
+                            postalCity: prev.physicalCity,
+                            postalProvince: prev.physicalProvince,
+                            postalCountry: prev.physicalCountry,
+                            postalPostalCode: prev.physicalPostalCode
+                          }));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-stone-600 bg-stone-700"
+                    />
+                    <span className="text-stone-300">Same as physical address</span>
+                  </label>
+                </div>
+                
+                {!businessData.sameAsPhysical && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-stone-300 mb-1">
+                        Street Address
+                      </label>
+                      <input
+                        type="text"
+                        value={businessData.postalStreet}
+                        onChange={(e) => setBusinessData({ ...businessData, postalStreet: e.target.value })}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-300 mb-1">
+                        City / Town
+                      </label>
+                      <input
+                        type="text"
+                        value={businessData.postalCity}
+                        onChange={(e) => setBusinessData({ ...businessData, postalCity: e.target.value })}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-300 mb-1">
+                        Country
+                      </label>
+                      <select
+                        value={businessData.postalCountry}
+                        onChange={(e) => {
+                          const newCountry = e.target.value;
+                          setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' });
+                        }}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      >
+                        <option value="">{t('reg_select_country')}</option>
+                        {SADC_COUNTRIES.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-300 mb-1">
+                        {getRegionLabel(businessData.postalCountry)}
+                      </label>
+                      {REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (
+                        <select
+                          value={businessData.postalProvince}
+                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
+                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        >
+                          <option value="">Select {getRegionLabel(businessData.postalCountry)}</option>
+                          {REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={businessData.postalProvince}
+                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
+                          placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`}
+                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-300 mb-1">
+                        Postal Code
+                      </label>
+                      <input
+                        type="text"
+                        value={businessData.postalPostalCode}
+                        onChange={(e) => setBusinessData({ ...businessData, postalPostalCode: e.target.value })}
+                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Contact Information */}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={businessData.email}
+                      onChange={(e) => setBusinessData({ ...businessData, email: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Confirm Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={businessData.confirmEmail}
+                      onChange={(e) => setBusinessData({ ...businessData, confirmEmail: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Fixed Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={businessData.fixedPhone}
+                      onChange={(e) => setBusinessData({ ...businessData, fixedPhone: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Mobile Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={businessData.mobilePhone}
+                      onChange={(e) => setBusinessData({ ...businessData, mobilePhone: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Website URL
+                    </label>
+                    <input
+                      type="url"
+                      value={businessData.website}
+                      onChange={(e) => setBusinessData({ ...businessData, website: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ============================================================ */}
+            {/* PHASE 2: Director Details */}
+            {/* ============================================================ */}
+            {phase === 2 && (
+              <form onSubmit={handlePhase2Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+                <h2 className="text-2xl font-bold text-white mb-6">
+                  Director / Owner Information
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={directorData.name}
+                      onChange={(e) => setDirectorData({ ...directorData, name: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Last Name / Surname *
+                    </label>
+                    <input
+                      type="text"
+                      value={directorData.surname}
+                      onChange={(e) => setDirectorData({ ...directorData, surname: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      ID / Passport Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={directorData.idNumber}
+                      onChange={(e) => setDirectorData({ ...directorData, idNumber: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Upload ID / Passport Photo *
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDirectorIdUpload}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white file:mr-2 file:py-1 file:px-3 file:rounded-full file:bg-amber-500 file:text-white file:border-0"
+                      required
+                    />
+                    {directorData.idPhotoPreview && (
+                      <div className="mt-2">
+                        <img
+                          src={directorData.idPhotoPreview}
+                          alt="ID Preview"
+                          className="h-20 w-auto rounded border border-stone-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Address */}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
+                  Address
+                </h3>
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={directorData.sameAddress}
+                      onChange={(e) => setDirectorData({ ...directorData, sameAddress: e.target.checked })}
+                      className="w-4 h-4 rounded border-stone-600 bg-stone-700"
+                    />
+                    <span className="text-stone-300">Same as business address</span>
+                  </label>
+                </div>
+                
+                {!directorData.sameAddress && (
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Residential Address
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={directorData.address}
+                      onChange={(e) => setDirectorData({ ...directorData, address: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                )}
+
+                {/* Contact Information */}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={directorData.email}
+                      onChange={(e) => setDirectorData({ ...directorData, email: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Confirm Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={directorData.confirmEmail}
+                      onChange={(e) => setDirectorData({ ...directorData, confirmEmail: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Fixed Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={directorData.fixedPhone}
+                      onChange={(e) => setDirectorData({ ...directorData, fixedPhone: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">
+                      Mobile Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={directorData.mobilePhone}
+                      onChange={(e) => setDirectorData({ ...directorData, mobilePhone: e.target.value })}
+                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Acknowledgement */}
+                <div className="mt-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={directorData.acknowledgeCorrect}
+                      onChange={(e) => setDirectorData({ ...directorData, acknowledgeCorrect: e.target.checked })}
+                      className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700"
+                    />
+                    <span className="text-stone-300 text-sm">
+                      I hereby acknowledge that all the information provided above is true, correct,
+                      and complete to the best of my knowledge.
+                    </span>
+                  </label>
+                </div>
+
+                <div className="mt-8 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setPhase(1)}
+                    className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ============================================================ */}
+            {/* PHASE 3: Waiver & Submission */}
+            {/* ============================================================ */}
+            {phase === 3 && (
+              <form onSubmit={handleFinalSubmit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
+                <h2 className="text-2xl font-bold text-white mb-6">
+                  Waiver & Agreement
+                </h2>
+                
+                {/* Waiver Text */}
+                <div className="bg-stone-700/30 rounded-lg p-6 mb-6 border border-stone-600 max-h-80 overflow-y-auto">
+                  <h3 className="text-lg font-bold text-white mb-4">
+                    FastCheckin Platform Waiver
+                  </h3>
+                  <div className="space-y-4 text-stone-300 text-sm">
+                    <p>
+                      <strong>1. Acceptance of Terms</strong>
+                      <br />
+                      By using the FastCheckin platform, you agree to be bound by these terms and conditions.
+                    </p>
+                    <p>
+                      <strong>2. Platform Usage</strong>
+                      <br />
+                      FastCheckin provides a digital check-in solution for accommodations. The platform is provided "as is" without warranties.
+                    </p>
+                    <p>
+                      <strong>3. Limitation of Liability</strong>
+                      <br />
+                      To the maximum extent permitted by law, FastCheckin shall not be liable for any indirect, incidental, special, consequential, or punitive damages.
+                    </p>
+                    <p>
+                      <strong>4. Data Processing</strong>
+                      <br />
+                      You acknowledge that guest data is processed in accordance with POPIA and our Privacy Policy.
+                    </p>
+                    <p>
+                      <strong>5. Indemnification</strong>
+                      <br />
+                      You agree to indemnify and hold FastCheckin harmless from any claims arising from your use of the platform.
+                    </p>
+                    <p>
+                      <strong>6. Termination</strong>
+                      <br />
+                      FastCheckin reserves the right to suspend or terminate access for violation of these terms.
+                    </p>
+                    <p>
+                      <strong>7. Governing Law</strong>
+                      <br />
+                      This agreement shall be governed by the laws of the Republic of South Africa.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Waiver Acceptance */}
+                <div className="mb-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={waiverAccepted}
+                      onChange={(e) => setWaiverAccepted(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700"
+                    />
+                    <span className="text-stone-300 text-sm">
+                      I have read, understood, and agree to the terms of this waiver and the FastCheckin platform agreement.
+                    </span>
+                  </label>
+                </div>
+
+                {/* Application Summary */}
+                <div className="bg-stone-700/20 rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold text-white mb-2">
+                    Application Summary
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-stone-400">
+                    <p>Business: <span className="text-white">{businessData.tradingName}</span></p>
+                    <p>Legal Name: <span className="text-white">{businessData.legalName}</span></p>
+                    <p>Type: <span className="text-white">{businessData.establishmentType || 'Not specified'}</span></p>
+                    <p>TGSA: <span className="text-white">{businessData.tgsaGrading}</span></p>
+                    <p>Plan: <span className="text-white">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>
+                    <p>Properties: <span className="text-white">{propertyCount}</span></p>
+                    <p>Total rooms: <span className="text-white">{roomsCount}</span></p>
+                    <p>Director: <span className="text-white">{directorData.name} {directorData.surname}</span></p>
+                    <p>Email: <span className="text-white">{businessData.email}</span></p>
+                    <p>Phone: <span className="text-white">{businessData.mobilePhone}</span></p>
+                  </div>
+                </div>
+
+                {/* Billing Cycle Toggle */}
+                <div className="flex justify-center gap-4 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('monthly')}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                      billingCycle === 'monthly'
+                        ? 'bg-amber-500 text-stone-900'
+                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                    }`}
+                  >
+                    Monthly Billing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('yearly')}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                      billingCycle === 'yearly'
+                        ? 'bg-amber-500 text-stone-900'
+                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                    }`}
+                  >
+                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
+                  </button>
+                </div>
+
+                {/* CAPTCHA */}
+                <div className="bg-stone-700/30 rounded-lg p-4 mb-6">
+                  <div className="text-center mb-4">
+                    <p className="text-2xl font-mono tracking-wider text-white">
+                      {captchaText}
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    value={captchaInput}
+                    onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
+                    placeholder="Enter CAPTCHA code"
+                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={generateCaptcha}
+                    className="text-sm text-amber-500 hover:text-amber-400 mt-2"
+                  >
+                    Refresh CAPTCHA
+                  </button>
+                </div>
+
+                <div className="mt-8 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setPhase(2)}
+                    className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-8 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Submitting...' : 'Submit Application →'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+      <PricingComingSoonModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
+    </div>
+  );
+}
+;
+  const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
+  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket);
+  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket);
   
   // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
   useEffect(() => {

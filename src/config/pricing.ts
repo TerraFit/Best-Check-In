@@ -12,6 +12,16 @@ export interface RegionalPlanPricing {
   exchangeRateVariable: true;
 }
 
+/** Buffered FX rates are maintained monthly via the Vite build environment. These fallback planning rates keep local development deterministic. */
+export const DEFAULT_BUFFERED_ZAR_PER_USD = 18.5;
+export const DEFAULT_BUFFERED_ZAR_PER_EUR = 20;
+const configuredFxRate = (value: unknown, fallback: number) => {
+  const rate = Number(value);
+  return Number.isFinite(rate) && rate > 0 ? rate : fallback;
+};
+export const BUFFERED_ZAR_PER_USD = configuredFxRate(import.meta.env.VITE_ZAR_PER_USD_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_USD);
+export const BUFFERED_ZAR_PER_EUR = configuredFxRate(import.meta.env.VITE_ZAR_PER_EUR_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_EUR);
+
 /** Package price rules are implemented once in the shared JS engine used by browser and Netlify. */
 import type { FastCheckInPackage } from './pricing-engine';
 export type { FastCheckInPackage };
@@ -53,13 +63,13 @@ export {
 export const BASE_ZAR_MONTHLY = (['starter', 'growth', 'pro', 'business', 'enterprise'] as FastCheckInPackage[]).map((plan) => getStartingPrice(plan, 'monthly')) as [number, number, number, number, number];
 export const BASE_ZAR_YEARLY = (['starter', 'growth', 'pro', 'business', 'enterprise'] as FastCheckInPackage[]).map((plan) => getStartingPrice(plan, 'yearly')) as [number, number, number, number, number];
 
-/** Initial Africa international price ladder, derived from the revised public starting-price ladder. */
-export const BASE_AFRICA_USD_MONTHLY = [20, 40, 55, 75, 99] as const;
-
-/** Europe uses the agreed commercial planning rate of R20 = €1. */
-export const EURO_PLANNING_RATE_ZAR_PER_EUR = 20;
-
-const roundCurrency = (value: number) => Math.round(value);
+/** Convert the authoritative ZAR price using the current buffered monthly FX rate and regional adjustment. */
+export function convertZarToRegionalPrice(zarAmount: number, region: MarketRegion, southAfrican = false): number {
+  if (southAfrican) return Math.round(zarAmount);
+  const config = MARKET_CONFIG[region];
+  const zarPerUnit = config.currency === 'EUR' ? BUFFERED_ZAR_PER_EUR : BUFFERED_ZAR_PER_USD;
+  return Math.round((zarAmount / zarPerUnit) * config.pricingMultiplier);
+}
 
 export function getRegionalPricing(region: MarketRegion, southAfrican = false): RegionalPlanPricing {
   if (southAfrican) {
@@ -72,14 +82,12 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   }
 
   const config = MARKET_CONFIG[region];
-
-  const monthly = region === 'europe'
-    ? BASE_ZAR_MONTHLY.map((zar) => roundCurrency((zar / EURO_PLANNING_RATE_ZAR_PER_EUR) * config.pricingMultiplier))
-    : BASE_AFRICA_USD_MONTHLY.map((usd) => roundCurrency(usd * config.pricingMultiplier));
-
   return {
     currency: config.currency,
-    prices: monthly.map((value) => ({ monthly: value, yearly: value * 11 })),
+    prices: BASE_ZAR_MONTHLY.map((monthly, index) => ({
+      monthly: convertZarToRegionalPrice(monthly, region),
+      yearly: convertZarToRegionalPrice(BASE_ZAR_YEARLY[index], region),
+    })),
     billingCurrency: 'ZAR',
     exchangeRateVariable: true,
   };
