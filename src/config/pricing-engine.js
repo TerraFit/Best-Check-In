@@ -1,6 +1,7 @@
 /**
  * FastCheckIn shared pricing engine.
  * Keep commercial price rules here; both browser and Netlify code import this module.
+ * All customer-facing subscription prices are rounded to the nearest whole currency unit.
  */
 export const PACKAGE_IDS = ['starter', 'growth', 'pro', 'business', 'enterprise'];
 export const ROOM_BLOCK_SIZE = 5;
@@ -37,10 +38,10 @@ export function calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapaci
     ? (isVolumeEligible ? getBusinessEnterpriseVolumeDiscountRate(rooms) : 0)
     : Number(roomCapacityDiscountRate) || 0;
   const discount = isVolumeEligible ? Math.min(1, Math.max(0, requestedDiscount)) : 0;
-  return Math.round((calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName]) * 100) / 100;
+  return Math.round(calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName]);
 }
 export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacityDiscountRate = null) {
-  return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * ANNUAL_BILLING_MONTHS * 100) / 100;
+  return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * ANNUAL_BILLING_MONTHS);
 }
 export function calculateEnterpriseMonthlyPrice(roomCount) {
   const rooms = Math.max(PACKAGE_MIN_ROOMS.enterprise, normalizeRoomCount(roomCount));
@@ -53,15 +54,15 @@ export function calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCoun
   for (let establishmentNumber = 3; establishmentNumber <= properties; establishmentNumber += 1) {
     establishmentFees += calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber);
   }
-  return Math.round((calculateEnterpriseMonthlyPrice(roomCount) + establishmentFees) * 100) / 100;
+  return Math.round(calculateEnterpriseMonthlyPrice(roomCount) + establishmentFees);
 }
 export function calculateEnterprisePortfolioAnnualPrice(roomCount, propertyCount = 2) {
-  return Math.round(calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount) * ANNUAL_BILLING_MONTHS * 100) / 100;
+  return Math.round(calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount) * ANNUAL_BILLING_MONTHS);
 }
 /** Establishments 1–2 included; 3–5 R299 each; from establishment 6 onward R299 less 15% = R254.15 each. */
 export function calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber) {
   if (!Number.isInteger(establishmentNumber) || establishmentNumber < 3) return 0;
-  return establishmentNumber <= 5 ? 299 : Math.round(299 * 0.85 * 100) / 100;
+  return establishmentNumber <= 5 ? 299 : Math.round(299 * 0.85);
 }
 export function calculateMarketingDownloadMonthlyAddon(packageName) {
   return packageName === 'starter' || packageName === 'growth' ? MARKETING_DOWNLOAD_MONTHLY_PRICE : 0;
