@@ -19,8 +19,9 @@ const configuredFxRate = (value: unknown, fallback: number) => {
   const rate = Number(value);
   return Number.isFinite(rate) && rate > 0 ? rate : fallback;
 };
-export const BUFFERED_ZAR_PER_USD = configuredFxRate(import.meta.env.VITE_ZAR_PER_USD_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_USD);
-export const BUFFERED_ZAR_PER_EUR = configuredFxRate(import.meta.env.VITE_ZAR_PER_EUR_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_EUR);
+const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+export const BUFFERED_ZAR_PER_USD = configuredFxRate(viteEnv.VITE_ZAR_PER_USD_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_USD);
+export const BUFFERED_ZAR_PER_EUR = configuredFxRate(viteEnv.VITE_ZAR_PER_EUR_BUFFERED, DEFAULT_BUFFERED_ZAR_PER_EUR);
 
 /** Package price rules are implemented once in the shared JS engine used by browser and Netlify. */
 import type { FastCheckInPackage } from './pricing-engine';
