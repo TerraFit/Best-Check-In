@@ -1,8 +1,14 @@
 /**
- * Package SSOT — keep in sync with netlify/functions/lib/packages.js
+ * Package metadata lives here; all commercial price calculations are implemented in the shared pricing engine.
  */
 
-export type PlanType = 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
+import {
+  calculateSubscriptionAnnualPrice,
+  calculateSubscriptionMonthlyPrice,
+  type FastCheckInPackage,
+} from './pricing';
+
+export type PlanType = FastCheckInPackage;
 
 export interface PackageDefinition {
   id: PlanType;
@@ -22,33 +28,52 @@ export interface PackageDefinition {
 
 export const PLAN_ORDER: PlanType[] = ['starter', 'growth', 'pro', 'business', 'enterprise'];
 
-export const PACKAGES: Record<PlanType, PackageDefinition> = {
+const packageMeta: Record<PlanType, Omit<PackageDefinition, 'priceMonthly' | 'priceYearly' | 'minRooms'>> = {
   starter: {
-    id: 'starter', name: 'Starter', minRooms: 1, maxRooms: 5, maxStaff: 3,
-    description: 'Replace paper. Digitise reception. Ensure legal compliance.', upgradeOrder: 0,
-    priceMonthly: 349, priceYearly: 3839, currency: 'ZAR', popular: false, contactSales: false, color: 'green',
+    id: 'starter', name: 'Starter', maxRooms: null, maxStaff: 3,
+    description: 'Professional digital check-in for B&Bs and small-to-medium-sized guest houses.', upgradeOrder: 0,
+    currency: 'ZAR', popular: false, contactSales: false, color: 'green',
   },
   growth: {
-    id: 'growth', name: 'Growth', minRooms: 6, maxRooms: 10, maxStaff: 8,
-    description: 'Improve daily operations, staff capacity, and country-level insight.', upgradeOrder: 1,
-    priceMonthly: 797, priceYearly: 8767, currency: 'ZAR', popular: true, contactSales: false, color: 'amber',
+    id: 'growth', name: 'Growth', maxRooms: null, maxStaff: 8,
+    description: 'Digital check-in plus basic housekeeping and employee portal functionality for growing accommodation businesses.', upgradeOrder: 1,
+    currency: 'ZAR', popular: true, contactSales: false, color: 'amber',
   },
   pro: {
-    id: 'pro', name: 'Pro', minRooms: 11, maxRooms: 15, maxStaff: 20,
-    description: 'Professional management: audit, advanced reporting, regional analytics.', upgradeOrder: 2,
-    priceMonthly: 1049, priceYearly: 11539, currency: 'ZAR', popular: false, contactSales: false, color: 'blue',
+    id: 'pro', name: 'Pro', maxRooms: null, maxStaff: 20,
+    description: 'Broader operational management, advanced analytics and marketing intelligence for established accommodation businesses.', upgradeOrder: 2,
+    currency: 'ZAR', popular: false, contactSales: false, color: 'blue',
   },
   business: {
-    id: 'business', name: 'Business', minRooms: 16, maxRooms: 20, maxStaff: null,
-    description: 'Manage multiple establishments from one hospitality business dashboard.', upgradeOrder: 3,
-    priceMonthly: 1429, priceYearly: 15719, currency: 'ZAR', popular: false, contactSales: false, color: 'purple',
+    id: 'business', name: 'Business', maxRooms: null, maxStaff: null,
+    description: 'Complete operational management and unlimited Business Snapshot access for larger establishments.', upgradeOrder: 3,
+    currency: 'ZAR', popular: false, contactSales: false, color: 'purple',
   },
   enterprise: {
-    id: 'enterprise', name: 'Enterprise', minRooms: 25, maxRooms: null, maxStaff: null,
-    description: 'Enterprise pricing from R1,698/month per establishment, with capacity-based volume discounts.', upgradeOrder: 4,
-    priceMonthly: 1698, priceYearly: 1698 * 11, currency: 'ZAR', popular: false, contactSales: false, color: 'stone',
+    id: 'enterprise', name: 'Enterprise', maxRooms: null, maxStaff: null,
+    description: 'Elite portfolio management and high-level business intelligence for hotel groups and multi-establishment operators.', upgradeOrder: 4,
+    currency: 'ZAR', popular: false, contactSales: false, color: 'stone',
   },
 };
+
+export const PACKAGES: Record<PlanType, PackageDefinition> = Object.fromEntries(
+  PLAN_ORDER.map((id) => {
+    const meta = packageMeta[id];
+    const minRooms = {
+      starter: 1,
+      growth: 6,
+      pro: 11,
+      business: 21,
+      enterprise: 21,
+    }[id];
+    return [id, {
+      ...meta,
+      minRooms,
+      priceMonthly: calculateSubscriptionMonthlyPrice(minRooms, id),
+      priceYearly: calculateSubscriptionAnnualPrice(minRooms, id),
+    }];
+  }),
+) as Record<PlanType, PackageDefinition>;
 
 export function normalizePlanId(plan?: string | null): PlanType {
   if (!plan) return 'starter';
@@ -83,23 +108,7 @@ export function listSellablePackages(): PackageDefinition[] {
 }
 
 /**
- * Enterprise establishment pricing.
- * Base price covers up to 25 rooms. Additional capacity is sold in 5-room blocks.
- * Volume discounts apply to the additional blocks within each room bracket.
- * The calculation is per establishment, never pooled across a group.
+ * Compatibility helper for existing quotation/inquiry flows.
+ * Revised room-block pricing remains defined in pricing.ts.
  */
-export function calculateEnterpriseMonthlyPrice(roomCount: number): number {
-  const rooms = Math.max(25, Math.ceil(roomCount / 5) * 5);
-  if (rooms <= 25) return 1698;
-
-  const blocks = (rooms - 25) / 5;
-  let price = 1698;
-
-  for (let block = 1; block <= blocks; block += 1) {
-    const roomStart = 26 + (block - 1) * 5;
-    const discount = roomStart >= 301 ? 0.15 : roomStart >= 101 ? 0.12 : roomStart >= 51 ? 0.10 : 0;
-    price += 349 * (1 - discount);
-  }
-
-  return Math.round(price);
-}
+export { calculateEnterpriseMonthlyPrice } from './pricing';

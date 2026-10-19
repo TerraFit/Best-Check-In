@@ -1,7 +1,12 @@
-/**
- * Package SSOT (Netlify mirror — keep in sync with src/config/packages.ts)
- * Technical debt: replace with shared module when available.
- */
+/** Package metadata for Netlify; all price calculations come from the shared engine. */
+import {
+  PACKAGE_MIN_ROOMS,
+  calculateSubscriptionMonthlyPrice,
+  calculateSubscriptionAnnualPrice,
+  getBusinessEnterpriseVolumeDiscountRate,
+  getStartingPrice,
+  packageAcceptsRoomCount,
+} from '../../../src/config/pricing-engine.js';
 
 export const PLAN_ORDER = ['starter', 'growth', 'pro', 'business', 'enterprise'];
 
@@ -9,13 +14,13 @@ export const PACKAGES = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    minRooms: 1,
-    maxRooms: 5,
+    minRooms: PACKAGE_MIN_ROOMS.starter,
+    maxRooms: null,
     maxStaff: 3,
-    description: 'Replace paper. Digitise reception. Ensure legal compliance.',
+    description: 'Professional digital check-in for B&Bs and small-to-medium-sized guest houses.',
     upgradeOrder: 0,
-    priceMonthly: 349,
-    priceYearly: 3839,
+    priceMonthly: getStartingPrice('starter', 'monthly'),
+    priceYearly: getStartingPrice('starter', 'yearly'),
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -24,13 +29,13 @@ export const PACKAGES = {
   growth: {
     id: 'growth',
     name: 'Growth',
-    minRooms: 6,
-    maxRooms: 10,
+    minRooms: PACKAGE_MIN_ROOMS.growth,
+    maxRooms: null,
     maxStaff: 8,
-    description: 'Improve daily operations, staff capacity, and country-level insight.',
+    description: 'Digital check-in plus basic housekeeping and employee portal functionality for growing accommodation businesses.',
     upgradeOrder: 1,
-    priceMonthly: 797,
-    priceYearly: 8767,
+    priceMonthly: getStartingPrice('growth', 'monthly'),
+    priceYearly: getStartingPrice('growth', 'yearly'),
     currency: 'ZAR',
     popular: true,
     contactSales: false,
@@ -39,13 +44,13 @@ export const PACKAGES = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    minRooms: 11,
-    maxRooms: 15,
+    minRooms: PACKAGE_MIN_ROOMS.pro,
+    maxRooms: null,
     maxStaff: 20,
-    description: 'Professional management: audit, advanced reporting, regional analytics.',
+    description: 'Broader operational management, advanced analytics and marketing intelligence for established accommodation businesses.',
     upgradeOrder: 2,
-    priceMonthly: 1049,
-    priceYearly: 11539,
+    priceMonthly: getStartingPrice('pro', 'monthly'),
+    priceYearly: getStartingPrice('pro', 'yearly'),
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -54,13 +59,13 @@ export const PACKAGES = {
   business: {
     id: 'business',
     name: 'Business',
-    minRooms: 16,
-    maxRooms: 20,
+    minRooms: PACKAGE_MIN_ROOMS.business,
+    maxRooms: null,
     maxStaff: null,
-    description: 'Manage multiple establishments from one hospitality business dashboard.',
+    description: 'Complete operational management and unlimited Business Snapshot access for larger establishments.',
     upgradeOrder: 3,
-    priceMonthly: 1429,
-    priceYearly: 15719,
+    priceMonthly: getStartingPrice('business', 'monthly'),
+    priceYearly: getStartingPrice('business', 'yearly'),
     currency: 'ZAR',
     popular: false,
     contactSales: false,
@@ -69,16 +74,16 @@ export const PACKAGES = {
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise',
-    minRooms: 25,
+    minRooms: PACKAGE_MIN_ROOMS.enterprise,
     maxRooms: null,
     maxStaff: null,
-    description: 'Enterprise pricing from R1,698/month per establishment, with capacity-based volume discounts.',
+    description: 'Elite portfolio management and high-level business intelligence for hotel groups and multi-establishment operators.',
     upgradeOrder: 4,
-    priceMonthly: 1698,
-    priceYearly: 18678,
+    priceMonthly: getStartingPrice('enterprise', 'monthly'),
+    priceYearly: getStartingPrice('enterprise', 'yearly'),
     currency: 'ZAR',
     popular: false,
-    contactSales: false,
+    contactSales: true,
     color: 'stone',
   },
 };
@@ -97,12 +102,10 @@ export function getUpgradeOrder(planId) {
   return getPackage(planId).upgradeOrder;
 }
 
-/** True if current plan is at least as high as required. */
 export function planSatisfies(currentPlan, requiredPlan) {
   return getUpgradeOrder(currentPlan) >= getUpgradeOrder(requiredPlan);
 }
 
-/** Next logical package (never skips unless required is higher than next). */
 export function recommendUpgrade(currentPlan, requiredPlan) {
   const current = normalizePlanId(currentPlan);
   const required = normalizePlanId(requiredPlan);
@@ -113,9 +116,20 @@ export function recommendUpgrade(currentPlan, requiredPlan) {
   return PLAN_ORDER[Math.max(nextOrder, reqOrder)] || required;
 }
 
-export function getPlanPricing(planId, billingCycle = 'monthly') {
+export function getPlanPricing(planId, billingCycle = 'monthly', rooms = null, explicitDiscountRate = null) {
   const pkg = getPackage(planId);
   if (pkg.contactSales) return { amount: 0, currency: pkg.currency, contactSales: true };
-  const amount = billingCycle === 'yearly' ? pkg.priceYearly : pkg.priceMonthly;
-  return { amount, currency: pkg.currency, contactSales: false };
+  const roomCount = rooms === null || rooms === undefined
+    ? pkg.minRooms
+    : Math.max(1, Math.ceil(Number.isFinite(Number(rooms)) ? Number(rooms) : 1));
+  if (!packageAcceptsRoomCount(pkg.id, roomCount)) {
+    return { amount: 0, currency: pkg.currency, contactSales: false, rooms: roomCount, discountRate: 0 };
+  }
+  const discountRate = explicitDiscountRate === null
+    ? ((pkg.id === 'business' || pkg.id === 'enterprise') ? getBusinessEnterpriseVolumeDiscountRate(roomCount) : 0)
+    : explicitDiscountRate;
+  const amount = billingCycle === 'yearly'
+    ? calculateSubscriptionAnnualPrice(roomCount, pkg.id, discountRate)
+    : calculateSubscriptionMonthlyPrice(roomCount, pkg.id, discountRate);
+  return { amount, currency: pkg.currency, contactSales: false, rooms: roomCount, discountRate };
 }

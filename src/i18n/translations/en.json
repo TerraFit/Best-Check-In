@@ -594,6 +594,8 @@
   "landing_plan_growth": "Growth",
   "landing_plan_pro": "Pro",
   "landing_plan_business": "Business",
+  "landing_plan_enterprise": "Enterprise",
+  "landing_plan_enterprise_f1": "Multi-establishment oversight and scalable room capacity",
   "landing_plan_up_to_rooms": "Up to {count} rooms",
   "landing_plan_per_month": "/month",
   "landing_plan_or_year": "or",

@@ -48,14 +48,14 @@ async function createPeachPayment(event) {
 
     const planId = normalizePlanId(requestedPlanId);
     const pkg = getPackage(planId);
-    const pricing = getPlanPricing(planId, billingCycle);
-    if (!pkg || pricing.contactSales || pricing.amount <= 0) {
+    const eligibilityPricing = getPlanPricing(planId, billingCycle);
+    if (!pkg || eligibilityPricing.contactSales || eligibilityPricing.amount <= 0) {
       return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not available for online payment' }) };
     }
 
     const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('id, email, trading_name, status')
+      .select('id, email, trading_name, status, total_rooms')
       .eq('id', scope.businessId)
       .single();
 
@@ -63,6 +63,8 @@ async function createPeachPayment(event) {
       return { statusCode: 403, headers: jsonHeaders, body: JSON.stringify({ error: 'Business account is not eligible for payment' }) };
     }
 
+    const pricing = getPlanPricing(planId, billingCycle, business.total_rooms);
+    if (pricing.amount <= 0) return { statusCode: 400, headers: jsonHeaders, body: JSON.stringify({ error: 'Selected plan is not eligible for this room count' }) };
     const transactionId = `PP-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const authoritativeAmount = pricing.amount;
     const customerEmail = gate.principal.email || business.email;

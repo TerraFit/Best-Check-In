@@ -17,7 +17,8 @@ test('PayFast payment creation requires canonical business authentication and te
 
 test('PayFast payment amount is server-authoritative', () => {
   assert.match(file, /getPlanPricing\(planId, billingCycle\)/);
-  assert.match(file, /const authoritativeAmount = pricing\.amount/);
+  assert.match(file, /getPlanPricing\(planId, billingCycle, business\.total_rooms\)/);
+  assert.match(file, /const authoritativeAmount = pricingForRooms\.amount/);
   assert.match(file, /amount: authoritativeAmount/);
   assert.doesNotMatch(file, /const \{ businessId, planId, billingCycle, email, amount,/);
 });

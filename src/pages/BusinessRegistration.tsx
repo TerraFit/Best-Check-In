@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { t } from '../i18n'
+import { t } from '../i18n';
+import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
+import PricingComingSoonModal from '../components/PricingComingSoonModal';
+import { useMarket } from '../context/MarketContext';
 
 // SADC Countries only
 const SADC_COUNTRIES = [
@@ -138,62 +142,26 @@ const getRegionLabel = (country: string): string => {
   return labels[country] || 'Region';
 };
 
-// Pricing Plans Data
-const pricingPlans = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    maxRooms: 5,
-    priceMonthly: 349,
-    priceYearly: 3490,
-    color: 'green',
-    borderColor: 'border-green-500',
-    textColor: 'text-green-500',
-    buttonColor: 'bg-green-600 hover:bg-green-700',
-    bgHover: 'hover:border-green-500'
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    maxRooms: 10,
-    priceMonthly: 649,
-    priceYearly: 6490,
-    color: 'blue',
-    borderColor: 'border-blue-500',
-    textColor: 'text-blue-500',
-    buttonColor: 'bg-blue-600 hover:bg-blue-700',
-    bgHover: 'hover:border-blue-500',
-    mostPopular: true
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    maxRooms: 15,
-    priceMonthly: 949,
-    priceYearly: 9490,
-    color: 'purple',
-    borderColor: 'border-purple-500',
-    textColor: 'text-purple-500',
-    buttonColor: 'bg-purple-600 hover:bg-purple-700',
-    bgHover: 'hover:border-purple-500'
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    maxRooms: 20,
-    priceMonthly: 1290,
-    priceYearly: 12900,
-    color: 'orange',
-    borderColor: 'border-orange-500',
-    textColor: 'text-orange-500',
-    buttonColor: 'bg-orange-600 hover:bg-orange-700',
-    bgHover: 'hover:border-orange-500'
-  }
-];
+// Package display metadata comes from the shared package registry; all amounts are calculated by the shared pricing engine.
+const pricingStyles = {
+  starter: { color: 'green', borderColor: 'border-green-500', textColor: 'text-green-500', buttonColor: 'bg-green-600 hover:bg-green-700', bgHover: 'hover:border-green-500' },
+  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500', mostPopular: true },
+  pro: { color: 'purple', borderColor: 'border-purple-500', textColor: 'text-purple-500', buttonColor: 'bg-purple-600 hover:bg-purple-700', bgHover: 'hover:border-purple-500' },
+  business: { color: 'orange', borderColor: 'border-orange-500', textColor: 'text-orange-500', buttonColor: 'bg-orange-600 hover:bg-orange-700', bgHover: 'hover:border-orange-500' },
+} as const;
+const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({
+  ...PACKAGES[id],
+  ...pricingStyles[id as Exclude<PlanType, 'enterprise'>],
+}));
 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { region, isSouthAfricanMarket } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket);
+  const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$';
+  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket);
+  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket);
   
   // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
   useEffect(() => {
@@ -205,21 +173,30 @@ export default function BusinessRegistration() {
   const [loading, setLoading] = useState(false);
   
   // Plan Selection State
-  const [selectedPlanId, setSelectedPlanId] = useState('growth');
+  const [selectedPlanId, setSelectedPlanId] = useState('starter');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [propertyCount, setPropertyCount] = useState(1);
   const [roomsCount, setRoomsCount] = useState(5);
   const [showRoomError, setShowRoomError] = useState(false);
+  const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
   
   // Get selected plan data
-  const selectedPlan = pricingPlans.find(p => p.id === selectedPlanId);
+  const selectedPlanBase = pricingPlans.find(p => p.id === selectedPlanId);
+  const selectedPlan = selectedPlanBase ? {
+    ...selectedPlanBase,
+    priceMonthly: calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id),
+    priceYearly: calculateSubscriptionAnnualPrice(roomsCount, selectedPlanBase.id),
+  } : undefined;
   
   // Determine recommended plan based on room count
-  const getRecommendedPlanId = () => {
-    if (roomsCount <= 5) return 'starter';
-    if (roomsCount <= 10) return 'growth';
-    if (roomsCount <= 15) return 'pro';
-    if (roomsCount <= 20) return 'business';
-    return 'enterprise';
+  const getRecommendedPlanId = (): PlanType => {
+    // A qualifying multi-establishment portfolio should be guided to Enterprise,
+    // even when the combined room count would otherwise recommend Business.
+    if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
+    if (roomsCount < 6) return 'starter';
+    if (roomsCount < 11) return 'growth';
+    if (roomsCount < 21) return 'pro';
+    return 'business';
   };
   const recommendedPlanId = getRecommendedPlanId();
   
@@ -292,10 +269,10 @@ export default function BusinessRegistration() {
   const handleRoomsChange = (rooms: number) => {
     setRoomsCount(rooms);
     setShowRoomError(false);
-    if (rooms <= 5) setSelectedPlanId('starter');
-    else if (rooms <= 10) setSelectedPlanId('growth');
-    else if (rooms <= 15) setSelectedPlanId('pro');
-    else if (rooms <= 20) setSelectedPlanId('business');
+    if (rooms < 6) setSelectedPlanId('starter');
+    else if (rooms < 11) setSelectedPlanId('growth');
+    else if (rooms < 21) setSelectedPlanId('pro');
+    else setSelectedPlanId('business');
   };
 
   // Handle plan selection with validation
@@ -307,7 +284,7 @@ export default function BusinessRegistration() {
       return;
     }
     const plan = pricingPlans.find(p => p.id === planId);
-    if (plan && roomsCount > plan.maxRooms) {
+    if (plan && roomsCount < plan.minRooms) {
       setShowRoomError(true);
       return;
     }
@@ -509,7 +486,7 @@ export default function BusinessRegistration() {
             // Plan details
             total_rooms: roomsCount,
             plan: selectedPlanId === 'enterprise' ? 'enterprise' : selectedPlanId,
-            max_rooms: selectedPlan?.maxRooms || 999,
+            max_rooms: null,
             billing_cycle: billingCycle,
             status: 'pending'
           }
@@ -562,17 +539,17 @@ export default function BusinessRegistration() {
               <div>
                 <p className="text-sm text-stone-400">Rooms</p>
                 <p className="text-white">
-                  {roomsCount} / {selectedPlanId === 'enterprise' ? '∞' : selectedPlan?.maxRooms}
+                  {roomsCount} rooms
                 </p>
               </div>
               <div>
                 <p className="text-sm text-stone-400">Price</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? 'Custom'
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
                     : (billingCycle === 'monthly'
-                      ? `R${selectedPlan?.priceMonthly}/month`
-                      : `R${selectedPlan?.priceYearly}/year`)}
+                      ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
+                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket) * 11}/year`)}
                 </p>
               </div>
             </div>
@@ -598,7 +575,8 @@ export default function BusinessRegistration() {
             className="h-16 w-auto mx-auto mb-4 object-contain"
           />
           <h1 className="text-4xl font-bold text-white">Register Your Business</h1>
-          <p className="text-stone-400 mt-2">Choose the right plan based on your property size</p>
+          <p className="text-stone-400 mt-2">Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.</p>
+          <p className="text-stone-500 text-xs mt-3">Prices are displayed in {regionalPricing.currency} for your selected region. International prices are converted from ZAR using buffered monthly exchange rates and a regional adjustment; Peach Payments charges in ZAR.</p>
         </div>
 
         {/* ============================================================ */}
@@ -606,21 +584,48 @@ export default function BusinessRegistration() {
         {/* ============================================================ */}
         <div id="pricing-section" className="mb-12">
           
-          {/* Room Input - Decision Driver */}
-          <div className="max-w-md mx-auto mb-10 text-center">
+          {/* Property count comes first because Enterprise pricing includes portfolio fees. */}
+          <div className="max-w-md mx-auto mb-6 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
-              How many rooms does your property have?
+              How many properties does your company have?
             </label>
             <input
               type="number"
               min="1"
-              max="100"
-              value={roomsCount}
-              onChange={(e) => handleRoomsChange(parseInt(e.target.value) || 1)}
+              step="1"
+              value={propertyCount}
+              onChange={(e) => {
+                const nextPropertyCount = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
+                setPropertyCount(nextPropertyCount);
+                // Enterprise requires at least 2 properties and 21 combined rooms.
+                // Guide the user to the minimum as soon as they select a portfolio.
+                if (nextPropertyCount >= 2 && roomsCount < 21) {
+                  setRoomsCount(21);
+                  setShowRoomError(false);
+                }
+              }}
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
-              Enter the number of rooms to get a recommendation
+              Enter the number of establishments operated by your company.
+            </p>
+          </div>
+
+          {/* Combined room capacity across the portfolio */}
+          <div className="max-w-md mx-auto mb-10 text-center">
+            <label className="block text-lg font-medium text-stone-300 mb-3">
+              How many rooms are there across all your properties?
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={roomsCount}
+              onChange={(e) => handleRoomsChange(Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1)))}
+              className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
+            />
+            <p className="text-stone-500 text-sm mt-2">
+              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.
             </p>
           </div>
 
@@ -628,7 +633,7 @@ export default function BusinessRegistration() {
           {showRoomError && (
             <div className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500 rounded-lg p-3 text-center">
               <p className="text-red-400 text-sm">
-                ⚠️ Your property exceeds this plan's room limit. Please upgrade to continue.
+                ⚠️ This package requires at least the minimum number of rooms shown. Please choose an eligible package.
               </p>
             </div>
           )}
@@ -638,9 +643,10 @@ export default function BusinessRegistration() {
             
             {/* Starter, Growth, Pro, Business Cards */}
             {pricingPlans.map((plan) => {
+              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
               const isRecommended = recommendedPlanId === plan.id;
               const isSelected = selectedPlanId === plan.id;
-              const isDisabled = roomsCount > plan.maxRooms;
+              const isDisabled = roomsCount < plan.minRooms;
               
               return (
                 <div
@@ -648,11 +654,10 @@ export default function BusinessRegistration() {
                   onClick={() => !isDisabled && handleSelectPlan(plan.id)}
                   className={`
                     relative rounded-xl border-2 p-5 cursor-pointer transition-all
-                    ${isSelected
-                      ? `${plan.borderColor} ring-2 ring-amber-500 bg-stone-800`
+                    ${isRecommended
+                      ? `${plan.borderColor} bg-stone-800 scale-105 shadow-lg ring-2 ring-green-500/50`
                       : 'border-stone-700 bg-stone-800/50'}
                     ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
-                    ${isRecommended ? 'scale-105 shadow-lg ring-2 ring-green-500/50' : ''}
                   `}
                 >
                   {/* ✅ Recommended Badge (Dynamic - Green) */}
@@ -678,11 +683,12 @@ export default function BusinessRegistration() {
                       {plan.name}
                     </h3>
                     <p className="text-xs text-stone-400 mt-1">
-                      Up to {plan.maxRooms} rooms
+                      {plan.minRooms}+ rooms · no maximum
                     </p>
+                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
-                        {billingCycle === 'monthly' ? `R${plan.priceMonthly}` : `R${plan.priceYearly}`}
+                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket) * 11}`}
                       </span>
                       <span className="text-stone-400 text-sm">
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
@@ -728,7 +734,7 @@ export default function BusinessRegistration() {
                     
                     {isDisabled && (
                       <p className="text-xs text-red-400 mt-2">
-                        Requires upgrade
+                        Requires at least {plan.minRooms} rooms
                       </p>
                     )}
                     <button
@@ -746,15 +752,12 @@ export default function BusinessRegistration() {
               );
             })}
 
-            {/* Enterprise Card - 20+ rooms / Custom Pricing */}
+            {/* Enterprise portfolio pricing is calculated now; activation remains unavailable until launch. */}
             <div
-              onClick={() => handleSelectPlan('enterprise')}
-              className={`
-                relative rounded-xl border-2 p-5 cursor-pointer transition-all bg-stone-800/50 border-stone-700
-                hover:scale-105 hover:shadow-xl
-                ${selectedPlanId === 'enterprise' ? 'border-purple-500 ring-2 ring-amber-500 bg-stone-800' : ''}
-                ${recommendedPlanId === 'enterprise' ? 'scale-105 shadow-lg ring-2 ring-green-500/50' : ''}
-              `}
+              className={`relative rounded-xl border-2 p-5 transition-all bg-stone-800/50
+                ${recommendedPlanId === 'enterprise'
+                  ? 'border-purple-500 ring-2 ring-green-500/50 scale-105 shadow-lg'
+                  : 'border-stone-700'}`}
             >
               {recommendedPlanId === 'enterprise' && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
@@ -768,34 +771,36 @@ export default function BusinessRegistration() {
                   Enterprise
                 </h3>
                 <p className="text-xs text-stone-400 mt-1">
-                  20+ rooms
+                  21+ rooms across your portfolio · first 2 properties included
                 </p>
                 <div className="mt-3">
                   <span className="text-2xl font-bold text-white">
-                    Custom
+                    {currencySymbol}{convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21
+                      ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
+                      : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)}
                   </span>
                   <span className="text-stone-400 text-sm">
-                    /pricing
+                    /{billingCycle === 'monthly' ? 'month' : 'year'}
                   </span>
                 </div>
+                <p className="text-xs text-stone-400 mt-1">
+                  {propertyCount > 2 ? `Includes ${propertyCount - 2} additional propert${propertyCount - 2 === 1 ? 'y' : 'ies'}` : 'Includes up to 2 properties'}
+                </p>
                 
                 {/* Enterprise Feature List */}
                 <div className="mt-4 text-left space-y-2">
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Unlimited Rooms</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom Integrations</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Dedicated Support</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Consolidated portfolio management</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> High-level portfolio intelligence</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom integrations and dedicated support</p>
                 </div>
                 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectPlan('enterprise');
-                  }}
-                  className="mt-4 w-full py-2 rounded-lg font-semibold transition-colors bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  Contact Sales
+                <button type="button" onClick={() => setEnterpriseInquiryOpen(true)} className="mt-4 w-full py-2 rounded-lg font-semibold text-center bg-stone-700 text-amber-300 border border-stone-600 hover:bg-stone-600 transition-colors">
+                  Coming Soon · Notify Me
                 </button>
+                <p className="text-xs text-stone-500 mt-2">
+                  Regional display price only. Enterprise is not yet available for online purchase; Peach Payments billing will be in ZAR.
+                </p>
               </div>
             </div>
           </div>
@@ -1532,7 +1537,8 @@ export default function BusinessRegistration() {
                     <p>Type: <span className="text-white">{businessData.establishmentType || 'Not specified'}</span></p>
                     <p>TGSA: <span className="text-white">{businessData.tgsaGrading}</span></p>
                     <p>Plan: <span className="text-white">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>
-                    <p>Rooms: <span className="text-white">{roomsCount}</span></p>
+                    <p>Properties: <span className="text-white">{propertyCount}</span></p>
+                    <p>Total rooms: <span className="text-white">{roomsCount}</span></p>
                     <p>Director: <span className="text-white">{directorData.name} {directorData.surname}</span></p>
                     <p>Email: <span className="text-white">{businessData.email}</span></p>
                     <p>Phone: <span className="text-white">{businessData.mobilePhone}</span></p>
@@ -1561,7 +1567,7 @@ export default function BusinessRegistration() {
                         : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
                     }`}
                   >
-                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save ~17%</span>
+                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
                   </button>
                 </div>
 
@@ -1610,6 +1616,7 @@ export default function BusinessRegistration() {
           </div>
         )}
       </div>
+      <PricingComingSoonModal open={enterpriseInquiryOpen} onClose={() => setEnterpriseInquiryOpen(false)} />
     </div>
   );
 }

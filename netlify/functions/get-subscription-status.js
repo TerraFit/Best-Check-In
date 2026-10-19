@@ -123,8 +123,8 @@ export const handler = async function (event) {
       charge = 0;
       validUntil = business.trial_end;
     } else {
-      const pricing = getPlanPricing(effectivePlan, billingCycle);
-      charge = pricing.price;
+      const pricing = getPlanPricing(effectivePlan, billingCycle, business.total_rooms);
+      charge = pricing.amount;
 
       percentageDiscounts.forEach((d) => {
         if (d.percentage) charge = charge * (1 - Number(d.percentage) / 100);
