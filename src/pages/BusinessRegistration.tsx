@@ -582,7 +582,16 @@ export default function BusinessRegistration() {
               min="1"
               step="1"
               value={propertyCount}
-              onChange={(e) => setPropertyCount(Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1)))}
+              onChange={(e) => {
+                const nextPropertyCount = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
+                setPropertyCount(nextPropertyCount);
+                // Enterprise requires at least 2 properties and 21 combined rooms.
+                // Guide the user to the minimum as soon as they select a portfolio.
+                if (nextPropertyCount >= 2 && roomsCount < 21) {
+                  setRoomsCount(21);
+                  setShowRoomError(false);
+                }
+              }}
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
