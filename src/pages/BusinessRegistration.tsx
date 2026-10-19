@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
-import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, calculateEnterprisePortfolioAnnualPrice, convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
 import PricingComingSoonModal from '../components/PricingComingSoonModal';
 import { useMarket } from '../context/MarketContext';
 
@@ -546,7 +546,7 @@ export default function BusinessRegistration() {
                 <p className="text-sm text-stone-400">Price</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? 'Custom'
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
                       : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket) * 11}/year`)}
@@ -644,7 +644,6 @@ export default function BusinessRegistration() {
             {/* Starter, Growth, Pro, Business Cards */}
             {pricingPlans.map((plan) => {
               const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
-              const displayAnnualPrice = calculateSubscriptionAnnualPrice(roomsCount, plan.id);
               const isRecommended = recommendedPlanId === plan.id;
               const isSelected = selectedPlanId === plan.id;
               const isDisabled = roomsCount < plan.minRooms;
