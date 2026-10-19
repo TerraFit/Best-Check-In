@@ -686,7 +686,7 @@ export default function BusinessRegistration() {
                     <p className="text-xs text-stone-400 mt-1">
                       {plan.minRooms}+ rooms · no maximum
                     </p>
-                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>
+                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
                         {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayAnnualPrice, region, isSouthAfricanMarket)}`}
