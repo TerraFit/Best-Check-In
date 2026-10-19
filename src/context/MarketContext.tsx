@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isSouthAfrica, regionForCountry, type MarketRegion } from '../config/markets';
+import type { PricingFxRate } from '../config/pricing';
 
 interface MarketDetection {
   countryCode: string | null;
@@ -15,6 +16,7 @@ interface MarketContextValue {
   selectRegion: (region: MarketRegion) => void;
   resetMarket: () => void;
   isSouthAfricanMarket: boolean;
+  fxRates: Partial<Record<'USD' | 'EUR', PricingFxRate>>;
 }
 
 const STORAGE_KEY = 'fastcheckin.market.region';
@@ -26,11 +28,19 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   const [region, setRegion] = useState<MarketRegion>('africa');
   const [detected, setDetected] = useState<MarketDetection | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
+  const [fxRates, setFxRates] = useState<Partial<Record<'USD' | 'EUR', PricingFxRate>>>({});
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as MarketRegion | null;
     const confirmed = localStorage.getItem(CONFIRMED_KEY) === 'true';
     if (saved) setRegion(saved);
+
+    fetch('/.netlify/functions/pricing-fx', { headers: { Accept: 'application/json' } })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (data?.rates) setFxRates(data.rates);
+      })
+      .catch(() => undefined);
 
     fetch('/.netlify/functions/market-context', { headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : null)
@@ -77,7 +87,8 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     selectRegion,
     resetMarket,
     isSouthAfricanMarket: detected?.countryCode === 'ZA' && region === 'africa',
-  }), [region, detected, chooserOpen, selectRegion, resetMarket]);
+    fxRates,
+  }), [region, detected, chooserOpen, selectRegion, resetMarket, fxRates]);
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;
 }
