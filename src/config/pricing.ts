@@ -82,12 +82,10 @@ export function getRegionalPricing(region: MarketRegion, southAfrican = false): 
   }
 
   const config = MARKET_CONFIG[region];
+  const monthlyPrices = BASE_ZAR_MONTHLY.map((monthly) => convertZarToRegionalPrice(monthly, region));
   return {
     currency: config.currency,
-    prices: BASE_ZAR_MONTHLY.map((monthly, index) => ({
-      monthly: convertZarToRegionalPrice(monthly, region),
-      yearly: convertZarToRegionalPrice(BASE_ZAR_YEARLY[index], region),
-    })),
+    prices: monthlyPrices.map((monthly) => ({ monthly, yearly: monthly * 11 })),
     billingCurrency: 'ZAR',
     exchangeRateVariable: true,
   };

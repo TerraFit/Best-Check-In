@@ -549,7 +549,7 @@ export default function BusinessRegistration() {
                     ? 'Custom'
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
-                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceYearly || 0, region, isSouthAfricanMarket)}/year`)}
+                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket) * 11}/year`)}
                 </p>
               </div>
             </div>
@@ -689,7 +689,7 @@ export default function BusinessRegistration() {
                     {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
-                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayAnnualPrice, region, isSouthAfricanMarket)}`}
+                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket) * 11}`}
                       </span>
                       <span className="text-stone-400 text-sm">
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
@@ -777,10 +777,8 @@ export default function BusinessRegistration() {
                 <div className="mt-3">
                   <span className="text-2xl font-bold text-white">
                     {currencySymbol}{convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21
-                      ? (billingCycle === 'monthly'
-                        ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
-                        : calculateEnterprisePortfolioAnnualPrice(roomsCount, propertyCount))
-                      : 0, region, isSouthAfricanMarket).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
+                      : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)}
                   </span>
                   <span className="text-stone-400 text-sm">
                     /{billingCycle === 'monthly' ? 'month' : 'year'}
