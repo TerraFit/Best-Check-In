@@ -44,13 +44,14 @@ export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacit
   return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * ANNUAL_BILLING_MONTHS);
 }
 export function calculateEnterpriseMonthlyPrice(roomCount) {
-  const rooms = Math.max(PACKAGE_MIN_ROOMS.enterprise, normalizeRoomCount(roomCount));
+  const rooms = normalizeRoomCount(roomCount);
+  if (rooms < PACKAGE_MIN_ROOMS.enterprise) return 0;
   return calculateSubscriptionMonthlyPrice(rooms, 'enterprise', getBusinessEnterpriseVolumeDiscountRate(rooms));
 }
 /** Enterprise portfolio price: combined room capacity plus establishment fees. Enterprise is only applicable to portfolios of 2+ establishments. */
 export function calculateEnterprisePortfolioMonthlyPrice(roomCount, propertyCount = 1) {
   const properties = Math.max(1, Math.floor(Number(propertyCount) || 1));
-  if (properties < 2) return 0;
+  if (properties < 2 || normalizeRoomCount(roomCount) < PACKAGE_MIN_ROOMS.enterprise) return 0;
   let establishmentFees = 0;
   for (let establishmentNumber = 3; establishmentNumber <= properties; establishmentNumber += 1) {
     establishmentFees += calculateEnterpriseAdditionalEstablishmentMonthlyFee(establishmentNumber);
