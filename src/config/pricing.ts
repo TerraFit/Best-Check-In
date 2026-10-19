@@ -28,6 +28,16 @@ export interface RegionalPlanPricing {
  */
 export const LAST_KNOWN_SAFE_ZAR_PER_USD = 21.23 * 1.05;
 export const LAST_KNOWN_SAFE_ZAR_PER_EUR = 18.94 * 1.05;
+const FX_RATES_KEY = 'fastcheckin.pricing.fxRates';
+
+function getCachedFxRates(): Partial<Record<'USD' | 'EUR', PricingFxRate>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(FX_RATES_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
 
 /** Package price rules are implemented once in the shared JS engine used by browser and Netlify. */
 import type { FastCheckInPackage } from './pricing-engine';
@@ -79,8 +89,9 @@ export function convertZarToRegionalPrice(
 ): number {
   if (southAfrican) return Math.round(zarAmount);
   const config = MARKET_CONFIG[region];
+  const rates = fxRates ?? getCachedFxRates();
   const fallback = config.currency === 'EUR' ? LAST_KNOWN_SAFE_ZAR_PER_EUR : LAST_KNOWN_SAFE_ZAR_PER_USD;
-  const zarPerUnit = fxRates?.[config.currency]?.pricingRateZarPerUnit ?? fallback;
+  const zarPerUnit = rates[config.currency]?.pricingRateZarPerUnit ?? fallback;
   return Math.round((zarAmount / zarPerUnit) * config.pricingMultiplier);
 }
 
