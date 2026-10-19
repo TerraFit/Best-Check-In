@@ -646,11 +646,10 @@ export default function BusinessRegistration() {
                   onClick={() => !isDisabled && handleSelectPlan(plan.id)}
                   className={`
                     relative rounded-xl border-2 p-5 cursor-pointer transition-all
-                    ${isSelected
-                      ? `${plan.borderColor} ring-2 ring-amber-500 bg-stone-800`
+                    ${isRecommended
+                      ? `${plan.borderColor} bg-stone-800 scale-105 shadow-lg ring-2 ring-green-500/50`
                       : 'border-stone-700 bg-stone-800/50'}
                     ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
-                    ${isRecommended ? 'scale-105 shadow-lg ring-2 ring-green-500/50' : ''}
                   `}
                 >
                   {/* ✅ Recommended Badge (Dynamic - Green) */}
