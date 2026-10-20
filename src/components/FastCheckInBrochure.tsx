@@ -3,7 +3,7 @@ import { Loader2, X } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 import { getRegionalPricing, convertZarToRegionalPrice, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
 import { PACKAGE_IDS } from '../config/pricing-engine';
-import { getCurrentLanguage, getLanguageDirection, getTranslationsForLanguage, LANGUAGE_OPTIONS, onLanguageChange, setLanguage, type SupportedLanguage } from '../i18n';
+import { getCurrentLanguage, getLanguageDirection, getTranslationsForLanguage, LANGUAGE_OPTIONS, onLanguageChange, setLanguage, type SupportedLanguage } from '../i18n/languageService';
 
 type FastCheckInPackage = (typeof PACKAGE_IDS)[number];
 
@@ -46,8 +46,8 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     const zarYearly = zarPricing.prices[index]?.yearly;
     const regionalMonthly = pricing.prices[index]?.monthly;
     const regionalYearly = pricing.prices[index]?.yearly;
-    if (zarMonthly != null && regionalMonthly != null) replacements.push([new RegExp(`R\\\\s*${zarMonthly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalMonthly, language)}`]);
-    if (zarYearly != null && regionalYearly != null) replacements.push([new RegExp(`R\\\\s*${zarYearly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalYearly, language)}`]);
+    if (zarMonthly != null && regionalMonthly != null) replacements.push([new RegExp(`R\\s*${zarMonthly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalMonthly, language)}`]);
+    if (zarYearly != null && regionalYearly != null) replacements.push([new RegExp(`R\\s*${zarYearly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalYearly, language)}`]);
   });
 
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
