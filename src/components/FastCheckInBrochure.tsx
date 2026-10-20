@@ -27,8 +27,22 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   const pricing = getRegionalPricing(region, southAfrican, fxRates);
   const symbol = currencySymbol(pricing.currency);
   const zarPricing = getRegionalPricing('africa', true);
-  const replacements: Array<[RegExp, string]> = [];
 
+  // Prefer the brochure's existing five-card structure and replace the actual
+  // price nodes. This makes the brochure independent of whatever prices were
+  // present in the original static HTML.
+  const planCards = Array.from(doc.querySelectorAll<HTMLElement>('.pricing .plan'));
+  planCards.slice(0, PACKAGE_IDS.length).forEach((card, index) => {
+    const monthly = pricing.prices[index]?.monthly;
+    const yearly = pricing.prices[index]?.yearly;
+    if (monthly == null || yearly == null) return;
+    const price = card.querySelector<HTMLElement>('.price');
+    const per = card.querySelector<HTMLElement>('.per');
+    if (price) price.textContent = `${index === 4 ? 'From ' : ''}${symbol}${formatPrice(monthly)}`;
+    if (per) per.textContent = `per month · ${symbol}${formatPrice(yearly)} yearly`;
+  });
+
+  const replacements: Array<[RegExp, string]> = [];
   (PACKAGE_IDS as FastCheckInPackage[]).forEach((plan, index) => {
     const zarMonthly = zarPricing.prices[index]?.monthly;
     const zarYearly = zarPricing.prices[index]?.yearly;
@@ -43,7 +57,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly)}/month`]);
   replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher)} voucher`]);
 
-  // Restrict replacement to the pricing area so unrelated brochure text is untouched.
+  // Restrict text replacement to the pricing area so unrelated brochure text is untouched.
   const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
   const walker = doc.createTreeWalker(pricingRoot, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -97,18 +111,17 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
     return () => { cancelled = true; };
   }, []);
 
+  const applyPricing = () => {
+    try {
+      if (iframeRef.current?.contentDocument) applyRegionalPricing(iframeRef.current.contentDocument, region, isSouthAfricanMarket, fxRates);
+    } catch {
+      setError(true);
+    }
+  };
+
+  // Re-apply when the visitor changes market while the brochure is open.
   useEffect(() => {
-    if (!html || !iframeRef.current) return;
-    const frame = iframeRef.current;
-    const apply = () => {
-      try {
-        if (frame.contentDocument) applyRegionalPricing(frame.contentDocument, region, isSouthAfricanMarket, fxRates);
-      } catch {
-        setError(true);
-      }
-    };
-    frame.addEventListener('load', apply);
-    return () => frame.removeEventListener('load', apply);
+    if (html) applyPricing();
   }, [html, region, isSouthAfricanMarket, fxRates]);
 
   return (
@@ -132,7 +145,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
             <button type="button" onClick={onClose} className="rounded-xl bg-stone-950 px-5 py-3 font-bold text-amber-400 transition hover:bg-stone-800">Close</button>
           </div>
         ) : html ? (
-          <iframe ref={iframeRef} title="FastCheckIn brochure" srcDoc={html} className="min-h-0 flex-1 w-full border-0 bg-stone-100" />
+          <iframe ref={iframeRef} title="FastCheckIn brochure" srcDoc={html} onLoad={applyPricing} className="min-h-0 flex-1 w-full border-0 bg-stone-100" />
         ) : (
           <div className="flex flex-1 items-center justify-center gap-2 text-sm text-stone-600">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading brochure…
