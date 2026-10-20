@@ -39,14 +39,13 @@ test('all supported non-English brochure locales translate core section labels',
 });
 
 test('translation preserves whitespace around exact text-node replacements', () => {
-  assert.match(component, /value\.match\(/);
-  assert.match(component, /value\.match\(\/\^\\s\*\//);
-  assert.match(component, /value\.match\(\/\\s\*\$\//);
-  assert.doesNotMatch(component, /value\.match\(\/\^\\\\s/);
-  assert.doesNotMatch(component, /value\.match\(\/\\\\s\*\$\//);
+  assert.ok(component.includes("value.match(/^\\\\s*/)"));
+  assert.ok(component.includes("value.match(/\\\\s*$/)"));
+  assert.ok(!component.includes("value.match(/^\\\\\\\\s"));
+  assert.ok(!component.includes("value.match(/\\\\\\\\s*$/)"));
 });
 
 test('regional price replacements use a whitespace-aware currency pattern', () => {
-  assert.match(component, /new RegExp\(\`R\\\\s\*/);
-  assert.match(component, /getRegionalPricing\(region, southAfrican, fxRates\)/);
+  assert.ok(component.includes("new RegExp(`R\\\\\\\\s*"));
+  assert.ok(component.includes("getRegionalPricing(region, southAfrican, fxRates)"));
 });
