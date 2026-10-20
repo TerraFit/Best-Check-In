@@ -68,7 +68,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
 
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
   const marketingVoucher = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, southAfrican, fxRates);
-  replacements.push([/R\\s*39\\s*\\/\\s*month/gi, `${symbol}${formatPrice(marketingMonthly, language)} ${BROCHURE_COPY[language].perMonth}`]);
+  replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly, language)} ${BROCHURE_COPY[language].perMonth}`]);
   replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher, language)} ${BROCHURE_COPY[language].voucher}`]);
 
   const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
