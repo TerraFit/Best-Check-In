@@ -39,12 +39,11 @@ test('all supported non-English brochure locales translate core section labels',
 });
 
 test('translation preserves whitespace around exact text-node replacements', () => {
-  assert.ok(component.includes(String.raw`value.match(/^\s*/)`));
-  assert.ok(component.includes(String.raw`value.match(/\s*$/)`));
-  assert.ok(!component.includes(String.raw`value.match(/^\\s`));
-  assert.ok(!component.includes(String.raw`value.match(/\\s*$/)`));
+  assert.ok(component.includes('value.match(/^\\s*/)'));
+  assert.ok(component.includes('value.match(/\\s*$/)'));
+  assert.ok(!component.includes('value.match(/^\\\\s'));
+  assert.ok(!component.includes('value.match(/\\\\s*$/)'));
 });
-
 test('regional pricing is derived from the shared pricing engine', () => {
   assert.ok(component.includes('getRegionalPricing(region, southAfrican, fxRates)'));
   assert.ok(component.includes('pricing.prices[index]?.monthly'));
