@@ -4,6 +4,7 @@ import { useMarket } from '../context/MarketContext';
 import { getRegionalPricing, convertZarToRegionalPrice, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
 import { PACKAGE_IDS } from '../config/pricing-engine';
 import { getCurrentLanguage, getLanguageDirection, getTranslationsForLanguage, LANGUAGE_OPTIONS, onLanguageChange, setLanguage, type SupportedLanguage } from '../i18n/languageService';
+import { BROCHURE_TRANSLATIONS } from '../i18n/brochureTranslations';
 
 type FastCheckInPackage = (typeof PACKAGE_IDS)[number];
 
@@ -98,20 +99,47 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
  * mixed text nodes. Untranslated brochure-specific wording safely falls back to
  * its original English text rather than being sent to an external service.
  */
+/**
+ * Translate the brochure with a dedicated, product-specific catalog. Shared app
+ * labels may use exact-key locale entries, but brochure paragraphs are never
+ * translated by fuzzy substring matching (which can corrupt unrelated wording).
+ */
 function applyBrochureTranslations(doc: Document, language: SupportedLanguage) {
   const english = getTranslationsForLanguage('en');
   const selected = getTranslationsForLanguage(language);
-  const exact = new Map<string, string>();
-  const phrases: Array<[string, string]> = [];
+  const appLabels = new Map<string, string>();
 
   Object.keys(english).forEach((key) => {
     const source = english[key];
     const translated = selected[key];
-    if (typeof source !== 'string' || typeof translated !== 'string' || !source.trim() || !translated.trim() || source === translated) return;
-    exact.set(source, translated);
-    if (source.trim().length >= 14 && !/[{}]/.test(source)) phrases.push([source, translated]);
+    if (
+      typeof source === 'string' &&
+      typeof translated === 'string' &&
+      source.trim() &&
+      translated.trim() &&
+      source !== translated
+    ) {
+      appLabels.set(source, translated);
+    }
   });
-  phrases.sort((a, b) => b[0].length - a[0].length);
+
+  const brochureCopy = BROCHURE_TRANSLATIONS[language] || {};
+  const phraseEntries = Object.entries(brochureCopy).sort(([a], [b]) => b.length - a.length);
+  const translateValue = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    const exact = brochureCopy[trimmed] || appLabels.get(trimmed);
+    if (exact) {
+      const leading = value.match(/^\\s*/)?.[0] || '';
+      const trailing = value.match(/\\s*$/)?.[0] || '';
+      return leading + exact + trailing;
+    }
+    let translated = value;
+    for (const [source, replacement] of phraseEntries) {
+      if (translated.includes(source)) translated = translated.split(source).join(replacement);
+    }
+    return translated;
+  };
 
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -122,27 +150,17 @@ function applyBrochureTranslations(doc: Document, language: SupportedLanguage) {
     nodes.push(node as Text);
   }
   nodes.forEach((textNode) => {
-    const original = textNode.nodeValue || '';
-    const trimmed = original.trim();
-    if (!trimmed) return;
-    if (exact.has(trimmed)) {
-      const leading = original.match(/^\s*/)?.[0] || '';
-      const trailing = original.match(/\s*$/)?.[0] || '';
-      textNode.nodeValue = leading + exact.get(trimmed) + trailing;
-      return;
-    }
-    let value = original;
-    for (const [source, translated] of phrases) {
-      value = value.split(source).join(translated);
-    }
-    textNode.nodeValue = value;
+    textNode.nodeValue = translateValue(textNode.nodeValue || '');
   });
 
   const attributeNames = ['title', 'aria-label', 'alt', 'placeholder'];
   doc.querySelectorAll<HTMLElement>('*').forEach((element) => {
     attributeNames.forEach((name) => {
       const value = element.getAttribute(name);
-      if (value && exact.has(value)) element.setAttribute(name, exact.get(value)!);
+      if (value) {
+        const translated = translateValue(value);
+        if (translated !== value) element.setAttribute(name, translated);
+      }
     });
   });
   doc.documentElement.lang = language;
