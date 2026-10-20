@@ -117,7 +117,7 @@ function applyBrochureTranslations(doc: Document, language: SupportedLanguage) {
     }
   });
 
-  const brochureCopy = BROCHURE_TRANSLATIONS[language] || {};
+  const brochureCopy = (BROCHURE_TRANSLATIONS[language] || {}) as Record<string, string>;
   const phraseEntries = Object.entries(brochureCopy).sort(([a], [b]) => b.length - a.length);
   const translateValue = (value: string) => {
     const trimmed = value.trim();
