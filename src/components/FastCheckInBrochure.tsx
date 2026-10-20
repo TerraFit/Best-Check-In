@@ -62,8 +62,8 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     const zarYearly = zarPricing.prices[index]?.yearly;
     const regionalMonthly = pricing.prices[index]?.monthly;
     const regionalYearly = pricing.prices[index]?.yearly;
-    if (zarMonthly != null && regionalMonthly != null) replacements.push([new RegExp(`R\s*${zarMonthly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalMonthly, language)}`]);
-    if (zarYearly != null && regionalYearly != null) replacements.push([new RegExp(`R\s*${zarYearly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalYearly, language)}`]);
+    if (zarMonthly != null && regionalMonthly != null) replacements.push([new RegExp(`R\\s*${zarMonthly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalMonthly, language)}`]);
+    if (zarYearly != null && regionalYearly != null) replacements.push([new RegExp(`R\\s*${zarYearly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalYearly, language)}`]);
   });
 
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
