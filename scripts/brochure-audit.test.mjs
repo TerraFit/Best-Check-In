@@ -50,3 +50,29 @@ test('regional pricing is derived from the shared pricing engine', () => {
   assert.ok(component.includes('pricing.prices[index]?.monthly'));
   assert.ok(component.includes('pricing.prices[index]?.yearly'));
 });
+
+test('brochure translation catalog has no duplicate keys in any locale', () => {
+  for (let index = 0; index < languages.length; index += 1) {
+    const language = languages[index];
+    const start = catalog.indexOf(`  ${language}: {`);
+    const nextLanguage = languages[index + 1];
+    const end = nextLanguage
+      ? catalog.indexOf(`  ${nextLanguage}: {`, start)
+      : catalog.indexOf('\\n};', start);
+    assert.ok(start >= 0 && end > start, `could not locate locale block: ${language}`);
+    const block = catalog.slice(start, end);
+    const keys = [...block.matchAll(/^\\s*(['"])(.*?)\\1\\s*:/gm)].map((match) => match[2]);
+    const seen = new Set();
+    const duplicates = new Set();
+    for (const key of keys) {
+      if (seen.has(key)) duplicates.add(key);
+      seen.add(key);
+    }
+    assert.deepEqual([...duplicates], [], `${language} contains duplicate translation keys`);
+  }
+});
+
+test('marketing-download monthly price uses the selected language label', () => {
+  assert.ok(component.includes('${BROCHURE_COPY[language].perMonth}'));
+  assert.ok(!component.includes('${formatPrice(marketingMonthly, language)}/month'));
+});
