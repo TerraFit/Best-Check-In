@@ -41,7 +41,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Ondersoek die plaaslike en internasionale besoekersamestelling',
     'Look for changes and patterns over time': 'Soek veranderinge en patrone oor tyd',
     'Use observed patterns to inform campaigns and seasonal packages': 'Gebruik waargenome patrone om veldtogte en seisoenale pakkette te rig',
-    'Room utilisation': 'Kamerbenutting', 'Visitor origin': 'Besoekersherkoms', 'Market mix': 'Marksamestelling', 'Daily operations': 'Daaglikse bedrywighede'
+    'Room utilisation': 'Kamerbenutting', 'Visitor origin': 'Besoekersherkoms', 'Market mix': 'Marksamestelling', 'Daily operations',: 'Daaglikse bedrywighede'
     "FastCheckIn · Product Brochure": "FastCheckIn · Produkbrochure",
     "Print / Save as PDF": "Druk / Stoor as PDF",
     "AMERICAS": "AMERIKA",
@@ -95,7 +95,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Inländische und internationale Gästeanteile prüfen',
     'Look for changes and patterns over time': 'Veränderungen und Muster im Zeitverlauf erkennen',
     'Use observed patterns to inform campaigns and seasonal packages': 'Erkannte Muster für Kampagnen und Saisonangebote nutzen',
-    'Room utilisation': 'Zimmerauslastung', 'Visitor origin': 'Herkunft der Besucher', 'Market mix': 'Marktmix', 'Daily operations': 'Tagesbetrieb'
+    'Room utilisation': 'Zimmerauslastung', 'Visitor origin': 'Herkunft der Besucher', 'Market mix': 'Marktmix', 'Daily operations',: 'Tagesbetrieb'
     "FastCheckIn · Product Brochure": "FastCheckIn · Produktbroschüre",
     "Print / Save as PDF": "Drucken / Als PDF speichern",
     "AMERICAS": "AMERIKA",
@@ -149,7 +149,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Examiner la répartition des visiteurs nationaux et internationaux',
     'Look for changes and patterns over time': 'Repérer les évolutions et tendances au fil du temps',
     'Use observed patterns to inform campaigns and seasonal packages': 'Utiliser les tendances observées pour orienter les campagnes et offres saisonnières',
-    'Room utilisation': 'Utilisation des chambres', 'Visitor origin': 'Origine des visiteurs', 'Market mix': 'Répartition des marchés', 'Daily operations': 'Opérations quotidiennes'
+    'Room utilisation': 'Utilisation des chambres', 'Visitor origin': 'Origine des visiteurs', 'Market mix': 'Répartition des marchés', 'Daily operations',: 'Opérations quotidiennes'
     "FastCheckIn · Product Brochure": "FastCheckIn · Brochure produit",
     "Print / Save as PDF": "Imprimer / Enregistrer en PDF",
     "AMERICAS": "AMÉRIQUES",
@@ -203,7 +203,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Esamina la composizione dei visitatori nazionali e internazionali',
     'Look for changes and patterns over time': 'Individua cambiamenti e tendenze nel tempo',
     'Use observed patterns to inform campaigns and seasonal packages': 'Usa le tendenze osservate per orientare campagne e offerte stagionali',
-    'Room utilisation': 'Utilizzo delle camere', 'Visitor origin': 'Provenienza dei visitatori', 'Market mix': 'Composizione dei mercati', 'Daily operations': 'Operazioni quotidiane'
+    'Room utilisation': 'Utilizzo delle camere', 'Visitor origin': 'Provenienza dei visitatori', 'Market mix': 'Composizione dei mercati', 'Daily operations',: 'Operazioni quotidiane'
     "FastCheckIn · Product Brochure": "FastCheckIn · Brochure del prodotto",
     "Print / Save as PDF": "Stampa / Salva come PDF",
     "AMERICAS": "AMERICHE",
@@ -257,7 +257,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Analise a proporção de visitantes nacionais e internacionais',
     'Look for changes and patterns over time': 'Procure alterações e padrões ao longo do tempo',
     'Use observed patterns to inform campaigns and seasonal packages': 'Use os padrões observados para orientar campanhas e pacotes sazonais',
-    'Room utilisation': 'Utilização dos quartos', 'Visitor origin': 'Origem dos visitantes', 'Market mix': 'Composição dos mercados', 'Daily operations': 'Operações diárias'
+    'Room utilisation': 'Utilização dos quartos', 'Visitor origin': 'Origem dos visitantes', 'Market mix': 'Composição dos mercados', 'Daily operations',: 'Operações diárias'
     "FastCheckIn · Product Brochure": "FastCheckIn · Brochura do produto",
     "Print / Save as PDF": "Imprimir / Guardar como PDF",
     "AMERICAS": "AMÉRICAS",
@@ -311,7 +311,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Analiza la proporción de visitantes nacionales e internacionales',
     'Look for changes and patterns over time': 'Busca cambios y patrones a lo largo del tiempo',
     'Use observed patterns to inform campaigns and seasonal packages': 'Usa los patrones observados para orientar campañas y ofertas de temporada',
-    'Room utilisation': 'Uso de habitaciones', 'Visitor origin': 'Origen de visitantes', 'Market mix': 'Composición del mercado', 'Daily operations': 'Operaciones diarias'
+    'Room utilisation': 'Uso de habitaciones', 'Visitor origin': 'Origen de visitantes', 'Market mix': 'Composición del mercado', 'Daily operations',: 'Operaciones diarias'
     "FastCheckIn · Product Brochure": "FastCheckIn · Folleto del producto",
     "Print / Save as PDF": "Imprimir / Guardar como PDF",
     "AMERICAS": "AMÉRICAS",
@@ -365,7 +365,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Bekijk de verhouding tussen binnenlandse en internationale bezoekers',
     'Look for changes and patterns over time': 'Zoek naar veranderingen en patronen door de tijd heen',
     'Use observed patterns to inform campaigns and seasonal packages': 'Gebruik waargenomen patronen voor campagnes en seizoenspakketten',
-    'Room utilisation': 'Kamerbenutting', 'Visitor origin': 'Herkomst van bezoekers', 'Market mix': 'Marktmix', 'Daily operations': 'Dagelijkse werkzaamheden'
+    'Room utilisation': 'Kamerbenutting', 'Visitor origin': 'Herkomst van bezoekers', 'Market mix': 'Marktmix', 'Daily operations',: 'Dagelijkse werkzaamheden'
     "FastCheckIn · Product Brochure": "FastCheckIn · Productbrochure",
     "Print / Save as PDF": "Afdrukken / Opslaan als PDF",
     "AMERICAS": "AMERIKA",
@@ -419,7 +419,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'Изучайте долю местных и иностранных гостей',
     'Look for changes and patterns over time': 'Отслеживайте изменения и тенденции со временем',
     'Use observed patterns to inform campaigns and seasonal packages': 'Используйте выявленные тенденции для кампаний и сезонных предложений',
-    'Room utilisation': 'Использование номеров', 'Visitor origin': 'Происхождение гостей', 'Market mix': 'Структура рынков', 'Daily operations': 'Ежедневные операции'
+    'Room utilisation': 'Использование номеров', 'Visitor origin': 'Происхождение гостей', 'Market mix': 'Структура рынков', 'Daily operations',: 'Ежедневные операции'
     "FastCheckIn · Product Brochure": "FastCheckIn · Брошюра о продукте",
     "Print / Save as PDF": "Печать / Сохранить в PDF",
     "AMERICAS": "АМЕРИКА",
@@ -473,7 +473,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': '查看本地与国际访客比例',
     'Look for changes and patterns over time': '观察随时间变化的趋势与规律',
     'Use observed patterns to inform campaigns and seasonal packages': '利用观察到的规律制定营销活动和季节套餐',
-    'Room utilisation': '客房使用情况', 'Visitor origin': '访客来源', 'Market mix': '客源市场构成', 'Daily operations': '日常运营'
+    'Room utilisation': '客房使用情况', 'Visitor origin': '访客来源', 'Market mix': '客源市场构成', 'Daily operations',: '日常运营'
     "FastCheckIn · Product Brochure": "FastCheckIn · 产品手册",
     "Print / Save as PDF": "打印 / 保存为 PDF",
     "AMERICAS": "美洲",
@@ -527,7 +527,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'راجع مزيج الزوار المحليين والدوليين',
     'Look for changes and patterns over time': 'ابحث عن التغيّرات والأنماط بمرور الوقت',
     'Use observed patterns to inform campaigns and seasonal packages': 'استخدم الأنماط المرصودة لتوجيه الحملات والعروض الموسمية',
-    'Room utilisation': 'استخدام الغرف', 'Visitor origin': 'مصدر الزوار', 'Market mix': 'مزيج الأسواق', 'Daily operations': 'العمليات اليومية'
+    'Room utilisation': 'استخدام الغرف', 'Visitor origin': 'مصدر الزوار', 'Market mix': 'مزيج الأسواق', 'Daily operations',: 'العمليات اليومية'
     "FastCheckIn · Product Brochure": "FastCheckIn · كتيب المنتج",
     "Print / Save as PDF": "طباعة / حفظ كملف PDF",
     "AMERICAS": "الأمريكتان",
@@ -581,7 +581,7 @@ export const BROCHURE_TRANSLATIONS: Partial<Record<SupportedLanguage, Record<str
     'Review domestic and international visitor mix': 'בדקו את שיעור המבקרים המקומיים והבינלאומיים',
     'Look for changes and patterns over time': 'זהו שינויים ודפוסים לאורך זמן',
     'Use observed patterns to inform campaigns and seasonal packages': 'השתמשו בדפוסים שנצפו כדי לתכנן קמפיינים וחבילות עונתיות',
-    'Room utilisation': 'ניצול חדרים', 'Visitor origin': 'מקור המבקרים', 'Market mix': 'הרכב השווקים', 'Daily operations': 'תפעול יומי'
+    'Room utilisation': 'ניצול חדרים', 'Visitor origin': 'מקור המבקרים', 'Market mix': 'הרכב השווקים', 'Daily operations',: 'תפעול יומי'
     "FastCheckIn · Product Brochure": "FastCheckIn · חוברת המוצר",
     "Print / Save as PDF": "הדפסה / שמירה כ-PDF",
     "AMERICAS": "אמריקה",
