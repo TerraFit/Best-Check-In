@@ -2,6 +2,7 @@
 // ✅ COMPLETE REWRITE - All languages, custom order
 
 import type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
+export type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
 import enTranslations from './translations/en.json';
 import afTranslations from './translations/af.json';
 import deTranslations from './translations/de.json';
