@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from './useTranslation';
-import { LANGUAGE_OPTIONS, type SupportedLanguage } from './languageService';
+import { LANGUAGE_OPTIONS, type LanguageOption, type SupportedLanguage } from './languageService';
 
 interface LanguageSelectorProps {
   variant?: 'header' | 'footer' | 'dropdown';
