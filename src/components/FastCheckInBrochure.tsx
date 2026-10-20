@@ -2,21 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 import { getRegionalPricing, convertZarToRegionalPrice, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
-import { PACKAGE_IDS, PACKAGE_MIN_ROOMS } from '../config/pricing-engine';
+import { PACKAGE_IDS } from '../config/pricing-engine';
 
 type FastCheckInPackage = (typeof PACKAGE_IDS)[number];
 
 interface FastCheckInBrochureProps {
   onClose: () => void;
 }
-
-const PACKAGE_LABELS: Record<FastCheckInPackage, string> = {
-  starter: 'Starter',
-  growth: 'Growth',
-  pro: 'Pro',
-  business: 'Business',
-  enterprise: 'Enterprise',
-};
 
 function currencySymbol(currency: string) {
   return currency === 'ZAR' ? 'R' : currency === 'EUR' ? '€' : '$';
@@ -34,25 +26,26 @@ function formatPrice(value: number) {
 function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegionalPricing>[0], southAfrican: boolean, fxRates: Parameters<typeof getRegionalPricing>[2]) {
   const pricing = getRegionalPricing(region, southAfrican, fxRates);
   const symbol = currencySymbol(pricing.currency);
-  const priceByZar = new Map<number, string>();
-  const plans = PACKAGE_IDS as FastCheckInPackage[];
+  const zarPricing = getRegionalPricing('africa', true);
+  const replacements: Array<[RegExp, string]> = [];
 
-  plans.forEach((plan, index) => {
-    const monthly = pricing.prices[index]?.monthly;
-    if (monthly == null) return;
-    const zarMonthly = getRegionalPricing('africa', true).prices[index]?.monthly;
-    if (zarMonthly != null) priceByZar.set(zarMonthly, `${symbol}${formatPrice(monthly)}`);
+  (PACKAGE_IDS as FastCheckInPackage[]).forEach((plan, index) => {
+    const zarMonthly = zarPricing.prices[index]?.monthly;
+    const zarYearly = zarPricing.prices[index]?.yearly;
+    const regionalMonthly = pricing.prices[index]?.monthly;
+    const regionalYearly = pricing.prices[index]?.yearly;
+    if (zarMonthly != null && regionalMonthly != null) replacements.push([new RegExp(`R\\s*${zarMonthly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalMonthly)}`]);
+    if (zarYearly != null && regionalYearly != null) replacements.push([new RegExp(`R\\s*${zarYearly.toLocaleString('en-US').replace(/,/g, ',?')}`, 'g'), `${symbol}${formatPrice(regionalYearly)}`]);
   });
 
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
   const marketingVoucher = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, southAfrican, fxRates);
-  const replacements: Array<[RegExp, string]> = [
-    ...Array.from(priceByZar.entries()).map(([zar, regional]) => [new RegExp(`\\bR${zar.toLocaleString('en-ZA').replace(/,/g, '\\,')}\\b`, 'g'), regional] as [RegExp, string]),
-    [/R39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly)}/month`],
-    [/R149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher)} voucher`],
-  ];
+  replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly)}/month`]);
+  replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher)} voucher`]);
 
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  // Restrict replacement to the pricing area so unrelated brochure text is untouched.
+  const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
+  const walker = doc.createTreeWalker(pricingRoot, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   let node: Node | null;
   while ((node = walker.nextNode())) nodes.push(node as Text);
@@ -62,18 +55,16 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     textNode.nodeValue = value;
   });
 
-  // Keep the print action, but the brochure is no longer presented as a
-  // downloadable HTML document from inside the application modal.
+  // Keep the print action, but the brochure is no longer presented as a downloadable
+  // HTML document from inside the application modal.
   doc.querySelectorAll<HTMLElement>('.utility-actions .utility-btn').forEach((button, index) => {
     if (index > 0) button.style.display = 'none';
   });
 
-  // Add an accessible regional-price note without disturbing the existing layout.
   const utilityLabel = doc.querySelector<HTMLElement>('.utility-label');
-  if (utilityLabel && !utilityLabel.dataset.regionalPricingApplied) {
+  if (utilityLabel) {
     const regionName = region === 'north-america' ? 'North America' : region.charAt(0).toUpperCase() + region.slice(1).replace('-', ' ');
     utilityLabel.textContent = `FastCheckIn · Product Brochure · ${southAfrican ? 'South Africa' : regionName} · ${symbol}`;
-    utilityLabel.dataset.regionalPricingApplied = 'true';
   }
 }
 
@@ -154,5 +145,3 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
     </div>
   );
 }
-
-export { PACKAGE_LABELS, PACKAGE_MIN_ROOMS };
