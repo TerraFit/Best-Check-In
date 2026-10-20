@@ -33,7 +33,7 @@ test('all supported non-English brochure locales translate core section labels',
     assert.ok(end > start, `could not locate locale block end: ${language}`);
     const block = catalog.slice(start, end);
     for (const label of requiredBrochureLabels) {
-      assert.ok(block.includes(JSON.stringify(label) + ':'), `${language} is missing translation for: ${label}`);
+      assert.ok(block.includes("'" + label + "':") || block.includes('"' + label + '":'), `${language} is missing translation for: ${label}`);
     }
   }
 });
