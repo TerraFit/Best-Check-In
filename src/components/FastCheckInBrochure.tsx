@@ -94,12 +94,6 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
 }
 
 /**
- * Translate brochure text using the application's existing, reviewed locale packs.
- * Exact text matches are translated first; longer phrases are then replaced within
- * mixed text nodes. Untranslated brochure-specific wording safely falls back to
- * its original English text rather than being sent to an external service.
- */
-/**
  * Translate the brochure with a dedicated, product-specific catalog. Shared app
  * labels may use exact-key locale entries, but brochure paragraphs are never
  * translated by fuzzy substring matching (which can corrupt unrelated wording).
