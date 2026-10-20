@@ -11,6 +11,21 @@ interface FastCheckInBrochureProps {
   onClose: () => void;
 }
 
+const BROCHURE_COPY: Record<SupportedLanguage, { language: string; productBrochure: string; from: string; perMonth: string; yearly: string; voucher: string; loadErrorTitle: string; loadErrorBody: string }> = {
+  en: { language: 'Language', productBrochure: 'Product Brochure', from: 'From ', perMonth: 'per month', yearly: 'yearly', voucher: 'voucher', loadErrorTitle: 'The brochure could not be displayed', loadErrorBody: 'Please close this window and try again. If the problem continues, contact the FastCheckIn team.' },
+  af: { language: 'Taal', productBrochure: 'Produkbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarliks', voucher: 'bewys', loadErrorTitle: 'Die brosjure kon nie vertoon word nie', loadErrorBody: 'Maak asseblief hierdie venster toe en probeer weer. Kontak die FastCheckIn-span as die probleem voortduur.' },
+  de: { language: 'Sprache', productBrochure: 'Produktbroschüre', from: 'Ab ', perMonth: 'pro Monat', yearly: 'jährlich', voucher: 'Gutschein', loadErrorTitle: 'Die Broschüre konnte nicht angezeigt werden', loadErrorBody: 'Bitte schließen Sie dieses Fenster und versuchen Sie es erneut. Wenn das Problem weiterhin besteht, kontaktieren Sie das FastCheckIn-Team.' },
+  fr: { language: 'Langue', productBrochure: 'Brochure produit', from: 'À partir de ', perMonth: 'par mois', yearly: 'par an', voucher: 'bon', loadErrorTitle: 'La brochure ne peut pas être affichée', loadErrorBody: 'Veuillez fermer cette fenêtre et réessayer. Si le problème persiste, contactez l’équipe FastCheckIn.' },
+  it: { language: 'Lingua', productBrochure: 'Brochure del prodotto', from: 'Da ', perMonth: 'al mese', yearly: 'annuale', voucher: 'buono', loadErrorTitle: 'Impossibile visualizzare la brochure', loadErrorBody: 'Chiudi questa finestra e riprova. Se il problema persiste, contatta il team FastCheckIn.' },
+  pt: { language: 'Idioma', productBrochure: 'Brochura do produto', from: 'A partir de ', perMonth: 'por mês', yearly: 'anual', voucher: 'voucher', loadErrorTitle: 'Não foi possível apresentar a brochura', loadErrorBody: 'Feche esta janela e tente novamente. Se o problema persistir, contacte a equipa FastCheckIn.' },
+  es: { language: 'Idioma', productBrochure: 'Folleto del producto', from: 'Desde ', perMonth: 'al mes', yearly: 'anual', voucher: 'bono', loadErrorTitle: 'No se pudo mostrar el folleto', loadErrorBody: 'Cierre esta ventana e inténtelo de nuevo. Si el problema continúa, contacte con el equipo de FastCheckIn.' },
+  nl: { language: 'Taal', productBrochure: 'Productbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarlijks', voucher: 'voucher', loadErrorTitle: 'De brochure kon niet worden weergegeven', loadErrorBody: 'Sluit dit venster en probeer het opnieuw. Neem contact op met het FastCheckIn-team als het probleem blijft bestaan.' },
+  ru: { language: 'Язык', productBrochure: 'Брошюра продукта', from: 'От ', perMonth: 'в месяц', yearly: 'в год', voucher: 'ваучер', loadErrorTitle: 'Не удалось отобразить брошюру', loadErrorBody: 'Закройте это окно и попробуйте ещё раз. Если проблема не исчезнет, свяжитесь с командой FastCheckIn.' },
+  zh: { language: '语言', productBrochure: '产品手册', from: '起价 ', perMonth: '每月', yearly: '每年', voucher: '优惠券', loadErrorTitle: '无法显示宣传册', loadErrorBody: '请关闭此窗口后重试。如果问题仍然存在，请联系 FastCheckIn 团队。' },
+  ar: { language: 'اللغة', productBrochure: 'كتيب المنتج', from: 'ابتداءً من ', perMonth: 'شهريًا', yearly: 'سنويًا', voucher: 'قسيمة', loadErrorTitle: 'تعذّر عرض الكتيب', loadErrorBody: 'يرجى إغلاق هذه النافذة والمحاولة مرة أخرى. إذا استمرت المشكلة، فاتصل بفريق FastCheckIn.' },
+  he: { language: 'שפה', productBrochure: 'חוברת המוצר', from: 'החל מ־', perMonth: 'לחודש', yearly: 'לשנה', voucher: 'שובר', loadErrorTitle: 'לא ניתן להציג את החוברת', loadErrorBody: 'יש לסגור חלון זה ולנסות שוב. אם הבעיה נמשכת, יש לפנות לצוות FastCheckIn.' },
+};
+
 const LOCALE_BY_LANGUAGE: Record<SupportedLanguage, string> = {
   en: 'en-ZA', af: 'af-ZA', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', pt: 'pt-PT',
   es: 'es-ES', nl: 'nl-NL', ru: 'ru-RU', zh: 'zh-CN', ar: 'ar-SA', he: 'he-IL',
@@ -36,8 +51,8 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     if (monthly == null || yearly == null) return;
     const price = card.querySelector<HTMLElement>('.price');
     const per = card.querySelector<HTMLElement>('.per');
-    if (price) price.textContent = `${index === 4 ? 'From ' : ''}${symbol}${formatPrice(monthly, language)}`;
-    if (per) per.textContent = `per month · ${symbol}${formatPrice(yearly, language)} yearly`;
+    if (price) price.textContent = `${index === 4 ? BROCHURE_COPY[language].from : ''}${symbol}${formatPrice(monthly, language)}`;
+    if (per) per.textContent = `${BROCHURE_COPY[language].perMonth} · ${symbol}${formatPrice(yearly, language)} ${BROCHURE_COPY[language].yearly}`;
   });
 
   const replacements: Array<[RegExp, string]> = [];
@@ -53,7 +68,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
   const marketingVoucher = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, southAfrican, fxRates);
   replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly, language)}/month`]);
-  replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher, language)} voucher`]);
+  replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher, language)} ${BROCHURE_COPY[language].voucher}`]);
 
   const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
   const walker = doc.createTreeWalker(pricingRoot, NodeFilter.SHOW_TEXT);
@@ -73,7 +88,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   const utilityLabel = doc.querySelector<HTMLElement>('.utility-label');
   if (utilityLabel) {
     const regionName = region === 'north-america' ? 'North America' : region.charAt(0).toUpperCase() + region.slice(1).replace('-', ' ');
-    utilityLabel.textContent = `FastCheckIn · Product Brochure · ${southAfrican ? 'South Africa' : regionName} · ${symbol}`;
+    utilityLabel.textContent = `FastCheckIn · ${BROCHURE_COPY[language].productBrochure} · ${southAfrican ? 'South Africa' : regionName} · ${symbol}`;
   }
 }
 
@@ -182,6 +197,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
 
   const copy = getTranslationsForLanguage(language);
   const closeLabel = copy.common_close || 'Close';
+  const brochureCopy = BROCHURE_COPY[language];
   const loadingLabel = copy.common_loading || 'Loading…';
 
   return (
@@ -195,7 +211,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
       <div className="relative flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 pr-14">
           <label className="flex min-w-0 items-center gap-2 text-sm font-semibold text-stone-700">
-            <span className="whitespace-nowrap">Language</span>
+            <span className="whitespace-nowrap">{brochureCopy.language}</span>
             <select
               value={language}
               onChange={(event) => {
@@ -217,8 +233,8 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
         </div>
         {error ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-            <h2 className="text-xl font-bold text-stone-900">The brochure could not be displayed</h2>
-            <p className="max-w-lg text-sm leading-6 text-stone-600">Please close this window and try again. If the problem continues, contact the FastCheckIn team.</p>
+            <h2 className="text-xl font-bold text-stone-900">{brochureCopy.loadErrorTitle}</h2>
+            <p className="max-w-lg text-sm leading-6 text-stone-600">{brochureCopy.loadErrorBody}</p>
             <button type="button" onClick={onClose} className="rounded-xl bg-stone-950 px-5 py-3 font-bold text-amber-400 transition hover:bg-stone-800">{closeLabel}</button>
           </div>
         ) : html ? (
