@@ -52,8 +52,8 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
 
   const marketingMonthly = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, southAfrican, fxRates);
   const marketingVoucher = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, southAfrican, fxRates);
-  replacements.push([/R\\s*39\\s*\\/\\s*month/gi, `${symbol}${formatPrice(marketingMonthly, language)}/month`]);
-  replacements.push([/R\\s*149\\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher, language)} voucher`]);
+  replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly, language)}/month`]);
+  replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher, language)} voucher`]);
 
   const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
   const walker = doc.createTreeWalker(pricingRoot, NodeFilter.SHOW_TEXT);
@@ -111,8 +111,8 @@ function applyBrochureTranslations(doc: Document, language: SupportedLanguage) {
     const trimmed = original.trim();
     if (!trimmed) return;
     if (exact.has(trimmed)) {
-      const leading = original.match(/^\\s*/)?.[0] || '';
-      const trailing = original.match(/\\s*$/)?.[0] || '';
+      const leading = original.match(/^\s*/)?.[0] || '';
+      const trailing = original.match(/\s*$/)?.[0] || '';
       textNode.nodeValue = leading + exact.get(trimmed) + trailing;
       return;
     }
