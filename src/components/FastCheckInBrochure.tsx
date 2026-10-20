@@ -28,9 +28,6 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   const symbol = currencySymbol(pricing.currency);
   const zarPricing = getRegionalPricing('africa', true);
 
-  // Prefer the brochure's existing five-card structure and replace the actual
-  // price nodes. This makes the brochure independent of whatever prices were
-  // present in the original static HTML.
   const planCards = Array.from(doc.querySelectorAll<HTMLElement>('.pricing .plan'));
   planCards.slice(0, PACKAGE_IDS.length).forEach((card, index) => {
     const monthly = pricing.prices[index]?.monthly;
@@ -43,7 +40,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   });
 
   const replacements: Array<[RegExp, string]> = [];
-  (PACKAGE_IDS as FastCheckInPackage[]).forEach((plan, index) => {
+  (PACKAGE_IDS as FastCheckInPackage[]).forEach((_, index) => {
     const zarMonthly = zarPricing.prices[index]?.monthly;
     const zarYearly = zarPricing.prices[index]?.yearly;
     const regionalMonthly = pricing.prices[index]?.monthly;
@@ -57,7 +54,6 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   replacements.push([/R\s*39\s*\/\s*month/gi, `${symbol}${formatPrice(marketingMonthly)}/month`]);
   replacements.push([/R\s*149\s+voucher/gi, `${symbol}${formatPrice(marketingVoucher)} voucher`]);
 
-  // Restrict text replacement to the pricing area so unrelated brochure text is untouched.
   const pricingRoot = doc.querySelector('.pricing')?.parentElement || doc.body;
   const walker = doc.createTreeWalker(pricingRoot, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -69,8 +65,6 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     textNode.nodeValue = value;
   });
 
-  // Keep the print action, but the brochure is no longer presented as a downloadable
-  // HTML document from inside the application modal.
   doc.querySelectorAll<HTMLElement>('.utility-actions .utility-btn').forEach((button, index) => {
     if (index > 0) button.style.display = 'none';
   });
@@ -119,7 +113,6 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
     }
   };
 
-  // Re-apply when the visitor changes market while the brochure is open.
   useEffect(() => {
     if (html) applyPricing();
   }, [html, region, isSouthAfricanMarket, fxRates]);
