@@ -157,11 +157,11 @@ const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => 
 export default function BusinessRegistration() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { region, isSouthAfricanMarket } = useMarket();
-  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket);
+  const { region, isSouthAfricanMarket, fxRates } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket, fxRates);
   const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$';
-  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket);
-  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket);
+  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates);
+  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket, fxRates);
   
   // 🚀 SCROLL TO TOP ON PAGE LOAD (Global fix)
   useEffect(() => {
@@ -546,7 +546,7 @@ export default function BusinessRegistration() {
                 <p className="text-sm text-stone-400">Price</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
                       : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket) * 11}/year`)}
