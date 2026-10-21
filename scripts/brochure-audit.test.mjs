@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice } from '../src/config/pricing-engine.js';
 
 const catalog = readFileSync(new URL('../src/i18n/brochureTranslations.ts', import.meta.url), 'utf8');
 const component = readFileSync(new URL('../src/components/FastCheckInBrochure.tsx', import.meta.url), 'utf8');
@@ -133,4 +134,30 @@ test('homepage, registration and brochure all consume the shared pricing engine'
 test('shared engine exposes the agreed monthly starting-price ladder', () => {
   const engine = readFileSync(new URL('../src/config/pricing-engine.js', import.meta.url), 'utf8');
   assert.ok(engine.includes('business: 515, enterprise: 871'), 'package premiums must calibrate Business and Enterprise prices');
+});
+
+
+test('all supported brochure locales show the same 21+ Business and Enterprise threshold', () => {
+  for (const language of ['en', ...languages]) {
+    const start = catalog.indexOf(`  ${language}: {`);
+    const commaEnd = catalog.indexOf('\\n  },', start);
+    const finalEnd = catalog.indexOf('\\n  }\\n};', start);
+    const end = commaEnd >= 0 && (finalEnd < 0 || commaEnd < finalEnd) ? commaEnd : finalEnd;
+    const block = catalog.slice(start, end);
+    const business = block.match(/["']Up to 20 rooms["']\\s*:\\s*["']([^"']*)["']/);
+    const enterprise = block.match(/["']25\\+ rooms["']\\s*:\\s*["']([^"']*)["']/);
+    assert.ok(business && enterprise, `${language} is missing a package threshold`);
+    assert.equal(business[1], enterprise[1], `${language} must show both Business and Enterprise starting at 21+ rooms`);
+  }
+});
+
+test('pricing audit executes the shared engine against the approved starting-price ladder', () => {
+  assert.deepEqual(
+    [1, 6, 11, 21, 21].map((rooms, index) => calculateSubscriptionMonthlyPrice(rooms, ['starter', 'growth', 'pro', 'business', 'enterprise'][index])),
+    [349, 649, 949, 2260, 2616],
+  );
+  assert.deepEqual(
+    [1, 6, 11, 21, 21].map((rooms, index) => calculateSubscriptionAnnualPrice(rooms, ['starter', 'growth', 'pro', 'business', 'enterprise'][index])),
+    [3839, 7139, 10439, 24860, 28776],
+  );
 });
