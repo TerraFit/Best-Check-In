@@ -62,7 +62,6 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
   };
 
   const legalConnector = LEGAL_CONNECTORS[language] || LEGAL_CONNECTORS.en;
-  const legalNotice = `${copy.privacyBody} ${copy.privacy} ${legalConnector.join} ${copy.terms} ${legalConnector.apply}`;
 
   async function requestDownload(currentLead: Lead, requestedDocument: HomepageDocument) {
     if (!turnstileToken) { setError(copy.security); return; }
