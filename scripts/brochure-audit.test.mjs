@@ -107,6 +107,25 @@ test('English brochure copy replaces obsolete fixed room caps with open-ended th
   assert.ok(block.includes('"Up to 5 rooms": "From 1 room"'));
   assert.ok(block.includes('"Up to 10 rooms": "6+ rooms"'));
   assert.ok(block.includes('"Up to 15 rooms": "11+ rooms"'));
-  assert.ok(block.includes('"Up to 20 rooms": "16+ rooms"'));
+  assert.ok(block.includes('"Up to 20 rooms": "21+ rooms"'));
   assert.ok(block.includes('"25+ rooms": "21+ rooms"'), 'Enterprise must start at 21 rooms');
+});
+
+
+test('homepage, registration and brochure all consume the shared pricing engine', () => {
+  const home = readFileSync(new URL('../src/pages/HomePage.tsx', import.meta.url), 'utf8');
+  const registration = readFileSync(new URL('../src/pages/BusinessRegistration.tsx', import.meta.url), 'utf8');
+  const engine = readFileSync(new URL('../src/config/pricing-engine.js', import.meta.url), 'utf8');
+
+  assert.ok(home.includes('getRegionalPricing(region, isSouthAfricanMarket)'), 'homepage must use shared regional prices');
+  assert.ok(home.includes('minimumRooms: 21'), 'Business and Enterprise start at 21 rooms on homepage');
+  assert.ok(registration.includes('getRegionalPricing(region, isSouthAfricanMarket)'), 'registration must use shared regional prices');
+  assert.ok(registration.includes('calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id)'), 'registration selected-plan price must use shared engine');
+  assert.ok(component.includes('getRegionalPricing(region, southAfrican, fxRates)'), 'brochure must use shared regional prices');
+  assert.ok(engine.includes('business: 21, enterprise: 21'), 'shared engine must use the agreed 21-room minimum for both tiers');
+});
+
+test('shared engine exposes the agreed monthly starting-price ladder', () => {
+  const engine = readFileSync(new URL('../src/config/pricing-engine.js', import.meta.url), 'utf8');
+  assert.ok(engine.includes('business: 515, enterprise: 871'), 'package premiums must calibrate Business and Enterprise prices');
 });
