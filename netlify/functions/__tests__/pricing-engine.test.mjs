@@ -79,9 +79,9 @@ test('Enterprise portfolio pricing requires at least two establishments and 21 c
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 0);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 2), 2616);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 3), 2915);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 5), 3214);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 6), 3468);
-  assert.equal(calculateEnterprisePortfolioAnnualPrice(21, 6), 38148);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 5), 3513);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 6), 3767);
+  assert.equal(calculateEnterprisePortfolioAnnualPrice(21, 6), 41437);
 });
 
 test('Marketing Download add-on and voucher retain the agreed price and validity', () => {
