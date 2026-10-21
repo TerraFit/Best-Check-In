@@ -108,4 +108,5 @@ test('English brochure copy replaces obsolete fixed room caps with open-ended th
   assert.ok(block.includes('"Up to 10 rooms": "6+ rooms"'));
   assert.ok(block.includes('"Up to 15 rooms": "11+ rooms"'));
   assert.ok(block.includes('"Up to 20 rooms": "21+ rooms"'));
+  assert.ok(block.includes('"25+ rooms": "21+ rooms"'), 'Enterprise must start at 21 rooms');
 });
