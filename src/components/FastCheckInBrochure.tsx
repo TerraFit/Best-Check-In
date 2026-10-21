@@ -64,7 +64,7 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
       if (!Number.isFinite(oldAmount)) continue;
       const formattedOldAmount = oldAmount.toLocaleString('en-US').replace(/,/g, ',?');
       replacements.push([
-        new RegExp(\`R\\s*\${formattedOldAmount}(?!\\d)\`, 'g'),
+        new RegExp('R\\s*' + formattedOldAmount + '(?!\\d)', 'g'),
         `${symbol}${formatPrice(targetPrice, language)}`,
       ]);
     }
