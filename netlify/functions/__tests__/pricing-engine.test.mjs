@@ -29,6 +29,7 @@ test('shared engine uses five-room blocks and the agreed package minimums', () =
   assert.equal(packageAcceptsRoomCount('growth', 5), false);
   assert.equal(packageAcceptsRoomCount('business', 15), false);
   assert.equal(packageAcceptsRoomCount('business', 16), true);
+  assert.equal(packageAcceptsRoomCount('business', 20), true);
   assert.equal(packageAcceptsRoomCount('enterprise', 20), false);
   assert.equal(packageAcceptsRoomCount('enterprise', 21), true);
 });
@@ -39,6 +40,7 @@ test('customer-facing subscription prices are rounded to whole currency units', 
   assert.equal(calculateSubscriptionMonthlyPrice(11, 'pro'), 949);
   assert.equal(calculateSubscriptionMonthlyPrice(15, 'business'), 0);
   assert.equal(calculateSubscriptionMonthlyPrice(16, 'business'), 1290);
+  assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 1290);
   assert.equal(calculateSubscriptionMonthlyPrice(20, 'enterprise'), 0);
   assert.equal(calculateSubscriptionMonthlyPrice(21, 'enterprise'), 1698);
   assert.equal(calculateSubscriptionAnnualPrice(1, 'starter'), 3839);
