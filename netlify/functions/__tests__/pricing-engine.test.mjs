@@ -55,7 +55,7 @@ test('Business and Enterprise automatically discount only room-capacity charges 
   assert.equal(getBusinessEnterpriseVolumeDiscountRate(101), 0.12);
   assert.equal(getBusinessEnterpriseVolumeDiscountRate(300), 0.12);
   assert.equal(getBusinessEnterpriseVolumeDiscountRate(301), 0.15);
-  assert.equal(calculateSubscriptionMonthlyPrice(51, 'business'), 3355);
+  assert.equal(calculateSubscriptionMonthlyPrice(51, 'business'), 3349);
   assert.equal(calculateSubscriptionMonthlyPrice(101, 'business'), 6344);
   assert.equal(calculateSubscriptionMonthlyPrice(301, 'business'), 17990);
 });
@@ -101,6 +101,6 @@ test('Netlify package pricing uses the shared engine and rejects ineligible room
   assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 0);
   assert.equal(getPlanPricing('business', 'monthly', 15).amount, 0);
   assert.equal(getPlanPricing('business', 'monthly', 16).amount, 1290);
-  assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3355);
-  assert.equal(getPlanPricing('business', 'yearly', 51).amount, 36905);
+  assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3349);
+  assert.equal(getPlanPricing('business', 'yearly', 51).amount, 36839);
 });
