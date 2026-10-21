@@ -12,19 +12,31 @@ interface FastCheckInBrochureProps {
   onClose: () => void;
 }
 
-const BROCHURE_COPY: Record<SupportedLanguage, { language: string; productBrochure: string; from: string; perMonth: string; yearly: string; voucher: string; loadErrorTitle: string; loadErrorBody: string }> = {
-  en: { language: 'Language', productBrochure: 'Product Brochure', from: 'From ', perMonth: 'per month', yearly: 'yearly', voucher: 'voucher', loadErrorTitle: 'The brochure could not be displayed', loadErrorBody: 'Please close this window and try again. If the problem continues, contact the FastCheckIn team.' },
-  af: { language: 'Taal', productBrochure: 'Produkbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarliks', voucher: 'bewys', loadErrorTitle: 'Die brosjure kon nie vertoon word nie', loadErrorBody: 'Maak asseblief hierdie venster toe en probeer weer. Kontak die FastCheckIn-span as die probleem voortduur.' },
-  de: { language: 'Sprache', productBrochure: 'Produktbroschüre', from: 'Ab ', perMonth: 'pro Monat', yearly: 'jährlich', voucher: 'Gutschein', loadErrorTitle: 'Die Broschüre konnte nicht angezeigt werden', loadErrorBody: 'Bitte schließen Sie dieses Fenster und versuchen Sie es erneut. Wenn das Problem weiterhin besteht, kontaktieren Sie das FastCheckIn-Team.' },
-  fr: { language: 'Langue', productBrochure: 'Brochure produit', from: 'À partir de ', perMonth: 'par mois', yearly: 'par an', voucher: 'bon', loadErrorTitle: 'La brochure ne peut pas être affichée', loadErrorBody: 'Veuillez fermer cette fenêtre et réessayer. Si le problème persiste, contactez l’équipe FastCheckIn.' },
-  it: { language: 'Lingua', productBrochure: 'Brochure del prodotto', from: 'Da ', perMonth: 'al mese', yearly: 'annuale', voucher: 'buono', loadErrorTitle: 'Impossibile visualizzare la brochure', loadErrorBody: 'Chiudi questa finestra e riprova. Se il problema persiste, contatta il team FastCheckIn.' },
-  pt: { language: 'Idioma', productBrochure: 'Brochura do produto', from: 'A partir de ', perMonth: 'por mês', yearly: 'anual', voucher: 'voucher', loadErrorTitle: 'Não foi possível apresentar a brochura', loadErrorBody: 'Feche esta janela e tente novamente. Se o problema persistir, contacte a equipa FastCheckIn.' },
-  es: { language: 'Idioma', productBrochure: 'Folleto del producto', from: 'Desde ', perMonth: 'al mes', yearly: 'anual', voucher: 'bono', loadErrorTitle: 'No se pudo mostrar el folleto', loadErrorBody: 'Cierre esta ventana e inténtelo de nuevo. Si el problema continúa, contacte con el equipo de FastCheckIn.' },
-  nl: { language: 'Taal', productBrochure: 'Productbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarlijks', voucher: 'voucher', loadErrorTitle: 'De brochure kon niet worden weergegeven', loadErrorBody: 'Sluit dit venster en probeer het opnieuw. Neem contact op met het FastCheckIn-team als het probleem blijft bestaan.' },
-  ru: { language: 'Язык', productBrochure: 'Брошюра продукта', from: 'От ', perMonth: 'в месяц', yearly: 'в год', voucher: 'ваучер', loadErrorTitle: 'Не удалось отобразить брошюру', loadErrorBody: 'Закройте это окно и попробуйте ещё раз. Если проблема не исчезнет, свяжитесь с командой FastCheckIn.' },
-  zh: { language: '语言', productBrochure: '产品手册', from: '起价 ', perMonth: '每月', yearly: '每年', voucher: '优惠券', loadErrorTitle: '无法显示宣传册', loadErrorBody: '请关闭此窗口后重试。如果问题仍然存在，请联系 FastCheckIn 团队。' },
-  ar: { language: 'اللغة', productBrochure: 'كتيب المنتج', from: 'ابتداءً من ', perMonth: 'شهريًا', yearly: 'سنويًا', voucher: 'قسيمة', loadErrorTitle: 'تعذّر عرض الكتيب', loadErrorBody: 'يرجى إغلاق هذه النافذة والمحاولة مرة أخرى. إذا استمرت المشكلة، فاتصل بفريق FastCheckIn.' },
-  he: { language: 'שפה', productBrochure: 'חוברת המוצר', from: 'החל מ־', perMonth: 'לחודש', yearly: 'לשנה', voucher: 'שובר', loadErrorTitle: 'לא ניתן להציג את החוברת', loadErrorBody: 'יש לסגור חלון זה ולנסות שוב. אם הבעיה נמשכת, יש לפנות לצוות FastCheckIn.' },
+type BrochureCopy = {
+  language: string;
+  productBrochure: string;
+  from: string;
+  perMonth: string;
+  yearly: string;
+  voucher: string;
+  loadErrorTitle: string;
+  loadErrorBody: string;
+  regionNames: Record<string, string>;
+};
+
+const BROCHURE_COPY: Record<SupportedLanguage, BrochureCopy> = {
+  en: { language: 'Language', productBrochure: 'Product Brochure', from: 'From ', perMonth: 'per month', yearly: 'yearly', voucher: 'voucher', loadErrorTitle: 'The brochure could not be displayed', loadErrorBody: 'Please close this window and try again. If the problem continues, contact the FastCheckIn team.', regionNames: { africa: 'Africa', 'north-america': 'North America', europe: 'Europe', asia: 'Asia' } },
+  af: { language: 'Taal', productBrochure: 'Produkbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarliks', voucher: 'bewys', loadErrorTitle: 'Die brosjure kon nie vertoon word nie', loadErrorBody: 'Maak asseblief hierdie venster toe en probeer weer. Kontak die FastCheckIn-span as die probleem voortduur.', regionNames: { africa: 'Afrika', 'north-america': 'Noord-Amerika', europe: 'Europa', asia: 'Asië' } },
+  de: { language: 'Sprache', productBrochure: 'Produktbroschüre', from: 'Ab ', perMonth: 'pro Monat', yearly: 'jährlich', voucher: 'Gutschein', loadErrorTitle: 'Die Broschüre konnte nicht angezeigt werden', loadErrorBody: 'Bitte schließen Sie dieses Fenster und versuchen Sie es erneut. Wenn das Problem weiterhin besteht, kontaktieren Sie das FastCheckIn-Team.', regionNames: { africa: 'Afrika', 'north-america': 'Nordamerika', europe: 'Europa', asia: 'Asien' } },
+  fr: { language: 'Langue', productBrochure: 'Brochure produit', from: 'À partir de ', perMonth: 'par mois', yearly: 'par an', voucher: 'bon', loadErrorTitle: 'La brochure ne peut pas être affichée', loadErrorBody: 'Veuillez fermer cette fenêtre et réessayer. Si le problème persiste, contactez l’équipe FastCheckIn.', regionNames: { africa: 'Afrique', 'north-america': 'Amérique du Nord', europe: 'Europe', asia: 'Asie' } },
+  it: { language: 'Lingua', productBrochure: 'Brochure del prodotto', from: 'Da ', perMonth: 'al mese', yearly: 'annuale', voucher: 'buono', loadErrorTitle: 'Impossibile visualizzare la brochure', loadErrorBody: 'Chiudi questa finestra e riprova. Se il problema persiste, contatta il team FastCheckIn.', regionNames: { africa: 'Africa', 'north-america': 'Nord America', europe: 'Europa', asia: 'Asia' } },
+  pt: { language: 'Idioma', productBrochure: 'Brochura do produto', from: 'A partir de ', perMonth: 'por mês', yearly: 'anual', voucher: 'voucher', loadErrorTitle: 'Não foi possível apresentar a brochura', loadErrorBody: 'Feche esta janela e tente novamente. Se o problema persistir, contacte a equipa FastCheckIn.', regionNames: { africa: 'África', 'north-america': 'América do Norte', europe: 'Europa', asia: 'Ásia' } },
+  es: { language: 'Idioma', productBrochure: 'Folleto del producto', from: 'Desde ', perMonth: 'al mes', yearly: 'anual', voucher: 'bono', loadErrorTitle: 'No se pudo mostrar el folleto', loadErrorBody: 'Cierre esta ventana e inténtelo de nuevo. Si el problema continúa, contacte con el equipo de FastCheckIn.', regionNames: { africa: 'África', 'north-america': 'América del Norte', europe: 'Europa', asia: 'Asia' } },
+  nl: { language: 'Taal', productBrochure: 'Productbrochure', from: 'Vanaf ', perMonth: 'per maand', yearly: 'jaarlijks', voucher: 'voucher', loadErrorTitle: 'De brochure kon niet worden weergegeven', loadErrorBody: 'Sluit dit venster en probeer het opnieuw. Neem contact op met het FastCheckIn-team als het probleem blijft bestaan.', regionNames: { africa: 'Afrika', 'north-america': 'Noord-Amerika', europe: 'Europa', asia: 'Azië' } },
+  ru: { language: 'Язык', productBrochure: 'Брошюра продукта', from: 'От ', perMonth: 'в месяц', yearly: 'в год', voucher: 'ваучер', loadErrorTitle: 'Не удалось отобразить брошюру', loadErrorBody: 'Закройте это окно и попробуйте ещё раз. Если проблема не исчезнет, свяжитесь с командой FastCheckIn.', regionNames: { africa: 'Африка', 'north-america': 'Северная Америка', europe: 'Европа', asia: 'Азия' } },
+  zh: { language: '语言', productBrochure: '产品手册', from: '起价 ', perMonth: '每月', yearly: '每年', voucher: '优惠券', loadErrorTitle: '无法显示宣传册', loadErrorBody: '请关闭此窗口后重试。如果问题仍然存在，请联系 FastCheckIn 团队。', regionNames: { africa: '非洲', 'north-america': '北美洲', europe: '欧洲', asia: '亚洲' } },
+  ar: { language: 'اللغة', productBrochure: 'كتيب المنتج', from: 'ابتداءً من ', perMonth: 'شهريًا', yearly: 'سنويًا', voucher: 'قسيمة', loadErrorTitle: 'تعذّر عرض الكتيب', loadErrorBody: 'يرجى إغلاق هذه النافذة والمحاولة مرة أخرى. إذا استمرت المشكلة، فاتصل بفريق FastCheckIn.', regionNames: { africa: 'أفريقيا', 'north-america': 'أمريكا الشمالية', europe: 'أوروبا', asia: 'آسيا' } },
+  he: { language: 'שפה', productBrochure: 'חוברת המוצר', from: 'החל מ־', perMonth: 'לחודש', yearly: 'לשנה', voucher: 'שובר', loadErrorTitle: 'לא ניתן להציג את החוברת', loadErrorBody: 'יש לסגור חלון זה ולנסות שוב. אם הבעיה נמשכת, יש לפנות לצוות FastCheckIn.', regionNames: { africa: 'אפריקה', 'north-america': 'צפון אמריקה', europe: 'אירופה', asia: 'אסיה' } },
 };
 
 const LOCALE_BY_LANGUAGE: Record<SupportedLanguage, string> = {
@@ -88,8 +100,10 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
 
   const utilityLabel = doc.querySelector<HTMLElement>('.utility-label');
   if (utilityLabel) {
-    const regionName = region === 'north-america' ? 'North America' : region.charAt(0).toUpperCase() + region.slice(1).replace('-', ' ');
-    utilityLabel.textContent = `FastCheckIn · ${BROCHURE_COPY[language].productBrochure} · ${southAfrican ? 'South Africa' : regionName} · ${symbol}`;
+    const regionKey = southAfrican ? 'south-africa' : region;
+    const regionName = regionKey === 'south-africa' ? 'South Africa' : BROCHURE_COPY[language].regionNames[regionKey] || regionKey;
+    const localizedRegionName = regionKey === 'south-africa' ? ({ en: 'South Africa', af: 'Suid-Afrika', de: 'Südafrika', fr: 'Afrique du Sud', it: 'Sudafrica', pt: 'África do Sul', es: 'Sudáfrica', nl: 'Zuid-Afrika', ru: 'Южная Африка', zh: '南非', ar: 'جنوب أفريقيا', he: 'דרום אפריקה' } as Record<SupportedLanguage, string>)[language] : regionName;
+    utilityLabel.textContent = `FastCheckIn · ${BROCHURE_COPY[language].productBrochure} · ${localizedRegionName} · ${symbol}`;
   }
 }
 
@@ -217,7 +231,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
       className="fixed inset-0 z-[220] flex items-center justify-center bg-stone-950/80 p-3 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="FastCheckIn brochure"
+      aria-label={brochureCopy.productBrochure}
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div className="relative flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
@@ -231,7 +245,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
                 setLanguage(next);
                 setLanguageState(next);
               }}
-              aria-label="Brochure language"
+              aria-label={brochureCopy.language}
               className="min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800"
             >
               {LANGUAGE_OPTIONS.map((option) => (
@@ -253,7 +267,7 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
           <iframe
             key={`${language}:${region}:${isSouthAfricanMarket}:${JSON.stringify(fxRates)}`}
             ref={iframeRef}
-            title="FastCheckIn brochure"
+            title={brochureCopy.productBrochure}
             srcDoc={html}
             onLoad={applyContent}
             className="min-h-0 flex-1 w-full border-0 bg-stone-100"
@@ -270,4 +284,3 @@ export default function FastCheckInBrochure({ onClose }: FastCheckInBrochureProp
     </div>
   );
 }
-
