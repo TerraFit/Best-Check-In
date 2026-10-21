@@ -139,17 +139,16 @@ test('shared engine exposes the agreed monthly starting-price ladder', () => {
 
 test('all supported brochure locales show the same 21+ Business and Enterprise threshold', () => {
   for (const language of ['en', ...languages]) {
-    const start = catalog.indexOf(\`  \${language}: {\`);
-    assert.notEqual(start, -1, \`missing locale block: \${language}\`);
-    const nextLocale = catalog.indexOf('\\n  ', start + 4);
-    const end = catalog.indexOf('\\n  },', start);
-    const finalEnd = catalog.indexOf('\\n  }\n};', start);
+    const start = catalog.indexOf('  ' + language + ': {');
+    assert.notEqual(start, -1, 'missing locale block: ' + language);
+    const end = catalog.indexOf('\n  },', start);
+    const finalEnd = catalog.indexOf('\n  }\n};', start);
     const blockEnd = end >= 0 && (finalEnd < 0 || end < finalEnd) ? end : finalEnd;
     const localeBlock = catalog.slice(start, blockEnd);
     const business = localeBlock.match(/["']Up to 20 rooms["']\s*:\s*["']([^"']*)["']/);
     const enterprise = localeBlock.match(/["']25\+ rooms["']\s*:\s*["']([^"']*)["']/);
-    assert.ok(business && enterprise, \`\${language} is missing a package threshold\`);
-    assert.equal(business[1], enterprise[1], \`\${language} must show both Business and Enterprise starting at 21+ rooms\`);
+    assert.ok(business && enterprise, language + ' is missing a package threshold');
+    assert.equal(business[1], enterprise[1], language + ' must show both Business and Enterprise starting at 21+ rooms');
   }
 });
 
