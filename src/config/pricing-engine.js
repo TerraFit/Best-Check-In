@@ -7,9 +7,9 @@ export const PACKAGE_IDS = ['starter', 'growth', 'pro', 'business', 'enterprise'
 export const ROOM_BLOCK_SIZE = 5;
 export const ROOM_BLOCK_MONTHLY_PRICE = 349;
 export const ANNUAL_BILLING_MONTHS = 11;
-export const PACKAGE_MIN_ROOMS = Object.freeze({ starter: 1, growth: 6, pro: 11, business: 16, enterprise: 21 });
-// Fixed package adjustments calibrate the shared five-room-block model to the agreed starting-price ladder.
-export const PACKAGE_MONTHLY_SURCHARGES = Object.freeze({ starter: 0, growth: -49, pro: -98, business: -106, enterprise: -47 });
+export const PACKAGE_MIN_ROOMS = Object.freeze({ starter: 1, growth: 6, pro: 11, business: 21, enterprise: 21 });
+// Package premiums preserve the agreed starting-price ladder while each additional five-room capacity block adds R349.
+export const PACKAGE_MONTHLY_SURCHARGES = Object.freeze({ starter: 0, growth: -49, pro: -98, business: 515, enterprise: 871 });
 export const MARKETING_DOWNLOAD_MONTHLY_PRICE = 39;
 export const MARKETING_DOWNLOAD_VOUCHER_PRICE = 149;
 export const MARKETING_DOWNLOAD_VOUCHER_VALIDITY_MONTHS = 3;
