@@ -11,6 +11,21 @@ interface Lead { fullName: string; companyName: string; email: string; telephone
 const STORAGE_KEY = 'fastcheckin-homepage-lead';
 export function getStoredHomepageLead(): Lead | null { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
 
+const LEGAL_CONNECTORS: Record<string, { join: string; apply: string }> = {
+  en: { join: 'and', apply: 'apply.' },
+  af: { join: 'en', apply: 'is van toepassing.' },
+  de: { join: 'und', apply: 'gelten.' },
+  fr: { join: 'et', apply: "s’appliquent." },
+  it: { join: 'e', apply: 'si applicano.' },
+  pt: { join: 'e', apply: 'aplicam-se.' },
+  es: { join: 'y', apply: 'se aplican.' },
+  nl: { join: 'en', apply: 'zijn van toepassing.' },
+  ru: { join: 'и', apply: 'применяются.' },
+  zh: { join: '及', apply: '适用。' },
+  ar: { join: 'و', apply: 'تنطبق.' },
+  he: { join: 'ו', apply: 'חלים.' },
+};
+
 export default function HomepageLeadModal({ document, onClose, onDownloaded, onOpenLegal }: HomepageLeadModalProps) {
   const { language } = useTranslation();
   const copy = getHomepageLeadCopy(language);
@@ -45,6 +60,9 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
     'visitor-origin': { title: copy.visitorTitle, body: copy.visitorBody },
     'business-snapshot': { title: copy.businessTitle, body: copy.businessBody }
   };
+
+  const legalConnector = LEGAL_CONNECTORS[language] || LEGAL_CONNECTORS.en;
+  const legalNotice = `${copy.privacyBody} ${copy.privacy} ${legalConnector.join} ${copy.terms} ${legalConnector.apply}`;
 
   async function requestDownload(currentLead: Lead, requestedDocument: HomepageDocument) {
     if (!turnstileToken) { setError(copy.security); return; }
@@ -141,7 +159,13 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
             {field('companyName', copy.company)}
             <div className="grid gap-4 sm:grid-cols-2">{field('email', copy.email, 'email')}{field('telephone', copy.telephone, 'tel')}</div>
             {field('address', copy.address)}
-            <p className="text-xs leading-5 text-stone-500">{copy.privacyBody} <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">{copy.privacy}</button> {copy.terms.toLowerCase()} <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">{copy.terms}</button> apply.</p>
+            <p className="text-xs leading-5 text-stone-500">
+              {copy.privacyBody}{' '}
+              <button type="button" onClick={() => onOpenLegal('privacy')} className="font-semibold text-amber-700 hover:underline">{copy.privacy}</button>{' '}
+              {legalConnector.join}{' '}
+              <button type="button" onClick={() => onOpenLegal('terms')} className="font-semibold text-amber-700 hover:underline">{copy.terms}</button>{' '}
+              {legalConnector.apply}
+            </p>
             <TurnstileWidget action="homepage-download" onToken={setTurnstileToken} resetKey={turnstileResetKey} />
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           </div>
