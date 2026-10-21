@@ -70,3 +70,42 @@ test('marketing-download monthly price uses the selected language label', () => 
   assert.ok(component.includes('BROCHURE_COPY[language].perMonth'));
   assert.ok(!component.includes('formatPrice(marketingMonthly, language)}/month'));
 });
+
+test('brochure translation catalog includes newly audited actions and dashboard labels', () => {
+  const required = [
+    '↓ Download HTML',
+    'Explore FastCheckIn',
+    'Ask for a demo',
+    'GUEST ORIGIN OVERVIEW',
+    'Returning guests can confirm or update existing details',
+    '12-language experience:',
+    'Occupancy',
+    'Total guests',
+    'Illustrative example',
+    'Average stay',
+  ];
+  for (const language of languages) {
+    const start = catalog.indexOf(`  ${language}: {`);
+    const commaEnd = catalog.indexOf('\\n  },', start);
+    const finalEnd = catalog.indexOf('\\n  }\\n};', start);
+    const end = commaEnd >= 0 && (finalEnd < 0 || commaEnd < finalEnd) ? commaEnd : finalEnd;
+    const block = catalog.slice(start, end);
+    for (const label of required) {
+      assert.ok(
+        block.includes("'" + label + "':") || block.includes('"' + label + '":'),
+        `${language} is missing translation for: ${label}`,
+      );
+    }
+  }
+});
+
+test('English brochure copy replaces obsolete fixed room caps with open-ended thresholds', () => {
+  const start = catalog.indexOf('  en: {');
+  assert.notEqual(start, -1, 'missing English brochure corrections');
+  const end = catalog.indexOf('\\n  },', start);
+  const block = catalog.slice(start, end);
+  assert.ok(block.includes('"Up to 5 rooms": "From 1 room"'));
+  assert.ok(block.includes('"Up to 10 rooms": "6+ rooms"'));
+  assert.ok(block.includes('"Up to 15 rooms": "11+ rooms"'));
+  assert.ok(block.includes('"Up to 20 rooms": "21+ rooms"'));
+});
