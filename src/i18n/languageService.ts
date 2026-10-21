@@ -2,6 +2,7 @@
 // ✅ COMPLETE REWRITE - All languages, custom order
 
 import type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
+export type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
 import enTranslations from './translations/en.json';
 import afTranslations from './translations/af.json';
 import deTranslations from './translations/de.json';
@@ -128,7 +129,7 @@ export const t = (key: keyof TranslationKeys, params?: Record<string, string | n
   if (!text && currentLanguage !== 'en') text = translationMap.en?.[key];
   if (!text) {
     console.warn(`Missing translation key: ${key} for language: ${currentLanguage}`);
-    return key;
+    return String(key);
   }
   if (params) {
     Object.entries(params).forEach(([param, value]) => {

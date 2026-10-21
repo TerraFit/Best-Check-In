@@ -56,11 +56,11 @@ export default function HomePage() {
   const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
   const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
-  const { setChooserOpen, region, isSouthAfricanMarket } = useMarket();
-  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket);
+  const { setChooserOpen, region, isSouthAfricanMarket, fxRates } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket, fxRates);
   const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$';
-  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket);
-  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket);
+  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates);
+  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket, fxRates);
   const marketingDownloadNote = `${currencySymbol}${marketingDownloadMonthlyPrice}/month or ${currencySymbol}${marketingDownloadVoucherPrice} voucher`;
 
   const coreStarter: PricingFeature[] = [
