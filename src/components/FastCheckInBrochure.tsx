@@ -59,12 +59,12 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
 
   const replacements: Array<[RegExp, string]> = [];
   const addLegacyPriceReplacements = (sourceText: string, targetPrice: number) => {
-    for (const match of sourceText.matchAll(/R\\s*([\\d,]+)/g)) {
+    for (const match of sourceText.matchAll(/R\s*([\d,]+)/g)) {
       const oldAmount = Number(match[1].replace(/,/g, ''));
       if (!Number.isFinite(oldAmount)) continue;
       const formattedOldAmount = oldAmount.toLocaleString('en-US').replace(/,/g, ',?');
       replacements.push([
-        new RegExp(`R\\\\s*${formattedOldAmount}(?!\\\\d)`, 'g'),
+        new RegExp(\`R\\s*\${formattedOldAmount}(?!\\d)\`, 'g'),
         `${symbol}${formatPrice(targetPrice, language)}`,
       ]);
     }
