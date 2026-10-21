@@ -117,11 +117,12 @@ test('homepage, registration and brochure all consume the shared pricing engine'
   const registration = readFileSync(new URL('../src/pages/BusinessRegistration.tsx', import.meta.url), 'utf8');
   const engine = readFileSync(new URL('../src/config/pricing-engine.js', import.meta.url), 'utf8');
 
-  assert.ok(home.includes('getRegionalPricing(region, isSouthAfricanMarket)'), 'homepage must use shared regional prices');
+  assert.ok(home.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'homepage must use shared regional prices');
   assert.ok(home.includes('minimumRooms: 21'), 'Business and Enterprise start at 21 rooms on homepage');
-  assert.ok(registration.includes('getRegionalPricing(region, isSouthAfricanMarket)'), 'registration must use shared regional prices');
+  assert.ok(registration.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'registration must use shared regional prices');
   assert.ok(registration.includes('calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id)'), 'registration selected-plan price must use shared engine');
   assert.ok(component.includes('getRegionalPricing(region, southAfrican, fxRates)'), 'brochure must use shared regional prices');
+  assert.ok(component.includes('addLegacyPriceReplacements(price.textContent ||'), 'brochure must replace repeated legacy prices from its original HTML');
   assert.ok(engine.includes('business: 21, enterprise: 21'), 'shared engine must use the agreed 21-room minimum for both tiers');
 });
 
