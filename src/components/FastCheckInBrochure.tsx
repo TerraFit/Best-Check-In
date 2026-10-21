@@ -57,6 +57,19 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
   const symbol = currencySymbol(pricing.currency);
   const zarPricing = getRegionalPricing('africa', true);
 
+  const replacements: Array<[RegExp, string]> = [];
+  const addLegacyPriceReplacements = (sourceText: string, targetPrice: number) => {
+    for (const match of sourceText.matchAll(/R\\s*([\\d,]+)/g)) {
+      const oldAmount = Number(match[1].replace(/,/g, ''));
+      if (!Number.isFinite(oldAmount)) continue;
+      const formattedOldAmount = oldAmount.toLocaleString('en-US').replace(/,/g, ',?');
+      replacements.push([
+        new RegExp(`R\\\\s*${formattedOldAmount}(?!\\\\d)`, 'g'),
+        `${symbol}${formatPrice(targetPrice, language)}`,
+      ]);
+    }
+  };
+
   const planCards = Array.from(doc.querySelectorAll<HTMLElement>('.pricing .plan'));
   planCards.slice(0, PACKAGE_IDS.length).forEach((card, index) => {
     const monthly = pricing.prices[index]?.monthly;
@@ -64,11 +77,13 @@ function applyRegionalPricing(doc: Document, region: Parameters<typeof getRegion
     if (monthly == null || yearly == null) return;
     const price = card.querySelector<HTMLElement>('.price');
     const per = card.querySelector<HTMLElement>('.per');
+    // Capture the repository HTML's original amounts before replacing them, so
+    // any repeated prices elsewhere in the brochure are kept in sync as well.
+    if (price) addLegacyPriceReplacements(price.textContent || '', monthly);
+    if (per) addLegacyPriceReplacements(per.textContent || '', yearly);
     if (price) price.textContent = `${index === 4 ? BROCHURE_COPY[language].from : ''}${symbol}${formatPrice(monthly, language)}`;
     if (per) per.textContent = `${BROCHURE_COPY[language].perMonth} · ${symbol}${formatPrice(yearly, language)} ${BROCHURE_COPY[language].yearly}`;
   });
-
-  const replacements: Array<[RegExp, string]> = [];
   (PACKAGE_IDS as FastCheckInPackage[]).forEach((_, index) => {
     const zarMonthly = zarPricing.prices[index]?.monthly;
     const zarYearly = zarPricing.prices[index]?.yearly;
