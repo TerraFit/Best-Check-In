@@ -548,8 +548,8 @@ export default function BusinessRegistration() {
                   {selectedPlanId === 'enterprise'
                     ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
                     : (billingCycle === 'monthly'
-                      ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket)}/month`
-                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket) * 11}/year`)}
+                      ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}/month`
+                      : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}/year`)}
                 </p>
               </div>
             </div>
@@ -688,7 +688,7 @@ export default function BusinessRegistration() {
                     {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
-                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket) * 11}`}
+                        {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}
                       </span>
                       <span className="text-stone-400 text-sm">
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
@@ -777,7 +777,7 @@ export default function BusinessRegistration() {
                   <span className="text-2xl font-bold text-white">
                     {currencySymbol}{convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21
                       ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount)
-                      : 0, region, isSouthAfricanMarket) * (billingCycle === 'monthly' ? 1 : 11)}
+                      : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)}
                   </span>
                   <span className="text-stone-400 text-sm">
                     /{billingCycle === 'monthly' ? 'month' : 'year'}
