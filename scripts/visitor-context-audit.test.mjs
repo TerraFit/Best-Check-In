@@ -37,6 +37,20 @@ test('market chooser opens only after a non-South-African country is detected', 
   assert.match(context, /\.catch\(\(\) => \{ setDetectionStatus\('failed'\); \}\)/);
 });
 
+test('market selection is temporary until the visitor confirms it', () => {
+  const context = read('src/context/MarketContext.tsx');
+  const selector = read('src/components/GlobalMarketSelector.tsx');
+  assert.match(context, /confirmationRegion/);
+  assert.match(context, /setConfirmationRegion\(nextRegion\)/);
+  assert.match(context, /localStorage\.setItem\(STORAGE_KEY, confirmationRegion\)/);
+  assert.match(context, /localStorage\.setItem\(CONFIRMED_KEY, 'true'\)/);
+  assert.match(context, /cancelRegionSelection/);
+  assert.match(selector, /Do you want to make \{confirmationName\} your region\?/);
+  assert.match(selector, /onClick=\{confirmRegion\}/);
+  assert.match(selector, /onClick=\{cancelRegionSelection\}/);
+  assert.doesNotMatch(selector, /'south-africa'/);
+});
+
 test('language detection includes country defaults and English fallback', () => {
   const language = read('src/i18n/languageService.ts');
   assert.match(language, /detectLanguageForCountry/);
