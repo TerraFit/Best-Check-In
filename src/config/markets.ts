@@ -1,13 +1,14 @@
-export type MarketRegion = 'africa' | 'europe' | 'north-america' | 'south-america' | 'middle-east' | 'asia' | 'oceania';
+export type MarketRegion = 'south-africa' | 'africa' | 'europe' | 'north-america' | 'south-america' | 'middle-east' | 'asia' | 'oceania';
 
 export interface MarketConfig {
   region: MarketRegion;
   name: string;
-  currency: 'USD' | 'EUR';
+  currency: 'ZAR' | 'USD' | 'EUR';
   pricingMultiplier: number;
 }
 
 export const MARKET_CONFIG: Record<MarketRegion, MarketConfig> = {
+  'south-africa': { region: 'south-africa', name: 'South Africa', currency: 'ZAR', pricingMultiplier: 1 },
   africa: { region: 'africa', name: 'Africa', currency: 'USD', pricingMultiplier: 1 },
   europe: { region: 'europe', name: 'Europe', currency: 'EUR', pricingMultiplier: 1.3 },
   'north-america': { region: 'north-america', name: 'North America', currency: 'USD', pricingMultiplier: 1.3 },
@@ -18,7 +19,8 @@ export const MARKET_CONFIG: Record<MarketRegion, MarketConfig> = {
 };
 
 const COUNTRY_REGION: Record<string, MarketRegion> = {
-  ZA: 'africa', NG: 'africa', KE: 'africa', GH: 'africa', EG: 'africa', MA: 'africa', TZ: 'africa', NA: 'africa', BW: 'africa', ZM: 'africa',
+  ZA: 'south-africa',
+  NG: 'africa', KE: 'africa', GH: 'africa', EG: 'africa', MA: 'africa', TZ: 'africa', NA: 'africa', BW: 'africa', ZM: 'africa',
   US: 'north-america', CA: 'north-america',
   BR: 'south-america', AR: 'south-america', CL: 'south-america', CO: 'south-america', PE: 'south-america', UY: 'south-america', EC: 'south-america',
   AE: 'middle-east', SA: 'middle-east', QA: 'middle-east', BH: 'middle-east', KW: 'middle-east', OM: 'middle-east', JO: 'middle-east', IL: 'middle-east',
@@ -27,8 +29,9 @@ const COUNTRY_REGION: Record<string, MarketRegion> = {
   DE: 'europe', FR: 'europe', GB: 'europe', IT: 'europe', ES: 'europe', PT: 'europe', NL: 'europe', CH: 'europe', AT: 'europe', BE: 'europe', SE: 'europe', NO: 'europe', DK: 'europe', FI: 'europe', IE: 'europe',
 };
 
-export function regionForCountry(countryCode?: string | null): MarketRegion {
-  return COUNTRY_REGION[(countryCode || '').toUpperCase()] || 'africa';
+export function regionForCountry(countryCode?: string | null): MarketRegion | null {
+  const normalized = (countryCode || '').toUpperCase();
+  return COUNTRY_REGION[normalized] || null;
 }
 
 export function isSouthAfrica(countryCode?: string | null): boolean {
