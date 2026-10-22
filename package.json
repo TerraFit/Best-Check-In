@@ -27,7 +27,7 @@
     "@types/recharts": "^1.8.29",
     "@supabase/supabase-js": "^2.39.0",
     "bcryptjs": "^2.4.3",
-    "uuid": "^9.0.1",
+    "uuid": "^9.0.0",
     "resend": "^4.0.0",
     "qrcode": "^1.5.3",
     "xlsx": "^0.18.5",
@@ -42,14 +42,10 @@
     "@grammarly/editor-sdk": "^1.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.1.4",
-    "typescript": "^5.8.2",
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.5",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-geo": "^3.0.8",
-    "@types/topojson-client": "^3.0.8",
-    "@types/node": "^20.0.0",
     "@netlify/functions": "^2.8.0"
   }
 }
