@@ -44,11 +44,13 @@ test('market selection is temporary until the visitor confirms it', () => {
   assert.match(context, /setConfirmationRegion\(nextRegion\)/);
   assert.match(context, /localStorage\.setItem\(STORAGE_KEY, confirmationRegion\)/);
   assert.match(context, /localStorage\.setItem\(CONFIRMED_KEY, 'true'\)/);
-  assert.match(context, /cancelRegionSelection/);
+  assert.match(context, /declineRegion/);
+  assert.match(context, /setRegion\(confirmationRegion\)/);
+  assert.doesNotMatch(context, /declineRegion[\s\S]*localStorage\.setItem\(STORAGE_KEY/);
   assert.match(selector, /const regions: MarketRegion\[\] = \['africa', 'europe', 'north-america', 'south-america', 'middle-east', 'asia', 'oceania'\]/);
   assert.match(selector, /Do you want to make \{confirmationName\} your region\?/);
   assert.match(selector, /onClick=\{confirmRegion\}/);
-  assert.match(selector, /onClick=\{cancelRegionSelection\}/);
+  assert.match(selector, /onClick=\{declineRegion\}/);
 });
 
 test('language detection includes country defaults and English fallback', () => {
