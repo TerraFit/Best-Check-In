@@ -30,16 +30,8 @@ const COUNTRY_LANGUAGE_MAP: Record<string, SupportedLanguage> = { ZA: 'en', GB: 
 let currentLanguage: SupportedLanguage = 'en';
 let languageChangeCallbacks: Set<(lang: SupportedLanguage) => void> = new Set();
 let isInitialized = false;
-
 export const detectBrowserLanguage = (): SupportedLanguage => { if (typeof navigator === 'undefined') return 'en'; const browserLang = navigator.language?.split('-')[0].toLowerCase() || 'en'; return BROWSER_LANGUAGE_MAP[browserLang] || 'en'; };
-
-export const detectLanguageForCountry = (countryCode?: string | null): SupportedLanguage => {
-  const country = (countryCode || '').toUpperCase();
-  if (country === 'ZA') return detectBrowserLanguage() === 'af' ? 'af' : 'en';
-  if (['CH', 'BE'].includes(country)) return detectBrowserLanguage();
-  return COUNTRY_LANGUAGE_MAP[country] || 'en';
-};
-
+export const detectLanguageForCountry = (countryCode?: string | null): SupportedLanguage => { const country = (countryCode || '').toUpperCase(); if (country === 'ZA') return detectBrowserLanguage() === 'af' ? 'af' : 'en'; if (['CH', 'BE', 'CA'].includes(country)) return detectBrowserLanguage(); return COUNTRY_LANGUAGE_MAP[country] || 'en'; };
 export const loadSavedLanguage = (countryCode?: string | null): SupportedLanguage => { try { const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY); if (saved && SUPPORTED_CODES.includes(saved as SupportedLanguage)) return saved as SupportedLanguage; } catch (e) { console.warn('Failed to load saved language preference:', e); } return countryCode ? detectLanguageForCountry(countryCode) : detectBrowserLanguage(); };
 export const saveLanguagePreference = (lang: SupportedLanguage): void => { try { localStorage.setItem(LANGUAGE_STORAGE_KEY, lang); } catch (e) { console.warn('Failed to save language preference:', e); } };
 export const setLanguage = (lang: SupportedLanguage): void => { if (currentLanguage === lang && isInitialized) return; currentLanguage = lang; saveLanguagePreference(lang); document.documentElement.dir = getLanguageDirection(lang); document.documentElement.lang = lang; languageChangeCallbacks.forEach(callback => { try { callback(lang); } catch (err) { console.error('Error in language change callback:', err); } }); };
