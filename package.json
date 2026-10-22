@@ -42,10 +42,16 @@
     "@grammarly/editor-sdk": "^1.0.0"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
+    "typescript": "^5.8.2",
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.5",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-geo": "^3.0.8",
+    "@types/topojson-client": "^3.0.8",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.32",
+    "autoprefixer": "^10.4.16",
     "@netlify/functions": "^2.8.0"
   }
 }
