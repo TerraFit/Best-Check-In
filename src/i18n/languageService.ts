@@ -1,6 +1,6 @@
 // src/i18n/languageService.ts
 // Language detection uses an explicit saved choice first, then country defaults,
-// then the browser language, with English as the final fallback.
+// then English when the country's local language is not supported.
 
 import type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
 export type { SupportedLanguage, Translation, TranslationKeys, LanguageOption } from './types';
@@ -18,14 +18,8 @@ import heTranslations from './translations/he.json';
 import itTranslations from './translations/it.json';
 
 const translationMap: Record<SupportedLanguage, Translation> = { en: enTranslations as Translation, af: afTranslations as Translation, de: deTranslations as Translation, fr: frTranslations as Translation, nl: nlTranslations as Translation, pt: ptTranslations as Translation, es: esTranslations as Translation, ru: ruTranslations as Translation, zh: zhTranslations as Translation, ar: arTranslations as Translation, he: heTranslations as Translation, it: itTranslations as Translation };
-
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
-  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' }, { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' }, { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' }, { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' }, { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
-  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' }, { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' }, { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' }, { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' }, { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' }, { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' }, { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' }, { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' }, { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' }, { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' }, { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' }, { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' }, { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' }, { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
 ];
 
 const LANGUAGE_STORAGE_KEY = 'fastcheckin_preferred_language';
@@ -37,29 +31,16 @@ let currentLanguage: SupportedLanguage = 'en';
 let languageChangeCallbacks: Set<(lang: SupportedLanguage) => void> = new Set();
 let isInitialized = false;
 
-export const detectBrowserLanguage = (): SupportedLanguage => {
-  if (typeof navigator === 'undefined') return 'en';
-  const browserLang = navigator.language?.split('-')[0].toLowerCase() || 'en';
-  return BROWSER_LANGUAGE_MAP[browserLang] || 'en';
-};
+export const detectBrowserLanguage = (): SupportedLanguage => { if (typeof navigator === 'undefined') return 'en'; const browserLang = navigator.language?.split('-')[0].toLowerCase() || 'en'; return BROWSER_LANGUAGE_MAP[browserLang] || 'en'; };
 
 export const detectLanguageForCountry = (countryCode?: string | null): SupportedLanguage => {
   const country = (countryCode || '').toUpperCase();
   if (country === 'ZA') return detectBrowserLanguage() === 'af' ? 'af' : 'en';
-  if (['CH', 'BE', 'CA'].includes(country)) return detectBrowserLanguage();
-  const countryLanguage = COUNTRY_LANGUAGE_MAP[country];
-  if (countryLanguage) return countryLanguage;
-  return detectBrowserLanguage();
+  if (['CH', 'BE'].includes(country)) return detectBrowserLanguage();
+  return COUNTRY_LANGUAGE_MAP[country] || 'en';
 };
 
-export const loadSavedLanguage = (countryCode?: string | null): SupportedLanguage => {
-  try {
-    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (saved && SUPPORTED_CODES.includes(saved as SupportedLanguage)) return saved as SupportedLanguage;
-  } catch (e) { console.warn('Failed to load saved language preference:', e); }
-  return countryCode ? detectLanguageForCountry(countryCode) : detectBrowserLanguage();
-};
-
+export const loadSavedLanguage = (countryCode?: string | null): SupportedLanguage => { try { const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY); if (saved && SUPPORTED_CODES.includes(saved as SupportedLanguage)) return saved as SupportedLanguage; } catch (e) { console.warn('Failed to load saved language preference:', e); } return countryCode ? detectLanguageForCountry(countryCode) : detectBrowserLanguage(); };
 export const saveLanguagePreference = (lang: SupportedLanguage): void => { try { localStorage.setItem(LANGUAGE_STORAGE_KEY, lang); } catch (e) { console.warn('Failed to save language preference:', e); } };
 export const setLanguage = (lang: SupportedLanguage): void => { if (currentLanguage === lang && isInitialized) return; currentLanguage = lang; saveLanguagePreference(lang); document.documentElement.dir = getLanguageDirection(lang); document.documentElement.lang = lang; languageChangeCallbacks.forEach(callback => { try { callback(lang); } catch (err) { console.error('Error in language change callback:', err); } }); };
 export const getCurrentLanguage = (): SupportedLanguage => currentLanguage;
