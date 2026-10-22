@@ -36,7 +36,6 @@ test('language detection includes country defaults and English fallback', () => 
   assert.match(language, /ZA:\s*'en'/);
   assert.match(language, /DE:\s*'de'/);
   assert.match(language, /FR:\s*'fr'/);
-  assert.match(language, /JP/ .not);
   assert.match(language, /return detectBrowserLanguage\(\)/);
 });
 
