@@ -1,16 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { isSouthAfrica, regionForCountry, type MarketRegion } from '../config/markets';
+import { regionForCountry, type MarketRegion } from '../config/markets';
 import type { PricingFxRate } from '../config/pricing';
 
 interface MarketDetection {
   countryCode: string | null;
   countryName: string | null;
-  suggestedRegion: MarketRegion;
+  suggestedRegion: MarketRegion | null;
 }
+
+type DetectionStatus = 'pending' | 'resolved' | 'failed';
 
 interface MarketContextValue {
   region: MarketRegion;
   detected: MarketDetection | null;
+  detectionStatus: DetectionStatus;
   chooserOpen: boolean;
   setChooserOpen: (open: boolean) => void;
   selectRegion: (region: MarketRegion) => void;
@@ -28,19 +31,19 @@ const MarketContext = createContext<MarketContextValue | null>(null);
 export function MarketProvider({ children }: { children: ReactNode }) {
   const [region, setRegion] = useState<MarketRegion>('africa');
   const [detected, setDetected] = useState<MarketDetection | null>(null);
+  const [detectionStatus, setDetectionStatus] = useState<DetectionStatus>('pending');
   const [chooserOpen, setChooserOpen] = useState(false);
   const [fxRates, setFxRates] = useState<Partial<Record<'USD' | 'EUR', PricingFxRate>>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(FX_RATES_KEY) || '{}');
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(localStorage.getItem(FX_RATES_KEY) || '{}'); } catch { return {}; }
   });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as MarketRegion | null;
     const confirmed = localStorage.getItem(CONFIRMED_KEY) === 'true';
-    if (saved) setRegion(saved);
+    if (saved && confirmed) {
+      setRegion(saved);
+      setDetectionStatus('resolved');
+    }
 
     fetch('/.netlify/functions/pricing-fx', { headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : null)
@@ -54,24 +57,31 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     fetch('/.netlify/functions/market-context', { headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (!data?.countryCode) return;
+        if (!data?.countryCode) {
+          setDetectionStatus('failed');
+          if (!saved || !confirmed) setChooserOpen(true);
+          return;
+        }
 
         const suggestedRegion = regionForCountry(data.countryCode);
-        setDetected({
-          countryCode: data.countryCode,
-          countryName: data.countryName || null,
-          suggestedRegion,
-        });
+        setDetected({ countryCode: data.countryCode, countryName: data.countryName || null, suggestedRegion });
+        setDetectionStatus('resolved');
 
-        // On a first visit, use the detected market as the initial
-        // suggestion in the chooser. A previously saved market remains
-        // authoritative so returning visitors are not overridden.
-        if (!saved && !confirmed) {
-          setRegion(suggestedRegion);
-          if (!isSouthAfrica(data.countryCode)) setChooserOpen(true);
+        if (!saved || !confirmed) {
+          if (suggestedRegion) {
+            setRegion(suggestedRegion);
+            // South Africa is the only market that is automatically accepted;
+            // other countries retain the chooser so visitors can explicitly select.
+            if (suggestedRegion !== 'south-africa') setChooserOpen(true);
+          } else {
+            setChooserOpen(true);
+          }
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setDetectionStatus('failed');
+        if (!saved || !confirmed) setChooserOpen(true);
+      });
   }, []);
 
   const selectRegion = useCallback((nextRegion: MarketRegion) => {
@@ -85,19 +95,23 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(CONFIRMED_KEY);
     setRegion('africa');
-    setChooserOpen(true);
+    setDetected(null);
+    setDetectionStatus('pending');
+    setChooserOpen(false);
+    window.location.reload();
   }, []);
 
   const value = useMemo(() => ({
     region,
     detected,
+    detectionStatus,
     chooserOpen,
     setChooserOpen,
     selectRegion,
     resetMarket,
-    isSouthAfricanMarket: detected?.countryCode === 'ZA' && region === 'africa',
+    isSouthAfricanMarket: region === 'south-africa',
     fxRates,
-  }), [region, detected, chooserOpen, selectRegion, resetMarket, fxRates]);
+  }), [region, detected, detectionStatus, chooserOpen, selectRegion, resetMarket, fxRates]);
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;
 }
