@@ -30,6 +30,13 @@ test('market context hydrates the initial GeoIP result before pricing can fall b
   assert.match(context, /detectionStatus/);
 });
 
+test('market chooser opens only after a non-South-African country is detected', () => {
+  const context = read('src/context/MarketContext.tsx');
+  assert.match(context, /if \(suggestedRegion !== 'south-africa'\) setChooserOpen\(true\)/);
+  assert.match(context, /if \(!data\?\.countryCode\) \{ setDetectionStatus\('failed'\); return; \}/);
+  assert.match(context, /\.catch\(\(\) => \{ setDetectionStatus\('failed'\); \}\)/);
+});
+
 test('language detection includes country defaults and English fallback', () => {
   const language = read('src/i18n/languageService.ts');
   assert.match(language, /detectLanguageForCountry/);
