@@ -47,7 +47,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     fetch('/.netlify/functions/market-context', { headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (!data?.countryCode) { setDetectionStatus('failed'); if (!saved || !confirmed) setChooserOpen(true); return; }
+        if (!data?.countryCode) { setDetectionStatus('failed'); return; }
         const suggestedRegion = regionForCountry(data.countryCode);
         const nextDetected = { countryCode: String(data.countryCode).toUpperCase(), countryName: data.countryName || null, suggestedRegion };
         setDetected(nextDetected);
@@ -60,7 +60,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
           } else setChooserOpen(true);
         }
       })
-      .catch(() => { setDetectionStatus('failed'); if (!saved || !confirmed) setChooserOpen(true); });
+      .catch(() => { setDetectionStatus('failed'); });
   }, []);
 
   const selectRegion = useCallback((nextRegion: MarketRegion) => { setRegion(nextRegion); localStorage.setItem(STORAGE_KEY, nextRegion); localStorage.setItem(CONFIRMED_KEY, 'true'); setChooserOpen(false); }, []);
