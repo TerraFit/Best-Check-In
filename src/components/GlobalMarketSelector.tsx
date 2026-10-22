@@ -16,7 +16,7 @@ const regionIcons: Record<MarketRegion, string> = {
 };
 
 export default function GlobalMarketSelector() {
-  const { chooserOpen, setChooserOpen, detected, region, confirmationRegion, selectRegion, confirmRegion, cancelRegionSelection } = useMarket();
+  const { chooserOpen, detected, region, confirmationRegion, selectRegion, confirmRegion, declineRegion, cancelRegionSelection } = useMarket();
   if (!chooserOpen) return null;
 
   const confirmationName = confirmationRegion ? MARKET_CONFIG[confirmationRegion].name : null;
@@ -65,7 +65,7 @@ export default function GlobalMarketSelector() {
                 <p className="mt-1 text-sm text-stone-600">Choose Yes to remember this region for future visits, or No to use your detected region again on your next visit.</p>
                 <div className="mt-4 flex gap-3">
                   <button onClick={confirmRegion} className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-stone-700">Yes</button>
-                  <button onClick={cancelRegionSelection} className="rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50">No</button>
+                  <button onClick={declineRegion} className="rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50">No</button>
                 </div>
               </div>
             )}
