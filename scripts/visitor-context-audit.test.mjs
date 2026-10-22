@@ -36,7 +36,8 @@ test('language detection includes country defaults and English fallback', () => 
   assert.match(language, /ZA:\s*'en'/);
   assert.match(language, /DE:\s*'de'/);
   assert.match(language, /FR:\s*'fr'/);
-  assert.match(language, /return detectBrowserLanguage\(\)/);
+  assert.match(language, /COUNTRY_LANGUAGE_MAP\[country\] \|\| 'en'/);
+  assert.match(language, /\['CH', 'BE', 'CA'\]/);
 });
 
 test('first render bootstraps visitor context before the React app', () => {
