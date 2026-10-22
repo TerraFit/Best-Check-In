@@ -2,7 +2,7 @@ import { Globe2, MapPin, X } from 'lucide-react';
 import { MARKET_CONFIG, type MarketRegion } from '../config/markets';
 import { useMarket } from '../context/MarketContext';
 
-const regions: MarketRegion[] = ['south-africa', 'africa', 'europe', 'north-america', 'south-america', 'middle-east', 'asia', 'oceania'];
+const regions: MarketRegion[] = ['africa', 'europe', 'north-america', 'south-america', 'middle-east', 'asia', 'oceania'];
 
 const regionIcons: Record<MarketRegion, string> = {
   'south-africa': '🇿🇦',
@@ -51,13 +51,10 @@ export default function GlobalMarketSelector() {
                   <button key={item} onClick={() => selectRegion(item)} className={'group rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-amber-500 hover:shadow-md ' + (selected ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500/20' : 'border-stone-200 bg-white')}>
                     <span className="text-2xl" aria-hidden="true">{regionIcons[item]}</span>
                     <span className="mt-3 block font-bold">{config.name}</span>
-                    <span className="mt-1 block text-xs text-stone-500">{config.currency} · {item === 'south-africa' ? 'South African pricing' : 'regional pricing'}</span>
+                    <span className="mt-1 block text-xs text-stone-500">{config.currency} · regional pricing</span>
                   </button>
                 );
               })}
-            </div>
-            <div className="mt-7 rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">
-              <strong className="text-stone-900">South Africa:</strong> South African businesses remain on the existing ZAR pricing and compliance experience.
             </div>
             <button onClick={() => selectRegion('africa')} className="mt-5 text-sm font-semibold text-stone-500 underline underline-offset-4 hover:text-stone-900">Continue with Africa</button>
           </div>
