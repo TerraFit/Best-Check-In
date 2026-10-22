@@ -4,7 +4,7 @@ import type { PricingFxRate } from '../config/pricing';
 
 interface MarketDetection { countryCode: string | null; countryName: string | null; suggestedRegion: MarketRegion | null; }
 type DetectionStatus = 'pending' | 'resolved' | 'failed';
-interface MarketContextValue { region: MarketRegion; detected: MarketDetection | null; detectionStatus: DetectionStatus; chooserOpen: boolean; confirmationRegion: MarketRegion | null; setChooserOpen: (open: boolean) => void; selectRegion: (region: MarketRegion) => void; confirmRegion: () => void; cancelRegionSelection: () => void; resetMarket: () => void; isSouthAfricanMarket: boolean; fxRates: Partial<Record<'USD' | 'EUR', PricingFxRate>>; }
+interface MarketContextValue { region: MarketRegion; detected: MarketDetection | null; detectionStatus: DetectionStatus; chooserOpen: boolean; confirmationRegion: MarketRegion | null; setChooserOpen: (open: boolean) => void; selectRegion: (region: MarketRegion) => void; confirmRegion: () => void; declineRegion: () => void; cancelRegionSelection: () => void; resetMarket: () => void; isSouthAfricanMarket: boolean; fxRates: Partial<Record<'USD' | 'EUR', PricingFxRate>>; }
 
 const STORAGE_KEY = 'fastcheckin.market.region';
 const CONFIRMED_KEY = 'fastcheckin.market.confirmed';
@@ -27,7 +27,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   const initialSaved = (() => { try { return localStorage.getItem(STORAGE_KEY) as MarketRegion | null; } catch { return null; } })();
   const initialConfirmed = (() => { try { return localStorage.getItem(CONFIRMED_KEY) === 'true'; } catch { return false; } })();
   const initialRegion = initialConfirmed && initialSaved ? initialSaved : initialDetected?.suggestedRegion || 'africa';
-  const initialBaseRegion = initialDetected?.suggestedRegion || (initialConfirmed && initialSaved ? initialSaved : null);
 
   const [region, setRegion] = useState<MarketRegion>(initialRegion);
   const [detected, setDetected] = useState<MarketDetection | null>(initialDetected);
@@ -85,6 +84,13 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     setChooserOpen(false);
   }, [confirmationRegion]);
 
+  const declineRegion = useCallback(() => {
+    if (!confirmationRegion) return;
+    setRegion(confirmationRegion);
+    setConfirmationRegion(null);
+    setChooserOpen(false);
+  }, [confirmationRegion]);
+
   const cancelRegionSelection = useCallback(() => {
     const detectedRegion = detected?.suggestedRegion;
     const saved = (() => { try { return localStorage.getItem(STORAGE_KEY) as MarketRegion | null; } catch { return null; } })();
@@ -101,7 +107,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     setRegion('africa'); setDetected(null); setDetectionStatus('pending'); setConfirmationRegion(null); setChooserOpen(false); window.location.reload();
   }, []);
 
-  const value = useMemo(() => ({ region, detected, detectionStatus, chooserOpen, confirmationRegion, setChooserOpen, selectRegion, confirmRegion, cancelRegionSelection, resetMarket, isSouthAfricanMarket: region === 'south-africa', fxRates }), [region, detected, detectionStatus, chooserOpen, confirmationRegion, selectRegion, confirmRegion, cancelRegionSelection, resetMarket, fxRates]);
+  const value = useMemo(() => ({ region, detected, detectionStatus, chooserOpen, confirmationRegion, setChooserOpen, selectRegion, confirmRegion, declineRegion, cancelRegionSelection, resetMarket, isSouthAfricanMarket: region === 'south-africa', fxRates }), [region, detected, detectionStatus, chooserOpen, confirmationRegion, selectRegion, confirmRegion, declineRegion, cancelRegionSelection, resetMarket, fxRates]);
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;
 }
 
