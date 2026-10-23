@@ -32,9 +32,9 @@ test('market context hydrates the initial GeoIP result before pricing can fall b
   assert.match(context, /detectionStatus/);
 });
 
-test('market chooser opens only after a non-South-African country is detected', () => {
+test('market chooser opens for detected international regions and unknown countries, but not South Africa', () => {
   const context = read('src/context/MarketContext.tsx');
-  assert.match(context, /if \(suggestedRegion !== 'south-africa'\) setChooserOpen\(true\)/);
+  assert.match(context, /if \(suggestedRegion !== 'south-africa'\) setChooserOpen\(true\)/);\n  assert.match(context, /Do not silently treat an unrecognised country as Africa/);\n  assert.match(context, /setConfirmationRegion\(null\);\s*setChooserOpen\(true\);/);
   assert.match(context, /if \(!data\?\.countryCode\) \{ setDetectionStatus\('failed'\); return; \}/);
   assert.match(context, /\.catch\(\(\) => \{ setDetectionStatus\('failed'\); \}\)/);
 });
@@ -67,12 +67,12 @@ test('language detection covers supported local languages and English fallback',
   assert.match(language, /MULTILINGUAL_COUNTRIES = \['CH', 'BE', 'CA', 'SG', 'LU'\]/);
   assert.match(language, /MX:\s*'es'/);
   assert.match(language, /CR:\s*'es'/);
-  assert.match(language, /EG:\s*'ar'/);
+  assert.match(language, /EG:\s*'ar'/);\n  assert.match(language, /applyDetectedLanguage/);\n  assert.match(language, /Do not override a language the visitor explicitly selected/);
 });
 
 test('first render bootstraps visitor context before the React app', () => {
   const main = read('src/main.tsx');
   assert.match(main, /fastcheckin\.detected\.visitor/);
-  assert.match(main, /initLanguage\(visitor\?\.countryCode \|\| null\)/);
+  assert.match(main, /initLanguage\(visitor\?\.countryCode \|\| null\)/);\n  assert.match(main, /applyDetectedLanguage\(lateVisitor\.countryCode\)/);
   assert.ok(main.indexOf('initLanguage') < main.indexOf('ReactDOM.createRoot'));
 });
