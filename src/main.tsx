@@ -4,31 +4,51 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { initLanguage } from './i18n';
+import { applyDetectedLanguage } from './i18n/languageService';
 import { initGrammarly } from './services/grammarlyService';
 
-// ✅ Initialize Grammarly (optional - get Client ID from Grammarly Developer Portal)
-// For development, you can use a mock or disable it
 const GRAMMARLY_CLIENT_ID = import.meta.env.VITE_GRAMMARLY_CLIENT_ID || '';
+const DETECTED_VISITOR_KEY = 'fastcheckin.detected.visitor';
 
 if (GRAMMARLY_CLIENT_ID) {
-  initGrammarly({
-    clientId: GRAMMARLY_CLIENT_ID,
-    enabled: true,
-  });
+  initGrammarly({ clientId: GRAMMARLY_CLIENT_ID, enabled: true });
   console.log('✅ Grammarly enabled');
 } else {
   console.log('ℹ️ Grammarly not configured - running without spellcheck');
   console.log('📝 To enable: Add VITE_GRAMMARLY_CLIENT_ID to .env file');
 }
 
-// Initialize language system
-initLanguage();
+async function detectVisitorContext(): Promise<{ countryCode: string; countryName: string | null } | null> {
+  try {
+    const response = await fetch('/.netlify/functions/market-context', { headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data?.countryCode) return null;
+    const context = { countryCode: String(data.countryCode).toUpperCase(), countryName: data.countryName || null };
+    sessionStorage.setItem(DETECTED_VISITOR_KEY, JSON.stringify(context));
+    return context;
+  } catch {
+    return null;
+  }
+}
 
-const rootElement = document.getElementById('root');
-if (!rootElement) throw new Error('Failed to find the root element');
+async function bootstrap() {
+  const savedLanguage = (() => { try { return localStorage.getItem('fastcheckin_preferred_language'); } catch { return null; } })();
+  const visitorPromise = savedLanguage ? Promise.resolve(null) : detectVisitorContext();
+  const visitor = savedLanguage ? null : await Promise.race([
+    visitorPromise,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 1000)),
+  ]);
+  initLanguage(visitor?.countryCode || null);
+  if (!savedLanguage && !visitor) {
+    void visitorPromise.then((lateVisitor) => {
+      if (lateVisitor?.countryCode) applyDetectedLanguage(lateVisitor.countryCode);
+    });
+  }
 
-ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+  const rootElement = document.getElementById('root');
+  if (!rootElement) throw new Error('Failed to find the root element');
+  ReactDOM.createRoot(rootElement).render(<React.StrictMode><App /></React.StrictMode>);
+}
+
+void bootstrap();
