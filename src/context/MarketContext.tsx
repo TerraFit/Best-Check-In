@@ -86,6 +86,10 @@ export function MarketProvider({ children }: { children: ReactNode }) {
 
   const declineRegion = useCallback(() => {
     if (!confirmationRegion) return;
+    // “No” means use this region for this visit only. Remove any previous
+    // persisted choice so the next visit can return to the detected market.
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CONFIRMED_KEY);
     setRegion(confirmationRegion);
     setConfirmationRegion(null);
     setChooserOpen(false);
