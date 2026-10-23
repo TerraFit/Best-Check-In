@@ -64,6 +64,11 @@ export function MarketProvider({ children }: { children: ReactNode }) {
           setRegion(suggestedRegion);
           setConfirmationRegion(suggestedRegion === 'south-africa' ? null : suggestedRegion);
           if (suggestedRegion !== 'south-africa') setChooserOpen(true);
+        } else {
+          // Do not silently treat an unrecognised country as Africa; let the visitor choose.
+          setRegion('africa');
+          setConfirmationRegion(null);
+          setChooserOpen(true);
         }
       })
       .catch(() => { setDetectionStatus('failed'); });
