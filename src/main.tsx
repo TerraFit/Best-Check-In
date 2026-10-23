@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { initLanguage } from './i18n';
+import { applyDetectedLanguage } from './i18n/languageService';
 import { initGrammarly } from './services/grammarlyService';
 
 const GRAMMARLY_CLIENT_ID = import.meta.env.VITE_GRAMMARLY_CLIENT_ID || '';
@@ -33,11 +34,17 @@ async function detectVisitorContext(): Promise<{ countryCode: string; countryNam
 
 async function bootstrap() {
   const savedLanguage = (() => { try { return localStorage.getItem('fastcheckin_preferred_language'); } catch { return null; } })();
+  const visitorPromise = savedLanguage ? Promise.resolve(null) : detectVisitorContext();
   const visitor = savedLanguage ? null : await Promise.race([
-    detectVisitorContext(),
+    visitorPromise,
     new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 1000)),
   ]);
   initLanguage(visitor?.countryCode || null);
+  if (!savedLanguage && !visitor) {
+    void visitorPromise.then((lateVisitor) => {
+      if (lateVisitor?.countryCode) applyDetectedLanguage(lateVisitor.countryCode);
+    });
+  }
 
   const rootElement = document.getElementById('root');
   if (!rootElement) throw new Error('Failed to find the root element');
