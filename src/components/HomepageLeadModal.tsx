@@ -67,7 +67,7 @@ export default function HomepageLeadModal({ document, onClose, onDownloaded, onO
     if (!turnstileToken) { setError(copy.security); return; }
     setBusy(true); setError('');
     try {
-      const response = await fetch('/.netlify/functions/homepage-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'download', document: requestedDocument, lead: currentLead, turnstileToken }) });
+      const response = await fetch('/.netlify/functions/homepage-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'download', document: requestedDocument, lead: currentLead, turnstileToken, language }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (requestedDocument === 'brochure' && data.emailRejected === true) { setTurnstileToken(''); setTurnstileResetKey(value => value + 1); setEmailRejected(true); setError(''); return; }
