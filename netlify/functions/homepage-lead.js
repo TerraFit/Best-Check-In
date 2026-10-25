@@ -21,7 +21,7 @@ async function verifyTurnstile(token, event, expectedAction) {
     const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload.toString(), signal:AbortSignal.timeout(5000) });
     const result = await response.json();
     if (!response.ok || !result.success) return { ok:false, error:'CAPTCHA verification failed. Please try again.' };
-    const hosts = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'fastcheckin.co.za,www.fastcheckin.co.za').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
+    const hosts = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || '').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
     if (!result.hostname || !hosts.includes(String(result.hostname).toLowerCase()) || result.action !== expectedAction) return { ok:false, error:'CAPTCHA verification failed. Please try again.' };
     return { ok:true };
   } catch (error) { console.error('Turnstile verification request failed:',error); return { ok:false, error:'CAPTCHA verification is temporarily unavailable. Please try again.' }; }
