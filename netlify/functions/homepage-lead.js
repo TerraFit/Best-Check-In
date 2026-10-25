@@ -72,17 +72,21 @@ const BROCHURE_EMAIL_COPY = {
   he:{subject:'תודה על התעניינותך ב-FastCheckIn',tagline:'אירוח, מחובר',eyebrow:'FastCheckIn',heading:'הפוך כל צ׳ק-אין של אורח ל',highlight:'מודיעין עסקי טוב יותר.',dear:'שלום',thanks:'תודה על התעניינותך ב-FastCheckIn. אנו מקווים שהחוברת תציג בבירור כיצד צ׳ק-אין דיגיטלי, מידע על אורחים, תפעול המלון ובינה עסקית יכולים לעבוד יחד כדי לעזור לנכס שלך לקבל החלטות טובות יותר.',explore:'גלה את הפלטפורמה, השווה בין החבילות הזמינות, וכשתהיה מוכן נשמח להציג לך את FastCheckIn בפעולה בהדגמה אישית.',brochure:'פתיחת / הורדת החוברת',compare:'השוואת חבילות',note:'החוברת נפתחת באופן מקוון וכוללת אפשרויות',print:'הדפסה / שמירה כ-PDF',download:'הורדת HTML',question:'רוצה לראות מה FastCheckIn יכול לעשות עבור הנכס שלך?',demo:'קביעת הדגמה',call:'בקשת שיחת טלפון',online:'לחקור את FastCheckIn באינטרנט',anytime:'בכל עת.',closing:'בברכה',team:'צוות FastCheckIn'}
 };
 
+const ONLINE_PREFIX = { en:'You can also', af:'U kan', de:'Sie können', fr:'Vous pouvez également', it:'Puoi anche', pt:'Também pode', es:'También puede', nl:'U kunt', ru:'Вы также можете', zh:'您也可以', ar:'يمكنك أيضًا', he:'תוכל גם' };
+const DEMO_SUBJECT = { en:'FastCheckIn demonstration', af:'FastCheckIn demonstrasie', de:'FastCheckIn Demonstration', fr:'Démonstration FastCheckIn', it:'Dimostrazione FastCheckIn', pt:'Demonstração FastCheckIn', es:'Demostración de FastCheckIn', nl:'FastCheckIn demonstratie', ru:'Демонстрация FastCheckIn', zh:'FastCheckIn 演示', ar:'عرض توضيحي لـ FastCheckIn', he:'הדגמת FastCheckIn' };
+
 async function sendBrochureThankYou(lead, language = 'en') {
-  const t = BROCHURE_EMAIL_COPY[clean(language, 10).toLowerCase().split('-')[0]] || BROCHURE_EMAIL_COPY.en;
+  const selectedLanguage = clean(language, 10).toLowerCase().split('-')[0];
+  const t = BROCHURE_EMAIL_COPY[selectedLanguage] || BROCHURE_EMAIL_COPY.en;
   const brochureUrl='https://fastcheckin.co.za/FastCheckIn_Brochure.html';
   const compareUrl='https://fastcheckin.co.za/#pricing-section';
-  const siteUrl='https://fastcheckin.co.za';
-  const demoUrl=`mailto:inquiry@fastcheckin.co.za?subject=${encodeURIComponent(t.subject.replace(/^Thank you for your interest in FastCheckIn$/,'FastCheckIn demonstration'))}`;
+  const demoUrl=`mailto:inquiry@fastcheckin.co.za?subject=${encodeURIComponent(DEMO_SUBJECT[selectedLanguage] || DEMO_SUBJECT.en)}`;
   const callUrl='tel:+27837789487';
   const heroImageUrl='https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=82';
   const logoUrl='https://fastcheckin.co.za/fastcheckin-logo.png';
   const firstName=clean(lead.fullName).split(/\s+/)[0] || 'there';
   const button=(href,label,background='#082c3a',color='#ffffff') => `<a href="${href}" style="display:inline-block;background:${background};color:${color};text-decoration:none;font-weight:bold;padding:13px 18px;border-radius:8px;margin:4px">${label}</a>`;
+  const onlinePrefix = ONLINE_PREFIX[selectedLanguage] || ONLINE_PREFIX.en;
   const html=`<div style="margin:0;background:#eef3f4;padding:24px 10px;font-family:Arial,Helvetica,sans-serif;color:#18313c"><div style="max-width:680px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #dce7e7;box-shadow:0 4px 18px rgba(8,44,58,.08)">
   <div style="padding:22px 30px 16px;text-align:center;background:#082c3a"><img src="${logoUrl}" alt="FastCheckIn" style="display:block;width:210px;max-width:80%;height:auto;margin:0 auto 12px"><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c3ec5b;font-weight:bold">${t.tagline}</div></div>
   <img src="${heroImageUrl}" alt="${escapeHtml(t.tagline)}" style="display:block;width:100%;height:250px;object-fit:cover">
@@ -93,7 +97,7 @@ async function sendBrochureThankYou(lead, language = 'en') {
   <div style="text-align:center;margin:24px 0 26px">${button(brochureUrl,t.brochure,'#a6d631','#17333c')}${button(compareUrl,t.compare,'#082c3a','#ffffff')}</div>
   <p style="font-size:14px;line-height:1.6;color:#60727b;margin:0 0 20px;text-align:center">${t.note} <strong>${t.print}</strong> ${t.download}.</p>
   <div style="border-top:1px solid #e4eceb;padding-top:24px;text-align:center"><p style="font-size:17px;font-weight:bold;color:#082c3a;margin:0 0 14px">${t.question}</p>${button(demoUrl,t.demo,'#082c3a','#ffffff')}${button(callUrl,t.call,'#ffffff','#082c3a')}</div>
-  <p style="font-size:15px;line-height:1.7;margin:28px 0 0">${t.online.replace(/^/,'You can also ')} ${t.anytime}</p>
+  <p style="font-size:15px;line-height:1.7;margin:28px 0 0">${onlinePrefix} ${t.online} ${t.anytime}</p>
   <p style="margin:24px 0 0">${t.closing},<br><strong>${t.team}</strong><br><span style="color:#60727b">${t.tagline}</span></p></div>
   <div style="padding:20px 32px;background:#f3f8f7;font-size:12px;line-height:1.6;color:#60727b;text-align:center">FastCheckIn · Aemara Group Pty Ltd · South Africa<br><a href="mailto:inquiry@fastcheckin.co.za" style="color:#547600">inquiry@fastcheckin.co.za</a> · +27 (0)83 778 9487</div></div></div>`;
   return sendEmail({ to:lead.email, subject:t.subject, html, reportRecipientError:true });
