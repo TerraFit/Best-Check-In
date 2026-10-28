@@ -1,11 +1,23 @@
 // netlify/functions/update-booking-stay.js
-// Stay dates are derived from check-in date + nights. Checkout is never a
-// user-controlled source of truth; it is recalculated whenever the stay changes.
+// Stay dates are derived from the check-in date and number of nights.
+// The edit form may also supply a changed checkout date; when checkout is
+// explicitly changed, nights are derived from check-in → checkout so that
+// correcting a checkout date also corrects the stored night count.
 
 import auth from './_auth.cjs';
 import stayDates from './lib/stayDates.cjs';
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
-const { calculateCheckOutDate, normalizeNights } = stayDates;
+const { calculateCheckOutDate, normalizeNights, parseIsoDate } = stayDates;
+
+const calculateNightsBetween = (checkInDate, checkOutDate) => {
+  const checkIn = parseIsoDate(checkInDate);
+  const checkOut = parseIsoDate(checkOutDate);
+  if (!checkIn || !checkOut) return null;
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const nights = Math.round((checkOut.getTime() - checkIn.getTime()) / millisecondsPerDay);
+  return nights >= 1 ? nights : null;
+};
 
 export const handler = async (event) => {
   const headers = {
@@ -32,7 +44,7 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
     }
 
-    const { bookingId, check_in_date, nights, business_id } = body;
+    const { bookingId, check_in_date, check_out_date, nights, business_id } = body;
     if (!bookingId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID required' }) };
 
     const tenant = resolveTenant(authResult.principal, business_id);
@@ -55,20 +67,87 @@ export const handler = async (event) => {
     const currentBooking = currentData[0];
     if (!currentBooking) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
 
+    const currentCheckIn = String(currentBooking.check_in_date || '').slice(0, 10);
+    const currentCheckOut = String(currentBooking.check_out_date || '').slice(0, 10);
+    const oldNights = normalizeNights(currentBooking.nights);
+
     const nextCheckIn = check_in_date !== undefined && check_in_date !== null
       ? String(check_in_date).slice(0, 10)
-      : String(currentBooking.check_in_date || '').slice(0, 10);
-    const nextNights = nights !== undefined && nights !== null
-      ? normalizeNights(nights)
-      : normalizeNights(currentBooking.nights);
+      : currentCheckIn;
 
-    const nextCheckOut = calculateCheckOutDate(nextCheckIn, nextNights);
-    if (!nextCheckOut) {
+    if (!parseIsoDate(nextCheckIn)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'A valid check-in date is required.' })
+      };
+    }
+
+    const requestedNights = nights !== undefined && nights !== null
+      ? normalizeNights(nights)
+      : oldNights;
+
+    if (requestedNights === null) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'A valid number of nights (minimum 1) is required.' })
+      };
+    }
+
+    const requestedCheckOut = check_out_date !== undefined && check_out_date !== null
+      ? String(check_out_date).slice(0, 10)
+      : null;
+
+    if (requestedCheckOut !== null && !parseIsoDate(requestedCheckOut)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'A valid checkout date is required.' })
+      };
+    }
+
+    const nightsChanged = oldNights !== requestedNights;
+    const checkOutChanged = requestedCheckOut !== null && requestedCheckOut !== currentCheckOut;
+
+    let nextNights = requestedNights;
+    let nextCheckOut;
+
+    if (checkOutChanged) {
+      // The user explicitly changed checkout. Treat the two dates as the
+      // source for the corrected stay length, while rejecting contradictory
+      // simultaneous edits rather than silently choosing one.
+      const derivedNights = calculateNightsBetween(nextCheckIn, requestedCheckOut);
+      if (derivedNights === null) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Checkout must be at least one night after check-in.' })
+        };
+      }
+
+      if (nightsChanged && calculateCheckOutDate(nextCheckIn, requestedNights) !== requestedCheckOut) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'The selected checkout date and number of nights do not match. Please check the stay dates.' })
+        };
+      }
+
+      nextNights = derivedNights;
+      nextCheckOut = requestedCheckOut;
+    } else {
+      // No explicit checkout change: preserve the existing authoritative rule
+      // and derive checkout from check-in + nights.
+      nextCheckOut = calculateCheckOutDate(nextCheckIn, nextNights);
+    }
+
+    if (!nextCheckOut || !nextNights) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({
-          error: 'A valid check-in date and number of nights (minimum 1) are required. Checkout date is calculated automatically.'
+          error: 'A valid check-in date and number of nights (minimum 1) are required.'
         })
       };
     }
@@ -81,7 +160,6 @@ export const handler = async (event) => {
       changes.check_in_date = { from: currentBooking.check_in_date || 'not set', to: nextCheckIn };
     }
 
-    const oldNights = normalizeNights(currentBooking.nights);
     if (nextNights !== oldNights) {
       updateData.nights = nextNights;
       changes.nights = { from: oldNights ?? 'not set', to: nextNights };
@@ -89,11 +167,11 @@ export const handler = async (event) => {
 
     if (nextCheckOut !== currentBooking.check_out_date) {
       updateData.check_out_date = nextCheckOut;
-      changes.check_out_date = { from: currentBooking.check_out_date || 'not set', to: nextCheckOut, derived_from: 'check_in_date + nights' };
-    }
-
-    if (body.check_out_date && String(body.check_out_date).slice(0, 10) !== nextCheckOut) {
-      console.warn('⚠️ Ignoring conflicting client checkout date:', body.check_out_date, '→', nextCheckOut);
+      changes.check_out_date = {
+        from: currentBooking.check_out_date || 'not set',
+        to: nextCheckOut,
+        derived_from: checkOutChanged ? 'check_in_date + checkout_date' : 'check_in_date + nights'
+      };
     }
 
     if (Object.keys(changes).length === 0) {
