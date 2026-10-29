@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchRooms } from '../../services/roomApi';
-import { getEmployeeAuth } from '../../utils/auth';
+import { getAuthHeader, getEmployeeAuth } from '../../utils/auth';
 import type { Room } from '../../types/room';
 
 interface Props { businessId: string; }
@@ -66,7 +66,7 @@ export default function AdminBulkRoomReadiness({ businessId }: Props) {
     try {
       const response = await fetch('/.netlify/functions/admin-bulk-room-readiness', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId, roomIds: selected, action }),
       });
       const data = await response.json().catch(() => ({}));
