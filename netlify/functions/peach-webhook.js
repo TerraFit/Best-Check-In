@@ -97,6 +97,13 @@ export const handler = async (event) => {
     : String(event.body || '');
   const headers = event.headers || {};
   const contentType = getHeader(headers, 'content-type');
+
+  // Some Peach dashboard validation attempts send an empty POST body. Treat
+  // that as a URL reachability probe only; never record it as a payment event.
+  if (!rawBody.trim()) {
+    return response(200, { received: true, validation: true });
+  }
+
   const payload = parsePayload(rawBody, contentType);
 
   // Peach's dashboard validates a webhook URL with an unsigned verificationCode

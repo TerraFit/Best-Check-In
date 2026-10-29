@@ -15,6 +15,12 @@ test('non-POST methods are rejected', async () => {
   assert.equal(result.statusCode, 405);
 });
 
+test('empty POST validation probe receives 200 and is not treated as a payment', async () => {
+  const result = await handler({ httpMethod: 'POST', headers: {}, body: '' });
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(JSON.parse(result.body), { received: true, validation: true });
+});
+
 test('Peach verificationCode probe receives 200 and is not treated as a payment', async () => {
   const result = await handler({
     httpMethod: 'POST',
@@ -25,7 +31,7 @@ test('Peach verificationCode probe receives 200 and is not treated as a payment'
   assert.deepEqual(JSON.parse(result.body), { received: true });
 });
 
-test('unsigned non-probe POST is not acknowledged when secret is not configured', async () => {
+test('unsigned payload without an event ID is rejected as malformed', async () => {
   const original = process.env.PEACH_WEBHOOK_SECRET;
   delete process.env.PEACH_WEBHOOK_SECRET;
   try {
@@ -34,7 +40,7 @@ test('unsigned non-probe POST is not acknowledged when secret is not configured'
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'Succeeded' }),
     });
-    assert.equal(result.statusCode, 503);
+    assert.equal(result.statusCode, 400);
   } finally {
     if (original === undefined) delete process.env.PEACH_WEBHOOK_SECRET;
     else process.env.PEACH_WEBHOOK_SECRET = original;
