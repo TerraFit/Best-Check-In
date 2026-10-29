@@ -53,7 +53,7 @@ export default function AdminBulkRoomReadiness({ businessId }: Props) {
 
   const toggleAll = () => setSelected((current) => allSelected
     ? current.filter((id) => !eligibleRooms.some((room) => room.id === id))
-    : Array.from(new Set([...current, ...eligibleRooms.map((room) => room.id)]));
+    : Array.from(new Set([...current, ...eligibleRooms.map((room) => room.id)])));
   const toggleRoom = (id: string) => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
 
   const applyAction = async (action: 'approved' | 'skipped') => {
