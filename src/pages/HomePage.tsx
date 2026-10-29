@@ -1,360 +1,143 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from '../i18n';
+import HomepageLeadModal, { type HomepageDocument } from '../components/HomepageLeadModal';
+import HomepageLegalModal from '../components/HomepageLegalModal';
+import PricingComingSoonModal from '../components/PricingComingSoonModal';
+import TurnstileWidget from '../components/TurnstileWidget';
+import GlobalMarketSelector from '../components/GlobalMarketSelector';
+import { useMarket } from '../context/MarketContext';
+import { convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
+import {
+  BarChart3, BedDouble, Check, ClipboardCheck, FileCheck2, Globe2, Hotel, IdCard,
+  Info, LayoutDashboard, LineChart, ShieldCheck, Sparkles, Users, Wrench, X, ChevronDown, ChevronUp
+} from 'lucide-react';
+
+type FeatureState = 'included' | 'optional' | 'unavailable';
+type PricingFeature = { label: string; state: FeatureState; note?: string; info?: string };
+type PricingPlan = {
+  key: 'starter' | 'growth' | 'pro' | 'business' | 'enterprise';
+  name: string;
+  minimumRooms: number;
+  idealCustomer: string;
+  description: string;
+  isPopular?: boolean;
+  features: PricingFeature[];
+};
+
+function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+  return <span className="group relative inline-flex align-middle">
+    <button type="button" aria-label={label} className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full border border-stone-300 text-stone-500 hover:border-amber-500 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"><Info className="h-3.5 w-3.5" /></button>
+    <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-xl bg-stone-950 px-4 py-3 text-left text-xs font-normal leading-relaxed text-white shadow-xl group-hover:block group-focus-within:block">{children}</span>
+  </span>;
+}
+
+function FeatureLine({ feature }: { feature: PricingFeature }) {
+  const icon = feature.state === 'included' ? <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" /> : feature.state === 'optional' ? <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-amber-500 text-[9px] font-bold text-amber-600">+</span> : <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-stone-300" />;
+  const stateLabel = feature.state === 'included' ? 'Included' : feature.state === 'optional' ? 'Optional' : 'Not available';
+  return <li className={`flex gap-2 text-sm ${feature.state === 'unavailable' ? 'text-stone-400' : 'text-stone-700'}`}>
+    {icon}<span className="min-w-0"><span className="font-medium">{feature.label}</span>{feature.note && <span className="ml-1 text-xs text-stone-500">· {feature.note}</span>}{feature.info && <InfoTip label={`More information about ${feature.label}`}>{feature.info}</InfoTip>}<span className="sr-only"> — {stateLabel}</span></span>
+  </li>;
+}
+
+const businessSnapshotInfo = 'A concise management view of the numbers that matter — occupancy, room nights, guest volumes, market mix, guest origin and other key performance indicators. Portfolio Snapshots help owners, directors, executives and boards understand property performance and how guest markets evolve across their business, supporting better commercial decisions.';
+const languageInfo = 'Available languages: Afrikaans, Arabic, Chinese, Dutch, English, French, German, Hebrew, Italian, Portuguese, Russian and Spanish.';
+const languageRecognitionInfo = 'Automatically recognises the guest’s language and presents the check-in experience in the appropriate supported language for a smoother, more personalised arrival.';
 
 export default function HomePage() {
   const navigate = useNavigate();
   const [loginLoading, setLoginLoading] = useState(false);
+  const [downloadDocument, setDownloadDocument] = useState<HomepageDocument | null>(null);
+  const [legalDocument, setLegalDocument] = useState<'privacy' | 'terms' | null>(null);
+  const [enterpriseInquiryOpen, setEnterpriseInquiryOpen] = useState(false);
+  const [expandedPricingPlans, setExpandedPricingPlans] = useState<string[]>([]);
+  const [inquiryBusy, setInquiryBusy] = useState(false);
+  const [inquiryMessage, setInquiryMessage] = useState('');
+  const [inquiryTurnstileToken, setInquiryTurnstileToken] = useState('');
+  const [inquiryTurnstileResetKey, setInquiryTurnstileResetKey] = useState(0);
   const { t } = useTranslation();
+  const { setChooserOpen, region, isSouthAfricanMarket, fxRates } = useMarket();
+  const regionalPricing = getRegionalPricing(region, isSouthAfricanMarket, fxRates);
+  const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$';
+  const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates);
+  const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket, fxRates);
+  const marketingDownloadNote = `${currencySymbol}${marketingDownloadMonthlyPrice}/month or ${currencySymbol}${marketingDownloadVoucherPrice} voucher`;
 
-  const pricingPlans = [
-    {
-      nameKey: 'landing_plan_starter' as const,
-      priceMonthly: 349,
-      priceYearly: 3490,
-      maxRooms: 5,
-      featureKeys: [
-        'landing_plan_starter_f1',
-        'landing_plan_starter_f2',
-        'landing_plan_starter_f3',
-        'landing_plan_starter_f4'
-      ] as const,
-      isPopular: false,
-      buttonVariant: 'outline' as const
-    },
-    {
-      nameKey: 'landing_plan_growth' as const,
-      priceMonthly: 649,
-      priceYearly: 6490,
-      maxRooms: 10,
-      featureKeys: [
-        'landing_plan_growth_f1',
-        'landing_plan_growth_f2',
-        'landing_plan_growth_f3',
-        'landing_plan_growth_f4',
-        'landing_plan_growth_f5'
-      ] as const,
-      isPopular: true,
-      buttonVariant: 'primary' as const
-    },
-    {
-      nameKey: 'landing_plan_pro' as const,
-      priceMonthly: 949,
-      priceYearly: 9490,
-      maxRooms: 15,
-      featureKeys: [
-        'landing_plan_pro_f1',
-        'landing_plan_pro_f2',
-        'landing_plan_pro_f3',
-        'landing_plan_pro_f4',
-        'landing_plan_pro_f5'
-      ] as const,
-      isPopular: false,
-      buttonVariant: 'outline' as const
-    },
-    {
-      nameKey: 'landing_plan_business' as const,
-      priceMonthly: 1290,
-      priceYearly: 12900,
-      maxRooms: 20,
-      featureKeys: [
-        'landing_plan_business_f1',
-        'landing_plan_business_f2',
-        'landing_plan_business_f3',
-        'landing_plan_business_f4'
-      ] as const,
-      isPopular: false,
-      buttonVariant: 'outline' as const
-    }
+  const coreStarter: PricingFeature[] = [
+    { label: 'Digital Check-in', state: 'included' },
+    { label: 'ID / passport capture', state: 'included' },
+    { label: 'Digital signatures & indemnities', state: 'included' },
+    { label: 'Statutory guest register & POPIA-focused guest management', state: 'included' },
+    { label: 'Returning guest history', state: 'included' },
+    { label: 'Dietary & stay preferences', state: 'included' },
+    { label: 'POPIA communication preferences', state: 'included' },
+    { label: 'Multilingual registration', state: 'included', info: languageInfo },
+    { label: 'Language recognition', state: 'included', info: languageRecognitionInfo },
+    { label: 'Basic Visitor Origin Explorer', state: 'included', note: 'World → Continent → Country → Region → City' },
+    { label: 'Staff roles & permissions', state: 'included' }
   ];
 
-  const handleBusinessLogin = async () => {
-    setLoginLoading(true);
-    setTimeout(() => {
-      navigate('/business/login');
-      setLoginLoading(false);
-    }, 500);
+  const plans: PricingPlan[] = [
+    { key: 'starter', name: 'Starter', minimumRooms: 1, idealCustomer: 'Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.', description: 'For B&Bs and small-to-medium-sized guest houses.', features: [...coreStarter, { label: 'Business Snapshot', state: 'optional', info: businessSnapshotInfo }, { label: 'Marketing Download', state: 'optional', note: marketingDownloadNote }, { label: 'Branding Customisation', state: 'unavailable' }, { label: 'Basic Housekeeping', state: 'unavailable' }, { label: 'Employee Portal', state: 'unavailable' }, { label: 'Advanced Housekeeping', state: 'unavailable' }, { label: 'Lost & Found + Automation', state: 'unavailable' }, { label: 'Advanced Analytics', state: 'unavailable' }, { label: 'Unlimited Portfolio Snapshots', state: 'unavailable' }, { label: 'Multi-establishment management', state: 'unavailable' }, { label: 'Consolidated portfolio analytics', state: 'unavailable' }] },
+    { key: 'growth', name: 'Growth', minimumRooms: 6, idealCustomer: 'Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.', description: 'For growing guest houses and accommodation businesses.', isPopular: true, features: [{ label: 'Everything included in Starter', state: 'included' }, { label: 'Basic Housekeeping', state: 'included' }, { label: 'Employee Portal', state: 'included' }, { label: 'Business Snapshot', state: 'optional', info: businessSnapshotInfo }, { label: 'Marketing Download', state: 'optional', note: marketingDownloadNote }, { label: 'Branding Customisation', state: 'unavailable' }, { label: 'Advanced Housekeeping', state: 'optional' }, { label: 'Lost & Found + Automation', state: 'optional' }, { label: 'Advanced Analytics', state: 'optional' }, { label: 'Unlimited Portfolio Snapshots', state: 'unavailable' }, { label: 'Multi-establishment management', state: 'unavailable' }, { label: 'Consolidated portfolio analytics', state: 'unavailable' }] },
+    { key: 'pro', name: 'Pro', minimumRooms: 11, idealCustomer: 'Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.', description: 'For established accommodation businesses wanting broader operational and market intelligence.', features: [{ label: 'Everything included in Growth', state: 'included' }, { label: 'Advanced Housekeeping', state: 'included' }, { label: 'Lost & Found + Automation', state: 'included' }, { label: 'Advanced Analytics', state: 'included' }, { label: 'Marketing Download', state: 'included' }, { label: 'Branding Customisation', state: 'included', info: 'Customise the guest-facing check-in form with your establishment’s own branding so it feels like an in-house system, with no FastCheckIn branding shown to guests.' }, { label: 'Business Snapshot', state: 'optional', info: businessSnapshotInfo }, { label: 'Unlimited Portfolio Snapshots', state: 'unavailable' }, { label: 'Multi-establishment management', state: 'unavailable' }, { label: 'Consolidated portfolio analytics', state: 'unavailable' }] },
+    { key: 'business', name: 'Business', minimumRooms: 21, idealCustomer: 'Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.', description: 'For larger establishments requiring the complete operational toolkit.', features: [{ label: 'Everything included in Pro', state: 'included' }, { label: 'Unlimited Portfolio Snapshots', state: 'included', info: businessSnapshotInfo }, { label: 'Branding Customisation', state: 'included', info: 'Customise the guest-facing check-in form with your establishment’s own branding so it feels like an in-house system, with no FastCheckIn branding shown to guests.' }, { label: 'Multi-establishment management', state: 'unavailable' }, { label: 'Consolidated portfolio analytics', state: 'unavailable' }] },
+    { key: 'enterprise', name: 'Enterprise', minimumRooms: 21, idealCustomer: 'Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence.', description: 'For hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence.', features: [{ label: 'Everything included in Business', state: 'included' }, { label: 'Multi-establishment management', state: 'included' }, { label: 'Consolidated portfolio analytics', state: 'included' }, { label: 'Executive portfolio intelligence', state: 'included', info: 'A high-level view for owners, directors, CEOs, CFOs and boards across the portfolio, with establishment summaries and consolidated business intelligence.' }] }
+  ];
+
+  const platformFeatures = [
+    { icon: ClipboardCheck, title: 'landing_feature_digital_title', desc: 'landing_feature_digital_desc' },
+    { icon: Users, title: 'landing_platform_guest_title', desc: 'landing_platform_guest_desc' },
+    { icon: Wrench, title: 'landing_platform_operations_title', desc: 'landing_platform_operations_desc' },
+    { icon: BedDouble, title: 'landing_platform_housekeeping_title', desc: 'landing_platform_housekeeping_desc' },
+    { icon: ShieldCheck, title: 'landing_feature_popia_title', desc: 'landing_feature_popia_desc' },
+    { icon: BarChart3, title: 'landing_feature_analytics_title', desc: 'landing_feature_analytics_desc' }
+  ];
+
+  const handleBusinessLogin = async () => { setLoginLoading(true); setTimeout(() => { navigate('/business/login'); setLoginLoading(false); }, 500); };
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+
+  const submitInquiry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!inquiryTurnstileToken) { setInquiryMessage(t('landing_form_security')); return; }
+    setInquiryBusy(true); setInquiryMessage('');
+    const formElement = event.currentTarget; const form = new FormData(formElement);
+    try {
+      const response = await fetch('/.netlify/functions/homepage-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'inquiry', lead: { fullName: form.get('fullName'), companyName: form.get('companyName'), email: form.get('email'), telephone: form.get('telephone'), address: form.get('address') }, topic: form.get('topic'), comments: form.get('comments'), turnstileToken: inquiryTurnstileToken }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t('landing_form_error'));
+      formElement.reset(); setInquiryTurnstileToken(''); setInquiryTurnstileResetKey((value) => value + 1); setInquiryMessage(t('landing_form_success'));
+    } catch (error) { setInquiryMessage(error instanceof Error ? error.message : t('landing_form_error')); } finally { setInquiryBusy(false); }
   };
 
-  const scrollToPricing = () => {
-    const pricingSection = document.getElementById('pricing-section');
-    if (pricingSection) {
-      pricingSection.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
 
-  return (
-    <div className="min-h-screen bg-stone-900">
-      {/* Hero Section */}
-      <div className="relative bg-stone-900 overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')"
-          }}
-        ></div>
-        <div className="absolute inset-0 bg-stone-900/40"></div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
-          <div className="flex justify-start mb-8">
-            <img
-              src="/fastcheckin-logo.png"
-              alt={t('landing_logo_alt')}
-              className="h-24 w-auto object-contain"
-              style={{ imageRendering: 'auto' }}
-            />
-          </div>
+  return <div className="min-h-screen bg-stone-950 text-white">
+    <section className="relative min-h-[760px] overflow-hidden"><div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=85')" }} /><div className="absolute inset-0 bg-stone-950/35" /><div className="absolute inset-0 bg-gradient-to-b from-stone-950/10 via-stone-950/20 to-stone-950" /><div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"><div className="flex items-center justify-between"><img src="/fastcheckin-logo.png" alt={t('landing_logo_alt')} className="h-16 md:h-20 w-auto object-contain" /><div className="flex items-center gap-3"><button onClick={() => setChooserOpen(true)} className="hidden sm:inline-flex items-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-white/20 transition" aria-label="Change market">{isSouthAfricanMarket ? 'South Africa' : region.replace('-', ' ')}</button><button onClick={handleBusinessLogin} disabled={loginLoading} className="hidden sm:inline-flex items-center rounded-full border border-white/40 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition">{loginLoading ? t('common_processing') : t('login_sign_in')}</button></div></div><div className="max-w-5xl mx-auto text-center pt-28 md:pt-32 pb-28"><p className="text-amber-400 uppercase tracking-[0.28em] text-xs md:text-sm font-bold mb-6">{t('landing_redesign_eyebrow')}</p><h1 className="text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.05] tracking-tight">{t('landing_hero_title_prefix')}<span className="block text-amber-400 mt-3">{t('landing_hero_title_highlight')}</span></h1><p className="mt-8 text-lg md:text-2xl text-stone-200 max-w-3xl mx-auto leading-relaxed">{t('landing_redesign_hero_support')}</p><div className="mt-10 flex flex-col items-center gap-4"><button onClick={() => navigate('/register')} className="rounded-full bg-amber-500 px-8 py-4 font-bold text-stone-950 shadow-xl shadow-amber-900/20 hover:bg-amber-400 transition">{t('landing_cta_trial')}</button><button onClick={handleBusinessLogin} disabled={loginLoading} className="rounded-full border border-white/40 bg-white/10 px-8 py-4 font-semibold text-white backdrop-blur hover:bg-white/20 transition disabled:opacity-60">{loginLoading ? t('common_processing') : 'Login — Businesses & Employees'}</button><button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition">{t('landing_download_brochure')}</button></div><div className="mt-10 flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm text-stone-200">{[t('landing_badge_popia'), t('landing_badge_indemnity'), t('landing_badge_id_capture'), t('landing_badge_registry')].map((item) => <span key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-amber-400" />{item}</span>)}</div></div></div><div className="pointer-events-none absolute bottom-7 left-1/2 z-10 -translate-x-1/2 flex flex-col items-center" aria-hidden="true"><span className="fastcheckin-explore-label">Explore FastCheckIn</span><div className="fastcheckin-chevron-cascade"><span className="fastcheckin-chevron fastcheckin-chevron-1" /><span className="fastcheckin-chevron fastcheckin-chevron-2" /><span className="fastcheckin-chevron fastcheckin-chevron-3" /></div></div></section>
 
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              {t('landing_hero_title_prefix')}{' '}
-              <span className="text-amber-500">{t('landing_hero_title_highlight')}</span>
-            </h1>
+    <section className="bg-white text-stone-900 py-24 md:py-28"><div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8"><div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-14 items-center"><div><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_story_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold tracking-tight">{t('landing_story_title')}</h2><p className="mt-6 text-lg text-stone-600 leading-relaxed">{t('landing_story_body')}</p></div><div className="grid sm:grid-cols-2 gap-4">{[[Globe2,'landing_story_point1'],[IdCard,'landing_story_point2'],[Wrench,'landing_story_point3'],[Hotel,'landing_story_point4']].map(([Icon,key]) => { const IconComponent=Icon as typeof Globe2; return <div key={key as string} className="rounded-2xl border border-stone-200 bg-stone-50 p-6"><IconComponent className="h-7 w-7 text-amber-600 mb-5" /><p className="font-semibold text-stone-800">{t(key as keyof import('../i18n/types').TranslationKeys)}</p></div>; })}</div></div><div className="mt-10 text-center"><button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">{t('landing_download_brochure')}</button></div></div></section>
 
-            <p className="text-2xl text-white mb-8 max-w-2xl mx-auto">
-              {t('landing_hero_subtitle')}
-            </p>
+    <section className="bg-stone-100 text-stone-900 py-24"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center max-w-3xl mx-auto mb-14"><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_outcomes_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_outcomes_heading')}</h2></div><div className="grid md:grid-cols-3 gap-6">{[{icon:Sparkles,title:'landing_outcome_serve_title',body:'landing_outcome_serve_body',number:'01'},{icon:LineChart,title:'landing_outcome_market_title',body:'landing_outcome_market_body',number:'02'},{icon:LayoutDashboard,title:'landing_outcome_grow_title',body:'landing_outcome_grow_body',number:'03'}].map(({icon:Icon,title,body,number}) => <div key={title} className="relative overflow-hidden rounded-3xl bg-white p-8 shadow-sm border border-stone-200"><span className="absolute right-6 top-5 text-6xl font-black text-stone-100">{number}</span><Icon className="h-9 w-9 text-amber-600 relative" /><h3 className="mt-8 text-2xl font-bold relative">{t(title as keyof import('../i18n/types').TranslationKeys)}</h3><p className="mt-4 text-stone-600 leading-relaxed relative">{t(body as keyof import('../i18n/types').TranslationKeys)}</p></div>)}</div><div className="mt-10 text-center"><button onClick={() => setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">{t('landing_download_brochure')}</button></div></div></section>
 
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white mb-8">
-              <span className="flex items-center gap-2">
-                <span className="text-amber-500">✓</span>
-                <span>{t('landing_badge_popia')}</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-amber-500">✓</span>
-                <span>{t('landing_badge_indemnity')}</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-amber-500">✓</span>
-                <span>{t('landing_badge_id_capture')}</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-amber-500">✓</span>
-                <span>{t('landing_badge_registry')}</span>
-              </span>
-            </div>
+    <section id="platform-section" className="bg-stone-950 py-24 md:py-28"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="max-w-3xl mb-14"><p className="text-amber-400 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_platform_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_platform_heading')}</h2><p className="mt-5 text-lg text-stone-400 leading-relaxed">{t('landing_platform_subheading')}</p></div><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">{platformFeatures.map(({icon:Icon,title,desc}) => <div key={title} className="rounded-2xl border border-stone-800 bg-stone-900/80 p-7 hover:border-amber-500/50 hover:-translate-y-1 transition-all"><Icon className="h-8 w-8 text-amber-400" /><h3 className="mt-5 text-xl font-bold">{t(title as keyof import('../i18n/types').TranslationKeys)}</h3><p className="mt-3 text-stone-400 leading-relaxed">{t(desc as keyof import('../i18n/types').TranslationKeys)}</p></div>)}</div><div className="mt-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"><div className="flex items-start gap-3"><ShieldCheck className="h-6 w-6 text-amber-400 flex-shrink-0 mt-0.5" /><div><p className="font-semibold">{t('landing_compliance_title')}</p><p className="text-sm text-stone-400 mt-1">{t('landing_compliance_body')}</p></div></div><span className="text-xs uppercase tracking-widest text-amber-400 font-bold whitespace-nowrap">{t('landing_compliance_sa')}</span></div><button onClick={() => setDownloadDocument('brochure')} className="mt-6 rounded-full border border-stone-700 px-6 py-3 text-sm font-bold text-amber-400 hover:border-amber-400 transition">{t('landing_download_brochure')}</button></div></section>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={() => navigate('/register')}
-                className="px-8 py-3 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors shadow-md"
-              >
-                {t('landing_cta_trial')}
-              </button>
-              <button
-                onClick={handleBusinessLogin}
-                disabled={loginLoading}
-                className="px-8 py-3 bg-transparent text-amber-500 border-2 border-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loginLoading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    {t('common_processing')}
-                  </>
-                ) : (
-                  t('landing_cta_business_login')
-                )}
-              </button>
-            </div>
+    <section className="bg-white text-stone-900 py-24"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20"><div className="grid lg:grid-cols-2 gap-14 items-center"><div><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_market_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_market_heading')}</h2><p className="mt-6 text-lg text-stone-600 leading-relaxed">{t('landing_market_body')}</p></div><div className="rounded-3xl bg-stone-950 p-6 md:p-8 shadow-2xl"><div className="flex items-center justify-between mb-7"><div><p className="text-white font-bold">{t('reports_visitor_origin_explorer')}</p><p className="text-xs text-stone-500 mt-1">{t('reports_guest_checkins_count',{count:122})}</p></div><Globe2 className="h-7 w-7 text-amber-400" /></div><div className="space-y-5">{[[t('analytics_region_euro_zone'),68],[t('analytics_region_africa_sub'),47],[t('analytics_region_amer_north'),31],[t('analytics_region_oceania'),18]].map(([label,value]) => <div key={label as string}><div className="flex justify-between text-sm mb-2"><span className="text-stone-300">{label}</span><span className="text-amber-400 font-semibold">{value}%</span></div><div className="h-2 rounded-full bg-stone-800 overflow-hidden"><div className="h-full rounded-full bg-amber-500" style={{width:`${value}%`}} /></div></div>)}</div><div className="mt-7 pt-6 border-t border-stone-800 flex items-center gap-3 text-sm text-stone-400"><BarChart3 className="h-5 w-5 text-amber-400" />{t('landing_market_visual_note')}</div><button onClick={() => setDownloadDocument('visitor-origin')} className="mt-6 w-full rounded-xl border border-amber-500/50 px-5 py-3 text-sm font-bold text-amber-400 hover:bg-amber-500/10 transition">{t('landing_download_visitor_origin')}</button></div></div><div className="grid lg:grid-cols-2 gap-14 items-center"><div className="order-2 lg:order-1 rounded-3xl bg-stone-100 p-6 md:p-8 border border-stone-200"><div className="bg-white rounded-2xl shadow-sm p-6"><div className="flex items-center gap-3 border-b border-stone-200 pb-5"><FileCheck2 className="h-7 w-7 text-amber-600" /><div><p className="font-bold">{t('landing_snapshot_card_title')}</p><p className="text-xs text-stone-500">{t('landing_snapshot_card_period')}</p></div></div><div className="grid grid-cols-2 gap-4 mt-6">{[[t('landing_snapshot_metric_checkins'),'57'],[t('landing_snapshot_metric_guests'),'122'],[t('landing_snapshot_metric_occupancy'),'13.2%'],[t('landing_snapshot_metric_nights'),'71']].map(([label,value]) => <div key={label as string} className="rounded-xl bg-stone-50 p-4"><p className="text-xs uppercase tracking-wide text-stone-500">{label}</p><p className="text-2xl font-bold mt-1">{value}</p></div>)}</div><div className="mt-5 h-24 rounded-xl bg-gradient-to-r from-stone-100 via-amber-50 to-stone-100 flex items-end gap-2 px-4 pb-4">{[35,52,43,68,55,77,64,86,72,91].map((height,index) => <div key={index} className="flex-1 rounded-t bg-amber-400/80" style={{height:`${height}%`}} />)}</div><button onClick={() => setDownloadDocument('business-snapshot')} className="mt-5 w-full rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-amber-400 hover:bg-stone-800 transition">{t('landing_download_business_snapshot')}</button></div></div><div className="order-1 lg:order-2"><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_snapshot_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_snapshot_heading')}</h2><p className="mt-6 text-lg text-stone-600 leading-relaxed">{t('landing_snapshot_body')}</p></div></div></div></section>
 
-            <p className="mt-4 text-sm text-white/80">
-              {t('landing_trial_note')}
-            </p>
-          </div>
-        </div>
-      </div>
+    <section id="pricing-section" className="bg-stone-100 py-24 text-stone-900"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center max-w-3xl mx-auto mb-14"><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_pricing_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_pricing_heading')}</h2><p className="mt-4 text-stone-600">{t('landing_pricing_subheading')}</p><p className="mt-3 text-xs text-stone-500">Prices shown in {regionalPricing.currency} are regional customer prices, converted from the current ZAR price using buffered monthly exchange rates and a regional adjustment. Peach Payments charges the subscription amount in ZAR; international prices are reviewed monthly.</p></div><div className="grid items-start gap-4 md:grid-cols-2 lg:grid-cols-4">{plans.slice(0,4).map((plan,index) => { const price=regionalPricing.prices[index]; const expanded=expandedPricingPlans.includes(plan.key); const visibleFeatures=expanded?plan.features:plan.features.slice(0,6); return <div key={plan.key} className={`relative self-start rounded-2xl bg-white p-5 shadow-sm border flex flex-col ${plan.isPopular?'border-amber-500 ring-2 ring-amber-500/20':'border-stone-200'}`}>{plan.isPopular&&<span className="absolute -top-3 left-5 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-stone-950">Most Popular</span>}<div className="flex items-center"><h3 className="text-xl font-bold">{plan.name}</h3><InfoTip label={`Ideal customer for ${plan.name}`}>{plan.idealCustomer}</InfoTip></div><p className="mt-1.5 text-sm font-semibold text-amber-700">From {plan.minimumRooms} {plan.minimumRooms===1?'room':'rooms'}</p><p className="mt-1.5 text-sm text-stone-500">{plan.description}</p><div className="mt-4 border-y border-stone-200 py-4"><div className="flex items-baseline gap-1"><span className="text-xs font-semibold text-stone-500">From</span><span className="text-2xl font-black">{currencySymbol}{price.monthly.toLocaleString()}</span><span className="text-xs text-stone-500">/month</span></div><p className="mt-1.5 text-sm text-stone-600">{currencySymbol}{price.yearly.toLocaleString()} /year</p><p className="mt-1 text-xs text-stone-400">5-room capacity blocks · no maximum room count</p></div><ul className="mt-4 space-y-2.5">{visibleFeatures.map((feature)=><FeatureLine key={`${plan.key}-${feature.label}`} feature={feature}/>)}</ul>{plan.features.length>6&&<button type="button" aria-expanded={expanded} onClick={()=>setExpandedPricingPlans(current=>expanded?current.filter(key=>key!==plan.key):[...current,plan.key])} className="mt-3 inline-flex items-center gap-1 self-start text-sm font-semibold text-amber-700 hover:text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded-md">{expanded?'See less':'See more'} {expanded?<ChevronUp className="h-4 w-4"/>:<ChevronDown className="h-4 w-4"/>}</button>}<button onClick={()=>navigate('/register')} className={`mt-5 w-full rounded-xl py-2.5 font-bold transition ${plan.isPopular?'bg-amber-500 text-stone-950 hover:bg-amber-400':'bg-stone-900 text-white hover:bg-stone-800'}`}>Start Free Trial</button></div>; })}</div>
 
-      {/* Features Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-3xl font-bold text-center text-white mb-12">
-          {t('landing_features_heading')}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">📱</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_digital_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_digital_desc')}</p>
-          </div>
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">🔒</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_popia_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_popia_desc')}</p>
-          </div>
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">📸</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_id_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_id_desc')}</p>
-          </div>
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">✍️</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_signature_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_signature_desc')}</p>
-          </div>
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_analytics_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_analytics_desc')}</p>
-          </div>
-          <div className="text-center p-6 bg-stone-800/50 rounded-xl">
-            <div className="text-4xl mb-4">📋</div>
-            <h3 className="text-xl font-semibold text-white mb-2">{t('landing_feature_register_title')}</h3>
-            <p className="text-stone-300">{t('landing_feature_register_desc')}</p>
-          </div>
-        </div>
-      </div>
+      <div className="mt-8 rounded-3xl bg-stone-950 p-8 md:p-10 text-white shadow-2xl border border-stone-800"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8"><div className="max-w-4xl"><div className="flex items-center"><h3 className="text-3xl md:text-4xl font-black">Enterprise</h3><InfoTip label="Ideal customer for Enterprise"><span>Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence.</span></InfoTip></div><p className="mt-3 text-amber-400 font-bold uppercase tracking-[0.16em] text-xs">The elite package for hotel groups and multi-establishment operators</p><p className="mt-5 text-stone-300 leading-relaxed">One platform. Every establishment. One view of your portfolio. Enterprise brings your establishments together under one management structure, giving owners, directors and senior executives a consolidated view of operations, performance, guest markets and business intelligence.</p><div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">{['Multi-establishment management','Consolidated portfolio analytics','Executive portfolio intelligence','Unlimited Portfolio Snapshots','Advanced Analytics','Branding Customisation (white-label check-in)'].map((item)=><div key={item} className="flex items-center gap-2 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-3"><Check className="h-4 w-4 text-amber-400 flex-shrink-0" />{item}</div>)}</div></div><div className="lg:w-72 flex-shrink-0"><div className="rounded-2xl border border-amber-500/30 bg-stone-900 p-6"><p className="text-xs uppercase tracking-[0.2em] text-stone-400">From</p><p className="mt-2 text-4xl font-black text-white">{currencySymbol}{regionalPricing.prices[4].monthly.toLocaleString()}</p><p className="mt-1 text-stone-400">/month</p><p className="mt-3 text-sm text-stone-300">{currencySymbol}{regionalPricing.prices[4].yearly.toLocaleString()} /year</p><p className="mt-1 text-xs text-stone-500">From 21 rooms · first 2 properties included</p><button onClick={()=>setEnterpriseInquiryOpen(true)} className="mt-6 w-full rounded-full bg-amber-500 px-6 py-3 font-bold text-stone-950 hover:bg-amber-400 transition">Start Free Trial</button></div></div></div></div>
 
-      {/* Pricing Section */}
-      <div id="pricing-section" className="bg-stone-800/50 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">
-              {t('landing_pricing_heading')}
-            </h2>
-            <p className="text-stone-300">
-              {t('landing_pricing_subheading')}
-            </p>
-          </div>
+      <div className="mt-10 rounded-3xl bg-white border border-stone-200 p-7 md:p-9"><div className="max-w-3xl"><p className="text-amber-600 uppercase tracking-[0.22em] text-xs font-bold">Enterprise at a glance</p><h3 className="mt-3 text-3xl font-bold">Manage your portfolio from one place</h3><p className="mt-4 text-stone-600 leading-relaxed">Enterprise is designed for hotel groups and operators managing multiple establishments. It provides a centralised view of performance across the portfolio, helping owners, CEOs, CFOs, directors and boards understand what is happening across their properties without managing each establishment independently.</p></div><div className="mt-7 grid md:grid-cols-2 lg:grid-cols-3 gap-4">{[['Digital Check-in','Available across all packages'],['Advanced operations','Included from Pro'],['Portfolio Snapshots','Optional from Starter/Growth/Pro · Unlimited in Business/Enterprise'],['Branding Customisation','Included from Pro upward; guest check-in form uses the establishment’s branding without FastCheckIn branding'],['Marketing Download','Optional in Starter/Growth · Included from Pro'],['Multi-establishment management','Enterprise only'],['Consolidated portfolio intelligence','Enterprise only']].map(([title,body])=><div key={title} className="rounded-2xl bg-stone-50 border border-stone-200 p-5"><p className="font-bold">{title}</p><p className="mt-2 text-sm text-stone-600">{body}</p></div>)}</div><p className="mt-6 text-sm text-stone-500"><strong>Important:</strong> A hotel group can technically use FastCheckIn primarily for Digital Check-in, but all establishments and services remain within the same FastCheckIn account structure. This is possible, but not necessarily practical for a larger group; Enterprise is designed to make multi-establishment operation practical through consolidated management and portfolio intelligence.</p><p className="mt-4 text-sm text-stone-500">Enterprise establishment fees: the first two establishments are included; establishments 3–5 are R299 each per month; from the 6th establishment onward, the 15% volume discount reduces the fee to R254 per establishment per month.</p></div><div className="mt-8 text-center"><button onClick={()=>setDownloadDocument('brochure')} className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-bold text-stone-900 hover:border-amber-500 hover:text-amber-700 transition">{t('landing_download_brochure')}</button></div></div></section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {pricingPlans.map((plan) => (
-              <div
-                key={plan.nameKey}
-                className={`relative bg-stone-800 rounded-2xl shadow-lg overflow-hidden transition-transform hover:scale-105 ${
-                  plan.isPopular ? 'ring-2 ring-amber-500' : 'border border-stone-700'
-                }`}
-              >
-                {plan.isPopular && (
-                  <div className="absolute top-0 right-0 bg-amber-500 text-stone-900 px-4 py-1 text-xs font-bold uppercase tracking-wider">
-                    {t('landing_plan_most_popular')}
-                  </div>
-                )}
+    <section className="bg-white py-24 text-stone-900"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-12"><p className="text-amber-600 uppercase tracking-[0.22em] text-sm font-bold">{t('landing_enquiry_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-bold">{t('landing_enquiry_heading')}</h2><p className="mt-5 text-lg text-stone-600">{t('landing_enquiry_body')}</p></div><form onSubmit={submitInquiry} className="rounded-3xl border border-stone-200 bg-stone-50 p-6 md:p-8"><div className="grid gap-5 md:grid-cols-2"><label><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_full_name')}</span><input name="fullName" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label><label><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_company')}</span><input name="companyName" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label><label><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_email')}</span><input name="email" type="email" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label><label><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_telephone')}</span><input name="telephone" type="tel" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label><label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_address')}</span><input name="address" required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" /></label><label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_topic')}</span><select name="topic" required defaultValue="" className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3"><option value="" disabled>{t('landing_form_select_option')}</option><option value="General enquiry">{t('landing_form_topic_general')}</option><option value="Request a demonstration">{t('landing_form_topic_demo')}</option><option value="Pricing and plans">{t('landing_form_topic_pricing')}</option><option value="Digital check-in and guest experience">{t('landing_form_topic_digital')}</option><option value="Guest management and compliance">{t('landing_form_topic_guest')}</option><option value="Housekeeping and hotel operations">{t('landing_form_topic_housekeeping')}</option><option value="Analytics and Visitor Origin Explorer">{t('landing_form_topic_analytics')}</option><option value="Business Snapshot and reporting">{t('landing_form_topic_snapshot')}</option><option value="Multi-property / Enterprise">{t('landing_form_topic_multi')}</option><option value="Payments and card tokenization">{t('landing_form_topic_payments')}</option><option value="Partnership or integration">{t('landing_form_topic_partnership')}</option></select></label><label className="md:col-span-2"><span className="mb-1.5 block text-sm font-semibold">{t('landing_form_comments')}</span><textarea name="comments" rows={5} required className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3" placeholder={t('landing_form_comments_placeholder')} /></label></div><TurnstileWidget action="homepage-enquiry" onToken={setInquiryTurnstileToken} resetKey={inquiryTurnstileResetKey} />{inquiryMessage&&<p className="mt-5 rounded-xl bg-white px-4 py-3 text-sm text-stone-700 border border-stone-200">{inquiryMessage}</p>}<button disabled={inquiryBusy} type="submit" className="mt-6 rounded-xl bg-stone-950 px-7 py-3.5 font-bold text-amber-400 hover:bg-stone-800 disabled:opacity-60">{inquiryBusy?t('landing_form_sending'):t('landing_form_send')}</button><p className="mt-4 text-xs text-stone-500">{t('landing_form_privacy_note')}</p></form></div></section>
 
-                <div className="p-6">
-                  <h3 className="text-2xl font-bold text-white mb-2">{t(plan.nameKey)}</h3>
-                  <p className="text-stone-400 text-sm mb-4">{t('landing_plan_up_to_rooms', { count: plan.maxRooms })}</p>
+    <section className="relative overflow-hidden bg-amber-500 py-24 text-stone-950"><div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,_#fff_0,_transparent_45%)]" /><div className="relative max-w-4xl mx-auto px-4 text-center"><p className="uppercase tracking-[0.22em] text-xs font-black">{t('landing_final_eyebrow')}</p><h2 className="mt-4 text-4xl md:text-5xl font-black">{t('landing_final_heading')}</h2><p className="mt-5 text-lg text-stone-800 max-w-2xl mx-auto">{t('landing_final_body')}</p><button onClick={()=>navigate('/register')} className="mt-8 rounded-full bg-stone-950 px-9 py-4 font-bold text-amber-400 hover:bg-stone-800 transition shadow-xl">{t('landing_cta_get_started')}</button><p className="mt-4 text-sm text-stone-700">{t('landing_cta_trial_note')}</p><button onClick={()=>setDownloadDocument('brochure')} className="mt-7 rounded-full border border-stone-900/30 px-7 py-3 font-bold text-stone-950 hover:bg-white/20 transition">{t('landing_download_brochure')}</button></div></section>
 
-                  <div className="mb-6">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold text-amber-500">R{plan.priceMonthly}</span>
-                      <span className="text-stone-400">{t('landing_plan_per_month')}</span>
-                    </div>
-                    <div className="text-sm text-stone-400">
-                      {t('landing_plan_or_year')} <span className="text-white">R{plan.priceYearly}</span>{t('landing_plan_per_year')}
-                    </div>
-                  </div>
+    <footer className="bg-stone-950 text-stone-400 py-12 border-t border-stone-800"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="flex flex-col md:flex-row justify-between items-center gap-8"><div className="text-center md:text-left"><img src="/fastcheckin-logo.png" alt={t('landing_logo_alt')} className="h-12 w-auto object-contain mb-3" /><p className="text-sm">{t('landing_footer_tagline')}</p></div><div className="flex flex-wrap justify-center gap-x-7 gap-y-3 text-sm"><button onClick={()=>scrollTo('platform-section')} className="hover:text-white transition">{t('landing_redesign_platform_link')}</button><button onClick={()=>scrollTo('pricing-section')} className="hover:text-white transition">{t('landing_redesign_pricing_link')}</button><button onClick={()=>setLegalDocument('privacy')} className="hover:text-white transition">{t('landing_footer_privacy_terms')}</button><button onClick={()=>navigate('/super-admin-login')} className="hover:text-white transition">{t('landing_footer_super_admin')}</button></div></div><div className="text-center text-xs mt-8 pt-8 border-t border-stone-800">{t('landing_footer_copyright',{year:new Date().getFullYear()})}</div></div></footer>
 
-                  <ul className="space-y-3 mb-8">
-                    {plan.featureKeys.map((featureKey) => (
-                      <li key={featureKey} className="flex items-start gap-2 text-stone-300 text-sm">
-                        <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{t(featureKey)}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    onClick={() => navigate('/register')}
-                    className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-                      plan.buttonVariant === 'primary'
-                        ? 'bg-amber-500 text-stone-900 hover:bg-amber-400'
-                        : 'bg-stone-700 text-white hover:bg-stone-600'
-                    }`}
-                  >
-                    {t('landing_plan_start_trial')}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-12 animate-bounce">
-            <button
-              onClick={scrollToPricing}
-              className="text-stone-500 text-sm flex items-center justify-center gap-2 hover:text-stone-400 transition-colors group"
-            >
-              <span>{t('landing_register_here')}</span>
-              <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Enterprise Tier */}
-          <div className="mt-12 bg-gradient-to-r from-stone-800 to-stone-800/50 rounded-2xl p-8 text-center border border-stone-700">
-            <h3 className="text-2xl font-bold text-white mb-2">{t('landing_enterprise_title')}</h3>
-            <p className="text-amber-500 font-semibold mb-4">{t('landing_enterprise_pricing')}</p>
-            <ul className="flex flex-wrap justify-center gap-6 mb-6 text-stone-300 text-sm">
-              <li>✓ {t('landing_enterprise_f1')}</li>
-              <li>✓ {t('landing_enterprise_f2')}</li>
-              <li>✓ {t('landing_enterprise_f3')}</li>
-              <li>✓ {t('landing_enterprise_f4')}</li>
-            </ul>
-            <button
-              onClick={() => window.location.href = 'mailto:sales@fastcheckin.co.za'}
-              className="px-8 py-3 bg-transparent border-2 border-amber-500 text-amber-500 rounded-lg font-semibold hover:bg-amber-500/10 transition-colors"
-            >
-              {t('landing_contact_us')}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-stone-900 mb-4">
-            {t('landing_cta_heading')}
-          </h2>
-          <p className="text-stone-800 mb-8">
-            {t('landing_cta_subheading')}
-          </p>
-          <button
-            onClick={() => navigate('/register')}
-            className="px-8 py-3 bg-stone-900 text-amber-500 rounded-lg font-semibold hover:bg-stone-800 transition-colors"
-          >
-            {t('landing_cta_get_started')}
-          </button>
-          <p className="text-stone-800 text-sm mt-4">
-            {t('landing_cta_trial_note')}
-          </p>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-stone-900 text-stone-400 py-12 border-t border-stone-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-center md:text-left">
-              <img
-                src="/fastcheckin-logo.png"
-                alt={t('landing_logo_alt')}
-                className="h-12 w-auto object-contain mb-2"
-                style={{ imageRendering: 'auto' }}
-              />
-              <p className="text-sm">{t('landing_footer_tagline')}</p>
-            </div>
-            <div className="flex gap-8 text-sm">
-              <a href="#" className="hover:text-white transition-colors">{t('landing_footer_about')}</a>
-              <a href="#" className="hover:text-white transition-colors">{t('landing_footer_privacy')}</a>
-              <a href="#" className="hover:text-white transition-colors">{t('landing_footer_terms')}</a>
-              <button
-                onClick={() => navigate('/super-admin-login')}
-                className="hover:text-white transition-colors"
-              >
-                {t('landing_footer_super_admin')}
-              </button>
-            </div>
-          </div>
-          <div className="text-center text-xs mt-8">
-            {t('landing_footer_copyright', { year: new Date().getFullYear() })}
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
+    <GlobalMarketSelector />
+    <HomepageLeadModal document={downloadDocument} onClose={()=>setDownloadDocument(null)} onDownloaded={()=>setDownloadDocument(null)} onOpenLegal={(document)=>{setDownloadDocument(null);setLegalDocument(document);}} />
+    <HomepageLegalModal document={legalDocument} onClose={()=>setLegalDocument(null)} />
+    <PricingComingSoonModal open={enterpriseInquiryOpen} onClose={()=>setEnterpriseInquiryOpen(false)} />
+  </div>;
 }
