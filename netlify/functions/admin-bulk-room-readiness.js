@@ -26,7 +26,12 @@ export const handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return response(400, headers, { error: 'Request body must be valid JSON.' });
+    }
     const { businessId: requestedBusinessId, roomIds, action } = body;
     if (!requestedBusinessId || !Array.isArray(roomIds) || !roomIds.length || roomIds.length > 100 ||
         !roomIds.every((id) => typeof id === 'string' && UUID.test(id)) ||
@@ -88,7 +93,7 @@ export const handler = async (event) => {
         business_id: businessId,
         room_id: room.id,
         event_type: eventType,
-        source: 'staff',
+        source: 'system',
         severity: 'info',
         performed_by: typeof actorId === 'string' && UUID.test(actorId) ? actorId : null,
         details: { action, actor_type: actor.principal.actorType || 'business', actor_id: actorId, note: 'Room marked ready using owner/admin bulk housekeeping shortcut.' },
