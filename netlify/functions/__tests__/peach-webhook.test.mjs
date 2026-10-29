@@ -86,3 +86,46 @@ test('signed webhook is persisted before it receives a 200 acknowledgement', asy
     if (originalKey === undefined) delete process.env.SUPABASE_SERVICE_KEY; else process.env.SUPABASE_SERVICE_KEY = originalKey;
   }
 });
+
+
+test('Orchestration webhook event is persisted using event_id without Checkout HMAC headers', async () => {
+  const originalSecret = process.env.PEACH_WEBHOOK_SECRET;
+  const originalToken = process.env.PEACH_WEBHOOK_AUTH_TOKEN;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalKey = process.env.SUPABASE_SERVICE_KEY;
+  const originalFetch = global.fetch;
+  delete process.env.PEACH_WEBHOOK_SECRET;
+  delete process.env.PEACH_WEBHOOK_AUTH_TOKEN;
+  process.env.SUPABASE_URL = 'https://supabase.example';
+  process.env.SUPABASE_SERVICE_KEY = 'service-test-key';
+
+  let inserted = false;
+  global.fetch = async (_url, options) => {
+    inserted = true;
+    const rows = JSON.parse(options.body);
+    assert.equal(rows[0].webhook_id, 'evt-orchestration-test');
+    assert.equal(rows[0].event_type, 'payment_succeeded');
+    return { ok: true, status: 201, text: async () => '' };
+  };
+
+  try {
+    const result = await handler({
+      httpMethod: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        event_id: 'evt-orchestration-test',
+        event_type: 'payment_succeeded',
+        timestamp: '2026-10-29T10:00:00Z',
+        content: { status: 'Succeeded', profile_id: 'pro-test' },
+      }),
+    });
+    assert.equal(result.statusCode, 200);
+    assert.equal(inserted, true);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalSecret === undefined) delete process.env.PEACH_WEBHOOK_SECRET; else process.env.PEACH_WEBHOOK_SECRET = originalSecret;
+    if (originalToken === undefined) delete process.env.PEACH_WEBHOOK_AUTH_TOKEN; else process.env.PEACH_WEBHOOK_AUTH_TOKEN = originalToken;
+    if (originalUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = originalUrl;
+    if (originalKey === undefined) delete process.env.SUPABASE_SERVICE_KEY; else process.env.SUPABASE_SERVICE_KEY = originalKey;
+  }
+});
