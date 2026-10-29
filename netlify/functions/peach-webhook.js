@@ -108,9 +108,11 @@ export const handler = async (event) => {
   // enabled. Acknowledge only the documented verificationCode probe; never
   // treat it as a payment event or update subscription state.
   if (
-    payload && typeof payload === 'object' &&
-    typeof payload.verificationCode === 'string' &&
-    !getHeader(headers, 'x-webhook-signature')
+    !getHeader(headers, 'x-webhook-signature') &&
+    (
+      rawBody.trim() === '' ||
+      (payload && typeof payload === 'object' && typeof payload.verificationCode === 'string')
+    )
   ) {
     return response(200, { received: true });
   }
