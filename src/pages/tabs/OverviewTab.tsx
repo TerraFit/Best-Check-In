@@ -17,6 +17,7 @@ interface OverviewTabProps {
   businessId: string;
   onShowQRModal: () => void;
   onShowImportModal: () => void;
+  limitedAccess?: boolean;
 }
 
 function resolveReadinessTone(
@@ -45,17 +46,18 @@ export function OverviewTab({
   businessId,
   onShowQRModal,
   onShowImportModal,
+  limitedAccess = false,
 }: OverviewTabProps) {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId || limitedAccess) return;
     fetchRooms(businessId, { includeInactive: true })
       .then(setRooms)
       .catch(() => setRooms([]));
-  }, [businessId]);
+  }, [businessId, limitedAccess]);
 
   const handleGuestClick = (bookingId: string) => {
     setSelectedBookingId(bookingId);
@@ -66,7 +68,7 @@ export function OverviewTab({
     guests.map((guest: any) => ({
       ...guest,
       readinessTone: resolveReadinessTone(guest, rooms),
-      onClick: () => handleGuestClick(guest.id),
+      onClick: limitedAccess ? undefined : () => handleGuestClick(guest.id),
     }));
 
   return (
@@ -78,14 +80,14 @@ export function OverviewTab({
           stayovers={wrapGuestCards(todayStayovers)}
           checkouts={wrapGuestCards(todayCheckouts)}
         />
-        <QuickActions
+        {!limitedAccess && <QuickActions
           businessId={businessId}
           onShowQRModal={onShowQRModal}
           onShowImportModal={onShowImportModal}
-        />
+        />}
       </div>
 
-      <GuestDetailsModal
+      {!limitedAccess && <GuestDetailsModal
         isOpen={isModalOpen}
         bookingId={selectedBookingId}
         onClose={() => {
@@ -93,7 +95,7 @@ export function OverviewTab({
           setSelectedBookingId(null);
         }}
         businessId={businessId}
-      />
+      />}
     </>
   );
 }
