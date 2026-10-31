@@ -49,6 +49,12 @@ export function TrialBanner({ subscriptionStatus, trialDaysLeft, trialEnd }: Tri
     );
   }
 
+  if (status === 'checkin_only') {
+    const recoveryEnd = end ? new Date(end) : null;
+    const recoveryDays = recoveryEnd ? Math.max(0, Math.ceil((recoveryEnd.getTime() - Date.now()) / 86400000)) : null;
+    return <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4"><div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-amber-900">Your subscription payment needs attention.</p><p className="mt-1 text-sm text-amber-800">Guest check-in remains active. You can view this dashboard overview, but other features are locked until payment is resolved.{recoveryEnd ? ` Limited access ends ${recoveryEnd.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}${recoveryDays !== null ? ` (${recoveryDays} days remaining)` : ''}.` : ''}</p></div><button onClick={() => navigate('/business/billing')} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Restore full access →</button></div></div></div>;
+  }
+
   if (!['trial', 'trialing'].includes(status) || daysLeft === null) return null;
 
   const isUrgent = daysLeft <= 3;
