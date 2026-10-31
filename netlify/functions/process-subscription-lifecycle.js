@@ -159,9 +159,9 @@ async function processTrial(business, now) {
     }
 
     await supabase('subscription_payment_attempts', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify([{ business_id: business.id, billing_period_start: period, amount: Math.round(Number(amount) * 100), currency, provider: 'peach', provider_payment_id: providerPaymentId, status, error_code: errorCode, error_message: errorMessage, attempt_number: 1 }]) });
-    const graceEnd = new Date(end.getTime() + 3 * DAY);
-    await updateBusiness(business.id, { subscription_status: 'past_due', payment_status: 'failed', payment_attempted_at: now.toISOString(), payment_failure_count: 1, payment_last_error: errorMessage, payment_grace_ends_at: graceEnd.toISOString() });
-    await sendOnce(business, `payment-failed-day-0:${period}`, 'We could not process your FastCheckIn payment', emailShell('Your payment needs attention', `<p>Your free trial has ended and we attempted to start your <strong>${normalizePlanId(business.current_plan)}</strong> subscription.</p><p>We could not complete the payment. Your account remains available during the payment grace period.</p><p>Please update your payment details as soon as possible.</p>`, 'Fix payment', '/business/billing'));
+    const graceEnd = new Date(end.getTime() + 30 * DAY);
+    await updateBusiness(business.id, { subscription_status: 'checkin_only', payment_status: 'failed', payment_attempted_at: now.toISOString(), payment_failure_count: 1, payment_last_error: errorMessage, payment_grace_ends_at: graceEnd.toISOString() });
+    await sendOnce(business, `payment-failed-day-0:${period}`, 'We could not process your FastCheckIn payment', emailShell('Your payment needs attention', `<p>Your free trial has ended and we attempted to start your <strong>${normalizePlanId(business.current_plan)}</strong> subscription.</p><p>We could not complete the payment. Guest check-in will continue for 30 days, and you can still view your dashboard overview and guest activity. Other dashboard features are temporarily locked.</p><p>Please update your payment details as soon as possible.</p>`, 'Fix payment', '/business/billing'));
     return { action: 'payment_failed', errorCode };
   }
 
@@ -172,20 +172,20 @@ async function processPastDue(business, trialEnd, now) {
   const day = wholeDaysSince(trialEnd, now);
   if (day < 1) return { action: 'past_due_day_0' };
 
-  if (day <= 3) {
-    const subject = day === 1 ? 'Payment failed — please update your FastCheckIn payment method' : `FastCheckIn payment reminder — ${day} days overdue`;
-    await sendOnce(business, `payment-failed-day-${day}:${business.trial_end}`, subject, emailShell(day === 1 ? 'Your FastCheckIn payment failed' : 'Your FastCheckIn payment is still outstanding', `<p>We still have not received payment for your FastCheckIn subscription.</p><p>Your account remains available during the grace period, but please resolve the payment issue to avoid interruption.</p>` , 'Update payment', '/business/billing'));
+  if (day >= 1 && day <= 5) {
+    const subject = day === 5 ? 'Final warning — restore your FastCheckIn subscription' : `Payment failed — FastCheckIn reminder day ${day}`;
+    await sendOnce(business, `payment-failed-day-${day}:${business.trial_end}`, subject, emailShell(day === 1 ? 'Your FastCheckIn payment failed' : 'Your FastCheckIn payment is still outstanding', `<p>We still have not received payment for your FastCheckIn subscription.</p><p>Guest check-in remains active during the 30-day limited-access period. Your dashboard overview remains available, but other features are locked. Please update your payment details to restore full access.</p>` , 'Update payment', '/business/billing'));
     return { action: 'payment_grace', day };
   }
 
-  if (day === 4 && business.subscription_status !== 'restricted') {
+  if (day >= 30 && business.subscription_status !== 'restricted') {
     await updateBusiness(business.id, { subscription_status: 'restricted' });
-    await sendOnce(business, `payment-restricted:${business.trial_end}`, 'Your FastCheckIn account has been restricted', emailShell('Your account has been restricted', `<p>Your payment grace period has ended and the subscription remains unpaid.</p><p>Your data is retained, but normal FastCheckIn access is now restricted until payment is resolved.</p>`, 'Restore access', '/business/billing'));
+    await sendOnce(business, `payment-restricted:${business.trial_end}`, 'Your FastCheckIn account has been restricted', emailShell('Your account has been restricted', `<p>Your 30-day limited-access period has ended and the subscription remains unpaid.</p><p>Your data is retained, but guest check-in and dashboard access are now restricted until payment is resolved.</p>`, 'Restore access', '/business/billing'));
     return { action: 'restricted', day };
   }
 
   if (day === 5) {
-    await sendOnce(business, `payment-final-warning:${business.trial_end}`, 'Final payment warning — FastCheckIn account restricted', emailShell('Final payment warning', `<p>Your FastCheckIn account is currently restricted because the subscription remains unpaid.</p><p>Resolve the payment issue to restore access to your property data and operations.</p>`, 'Restore access', '/business/billing'));
+    await sendOnce(business, `payment-final-warning:${business.trial_end}`, 'Final payment warning — FastCheckIn account restricted', emailShell('Final payment warning', `<p>Your FastCheckIn account is in limited-access mode because the subscription remains unpaid.</p><p>Resolve the payment issue now to avoid full account restriction after the 30-day period.</p>`, 'Restore access', '/business/billing'));
     return { action: 'final_warning', day };
   }
 
@@ -194,7 +194,7 @@ async function processPastDue(business, trialEnd, now) {
 
 export const handler = async () => {
   try {
-    const response = await supabase("businesses?subscription_status=in.(trial,trialing,past_due,restricted)&select=id,trading_name,email,current_plan,billing_cycle,total_rooms,subscription_status,trial_start,trial_end,payment_customer_id,payment_mandate_id&order=trial_end.asc");
+    const response = await supabase("businesses?subscription_status=in.(trial,trialing,past_due,checkin_only,restricted)&select=id,trading_name,email,current_plan,billing_cycle,total_rooms,subscription_status,trial_start,trial_end,payment_customer_id,payment_mandate_id&order=trial_end.asc");
     const businesses = await response.json();
     const now = new Date();
     const results = [];
