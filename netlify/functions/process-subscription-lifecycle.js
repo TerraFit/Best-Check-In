@@ -172,7 +172,7 @@ async function processPastDue(business, trialEnd, now) {
   const day = wholeDaysSince(trialEnd, now);
   if (day < 1) return { action: 'past_due_day_0' };
 
-  if (day >= 1 && day <= 5) {
+  if (day >= 1 && day <= 4) {
     const subject = day === 5 ? 'Final warning — restore your FastCheckIn subscription' : `Payment failed — FastCheckIn reminder day ${day}`;
     await sendOnce(business, `payment-failed-day-${day}:${business.trial_end}`, subject, emailShell(day === 1 ? 'Your FastCheckIn payment failed' : 'Your FastCheckIn payment is still outstanding', `<p>We still have not received payment for your FastCheckIn subscription.</p><p>Guest check-in remains active during the 30-day limited-access period. Your dashboard overview remains available, but other features are locked. Please update your payment details to restore full access.</p>` , 'Update payment', '/business/billing'));
     return { action: 'payment_grace', day };
