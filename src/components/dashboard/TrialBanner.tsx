@@ -9,16 +9,15 @@ interface TrialBannerProps {
 export function TrialBanner({ subscriptionStatus, trialDaysLeft, trialEnd }: TrialBannerProps) {
   const navigate = useNavigate();
 
-  if (!['trial', 'trialing'].includes(subscriptionStatus || '') || trialDaysLeft === null || !trialEnd) {
+  if (!['trial', 'trialing'].includes(subscriptionStatus || '') || trialDaysLeft === null) {
     return null;
   }
 
   const isUrgent = trialDaysLeft <= 3;
-  const expiry = new Date(trialEnd).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  const expiryDate = trialEnd
+    ? new Date(trialEnd)
+    : new Date(Date.now() + Math.max(0, trialDaysLeft) * 24 * 60 * 60 * 1000);
+  const expiry = expiryDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
