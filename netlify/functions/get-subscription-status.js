@@ -45,6 +45,10 @@ export const handler = async function (event) {
       message = `Free trial${business.trial_end ? ` until ${new Date(business.trial_end).toLocaleDateString()}` : ''}`;
       validUntil = business.trial_end;
       if (business.trial_end) trialDaysLeft = Math.max(0, Math.ceil((new Date(business.trial_end).getTime() - Date.now()) / 86400000));
+    } else if (status === 'checkin_only') {
+      message = 'Payment failed — guest check-in remains available during the 30-day recovery period';
+      validUntil = business.payment_grace_ends_at || null;
+      charge = getPlanPricing(effectivePlan, billingCycle, business.total_rooms).amount;
     } else if (status === 'past_due') {
       message = 'Payment failed — your account is in the payment grace period';
       validUntil = business.payment_grace_ends_at || null;
@@ -75,6 +79,7 @@ export const handler = async function (event) {
         trialEnd: business.trial_end || null,
         trialDaysLeft,
         paymentGraceEndsAt: business.payment_grace_ends_at || null,
+        limitedAccess: status === 'checkin_only',
         paymentStatus: business.payment_status || null,
         paymentMethod: business.payment_method || null,
         currency: 'ZAR',
