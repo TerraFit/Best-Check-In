@@ -14,6 +14,7 @@ interface HeaderProps {
   onRefresh: () => void;
   onLogout: () => void;
   onShowQRModal?: () => void;
+  limitedAccess?: boolean;
 }
 
 export function Header({
@@ -22,6 +23,7 @@ export function Header({
   onRefresh,
   onLogout,
   onShowQRModal,
+  limitedAccess = false,
 }: HeaderProps) {
   const [showQRModal, setShowQRModal] = useState(false);
   const { t } = useTranslation();
@@ -66,7 +68,7 @@ export function Header({
             </div>
 
             <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-              <button
+              {!limitedAccess && <button
                 onClick={handleQRClick}
                 className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
               >
@@ -80,7 +82,7 @@ export function Header({
                 </svg>
                 <span className="hidden xs:inline">{t('dashboard_qr_code')}</span>
                 <span className="inline xs:hidden">QR</span>
-              </button>
+              </button>}
 
               <button
                 onClick={onRefresh}
@@ -103,7 +105,7 @@ export function Header({
                 </svg>
               </button>
 
-              <button
+              {!limitedAccess && <button
                 onClick={() => window.print()}
                 className="p-2 text-gray-500 hover:text-orange-500 rounded-lg hover:bg-gray-100 transition-colors hidden sm:block"
                 title={t('dashboard_print')}
@@ -116,7 +118,7 @@ export function Header({
                     d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
                   />
                 </svg>
-              </button>
+              </button>}
 
               <button
                 onClick={onLogout}
@@ -137,7 +139,7 @@ export function Header({
         </div>
       </header>
 
-      {showQRModal && business?.id && (
+      {!limitedAccess && showQRModal && business?.id && (
         <QRCodeModal
           businessId={business.id}
           businessName={business.trading_name || ''}
