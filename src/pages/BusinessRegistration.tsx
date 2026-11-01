@@ -709,16 +709,16 @@ export default function BusinessRegistration() {
                       {plan.id === 'growth' && (
                         <>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_growth_f1')}</span></p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-Room Management</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('login_multi_room_management')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_growth_f3')}</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('login_basic_reporting')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_business_f3')}</p>
                         </>
                       )}
                       {plan.id === 'pro' && (
                         <>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_pro_f1')}</span></p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Advanced Reporting</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('login_advanced_reporting')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_pro_f2')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f3')}</p>
                         </>
@@ -727,8 +727,8 @@ export default function BusinessRegistration() {
                         <>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_business_f1')}</span></p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_pro_f4')}</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Staff Permissions</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> API / Integrations</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('login_staff_permissions')}</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('login_api_integrations')}</p>
                         </>
                       )}
                     </div>
@@ -1567,7 +1567,7 @@ export default function BusinessRegistration() {
                         : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
                     }`}
                   >
-                    {t('login_yearly_billing')} <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
+                    {t('login_yearly_billing')} <span className="text-green-400 text-xs ml-1">{t('login_annual_saving')}</span>
                   </button>
                 </div>
 
