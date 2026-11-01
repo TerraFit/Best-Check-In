@@ -1289,5 +1289,8 @@
   "login_price_label": "Preis",
   "login_rooms_label": "Zimmer",
   "login_acknowledgement": "Ich bestätige, dass alle oben gemachten Angaben nach bestem Wissen wahr, richtig und vollständig sind.",
-  "login_enterprise_features": "Konsolidierte Portfolioverwaltung · Übergeordnete Portfolio-Intelligenz · Individuelle Integrationen und dedizierter Support"
+  "login_enterprise_features": "Konsolidierte Portfolioverwaltung · Übergeordnete Portfolio-Intelligenz · Individuelle Integrationen und dedizierter Support",
+  "login_property_count_help": "Geben Sie die Anzahl der von Ihrem Unternehmen betriebenen Unterkünfte ein.",
+  "login_rooms_count_help": "Geben Sie die Gesamtzahl der Zimmer aller Ihrer Unterkünfte ein. Enterprise-Preise beginnen bei 21 Zimmern.",
+  "reg_register_intro": "Vergleichen Sie Pakete und Funktionen, um die passende Lösung für Ihr Unternehmen zu finden. Wir empfehlen ein Paket basierend auf Ihrer Zimmerkapazität und den benötigten Tools."
 }
