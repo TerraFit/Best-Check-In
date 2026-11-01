@@ -1,9 +1,9 @@
 // src/i18n/useTranslation.ts
 import { useState, useEffect, useCallback } from 'react';
-import {
-  t,
-  getCurrentLanguage,
-  setLanguage,
+import { 
+  t, 
+  getCurrentLanguage, 
+  setLanguage, 
   onLanguageChange,
   getTranslations,
   type SupportedLanguage,
@@ -34,15 +34,8 @@ export const useTranslation = (): UseTranslationReturn => {
     setLanguage(lang);
   }, []);
 
-  const translate = useCallback((key: keyof TranslationKeys, params?: Record<string, string | number>) => {
-    if (key === 'landing_cta_trial_note') {
-      return '14-day free trial • Cancel anytime';
-    }
-    return t(key, params);
-  }, []);
-
   return {
-    t: translate,
+    t,
     language,
     setLanguage: handleSetLanguage,
     translations
