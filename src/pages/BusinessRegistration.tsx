@@ -538,13 +538,13 @@ export default function BusinessRegistration() {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-stone-400">Rooms</p>
+                <p className="text-sm text-stone-400">{t('login_rooms_label')}</p>
                 <p className="text-white">
                   {roomsCount} rooms
                 </p>
               </div>
               <div>
-                <p className="text-sm text-stone-400">Price</p>
+                <p className="text-sm text-stone-400">{t('login_price_label')}</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
                     ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
@@ -588,7 +588,7 @@ export default function BusinessRegistration() {
           {/* Property count comes first because Enterprise pricing includes portfolio fees. */}
           <div className="max-w-md mx-auto mb-6 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
-              How many properties does your company have?
+              {t('login_property_count_question')}
             </label>
             <input
               type="number"
@@ -608,14 +608,14 @@ export default function BusinessRegistration() {
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
-              Enter the number of establishments operated by your company.
+              {t('login_property_count_help')}
             </p>
           </div>
 
           {/* Combined room capacity across the portfolio */}
           <div className="max-w-md mx-auto mb-10 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
-              How many rooms are there across all your properties?
+              {t('login_rooms_count_question')}
             </label>
             <input
               type="number"
@@ -626,7 +626,7 @@ export default function BusinessRegistration() {
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
             <p className="text-stone-500 text-sm mt-2">
-              Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.
+              {t('login_rooms_count_help')}
             </p>
           </div>
 
@@ -700,33 +700,33 @@ export default function BusinessRegistration() {
                     <div className="mt-4 text-left space-y-2">
                       {plan.id === 'starter' && (
                         <>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest Check-In System</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Digital Registration Forms</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Email Confirmations</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f1')}</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f1')}</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_growth_f2')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('reg_basic_dashboard')}</p>
                         </>
                       )}
                       {plan.id === 'growth' && (
                         <>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Starter</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_growth_f1')}</span></p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-Room Management</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Guest History Tracking</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_growth_f3')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Basic Reporting</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Priority Support</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_business_f3')}</p>
                         </>
                       )}
                       {plan.id === 'pro' && (
                         <>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Growth</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_pro_f1')}</span></p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Advanced Reporting</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Custom Branding</p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Data Export</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_pro_f2')}</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f3')}</p>
                         </>
                       )}
                       {plan.id === 'business' && (
                         <>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">Everything in Pro</span></p>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Multi-User Access</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> <span className="font-semibold">{t('landing_plan_business_f1')}</span></p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_pro_f4')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> Staff Permissions</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> API / Integrations</p>
                         </>
@@ -791,7 +791,7 @@ export default function BusinessRegistration() {
                 {/* Enterprise Feature List */}
                 <div className="mt-4 text-left space-y-2">
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Consolidated portfolio management</p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> {t('login_enterprise_features')}</p>
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> High-level portfolio intelligence</p>
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom integrations and dedicated support</p>
                 </div>
@@ -864,7 +864,7 @@ export default function BusinessRegistration() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Legal Name (as per CIPC) *
+                      {t('login_legal_name')} *
                     </label>
                     <input
                       type="text"
@@ -877,7 +877,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Registration Number (optional)
+                      {t('login_registration_number')}
                     </label>
                     <input
                       type="text"
@@ -889,7 +889,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      VAT Number (optional)
+                      {t('login_vat_number')}
                     </label>
                     <input
                       type="text"
@@ -915,7 +915,7 @@ export default function BusinessRegistration() {
                   {/* NEW: Establishment Type Dropdown */}
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Type of Establishment *
+                      {t('login_establishment_type')} *
                     </label>
                     <select
                       value={businessData.establishmentType}
@@ -933,7 +933,7 @@ export default function BusinessRegistration() {
                   {/* NEW: TGSA Grading Dropdown */}
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      TGSA Grading (Optional)
+                      {t('login_tgsa_grading')}
                     </label>
                     <select
                       value={businessData.tgsaGrading}
@@ -954,7 +954,7 @@ export default function BusinessRegistration() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Street Address *
+                      {t('login_street_address')} *
                     </label>
                     <input
                       type="text"
@@ -1108,7 +1108,7 @@ export default function BusinessRegistration() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-stone-300 mb-1">
-                        Street Address
+                        {t('login_street_address')}
                       </label>
                       <input
                         type="text"
@@ -1205,7 +1205,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Confirm Email Address *
+                      {t('login_confirm_email')} *
                     </label>
                     <input
                       type="email"
@@ -1218,7 +1218,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Fixed Phone Number
+                      {t('login_fixed_phone')}
                     </label>
                     <input
                       type="tel"
@@ -1230,7 +1230,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Mobile Phone Number *
+                      {t('login_mobile_phone')} *
                     </label>
                     <input
                       type="tel"
@@ -1388,7 +1388,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Confirm Email Address *
+                      {t('login_confirm_email')} *
                     </label>
                     <input
                       type="email"
@@ -1401,7 +1401,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Fixed Phone Number
+                      {t('login_fixed_phone')}
                     </label>
                     <input
                       type="tel"
@@ -1413,7 +1413,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Mobile Phone Number *
+                      {t('login_mobile_phone')} *
                     </label>
                     <input
                       type="tel"
@@ -1435,8 +1435,7 @@ export default function BusinessRegistration() {
                       className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700"
                     />
                     <span className="text-stone-300 text-sm">
-                      I hereby acknowledge that all the information provided above is true, correct,
-                      and complete to the best of my knowledge.
+                      {t('login_acknowledgement')}
                     </span>
                   </label>
                 </div>
