@@ -790,10 +790,10 @@ export default function BusinessRegistration() {
                 
                 {/* Enterprise Feature List */}
                 <div className="mt-4 text-left space-y-2">
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">Everything in Business</span></p>
+                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">{t('landing_plan_enterprise_f1')}</span></p>
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> {t('login_enterprise_features')}</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> High-level portfolio intelligence</p>
-                  <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> Custom integrations and dedicated support</p>
+                  
+                  
                 </div>
                 
                 <button type="button" onClick={() => setEnterpriseInquiryOpen(true)} className="mt-4 w-full py-2 rounded-lg font-semibold text-center bg-stone-700 text-amber-300 border border-stone-600 hover:bg-stone-600 transition-colors">
