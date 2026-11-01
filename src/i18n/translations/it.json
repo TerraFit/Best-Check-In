@@ -1287,5 +1287,8 @@
   "login_price_label": "Prezzo",
   "login_rooms_label": "Camere",
   "login_acknowledgement": "Dichiaro che tutte le informazioni fornite sopra sono vere, corrette e complete secondo le mie conoscenze.",
-  "login_enterprise_features": "Gestione consolidata del portfolio · Intelligence avanzata del portfolio · Integrazioni personalizzate e supporto dedicato"
+  "login_enterprise_features": "Gestione consolidata del portfolio · Intelligence avanzata del portfolio · Integrazioni personalizzate e supporto dedicato",
+  "login_property_count_help": "Inserisci il numero di strutture gestite dalla tua azienda.",
+  "login_rooms_count_help": "Inserisci il numero totale di camere di tutte le tue strutture. I prezzi Enterprise partono da 21 camere.",
+  "reg_register_intro": "Confronta piani e funzionalità per trovare la soluzione più adatta alla tua attività. Ti consiglieremo un piano in base alla capacità delle camere e agli strumenti necessari."
 }
