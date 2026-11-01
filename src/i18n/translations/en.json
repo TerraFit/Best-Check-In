@@ -1289,5 +1289,8 @@
   "login_price_label": "Price",
   "login_rooms_label": "Rooms",
   "login_acknowledgement": "I acknowledge that all information provided is true, correct and complete to the best of my knowledge.",
-  "login_enterprise_features": "Consolidated portfolio management · High-level portfolio intelligence · Custom integrations and dedicated support"
+  "login_enterprise_features": "Consolidated portfolio management · High-level portfolio intelligence · Custom integrations and dedicated support",
+  "login_property_count_help": "Enter the number of establishments operated by your company.",
+  "login_rooms_count_help": "Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.",
+  "reg_register_intro": "Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need."
 }
