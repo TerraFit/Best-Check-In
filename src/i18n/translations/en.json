@@ -1213,7 +1213,7 @@
   "landing_enterprise_compare_7_title": "Consolidated portfolio analytics",
   "landing_enterprise_compare_7_body": "Enterprise only",
   "landing_enterprise_important_label": "Important:",
-  "landing_enterprise_important": "A hotel group can technically use FastCheckIn primarily for Digital Check-in, but all establishments and services remain within the same FastCheckIn account structure. This is possible, but not necessarily practical for a larger group. Enterprise is designed to make multi-establishment operation practical through consolidated management and portfolio intelligence.",
+  "landing_enterprise_important": "A hotel group can technically use FastCheckIn primarily for Digital Check-in, but all establishments and services remain within the same FastCheckIn account structure. This is possible, but not necessarily practical for a larger group. Enterprise makes multi-establishment operation practical through consolidated management and portfolio intelligence.",
   "landing_enterprise_fees": "Enterprise establishment fees: the first two establishments are included; establishments 3–5 are R299 each per month; from the 6th establishment onward, the 15% volume discount reduces the fee to R254 per establishment per month.",
   "landing_pf_digital_checkin": "Digital Check-in",
   "landing_pf_id_capture": "ID / passport capture",
@@ -1244,9 +1244,9 @@
   "landing_pf_note_origin_levels": "World → Continent → Country → Region → City",
   "landing_pf_more_info": "More information about {feature}",
   "landing_pf_note_marketing": "{monthly}/month or {voucher} voucher",
-  "landing_pf_info_snapshot": "A concise management view of occupancy, room nights, guest volumes, market mix, guest origin and other key performance indicators. Portfolio Snapshots help decision-makers understand property performance and how guest markets evolve.",
+  "landing_pf_info_snapshot": "A concise view of occupancy, room nights, guest volumes, market mix, guest origin and other key performance indicators.",
   "landing_pf_info_languages": "Available languages: Afrikaans, Arabic, Chinese, Dutch, English, French, German, Hebrew, Italian, Portuguese, Russian and Spanish.",
   "landing_pf_info_language_recognition": "Automatically recognises the guest’s language and presents the check-in experience in the appropriate supported language.",
-  "landing_pf_info_branding": "Customise the guest-facing check-in form with your establishment’s own branding, without FastCheckIn branding being shown to guests.",
+  "landing_pf_info_branding": "Customise the guest-facing check-in form with your establishment’s own branding, without FastCheckIn branding.",
   "landing_pf_info_executive": "A high-level portfolio view for owners, directors, CEOs, CFOs and boards, with establishment summaries and consolidated business intelligence."
 }
