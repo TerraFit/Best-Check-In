@@ -1273,5 +1273,20 @@
   "login_selected_plan": "Выбранный тариф",
   "login_change_plan": "Изменить тариф",
   "landing_plan_recommended": "Рекомендуется",
-  "login_select_plan": "Выбрать тариф"
+  "login_select_plan": "Выбрать тариф",
+  "login_legal_name": "Юридическое название (по данным CIPC)",
+  "login_registration_number": "Регистрационный номер (необязательно)",
+  "login_vat_number": "Номер плательщика НДС (необязательно)",
+  "login_establishment_type": "Тип объекта размещения",
+  "login_tgsa_grading": "Категория TGSA (необязательно)",
+  "login_street_address": "Улица и номер дома",
+  "login_confirm_email": "Подтвердите адрес электронной почты",
+  "login_fixed_phone": "Стационарный телефон",
+  "login_mobile_phone": "Мобильный телефон",
+  "login_property_count_question": "Сколько объектов размещения принадлежит вашей компании?",
+  "login_rooms_count_question": "Сколько номеров во всех ваших объектах размещения?",
+  "login_price_label": "Цена",
+  "login_rooms_label": "Номера",
+  "login_acknowledgement": "Подтверждаю, что вся указанная выше информация является правдивой, точной и полной, насколько мне известно.",
+  "login_enterprise_features": "Консолидированное управление портфелем · Стратегическая аналитика портфеля · Индивидуальные интеграции и выделенная поддержка"
 }
