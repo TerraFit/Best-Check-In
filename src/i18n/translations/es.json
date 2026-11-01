@@ -1287,5 +1287,8 @@
   "login_price_label": "Precio",
   "login_rooms_label": "Habitaciones",
   "login_acknowledgement": "Reconozco que toda la información facilitada anteriormente es verdadera, correcta y completa según mi leal saber y entender.",
-  "login_enterprise_features": "Gestión consolidada de cartera · Inteligencia estratégica de cartera · Integraciones personalizadas y asistencia dedicada"
+  "login_enterprise_features": "Gestión consolidada de cartera · Inteligencia estratégica de cartera · Integraciones personalizadas y asistencia dedicada",
+  "login_property_count_help": "Indique el número de establecimientos que gestiona su empresa.",
+  "login_rooms_count_help": "Indique el número total de habitaciones de todos sus establecimientos. Los precios Enterprise comienzan en 21 habitaciones.",
+  "reg_register_intro": "Compare planes y funciones para encontrar la opción más adecuada para su empresa. Le recomendaremos un plan según su capacidad de habitaciones y las herramientas que necesite."
 }
