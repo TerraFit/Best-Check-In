@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "Opcional",
   "landing_feature_unavailable": "No disponible",
   "landing_plan_enterprise": "Enterprise",
-  "landing_plan_enterprise_f1": "Supervisión de varios establecimientos y capacidad de habitaciones escalable"
+  "landing_plan_enterprise_f1": "Supervisión de varios establecimientos y capacidad de habitaciones escalable",
+  "landing_enterprise_tagline": "El paquete avanzado para grupos hoteleros y operadores con varios establecimientos",
+  "landing_enterprise_statement_title": "Una plataforma. Cada establecimiento. Una visión de toda su cartera.",
+  "landing_enterprise_statement": "Enterprise reúne sus establecimientos bajo una estructura de gestión y ofrece a propietarios y directivos una visión consolidada de operaciones, rendimiento, mercados de huéspedes e inteligencia empresarial.",
+  "landing_enterprise_glance": "Enterprise de un vistazo",
+  "landing_enterprise_manage_title": "Gestione su cartera desde un solo lugar",
+  "landing_enterprise_room_note": "Desde 21 habitaciones · primeros 2 establecimientos incluidos"
 }
