@@ -670,7 +670,7 @@ export default function BusinessRegistration() {
                     </div>
                   )}
                   
-                  {/* ⭐ Most Popular Badge (Static - Amber) - Only on Growth when not recommended */}
+                  {/* ⭐ {t('landing_plan_most_popular')} Badge (Static - Amber) - Only on Growth when not recommended */}
                   {plan.mostPopular && !isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full">
@@ -1608,7 +1608,7 @@ export default function BusinessRegistration() {
                     disabled={loading}
                     className="px-8 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
                   >
-                    {loading ? '{t('common_processing')}' : '{t('login_submit_application')} →'}
+                    {loading ? t('common_processing') : `${t('login_submit_application')} →`}
                   </button>
                 </div>
               </form>
