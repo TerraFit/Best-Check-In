@@ -34,10 +34,47 @@ function InfoTip({ label, children }: { label: string; children: ReactNode }) {
 
 function FeatureLine({ feature }: { feature: PricingFeature }) {
   const { t } = useTranslation();
+  const featureKeys: Record<string, string> = {
+  "Digital Check-in": "landing_pf_digital_checkin",
+  "ID / passport capture": "landing_pf_id_capture",
+  "Digital signatures & indemnities": "landing_pf_signatures",
+  "Statutory guest register & POPIA-focused guest management": "landing_pf_guest_register",
+  "Returning guest history": "landing_pf_returning_guests",
+  "Dietary & stay preferences": "landing_pf_preferences",
+  "POPIA communication preferences": "landing_pf_communication",
+  "Multilingual registration": "landing_pf_multilingual",
+  "Language recognition": "landing_pf_language_recognition",
+  "Basic Visitor Origin Explorer": "landing_pf_origin_basic",
+  "Staff roles & permissions": "landing_pf_staff_roles",
+  "Everything included in Starter": "landing_pf_everything_starter",
+  "Basic Housekeeping": "landing_pf_housekeeping_basic",
+  "Employee Portal": "landing_pf_employee_portal",
+  "Business Snapshot": "landing_pf_business_snapshot",
+  "Marketing Download": "landing_pf_marketing_download",
+  "Branding Customisation": "landing_pf_branding",
+  "Advanced Housekeeping": "landing_pf_housekeeping_advanced",
+  "Lost & Found + Automation": "landing_pf_lost_found",
+  "Advanced Analytics": "landing_pf_advanced_analytics",
+  "Unlimited Portfolio Snapshots": "landing_pf_unlimited_snapshots",
+  "Multi-establishment management": "landing_pf_multi_establishment",
+  "Consolidated portfolio analytics": "landing_pf_consolidated_analytics",
+  "Everything included in Growth": "landing_pf_everything_growth",
+  "Everything included in Pro": "landing_pf_everything_pro",
+  "Executive portfolio intelligence": "landing_pf_executive_intelligence"
+};
+  const infoKeys: Record<string, string> = {
+  "A concise management view of the numbers that matter — occupancy, room nights, guest volumes, market mix, guest origin and other key performance indicators. Portfolio Snapshots help owners, directors, executives and boards understand property performance and how guest markets evolve across their business, supporting better commercial decisions.": "landing_pf_info_snapshot",
+  "Available languages: Afrikaans, Arabic, Chinese, Dutch, English, French, German, Hebrew, Italian, Portuguese, Russian and Spanish.": "landing_pf_info_languages",
+  "Automatically recognises the guest’s language and presents the check-in experience in the appropriate supported language for a smoother, more personalised arrival.": "landing_pf_info_language_recognition",
+  "Customise the guest-facing check-in form with your establishment’s own branding so it feels like an in-house system, with no FastCheckIn branding shown to guests.": "landing_pf_info_branding",
+  "A high-level view for owners, directors, CEOs, CFOs and boards across the portfolio, with establishment summaries and consolidated business intelligence.": "landing_pf_info_executive"
+};
+  const displayLabel = featureKeys[feature.label] ? t(featureKeys[feature.label] as keyof import('../i18n/types').TranslationKeys) : feature.label;
+  const displayInfo = feature.info && infoKeys[feature.info] ? t(infoKeys[feature.info] as keyof import('../i18n/types').TranslationKeys) : feature.info;
   const icon = feature.state === 'included' ? <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" /> : feature.state === 'optional' ? <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-amber-500 text-[9px] font-bold text-amber-600">+</span> : <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-stone-300" />;
   const stateLabel = feature.state === 'included' ? t('landing_feature_included') : feature.state === 'optional' ? t('landing_feature_optional') : t('landing_feature_unavailable');
   return <li className={`flex gap-2 text-sm ${feature.state === 'unavailable' ? 'text-stone-400' : 'text-stone-700'}`}>
-    {icon}<span className="min-w-0"><span className="font-medium">{t((({"Digital Check-in":"landing_pf_digital_checkin","ID / passport capture":"landing_pf_id_capture","Digital signatures & indemnities":"landing_pf_signatures","Statutory guest register & POPIA-focused guest management":"landing_pf_guest_register","Returning guest history":"landing_pf_returning_guests","Dietary & stay preferences":"landing_pf_preferences","POPIA communication preferences":"landing_pf_communication","Multilingual registration":"landing_pf_multilingual","Language recognition":"landing_pf_language_recognition","Basic Visitor Origin Explorer":"landing_pf_origin_basic","Staff roles & permissions":"landing_pf_staff_roles","Everything included in Starter":"landing_pf_everything_starter","Basic Housekeeping":"landing_pf_housekeeping_basic","Employee Portal":"landing_pf_employee_portal","Business Snapshot":"landing_pf_business_snapshot","Marketing Download":"landing_pf_marketing_download","Branding Customisation":"landing_pf_branding","Advanced Housekeeping":"landing_pf_housekeeping_advanced","Lost & Found + Automation":"landing_pf_lost_found","Advanced Analytics":"landing_pf_advanced_analytics","Unlimited Portfolio Snapshots":"landing_pf_unlimited_snapshots","Multi-establishment management":"landing_pf_multi_establishment","Consolidated portfolio analytics":"landing_pf_consolidated_analytics","Everything included in Growth":"landing_pf_everything_growth","Everything included in Pro":"landing_pf_everything_pro","Executive portfolio intelligence":"landing_pf_executive_intelligence"})[feature.label] || '') as keyof import('../i18n/types').TranslationKeys) || feature.label}</span>{feature.note && <span className="ml-1 text-xs text-stone-500">· {feature.note}</span>}{feature.info && <InfoTip label={t('landing_pf_more_info', { feature: feature.label })}>{feature.info}</InfoTip>}<span className="sr-only"> — {stateLabel}</span></span>
+    {icon}<span className="min-w-0"><span className="font-medium">{displayLabel}</span>{feature.note && <span className="ml-1 text-xs text-stone-500">· {feature.note}</span>}{displayInfo && <InfoTip label={t('landing_pf_more_info', { feature: displayLabel })}>{displayInfo}</InfoTip>}<span className="sr-only"> — {stateLabel}</span></span>
   </li>;
 }
 
@@ -64,7 +101,7 @@ export default function HomePage() {
   const currencySymbol = regionalPricing.currency === 'ZAR' ? 'R' : regionalPricing.currency === 'EUR' ? '€' : '$';
   const marketingDownloadMonthlyPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates);
   const marketingDownloadVoucherPrice = convertZarToRegionalPrice(MARKETING_DOWNLOAD_VOUCHER_PRICE, region, isSouthAfricanMarket, fxRates);
-  const marketingDownloadNote = `${currencySymbol}${marketingDownloadMonthlyPrice}/мес. или ваучер ${currencySymbol}${marketingDownloadVoucherPrice}`;
+  const marketingDownloadNote = t('landing_pf_note_marketing', { monthly: `${currencySymbol}${marketingDownloadMonthlyPrice}`, voucher: `${currencySymbol}${marketingDownloadVoucherPrice}` });
 
   const coreStarter: PricingFeature[] = [
     { label: 'Digital Check-in', state: 'included' },
