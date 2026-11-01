@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "Optioneel",
   "landing_feature_unavailable": "Niet beschikbaar",
   "landing_plan_enterprise": "Enterprise",
-  "landing_plan_enterprise_f1": "Toezicht op meerdere vestigingen en schaalbare kamercapaciteit"
+  "landing_plan_enterprise_f1": "Toezicht op meerdere vestigingen en schaalbare kamercapaciteit",
+  "landing_enterprise_tagline": "Het premium pakket voor hotelgroepen en beheerders van meerdere vestigingen",
+  "landing_enterprise_statement_title": "Eén platform. Elke vestiging. Eén overzicht van uw portfolio.",
+  "landing_enterprise_statement": "Enterprise brengt uw vestigingen samen in één beheerstructuur en biedt eigenaren en directie een geconsolideerd overzicht van activiteiten, prestaties, gastmarkten en bedrijfsinformatie.",
+  "landing_enterprise_glance": "Enterprise in één oogopslag",
+  "landing_enterprise_manage_title": "Beheer uw portfolio vanaf één plek",
+  "landing_enterprise_room_note": "Vanaf 21 kamers · eerste 2 vestigingen inbegrepen"
 }
