@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "Opcional",
   "landing_feature_unavailable": "Indisponível",
   "landing_plan_enterprise": "Empresarial",
-  "landing_plan_enterprise_f1": "Supervisão de vários estabelecimentos e capacidade de quartos escalável"
+  "landing_plan_enterprise_f1": "Supervisão de vários estabelecimentos e capacidade de quartos escalável",
+  "landing_enterprise_tagline": "O pacote premium para grupos hoteleiros e operadores com várias unidades",
+  "landing_enterprise_statement_title": "Uma plataforma. Cada unidade. Uma visão de todo o portefólio.",
+  "landing_enterprise_statement": "O Enterprise reúne as suas unidades numa estrutura de gestão e oferece aos proprietários e gestores uma visão consolidada das operações, desempenho, mercados de hóspedes e informação empresarial.",
+  "landing_enterprise_glance": "Enterprise em resumo",
+  "landing_enterprise_manage_title": "Gira o seu portefólio num só lugar",
+  "landing_enterprise_room_note": "A partir de 21 quartos · primeiras 2 unidades incluídas"
 }
