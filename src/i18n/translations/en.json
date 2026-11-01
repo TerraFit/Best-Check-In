@@ -1274,5 +1274,20 @@
   "login_selected_plan": "Selected Plan",
   "login_change_plan": "Change Plan",
   "landing_plan_recommended": "Recommended",
-  "login_select_plan": "Select Plan"
+  "login_select_plan": "Select Plan",
+  "login_legal_name": "Legal Name (as per CIPC)",
+  "login_registration_number": "Registration Number (optional)",
+  "login_vat_number": "VAT Number (optional)",
+  "login_establishment_type": "Type of Establishment",
+  "login_tgsa_grading": "TGSA Grading (Optional)",
+  "login_street_address": "Street Address",
+  "login_confirm_email": "Confirm Email Address",
+  "login_fixed_phone": "Fixed Phone Number",
+  "login_mobile_phone": "Mobile Phone Number",
+  "login_property_count_question": "How many properties does your company have?",
+  "login_rooms_count_question": "How many rooms are there across all your properties?",
+  "login_price_label": "Price",
+  "login_rooms_label": "Rooms",
+  "login_acknowledgement": "I acknowledge that all information provided is true, correct and complete to the best of my knowledge.",
+  "login_enterprise_features": "Consolidated portfolio management · High-level portfolio intelligence · Custom integrations and dedicated support"
 }
