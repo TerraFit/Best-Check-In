@@ -1292,5 +1292,11 @@
   "login_property_count_help": "Укажите количество объектов размещения, которыми управляет ваша компания.",
   "login_rooms_count_help": "Укажите общее количество номеров во всех ваших объектах. Цены Enterprise начинаются от 21 номера.",
   "reg_register_intro": "Сравните тарифы и функции, чтобы выбрать подходящий вариант для вашей компании. Мы порекомендуем тариф с учетом количества номеров и необходимых инструментов.",
-  "login_submit_application": "Отправить заявку"
+  "login_submit_application": "Отправить заявку",
+  "login_multi_room_management": "Управление несколькими номерами",
+  "login_basic_reporting": "Базовая отчетность",
+  "login_advanced_reporting": "Расширенная отчетность",
+  "login_staff_permissions": "Права доступа сотрудников",
+  "login_api_integrations": "API / интеграции",
+  "login_annual_saving": "Экономия 8,33%"
 }
