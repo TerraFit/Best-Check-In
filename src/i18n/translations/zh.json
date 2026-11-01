@@ -1247,5 +1247,12 @@
   "landing_pf_info_languages": "支持语言：南非语、阿拉伯语、中文、荷兰语、英语、法语、德语、希伯来语、意大利语、葡萄牙语、俄语和西班牙语。",
   "landing_pf_info_language_recognition": "自动识别宾客语言，并以相应的支持语言显示登记流程。",
   "landing_pf_info_branding": "使用住宿机构自己的品牌定制宾客登记表，宾客界面不显示 FastCheckIn 品牌。",
-  "landing_pf_info_executive": "为业主、董事、首席执行官、首席财务官及董事会提供组合业务总览、各机构摘要和综合商业分析。"
+  "landing_pf_info_executive": "为业主、董事、首席执行官、首席财务官及董事会提供组合业务总览、各机构摘要和综合商业分析。",
+  "landing_plan_ideal_label": "Ideal customer for this package",
+  "landing_enterprise_ideal_label": "Ideal customer for Enterprise",
+  "landing_plan_ideal_starter": "Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.",
+  "landing_plan_ideal_growth": "Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.",
+  "landing_plan_ideal_pro": "Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.",
+  "landing_plan_ideal_business": "Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.",
+  "landing_plan_ideal_enterprise": "Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence."
 }
