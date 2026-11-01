@@ -1248,11 +1248,11 @@
   "landing_pf_info_language_recognition": "Reconnaît automatiquement la langue du client et affiche l’expérience d’enregistrement dans la langue prise en charge correspondante.",
   "landing_pf_info_branding": "Personnalisez le formulaire d’enregistrement avec l’identité visuelle de votre établissement, sans afficher la marque FastCheckIn.",
   "landing_pf_info_executive": "Une vue globale du portefeuille destinée aux propriétaires, dirigeants, PDG, directeurs financiers et conseils d’administration, avec des synthèses par établissement et des données consolidées.",
-  "landing_plan_ideal_label": "Ideal customer for this package",
-  "landing_enterprise_ideal_label": "Ideal customer for Enterprise",
-  "landing_plan_ideal_starter": "Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.",
-  "landing_plan_ideal_growth": "Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.",
-  "landing_plan_ideal_pro": "Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.",
-  "landing_plan_ideal_business": "Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.",
-  "landing_plan_ideal_enterprise": "Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence."
+  "landing_plan_ideal_label": "Client idéal pour cette formule",
+  "landing_enterprise_ideal_label": "Client idéal pour Enterprise",
+  "landing_plan_ideal_starter": "Idéal pour les B&B et petites maisons d’hôtes ayant principalement besoin d’un enregistrement numérique professionnel.",
+  "landing_plan_ideal_growth": "Idéal pour les établissements d’hébergement en croissance ayant besoin de l’enregistrement numérique, de services d’entretien de base et d’un soutien opérationnel.",
+  "landing_plan_ideal_pro": "Idéal pour les établissements établis souhaitant une gestion opérationnelle plus complète, des analyses avancées et des informations marketing.",
+  "landing_plan_ideal_business": "Idéal pour les grands établissements ayant besoin de l’ensemble des outils opérationnels et d’un accès illimité aux Portfolio Snapshots.",
+  "landing_plan_ideal_enterprise": "Idéal pour les groupes hôteliers et les opérateurs de plusieurs établissements nécessitant une gestion consolidée du portefeuille et une intelligence d’entreprise avancée."
 }
