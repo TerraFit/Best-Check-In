@@ -1274,5 +1274,20 @@
   "login_selected_plan": "Geselekteerde pakket",
   "login_change_plan": "Verander pakket",
   "landing_plan_recommended": "Aanbeveel",
-  "login_select_plan": "Kies pakket"
+  "login_select_plan": "Kies pakket",
+  "login_legal_name": "Wettige naam (soos by CIPC)",
+  "login_registration_number": "Registrasienommer (opsioneel)",
+  "login_vat_number": "BTW-nommer (opsioneel)",
+  "login_establishment_type": "Tipe verblyfinrigting",
+  "login_tgsa_grading": "TGSA-gradering (opsioneel)",
+  "login_street_address": "Straatadres",
+  "login_confirm_email": "Bevestig e-posadres",
+  "login_fixed_phone": "Vastelynnommer",
+  "login_mobile_phone": "Selfoonnommer",
+  "login_property_count_question": "Hoeveel eiendomme het jou maatskappy?",
+  "login_rooms_count_question": "Hoeveel kamers is daar oor al jou eiendomme?",
+  "login_price_label": "Prys",
+  "login_rooms_label": "Kamers",
+  "login_acknowledgement": "Ek bevestig dat al die inligting hierbo waar, korrek en volledig is sover ek weet.",
+  "login_enterprise_features": "Gekonsolideerde portefeuljebestuur · Portefeulje-intelligensie op hoë vlak · Pasgemaakte integrasies en toegewyde ondersteuning"
 }
