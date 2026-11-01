@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "可选",
   "landing_feature_unavailable": "不可用",
   "landing_plan_enterprise": "企业版",
-  "landing_plan_enterprise_f1": "多家住宿机构管理与可扩展客房容量"
+  "landing_plan_enterprise_f1": "多家住宿机构管理与可扩展客房容量",
+  "landing_enterprise_tagline": "面向酒店集团及多住宿机构运营商的高级方案",
+  "landing_enterprise_statement_title": "一个平台。覆盖每家住宿机构。统一查看整个业务组合。",
+  "landing_enterprise_statement": "Enterprise 将各住宿机构整合到统一管理架构中，让业主和高级管理人员集中查看运营、业绩、客源市场及商业数据。",
+  "landing_enterprise_glance": "Enterprise 一览",
+  "landing_enterprise_manage_title": "在一个平台管理您的业务组合",
+  "landing_enterprise_room_note": "21 间客房起 · 包含前 2 家住宿机构"
 }
