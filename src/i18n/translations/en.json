@@ -1081,7 +1081,7 @@
   "reports_financial_calculated": "Calculated automatically",
   "reports_financial_profit_hint": "Enter Revenue, Cost of Sale and Operating Costs to calculate profit.",
   "reports_financial_manual_note": "Financial figures are manually provided and are not taken from FastCheckIn booking data.",
-  "reports_financial_pdf_source": "Source: Manual · Not taken from FastCheckIn booking data",
+  "reports_financial_pdf_source": "Financial figures supplied manually by the establishment.",
   "reports_financial_skip": "Skip & Download PDF",
   "reports_financial_save": "Save & Download PDF",
   "reports_financial_close": "Close",
@@ -1166,5 +1166,15 @@
   "landing_form_security": "Complete the security verification.",
   "landing_form_success": "Thank you. Your enquiry has been sent and our team will be in touch.",
   "landing_form_error": "Your enquiry could not be sent.",
-  "landing_footer_privacy_terms": "Privacy & Terms"
+  "landing_footer_privacy_terms": "Privacy & Terms",
+  "landing_plan_from": "From",
+  "landing_plan_room_singular": "room",
+  "landing_plan_room_plural": "rooms",
+  "landing_plan_capacity_note": "5-room capacity blocks · no maximum room count",
+  "landing_plan_see_less": "See less",
+  "landing_plan_see_more": "See more",
+  "landing_plan_region_pricing_note": "Prices shown in {currency} are regional customer prices, converted from the current ZAR price using buffered monthly exchange rates and a regional adjustment. Peach Payments charges the subscription amount in ZAR; international prices are reviewed monthly.",
+  "landing_feature_included": "Included",
+  "landing_feature_optional": "Optional",
+  "landing_feature_unavailable": "Not available"
 }
