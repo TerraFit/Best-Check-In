@@ -1163,5 +1163,17 @@
   "landing_form_security": "אנא השלימו את אימות האבטחה.",
   "landing_form_success": "תודה. הפנייה שלכם נשלחה והצוות שלנו יצור איתכם קשר.",
   "landing_form_error": "לא ניתן לשלוח את הפנייה.",
-  "landing_footer_privacy_terms": "פרטיות ותנאים"
+  "landing_footer_privacy_terms": "פרטיות ותנאים",
+  "landing_plan_from": "החל מ־",
+  "landing_plan_room_singular": "חדר",
+  "landing_plan_room_plural": "חדרים",
+  "landing_plan_capacity_note": "קיבולת במדרגות של 5 חדרים · ללא הגבלה מרבית",
+  "landing_plan_see_less": "הצג פחות",
+  "landing_plan_see_more": "הצג עוד",
+  "landing_plan_region_pricing_note": "המחירים ב־{currency} הם מחירים אזוריים שהומרו ממחיר ה־ZAR הנוכחי לפי שערים חודשיים והתאמה אזורית. Peach Payments גובה מנויים ב־ZAR; המחירים הבינלאומיים נבדקים מדי חודש.",
+  "landing_feature_included": "כלול",
+  "landing_feature_optional": "אופציונלי",
+  "landing_feature_unavailable": "לא זמין",
+  "landing_plan_enterprise": "ארגוני",
+  "landing_plan_enterprise_f1": "פיקוח על מספר מקומות אירוח וקיבולת חדרים הניתנת להרחבה"
 }
