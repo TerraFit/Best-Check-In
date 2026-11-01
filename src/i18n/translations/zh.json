@@ -1273,5 +1273,20 @@
   "login_selected_plan": "已选套餐",
   "login_change_plan": "更改套餐",
   "landing_plan_recommended": "推荐",
-  "login_select_plan": "选择套餐"
+  "login_select_plan": "选择套餐",
+  "login_legal_name": "法定名称（以 CIPC 记录为准）",
+  "login_registration_number": "注册编号（选填）",
+  "login_vat_number": "增值税编号（选填）",
+  "login_establishment_type": "住宿场所类型",
+  "login_tgsa_grading": "TGSA 评级（选填）",
+  "login_street_address": "街道地址",
+  "login_confirm_email": "确认电子邮件地址",
+  "login_fixed_phone": "固定电话",
+  "login_mobile_phone": "手机号码",
+  "login_property_count_question": "贵公司拥有多少家住宿场所？",
+  "login_rooms_count_question": "所有住宿场所共有多少间客房？",
+  "login_price_label": "价格",
+  "login_rooms_label": "客房",
+  "login_acknowledgement": "本人确认以上提供的所有信息据本人所知均真实、准确且完整。",
+  "login_enterprise_features": "整合式投资组合管理 · 高层级投资组合洞察 · 定制集成与专属支持"
 }
