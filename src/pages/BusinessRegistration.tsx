@@ -190,7 +190,7 @@ export default function BusinessRegistration() {
   } : undefined;
   
   // Determine recommended plan based on room count
-  const getRecommendedPlanId = (): PlanType => {
+  const get{t('landing_plan_recommended')}PlanId = (): PlanType => {
     // A qualifying multi-establishment portfolio should be guided to Enterprise,
     // even when the combined room count would otherwise recommend Business.
     if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
@@ -540,14 +540,14 @@ export default function BusinessRegistration() {
               <div>
                 <p className="text-sm text-stone-400">{t('login_rooms_label')}</p>
                 <p className="text-white">
-                  {roomsCount} rooms
+                  {roomsCount} {t('landing_plan_room_plural')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-stone-400">{t('login_price_label')}</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? 'month' : 'year'}`
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}`
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}/month`
                       : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}/year`)}
@@ -577,7 +577,7 @@ export default function BusinessRegistration() {
           />
           <h1 className="text-4xl font-bold text-white">{t('reg_register_business')}</h1>
           <p className="text-stone-400 mt-2">{t('reg_register_intro')}</p>
-          <p className="text-stone-500 text-xs mt-3">Prices are displayed in {regionalPricing.currency} for your selected region. International prices are converted from ZAR using buffered monthly exchange rates and a regional adjustment; Peach Payments charges in ZAR.</p>
+          <p className="text-stone-500 text-xs mt-3">{t('landing_plan_region_pricing_note', { currency: regionalPricing.currency })}</p>
         </div>
 
         {/* ============================================================ */}
@@ -634,7 +634,7 @@ export default function BusinessRegistration() {
           {showRoomError && (
             <div className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500 rounded-lg p-3 text-center">
               <p className="text-red-400 text-sm">
-                ⚠️ This package requires at least the minimum number of rooms shown. Please choose an eligible package.
+                ⚠️ {t('billing_min_plan_rooms')}
               </p>
             </div>
           )}
@@ -684,9 +684,9 @@ export default function BusinessRegistration() {
                       {plan.name}
                     </h3>
                     <p className="text-xs text-stone-400 mt-1">
-                      {plan.minRooms}+ rooms · no maximum
+                      {plan.minRooms}+ {t('landing_plan_room_plural')} · {t('landing_plan_capacity_note')}
                     </p>
-                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">Marketing Download: {currencySymbol}{marketingDownloadMonthlyPrice}/month or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
+                    {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">{t('landing_pf_marketing_download')}: {currencySymbol}{marketingDownloadMonthlyPrice}{t('landing_plan_per_month')} or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}
                     <div className="mt-3">
                       <span className="text-2xl font-bold text-white">
                         {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}
@@ -735,7 +735,7 @@ export default function BusinessRegistration() {
                     
                     {isDisabled && (
                       <p className="text-xs text-red-400 mt-2">
-                        Requires at least {plan.minRooms} rooms
+                        {t('billing_min_plan_rooms')}
                       </p>
                     )}
                     <button
@@ -1582,7 +1582,7 @@ export default function BusinessRegistration() {
                     type="text"
                     value={captchaInput}
                     onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
-                    placeholder="Enter CAPTCHA code"
+                    placeholder={t('login_enter_captcha')}
                     className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                     required
                   />
@@ -1591,7 +1591,7 @@ export default function BusinessRegistration() {
                     onClick={generateCaptcha}
                     className="text-sm text-amber-500 hover:text-amber-400 mt-2"
                   >
-                    Refresh CAPTCHA
+                    {t('login_refresh_captcha')}
                   </button>
                 </div>
 
@@ -1608,7 +1608,7 @@ export default function BusinessRegistration() {
                     disabled={loading}
                     className="px-8 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
                   >
-                    {loading ? 'Submitting...' : 'Submit Application →'}
+                    {loading ? '{t('common_processing')}' : '{t('login_submit_application')} →'}
                   </button>
                 </div>
               </form>
