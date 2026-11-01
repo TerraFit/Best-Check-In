@@ -33,6 +33,7 @@ function InfoTip({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function FeatureLine({ feature }: { feature: PricingFeature }) {
+  const { t } = useTranslation();
   const icon = feature.state === 'included' ? <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" /> : feature.state === 'optional' ? <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-amber-500 text-[9px] font-bold text-amber-600">+</span> : <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-stone-300" />;
   const stateLabel = feature.state === 'included' ? t('landing_feature_included') : feature.state === 'optional' ? t('landing_feature_optional') : t('landing_feature_unavailable');
   return <li className={`flex gap-2 text-sm ${feature.state === 'unavailable' ? 'text-stone-400' : 'text-stone-700'}`}>
