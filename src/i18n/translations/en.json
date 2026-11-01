@@ -1081,7 +1081,7 @@
   "reports_financial_calculated": "Calculated automatically",
   "reports_financial_profit_hint": "Enter Revenue, Cost of Sale and Operating Costs to calculate profit.",
   "reports_financial_manual_note": "Financial figures are manually provided and are not taken from FastCheckIn booking data.",
-  "reports_financial_pdf_source": "Financial figures supplied manually by the establishment.",
+  "reports_financial_pdf_source": "Source: Manual · Not taken from FastCheckIn booking data",
   "reports_financial_skip": "Skip & Download PDF",
   "reports_financial_save": "Save & Download PDF",
   "reports_financial_close": "Close",
