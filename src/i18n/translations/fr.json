@@ -1274,5 +1274,20 @@
   "login_selected_plan": "Forfait sélectionné",
   "login_change_plan": "Modifier le forfait",
   "landing_plan_recommended": "Recommandé",
-  "login_select_plan": "Choisir le forfait"
+  "login_select_plan": "Choisir le forfait",
+  "login_legal_name": "Dénomination légale (selon CIPC)",
+  "login_registration_number": "Numéro d’immatriculation (facultatif)",
+  "login_vat_number": "Numéro de TVA (facultatif)",
+  "login_establishment_type": "Type d’établissement",
+  "login_tgsa_grading": "Classement TGSA (facultatif)",
+  "login_street_address": "Adresse (rue)",
+  "login_confirm_email": "Confirmer l’adresse e-mail",
+  "login_fixed_phone": "Téléphone fixe",
+  "login_mobile_phone": "Téléphone mobile",
+  "login_property_count_question": "Combien d’établissements votre entreprise possède-t-elle ?",
+  "login_rooms_count_question": "Combien de chambres compte l’ensemble de vos établissements ?",
+  "login_price_label": "Prix",
+  "login_rooms_label": "Chambres",
+  "login_acknowledgement": "Je reconnais que toutes les informations fournies ci-dessus sont vraies, exactes et complètes à ma connaissance.",
+  "login_enterprise_features": "Gestion consolidée du portefeuille · Intelligence stratégique du portefeuille · Intégrations personnalisées et assistance dédiée"
 }
