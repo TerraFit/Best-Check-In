@@ -1163,5 +1163,17 @@
   "landing_form_security": "يرجى إكمال التحقق الأمني.",
   "landing_form_success": "شكراً لك. تم إرسال استفسارك وسيتواصل معك فريقنا.",
   "landing_form_error": "تعذر إرسال استفسارك.",
-  "landing_footer_privacy_terms": "الخصوصية والشروط"
+  "landing_footer_privacy_terms": "الخصوصية والشروط",
+  "landing_plan_from": "ابتداءً من",
+  "landing_plan_room_singular": "غرفة",
+  "landing_plan_room_plural": "غرف",
+  "landing_plan_capacity_note": "السعة على شكل كتل من 5 غرف · دون حد أقصى",
+  "landing_plan_see_less": "عرض أقل",
+  "landing_plan_see_more": "عرض المزيد",
+  "landing_plan_region_pricing_note": "الأسعار بعملة {currency} إقليمية ومحوّلة من سعر الراند الحالي باستخدام أسعار شهرية وتعديل إقليمي. تفرض Peach Payments رسوم الاشتراك بالراند؛ وتُراجع الأسعار الدولية شهريًا.",
+  "landing_feature_included": "مضمّن",
+  "landing_feature_optional": "اختياري",
+  "landing_feature_unavailable": "غير متاح",
+  "landing_plan_enterprise": "المؤسسات",
+  "landing_plan_enterprise_f1": "الإشراف على منشآت متعددة وسعة غرف قابلة للتوسع"
 }
