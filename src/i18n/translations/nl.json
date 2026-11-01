@@ -1287,5 +1287,8 @@
   "login_price_label": "Prijs",
   "login_rooms_label": "Kamers",
   "login_acknowledgement": "Ik bevestig dat alle hierboven verstrekte informatie naar mijn beste weten waar, juist en volledig is.",
-  "login_enterprise_features": "Geconsolideerd portfoliobeheer · Strategisch portfolio-inzicht · Aangepaste integraties en toegewijde ondersteuning"
+  "login_enterprise_features": "Geconsolideerd portfoliobeheer · Strategisch portfolio-inzicht · Aangepaste integraties en toegewijde ondersteuning",
+  "login_property_count_help": "Vul het aantal accommodaties in dat uw bedrijf exploiteert.",
+  "login_rooms_count_help": "Vul het totale aantal kamers van al uw accommodaties in. Enterprise-prijzen beginnen bij 21 kamers.",
+  "reg_register_intro": "Vergelijk pakketten en functies om de beste oplossing voor uw bedrijf te vinden. We adviseren een pakket op basis van uw kamercapaciteit en benodigde hulpmiddelen."
 }
