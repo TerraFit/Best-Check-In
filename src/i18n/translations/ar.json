@@ -1272,5 +1272,20 @@
   "login_selected_plan": "الخطة المحددة",
   "login_change_plan": "تغيير الخطة",
   "landing_plan_recommended": "موصى به",
-  "login_select_plan": "اختر الخطة"
+  "login_select_plan": "اختر الخطة",
+  "login_legal_name": "الاسم القانوني (حسب سجل CIPC)",
+  "login_registration_number": "رقم التسجيل (اختياري)",
+  "login_vat_number": "رقم ضريبة القيمة المضافة (اختياري)",
+  "login_establishment_type": "نوع المنشأة",
+  "login_tgsa_grading": "تصنيف TGSA (اختياري)",
+  "login_street_address": "عنوان الشارع",
+  "login_confirm_email": "تأكيد عنوان البريد الإلكتروني",
+  "login_fixed_phone": "رقم الهاتف الثابت",
+  "login_mobile_phone": "رقم الهاتف المحمول",
+  "login_property_count_question": "كم عدد المنشآت التي تمتلكها شركتك؟",
+  "login_rooms_count_question": "كم عدد الغرف في جميع منشآتك؟",
+  "login_price_label": "السعر",
+  "login_rooms_label": "الغرف",
+  "login_acknowledgement": "أقر بأن جميع المعلومات المقدمة أعلاه صحيحة ودقيقة وكاملة حسب علمي.",
+  "login_enterprise_features": "إدارة موحدة للمحفظة · ذكاء متقدم للمحفظة · تكاملات مخصصة ودعم مخصص"
 }
