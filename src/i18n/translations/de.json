@@ -1274,5 +1274,20 @@
   "login_selected_plan": "Ausgewählter Tarif",
   "login_change_plan": "Tarif ändern",
   "landing_plan_recommended": "Empfohlen",
-  "login_select_plan": "Tarif auswählen"
+  "login_select_plan": "Tarif auswählen",
+  "login_legal_name": "Rechtlicher Name (laut CIPC)",
+  "login_registration_number": "Registrierungsnummer (optional)",
+  "login_vat_number": "Umsatzsteuernummer (optional)",
+  "login_establishment_type": "Art des Beherbergungsbetriebs",
+  "login_tgsa_grading": "TGSA-Einstufung (optional)",
+  "login_street_address": "Straße und Hausnummer",
+  "login_confirm_email": "E-Mail-Adresse bestätigen",
+  "login_fixed_phone": "Festnetznummer",
+  "login_mobile_phone": "Mobiltelefonnummer",
+  "login_property_count_question": "Wie viele Unterkünfte betreibt Ihr Unternehmen?",
+  "login_rooms_count_question": "Wie viele Zimmer haben alle Ihre Unterkünfte zusammen?",
+  "login_price_label": "Preis",
+  "login_rooms_label": "Zimmer",
+  "login_acknowledgement": "Ich bestätige, dass alle oben gemachten Angaben nach bestem Wissen wahr, richtig und vollständig sind.",
+  "login_enterprise_features": "Konsolidierte Portfolioverwaltung · Übergeordnete Portfolio-Intelligenz · Individuelle Integrationen und dedizierter Support"
 }
