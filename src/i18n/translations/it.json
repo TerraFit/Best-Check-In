@@ -1291,5 +1291,11 @@
   "login_property_count_help": "Inserisci il numero di strutture gestite dalla tua azienda.",
   "login_rooms_count_help": "Inserisci il numero totale di camere di tutte le tue strutture. I prezzi Enterprise partono da 21 camere.",
   "reg_register_intro": "Confronta piani e funzionalità per trovare la soluzione più adatta alla tua attività. Ti consiglieremo un piano in base alla capacità delle camere e agli strumenti necessari.",
-  "login_submit_application": "Invia la domanda"
+  "login_submit_application": "Invia la domanda",
+  "login_multi_room_management": "Gestione di più camere",
+  "login_basic_reporting": "Report di base",
+  "login_advanced_reporting": "Report avanzati",
+  "login_staff_permissions": "Autorizzazioni del personale",
+  "login_api_integrations": "API / Integrazioni",
+  "login_annual_saving": "Risparmia l’8,33%"
 }
