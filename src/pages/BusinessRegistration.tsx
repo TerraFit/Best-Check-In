@@ -561,7 +561,7 @@ export default function BusinessRegistration() {
               }}
               className="text-sm text-amber-500 hover:text-amber-400"
             >
-              Change Plan
+              {t('login_change_plan')}
             </button>
           </div>
         </div>
@@ -665,7 +665,7 @@ export default function BusinessRegistration() {
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        Recommended
+                        {t('landing_plan_recommended')}
                       </span>
                     </div>
                   )}
@@ -700,7 +700,7 @@ export default function BusinessRegistration() {
                     <div className="mt-4 text-left space-y-2">
                       {plan.id === 'starter' && (
                         <>
-                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f1')}</p>
+                          <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('checkin_title')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_starter_f1')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('landing_plan_growth_f2')}</p>
                           <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-green-500">✓</span> {t('reg_basic_dashboard')}</p>
@@ -746,7 +746,7 @@ export default function BusinessRegistration() {
                       disabled={isDisabled}
                       className={`mt-4 w-full py-2 rounded-lg font-semibold transition-colors ${plan.buttonColor} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      Select Plan
+                      {t('login_select_plan')}
                     </button>
                   </div>
                 </div>
@@ -763,7 +763,7 @@ export default function BusinessRegistration() {
               {recommendedPlanId === 'enterprise' && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                   <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                    Recommended
+                    {t('landing_plan_recommended')}
                   </span>
                 </div>
               )}
@@ -858,7 +858,7 @@ export default function BusinessRegistration() {
             {phase === 1 && (
               <form onSubmit={handlePhase1Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
                 <h2 className="text-2xl font-bold text-white mb-6">
-                  Business Information
+                  {t('dashboard_business_info')}
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -901,7 +901,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Trading Name *
+                      {t('dashboard_trading_name')} *
                     </label>
                     <input
                       type="text"
@@ -949,7 +949,7 @@ export default function BusinessRegistration() {
 
                 {/* Physical Address */}
                 <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  Physical Address
+                  {t('login_physical_address')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
@@ -1077,7 +1077,7 @@ export default function BusinessRegistration() {
 
                 {/* Postal Address */}
                 <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  Postal Address
+                  {t('login_postal_address')}
                 </h3>
                 <div className="mb-4">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1187,12 +1187,12 @@ export default function BusinessRegistration() {
 
                 {/* Contact Information */}
                 <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  Contact Information
+                  {t('login_contact_information')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Email Address *
+                      {t('login_email_label')} *
                     </label>
                     <input
                       type="email"
@@ -1272,13 +1272,13 @@ export default function BusinessRegistration() {
             {phase === 2 && (
               <form onSubmit={handlePhase2Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
                 <h2 className="text-2xl font-bold text-white mb-6">
-                  Director / Owner Information
+                  {t('login_director_owner_information')}
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      First Name *
+                      {t('checkin_first_name')} *
                     </label>
                     <input
                       type="text"
@@ -1291,7 +1291,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Last Name / Surname *
+                      {t('checkin_last_name')} *
                     </label>
                     <input
                       type="text"
@@ -1304,7 +1304,7 @@ export default function BusinessRegistration() {
                   
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      ID / Passport Number *
+                      {t('checkin_passport')} *
                     </label>
                     <input
                       type="text"
@@ -1357,7 +1357,7 @@ export default function BusinessRegistration() {
                 {!directorData.sameAddress && (
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Residential Address
+                      {t('login_residential_address')}
                     </label>
                     <textarea
                       rows={3}
@@ -1370,12 +1370,12 @@ export default function BusinessRegistration() {
 
                 {/* Contact Information */}
                 <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  Contact Information
+                  {t('login_contact_information')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Email Address *
+                      {t('login_email_label')} *
                     </label>
                     <input
                       type="email"
@@ -1464,7 +1464,7 @@ export default function BusinessRegistration() {
             {phase === 3 && (
               <form onSubmit={handleFinalSubmit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
                 <h2 className="text-2xl font-bold text-white mb-6">
-                  Waiver & Agreement
+                  {t('login_waiver_agreement')}
                 </h2>
                 
                 {/* Waiver Text */}
@@ -1529,7 +1529,7 @@ export default function BusinessRegistration() {
                 {/* Application Summary */}
                 <div className="bg-stone-700/20 rounded-lg p-4 mb-6">
                   <h3 className="font-semibold text-white mb-2">
-                    Application Summary
+                    {t('login_application_summary')}
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm text-stone-400">
                     <p>Business: <span className="text-white">{businessData.tradingName}</span></p>
@@ -1556,7 +1556,7 @@ export default function BusinessRegistration() {
                         : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
                     }`}
                   >
-                    Monthly Billing
+                    {t('login_monthly_billing')}
                   </button>
                   <button
                     type="button"
@@ -1567,7 +1567,7 @@ export default function BusinessRegistration() {
                         : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
                     }`}
                   >
-                    Yearly Billing <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
+                    {t('login_yearly_billing')} <span className="text-green-400 text-xs ml-1">Save 8.33%</span>
                   </button>
                 </div>
 
