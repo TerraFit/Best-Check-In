@@ -1163,5 +1163,17 @@
   "landing_form_security": "Completa la verificación de seguridad.",
   "landing_form_success": "Gracias. Tu consulta se ha enviado y nuestro equipo se pondrá en contacto contigo.",
   "landing_form_error": "No se pudo enviar tu consulta.",
-  "landing_footer_privacy_terms": "Privacidad y términos"
+  "landing_footer_privacy_terms": "Privacidad y términos",
+  "landing_plan_from": "Desde",
+  "landing_plan_room_singular": "habitación",
+  "landing_plan_room_plural": "habitaciones",
+  "landing_plan_capacity_note": "Capacidad en bloques de 5 habitaciones · sin límite máximo",
+  "landing_plan_see_less": "Ver menos",
+  "landing_plan_see_more": "Ver más",
+  "landing_plan_region_pricing_note": "Los precios en {currency} son precios regionales, convertidos desde el precio actual en ZAR mediante tipos de cambio mensuales y un ajuste regional. Peach Payments cobra la suscripción en ZAR; los precios internacionales se revisan mensualmente.",
+  "landing_feature_included": "Incluido",
+  "landing_feature_optional": "Opcional",
+  "landing_feature_unavailable": "No disponible",
+  "landing_plan_enterprise": "Enterprise",
+  "landing_plan_enterprise_f1": "Supervisión de varios establecimientos y capacidad de habitaciones escalable"
 }
