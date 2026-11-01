@@ -1176,5 +1176,11 @@
   "landing_plan_region_pricing_note": "Prices shown in {currency} are regional customer prices, converted from the current ZAR price using buffered monthly exchange rates and a regional adjustment. Peach Payments charges the subscription amount in ZAR; international prices are reviewed monthly.",
   "landing_feature_included": "Included",
   "landing_feature_optional": "Optional",
-  "landing_feature_unavailable": "Not available"
+  "landing_feature_unavailable": "Not available",
+  "landing_enterprise_tagline": "The elite package for hotel groups and multi-establishment operators",
+  "landing_enterprise_statement_title": "One platform. Every establishment. One view of your portfolio.",
+  "landing_enterprise_statement": "Enterprise brings your establishments together under one management structure, giving owners, directors and senior executives a consolidated view of operations, performance, guest markets and business intelligence.",
+  "landing_enterprise_glance": "Enterprise at a glance",
+  "landing_enterprise_manage_title": "Manage your portfolio from one place",
+  "landing_enterprise_room_note": "From 21 rooms · first 2 properties included"
 }
