@@ -1288,5 +1288,8 @@
   "login_price_label": "价格",
   "login_rooms_label": "客房",
   "login_acknowledgement": "本人确认以上提供的所有信息据本人所知均真实、准确且完整。",
-  "login_enterprise_features": "整合式投资组合管理 · 高层级投资组合洞察 · 定制集成与专属支持"
+  "login_enterprise_features": "整合式投资组合管理 · 高层级投资组合洞察 · 定制集成与专属支持",
+  "login_property_count_help": "请输入贵公司运营的住宿场所数量。",
+  "login_rooms_count_help": "请输入所有住宿场所的客房总数。Enterprise 套餐适用于 21 间及以上客房。",
+  "reg_register_intro": "比较各套餐及功能，选择最适合您企业的方案。我们将根据客房容量和所需工具为您推荐套餐。"
 }
