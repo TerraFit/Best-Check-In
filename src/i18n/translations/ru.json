@@ -1254,5 +1254,6 @@
   "landing_pf_everything_growth": "Всё, что включено в Growth",
   "landing_pf_everything_pro": "Всё, что включено в Pro",
   "landing_pf_executive_intelligence": "Управленческая аналитика портфеля",
-  "landing_pf_note_marketing": "{monthly} в месяц или ваучер {voucher}"
+  "landing_pf_note_marketing": "{monthly} в месяц или ваучер {voucher}",
+  "landing_plan_ideal_label": "Для кого подходит тариф"
 }
