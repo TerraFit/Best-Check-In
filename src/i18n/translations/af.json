@@ -1293,5 +1293,11 @@
   "login_property_count_help": "Voer die aantal verblyfondernemings in wat jou maatskappy bedryf.",
   "login_rooms_count_help": "Voer die totale aantal kamers oor al jou eiendomme in. Enterprise-pryse begin by 21 kamers.",
   "reg_register_intro": "Vergelyk pakkette en kenmerke om die beste opsie vir jou besigheid te vind. Ons beveel ’n pakket aan op grond van jou kamerkapasiteit en die nutsmiddels wat jy benodig.",
-  "login_submit_application": "Dien Aansoek In"
+  "login_submit_application": "Dien Aansoek In",
+  "login_multi_room_management": "Multi-kamerbestuur",
+  "login_basic_reporting": "Basiese verslagdoening",
+  "login_advanced_reporting": "Gevorderde verslagdoening",
+  "login_staff_permissions": "Personeeltoestemmings",
+  "login_api_integrations": "API / Integrasies",
+  "login_annual_saving": "Bespaar 8,33%"
 }
