@@ -1272,5 +1272,20 @@
   "login_selected_plan": "Geselecteerd pakket",
   "login_change_plan": "Pakket wijzigen",
   "landing_plan_recommended": "Aanbevolen",
-  "login_select_plan": "Pakket selecteren"
+  "login_select_plan": "Pakket selecteren",
+  "login_legal_name": "Wettelijke naam (zoals geregistreerd bij CIPC)",
+  "login_registration_number": "Registratienummer (optioneel)",
+  "login_vat_number": "Btw-nummer (optioneel)",
+  "login_establishment_type": "Type accommodatie",
+  "login_tgsa_grading": "TGSA-classificatie (optioneel)",
+  "login_street_address": "Straat en huisnummer",
+  "login_confirm_email": "E-mailadres bevestigen",
+  "login_fixed_phone": "Vaste telefoon",
+  "login_mobile_phone": "Mobiele telefoon",
+  "login_property_count_question": "Hoeveel accommodaties heeft uw bedrijf?",
+  "login_rooms_count_question": "Hoeveel kamers zijn er in al uw accommodaties samen?",
+  "login_price_label": "Prijs",
+  "login_rooms_label": "Kamers",
+  "login_acknowledgement": "Ik bevestig dat alle hierboven verstrekte informatie naar mijn beste weten waar, juist en volledig is.",
+  "login_enterprise_features": "Geconsolideerd portfoliobeheer · Strategisch portfolio-inzicht · Aangepaste integraties en toegewijde ondersteuning"
 }
