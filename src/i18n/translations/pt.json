@@ -1287,5 +1287,8 @@
   "login_price_label": "Preço",
   "login_rooms_label": "Quartos",
   "login_acknowledgement": "Declaro que todas as informações acima são verdadeiras, corretas e completas, tanto quanto é do meu conhecimento.",
-  "login_enterprise_features": "Gestão consolidada do portefólio · Inteligência estratégica do portefólio · Integrações personalizadas e apoio dedicado"
+  "login_enterprise_features": "Gestão consolidada do portefólio · Inteligência estratégica do portefólio · Integrações personalizadas e apoio dedicado",
+  "login_property_count_help": "Indique o número de estabelecimentos operados pela sua empresa.",
+  "login_rooms_count_help": "Indique o número total de quartos em todos os seus estabelecimentos. Os preços Enterprise começam em 21 quartos.",
+  "reg_register_intro": "Compare planos e funcionalidades para encontrar a melhor opção para a sua empresa. Recomendaremos um plano com base na capacidade de quartos e nas ferramentas necessárias."
 }
