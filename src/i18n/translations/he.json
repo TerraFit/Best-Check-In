@@ -1291,5 +1291,11 @@
   "login_property_count_help": "יש להזין את מספר מקומות האירוח שהחברה מפעילה.",
   "login_rooms_count_help": "יש להזין את מספר החדרים הכולל בכל הנכסים. מחירי Enterprise מתחילים ב-21 חדרים.",
   "reg_register_intro": "השוו בין התוכניות והתכונות כדי למצוא את הפתרון המתאים לעסק שלכם. נמליץ על תוכנית בהתאם לקיבולת החדרים ולכלים הדרושים.",
-  "login_submit_application": "שליחת הבקשה"
+  "login_submit_application": "שליחת הבקשה",
+  "login_multi_room_management": "ניהול מספר חדרים",
+  "login_basic_reporting": "דוחות בסיסיים",
+  "login_advanced_reporting": "דוחות מתקדמים",
+  "login_staff_permissions": "הרשאות עובדים",
+  "login_api_integrations": "API / אינטגרציות",
+  "login_annual_saving": "חיסכון של 8.33%"
 }
