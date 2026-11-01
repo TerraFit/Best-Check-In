@@ -576,7 +576,7 @@ export default function BusinessRegistration() {
             className="h-16 w-auto mx-auto mb-4 object-contain"
           />
           <h1 className="text-4xl font-bold text-white">{t('reg_register_business')}</h1>
-          <p className="text-stone-400 mt-2">Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.</p>
+          <p className="text-stone-400 mt-2">{t('reg_register_intro')}</p>
           <p className="text-stone-500 text-xs mt-3">Prices are displayed in {regionalPricing.currency} for your selected region. International prices are converted from ZAR using buffered monthly exchange rates and a regional adjustment; Peach Payments charges in ZAR.</p>
         </div>
 
