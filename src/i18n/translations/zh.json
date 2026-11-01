@@ -1163,5 +1163,17 @@
   "landing_form_security": "请完成安全验证。",
   "landing_form_success": "谢谢。您的咨询已发送，我们的团队会与您联系。",
   "landing_form_error": "无法发送您的咨询。",
-  "landing_footer_privacy_terms": "隐私与条款"
+  "landing_footer_privacy_terms": "隐私与条款",
+  "landing_plan_from": "起价",
+  "landing_plan_room_singular": "间客房",
+  "landing_plan_room_plural": "间客房",
+  "landing_plan_capacity_note": "按每 5 间客房为一个容量单位 · 客房数量不限",
+  "landing_plan_see_less": "收起",
+  "landing_plan_see_more": "查看更多",
+  "landing_plan_region_pricing_note": "以 {currency} 显示的价格为区域价格，根据当前南非兰特价格、每月缓冲汇率及区域调整换算。Peach Payments 以南非兰特收取订阅费用；国际价格每月审核。",
+  "landing_feature_included": "已包含",
+  "landing_feature_optional": "可选",
+  "landing_feature_unavailable": "不可用",
+  "landing_plan_enterprise": "企业版",
+  "landing_plan_enterprise_f1": "多家住宿机构管理与可扩展客房容量"
 }
