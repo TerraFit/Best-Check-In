@@ -1163,5 +1163,17 @@
   "landing_form_security": "Пожалуйста, пройдите проверку безопасности.",
   "landing_form_success": "Спасибо. Ваш запрос отправлен, и наша команда свяжется с вами.",
   "landing_form_error": "Не удалось отправить запрос.",
-  "landing_footer_privacy_terms": "Конфиденциальность и условия"
+  "landing_footer_privacy_terms": "Конфиденциальность и условия",
+  "landing_plan_from": "От",
+  "landing_plan_room_singular": "номер",
+  "landing_plan_room_plural": "номеров",
+  "landing_plan_capacity_note": "Вместимость блоками по 5 номеров · без максимального ограничения",
+  "landing_plan_see_less": "Свернуть",
+  "landing_plan_see_more": "Показать больше",
+  "landing_plan_region_pricing_note": "Цены в {currency} являются региональными и пересчитываются из текущей цены в ZAR по ежемесячным курсам с региональной корректировкой. Peach Payments списывает оплату за подписку в ZAR; международные цены пересматриваются ежемесячно.",
+  "landing_feature_included": "Включено",
+  "landing_feature_optional": "Дополнительно",
+  "landing_feature_unavailable": "Недоступно",
+  "landing_plan_enterprise": "Корпоративный",
+  "landing_plan_enterprise_f1": "Контроль нескольких объектов и масштабируемая вместимость"
 }
