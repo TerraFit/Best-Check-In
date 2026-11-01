@@ -1291,5 +1291,11 @@
   "login_property_count_help": "أدخل عدد المنشآت التي تديرها شركتك.",
   "login_rooms_count_help": "أدخل إجمالي عدد الغرف في جميع منشآتك. تبدأ أسعار Enterprise من 21 غرفة.",
   "reg_register_intro": "قارن الخطط والميزات لاختيار الأنسب لنشاطك التجاري. سنوصي بخطة بناءً على سعة الغرف والأدوات التي تحتاج إليها.",
-  "login_submit_application": "إرسال الطلب"
+  "login_submit_application": "إرسال الطلب",
+  "login_multi_room_management": "إدارة عدة غرف",
+  "login_basic_reporting": "تقارير أساسية",
+  "login_advanced_reporting": "تقارير متقدمة",
+  "login_staff_permissions": "صلاحيات الموظفين",
+  "login_api_integrations": "واجهات API / التكاملات",
+  "login_annual_saving": "وفّر 8.33٪"
 }
