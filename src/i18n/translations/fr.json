@@ -1247,5 +1247,12 @@
   "landing_pf_info_languages": "Langues disponibles : afrikaans, arabe, chinois, néerlandais, anglais, français, allemand, hébreu, italien, portugais, russe et espagnol.",
   "landing_pf_info_language_recognition": "Reconnaît automatiquement la langue du client et affiche l’expérience d’enregistrement dans la langue prise en charge correspondante.",
   "landing_pf_info_branding": "Personnalisez le formulaire d’enregistrement avec l’identité visuelle de votre établissement, sans afficher la marque FastCheckIn.",
-  "landing_pf_info_executive": "Une vue globale du portefeuille destinée aux propriétaires, dirigeants, PDG, directeurs financiers et conseils d’administration, avec des synthèses par établissement et des données consolidées."
+  "landing_pf_info_executive": "Une vue globale du portefeuille destinée aux propriétaires, dirigeants, PDG, directeurs financiers et conseils d’administration, avec des synthèses par établissement et des données consolidées.",
+  "landing_plan_ideal_label": "Ideal customer for this package",
+  "landing_enterprise_ideal_label": "Ideal customer for Enterprise",
+  "landing_plan_ideal_starter": "Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.",
+  "landing_plan_ideal_growth": "Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.",
+  "landing_plan_ideal_pro": "Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.",
+  "landing_plan_ideal_business": "Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.",
+  "landing_plan_ideal_enterprise": "Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence."
 }
