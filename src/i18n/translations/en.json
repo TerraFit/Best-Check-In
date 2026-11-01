@@ -1248,5 +1248,12 @@
   "landing_pf_info_languages": "Available languages: Afrikaans, Arabic, Chinese, Dutch, English, French, German, Hebrew, Italian, Portuguese, Russian and Spanish.",
   "landing_pf_info_language_recognition": "Automatically recognises the guest’s language and presents the check-in experience in the appropriate supported language.",
   "landing_pf_info_branding": "Customise the guest-facing check-in form with your establishment’s own branding, without FastCheckIn branding.",
-  "landing_pf_info_executive": "A high-level portfolio view for owners, directors, CEOs, CFOs and boards, with establishment summaries and consolidated business intelligence."
+  "landing_pf_info_executive": "A high-level portfolio view for owners, directors, CEOs, CFOs and boards, with establishment summaries and consolidated business intelligence.",
+  "landing_plan_ideal_label": "Ideal customer for this package",
+  "landing_enterprise_ideal_label": "Ideal customer for Enterprise",
+  "landing_plan_ideal_starter": "Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.",
+  "landing_plan_ideal_growth": "Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.",
+  "landing_plan_ideal_pro": "Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.",
+  "landing_plan_ideal_business": "Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.",
+  "landing_plan_ideal_enterprise": "Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence."
 }
