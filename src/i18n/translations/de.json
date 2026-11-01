@@ -1293,5 +1293,11 @@
   "login_property_count_help": "Geben Sie die Anzahl der von Ihrem Unternehmen betriebenen Unterkünfte ein.",
   "login_rooms_count_help": "Geben Sie die Gesamtzahl der Zimmer aller Ihrer Unterkünfte ein. Enterprise-Preise beginnen bei 21 Zimmern.",
   "reg_register_intro": "Vergleichen Sie Pakete und Funktionen, um die passende Lösung für Ihr Unternehmen zu finden. Wir empfehlen ein Paket basierend auf Ihrer Zimmerkapazität und den benötigten Tools.",
-  "login_submit_application": "Antrag einreichen"
+  "login_submit_application": "Antrag einreichen",
+  "login_multi_room_management": "Verwaltung mehrerer Zimmer",
+  "login_basic_reporting": "Grundlegende Berichte",
+  "login_advanced_reporting": "Erweiterte Berichte",
+  "login_staff_permissions": "Mitarbeiterberechtigungen",
+  "login_api_integrations": "API / Integrationen",
+  "login_annual_saving": "8,33 % sparen"
 }
