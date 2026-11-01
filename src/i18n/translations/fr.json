@@ -1204,7 +1204,7 @@
   "landing_enterprise_compare_3_title": "Snapshots de portefeuille",
   "landing_enterprise_compare_3_body": "En option avec Starter/Growth/Pro · Illimités avec Business/Enterprise",
   "landing_enterprise_compare_4_title": "Personnalisation de la marque",
-  "landing_enterprise_compare_4_body": "Incluse à partir de Pro ; le formulaire d’enregistrement reprend l’identité visuelle de l’établissement, sans marque FastCheckIn",
+  "landing_enterprise_compare_4_body": "Incluse à partir de Pro ; le formulaire reprend l’identité visuelle de l’établissement, sans marque FastCheckIn",
   "landing_enterprise_compare_5_title": "Téléchargement marketing",
   "landing_enterprise_compare_5_body": "En option avec Starter/Growth · Inclus à partir de Pro",
   "landing_enterprise_compare_6_title": "Gestion de plusieurs établissements",
@@ -1243,9 +1243,9 @@
   "landing_pf_note_origin_levels": "Monde → Continent → Pays → Région → Ville",
   "landing_pf_more_info": "En savoir plus sur la fonction « {feature} »",
   "landing_pf_note_marketing": "{monthly}/mois ou bon d’achat de {voucher}",
-  "landing_pf_info_snapshot": "Une vue de gestion concise de l’occupation, des nuitées, du nombre de clients, de la répartition des marchés, de l’origine des visiteurs et d’autres indicateurs clés. Les snapshots aident les décideurs à comprendre les performances et l’évolution des marchés.",
+  "landing_pf_info_snapshot": "Une vue de gestion concise de l’occupation, des nuitées, du nombre de clients, de la répartition des marchés et de l’origine des visiteurs.",
   "landing_pf_info_languages": "Langues disponibles : afrikaans, arabe, chinois, néerlandais, anglais, français, allemand, hébreu, italien, portugais, russe et espagnol.",
   "landing_pf_info_language_recognition": "Reconnaît automatiquement la langue du client et affiche l’expérience d’enregistrement dans la langue prise en charge correspondante.",
-  "landing_pf_info_branding": "Personnalisez le formulaire d’enregistrement avec l’identité visuelle de votre établissement, sans afficher la marque FastCheckIn aux clients.",
+  "landing_pf_info_branding": "Personnalisez le formulaire d’enregistrement avec l’identité visuelle de votre établissement, sans afficher la marque FastCheckIn.",
   "landing_pf_info_executive": "Une vue globale du portefeuille destinée aux propriétaires, dirigeants, PDG, directeurs financiers et conseils d’administration, avec des synthèses par établissement et des données consolidées."
 }
