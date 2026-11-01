@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "En option",
   "landing_feature_unavailable": "Non disponible",
   "landing_plan_enterprise": "Entreprise",
-  "landing_plan_enterprise_f1": "Supervision de plusieurs établissements et capacité de chambres évolutive"
+  "landing_plan_enterprise_f1": "Supervision de plusieurs établissements et capacité de chambres évolutive",
+  "landing_enterprise_tagline": "L’offre haut de gamme pour les groupes hôteliers et les opérateurs multi-établissements",
+  "landing_enterprise_statement_title": "Une plateforme. Chaque établissement. Une vue d’ensemble de votre portefeuille.",
+  "landing_enterprise_statement": "Enterprise réunit vos établissements au sein d’une même structure de gestion et offre aux propriétaires et dirigeants une vue consolidée des opérations, des performances, des marchés clients et des données commerciales.",
+  "landing_enterprise_glance": "Enterprise en bref",
+  "landing_enterprise_manage_title": "Gérez votre portefeuille depuis un seul endroit",
+  "landing_enterprise_room_note": "À partir de 21 chambres · 2 premiers établissements inclus"
 }
