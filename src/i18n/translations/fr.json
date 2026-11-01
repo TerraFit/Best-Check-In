@@ -1289,5 +1289,8 @@
   "login_price_label": "Prix",
   "login_rooms_label": "Chambres",
   "login_acknowledgement": "Je reconnais que toutes les informations fournies ci-dessus sont vraies, exactes et complètes à ma connaissance.",
-  "login_enterprise_features": "Gestion consolidée du portefeuille · Intelligence stratégique du portefeuille · Intégrations personnalisées et assistance dédiée"
+  "login_enterprise_features": "Gestion consolidée du portefeuille · Intelligence stratégique du portefeuille · Intégrations personnalisées et assistance dédiée",
+  "login_property_count_help": "Saisissez le nombre d’établissements exploités par votre entreprise.",
+  "login_rooms_count_help": "Saisissez le nombre total de chambres de tous vos établissements. Les tarifs Enterprise commencent à 21 chambres.",
+  "reg_register_intro": "Comparez les forfaits et les fonctionnalités pour trouver la solution adaptée à votre entreprise. Nous vous recommanderons un forfait selon votre capacité en chambres et vos besoins."
 }
