@@ -1272,5 +1272,20 @@
   "login_selected_plan": "Plano selecionado",
   "login_change_plan": "Alterar plano",
   "landing_plan_recommended": "Recomendado",
-  "login_select_plan": "Selecionar plano"
+  "login_select_plan": "Selecionar plano",
+  "login_legal_name": "Nome legal (conforme ao CIPC)",
+  "login_registration_number": "Número de registo (opcional)",
+  "login_vat_number": "Número de IVA (opcional)",
+  "login_establishment_type": "Tipo de estabelecimento",
+  "login_tgsa_grading": "Classificação TGSA (opcional)",
+  "login_street_address": "Morada",
+  "login_confirm_email": "Confirmar endereço de e-mail",
+  "login_fixed_phone": "Telefone fixo",
+  "login_mobile_phone": "Telemóvel",
+  "login_property_count_question": "Quantos estabelecimentos tem a sua empresa?",
+  "login_rooms_count_question": "Quantos quartos existem em todos os seus estabelecimentos?",
+  "login_price_label": "Preço",
+  "login_rooms_label": "Quartos",
+  "login_acknowledgement": "Declaro que todas as informações acima são verdadeiras, corretas e completas, tanto quanto é do meu conhecimento.",
+  "login_enterprise_features": "Gestão consolidada do portefólio · Inteligência estratégica do portefólio · Integrações personalizadas e apoio dedicado"
 }
