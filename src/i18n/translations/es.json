@@ -1291,5 +1291,11 @@
   "login_property_count_help": "Indique el número de establecimientos que gestiona su empresa.",
   "login_rooms_count_help": "Indique el número total de habitaciones de todos sus establecimientos. Los precios Enterprise comienzan en 21 habitaciones.",
   "reg_register_intro": "Compare planes y funciones para encontrar la opción más adecuada para su empresa. Le recomendaremos un plan según su capacidad de habitaciones y las herramientas que necesite.",
-  "login_submit_application": "Enviar solicitud"
+  "login_submit_application": "Enviar solicitud",
+  "login_multi_room_management": "Gestión de varias habitaciones",
+  "login_basic_reporting": "Informes básicos",
+  "login_advanced_reporting": "Informes avanzados",
+  "login_staff_permissions": "Permisos del personal",
+  "login_api_integrations": "API / Integraciones",
+  "login_annual_saving": "Ahorre un 8,33%"
 }
