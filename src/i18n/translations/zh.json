@@ -1248,11 +1248,11 @@
   "landing_pf_info_language_recognition": "自动识别宾客语言，并以相应的支持语言显示登记流程。",
   "landing_pf_info_branding": "使用住宿机构自己的品牌定制宾客登记表，宾客界面不显示 FastCheckIn 品牌。",
   "landing_pf_info_executive": "为业主、董事、首席执行官、首席财务官及董事会提供组合业务总览、各机构摘要和综合商业分析。",
-  "landing_plan_ideal_label": "Ideal customer for this package",
-  "landing_enterprise_ideal_label": "Ideal customer for Enterprise",
-  "landing_plan_ideal_starter": "Ideal for B&Bs and smaller guest houses primarily needing professional digital check-in.",
-  "landing_plan_ideal_growth": "Ideal for growing accommodation businesses needing digital check-in plus basic housekeeping and operational support.",
-  "landing_plan_ideal_pro": "Ideal for established accommodation businesses wanting broader operational management, advanced analytics and marketing intelligence.",
-  "landing_plan_ideal_business": "Ideal for larger establishments needing the complete operational toolkit and unlimited Portfolio Snapshot access.",
-  "landing_plan_ideal_enterprise": "Ideal for hotel groups and multi-establishment operators requiring consolidated portfolio management and high-level business intelligence."
+  "landing_plan_ideal_label": "适合此套餐的客户",
+  "landing_enterprise_ideal_label": "适合 Enterprise 的客户",
+  "landing_plan_ideal_starter": "适合主要需要专业数字入住登记服务的民宿和小型宾馆。",
+  "landing_plan_ideal_growth": "适合需要数字入住登记、基础客房清洁和运营支持的成长型住宿企业。",
+  "landing_plan_ideal_pro": "适合希望获得更全面运营管理、高级分析和市场洞察的成熟住宿企业。",
+  "landing_plan_ideal_business": "适合需要完整运营工具套件及无限使用 Portfolio Snapshots 的大型住宿机构。",
+  "landing_plan_ideal_enterprise": "适合需要集中式组合管理和高级商业智能的酒店集团及多物业运营商。"
 }
