@@ -299,7 +299,7 @@ export default function BusinessRegistration() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, etc.)');
+      alert(t('error_upload_image'));
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -320,27 +320,27 @@ export default function BusinessRegistration() {
   // Validate Phase 1 (UPDATED to include establishmentType)
   const validatePhase1 = (): boolean => {
     if (!businessData.legalName) {
-      alert('Legal name is required');
+      alert(t('error_required', { field: t('login_legal_name') }));
       return false;
     }
     if (!businessData.tradingName) {
-      alert('Trading name is required');
+      alert(t('error_required', { field: t('dashboard_trading_name') }));
       return false;
     }
     if (!businessData.establishmentType) {
-      alert('Please select your establishment type');
+      alert(t('reg_select_establishment'));
       return false;
     }
     if (!businessData.physicalStreet) {
-      alert('Physical address is required');
+      alert(t('error_required', { field: t('login_physical_address') }));
       return false;
     }
     if (!businessData.physicalCity) {
-      alert('City is required');
+      alert(t('error_city_required'));
       return false;
     }
     if (!businessData.physicalCountry) {
-      alert('Country is required');
+      alert(t('error_country_required'));
       return false;
     }
     if (!businessData.physicalProvince) {
@@ -348,15 +348,15 @@ export default function BusinessRegistration() {
       return false;
     }
     if (!businessData.email) {
-      alert('Email is required');
+      alert(t('error_invalid_email'));
       return false;
     }
     if (businessData.email !== businessData.confirmEmail) {
-      alert('Emails do not match');
+      alert(t('error_passwords_mismatch'));
       return false;
     }
     if (!businessData.mobilePhone) {
-      alert('Mobile phone is required');
+      alert(t('error_phone_required'));
       return false;
     }
     return true;
@@ -365,31 +365,31 @@ export default function BusinessRegistration() {
   // Validate Phase 2
   const validatePhase2 = (): boolean => {
     if (!directorData.name) {
-      alert('Director name is required');
+      alert(t('error_first_name_required'));
       return false;
     }
     if (!directorData.surname) {
-      alert('Director surname is required');
+      alert(t('error_last_name_required'));
       return false;
     }
     if (!directorData.idNumber) {
-      alert('ID/Passport number is required');
+      alert(t('error_passport_required'));
       return false;
     }
     if (!directorData.idPhoto) {
-      alert('ID photo is required');
+      alert(t('error_photo_required'));
       return false;
     }
     if (!directorData.email) {
-      alert('Director email is required');
+      alert(t('error_invalid_email'));
       return false;
     }
     if (directorData.email !== directorData.confirmEmail) {
-      alert('Director emails do not match');
+      alert(t('error_passwords_mismatch'));
       return false;
     }
     if (!directorData.acknowledgeCorrect) {
-      alert('Please acknowledge that the information is correct');
+      alert(t('error_required', { field: t('login_acknowledgement') }));
       return false;
     }
     return true;
@@ -422,14 +422,14 @@ export default function BusinessRegistration() {
     e.preventDefault();
     
     if (captchaInput.toUpperCase() !== captchaText) {
-      alert('CAPTCHA verification failed. Please try again.');
+      alert(t('error_unexpected'));
       generateCaptcha();
       setCaptchaInput('');
       return;
     }
     
     if (!waiverAccepted) {
-      alert('Please accept the waiver agreement to continue');
+      alert(t('error_indemnity_required'));
       return;
     }
     
@@ -508,7 +508,7 @@ export default function BusinessRegistration() {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert('An error occurred. Please try again.');
+      alert(t('error_unexpected'));
     } finally {
       setLoading(false);
     }
