@@ -1293,5 +1293,11 @@
   "login_property_count_help": "Enter the number of establishments operated by your company.",
   "login_rooms_count_help": "Enter the combined number of rooms across all your properties. Enterprise pricing starts at 21 rooms.",
   "reg_register_intro": "Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.",
-  "login_submit_application": "Submit Application"
+  "login_submit_application": "Submit Application",
+  "login_multi_room_management": "Multi-Room Management",
+  "login_basic_reporting": "Basic Reporting",
+  "login_advanced_reporting": "Advanced Reporting",
+  "login_staff_permissions": "Staff Permissions",
+  "login_api_integrations": "API / Integrations",
+  "login_annual_saving": "Save 8.33%"
 }
