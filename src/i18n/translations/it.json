@@ -1272,5 +1272,20 @@
   "login_selected_plan": "Piano selezionato",
   "login_change_plan": "Cambia piano",
   "landing_plan_recommended": "Consigliato",
-  "login_select_plan": "Seleziona piano"
+  "login_select_plan": "Seleziona piano",
+  "login_legal_name": "Ragione sociale (come da CIPC)",
+  "login_registration_number": "Numero di registrazione (facoltativo)",
+  "login_vat_number": "Partita IVA (facoltativa)",
+  "login_establishment_type": "Tipo di struttura",
+  "login_tgsa_grading": "Classificazione TGSA (facoltativa)",
+  "login_street_address": "Indirizzo",
+  "login_confirm_email": "Conferma indirizzo e-mail",
+  "login_fixed_phone": "Telefono fisso",
+  "login_mobile_phone": "Cellulare",
+  "login_property_count_question": "Quante strutture possiede la tua azienda?",
+  "login_rooms_count_question": "Quante camere ci sono in tutte le tue strutture?",
+  "login_price_label": "Prezzo",
+  "login_rooms_label": "Camere",
+  "login_acknowledgement": "Dichiaro che tutte le informazioni fornite sopra sono vere, corrette e complete secondo le mie conoscenze.",
+  "login_enterprise_features": "Gestione consolidata del portfolio · Intelligence avanzata del portfolio · Integrazioni personalizzate e supporto dedicato"
 }
