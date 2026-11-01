@@ -547,7 +547,7 @@ export default function BusinessRegistration() {
                 <p className="text-sm text-stone-400">{t('login_price_label')}</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}/${billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}`
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}${billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}`
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}/month`
                       : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}/year`)}
@@ -674,7 +674,7 @@ export default function BusinessRegistration() {
                   {plan.mostPopular && !isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full">
-                        Most Popular
+                        {t('landing_plan_most_popular')}
                       </span>
                     </div>
                   )}
@@ -692,7 +692,7 @@ export default function BusinessRegistration() {
                         {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}
                       </span>
                       <span className="text-stone-400 text-sm">
-                        /{billingCycle === 'monthly' ? 'month' : 'year'}
+                        {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
                       </span>
                     </div>
                     
