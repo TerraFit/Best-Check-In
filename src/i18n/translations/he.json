@@ -1272,5 +1272,20 @@
   "login_selected_plan": "התוכנית שנבחרה",
   "login_change_plan": "שינוי תוכנית",
   "landing_plan_recommended": "מומלץ",
-  "login_select_plan": "בחירת תוכנית"
+  "login_select_plan": "בחירת תוכנית",
+  "login_legal_name": "שם משפטי (כפי שמופיע ב-CIPC)",
+  "login_registration_number": "מספר רישום (אופציונלי)",
+  "login_vat_number": "מספר מע״מ (אופציונלי)",
+  "login_establishment_type": "סוג מקום האירוח",
+  "login_tgsa_grading": "דירוג TGSA (אופציונלי)",
+  "login_street_address": "כתובת רחוב",
+  "login_confirm_email": "אישור כתובת דוא״ל",
+  "login_fixed_phone": "טלפון קווי",
+  "login_mobile_phone": "טלפון נייד",
+  "login_property_count_question": "כמה נכסים יש לחברה שלך?",
+  "login_rooms_count_question": "כמה חדרים יש בכל הנכסים שלך יחד?",
+  "login_price_label": "מחיר",
+  "login_rooms_label": "חדרים",
+  "login_acknowledgement": "אני מאשר/ת שכל המידע שנמסר לעיל נכון, מדויק ומלא למיטב ידיעתי.",
+  "login_enterprise_features": "ניהול תיק נכסים מאוחד · תובנות אסטרטגיות על תיק הנכסים · אינטגרציות מותאמות ותמיכה ייעודית"
 }
