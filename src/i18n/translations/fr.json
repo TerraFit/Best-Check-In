@@ -122,6 +122,7 @@
   "housekeeping_complete": "Terminer",
   "housekeeping_skip": "Ignorer",
   "housekeeping_previous_cleaning_cancelled": "Tentative de nettoyage précédente annulée",
+  "housekeeping_previous_cleaning_cancelled": "Tentative de nettoyage précédente annulée",
   "housekeeping_skip_oldest": "Ignorer le service le plus ancien",
   "housekeeping_skip_overdue_title": "Ignorer un service de ménage en retard",
   "housekeeping_skip_overdue_description": "Cette chambre a plusieurs services de rafraîchissement en retard. Seul le service le plus ancien peut être ignoré ici.",
@@ -1081,7 +1082,8 @@
   "reports_financial_revenue": "Chiffre d’affaires",
   "reports_financial_save": "Enregistrer et télécharger le PDF",
   "reports_financial_skip": "Ignorer et télécharger le PDF",
-  "reports_financial_title": "Ajouter des informations financières",
+  "reports_financial_title": "Ajouter des informations financières"
+,
   "landing_redesign_eyebrow": "L’hospitalité, connectée",
   "landing_redesign_hero_support": "La plateforme numérique qui aide les hôtels et maisons d’hôtes à offrir de meilleures expériences, à comprendre leurs marchés et à prendre de meilleures décisions commerciales.",
   "landing_redesign_explore": "Découvrir FastCheckIn",
