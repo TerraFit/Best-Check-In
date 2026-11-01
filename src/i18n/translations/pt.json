@@ -1291,5 +1291,11 @@
   "login_property_count_help": "Indique o número de estabelecimentos operados pela sua empresa.",
   "login_rooms_count_help": "Indique o número total de quartos em todos os seus estabelecimentos. Os preços Enterprise começam em 21 quartos.",
   "reg_register_intro": "Compare planos e funcionalidades para encontrar a melhor opção para a sua empresa. Recomendaremos um plano com base na capacidade de quartos e nas ferramentas necessárias.",
-  "login_submit_application": "Enviar candidatura"
+  "login_submit_application": "Enviar candidatura",
+  "login_multi_room_management": "Gestão de várias unidades",
+  "login_basic_reporting": "Relatórios básicos",
+  "login_advanced_reporting": "Relatórios avançados",
+  "login_staff_permissions": "Permissões dos funcionários",
+  "login_api_integrations": "API / Integrações",
+  "login_annual_saving": "Poupe 8,33%"
 }
