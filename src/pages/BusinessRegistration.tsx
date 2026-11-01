@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { t } from '../i18n';
+import { useTranslation } from '../i18n/useTranslation';
 import { PACKAGES, PLAN_ORDER, type PlanType } from '../config/packages';
 import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, calculateEnterprisePortfolioMonthlyPrice, convertZarToRegionalPrice, getRegionalPricing, MARKETING_DOWNLOAD_MONTHLY_PRICE, MARKETING_DOWNLOAD_VOUCHER_PRICE } from '../config/pricing';
 import PricingComingSoonModal from '../components/PricingComingSoonModal';
@@ -155,6 +155,7 @@ const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => 
 }));
 
 export default function BusinessRegistration() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { region, isSouthAfricanMarket, fxRates } = useMarket();
@@ -531,7 +532,7 @@ export default function BusinessRegistration() {
                 className="h-8 w-auto"
               />
               <div>
-                <p className="text-sm text-stone-400">Selected Plan</p>
+                <p className="text-sm text-stone-400">{t('login_selected_plan')}</p>
                 <p className="font-bold text-white">
                   {selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}
                 </p>
@@ -574,7 +575,7 @@ export default function BusinessRegistration() {
             alt="FastCheckin"
             className="h-16 w-auto mx-auto mb-4 object-contain"
           />
-          <h1 className="text-4xl font-bold text-white">Register Your Business</h1>
+          <h1 className="text-4xl font-bold text-white">{t('reg_register_business')}</h1>
           <p className="text-stone-400 mt-2">Compare plans and features to find the best fit for your business. We’ll recommend a plan based on your room capacity and the tools you need.</p>
           <p className="text-stone-500 text-xs mt-3">Prices are displayed in {regionalPricing.currency} for your selected region. International prices are converted from ZAR using buffered monthly exchange rates and a regional adjustment; Peach Payments charges in ZAR.</p>
         </div>
@@ -1099,7 +1100,7 @@ export default function BusinessRegistration() {
                       }}
                       className="w-4 h-4 rounded border-stone-600 bg-stone-700"
                     />
-                    <span className="text-stone-300">Same as physical address</span>
+                    <span className="text-stone-300">{t('login_same_as_physical')}</span>
                   </label>
                 </div>
                 
@@ -1349,7 +1350,7 @@ export default function BusinessRegistration() {
                       onChange={(e) => setDirectorData({ ...directorData, sameAddress: e.target.checked })}
                       className="w-4 h-4 rounded border-stone-600 bg-stone-700"
                     />
-                    <span className="text-stone-300">Same as business address</span>
+                    <span className="text-stone-300">{t('login_same_as_business')}</span>
                   </label>
                 </div>
                 
