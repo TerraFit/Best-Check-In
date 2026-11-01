@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "Facoltativo",
   "landing_feature_unavailable": "Non disponibile",
   "landing_plan_enterprise": "Enterprise",
-  "landing_plan_enterprise_f1": "Gestione di più strutture e capacità di camere scalabile"
+  "landing_plan_enterprise_f1": "Gestione di più strutture e capacità di camere scalabile",
+  "landing_enterprise_tagline": "Il pacchetto premium per gruppi alberghieri e operatori con più strutture",
+  "landing_enterprise_statement_title": "Un'unica piattaforma. Ogni struttura. Una visione del portafoglio.",
+  "landing_enterprise_statement": "Enterprise riunisce le strutture in un'unica struttura gestionale e offre a proprietari e dirigenti una visione consolidata di operazioni, prestazioni, mercati degli ospiti e dati aziendali.",
+  "landing_enterprise_glance": "Enterprise in sintesi",
+  "landing_enterprise_manage_title": "Gestisci il portafoglio da un unico posto",
+  "landing_enterprise_room_note": "Da 21 camere · prime 2 strutture incluse"
 }
