@@ -1163,5 +1163,17 @@
   "landing_form_security": "Voltooi de beveiligingsverificatie.",
   "landing_form_success": "Dank u. Uw vraag is verzonden en ons team neemt contact met u op.",
   "landing_form_error": "Uw vraag kon niet worden verzonden.",
-  "landing_footer_privacy_terms": "Privacy & voorwaarden"
+  "landing_footer_privacy_terms": "Privacy & voorwaarden",
+  "landing_plan_from": "Vanaf",
+  "landing_plan_room_singular": "kamer",
+  "landing_plan_room_plural": "kamers",
+  "landing_plan_capacity_note": "Capaciteit in blokken van 5 kamers · geen maximumaantal",
+  "landing_plan_see_less": "Minder weergeven",
+  "landing_plan_see_more": "Meer weergeven",
+  "landing_plan_region_pricing_note": "De prijzen in {currency} zijn regionale klantprijzen, omgerekend vanaf de huidige ZAR-prijs met maandelijkse wisselkoersen en een regionale aanpassing. Peach Payments brengt abonnementen in ZAR in rekening; internationale prijzen worden maandelijks herzien.",
+  "landing_feature_included": "Inbegrepen",
+  "landing_feature_optional": "Optioneel",
+  "landing_feature_unavailable": "Niet beschikbaar",
+  "landing_plan_enterprise": "Enterprise",
+  "landing_plan_enterprise_f1": "Toezicht op meerdere vestigingen en schaalbare kamercapaciteit"
 }
