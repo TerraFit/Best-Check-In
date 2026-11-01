@@ -1175,5 +1175,11 @@
   "landing_feature_optional": "Дополнительно",
   "landing_feature_unavailable": "Недоступно",
   "landing_plan_enterprise": "Корпоративный",
-  "landing_plan_enterprise_f1": "Контроль нескольких объектов и масштабируемая вместимость"
+  "landing_plan_enterprise_f1": "Контроль нескольких объектов и масштабируемая вместимость",
+  "landing_enterprise_tagline": "Премиальный пакет для гостиничных групп и операторов нескольких объектов",
+  "landing_enterprise_statement_title": "Одна платформа. Каждый объект. Единый обзор портфеля.",
+  "landing_enterprise_statement": "Enterprise объединяет объекты в единую структуру управления и предоставляет владельцам и руководителям сводную информацию об операциях, результатах, рынках гостей и бизнес-показателях.",
+  "landing_enterprise_glance": "Enterprise вкратце",
+  "landing_enterprise_manage_title": "Управляйте портфелем в одном месте",
+  "landing_enterprise_room_note": "От 21 номера · первые 2 объекта включены"
 }
