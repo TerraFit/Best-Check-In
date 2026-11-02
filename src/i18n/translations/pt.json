@@ -1321,5 +1321,19 @@
   "reg_properties": "Estabelecimentos",
   "reg_total_rooms": "Total de quartos",
   "reg_director": "Diretor",
-  "reg_waiver_terms": "1. Aceitação dos termos\nAo utilizar a plataforma FastCheckin, concorda em ficar vinculado a estes termos e condições.\n\n2. Utilização da plataforma\nA FastCheckin fornece uma solução digital de check-in para alojamentos. A plataforma é fornecida «tal como está», sem garantias.\n\n3. Limitação de responsabilidade\nNa máxima medida permitida por lei, a FastCheckin não será responsável por danos indiretos, incidentais, especiais, consequenciais ou punitivos.\n\n4. Tratamento de dados\nReconhece que os dados dos hóspedes são tratados de acordo com a POPIA e a nossa Política de Privacidade.\n\n5. Indemnização\nConcorda em indemnizar e isentar a FastCheckin de quaisquer reclamações decorrentes da sua utilização da plataforma.\n\n6. Rescisão\nA FastCheckin reserva-se o direito de suspender ou terminar o acesso em caso de violação destes termos.\n\n7. Lei aplicável\nEste acordo será regido pelas leis da República da África do Sul."
+  "reg_waiver_terms": "1. Aceitação dos termos\nAo utilizar a plataforma FastCheckin, concorda em ficar vinculado a estes termos e condições.\n\n2. Utilização da plataforma\nA FastCheckin fornece uma solução digital de check-in para alojamentos. A plataforma é fornecida «tal como está», sem garantias.\n\n3. Limitação de responsabilidade\nNa máxima medida permitida por lei, a FastCheckin não será responsável por danos indiretos, incidentais, especiais, consequenciais ou punitivos.\n\n4. Tratamento de dados\nReconhece que os dados dos hóspedes são tratados de acordo com a POPIA e a nossa Política de Privacidade.\n\n5. Indemnização\nConcorda em indemnizar e isentar a FastCheckin de quaisquer reclamações decorrentes da sua utilização da plataforma.\n\n6. Rescisão\nA FastCheckin reserva-se o direito de suspender ou terminar o acesso em caso de violação destes termos.\n\n7. Lei aplicável\nEste acordo será regido pelas leis da República da África do Sul.",
+  "reg_region_province": "Província",
+  "reg_region_district": "Distrito",
+  "reg_region_region": "Região",
+  "reg_region_island": "Ilha",
+  "reg_region_required": "O campo {region} é obrigatório",
+  "reg_select_region": "Selecionar {region}",
+  "reg_enter_region": "Introduzir {region}",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Alojamento e pequeno-almoço (B&B)",
+  "reg_establishment_guest_house": "Casa de hóspedes",
+  "reg_establishment_campsite": "Parque de campismo",
+  "reg_establishment_resort": "Resort",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Alojamento independente"
 }
