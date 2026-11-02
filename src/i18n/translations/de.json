@@ -1316,5 +1316,10 @@
   "reg_id_preview": "Ausweisvorschau",
   "reg_address": "Adresse",
   "reg_waiver_heading": "Haftungsausschluss für die FastCheckin-Plattform",
-  "reg_waiver_acceptance": "Ich habe die Bedingungen dieses Haftungsausschlusses und die Vereinbarung zur FastCheckin-Plattform gelesen, verstanden und stimme ihnen zu."
+  "reg_waiver_acceptance": "Ich habe die Bedingungen dieses Haftungsausschlusses und die Vereinbarung zur FastCheckin-Plattform gelesen, verstanden und stimme ihnen zu.",
+  "reg_tgsa_grading": "TGSA-Klassifizierung",
+  "reg_properties": "Unterkünfte",
+  "reg_total_rooms": "Zimmer insgesamt",
+  "reg_director": "Geschäftsführer/in",
+  "reg_waiver_terms": "1. Annahme der Bedingungen\nDurch die Nutzung der FastCheckin-Plattform erklären Sie sich mit diesen Geschäftsbedingungen einverstanden.\n\n2. Plattformnutzung\nFastCheckin bietet eine digitale Check-in-Lösung für Beherbergungsbetriebe. Die Plattform wird ohne Gewährleistungen „wie besehen“ bereitgestellt.\n\n3. Haftungsbeschränkung\nSoweit gesetzlich zulässig, haftet FastCheckin nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden.\n\n4. Datenverarbeitung\nSie erkennen an, dass Gästedaten gemäß POPIA und unserer Datenschutzerklärung verarbeitet werden.\n\n5. Freistellung\nSie verpflichten sich, FastCheckin von allen Ansprüchen freizustellen, die sich aus Ihrer Nutzung der Plattform ergeben.\n\n6. Kündigung\nFastCheckin behält sich das Recht vor, den Zugang bei Verstößen gegen diese Bedingungen auszusetzen oder zu beenden.\n\n7. Anwendbares Recht\nDiese Vereinbarung unterliegt dem Recht der Republik Südafrika."
 }
