@@ -1321,5 +1321,19 @@
   "reg_properties": "Unterkünfte",
   "reg_total_rooms": "Zimmer insgesamt",
   "reg_director": "Geschäftsführer/in",
-  "reg_waiver_terms": "1. Annahme der Bedingungen\nDurch die Nutzung der FastCheckin-Plattform erklären Sie sich mit diesen Geschäftsbedingungen einverstanden.\n\n2. Plattformnutzung\nFastCheckin bietet eine digitale Check-in-Lösung für Beherbergungsbetriebe. Die Plattform wird ohne Gewährleistungen „wie besehen“ bereitgestellt.\n\n3. Haftungsbeschränkung\nSoweit gesetzlich zulässig, haftet FastCheckin nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden.\n\n4. Datenverarbeitung\nSie erkennen an, dass Gästedaten gemäß POPIA und unserer Datenschutzerklärung verarbeitet werden.\n\n5. Freistellung\nSie verpflichten sich, FastCheckin von allen Ansprüchen freizustellen, die sich aus Ihrer Nutzung der Plattform ergeben.\n\n6. Kündigung\nFastCheckin behält sich das Recht vor, den Zugang bei Verstößen gegen diese Bedingungen auszusetzen oder zu beenden.\n\n7. Anwendbares Recht\nDiese Vereinbarung unterliegt dem Recht der Republik Südafrika."
+  "reg_waiver_terms": "1. Annahme der Bedingungen\nDurch die Nutzung der FastCheckin-Plattform erklären Sie sich mit diesen Geschäftsbedingungen einverstanden.\n\n2. Plattformnutzung\nFastCheckin bietet eine digitale Check-in-Lösung für Beherbergungsbetriebe. Die Plattform wird ohne Gewährleistungen „wie besehen“ bereitgestellt.\n\n3. Haftungsbeschränkung\nSoweit gesetzlich zulässig, haftet FastCheckin nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden.\n\n4. Datenverarbeitung\nSie erkennen an, dass Gästedaten gemäß POPIA und unserer Datenschutzerklärung verarbeitet werden.\n\n5. Freistellung\nSie verpflichten sich, FastCheckin von allen Ansprüchen freizustellen, die sich aus Ihrer Nutzung der Plattform ergeben.\n\n6. Kündigung\nFastCheckin behält sich das Recht vor, den Zugang bei Verstößen gegen diese Bedingungen auszusetzen oder zu beenden.\n\n7. Anwendbares Recht\nDiese Vereinbarung unterliegt dem Recht der Republik Südafrika.",
+  "reg_region_province": "Provinz",
+  "reg_region_district": "Bezirk",
+  "reg_region_region": "Region",
+  "reg_region_island": "Insel",
+  "reg_region_required": "{region} ist erforderlich",
+  "reg_select_region": "{region} auswählen",
+  "reg_enter_region": "{region} eingeben",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Bed & Breakfast (B&B)",
+  "reg_establishment_guest_house": "Gästehaus",
+  "reg_establishment_campsite": "Campingplatz",
+  "reg_establishment_resort": "Resort",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Selbstversorger-Unterkunft"
 }
