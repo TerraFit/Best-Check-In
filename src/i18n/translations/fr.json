@@ -1316,5 +1316,10 @@
   "reg_id_preview": "Aperçu de la pièce d’identité",
   "reg_address": "Adresse",
   "reg_waiver_heading": "Décharge de responsabilité de la plateforme FastCheckin",
-  "reg_waiver_acceptance": "J’ai lu, compris et j’accepte les conditions de cette décharge et de l’accord relatif à la plateforme FastCheckin."
+  "reg_waiver_acceptance": "J’ai lu, compris et j’accepte les conditions de cette décharge et de l’accord relatif à la plateforme FastCheckin.",
+  "reg_tgsa_grading": "Classement TGSA",
+  "reg_properties": "Établissements",
+  "reg_total_rooms": "Nombre total de chambres",
+  "reg_director": "Directeur / Directrice",
+  "reg_waiver_terms": "1. Acceptation des conditions\nEn utilisant la plateforme FastCheckin, vous acceptez d’être lié par les présentes conditions générales.\n\n2. Utilisation de la plateforme\nFastCheckin fournit une solution numérique d’enregistrement pour les établissements d’hébergement. La plateforme est fournie « en l’état », sans garantie.\n\n3. Limitation de responsabilité\nDans toute la mesure permise par la loi, FastCheckin ne saurait être tenu responsable des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs.\n\n4. Traitement des données\nVous reconnaissez que les données des clients sont traitées conformément à la loi POPIA et à notre politique de confidentialité.\n\n5. Indemnisation\nVous acceptez d’indemniser FastCheckin et de le dégager de toute responsabilité concernant les réclamations découlant de votre utilisation de la plateforme.\n\n6. Résiliation\nFastCheckin se réserve le droit de suspendre ou de résilier l’accès en cas de violation des présentes conditions.\n\n7. Droit applicable\nLe présent accord est régi par les lois de la République d’Afrique du Sud."
 }
