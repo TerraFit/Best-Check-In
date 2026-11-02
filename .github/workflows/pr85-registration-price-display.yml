@@ -33,3 +33,5 @@ jobs:
           git add src/pages/BusinessRegistration.tsx
           git diff --cached --quiet || git commit -m "fix: show every registration package price [registration-price-display-fix]"
           git push
+
+# Triggered once by the workflow bootstrap commit.
