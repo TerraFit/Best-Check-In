@@ -1,0 +1,85 @@
+name: PR85 registration pricing fix
+
+on:
+  push:
+    branches:
+      - fix/remove-no-credit-card-required
+
+permissions:
+  contents: write
+
+jobs:
+  fix-registration:
+    if: ${{ !contains(github.event.head_commit.message, '[registration-pr85-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply registration pricing and plan-selection fixes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/BusinessRegistration.tsx')
+          text = path.read_text()
+
+          old = """const pricingStyles = {\n  starter: { color: 'green', borderColor: 'border-green-500', textColor: 'text-green-500', buttonColor: 'bg-green-600 hover:bg-green-700', bgHover: 'hover:border-green-500' },\n  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500', mostPopular: true },\n  pro: { color: 'purple', borderColor: 'border-purple-500', textColor: 'text-purple-500', buttonColor: 'bg-purple-600 hover:bg-purple-700', bgHover: 'hover:border-purple-500' },\n  business: { color: 'orange', borderColor: 'border-orange-500', textColor: 'text-orange-500', buttonColor: 'bg-orange-600 hover:bg-orange-700', bgHover: 'hover:border-orange-500' },\n} as const;\nconst pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({\n  ...PACKAGES[id],\n  ...pricingStyles[id as Exclude<PlanType, 'enterprise'>],\n}));"""
+          new = """const pricingStyles = {\n  starter: { color: 'green', borderColor: 'border-green-500', textColor: 'text-green-500', buttonColor: 'bg-green-600 hover:bg-green-700', bgHover: 'hover:border-green-500' },\n  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500' },\n  pro: { color: 'purple', borderColor: 'border-purple-500', textColor: 'text-purple-500', buttonColor: 'bg-purple-600 hover:bg-purple-700', bgHover: 'hover:border-purple-500' },\n  business: { color: 'orange', borderColor: 'border-orange-500', textColor: 'text-orange-500', buttonColor: 'bg-orange-600 hover:bg-orange-700', bgHover: 'hover:border-orange-500' },\n} as const;\nconst PLAN_MAX_ROOMS: Record<Exclude<PlanType, 'enterprise'>, number> = {\n  starter: 5,\n  growth: 10,\n  pro: 20,\n  business: Number.POSITIVE_INFINITY,\n};\nconst pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({\n  ...PACKAGES[id],\n  ...pricingStyles[id as Exclude<PlanType, 'enterprise'>],\n}));"""
+          if old not in text:
+              raise SystemExit('pricingStyles block not found')
+          text = text.replace(old, new, 1)
+
+          old = """    priceMonthly: calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id),\n    priceYearly: calculateSubscriptionAnnualPrice(roomsCount, selectedPlanBase.id),"""
+          new = """    priceMonthly: calculateSubscriptionMonthlyPrice(Math.max(roomsCount, selectedPlanBase.minRooms), selectedPlanBase.id),\n    priceYearly: calculateSubscriptionAnnualPrice(Math.max(roomsCount, selectedPlanBase.minRooms), selectedPlanBase.id),"""
+          if old not in text:
+              raise SystemExit('selectedPlan pricing block not found')
+          text = text.replace(old, new, 1)
+
+          old = """    if (plan && roomsCount < plan.minRooms) {\n      setShowRoomError(true);\n      return;\n    }"""
+          new = """    if (plan && roomsCount > PLAN_MAX_ROOMS[planId as Exclude<PlanType, 'enterprise'>]) {\n      setShowRoomError(true);\n      return;\n    }"""
+          if old not in text:
+              raise SystemExit('plan selection validation block not found')
+          text = text.replace(old, new, 1)
+
+          old = """              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);\n              const isRecommended = recommendedPlanId === plan.id;\n              const isSelected = selectedPlanId === plan.id;\n              const isDisabled = roomsCount < plan.minRooms;"""
+          new = """              const pricingRooms = Math.max(roomsCount, plan.minRooms);\n              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(pricingRooms, plan.id);\n              const isRecommended = recommendedPlanId === plan.id;\n              const isSelected = selectedPlanId === plan.id;\n              const isDisabled = roomsCount > PLAN_MAX_ROOMS[plan.id as Exclude<PlanType, 'enterprise'>];"""
+          if old not in text:
+              raise SystemExit('plan card state block not found')
+          text = text.replace(old, new, 1)
+
+          old = """                    ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}"""
+          new = """                    ${isDisabled ? 'cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}"""
+          if old not in text:
+              raise SystemExit('disabled card styling not found')
+          text = text.replace(old, new, 1)
+
+          old = """                          <span className=\"text-2xl font-bold text-white\">\n                            {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}\n                          </span>\n                          <span className=\"text-stone-400 text-sm\">\n                            {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}\n                          </span>"""
+          new = """                          <span className=\"text-2xl font-bold text-white\">\n                            {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}\n                          </span>\n                          <span className=\"text-stone-400 text-sm\">\n                            {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}\n                          </span>"""
+          if old not in text:
+              raise SystemExit('price rendering block not found')
+          text = text.replace(old, new, 1)
+
+          old = """                    {isDisabled && (\n                      <p className=\"text-xs text-red-400 mt-2\">\n                        {t('billing_min_plan_rooms')}\n                      </p>\n                    )}"""
+          new = """                    {isDisabled && (\n                      <p className=\"text-xs text-red-400 mt-2\">\n                        {t('billing_min_plan_rooms')}\n                      </p>\n                    )}"""
+          if old not in text:
+              raise SystemExit('disabled message block not found')
+          text = text.replace(old, new, 1)
+
+          old = """                  {plan.mostPopular && !isRecommended && (\n                    <div className=\"absolute -top-3 left-1/2 transform -translate-x-1/2\">\n                      <span className=\"bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full\">\n                        {t('landing_plan_most_popular')}\n                      </span>\n                    </div>\n                  )}"""
+          if old not in text:
+              raise SystemExit('most popular badge block not found')
+          text = text.replace(old, '', 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/BusinessRegistration.tsx
+          git diff --cached --quiet || git commit -m "fix: make registration higher plans selectable [registration-pr85-fix]"
+          git push
