@@ -56,18 +56,6 @@ jobs:
               raise SystemExit('disabled card styling not found')
           text = text.replace(old, new, 1)
 
-          old = """                          <span className=\"text-2xl font-bold text-white\">\n                            {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}\n                          </span>\n                          <span className=\"text-stone-400 text-sm\">\n                            {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}\n                          </span>"""
-          new = """                          <span className=\"text-2xl font-bold text-white\">\n                            {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}\n                          </span>\n                          <span className=\"text-stone-400 text-sm\">\n                            {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}\n                          </span>"""
-          if old not in text:
-              raise SystemExit('price rendering block not found')
-          text = text.replace(old, new, 1)
-
-          old = """                    {isDisabled && (\n                      <p className=\"text-xs text-red-400 mt-2\">\n                        {t('billing_min_plan_rooms')}\n                      </p>\n                    )}"""
-          new = """                    {isDisabled && (\n                      <p className=\"text-xs text-red-400 mt-2\">\n                        {t('billing_min_plan_rooms')}\n                      </p>\n                    )}"""
-          if old not in text:
-              raise SystemExit('disabled message block not found')
-          text = text.replace(old, new, 1)
-
           old = """                  {plan.mostPopular && !isRecommended && (\n                    <div className=\"absolute -top-3 left-1/2 transform -translate-x-1/2\">\n                      <span className=\"bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full\">\n                        {t('landing_plan_most_popular')}\n                      </span>\n                    </div>\n                  )}"""
           if old not in text:
               raise SystemExit('most popular badge block not found')
@@ -83,3 +71,5 @@ jobs:
           git add src/pages/BusinessRegistration.tsx
           git diff --cached --quiet || git commit -m "fix: make registration higher plans selectable [registration-pr85-fix]"
           git push
+
+# Triggered once by the workflow bootstrap commit.
