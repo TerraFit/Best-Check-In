@@ -1321,5 +1321,19 @@
   "reg_properties": "Accommodaties",
   "reg_total_rooms": "Totaal aantal kamers",
   "reg_director": "Directeur",
-  "reg_waiver_terms": "1. Aanvaarding van de voorwaarden\nDoor het FastCheckin-platform te gebruiken, gaat u akkoord met deze voorwaarden.\n\n2. Gebruik van het platform\nFastCheckin biedt een digitale incheckoplossing voor accommodaties. Het platform wordt geleverd “zoals het is”, zonder garanties.\n\n3. Beperking van aansprakelijkheid\nVoor zover wettelijk toegestaan, is FastCheckin niet aansprakelijk voor indirecte, incidentele, bijzondere, gevolg- of punitieve schade.\n\n4. Gegevensverwerking\nU erkent dat gastgegevens worden verwerkt in overeenstemming met POPIA en ons privacybeleid.\n\n5. Schadeloosstelling\nU stemt ermee in FastCheckin te vrijwaren van claims die voortvloeien uit uw gebruik van het platform.\n\n6. Beëindiging\nFastCheckin behoudt zich het recht voor de toegang op te schorten of te beëindigen bij schending van deze voorwaarden.\n\n7. Toepasselijk recht\nDeze overeenkomst valt onder de wetgeving van de Republiek Zuid-Afrika."
+  "reg_waiver_terms": "1. Aanvaarding van de voorwaarden\nDoor het FastCheckin-platform te gebruiken, gaat u akkoord met deze voorwaarden.\n\n2. Gebruik van het platform\nFastCheckin biedt een digitale incheckoplossing voor accommodaties. Het platform wordt geleverd “zoals het is”, zonder garanties.\n\n3. Beperking van aansprakelijkheid\nVoor zover wettelijk toegestaan, is FastCheckin niet aansprakelijk voor indirecte, incidentele, bijzondere, gevolg- of punitieve schade.\n\n4. Gegevensverwerking\nU erkent dat gastgegevens worden verwerkt in overeenstemming met POPIA en ons privacybeleid.\n\n5. Schadeloosstelling\nU stemt ermee in FastCheckin te vrijwaren van claims die voortvloeien uit uw gebruik van het platform.\n\n6. Beëindiging\nFastCheckin behoudt zich het recht voor de toegang op te schorten of te beëindigen bij schending van deze voorwaarden.\n\n7. Toepasselijk recht\nDeze overeenkomst valt onder de wetgeving van de Republiek Zuid-Afrika.",
+  "reg_region_province": "Provincie",
+  "reg_region_district": "District",
+  "reg_region_region": "Regio",
+  "reg_region_island": "Eiland",
+  "reg_region_required": "{region} is verplicht",
+  "reg_select_region": "Selecteer {region}",
+  "reg_enter_region": "Voer {region} in",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Bed & Breakfast (B&B)",
+  "reg_establishment_guest_house": "Pension / gastenverblijf",
+  "reg_establishment_campsite": "Camping",
+  "reg_establishment_resort": "Resort",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Zelfvoorzienende accommodatie"
 }
