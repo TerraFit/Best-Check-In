@@ -1321,5 +1321,19 @@
   "reg_properties": "Eiendomme",
   "reg_total_rooms": "Totale kamers",
   "reg_director": "Direkteur",
-  "reg_waiver_terms": "1. Aanvaarding van bepalings\nDeur die FastCheckin-platform te gebruik, stem u in om deur hierdie bepalings en voorwaardes gebind te wees.\n\n2. Gebruik van die platform\nFastCheckin bied ’n digitale inklokoplossing vir akkommodasie. Die platform word “soos dit is” sonder waarborge verskaf.\n\n3. Beperking van aanspreeklikheid\nIn die maksimum mate wat die wet toelaat, is FastCheckin nie aanspreeklik vir indirekte, toevallige, spesiale, gevolglike of strafskade nie.\n\n4. Dataverwerking\nU erken dat gasdata ooreenkomstig POPIA en ons privaatheidsbeleid verwerk word.\n\n5. Vrywaring\nU stem in om FastCheckin te vrywaar teen enige eise wat uit u gebruik van die platform voortspruit.\n\n6. Beëindiging\nFastCheckin behou die reg voor om toegang op te skort of te beëindig indien hierdie bepalings oortree word.\n\n7. Toepasslike reg\nHierdie ooreenkoms word deur die wette van die Republiek van Suid-Afrika beheer."
+  "reg_waiver_terms": "1. Aanvaarding van bepalings\nDeur die FastCheckin-platform te gebruik, stem u in om deur hierdie bepalings en voorwaardes gebind te wees.\n\n2. Gebruik van die platform\nFastCheckin bied ’n digitale inklokoplossing vir akkommodasie. Die platform word “soos dit is” sonder waarborge verskaf.\n\n3. Beperking van aanspreeklikheid\nIn die maksimum mate wat die wet toelaat, is FastCheckin nie aanspreeklik vir indirekte, toevallige, spesiale, gevolglike of strafskade nie.\n\n4. Dataverwerking\nU erken dat gasdata ooreenkomstig POPIA en ons privaatheidsbeleid verwerk word.\n\n5. Vrywaring\nU stem in om FastCheckin te vrywaar teen enige eise wat uit u gebruik van die platform voortspruit.\n\n6. Beëindiging\nFastCheckin behou die reg voor om toegang op te skort of te beëindig indien hierdie bepalings oortree word.\n\n7. Toepasslike reg\nHierdie ooreenkoms word deur die wette van die Republiek van Suid-Afrika beheer.",
+  "reg_region_province": "Provinsie",
+  "reg_region_district": "Distrik",
+  "reg_region_region": "Streek",
+  "reg_region_island": "Eiland",
+  "reg_region_required": "{region} is verpligtend",
+  "reg_select_region": "Kies {region}",
+  "reg_enter_region": "Voer {region} in",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Bed-en-ontbyt (B&B)",
+  "reg_establishment_guest_house": "Gastehuis",
+  "reg_establishment_campsite": "Kampeerterrein",
+  "reg_establishment_resort": "Oord",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Selfsorg"
 }
