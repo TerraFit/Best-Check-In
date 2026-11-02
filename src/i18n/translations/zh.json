@@ -1321,5 +1321,19 @@
   "reg_properties": "物业数量",
   "reg_total_rooms": "客房总数",
   "reg_director": "董事",
-  "reg_waiver_terms": "1. 接受条款\n使用 FastCheckin 平台即表示您同意受本条款和条件的约束。\n\n2. 平台使用\nFastCheckin 为住宿机构提供数字化入住登记解决方案。平台按“现状”提供，不作任何保证。\n\n3. 责任限制\n在法律允许的最大范围内，FastCheckin 不对任何间接、附带、特殊、后果性或惩罚性损害承担责任。\n\n4. 数据处理\n您确认，宾客数据将依据 POPIA 和我们的隐私政策进行处理。\n\n5. 赔偿\n您同意就因使用本平台而产生的任何索赔向 FastCheckin 提供赔偿并使其免受损害。\n\n6. 终止\n如违反本条款，FastCheckin 保留暂停或终止访问权限的权利。\n\n7. 适用法律\n本协议受南非共和国法律管辖。"
+  "reg_waiver_terms": "1. 接受条款\n使用 FastCheckin 平台即表示您同意受本条款和条件的约束。\n\n2. 平台使用\nFastCheckin 为住宿机构提供数字化入住登记解决方案。平台按“现状”提供，不作任何保证。\n\n3. 责任限制\n在法律允许的最大范围内，FastCheckin 不对任何间接、附带、特殊、后果性或惩罚性损害承担责任。\n\n4. 数据处理\n您确认，宾客数据将依据 POPIA 和我们的隐私政策进行处理。\n\n5. 赔偿\n您同意就因使用本平台而产生的任何索赔向 FastCheckin 提供赔偿并使其免受损害。\n\n6. 终止\n如违反本条款，FastCheckin 保留暂停或终止访问权限的权利。\n\n7. 适用法律\n本协议受南非共和国法律管辖。",
+  "reg_region_province": "省",
+  "reg_region_district": "区",
+  "reg_region_region": "地区",
+  "reg_region_island": "岛屿",
+  "reg_region_required": "请填写{region}",
+  "reg_select_region": "选择{region}",
+  "reg_enter_region": "输入{region}",
+  "reg_establishment_hotel": "酒店",
+  "reg_establishment_bnb": "住宿加早餐（B&B）",
+  "reg_establishment_guest_house": "宾馆",
+  "reg_establishment_campsite": "露营地",
+  "reg_establishment_resort": "度假村",
+  "reg_establishment_lodge": "旅舍",
+  "reg_establishment_self_catering": "自助式住宿"
 }
