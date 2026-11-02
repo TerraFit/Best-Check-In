@@ -1316,5 +1316,10 @@
   "reg_id_preview": "Vista previa del documento",
   "reg_address": "Dirección",
   "reg_waiver_heading": "Exención de responsabilidad de la plataforma FastCheckin",
-  "reg_waiver_acceptance": "He leído, comprendido y acepto las condiciones de esta exención y del acuerdo de la plataforma FastCheckin."
+  "reg_waiver_acceptance": "He leído, comprendido y acepto las condiciones de esta exención y del acuerdo de la plataforma FastCheckin.",
+  "reg_tgsa_grading": "Clasificación TGSA",
+  "reg_properties": "Establecimientos",
+  "reg_total_rooms": "Habitaciones totales",
+  "reg_director": "Director/a",
+  "reg_waiver_terms": "1. Aceptación de las condiciones\nAl utilizar la plataforma FastCheckin, acepta quedar sujeto a estas condiciones.\n\n2. Uso de la plataforma\nFastCheckin ofrece una solución digital de registro de entrada para alojamientos. La plataforma se proporciona «tal cual», sin garantías.\n\n3. Limitación de responsabilidad\nEn la máxima medida permitida por la ley, FastCheckin no será responsable de daños indirectos, incidentales, especiales, consecuentes o punitivos.\n\n4. Tratamiento de datos\nReconoce que los datos de los huéspedes se procesan de acuerdo con POPIA y nuestra Política de privacidad.\n\n5. Indemnización\nAcepta indemnizar y eximir de responsabilidad a FastCheckin frente a cualquier reclamación derivada del uso de la plataforma.\n\n6. Terminación\nFastCheckin se reserva el derecho de suspender o cancelar el acceso si se incumplen estas condiciones.\n\n7. Legislación aplicable\nEste acuerdo se regirá por las leyes de la República de Sudáfrica."
 }
