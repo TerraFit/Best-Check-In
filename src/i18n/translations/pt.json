@@ -1316,5 +1316,10 @@
   "reg_id_preview": "Pré-visualização do documento",
   "reg_address": "Morada",
   "reg_waiver_heading": "Isenção de responsabilidade da plataforma FastCheckin",
-  "reg_waiver_acceptance": "Li, compreendi e aceito os termos desta isenção e do acordo da plataforma FastCheckin."
+  "reg_waiver_acceptance": "Li, compreendi e aceito os termos desta isenção e do acordo da plataforma FastCheckin.",
+  "reg_tgsa_grading": "Classificação TGSA",
+  "reg_properties": "Estabelecimentos",
+  "reg_total_rooms": "Total de quartos",
+  "reg_director": "Diretor",
+  "reg_waiver_terms": "1. Aceitação dos termos\nAo utilizar a plataforma FastCheckin, concorda em ficar vinculado a estes termos e condições.\n\n2. Utilização da plataforma\nA FastCheckin fornece uma solução digital de check-in para alojamentos. A plataforma é fornecida «tal como está», sem garantias.\n\n3. Limitação de responsabilidade\nNa máxima medida permitida por lei, a FastCheckin não será responsável por danos indiretos, incidentais, especiais, consequenciais ou punitivos.\n\n4. Tratamento de dados\nReconhece que os dados dos hóspedes são tratados de acordo com a POPIA e a nossa Política de Privacidade.\n\n5. Indemnização\nConcorda em indemnizar e isentar a FastCheckin de quaisquer reclamações decorrentes da sua utilização da plataforma.\n\n6. Rescisão\nA FastCheckin reserva-se o direito de suspender ou terminar o acesso em caso de violação destes termos.\n\n7. Lei aplicável\nEste acordo será regido pelas leis da República da África do Sul."
 }
