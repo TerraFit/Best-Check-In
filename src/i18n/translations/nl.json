@@ -1316,5 +1316,10 @@
   "reg_id_preview": "Voorbeeld identiteitsbewijs",
   "reg_address": "Adres",
   "reg_waiver_heading": "Afstandsverklaring FastCheckin-platform",
-  "reg_waiver_acceptance": "Ik heb de voorwaarden van deze verklaring en de FastCheckin-platformovereenkomst gelezen, begrepen en ga ermee akkoord."
+  "reg_waiver_acceptance": "Ik heb de voorwaarden van deze verklaring en de FastCheckin-platformovereenkomst gelezen, begrepen en ga ermee akkoord.",
+  "reg_tgsa_grading": "TGSA-classificatie",
+  "reg_properties": "Accommodaties",
+  "reg_total_rooms": "Totaal aantal kamers",
+  "reg_director": "Directeur",
+  "reg_waiver_terms": "1. Aanvaarding van de voorwaarden\nDoor het FastCheckin-platform te gebruiken, gaat u akkoord met deze voorwaarden.\n\n2. Gebruik van het platform\nFastCheckin biedt een digitale incheckoplossing voor accommodaties. Het platform wordt geleverd “zoals het is”, zonder garanties.\n\n3. Beperking van aansprakelijkheid\nVoor zover wettelijk toegestaan, is FastCheckin niet aansprakelijk voor indirecte, incidentele, bijzondere, gevolg- of punitieve schade.\n\n4. Gegevensverwerking\nU erkent dat gastgegevens worden verwerkt in overeenstemming met POPIA en ons privacybeleid.\n\n5. Schadeloosstelling\nU stemt ermee in FastCheckin te vrijwaren van claims die voortvloeien uit uw gebruik van het platform.\n\n6. Beëindiging\nFastCheckin behoudt zich het recht voor de toegang op te schorten of te beëindigen bij schending van deze voorwaarden.\n\n7. Toepasselijk recht\nDeze overeenkomst valt onder de wetgeving van de Republiek Zuid-Afrika."
 }
