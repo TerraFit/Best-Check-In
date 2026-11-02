@@ -688,18 +688,14 @@ export default function BusinessRegistration() {
                     </p>
                     {(plan.id === 'starter' || plan.id === 'growth') && <p className="text-xs text-stone-400 mt-1">{t('reg_marketing_download_offer', { monthlyPrice: `${currencySymbol}${marketingDownloadMonthlyPrice}`, voucherPrice: `${currencySymbol}${marketingDownloadVoucherPrice}` })}</p>}
                     <div className="mt-3">
-                      {!isDisabled ? (
-                        <>
-                          <span className="text-2xl font-bold text-white">
-                            {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}
-                          </span>
-                          <span className="text-stone-400 text-sm">
-                            {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
-                          </span>
-                        </>
-                      ) : (
-                        <p className="text-sm text-stone-300">{t('reg_plan_requires_rooms', { count: plan.minRooms })}</p>
-                      )}
+                      <>
+                        <span className="text-2xl font-bold text-white">
+                          {billingCycle === 'monthly' ? `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates)}` : `${currencySymbol}${convertZarToRegionalPrice(displayMonthlyPrice, region, isSouthAfricanMarket, fxRates) * 11}`}
+                        </span>
+                        <span className="text-stone-400 text-sm">
+                          {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
+                        </span>
+                      </>
                     </div>
                     <div className="mt-4 text-left space-y-2">
                       {plan.id === 'starter' && (
