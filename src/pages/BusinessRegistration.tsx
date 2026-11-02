@@ -190,7 +190,7 @@ export default function BusinessRegistration() {
   } : undefined;
   
   // Determine recommended plan based on room count
-  const get{t('landing_plan_recommended')}PlanId = (): PlanType => {
+  const getRecommendedPlanId = (): PlanType => {
     // A qualifying multi-establishment portfolio should be guided to Enterprise,
     // even when the combined room count would otherwise recommend Business.
     if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
@@ -598,8 +598,6 @@ export default function BusinessRegistration() {
               onChange={(e) => {
                 const nextPropertyCount = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
                 setPropertyCount(nextPropertyCount);
-                // Enterprise requires at least 2 properties and 21 combined rooms.
-                // Guide the user to the minimum as soon as they select a portfolio.
                 if (nextPropertyCount >= 2 && roomsCount < 21) {
                   setRoomsCount(21);
                   setShowRoomError(false);
@@ -612,7 +610,6 @@ export default function BusinessRegistration() {
             </p>
           </div>
 
-          {/* Combined room capacity across the portfolio */}
           <div className="max-w-md mx-auto mb-10 text-center">
             <label className="block text-lg font-medium text-stone-300 mb-3">
               {t('login_rooms_count_question')}
@@ -630,7 +627,6 @@ export default function BusinessRegistration() {
             </p>
           </div>
 
-          {/* Room Limit Error Message */}
           {showRoomError && (
             <div className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500 rounded-lg p-3 text-center">
               <p className="text-red-400 text-sm">
@@ -639,10 +635,7 @@ export default function BusinessRegistration() {
             </div>
           )}
 
-          {/* Pricing Cards - All Packages Displayed */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            
-            {/* Starter, Growth, Pro, Business Cards */}
             {pricingPlans.map((plan) => {
               const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
               const isRecommended = recommendedPlanId === plan.id;
@@ -661,7 +654,6 @@ export default function BusinessRegistration() {
                     ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
                   `}
                 >
-                  {/* ✅ Recommended Badge (Dynamic - Green) */}
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -669,8 +661,6 @@ export default function BusinessRegistration() {
                       </span>
                     </div>
                   )}
-                  
-                  {/* ⭐ {t('landing_plan_most_popular')} Badge (Static - Amber) - Only on Growth when not recommended */}
                   {plan.mostPopular && !isRecommended && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full">
@@ -678,7 +668,6 @@ export default function BusinessRegistration() {
                       </span>
                     </div>
                   )}
-                  
                   <div className="text-center">
                     <h3 className={`text-xl font-bold ${plan.textColor}`}>
                       {plan.name}
@@ -695,8 +684,6 @@ export default function BusinessRegistration() {
                         {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
                       </span>
                     </div>
-                    
-                    {/* Feature List */}
                     <div className="mt-4 text-left space-y-2">
                       {plan.id === 'starter' && (
                         <>
@@ -732,7 +719,6 @@ export default function BusinessRegistration() {
                         </>
                       )}
                     </div>
-                    
                     {isDisabled && (
                       <p className="text-xs text-red-400 mt-2">
                         {t('billing_min_plan_rooms')}
@@ -753,7 +739,6 @@ export default function BusinessRegistration() {
               );
             })}
 
-            {/* Enterprise portfolio pricing is calculated now; activation remains unavailable until launch. */}
             <div
               className={`relative rounded-xl border-2 p-5 transition-all bg-stone-800/50
                 ${recommendedPlanId === 'enterprise'
@@ -787,15 +772,10 @@ export default function BusinessRegistration() {
                 <p className="text-xs text-stone-400 mt-1">
                   {propertyCount > 2 ? `Includes ${propertyCount - 2} additional propert${propertyCount - 2 === 1 ? 'y' : 'ies'}` : 'Includes up to 2 properties'}
                 </p>
-                
-                {/* Enterprise Feature List */}
                 <div className="mt-4 text-left space-y-2">
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> <span className="font-semibold">{t('landing_plan_enterprise_f1')}</span></p>
                   <p className="text-xs text-stone-300 flex items-center gap-2"><span className="text-purple-500">✓</span> {t('login_enterprise_features')}</p>
-                  
-                  
                 </div>
-                
                 <button type="button" onClick={() => setEnterpriseInquiryOpen(true)} className="mt-4 w-full py-2 rounded-lg font-semibold text-center bg-stone-700 text-amber-300 border border-stone-600 hover:bg-stone-600 transition-colors">
                   Coming Soon · Notify Me
                 </button>
@@ -806,7 +786,6 @@ export default function BusinessRegistration() {
             </div>
           </div>
           
-          {/* SUBTLE SCROLL ARROW - VISIBLE AND FUNCTIONAL */}
           <div className="text-center mt-12 animate-bounce">
             <button 
               onClick={scrollToRegistration}
@@ -820,13 +799,8 @@ export default function BusinessRegistration() {
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* REGISTRATION FORM - Appears After Plan Selection */}
-        {/* ============================================================ */}
         {selectedPlanId && (
           <div id="registration-form" className="mt-8">
-            
-            {/* Phase Indicator */}
             <div className="flex justify-center mb-8">
               <div className="flex items-center space-x-4">
                 {[1, 2, 3].map((p) => (
@@ -852,685 +826,148 @@ export default function BusinessRegistration() {
               </div>
             </div>
 
-            {/* ============================================================ */}
-            {/* PHASE 1: Business Information */}
-            {/* ============================================================ */}
             {phase === 1 && (
               <form onSubmit={handlePhase1Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
                 <h2 className="text-2xl font-bold text-white mb-6">
                   {t('dashboard_business_info')}
                 </h2>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_legal_name')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.legalName}
-                      onChange={(e) => setBusinessData({ ...businessData, legalName: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_legal_name')} *</label>
+                    <input type="text" value={businessData.legalName} onChange={(e) => setBusinessData({ ...businessData, legalName: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_registration_number')}
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.registrationNumber}
-                      onChange={(e) => setBusinessData({ ...businessData, registrationNumber: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_registration_number')}</label>
+                    <input type="text" value={businessData.registrationNumber} onChange={(e) => setBusinessData({ ...businessData, registrationNumber: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_vat_number')}
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.vatNumber}
-                      onChange={(e) => setBusinessData({ ...businessData, vatNumber: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_vat_number')}</label>
+                    <input type="text" value={businessData.vatNumber} onChange={(e) => setBusinessData({ ...businessData, vatNumber: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('dashboard_trading_name')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.tradingName}
-                      onChange={(e) => setBusinessData({ ...businessData, tradingName: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('dashboard_trading_name')} *</label>
+                    <input type="text" value={businessData.tradingName} onChange={(e) => setBusinessData({ ...businessData, tradingName: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                   </div>
-
-                  {/* NEW: Establishment Type Dropdown */}
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_establishment_type')} *
-                    </label>
-                    <select
-                      value={businessData.establishmentType}
-                      onChange={(e) => setBusinessData({ ...businessData, establishmentType: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    >
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_establishment_type')} *</label>
+                    <select value={businessData.establishmentType} onChange={(e) => setBusinessData({ ...businessData, establishmentType: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required>
                       <option value="">{t('reg_select_establishment')}</option>
-                      {ESTABLISHMENT_TYPES.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
+                      {ESTABLISHMENT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </div>
-
-                  {/* NEW: TGSA Grading Dropdown */}
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_tgsa_grading')}
-                    </label>
-                    <select
-                      value={businessData.tgsaGrading}
-                      onChange={(e) => setBusinessData({ ...businessData, tgsaGrading: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    >
-                      {TGSA_GRADING.map(grade => (
-                        <option key={grade} value={grade}>{grade}</option>
-                      ))}
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_tgsa_grading')}</label>
+                    <select value={businessData.tgsaGrading} onChange={(e) => setBusinessData({ ...businessData, tgsaGrading: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white">
+                      {TGSA_GRADING.map(grade => <option key={grade} value={grade}>{grade}</option>)}
                     </select>
                   </div>
                 </div>
 
-                {/* Physical Address */}
-                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  {t('login_physical_address')}
-                </h3>
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">{t('login_physical_address')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_street_address')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.physicalStreet}
-                      onChange={(e) => {
-                        setBusinessData({ ...businessData, physicalStreet: e.target.value });
-                        if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ ...prev, postalStreet: e.target.value }));
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_street_address')} *</label>
+                    <input type="text" value={businessData.physicalStreet} onChange={(e) => { setBusinessData({ ...businessData, physicalStreet: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalStreet: e.target.value })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      City / Town *
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.physicalCity}
-                      onChange={(e) => {
-                        setBusinessData({ ...businessData, physicalCity: e.target.value });
-                        if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ ...prev, postalCity: e.target.value }));
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">City / Town *</label>
+                    <input type="text" value={businessData.physicalCity} onChange={(e) => { setBusinessData({ ...businessData, physicalCity: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalCity: e.target.value })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Country *
-                    </label>
-                    <select
-                      value={businessData.physicalCountry}
-                      onChange={(e) => {
-                        const newCountry = e.target.value;
-                        setBusinessData({ 
-                          ...businessData, 
-                          physicalCountry: newCountry,
-                          physicalProvince: ''
-                        });
-                        if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ 
-                            ...prev, 
-                            postalCountry: newCountry,
-                            postalProvince: ''
-                          }));
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    >
+                    <label className="block text-sm font-medium text-stone-300 mb-1">Country *</label>
+                    <select value={businessData.physicalCountry} onChange={(e) => { const newCountry = e.target.value; setBusinessData({ ...businessData, physicalCountry: newCountry, physicalProvince: '' }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalCountry: newCountry, postalProvince: '' })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required>
                       <option value="">{t('reg_select_country')}</option>
-                      {SADC_COUNTRIES.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
+                      {SADC_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {regionLabel} *
-                    </label>
+                    <label className="block text-sm font-medium text-stone-300 mb-1">{regionLabel} *</label>
                     {availableProvinces.length > 0 ? (
-                      <select
-                        value={businessData.physicalProvince}
-                        onChange={(e) => {
-                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
-                          if (businessData.sameAsPhysical) {
-                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
-                          }
-                        }}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                        required
-                      >
+                      <select value={businessData.physicalProvince} onChange={(e) => { setBusinessData({ ...businessData, physicalProvince: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalProvince: e.target.value })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required>
                         <option value="">Select {regionLabel}</option>
-                        {availableProvinces.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
+                        {availableProvinces.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                     ) : (
-                      <input
-                        type="text"
-                        value={businessData.physicalProvince}
-                        onChange={(e) => {
-                          setBusinessData({ ...businessData, physicalProvince: e.target.value });
-                          if (businessData.sameAsPhysical) {
-                            setBusinessData(prev => ({ ...prev, postalProvince: e.target.value }));
-                          }
-                        }}
-                        placeholder={`Enter ${regionLabel.toLowerCase()}`}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                        required
-                      />
+                      <input type="text" value={businessData.physicalProvince} onChange={(e) => { setBusinessData({ ...businessData, physicalProvince: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalProvince: e.target.value })); }} placeholder={`Enter ${regionLabel.toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                     )}
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      value={businessData.physicalPostalCode}
-                      onChange={(e) => {
-                        setBusinessData({ ...businessData, physicalPostalCode: e.target.value });
-                        if (businessData.sameAsPhysical) {
-                          setBusinessData(prev => ({ ...prev, postalPostalCode: e.target.value }));
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
+                    <label className="block text-sm font-medium text-stone-300 mb-1">Postal Code</label>
+                    <input type="text" value={businessData.physicalPostalCode} onChange={(e) => { setBusinessData({ ...businessData, physicalPostalCode: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalPostalCode: e.target.value })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />
                   </div>
                 </div>
 
-                {/* Postal Address */}
-                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  {t('login_postal_address')}
-                </h3>
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">{t('login_postal_address')}</h3>
                 <div className="mb-4">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={businessData.sameAsPhysical}
-                      onChange={(e) => {
-                        const isChecked = e.target.checked;
-                        setBusinessData(prev => ({ ...prev, sameAsPhysical: isChecked }));
-                        if (isChecked) {
-                          setBusinessData(prev => ({
-                            ...prev,
-                            postalStreet: prev.physicalStreet,
-                            postalCity: prev.physicalCity,
-                            postalProvince: prev.physicalProvince,
-                            postalCountry: prev.physicalCountry,
-                            postalPostalCode: prev.physicalPostalCode
-                          }));
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-stone-600 bg-stone-700"
-                    />
+                    <input type="checkbox" checked={businessData.sameAsPhysical} onChange={(e) => { const isChecked = e.target.checked; setBusinessData(prev => ({ ...prev, sameAsPhysical: isChecked })); if (isChecked) setBusinessData(prev => ({ ...prev, postalStreet: prev.physicalStreet, postalCity: prev.physicalCity, postalProvince: prev.physicalProvince, postalCountry: prev.physicalCountry, postalPostalCode: prev.physicalPostalCode })); }} className="w-4 h-4 rounded border-stone-600 bg-stone-700" />
                     <span className="text-stone-300">{t('login_same_as_physical')}</span>
                   </label>
                 </div>
-                
                 {!businessData.sameAsPhysical && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-stone-300 mb-1">
-                        {t('login_street_address')}
-                      </label>
-                      <input
-                        type="text"
-                        value={businessData.postalStreet}
-                        onChange={(e) => setBusinessData({ ...businessData, postalStreet: e.target.value })}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-300 mb-1">
-                        City / Town
-                      </label>
-                      <input
-                        type="text"
-                        value={businessData.postalCity}
-                        onChange={(e) => setBusinessData({ ...businessData, postalCity: e.target.value })}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-300 mb-1">
-                        Country
-                      </label>
-                      <select
-                        value={businessData.postalCountry}
-                        onChange={(e) => {
-                          const newCountry = e.target.value;
-                          setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' });
-                        }}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      >
-                        <option value="">{t('reg_select_country')}</option>
-                        {SADC_COUNTRIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-300 mb-1">
-                        {getRegionLabel(businessData.postalCountry)}
-                      </label>
-                      {REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (
-                        <select
-                          value={businessData.postalProvince}
-                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
-                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                        >
-                          <option value="">Select {getRegionLabel(businessData.postalCountry)}</option>
-                          {REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={businessData.postalProvince}
-                          onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })}
-                          placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`}
-                          className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-300 mb-1">
-                        Postal Code
-                      </label>
-                      <input
-                        type="text"
-                        value={businessData.postalPostalCode}
-                        onChange={(e) => setBusinessData({ ...businessData, postalPostalCode: e.target.value })}
-                        className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      />
-                    </div>
+                    <div className="md:col-span-2"><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_street_address')}</label><input type="text" value={businessData.postalStreet} onChange={(e) => setBusinessData({ ...businessData, postalStreet: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">City / Town</label><input type="text" value={businessData.postalCity} onChange={(e) => setBusinessData({ ...businessData, postalCity: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">Country</label><select value={businessData.postalCountry} onChange={(e) => { const newCountry = e.target.value; setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' }); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">{t('reg_select_country')}</option>{SADC_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">{getRegionLabel(businessData.postalCountry)}</label>{REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (<select value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">Select {getRegionLabel(businessData.postalCountry)}</option>{REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input type="text" value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />)}</div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">Postal Code</label><input type="text" value={businessData.postalPostalCode} onChange={(e) => setBusinessData({ ...businessData, postalPostalCode: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                   </div>
                 )}
 
-                {/* Contact Information */}
-                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  {t('login_contact_information')}
-                </h3>
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">{t('login_contact_information')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_email_label')} *
-                    </label>
-                    <input
-                      type="email"
-                      value={businessData.email}
-                      onChange={(e) => setBusinessData({ ...businessData, email: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_confirm_email')} *
-                    </label>
-                    <input
-                      type="email"
-                      value={businessData.confirmEmail}
-                      onChange={(e) => setBusinessData({ ...businessData, confirmEmail: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_fixed_phone')}
-                    </label>
-                    <input
-                      type="tel"
-                      value={businessData.fixedPhone}
-                      onChange={(e) => setBusinessData({ ...businessData, fixedPhone: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_mobile_phone')} *
-                    </label>
-                    <input
-                      type="tel"
-                      value={businessData.mobilePhone}
-                      onChange={(e) => setBusinessData({ ...businessData, mobilePhone: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Website URL
-                    </label>
-                    <input
-                      type="url"
-                      value={businessData.website}
-                      onChange={(e) => setBusinessData({ ...businessData, website: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      placeholder="https://example.com"
-                    />
-                  </div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_email_label')} *</label><input type="email" value={businessData.email} onChange={(e) => setBusinessData({ ...businessData, email: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_confirm_email')} *</label><input type="email" value={businessData.confirmEmail} onChange={(e) => setBusinessData({ ...businessData, confirmEmail: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_fixed_phone')}</label><input type="tel" value={businessData.fixedPhone} onChange={(e) => setBusinessData({ ...businessData, fixedPhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_mobile_phone')} *</label><input type="tel" value={businessData.mobilePhone} onChange={(e) => setBusinessData({ ...businessData, mobilePhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div className="md:col-span-2"><label className="block text-sm font-medium text-stone-300 mb-1">Website URL</label><input type="url" value={businessData.website} onChange={(e) => setBusinessData({ ...businessData, website: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" placeholder="https://example.com" /></div>
                 </div>
-
-                <div className="mt-8 flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600"
-                  >
-                    Next →
-                  </button>
-                </div>
+                <div className="mt-8 flex justify-end"><button type="submit" className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600">Next →</button></div>
               </form>
             )}
 
-            {/* ============================================================ */}
-            {/* PHASE 2: Director Details */}
-            {/* ============================================================ */}
             {phase === 2 && (
               <form onSubmit={handlePhase2Submit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  {t('login_director_owner_information')}
-                </h2>
-                
+                <h2 className="text-2xl font-bold text-white mb-6">{t('login_director_owner_information')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('checkin_first_name')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={directorData.name}
-                      onChange={(e) => setDirectorData({ ...directorData, name: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('checkin_last_name')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={directorData.surname}
-                      onChange={(e) => setDirectorData({ ...directorData, surname: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('checkin_passport')} *
-                    </label>
-                    <input
-                      type="text"
-                      value={directorData.idNumber}
-                      onChange={(e) => setDirectorData({ ...directorData, idNumber: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      Upload ID / Passport Photo *
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDirectorIdUpload}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white file:mr-2 file:py-1 file:px-3 file:rounded-full file:bg-amber-500 file:text-white file:border-0"
-                      required
-                    />
-                    {directorData.idPhotoPreview && (
-                      <div className="mt-2">
-                        <img
-                          src={directorData.idPhotoPreview}
-                          alt="ID Preview"
-                          className="h-20 w-auto rounded border border-stone-600"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('checkin_first_name')} *</label><input type="text" value={directorData.name} onChange={(e) => setDirectorData({ ...directorData, name: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('checkin_last_name')} *</label><input type="text" value={directorData.surname} onChange={(e) => setDirectorData({ ...directorData, surname: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('checkin_passport')} *</label><input type="text" value={directorData.idNumber} onChange={(e) => setDirectorData({ ...directorData, idNumber: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">Upload ID / Passport Photo *</label><input type="file" accept="image/*" onChange={handleDirectorIdUpload} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white file:mr-2 file:py-1 file:px-3 file:rounded-full file:bg-amber-500 file:text-white file:border-0" required />{directorData.idPhotoPreview && <div className="mt-2"><img src={directorData.idPhotoPreview} alt="ID Preview" className="h-20 w-auto rounded border border-stone-600" /></div>}</div>
                 </div>
-
-                {/* Address */}
-                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  Address
-                </h3>
-                <div className="mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={directorData.sameAddress}
-                      onChange={(e) => setDirectorData({ ...directorData, sameAddress: e.target.checked })}
-                      className="w-4 h-4 rounded border-stone-600 bg-stone-700"
-                    />
-                    <span className="text-stone-300">{t('login_same_as_business')}</span>
-                  </label>
-                </div>
-                
-                {!directorData.sameAddress && (
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_residential_address')}
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={directorData.address}
-                      onChange={(e) => setDirectorData({ ...directorData, address: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
-                  </div>
-                )}
-
-                {/* Contact Information */}
-                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">
-                  {t('login_contact_information')}
-                </h3>
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">Address</h3>
+                <div className="mb-4"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={directorData.sameAddress} onChange={(e) => setDirectorData({ ...directorData, sameAddress: e.target.checked })} className="w-4 h-4 rounded border-stone-600 bg-stone-700" /><span className="text-stone-300">{t('login_same_as_business')}</span></label></div>
+                {!directorData.sameAddress && <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_residential_address')}</label><textarea rows={3} value={directorData.address} onChange={(e) => setDirectorData({ ...directorData, address: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>}
+                <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">{t('login_contact_information')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_email_label')} *
-                    </label>
-                    <input
-                      type="email"
-                      value={directorData.email}
-                      onChange={(e) => setDirectorData({ ...directorData, email: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_confirm_email')} *
-                    </label>
-                    <input
-                      type="email"
-                      value={directorData.confirmEmail}
-                      onChange={(e) => setDirectorData({ ...directorData, confirmEmail: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_fixed_phone')}
-                    </label>
-                    <input
-                      type="tel"
-                      value={directorData.fixedPhone}
-                      onChange={(e) => setDirectorData({ ...directorData, fixedPhone: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-stone-300 mb-1">
-                      {t('login_mobile_phone')} *
-                    </label>
-                    <input
-                      type="tel"
-                      value={directorData.mobilePhone}
-                      onChange={(e) => setDirectorData({ ...directorData, mobilePhone: e.target.value })}
-                      className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                      required
-                    />
-                  </div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_email_label')} *</label><input type="email" value={directorData.email} onChange={(e) => setDirectorData({ ...directorData, email: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_confirm_email')} *</label><input type="email" value={directorData.confirmEmail} onChange={(e) => setDirectorData({ ...directorData, confirmEmail: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_fixed_phone')}</label><input type="tel" value={directorData.fixedPhone} onChange={(e) => setDirectorData({ ...directorData, fixedPhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_mobile_phone')} *</label><input type="tel" value={directorData.mobilePhone} onChange={(e) => setDirectorData({ ...directorData, mobilePhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
                 </div>
-
-                {/* Acknowledgement */}
-                <div className="mt-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={directorData.acknowledgeCorrect}
-                      onChange={(e) => setDirectorData({ ...directorData, acknowledgeCorrect: e.target.checked })}
-                      className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700"
-                    />
-                    <span className="text-stone-300 text-sm">
-                      {t('login_acknowledgement')}
-                    </span>
-                  </label>
-                </div>
-
-                <div className="mt-8 flex justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setPhase(1)}
-                    className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600"
-                  >
-                    ← Back
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600"
-                  >
-                    Next →
-                  </button>
-                </div>
+                <div className="mt-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600"><label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={directorData.acknowledgeCorrect} onChange={(e) => setDirectorData({ ...directorData, acknowledgeCorrect: e.target.checked })} className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700" /><span className="text-stone-300 text-sm">{t('login_acknowledgement')}</span></label></div>
+                <div className="mt-8 flex justify-between"><button type="button" onClick={() => setPhase(1)} className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600">← Back</button><button type="submit" className="px-6 py-2 bg-amber-500 text-stone-900 rounded-lg font-semibold hover:bg-amber-600">Next →</button></div>
               </form>
             )}
 
-            {/* ============================================================ */}
-            {/* PHASE 3: Waiver & Submission */}
-            {/* ============================================================ */}
             {phase === 3 && (
               <form onSubmit={handleFinalSubmit} className="bg-stone-800 rounded-2xl shadow-xl p-8 border border-stone-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  {t('login_waiver_agreement')}
-                </h2>
-                
-                {/* Waiver Text */}
+                <h2 className="text-2xl font-bold text-white mb-6">{t('login_waiver_agreement')}</h2>
                 <div className="bg-stone-700/30 rounded-lg p-6 mb-6 border border-stone-600 max-h-80 overflow-y-auto">
-                  <h3 className="text-lg font-bold text-white mb-4">
-                    FastCheckin Platform Waiver
-                  </h3>
+                  <h3 className="text-lg font-bold text-white mb-4">FastCheckin Platform Waiver</h3>
                   <div className="space-y-4 text-stone-300 text-sm">
-                    <p>
-                      <strong>1. Acceptance of Terms</strong>
-                      <br />
-                      By using the FastCheckin platform, you agree to be bound by these terms and conditions.
-                    </p>
-                    <p>
-                      <strong>2. Platform Usage</strong>
-                      <br />
-                      FastCheckin provides a digital check-in solution for accommodations. The platform is provided "as is" without warranties.
-                    </p>
-                    <p>
-                      <strong>3. Limitation of Liability</strong>
-                      <br />
-                      To the maximum extent permitted by law, FastCheckin shall not be liable for any indirect, incidental, special, consequential, or punitive damages.
-                    </p>
-                    <p>
-                      <strong>4. Data Processing</strong>
-                      <br />
-                      You acknowledge that guest data is processed in accordance with POPIA and our Privacy Policy.
-                    </p>
-                    <p>
-                      <strong>5. Indemnification</strong>
-                      <br />
-                      You agree to indemnify and hold FastCheckin harmless from any claims arising from your use of the platform.
-                    </p>
-                    <p>
-                      <strong>6. Termination</strong>
-                      <br />
-                      FastCheckin reserves the right to suspend or terminate access for violation of these terms.
-                    </p>
-                    <p>
-                      <strong>7. Governing Law</strong>
-                      <br />
-                      This agreement shall be governed by the laws of the Republic of South Africa.
-                    </p>
+                    <p><strong>1. Acceptance of Terms</strong><br />By using the FastCheckin platform, you agree to be bound by these terms and conditions.</p>
+                    <p><strong>2. Platform Usage</strong><br />FastCheckin provides a digital check-in solution for accommodations. The platform is provided "as is" without warranties.</p>
+                    <p><strong>3. Limitation of Liability</strong><br />To the maximum extent permitted by law, FastCheckin shall not be liable for any indirect, incidental, special, consequential, or punitive damages.</p>
+                    <p><strong>4. Data Processing</strong><br />You acknowledge that guest data is processed in accordance with POPIA and our Privacy Policy.</p>
+                    <p><strong>5. Indemnification</strong><br />You agree to indemnify and hold FastCheckin harmless from any claims arising from your use of the platform.</p>
+                    <p><strong>6. Termination</strong><br />FastCheckin reserves the right to suspend or terminate access for violation of these terms.</p>
+                    <p><strong>7. Governing Law</strong><br />This agreement shall be governed by the laws of the Republic of South Africa.</p>
                   </div>
                 </div>
-
-                {/* Waiver Acceptance */}
-                <div className="mb-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={waiverAccepted}
-                      onChange={(e) => setWaiverAccepted(e.target.checked)}
-                      className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700"
-                    />
-                    <span className="text-stone-300 text-sm">
-                      I have read, understood, and agree to the terms of this waiver and the FastCheckin platform agreement.
-                    </span>
-                  </label>
-                </div>
-
-                {/* Application Summary */}
+                <div className="mb-6 p-4 bg-stone-700/30 rounded-lg border border-stone-600"><label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={waiverAccepted} onChange={(e) => setWaiverAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-600 bg-stone-700" /><span className="text-stone-300 text-sm">I have read, understood, and agree to the terms of this waiver and the FastCheckin platform agreement.</span></label></div>
                 <div className="bg-stone-700/20 rounded-lg p-4 mb-6">
-                  <h3 className="font-semibold text-white mb-2">
-                    {t('login_application_summary')}
-                  </h3>
+                  <h3 className="font-semibold text-white mb-2">{t('login_application_summary')}</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm text-stone-400">
                     <p>Business: <span className="text-white">{businessData.tradingName}</span></p>
                     <p>Legal Name: <span className="text-white">{businessData.legalName}</span></p>
@@ -1544,73 +981,16 @@ export default function BusinessRegistration() {
                     <p>Phone: <span className="text-white">{businessData.mobilePhone}</span></p>
                   </div>
                 </div>
-
-                {/* Billing Cycle Toggle */}
                 <div className="flex justify-center gap-4 mb-6">
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('monthly')}
-                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                      billingCycle === 'monthly'
-                        ? 'bg-amber-500 text-stone-900'
-                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
-                    }`}
-                  >
-                    {t('login_monthly_billing')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('yearly')}
-                    className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                      billingCycle === 'yearly'
-                        ? 'bg-amber-500 text-stone-900'
-                        : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
-                    }`}
-                  >
-                    {t('login_yearly_billing')} <span className="text-green-400 text-xs ml-1">{t('login_annual_saving')}</span>
-                  </button>
+                  <button type="button" onClick={() => setBillingCycle('monthly')} className={`px-6 py-2 rounded-lg font-semibold transition-colors ${billingCycle === 'monthly' ? 'bg-amber-500 text-stone-900' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'}`}>{t('login_monthly_billing')}</button>
+                  <button type="button" onClick={() => setBillingCycle('yearly')} className={`px-6 py-2 rounded-lg font-semibold transition-colors ${billingCycle === 'yearly' ? 'bg-amber-500 text-stone-900' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'}`}>{t('login_yearly_billing')} <span className="text-green-400 text-xs ml-1">{t('login_annual_saving')}</span></button>
                 </div>
-
-                {/* CAPTCHA */}
                 <div className="bg-stone-700/30 rounded-lg p-4 mb-6">
-                  <div className="text-center mb-4">
-                    <p className="text-2xl font-mono tracking-wider text-white">
-                      {captchaText}
-                    </p>
-                  </div>
-                  <input
-                    type="text"
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
-                    placeholder={t('login_enter_captcha')}
-                    className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={generateCaptcha}
-                    className="text-sm text-amber-500 hover:text-amber-400 mt-2"
-                  >
-                    {t('login_refresh_captcha')}
-                  </button>
+                  <div className="text-center mb-4"><p className="text-2xl font-mono tracking-wider text-white">{captchaText}</p></div>
+                  <input type="text" value={captchaInput} onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())} placeholder={t('login_enter_captcha')} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
+                  <button type="button" onClick={generateCaptcha} className="text-sm text-amber-500 hover:text-amber-400 mt-2">{t('login_refresh_captcha')}</button>
                 </div>
-
-                <div className="mt-8 flex justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setPhase(2)}
-                    className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600"
-                  >
-                    ← Back
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-8 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {loading ? t('common_processing') : `${t('login_submit_application')} →`}
-                  </button>
-                </div>
+                <div className="mt-8 flex justify-between"><button type="button" onClick={() => setPhase(2)} className="px-6 py-2 bg-stone-700 text-white rounded-lg font-semibold hover:bg-stone-600">← Back</button><button type="submit" disabled={loading} className="px-8 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50">{loading ? t('common_processing') : `${t('login_submit_application')} →`}</button></div>
               </form>
             )}
           </div>
