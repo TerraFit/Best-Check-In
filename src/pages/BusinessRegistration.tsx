@@ -776,12 +776,18 @@ export default function BusinessRegistration() {
                   {t('reg_enterprise_portfolio_scope')}
                 </p>
                 <div className="mt-3">
-                  <span className="text-2xl font-bold text-white">
-                    {propertyCount >= 2 && roomsCount >= 21 ? `${currencySymbol}${convertZarToRegionalPrice(calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount), region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)}` : t('reg_enterprise_requires_eligibility')}
-                  </span>
-                  <span className="text-stone-400 text-sm">
-                    /{billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
-                  </span>
+                  {propertyCount >= 2 && roomsCount >= 21 ? (
+                    <>
+                      <span className="text-2xl font-bold text-white">
+                        {currencySymbol}{convertZarToRegionalPrice(calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount), region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)}
+                      </span>
+                      <span className="text-stone-400 text-sm">
+                        /{billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}
+                      </span>
+                    </>
+                  ) : (
+                    <p className="text-sm text-stone-300">{t('reg_enterprise_requires_eligibility')}</p>
+                  )}
                 </div>
                 <p className="text-xs text-stone-400 mt-1">
                   {propertyCount > 2 ? t(propertyCount - 2 === 1 ? 'reg_enterprise_additional_property_one' : 'reg_enterprise_additional_property_many', { count: propertyCount - 2 }) : t('reg_enterprise_includes_two')}
@@ -923,7 +929,7 @@ export default function BusinessRegistration() {
                     <div className="md:col-span-2"><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_street_address')}</label><input type="text" value={businessData.postalStreet} onChange={(e) => setBusinessData({ ...businessData, postalStreet: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_city_town')}</label><input type="text" value={businessData.postalCity} onChange={(e) => setBusinessData({ ...businessData, postalCity: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_country')}</label><select value={businessData.postalCountry} onChange={(e) => { const newCountry = e.target.value; setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' }); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">{t('reg_select_country')}</option>{SADC_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                    <div><label className="block text-sm font-medium text-stone-300 mb-1">{postalRegionLabel}</label>{REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (<select value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">Select {getRegionLabel(businessData.postalCountry)}</option>{REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input type="text" value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />)}</div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">{postalRegionLabel}</label>{REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (<select value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">{t('reg_select_region', { region: postalRegionLabel })}</option>{REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input type="text" value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} placeholder={t('reg_enter_region', { region: postalRegionLabel.toLowerCase() })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />)}</div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_postal_code')}</label><input type="text" value={businessData.postalPostalCode} onChange={(e) => setBusinessData({ ...businessData, postalPostalCode: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                   </div>
                 )}
