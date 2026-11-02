@@ -145,10 +145,16 @@ const getRegionLabel = (country: string): string => {
 // Package display metadata comes from the shared package registry; all amounts are calculated by the shared pricing engine.
 const pricingStyles = {
   starter: { color: 'green', borderColor: 'border-green-500', textColor: 'text-green-500', buttonColor: 'bg-green-600 hover:bg-green-700', bgHover: 'hover:border-green-500' },
-  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500', mostPopular: true },
+  growth: { color: 'blue', borderColor: 'border-blue-500', textColor: 'text-blue-500', buttonColor: 'bg-blue-600 hover:bg-blue-700', bgHover: 'hover:border-blue-500' },
   pro: { color: 'purple', borderColor: 'border-purple-500', textColor: 'text-purple-500', buttonColor: 'bg-purple-600 hover:bg-purple-700', bgHover: 'hover:border-purple-500' },
   business: { color: 'orange', borderColor: 'border-orange-500', textColor: 'text-orange-500', buttonColor: 'bg-orange-600 hover:bg-orange-700', bgHover: 'hover:border-orange-500' },
 } as const;
+const PLAN_MAX_ROOMS: Record<Exclude<PlanType, 'enterprise'>, number> = {
+  starter: 5,
+  growth: 10,
+  pro: 20,
+  business: Number.POSITIVE_INFINITY,
+};
 const pricingPlans = PLAN_ORDER.filter((id) => id !== 'enterprise').map((id) => ({
   ...PACKAGES[id],
   ...pricingStyles[id as Exclude<PlanType, 'enterprise'>],
@@ -185,8 +191,8 @@ export default function BusinessRegistration() {
   const selectedPlanBase = pricingPlans.find(p => p.id === selectedPlanId);
   const selectedPlan = selectedPlanBase ? {
     ...selectedPlanBase,
-    priceMonthly: calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id),
-    priceYearly: calculateSubscriptionAnnualPrice(roomsCount, selectedPlanBase.id),
+    priceMonthly: calculateSubscriptionMonthlyPrice(Math.max(roomsCount, selectedPlanBase.minRooms), selectedPlanBase.id),
+    priceYearly: calculateSubscriptionAnnualPrice(Math.max(roomsCount, selectedPlanBase.minRooms), selectedPlanBase.id),
   } : undefined;
   
   // Determine recommended plan based on room count
@@ -295,7 +301,7 @@ export default function BusinessRegistration() {
       return;
     }
     const plan = pricingPlans.find(p => p.id === planId);
-    if (plan && roomsCount < plan.minRooms) {
+    if (plan && roomsCount > PLAN_MAX_ROOMS[planId as Exclude<PlanType, 'enterprise'>]) {
       setShowRoomError(true);
       return;
     }
@@ -647,10 +653,11 @@ export default function BusinessRegistration() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {pricingPlans.map((plan) => {
-              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(roomsCount, plan.id);
+              const pricingRooms = Math.max(roomsCount, plan.minRooms);
+              const displayMonthlyPrice = calculateSubscriptionMonthlyPrice(pricingRooms, plan.id);
               const isRecommended = recommendedPlanId === plan.id;
               const isSelected = selectedPlanId === plan.id;
-              const isDisabled = roomsCount < plan.minRooms;
+              const isDisabled = roomsCount > PLAN_MAX_ROOMS[plan.id as Exclude<PlanType, 'enterprise'>];
               
               return (
                 <div
@@ -661,7 +668,7 @@ export default function BusinessRegistration() {
                     ${isRecommended
                       ? `${plan.borderColor} bg-stone-800 scale-105 shadow-lg ring-2 ring-green-500/50`
                       : 'border-stone-700 bg-stone-800/50'}
-                    ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
+                    ${isDisabled ? 'cursor-not-allowed' : 'hover:scale-105 hover:shadow-xl'}
                   `}
                 >
                   {isRecommended && (
@@ -671,13 +678,7 @@ export default function BusinessRegistration() {
                       </span>
                     </div>
                   )}
-                  {plan.mostPopular && !isRecommended && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1 rounded-full">
-                        {t('landing_plan_most_popular')}
-                      </span>
-                    </div>
-                  )}
+
                   <div className="text-center">
                     <h3 className={`text-xl font-bold ${plan.textColor}`}>
                       {plan.name}
