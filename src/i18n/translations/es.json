@@ -1321,5 +1321,19 @@
   "reg_properties": "Establecimientos",
   "reg_total_rooms": "Habitaciones totales",
   "reg_director": "Director/a",
-  "reg_waiver_terms": "1. Aceptación de las condiciones\nAl utilizar la plataforma FastCheckin, acepta quedar sujeto a estas condiciones.\n\n2. Uso de la plataforma\nFastCheckin ofrece una solución digital de registro de entrada para alojamientos. La plataforma se proporciona «tal cual», sin garantías.\n\n3. Limitación de responsabilidad\nEn la máxima medida permitida por la ley, FastCheckin no será responsable de daños indirectos, incidentales, especiales, consecuentes o punitivos.\n\n4. Tratamiento de datos\nReconoce que los datos de los huéspedes se procesan de acuerdo con POPIA y nuestra Política de privacidad.\n\n5. Indemnización\nAcepta indemnizar y eximir de responsabilidad a FastCheckin frente a cualquier reclamación derivada del uso de la plataforma.\n\n6. Terminación\nFastCheckin se reserva el derecho de suspender o cancelar el acceso si se incumplen estas condiciones.\n\n7. Legislación aplicable\nEste acuerdo se regirá por las leyes de la República de Sudáfrica."
+  "reg_waiver_terms": "1. Aceptación de las condiciones\nAl utilizar la plataforma FastCheckin, acepta quedar sujeto a estas condiciones.\n\n2. Uso de la plataforma\nFastCheckin ofrece una solución digital de registro de entrada para alojamientos. La plataforma se proporciona «tal cual», sin garantías.\n\n3. Limitación de responsabilidad\nEn la máxima medida permitida por la ley, FastCheckin no será responsable de daños indirectos, incidentales, especiales, consecuentes o punitivos.\n\n4. Tratamiento de datos\nReconoce que los datos de los huéspedes se procesan de acuerdo con POPIA y nuestra Política de privacidad.\n\n5. Indemnización\nAcepta indemnizar y eximir de responsabilidad a FastCheckin frente a cualquier reclamación derivada del uso de la plataforma.\n\n6. Terminación\nFastCheckin se reserva el derecho de suspender o cancelar el acceso si se incumplen estas condiciones.\n\n7. Legislación aplicable\nEste acuerdo se regirá por las leyes de la República de Sudáfrica.",
+  "reg_region_province": "Provincia",
+  "reg_region_district": "Distrito",
+  "reg_region_region": "Región",
+  "reg_region_island": "Isla",
+  "reg_region_required": "El campo {region} es obligatorio",
+  "reg_select_region": "Seleccionar {region}",
+  "reg_enter_region": "Introducir {region}",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Alojamiento y desayuno (B&B)",
+  "reg_establishment_guest_house": "Casa de huéspedes",
+  "reg_establishment_campsite": "Camping",
+  "reg_establishment_resort": "Complejo turístico",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Alojamiento independiente"
 }
