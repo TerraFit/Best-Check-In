@@ -1,0 +1,192 @@
+name: Temporary Registration Localization
+
+on:
+  push:
+    branches:
+      - fix/remove-no-credit-card-required
+
+permissions:
+  contents: write
+
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply registration localization
+        env:
+          TARGET_BRANCH: fix/remove-no-credit-card-required
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          component = Path('src/pages/BusinessRegistration.tsx')
+          s = component.read_text(encoding='utf-8')
+
+          replacements = {
+            "alert('File must be less than 2MB');": "alert(t('reg_file_too_large'));",
+            "alert(data.error || 'Registration failed. Please try again.');": "alert(data.error || t('reg_registration_failed'));",
+            "alert(`${regionLabel} is required`);": "alert(t('reg_region_required', { region: t(`reg_region_${regionLabel.toLowerCase()}`) }));",
+            "`${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}/month`": "`${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}${t('landing_plan_per_month')}`",
+            "`${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}/year`": "`${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}${t('landing_plan_per_year')}`",
+            "{(plan.id === 'starter' || plan.id === 'growth') && <p className=\"text-xs text-stone-400 mt-1\">{t('landing_pf_marketing_download')}: {currencySymbol}{marketingDownloadMonthlyPrice}{t('landing_plan_per_month')} or {currencySymbol}{marketingDownloadVoucherPrice} voucher</p>}": "{(plan.id === 'starter' || plan.id === 'growth') && <p className=\"text-xs text-stone-400 mt-1\">{t('landing_pf_marketing_download')}: {currencySymbol}{marketingDownloadMonthlyPrice}{t('landing_plan_per_month')} {t('reg_or')} {currencySymbol}{marketingDownloadVoucherPrice} {t('reg_voucher')}</p>}",
+            "21+ rooms across your portfolio · first 2 properties included": "{t('reg_enterprise_capacity')}",
+            "`Includes ${propertyCount - 2} additional propert${propertyCount - 2 === 1 ? 'y' : 'ies'}`": "t('reg_enterprise_additional_properties', { count: propertyCount - 2 })",
+            "'Includes up to 2 properties'": "t('reg_enterprise_up_to_two')",
+            "'/' + billingCycle": "'/' + billingCycle",
+            ">\n                    /{billingCycle === 'monthly' ? 'month' : 'year'}\n                  </span>": ">\n                    {billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}\n                  </span>",
+            "Coming Soon · Notify Me": "{t('reg_coming_soon_notify')}",
+            "Regional display price only. Enterprise is not yet available for online purchase; Peach Payments billing will be in ZAR.": "{t('reg_enterprise_regional_note')}",
+            ">City / Town</label>": ">{t('reg_city_town')}</label>",
+            ">Country</label>": ">{t('reg_country')}</label>",
+            ">Postal Code</label>": ">{t('reg_postal_code')}</label>",
+            ">Website URL</label>": ">{t('reg_website_url')}</label>",
+            "placeholder=\"https://example.com\"": "placeholder={t('reg_website_placeholder')}",
+            ">Next →</button>": ">{t('reg_next')} →</button>",
+            "Upload ID / Passport Photo *": "{t('reg_upload_id_photo')} *",
+            "alt=\"ID Preview\"": "alt={t('reg_id_preview')}",
+            ">Address</h3>": ">{t('reg_address')}</h3>",
+            ">← Back</button>": ">{t('reg_back')} </button>",
+            "<h3 className=\"text-lg font-bold text-white mb-4\">FastCheckin Platform Waiver</h3>": "<h3 className=\"text-lg font-bold text-white mb-4\">{t('reg_waiver_title')}</h3>",
+            "<p><strong>1. Acceptance of Terms</strong><br />By using the FastCheckin platform, you agree to be bound by these terms and conditions.</p>": "<p><strong>{t('reg_waiver_1_title')}</strong><br />{t('reg_waiver_1_text')}</p>",
+            "<p><strong>2. Platform Usage</strong><br />FastCheckin provides a digital check-in solution for accommodations. The platform is provided \"as is\" without warranties.</p>": "<p><strong>{t('reg_waiver_2_title')}</strong><br />{t('reg_waiver_2_text')}</p>",
+            "<p><strong>3. Limitation of Liability</strong><br />To the maximum extent permitted by law, FastCheckin shall not be liable for any indirect, incidental, special, consequential, or punitive damages.</p>": "<p><strong>{t('reg_waiver_3_title')}</strong><br />{t('reg_waiver_3_text')}</p>",
+            "<p><strong>4. Data Processing</strong><br />You acknowledge that guest data is processed in accordance with POPIA and our Privacy Policy.</p>": "<p><strong>{t('reg_waiver_4_title')}</strong><br />{t('reg_waiver_4_text')}</p>",
+            "<p><strong>5. Indemnification</strong><br />You agree to indemnify and hold FastCheckin harmless from any claims arising from your use of the platform.</p>": "<p><strong>{t('reg_waiver_5_title')}</strong><br />{t('reg_waiver_5_text')}</p>",
+            "<p><strong>6. Termination</strong><br />FastCheckin reserves the right to suspend or terminate access for violation of these terms.</p>": "<p><strong>{t('reg_waiver_6_title')}</strong><br />{t('reg_waiver_6_text')}</p>",
+            "<p><strong>7. Governing Law</strong><br />This agreement shall be governed by the laws of the Republic of South Africa.</p>": "<p><strong>{t('reg_waiver_7_title')}</strong><br />{t('reg_waiver_7_text')}</p>",
+            "I have read, understood, and agree to the terms of this waiver and the FastCheckin platform agreement.": "{t('reg_waiver_accept')}",
+            "<p>Business: <span className=\"text-white\">{businessData.tradingName}</span></p>": "<p>{t('reg_summary_business')}: <span className=\"text-white\">{businessData.tradingName}</span></p>",
+            "<p>Legal Name: <span className=\"text-white\">{businessData.legalName}</span></p>": "<p>{t('reg_summary_legal_name')}: <span className=\"text-white\">{businessData.legalName}</span></p>",
+            "<p>Type: <span className=\"text-white\">{businessData.establishmentType || 'Not specified'}</span></p>": "<p>{t('reg_summary_type')}: <span className=\"text-white\">{businessData.establishmentType || t('reg_not_specified')}</span></p>",
+            "<p>TGSA: <span className=\"text-white\">{businessData.tgsaGrading}</span></p>": "<p>{t('reg_summary_tgsa')}: <span className=\"text-white\">{businessData.tgsaGrading}</span></p>",
+            "<p>Plan: <span className=\"text-white\">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>": "<p>{t('reg_summary_plan')}: <span className=\"text-white\">{selectedPlanId === 'enterprise' ? 'Enterprise' : selectedPlan?.name}</span></p>",
+            "<p>Properties: <span className=\"text-white\">{propertyCount}</span></p>": "<p>{t('reg_summary_properties')}: <span className=\"text-white\">{propertyCount}</span></p>",
+            "<p>Total rooms: <span className=\"text-white\">{roomsCount}</span></p>": "<p>{t('reg_summary_total_rooms')}: <span className=\"text-white\">{roomsCount}</span></p>",
+            "<p>Director: <span className=\"text-white\">{directorData.name} {directorData.surname}</span></p>": "<p>{t('reg_summary_director')}: <span className=\"text-white\">{directorData.name} {directorData.surname}</span></p>",
+            "<p>Email: <span className=\"text-white\">{businessData.email}</span></p>": "<p>{t('reg_summary_email')}: <span className=\"text-white\">{businessData.email}</span></p>",
+            "<p>Phone: <span className=\"text-white\">{businessData.mobilePhone}</span></p>": "<p>{t('reg_summary_phone')}: <span className=\"text-white\">{businessData.mobilePhone}</span></p>",
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  print('MISSING:', old[:100])
+              s = s.replace(old, new)
+
+          # Dynamic region selectors/placeholders.
+          s = s.replace('Select {getRegionLabel(businessData.physicalCountry)}', "{t('reg_select')} {t(`reg_region_${getRegionLabel(businessData.physicalCountry).toLowerCase()}`)}")
+          s = s.replace('placeholder={`Enter ${getRegionLabel(businessData.physicalCountry).toLowerCase()}`}', "placeholder={`${t('reg_enter')} ${t(`reg_region_${getRegionLabel(businessData.physicalCountry).toLowerCase()}`)}`}")
+          s = s.replace('Select {getRegionLabel(businessData.postalCountry)}', "{t('reg_select')} {t(`reg_region_${getRegionLabel(businessData.postalCountry).toLowerCase()}`)}")
+          s = s.replace('placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`}', "placeholder={`${t('reg_enter')} ${t(`reg_region_${getRegionLabel(businessData.postalCountry).toLowerCase()}`)}`}")
+          s = s.replace("const regionLabel = getRegionLabel(businessData.physicalCountry);", "const regionLabel = getRegionLabel(businessData.physicalCountry);")
+
+          component.write_text(s, encoding='utf-8')
+
+          translations = {
+            'reg_file_too_large': {
+              'en':'File must be less than 2MB','af':'Lêer moet kleiner as 2MB wees','de':'Die Datei muss kleiner als 2 MB sein','fr':'Le fichier doit faire moins de 2 Mo','it':'Il file deve essere inferiore a 2 MB','pt':'O ficheiro deve ter menos de 2 MB','es':'El archivo debe ser inferior a 2 MB','nl':'Het bestand moet kleiner zijn dan 2 MB','ru':'Файл должен быть меньше 2 МБ','zh':'文件必须小于 2MB','ar':'يجب أن يكون حجم الملف أقل من 2 ميغابايت','he':'הקובץ חייב להיות קטן מ־2MB'},
+            'reg_registration_failed': {
+              'en':'Registration failed. Please try again.','af':'Registrasie het misluk. Probeer asseblief weer.','de':'Die Registrierung ist fehlgeschlagen. Bitte versuchen Sie es erneut.','fr':'L’inscription a échoué. Veuillez réessayer.','it':'Registrazione non riuscita. Riprova.','pt':'O registo falhou. Tente novamente.','es':'El registro ha fallado. Inténtalo de nuevo.','nl':'Registratie mislukt. Probeer het opnieuw.','ru':'Регистрация не удалась. Попробуйте ещё раз.','zh':'注册失败。请重试。','ar':'فشل التسجيل. يرجى المحاولة مرة أخرى.','he':'הרישום נכשל. נסה שוב.'},
+            'reg_region_required': {
+              'en':'{{region}} is required','af':'{{region}} is verpligtend','de':'{{region}} ist erforderlich','fr':'{{region}} est obligatoire','it':'{{region}} è obbligatorio','pt':'{{region}} é obrigatório','es':'{{region}} es obligatorio','nl':'{{region}} is verplicht','ru':'Поле «{{region}}» обязательно','zh':'{{region}}为必填项','ar':'{{region}} مطلوب','he':'{{region}} הוא שדה חובה'},
+            'reg_or': {'en':'or','af':'of','de':'oder','fr':'ou','it':'oppure','pt':'ou','es':'o','nl':'of','ru':'или','zh':'或','ar':'أو','he':'או'},
+            'reg_voucher': {'en':'voucher','af':'bewys','de':'Gutschein','fr':'bon','it':'voucher','pt':'voucher','es':'bono','nl':'voucher','ru':'ваучер','zh':'代金券','ar':'قسيمة','he':'שובר'},
+            'reg_enterprise_capacity': {
+              'en':'21+ rooms across your portfolio · first 2 properties included','af':'21+ kamers oor jou portefeulje · eerste 2 eiendomme ingesluit','de':'21+ Zimmer im Portfolio · erste 2 Betriebe inklusive','fr':'21+ chambres dans votre portefeuille · 2 premiers établissements inclus','it':'21+ camere nel portafoglio · prime 2 strutture incluse','pt':'21+ quartos no portefólio · os primeiros 2 estabelecimentos incluídos','es':'21+ habitaciones en su cartera · los 2 primeros establecimientos incluidos','nl':'21+ kamers in uw portefeuille · eerste 2 vestigingen inbegrepen','ru':'21+ номеров в портфеле · первые 2 объекта включены','zh':'您的投资组合中有 21+ 间客房 · 包含前 2 个住宿单位','ar':'21+ غرفة ضمن محفظتك · أول منشأتين مشمولتان','he':'21+ חדרים בתיק הנכסים · 2 הנכסים הראשונים כלולים'},
+            'reg_enterprise_additional_properties': {
+              'en':'Includes {{count}} additional {{count, plural, one {property} other {properties}}}','af':'Sluit {{count}} bykomende {{count, plural, one {eiendom} other {eiendomme}}} in','de':'Enthält {{count}} weitere {{count, plural, one {Unterkunft} other {Unterkünfte}}}','fr':'Inclut {{count}} établissement{{count, plural, one {} other {s}}} supplémentaire{{count, plural, one {} other {s}}}','it':'Include {{count}} {{count, plural, one {struttura aggiuntiva} other {strutture aggiuntive}}}','pt':'Inclui {{count}} {{count, plural, one {estabelecimento adicional} other {estabelecimentos adicionais}}}','es':'Incluye {{count}} {{count, plural, one {establecimiento adicional} other {establecimientos adicionales}}}','nl':'Inclusief {{count}} extra {{count, plural, one {vestiging} other {vestigingen}}}','ru':'Включает ещё {{count}} {{count, plural, one {объект} other {объекта}}}','zh':'包含另外 {{count}} 个住宿单位','ar':'يشمل {{count}} منشأة إضافية','he':'כולל {{count}} נכס{{count, plural, one {} other {ים}}}'},
+            'reg_enterprise_up_to_two': {'en':'Includes up to 2 properties','af':'Sluit tot 2 eiendomme in','de':'Bis zu 2 Betriebe inklusive','fr':'Jusqu’à 2 établissements inclus','it':'Include fino a 2 strutture','pt':'Inclui até 2 estabelecimentos','es':'Incluye hasta 2 establecimientos','nl':'Inclusief maximaal 2 vestigingen','ru':'Включает до 2 объектов','zh':'最多包含 2 个住宿单位','ar':'يشمل ما يصل إلى منشأتين','he':'כולל עד 2 נכסים'},
+            'reg_coming_soon_notify': {'en':'Coming Soon · Notify Me','af':'Binnekort beskikbaar · Stel my in kennis','de':'Demnächst verfügbar · Benachrichtigen','fr':'Bientôt disponible · Me prévenir','it':'Prossimamente · Avvisami','pt':'Em breve · Avise-me','es':'Próximamente · Avísame','nl':'Binnenkort beschikbaar · Houd mij op de hoogte','ru':'Скоро · Уведомить меня','zh':'即将推出 · 通知我','ar':'قريبًا · أبلغني','he':'בקרוב · עדכן אותי'},
+            'reg_enterprise_regional_note': {'en':'Regional display price only. Enterprise is not yet available for online purchase; Peach Payments billing will be in ZAR.','af':'Slegs streeksvertoonprys. Enterprise is nog nie vir aanlyn-aankope beskikbaar nie; Peach Payments-fakturering sal in ZAR wees.','de':'Nur regionaler Anzeigepreis. Enterprise ist noch nicht online erhältlich; die Abrechnung über Peach Payments erfolgt in ZAR.','fr':'Prix affiché à titre indicatif selon la région. Enterprise n’est pas encore disponible à l’achat en ligne ; la facturation Peach Payments sera en ZAR.','it':'Solo prezzo indicativo regionale. Enterprise non è ancora disponibile per l’acquisto online; la fatturazione Peach Payments sarà in ZAR.','pt':'Preço regional apenas para apresentação. Enterprise ainda não está disponível para compra online; a faturação da Peach Payments será em ZAR.','es':'Solo precio mostrado según la región. Enterprise aún no está disponible para compra en línea; la facturación de Peach Payments será en ZAR.','nl':'Alleen regionale weergaveprijs. Enterprise is nog niet beschikbaar voor online aankoop; facturering via Peach Payments gebeurt in ZAR.','ru':'Только региональная отображаемая цена. Enterprise пока недоступен для онлайн-покупки; расчёты через Peach Payments будут в ZAR.','zh':'仅显示区域价格。Enterprise 尚未开放在线购买；Peach Payments 将以 ZAR 计费。','ar':'السعر المعروض إقليمي فقط. Enterprise غير متاح بعد للشراء عبر الإنترنت؛ وستتم الفوترة عبر Peach Payments بعملة ZAR.','he':'מחיר תצוגה אזורי בלבד. Enterprise עדיין אינו זמין לרכישה מקוונת; החיוב דרך Peach Payments יהיה ב-ZAR.'},
+            'reg_city_town': {'en':'City / Town','af':'Stad / Dorp','de':'Stadt / Ort','fr':'Ville','it':'Città / Comune','pt':'Cidade / Localidade','es':'Ciudad / Localidad','nl':'Stad / Plaats','ru':'Город / населённый пункт','zh':'城市 / 城镇','ar':'المدينة / البلدة','he':'עיר / יישוב'},
+            'reg_country': {'en':'Country','af':'Land','de':'Land','fr':'Pays','it':'Paese','pt':'País','es':'País','nl':'Land','ru':'Страна','zh':'国家','ar':'الدولة','he':'מדינה'},
+            'reg_postal_code': {'en':'Postal Code','af':'Poskode','de':'Postleitzahl','fr':'Code postal','it':'CAP','pt':'Código postal','es':'Código postal','nl':'Postcode','ru':'Почтовый индекс','zh':'邮政编码','ar':'الرمز البريدي','he':'מיקוד'},
+            'reg_website_url': {'en':'Website URL','af':'Webwerf-URL','de':'Website-URL','fr':'URL du site web','it':'URL del sito web','pt':'URL do site','es':'URL del sitio web','nl':'Website-URL','ru':'URL веб-сайта','zh':'网站 URL','ar':'رابط الموقع الإلكتروني','he':'כתובת אתר'},
+            'reg_website_placeholder': {'en':'https://example.com','af':'https://example.com','de':'https://example.com','fr':'https://exemple.com','it':'https://esempio.com','pt':'https://exemplo.com','es':'https://ejemplo.com','nl':'https://voorbeeld.nl','ru':'https://example.com','zh':'https://example.com','ar':'https://example.com','he':'https://example.com'},
+            'reg_next': {'en':'Next','af':'Volgende','de':'Weiter','fr':'Suivant','it':'Avanti','pt':'Seguinte','es':'Siguiente','nl':'Volgende','ru':'Далее','zh':'下一步','ar':'التالي','he':'הבא'},
+            'reg_upload_id_photo': {'en':'Upload ID / Passport Photo','af':'Laai ID / paspoortfoto op','de':'Ausweis-/Passfoto hochladen','fr':'Télécharger une photo de la pièce d’identité / du passeport','it':'Carica foto del documento / passaporto','pt':'Carregar foto do documento de identificação / passaporte','es':'Subir foto del documento de identidad / pasaporte','nl':'ID-/pasfoto uploaden','ru':'Загрузить фото удостоверения личности / паспорта','zh':'上传身份证 / 护照照片','ar':'تحميل صورة الهوية / جواز السفر','he':'העלה צילום תעודה מזהה / דרכון'},
+            'reg_id_preview': {'en':'ID Preview','af':'ID-voorskou','de':'Vorschau des Ausweises','fr':'Aperçu de la pièce d’identité','it':'Anteprima documento','pt':'Pré-visualização do documento','es':'Vista previa del documento','nl':'Voorbeeld ID','ru':'Предпросмотр документа','zh':'证件预览','ar':'معاينة الهوية','he':'תצוגה מקדימה של תעודה'},
+            'reg_address': {'en':'Address','af':'Adres','de':'Adresse','fr':'Adresse','it':'Indirizzo','pt':'Morada','es':'Dirección','nl':'Adres','ru':'Адрес','zh':'地址','ar':'العنوان','he':'כתובת'},
+            'reg_back': {'en':'Back','af':'Terug','de':'Zurück','fr':'Retour','it':'Indietro','pt':'Voltar','es':'Atrás','nl':'Terug','ru':'Назад','zh':'返回','ar':'رجوع','he':'חזרה'},
+            'reg_select': {'en':'Select','af':'Kies','de':'Auswählen','fr':'Sélectionner','it':'Seleziona','pt':'Selecionar','es':'Seleccionar','nl':'Selecteer','ru':'Выберите','zh':'选择','ar':'اختر','he':'בחר'},
+            'reg_enter': {'en':'Enter','af':'Voer in','de':'Eingeben','fr':'Saisir','it':'Inserisci','pt':'Introduza','es':'Introduzca','nl':'Voer in','ru':'Введите','zh':'输入','ar':'أدخل','he':'הזן'},
+            'reg_region_province': {'en':'Province','af':'Provinsie','de':'Provinz','fr':'Province','it':'Provincia','pt':'Província','es':'Provincia','nl':'Provincie','ru':'Провинция','zh':'省','ar':'المقاطعة','he':'מחוז'},
+            'reg_region_district': {'en':'District','af':'Distrik','de':'Bezirk','fr':'District','it':'Distretto','pt':'Distrito','es':'Distrito','nl':'District','ru':'Район','zh':'区','ar':'المنطقة','he':'מחוז'},
+            'reg_region_region': {'en':'Region','af':'Streek','de':'Region','fr':'Région','it':'Regione','pt':'Região','es':'Región','nl':'Regio','ru':'Регион','zh':'地区','ar':'الإقليم','he':'אזור'},
+            'reg_region_island': {'en':'Island','af':'Eiland','de':'Insel','fr':'Île','it':'Isola','pt':'Ilha','es':'Isla','nl':'Eiland','ru':'Остров','zh':'岛屿','ar':'جزيرة','he':'אי'},
+            'reg_waiver_title': {'en':'FastCheckin Platform Waiver','af':'FastCheckin-platformvrywaring','de':'Haftungsausschluss der FastCheckin-Plattform','fr':'Décharge de la plateforme FastCheckin','it':'Clausola di esonero della piattaforma FastCheckin','pt':'Termo de isenção da plataforma FastCheckin','es':'Exención de responsabilidad de la plataforma FastCheckin','nl':'Vrijwaring van het FastCheckin-platform','ru':'Отказ от ответственности платформы FastCheckin','zh':'FastCheckin 平台免责声明','ar':'إقرار وإعفاء منصة FastCheckin','he':'כתב ויתור של פלטפורמת FastCheckin'},
+          }
+
+          waiver = {
+            'reg_waiver_1_title': {'en':'1. Acceptance of Terms','af':'1. Aanvaarding van bepalings','de':'1. Annahme der Bedingungen','fr':'1. Acceptation des conditions','it':'1. Accettazione dei termini','pt':'1. Aceitação dos termos','es':'1. Aceptación de los términos','nl':'1. Aanvaarding van de voorwaarden','ru':'1. Принятие условий','zh':'1. 接受条款','ar':'1. قبول الشروط','he':'1. קבלת התנאים'},
+            'reg_waiver_1_text': {'en':'By using the FastCheckin platform, you agree to be bound by these terms and conditions.','af':'Deur die FastCheckin-platform te gebruik, stem u in om aan hierdie bepalings en voorwaardes gebonde te wees.','de':'Durch die Nutzung der FastCheckin-Plattform erklären Sie sich mit diesen Bedingungen einverstanden.','fr':'En utilisant la plateforme FastCheckin, vous acceptez d’être lié par les présentes conditions.','it':'Utilizzando la piattaforma FastCheckin, accetti di essere vincolato da questi termini e condizioni.','pt':'Ao utilizar a plataforma FastCheckin, aceita ficar vinculado a estes termos e condições.','es':'Al utilizar la plataforma FastCheckin, acepta quedar sujeto a estos términos y condiciones.','nl':'Door het FastCheckin-platform te gebruiken, gaat u akkoord met deze voorwaarden.','ru':'Используя платформу FastCheckin, вы соглашаетесь соблюдать настоящие условия.','zh':'使用 FastCheckin 平台即表示您同意受这些条款和条件约束。','ar':'باستخدام منصة FastCheckin، فإنك توافق على الالتزام بهذه الشروط والأحكام.','he':'בשימוש בפלטפורמת FastCheckin, אתה מסכים להיות כפוף לתנאים ולהגבלות אלה.'},
+            'reg_waiver_2_title': {'en':'2. Platform Usage','af':'2. Gebruik van die platform','de':'2. Nutzung der Plattform','fr':'2. Utilisation de la plateforme','it':'2. Utilizzo della piattaforma','pt':'2. Utilização da plataforma','es':'2. Uso de la plataforma','nl':'2. Gebruik van het platform','ru':'2. Использование платформы','zh':'2. 平台使用','ar':'2. استخدام المنصة','he':'2. שימוש בפלטפורמה'},
+            'reg_waiver_2_text': {'en':'FastCheckin provides a digital check-in solution for accommodations. The platform is provided "as is" without warranties.','af':'FastCheckin bied ’n digitale inklokoplossing vir verblyfondernemings. Die platform word “soos dit is” sonder waarborge verskaf.','de':'FastCheckin bietet eine digitale Check-in-Lösung für Beherbergungsbetriebe. Die Plattform wird ohne Gewährleistungen „wie besehen“ bereitgestellt.','fr':'FastCheckin fournit une solution d’enregistrement numérique pour les établissements d’hébergement. La plateforme est fournie « en l’état », sans garantie.','it':'FastCheckin fornisce una soluzione digitale di check-in per strutture ricettive. La piattaforma è fornita “così com’è”, senza garanzie.','pt':'A FastCheckin fornece uma solução digital de check-in para alojamentos. A plataforma é fornecida “tal como está”, sem garantias.','es':'FastCheckin proporciona una solución digital de registro para alojamientos. La plataforma se proporciona «tal cual», sin garantías.','nl':'FastCheckin biedt een digitale check-inoplossing voor accommodaties. Het platform wordt “zoals het is” geleverd, zonder garanties.','ru':'FastCheckin предоставляет цифровое решение для регистрации гостей. Платформа предоставляется «как есть», без гарантий.','zh':'FastCheckin 为住宿场所提供数字入住解决方案。平台按“现状”提供，不作任何保证。','ar':'توفر FastCheckin حلاً رقمياً لتسجيل الوصول لمرافق الإقامة. تُقدَّم المنصة «كما هي» دون ضمانات.','he':'FastCheckin מספקת פתרון דיגיטלי לצ׳ק-אין עבור מקומות אירוח. הפלטפורמה מסופקת “כמות שהיא” ללא אחריות.'},
+            'reg_waiver_3_title': {'en':'3. Limitation of Liability','af':'3. Beperking van aanspreeklikheid','de':'3. Haftungsbeschränkung','fr':'3. Limitation de responsabilité','it':'3. Limitazione di responsabilità','pt':'3. Limitação de responsabilidade','es':'3. Limitación de responsabilidad','nl':'3. Beperking van aansprakelijkheid','ru':'3. Ограничение ответственности','zh':'3. 责任限制','ar':'3. تحديد المسؤولية','he':'3. הגבלת אחריות'},
+            'reg_waiver_3_text': {'en':'To the maximum extent permitted by law, FastCheckin shall not be liable for any indirect, incidental, special, consequential, or punitive damages.','af':'Tot die maksimum mate wat deur die wet toegelaat word, is FastCheckin nie aanspreeklik vir enige indirekte, toevallige, spesiale, gevolgs- of strafskade nie.','de':'Soweit gesetzlich zulässig, haftet FastCheckin nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden.','fr':'Dans la mesure maximale permise par la loi, FastCheckin ne saurait être tenue responsable des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs.','it':'Nella misura massima consentita dalla legge, FastCheckin non sarà responsabile per danni indiretti, incidentali, speciali, consequenziali o punitivi.','pt':'Na máxima extensão permitida por lei, a FastCheckin não será responsável por quaisquer danos indiretos, incidentais, especiais, consequenciais ou punitivos.','es':'En la máxima medida permitida por la ley, FastCheckin no será responsable de daños indirectos, incidentales, especiales, consecuentes o punitivos.','nl':'Voor zover wettelijk toegestaan is FastCheckin niet aansprakelijk voor indirecte, incidentele, bijzondere, gevolg- of punitieve schade.','ru':'В максимально допустимой законом степени FastCheckin не несёт ответственности за косвенные, случайные, особые, последующие или штрафные убытки.','zh':'在法律允许的最大范围内，FastCheckin 不对任何间接、附带、特殊、后果性或惩罚性损害承担责任。','ar':'إلى أقصى حد يسمح به القانون، لا تتحمل FastCheckin المسؤولية عن أي أضرار غير مباشرة أو عرضية أو خاصة أو تبعية أو عقابية.','he':'במידה המרבית המותרת בחוק, FastCheckin לא תהיה אחראית לנזקים עקיפים, מקריים, מיוחדים, תוצאתיים או עונשיים.'},
+            'reg_waiver_4_title': {'en':'4. Data Processing','af':'4. Dataverwerking','de':'4. Datenverarbeitung','fr':'4. Traitement des données','it':'4. Trattamento dei dati','pt':'4. Tratamento de dados','es':'4. Tratamiento de datos','nl':'4. Gegevensverwerking','ru':'4. Обработка данных','zh':'4. 数据处理','ar':'4. معالجة البيانات','he':'4. עיבוד נתונים'},
+            'reg_waiver_4_text': {'en':'You acknowledge that guest data is processed in accordance with POPIA and our Privacy Policy.','af':'U erken dat gastedata ingevolge POPIA en ons privaatheidsbeleid verwerk word.','de':'Sie erkennen an, dass Gästedaten gemäß POPIA und unserer Datenschutzrichtlinie verarbeitet werden.','fr':'Vous reconnaissez que les données des clients sont traitées conformément à la POPIA et à notre politique de confidentialité.','it':'Riconosci che i dati degli ospiti sono trattati in conformità con il POPIA e la nostra Privacy Policy.','pt':'Reconhece que os dados dos hóspedes são tratados de acordo com a POPIA e a nossa Política de Privacidade.','es':'Usted reconoce que los datos de los huéspedes se procesan de conformidad con la POPIA y nuestra Política de Privacidad.','nl':'U erkent dat gastgegevens worden verwerkt overeenkomstig POPIA en ons privacybeleid.','ru':'Вы подтверждаете, что данные гостей обрабатываются в соответствии с POPIA и нашей Политикой конфиденциальности.','zh':'您确认宾客数据将根据 POPIA 和我们的隐私政策进行处理。','ar':'أنت تقر بأن بيانات الضيوف تتم معالجتها وفقًا لقانون POPIA وسياسة الخصوصية الخاصة بنا.','he':'אתה מאשר שנתוני האורחים מעובדים בהתאם ל-POPIA ולמדיניות הפרטיות שלנו.'},
+            'reg_waiver_5_title': {'en':'5. Indemnification','af':'5. Vrywaring','de':'5. Freistellung','fr':'5. Indemnisation','it':'5. Manleva','pt':'5. Indemnização','es':'5. Indemnización','nl':'5. Schadeloosstelling','ru':'5. Возмещение убытков','zh':'5. 赔偿','ar':'5. التعويض','he':'5. שיפוי'},
+            'reg_waiver_5_text': {'en':'You agree to indemnify and hold FastCheckin harmless from any claims arising from your use of the platform.','af':'U stem in om FastCheckin te vrywaar teen enige eise wat uit u gebruik van die platform voortspruit.','de':'Sie verpflichten sich, FastCheckin von Ansprüchen aus Ihrer Nutzung der Plattform freizustellen.','fr':'Vous acceptez d’indemniser FastCheckin et de la préserver de toute réclamation découlant de votre utilisation de la plateforme.','it':'Accetti di manlevare FastCheckin da qualsiasi reclamo derivante dal tuo utilizzo della piattaforma.','pt':'Aceita indemnizar e isentar a FastCheckin de quaisquer reclamações decorrentes da utilização da plataforma.','es':'Acepta indemnizar y mantener indemne a FastCheckin frente a cualquier reclamación derivada del uso de la plataforma.','nl':'U stemt ermee in FastCheckin te vrijwaren van claims die voortvloeien uit uw gebruik van het platform.','ru':'Вы соглашаетесь возместить FastCheckin убытки и оградить её от претензий, возникающих в связи с использованием платформы.','zh':'您同意就因使用平台而产生的任何索赔向 FastCheckin 提供赔偿并使其免受损害。','ar':'توافق على تعويض FastCheckin وإعفائها من أي مطالبات ناشئة عن استخدامك للمنصة.','he':'אתה מסכים לשפות את FastCheckin ולפטור אותה מכל תביעה הנובעת מהשימוש שלך בפלטפורמה.'},
+            'reg_waiver_6_title': {'en':'6. Termination','af':'6. Beëindiging','de':'6. Beendigung','fr':'6. Résiliation','it':'6. Risoluzione','pt':'6. Rescisão','es':'6. Terminación','nl':'6. Beëindiging','ru':'6. Прекращение','zh':'6. 终止','ar':'6. الإنهاء','he':'6. סיום'},
+            'reg_waiver_6_text': {'en':'FastCheckin reserves the right to suspend or terminate access for violation of these terms.','af':'FastCheckin behou die reg voor om toegang op te skort of te beëindig indien hierdie bepalings oortree word.','de':'FastCheckin behält sich das Recht vor, den Zugang bei Verstößen gegen diese Bedingungen zu sperren oder zu beenden.','fr':'FastCheckin se réserve le droit de suspendre ou de résilier l’accès en cas de violation des présentes conditions.','it':'FastCheckin si riserva il diritto di sospendere o terminare l’accesso in caso di violazione dei presenti termini.','pt':'A FastCheckin reserva-se o direito de suspender ou terminar o acesso em caso de violação destes termos.','es':'FastCheckin se reserva el derecho de suspender o cancelar el acceso por incumplimiento de estos términos.','nl':'FastCheckin behoudt zich het recht voor toegang op te schorten of te beëindigen bij overtreding van deze voorwaarden.','ru':'FastCheckin оставляет за собой право приостановить или прекратить доступ за нарушение настоящих условий.','zh':'如违反这些条款，FastCheckin 保留暂停或终止访问权限的权利。','ar':'تحتفظ FastCheckin بالحق في تعليق أو إنهاء الوصول عند مخالفة هذه الشروط.','he':'FastCheckin שומרת לעצמה את הזכות להשעות או להפסיק גישה במקרה של הפרת תנאים אלה.'},
+            'reg_waiver_7_title': {'en':'7. Governing Law','af':'7. Toepaslike reg','de':'7. Anwendbares Recht','fr':'7. Droit applicable','it':'7. Legge applicabile','pt':'7. Lei aplicável','es':'7. Ley aplicable','nl':'7. Toepasselijk recht','ru':'7. Применимое право','zh':'7. 适用法律','ar':'7. القانون الحاكم','he':'7. הדין החל'},
+            'reg_waiver_7_text': {'en':'This agreement shall be governed by the laws of the Republic of South Africa.','af':'Hierdie ooreenkoms word beheer deur die wette van die Republiek van Suid-Afrika.','de':'Diese Vereinbarung unterliegt den Gesetzen der Republik Südafrika.','fr':'Le présent accord est régi par les lois de la République d’Afrique du Sud.','it':'Il presente accordo è disciplinato dalle leggi della Repubblica del Sudafrica.','pt':'Este acordo será regido pelas leis da República da África do Sul.','es':'Este acuerdo se regirá por las leyes de la República de Sudáfrica.','nl':'Deze overeenkomst valt onder de wetten van de Republiek Zuid-Afrika.','ru':'Настоящее соглашение регулируется законодательством Южно-Африканской Республики.','zh':'本协议受南非共和国法律管辖。','ar':'يخضع هذا الاتفاق لقوانين جمهورية جنوب أفريقيا.','he':'הסכם זה יהיה כפוף לחוקי הרפובליקה של דרום אפריקה.'},
+            'reg_waiver_accept': {'en':'I have read, understood, and agree to the terms of this waiver and the FastCheckin platform agreement.','af':'Ek het die bepalings van hierdie vrywaring en die FastCheckin-platformooreenkoms gelees, verstaan en aanvaar.','de':'Ich habe die Bedingungen dieses Haftungsausschlusses und der FastCheckin-Plattformvereinbarung gelesen, verstanden und stimme ihnen zu.','fr':'J’ai lu, compris et j’accepte les conditions de cette décharge et de l’accord de la plateforme FastCheckin.','it':'Ho letto, compreso e accetto i termini di questa clausola e dell’accordo della piattaforma FastCheckin.','pt':'Li, compreendi e aceito os termos deste termo de isenção e do acordo da plataforma FastCheckin.','es':'He leído, comprendido y acepto los términos de esta exención y del acuerdo de la plataforma FastCheckin.','nl':'Ik heb de voorwaarden van deze vrijwaring en de FastCheckin-platformovereenkomst gelezen, begrepen en aanvaard.','ru':'Я прочитал(а), понял(а) и согласен(на) с условиями этого отказа от ответственности и соглашения платформы FastCheckin.','zh':'我已阅读、理解并同意本免责声明及 FastCheckin 平台协议的条款。','ar':'لقد قرأت وفهمت وأوافق على شروط هذا الإعفاء واتفاقية منصة FastCheckin.','he':'קראתי, הבנתי ואני מסכים/ה לתנאי כתב ויתור זה ולהסכם פלטפורמת FastCheckin.'},
+          }
+
+          summary = {
+            'reg_summary_business':'Business','reg_summary_legal_name':'Legal Name','reg_summary_type':'Type','reg_summary_tgsa':'TGSA','reg_summary_plan':'Plan','reg_summary_properties':'Properties','reg_summary_total_rooms':'Total rooms','reg_summary_director':'Director','reg_summary_email':'Email','reg_summary_phone':'Phone','reg_not_specified':'Not specified'
+          }
+          summary_trans = {
+            'af':['Besigheid','Wettige naam','Tipe','TGSA','Pakket','Eiendomme','Totale kamers','Direkteur','E-pos','Foon','Nie gespesifiseer nie'],
+            'de':['Betrieb','Rechtlicher Name','Typ','TGSA','Paket','Betriebe','Zimmer gesamt','Direktor','E-Mail','Telefon','Nicht angegeben'],
+            'fr':['Entreprise','Dénomination légale','Type','TGSA','Forfait','Établissements','Chambres au total','Directeur','E-mail','Téléphone','Non spécifié'],
+            'it':['Azienda','Denominazione legale','Tipo','TGSA','Piano','Strutture','Camere totali','Direttore','E-mail','Telefono','Non specificato'],
+            'pt':['Empresa','Nome legal','Tipo','TGSA','Plano','Estabelecimentos','Total de quartos','Diretor','E-mail','Telefone','Não especificado'],
+            'es':['Empresa','Nombre legal','Tipo','TGSA','Plan','Establecimientos','Habitaciones totales','Director','Correo electrónico','Teléfono','No especificado'],
+            'nl':['Bedrijf','Juridische naam','Type','TGSA','Pakket','Vestigingen','Totaal aantal kamers','Directeur','E-mail','Telefoon','Niet opgegeven'],
+            'ru':['Компания','Юридическое название','Тип','TGSA','Тариф','Объекты','Всего номеров','Директор','Эл. почта','Телефон','Не указано'],
+            'zh':['企业','法定名称','类型','TGSA','套餐','住宿单位','客房总数','负责人','电子邮箱','电话','未指定'],
+            'ar':['الشركة','الاسم القانوني','النوع','TGSA','الباقة','المنشآت','إجمالي الغرف','المدير','البريد الإلكتروني','الهاتف','غير محدد'],
+            'he':['עסק','שם משפטי','סוג','TGSA','חבילה','נכסים','סך החדרים','מנהל','דוא״ל','טלפון','לא צוין']
+          }
+          for loc, vals in summary_trans.items():
+              for k, v in zip(summary, vals):
+                  pass
+          for key, val in summary.items():
+              translations.setdefault(key, {})['en'] = val
+          for loc, vals in summary_trans.items():
+              for key, val in zip(summary, vals):
+                  translations.setdefault(key, {})[loc] = val
+
+          translations.update(waiver)
+          locale_files = ['en','af','de','fr','it','pt','es','nl','ru','zh','ar','he']
+          for locale in locale_files:
+              p = Path(f'src/i18n/translations/{locale}.json')
+              data = json.loads(p.read_text(encoding='utf-8'))
+              changed = False
+              for key, vals in translations.items():
+                  if key not in data:
+                      data[key] = vals[locale]
+                      changed = True
+              if changed:
+                  p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          # Remove this temporary workflow so it exists only for this one automation run.
+          Path('.github/workflows/tmp-registration-localization.yml').unlink(missing_ok=True)
+          PY
+
+      - name: Validate and commit
+        run: |
+          node -e "const fs=require('fs'); for (const f of fs.readdirSync('src/i18n/translations')) { if (f.endsWith('.json')) JSON.parse(fs.readFileSync('src/i18n/translations/'+f,'utf8')); }"
+          grep -n "getRecommendedPlanId" src/pages/BusinessRegistration.tsx
+          if grep -n "get{t(" src/pages/BusinessRegistration.tsx; then exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/BusinessRegistration.tsx src/i18n/translations .github/workflows/tmp-registration-localization.yml
+          git commit -m "fix: complete business registration localization"
+          git push origin "$TARGET_BRANCH"
