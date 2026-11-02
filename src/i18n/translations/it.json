@@ -1321,5 +1321,19 @@
   "reg_properties": "Strutture",
   "reg_total_rooms": "Camere totali",
   "reg_director": "Direttore",
-  "reg_waiver_terms": "1. Accettazione dei termini\nUtilizzando la piattaforma FastCheckin, accetti di essere vincolato da questi termini e condizioni.\n\n2. Utilizzo della piattaforma\nFastCheckin fornisce una soluzione digitale di check-in per le strutture ricettive. La piattaforma è fornita «così com’è», senza garanzie.\n\n3. Limitazione di responsabilità\nNella misura massima consentita dalla legge, FastCheckin non sarà responsabile per danni indiretti, incidentali, speciali, consequenziali o punitivi.\n\n4. Trattamento dei dati\nRiconosci che i dati degli ospiti vengono trattati in conformità con POPIA e con la nostra Informativa sulla privacy.\n\n5. Manleva\nAccetti di manlevare FastCheckin da qualsiasi reclamo derivante dall’utilizzo della piattaforma.\n\n6. Risoluzione\nFastCheckin si riserva il diritto di sospendere o interrompere l’accesso in caso di violazione dei presenti termini.\n\n7. Legge applicabile\nIl presente accordo è disciplinato dalle leggi della Repubblica del Sudafrica."
+  "reg_waiver_terms": "1. Accettazione dei termini\nUtilizzando la piattaforma FastCheckin, accetti di essere vincolato da questi termini e condizioni.\n\n2. Utilizzo della piattaforma\nFastCheckin fornisce una soluzione digitale di check-in per le strutture ricettive. La piattaforma è fornita «così com’è», senza garanzie.\n\n3. Limitazione di responsabilità\nNella misura massima consentita dalla legge, FastCheckin non sarà responsabile per danni indiretti, incidentali, speciali, consequenziali o punitivi.\n\n4. Trattamento dei dati\nRiconosci che i dati degli ospiti vengono trattati in conformità con POPIA e con la nostra Informativa sulla privacy.\n\n5. Manleva\nAccetti di manlevare FastCheckin da qualsiasi reclamo derivante dall’utilizzo della piattaforma.\n\n6. Risoluzione\nFastCheckin si riserva il diritto di sospendere o interrompere l’accesso in caso di violazione dei presenti termini.\n\n7. Legge applicabile\nIl presente accordo è disciplinato dalle leggi della Repubblica del Sudafrica.",
+  "reg_region_province": "Provincia",
+  "reg_region_district": "Distretto",
+  "reg_region_region": "Regione",
+  "reg_region_island": "Isola",
+  "reg_region_required": "Il campo {region} è obbligatorio",
+  "reg_select_region": "Seleziona {region}",
+  "reg_enter_region": "Inserisci {region}",
+  "reg_establishment_hotel": "Hotel",
+  "reg_establishment_bnb": "Bed & Breakfast (B&B)",
+  "reg_establishment_guest_house": "Guest house",
+  "reg_establishment_campsite": "Campeggio",
+  "reg_establishment_resort": "Resort",
+  "reg_establishment_lodge": "Lodge",
+  "reg_establishment_self_catering": "Alloggio con angolo cottura"
 }
