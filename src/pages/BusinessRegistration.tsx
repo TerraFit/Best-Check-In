@@ -229,7 +229,17 @@ export default function BusinessRegistration() {
 
   // Get available provinces for selected country
   const availableProvinces = REGIONS_BY_COUNTRY[businessData.physicalCountry] || [];
-  const regionLabel = getRegionLabel(businessData.physicalCountry);
+  const translateRegionLabel = (country: string): string => {
+    switch (getRegionLabel(country)) {
+      case 'Province': return t('reg_region_province');
+      case 'District': return t('reg_region_district');
+      case 'Region': return t('reg_region_region');
+      case 'Island': return t('reg_region_island');
+      default: return t('reg_region_region');
+    }
+  };
+  const regionLabel = translateRegionLabel(businessData.physicalCountry);
+  const postalRegionLabel = translateRegionLabel(businessData.postalCountry);
 
   // Phase 2: Director Details
   const [directorData, setDirectorData] = useState({
@@ -344,7 +354,7 @@ export default function BusinessRegistration() {
       return false;
     }
     if (!businessData.physicalProvince) {
-      alert(`${regionLabel} is required`);
+      alert(t('reg_region_required', { region: regionLabel }));
       return false;
     }
     if (!businessData.email) {
@@ -856,7 +866,7 @@ export default function BusinessRegistration() {
                     <label className="block text-sm font-medium text-stone-300 mb-1">{t('login_establishment_type')} *</label>
                     <select value={businessData.establishmentType} onChange={(e) => setBusinessData({ ...businessData, establishmentType: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required>
                       <option value="">{t('reg_select_establishment')}</option>
-                      {ESTABLISHMENT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                      {ESTABLISHMENT_TYPES.map(type => <option key={type} value={type}>{t(type === 'Hotel' ? 'reg_establishment_hotel' : type === 'Bed & Breakfast (B&B)' ? 'reg_establishment_bnb' : type === 'Guest House' ? 'reg_establishment_guest_house' : type === 'Campsite' ? 'reg_establishment_campsite' : type === 'Resort' ? 'reg_establishment_resort' : type === 'Lodge' ? 'reg_establishment_lodge' : 'reg_establishment_self_catering')}</option>)}
                     </select>
                   </div>
                   <div>
@@ -888,11 +898,11 @@ export default function BusinessRegistration() {
                     <label className="block text-sm font-medium text-stone-300 mb-1">{regionLabel} *</label>
                     {availableProvinces.length > 0 ? (
                       <select value={businessData.physicalProvince} onChange={(e) => { setBusinessData({ ...businessData, physicalProvince: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalProvince: e.target.value })); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required>
-                        <option value="">Select {regionLabel}</option>
+                        <option value="">{t('reg_select_region', { region: regionLabel })}</option>
                         {availableProvinces.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                     ) : (
-                      <input type="text" value={businessData.physicalProvince} onChange={(e) => { setBusinessData({ ...businessData, physicalProvince: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalProvince: e.target.value })); }} placeholder={`Enter ${regionLabel.toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
+                      <input type="text" value={businessData.physicalProvince} onChange={(e) => { setBusinessData({ ...businessData, physicalProvince: e.target.value }); if (businessData.sameAsPhysical) setBusinessData(prev => ({ ...prev, postalProvince: e.target.value })); }} placeholder={t('reg_enter_region', { region: regionLabel.toLowerCase() })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required />
                     )}
                   </div>
                   <div>
@@ -913,7 +923,7 @@ export default function BusinessRegistration() {
                     <div className="md:col-span-2"><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_street_address')}</label><input type="text" value={businessData.postalStreet} onChange={(e) => setBusinessData({ ...businessData, postalStreet: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_city_town')}</label><input type="text" value={businessData.postalCity} onChange={(e) => setBusinessData({ ...businessData, postalCity: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_country')}</label><select value={businessData.postalCountry} onChange={(e) => { const newCountry = e.target.value; setBusinessData({ ...businessData, postalCountry: newCountry, postalProvince: '' }); }} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">{t('reg_select_country')}</option>{SADC_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                    <div><label className="block text-sm font-medium text-stone-300 mb-1">{getRegionLabel(businessData.postalCountry)}</label>{REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (<select value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">Select {getRegionLabel(businessData.postalCountry)}</option>{REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input type="text" value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />)}</div>
+                    <div><label className="block text-sm font-medium text-stone-300 mb-1">{postalRegionLabel}</label>{REGIONS_BY_COUNTRY[businessData.postalCountry]?.length > 0 ? (<select value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"><option value="">Select {getRegionLabel(businessData.postalCountry)}</option>{REGIONS_BY_COUNTRY[businessData.postalCountry].map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input type="text" value={businessData.postalProvince} onChange={(e) => setBusinessData({ ...businessData, postalProvince: e.target.value })} placeholder={`Enter ${getRegionLabel(businessData.postalCountry).toLowerCase()}`} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" />)}</div>
                     <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('reg_postal_code')}</label><input type="text" value={businessData.postalPostalCode} onChange={(e) => setBusinessData({ ...businessData, postalPostalCode: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                   </div>
                 )}
