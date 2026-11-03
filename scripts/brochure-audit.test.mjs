@@ -151,7 +151,7 @@ test('all supported brochure locales show 21+ rooms for Business and 2+ establis
     const enterprise = localeBlock.match(/["']25\+ rooms["']\s*:\s*["']([^"']*)["']/);
     assert.ok(business && enterprise, language + ' is missing a package threshold');
     assert.match(business[1], /21/, language + ' must show Business starting at 21+ rooms');
-    assert.match(enterprise[1], /2/, language + ' must show Enterprise eligibility at 2+ establishments');
+    assert.ok(/2|منشأتان/.test(enterprise[1]), language + ' must show Enterprise eligibility at 2+ establishments');
     assert.doesNotMatch(enterprise[1], /21/, language + ' must not present Enterprise as requiring 21+ rooms');
   }
 });
