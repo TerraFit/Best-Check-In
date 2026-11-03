@@ -100,7 +100,7 @@ test('brochure translation catalog includes newly audited actions and dashboard 
   }
 });
 
-test('English brochure copy replaces obsolete fixed room caps with open-ended thresholds', () => {
+test('English brochure copy distinguishes Business room capacity from Enterprise establishment eligibility', () => {
   const start = catalog.indexOf('  en: {');
   assert.notEqual(start, -1, 'missing English brochure corrections');
   const end = catalog.indexOf('\n  },', start);
@@ -109,7 +109,7 @@ test('English brochure copy replaces obsolete fixed room caps with open-ended th
   assert.ok(block.includes('"Up to 10 rooms": "6+ rooms"'));
   assert.ok(block.includes('"Up to 15 rooms": "11+ rooms"'));
   assert.ok(block.includes('"Up to 20 rooms": "21+ rooms"'));
-  assert.ok(block.includes('"25+ rooms": "21+ rooms"'), 'Enterprise must start at 21 rooms');
+  assert.ok(block.includes('"25+ rooms": "2+ establishments"'), 'Enterprise eligibility must be based on 2+ establishments');
 });
 
 
@@ -119,16 +119,18 @@ test('homepage, registration and brochure all consume the shared pricing engine'
   const engine = readFileSync(new URL('../src/config/pricing-engine.js', import.meta.url), 'utf8');
 
   assert.ok(home.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'homepage must use shared regional prices');
-  assert.ok(home.includes('minimumRooms: 21'), 'Business and Enterprise start at 21 rooms on homepage');
+  assert.ok(home.includes('minimumRooms: 21'), 'Business and Enterprise pricing baseline remains 21 rooms on homepage');
   assert.ok(registration.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'registration must use shared regional prices');
-  assert.ok(registration.includes('calculateSubscriptionMonthlyPrice(roomsCount, selectedPlanBase.id)'), 'registration selected-plan price must use shared engine');
+  assert.ok(registration.includes('calculateSubscriptionMonthlyPrice(Math.max(roomsCount, selectedPlanBase.minRooms), selectedPlanBase.id)'), 'registration selected-plan price must use shared engine');
+  assert.ok(registration.includes("if (propertyCount >= 2) return 'enterprise'"), '2+ establishments must qualify for Enterprise regardless of room count');
   assert.ok(home.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'homepage must use current market FX context');
   assert.ok(registration.includes('getRegionalPricing(region, isSouthAfricanMarket, fxRates)'), 'registration must use current market FX context');
   assert.ok(home.includes('convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates)'), 'homepage add-on prices must use the same FX context');
   assert.ok(registration.includes('convertZarToRegionalPrice(MARKETING_DOWNLOAD_MONTHLY_PRICE, region, isSouthAfricanMarket, fxRates)'), 'registration add-on prices must use the same FX context');
   assert.ok(component.includes('getRegionalPricing(region, southAfrican, fxRates)'), 'brochure must use shared regional prices');
   assert.ok(component.includes('addLegacyPriceReplacements(price.textContent ||'), 'brochure must replace repeated legacy prices from its original HTML');
-  assert.ok(engine.includes('business: 21, enterprise: 21'), 'shared engine must use the agreed 21-room minimum for both tiers');
+  assert.ok(engine.includes('business: 21, enterprise: 21'), 'Business minimum and Enterprise included pricing baseline remain 21 rooms');
+  assert.ok(engine.includes('if (properties < 2) return 0'), 'Enterprise portfolio eligibility must depend on 2+ establishments');
 });
 
 test('shared engine exposes the agreed monthly starting-price ladder', () => {
@@ -137,7 +139,7 @@ test('shared engine exposes the agreed monthly starting-price ladder', () => {
 });
 
 
-test('all supported brochure locales show the same 21+ Business and Enterprise threshold', () => {
+test('all supported brochure locales show 21+ rooms for Business and 2+ establishments for Enterprise', () => {
   for (const language of ['en', ...languages]) {
     const start = catalog.indexOf('  ' + language + ': {');
     assert.notEqual(start, -1, 'missing locale block: ' + language);
@@ -148,7 +150,9 @@ test('all supported brochure locales show the same 21+ Business and Enterprise t
     const business = localeBlock.match(/["']Up to 20 rooms["']\s*:\s*["']([^"']*)["']/);
     const enterprise = localeBlock.match(/["']25\+ rooms["']\s*:\s*["']([^"']*)["']/);
     assert.ok(business && enterprise, language + ' is missing a package threshold');
-    assert.equal(business[1], enterprise[1], language + ' must show both Business and Enterprise starting at 21+ rooms');
+    assert.match(business[1], /21/, language + ' must show Business starting at 21+ rooms');
+    assert.match(enterprise[1], /2/, language + ' must show Enterprise eligibility at 2+ establishments');
+    assert.doesNotMatch(enterprise[1], /21/, language + ' must not present Enterprise as requiring 21+ rooms');
   }
 });
 
