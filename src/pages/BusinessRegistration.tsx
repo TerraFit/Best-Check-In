@@ -199,7 +199,7 @@ export default function BusinessRegistration() {
   const getRecommendedPlanId = (): PlanType => {
     // A qualifying multi-establishment portfolio should be guided to Enterprise,
     // even when the combined room count would otherwise recommend Business.
-    if (propertyCount >= 2 && roomsCount >= 21) return 'enterprise';
+    if (propertyCount >= 2) return 'enterprise';
     if (roomsCount < 6) return 'starter';
     if (roomsCount < 11) return 'growth';
     if (roomsCount < 21) return 'pro';
@@ -286,7 +286,8 @@ export default function BusinessRegistration() {
   const handleRoomsChange = (rooms: number) => {
     setRoomsCount(rooms);
     setShowRoomError(false);
-    if (rooms < 6) setSelectedPlanId('starter');
+    if (propertyCount >= 2) setSelectedPlanId('enterprise');
+    else if (rooms < 6) setSelectedPlanId('starter');
     else if (rooms < 11) setSelectedPlanId('growth');
     else if (rooms < 21) setSelectedPlanId('pro');
     else setSelectedPlanId('business');
@@ -563,7 +564,7 @@ export default function BusinessRegistration() {
                 <p className="text-sm text-stone-400">{t('login_price_label')}</p>
                 <p className="text-white">
                   {selectedPlanId === 'enterprise'
-                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 && roomsCount >= 21 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}${billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}`
+                    ? `${currencySymbol}${(convertZarToRegionalPrice(propertyCount >= 2 ? calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount) : 0, region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)).toLocaleString('en-US')}${billingCycle === 'monthly' ? t('landing_plan_per_month') : t('landing_plan_per_year')}`
                     : (billingCycle === 'monthly'
                       ? `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates)}/month`
                       : `${currencySymbol}${convertZarToRegionalPrice(selectedPlan?.priceMonthly || 0, region, isSouthAfricanMarket, fxRates) * 11}/year`)}
@@ -614,10 +615,12 @@ export default function BusinessRegistration() {
               onChange={(e) => {
                 const nextPropertyCount = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
                 setPropertyCount(nextPropertyCount);
-                if (nextPropertyCount >= 2 && roomsCount < 21) {
-                  setRoomsCount(21);
-                  setShowRoomError(false);
-                }
+                setShowRoomError(false);
+                if (nextPropertyCount >= 2) setSelectedPlanId('enterprise');
+                else if (roomsCount < 6) setSelectedPlanId('starter');
+                else if (roomsCount < 11) setSelectedPlanId('growth');
+                else if (roomsCount < 21) setSelectedPlanId('pro');
+                else setSelectedPlanId('business');
               }}
               className="w-full px-4 py-3 bg-stone-800 border border-stone-600 rounded-xl focus:ring-2 focus:ring-amber-500 text-white text-center text-2xl font-semibold"
             />
@@ -773,7 +776,7 @@ export default function BusinessRegistration() {
                   {t('reg_enterprise_portfolio_scope')}
                 </p>
                 <div className="mt-3">
-                  {propertyCount >= 2 && roomsCount >= 21 ? (
+                  {propertyCount >= 2 ? (
                     <>
                       <span className="text-2xl font-bold text-white">
                         {currencySymbol}{convertZarToRegionalPrice(calculateEnterprisePortfolioMonthlyPrice(roomsCount, propertyCount), region, isSouthAfricanMarket, fxRates) * (billingCycle === 'monthly' ? 1 : 11)}
