@@ -10,7 +10,7 @@
 
 FastCheckIn evolves from digital guest registration into a **staged operational platform** for independent hospitality. Packages follow operator maturity: Starter → Growth → Pro → Business → Enterprise.
 
-**Business** is defined primarily by **multi-establishment**. **Enterprise** is organisational fit (API, white label, custom, security)—not merely “more rooms.”
+**Business** is the advanced package for an individual establishment. **Enterprise** is the portfolio-management package for businesses managing **2 or more establishments**, regardless of their combined room count. Enterprise pricing has a fixed base equivalent to 21 rooms (covering up to 21 combined rooms); only capacity above 21 is charged in additional five-room blocks, with Enterprise volume discounts applied to those additional blocks. Enterprise is therefore about managing a group of establishments and consolidating portfolio intelligence—not simply having more rooms.
 
 ---
 
