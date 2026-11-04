@@ -35,7 +35,12 @@ export const handler = async (event) => {
       const signedPath = data.signedURL || data.signedUrl || null;
       return { ...document, signedUrl: signedPath ? (signedPath.startsWith('http') ? signedPath : `${url}/storage/v1${signedPath.startsWith('/') ? '' : '/'}${signedPath}`) : null };
     }));
-    return reply(200, { success: true, documents: signed });
+    const reviewResponse = await fetch(`${url}/rest/v1/business_application_review_requests?business_id=eq.${encodeURIComponent(businessId)}&select=id,request_type,document_key,message,status,applicant_response,requested_at,responded_at&order=requested_at.desc`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` }
+    });
+    if (!reviewResponse.ok) throw new Error('Could not load application review history');
+    const reviewRequests = await reviewResponse.json();
+    return reply(200, { success: true, documents: signed, reviewRequests });
   } catch (error) {
     console.error('[get-business-application-documents] Error:', error?.message || error);
     return reply(500, { error: 'Could not load application documents' });
