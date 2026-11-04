@@ -65,7 +65,7 @@ export const handler = async (event) => {
       return reply(500, { error: 'Could not create a secure validation link' });
     }
 
-    const appUrl = (process.env.PUBLIC_APP_URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.URL || 'https://fastcheckin.co.za').replace(/\/$/, '');
+    const appUrl = (process.env.DEPLOY_PRIME_URL || process.env.PUBLIC_APP_URL || process.env.DEPLOY_URL || process.env.URL || 'https://fastcheckin.co.za').replace(/\/$/, '');
     const validationUrl = `${appUrl}/registration-payment?token=${encodeURIComponent(token)}`;
     const email = buildRegistrationCardEmail({ businessName: business.trading_name, validationUrl });
 
@@ -86,9 +86,10 @@ export const handler = async (event) => {
         headers: { ...authHeaders, Prefer: 'return=minimal' },
         body: JSON.stringify({ email_send_status: 'accepted', email_sent_at: sentAt, resend_email_id: result?.data?.id || null, email_error: null })
       });
-      if (!auditResponse.ok) throw new Error('Email was accepted but audit status could not be saved');
+      const auditRecorded = auditResponse.ok;
+      if (!auditRecorded) console.error('[resend-registration-card-email] Email accepted but audit update failed:', await auditResponse.text());
 
-      return reply(200, { success: true, emailSent: true, sentAt, expiresAt, message: `Peach validation email sent to ${business.email}.` });
+      return reply(200, { success: true, emailSent: true, auditRecorded, sentAt, expiresAt, message: `Peach validation email accepted by the email provider for ${business.email}.` });
     } catch (emailError) {
       const message = String(emailError?.message || 'Email could not be sent').slice(0, 500);
       await fetch(`${url}/rest/v1/registration_application_tokens?token_hash=eq.${tokenHash}`, {
