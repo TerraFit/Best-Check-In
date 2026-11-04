@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'node:crypto';
+import { Resend } from 'resend';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -289,6 +290,24 @@ export const handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Could not prepare secure card setup. Please try again.' }) };
     }
 
+    let applicationEmailSent = false;
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const appUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://fastcheckin.co.za';
+        const cardSetupLink = `${appUrl.replace(/\/$/, '')}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
+        await resend.emails.send({
+          from: 'FastCheckin <noreply@fastcheckin.co.za>',
+          to: [business.email],
+          subject: `Complete your FastCheckIn application — ${business.trading_name}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:32px auto;padding:28px;color:#292524"><h1 style="color:#d97706">FastCheckIn</h1><h2>One more step to submit your application</h2><p>Thank you for applying for <strong>${business.trading_name}</strong>.</p><p>Before our team can review your application, please validate your card and authorise future recurring subscription payments through Peach Payments.</p><p><strong>No payment is taken now.</strong> Your 14-day free trial starts only on the day after your application is approved.</p><p style="margin:28px 0"><a href="${cardSetupLink}" style="background:#ea580c;color:#fff;padding:13px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Continue secure card validation</a></p><p style="font-size:12px;color:#78716c">This secure link expires in 48 hours. If you did not submit this application, you can ignore this email.</p></div>`
+        });
+        applicationEmailSent = true;
+      } catch (emailError) {
+        console.error('Registration continuation email failed:', emailError?.message || emailError);
+      }
+    }
+
     // ============================================================
     // RETURN SUCCESS RESPONSE
     // ============================================================
@@ -299,6 +318,7 @@ export const handler = async (event) => {
         success: true,
         businessId: businessId,
         registrationToken,
+        applicationEmailSent,
         message: 'Application created. Complete card validation to submit it for review.'
       })
     };
