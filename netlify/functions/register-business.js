@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
+import { buildRegistrationCardEmail } from './lib/registration-card-email.js';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -294,14 +295,17 @@ export const handler = async (event) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const appUrl = process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://fastcheckin.co.za';
-        const cardSetupLink = `${appUrl.replace(/\/$/, '')}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
-        await resend.emails.send({
-          from: 'FastCheckin <noreply@fastcheckin.co.za>',
+        const appUrl = (process.env.PUBLIC_APP_URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.URL || 'https://fastcheckin.co.za').replace(/\/$/, '');
+        const cardSetupLink = `${appUrl}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
+        const email = buildRegistrationCardEmail({ businessName: business.trading_name, validationUrl: cardSetupLink });
+        const sendResult = await resend.emails.send({
+          from: 'FastCheckIn <noreply@fastcheckin.co.za>',
           to: [business.email],
-          subject: `Complete your FastCheckIn application — ${business.trading_name}`,
-          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:32px auto;padding:28px;color:#292524"><h1 style="color:#d97706">FastCheckIn</h1><h2>One more step to submit your application</h2><p>Thank you for applying for <strong>${business.trading_name}</strong>.</p><p>Before our team can review your application, please validate your card and authorise future recurring subscription payments through Peach Payments.</p><p><strong>No payment is taken now.</strong> Your 14-day free trial starts only on the day after your application is approved.</p><p style="margin:28px 0"><a href="${cardSetupLink}" style="background:#ea580c;color:#fff;padding:13px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Continue secure card validation</a></p><p style="font-size:12px;color:#78716c">This secure link expires in 48 hours. If you did not submit this application, you can ignore this email.</p></div>`
+          subject: email.subject,
+          html: email.html,
+          text: email.text
         });
+        if (sendResult?.error) throw new Error(sendResult.error.message || 'Email provider rejected the message');
         applicationEmailSent = true;
       } catch (emailError) {
         console.error('Registration continuation email failed:', emailError?.message || emailError);
