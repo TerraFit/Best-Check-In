@@ -50,7 +50,7 @@ export const handler = async (event) => {
     let emailSent = false;
     if (process.env.RESEND_API_KEY) {
       try {
-        const appUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://fastcheckin.co.za';
+        const appUrl = process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://fastcheckin.co.za';
         const link = `${appUrl.replace(/\/$/, '')}/application-review?token=${token}&request=${encodeURIComponent(request.id)}`;
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
