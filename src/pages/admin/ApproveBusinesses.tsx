@@ -33,6 +33,10 @@ interface Business {
   setup_complete?: boolean;
   created_at: string;
   registration_payment_status?: string;
+  registration_email_send_status?: string;
+  registration_email_last_attempt_at?: string | null;
+  registration_email_last_sent_at?: string | null;
+  registration_email_last_error?: string | null;
 }
 
 export default function ApproveBusinesses() {
@@ -396,6 +400,13 @@ export default function ApproveBusinesses() {
                           <><span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-700 border-t-transparent" /> Sending email…</>
                         ) : '✉ Resend Peach validation email'}
                       </button>
+                      {business.registration_email_send_status && business.registration_email_send_status !== 'not_attempted' && (
+                        <p className="text-right text-xs text-gray-500">
+                          Last email attempt: {business.registration_email_send_status}
+                          {business.registration_email_last_attempt_at ? ` · ${new Date(business.registration_email_last_attempt_at).toLocaleString()}` : ''}
+                          {business.registration_email_last_error ? ` · ${business.registration_email_last_error}` : ''}
+                        </p>
+                      )}
                       {cardEmailFeedback[business.id] && (
                         <p className={`text-right text-sm ${cardEmailFeedback[business.id].success ? 'text-green-700' : 'text-red-700'}`} role="status">
                           {cardEmailFeedback[business.id].message}
