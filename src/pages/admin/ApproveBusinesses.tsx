@@ -400,7 +400,7 @@ export default function ApproveBusinesses() {
                           <><span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-700 border-t-transparent" /> Sending email…</>
                         ) : '✉ Resend Peach validation email'}
                       </button>
-                      {business.registration_email_send_status && business.registration_email_send_status !== 'not_attempted' && (
+                      {business.registration_email_send_status && !['not_attempted', 'not_available'].includes(business.registration_email_send_status) && (
                         <p className="text-right text-xs text-gray-500">
                           Last email attempt: {business.registration_email_send_status}
                           {business.registration_email_last_attempt_at ? ` · ${new Date(business.registration_email_last_attempt_at).toLocaleString()}` : ''}
