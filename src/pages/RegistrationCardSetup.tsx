@@ -31,6 +31,24 @@ export default function RegistrationCardSetup() {
         return;
       }
       try {
+        const returnedPayment = params.has('payment_intent') || params.has('payment_intent_client_secret') || params.has('redirect_status');
+        if (returnedPayment) {
+          const verifyResponse = await fetch('/.netlify/functions/peach-confirm-registration-card', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ registrationToken: token })
+          });
+          const verifyData = await verifyResponse.json();
+          if (verifyResponse.ok && verifyData.verified) {
+            navigate('/registration-pending', { replace: true, state: { cardValidated: true } });
+            return;
+          }
+          if (verifyResponse.status === 202) {
+            setStatus(verifyData.message || 'Peach is confirming your card. Refresh this page in a moment to check again.');
+            return;
+          }
+          throw new Error(verifyData.error || 'Could not verify the card validation result.');
+        }
         const response = await fetch('/.netlify/functions/peach-registration-card-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -53,7 +71,7 @@ export default function RegistrationCardSetup() {
     };
     start();
     return () => { active = false; };
-  }, [token]);
+  }, [token, params, navigate]);
 
   useEffect(() => {
     if (!session) return;
@@ -118,11 +136,7 @@ export default function RegistrationCardSetup() {
     throw new Error(data.error || 'Card validation could not be confirmed.');
   };
 
-  useEffect(() => {
-    const returnedPayment = params.has('payment_intent') || params.has('payment_intent_client_secret') || params.has('redirect_status');
-    if (!returnedPayment || !token) return;
-    verifyWithServer().catch((err) => setError(err instanceof Error ? err.message : 'Could not verify card validation.'));
-  }, [params, token]);
+
 
   const handleConfirm = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -166,6 +180,11 @@ export default function RegistrationCardSetup() {
         {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {loading ? (
           <p className="py-8 text-center text-stone-600">{status}</p>
+        ) : !session ? (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-stone-600">{status}</p>
+            <button type="button" onClick={() => verifyWithServer().catch((err) => setError(err instanceof Error ? err.message : 'Could not verify card validation.'))} className="w-full rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700">Check card validation status</button>
+          </div>
         ) : (
           <form onSubmit={handleConfirm} className="space-y-5">
             <div id="peach-registration-payment-element" className="min-h-20" />
