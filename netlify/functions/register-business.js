@@ -294,7 +294,7 @@ export const handler = async (event) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const appUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://fastcheckin.co.za';
+        const appUrl = process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://fastcheckin.co.za';
         const cardSetupLink = `${appUrl.replace(/\/$/, '')}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
         await resend.emails.send({
           from: 'FastCheckin <noreply@fastcheckin.co.za>',
