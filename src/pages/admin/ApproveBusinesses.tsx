@@ -81,6 +81,10 @@ export default function ApproveBusinesses() {
       }
       
       setBusinesses(businessesList);
+
+      // Load review history and applicant-uploaded documents as part of the approval
+      // queue, rather than hiding them until an administrator clicks "View uploaded documents".
+      await Promise.all(businessesList.map((business: Business) => loadApplicationDocuments(business.id, true)));
     } catch (err) {
       console.error('Error fetching businesses:', err);
       setError(err instanceof Error ? err.message : 'Failed to load pending businesses');
@@ -136,6 +140,7 @@ export default function ApproveBusinesses() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not send the request');
       alert(data.emailSent ? 'Request sent to the applicant by email.' : 'Request saved, but the email could not be sent. Check the Resend configuration.');
+      await loadApplicationDocuments(businessId, true);
       setRequestingId(null);
       setRequestMessage('');
       setDocumentKey('');
@@ -145,7 +150,7 @@ export default function ApproveBusinesses() {
     }
   };
 
-  const loadApplicationDocuments = async (businessId: string) => {
+  const loadApplicationDocuments = async (businessId: string, silent = false) => {
     setLoadingDocumentsId(businessId);
     try {
       const query = new URLSearchParams({ businessId });
@@ -156,7 +161,8 @@ export default function ApproveBusinesses() {
       setOriginalDocumentsByBusiness((current) => ({ ...current, [businessId]: data.originalDocuments || [] }));
       setReviewRequestsByBusiness((current) => ({ ...current, [businessId]: data.reviewRequests || [] }));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Could not load documents');
+      if (!silent) alert(err instanceof Error ? err.message : 'Could not load documents');
+      else console.error('Could not preload application review history:', err);
     } finally {
       setLoadingDocumentsId(null);
     }
@@ -339,7 +345,7 @@ export default function ApproveBusinesses() {
                       <button
                         onClick={() => handleApprove(business.id)}
                         disabled={approvingId === business.id || business.registration_payment_status !== 'verified'}
-                        title={business.registration_payment_status !== 'verified' ? 'Applicant must validate a card before approval' : 'Approve business'}
+                        title={business.registration_payment_status !== 'verified' ? 'Peach card validation must be completed before approval' : 'Approve business'}
                         className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {approvingId === business.id ? (
@@ -351,6 +357,11 @@ export default function ApproveBusinesses() {
                       </button>
                     </div>
                   </div>
+                  {business.registration_payment_status !== 'verified' && (
+                    <p className="mt-3 text-right text-sm text-amber-700">
+                      Approval is locked until the applicant completes Peach card validation. Current status: {business.registration_payment_status || 'not_started'}.
+                    </p>
+                  )}
                   {reviewRequestsByBusiness[business.id] && reviewRequestsByBusiness[business.id].length > 0 && (
                     <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
                       <h3 className="font-semibold text-gray-900 mb-3">Application review history</h3>
