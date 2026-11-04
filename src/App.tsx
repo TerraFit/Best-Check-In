@@ -9,6 +9,7 @@ import ApproveBusinesses from './pages/admin/ApproveBusinesses';
 import RegistrationSuccess from './pages/RegistrationSuccess';
 import RegistrationPending from './pages/RegistrationPending';
 import RegistrationCardSetup from './pages/RegistrationCardSetup';
+import ApplicationReviewResponse from './pages/ApplicationReviewResponse';
 import BusinessLogin from './pages/BusinessLogin';
 import BusinessDashboard from './pages/BusinessDashboard';
 import BusinessPending from './pages/BusinessPending';
@@ -39,7 +40,7 @@ function AppContent() {
   useTranslation();
 
   return <><div className="fixed top-[76px] right-3 md:top-[84px] md:right-6 z-[100] pointer-events-auto"><LanguageSelector variant="header" className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-2 py-1 border border-stone-200" /></div><ScrollToTop /><Routes>
-    <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} /><Route path="/registration-payment" element={<RegistrationCardSetup />} />
+    <Route path="/" element={<HomePage />} /><Route path="/register" element={<BusinessRegistration />} /><Route path="/registration-success" element={<RegistrationSuccess />} /><Route path="/registration-pending" element={<RegistrationPending />} /><Route path="/registration-payment" element={<RegistrationCardSetup />} /><Route path="/application-review" element={<ApplicationReviewResponse />} />
     <Route path="/reset-password/:token" element={<ResetPassword />} /><Route path="/set-password/:token" element={<SetPassword />} /><Route path="/password-recovery" element={<PasswordRecovery />} /><Route path="/checkin" element={<CheckInApp />} /><Route path="/checkin/:businessId" element={<CheckInApp />} />
     <Route path="/indemnity/:token" element={<IndemnityView />} /><Route path="/subscribe" element={<NewsletterSubscribe />} /><Route path="/employee/invite/:token" element={<EmployeeOnboardingPage />} />
     <Route path="/employee/login" element={<Login />} /><Route path="/employee/dashboard" element={<ProtectedRoute requiredRole="employee"><EmployeeDashboard /></ProtectedRoute>} /><Route path="/business/login" element={<Login />} /><Route path="/login" element={<Login />} /><Route path="/super-admin-login" element={<SuperAdminLogin />} />
