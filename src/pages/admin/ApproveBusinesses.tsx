@@ -10,7 +10,8 @@ interface Director {
   idPhoto?: string;
 }
 
-interface OriginalApplicationDocument { id: string; document_key: string; director_name: string; original_filename: string; content_type: string; dataUrl: string; }\ninterface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
+interface OriginalApplicationDocument { id: string; document_key: string; director_name: string; original_filename: string; content_type: string; dataUrl: string; }
+interface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
 interface ReviewRequest { id: string; request_type: string; document_key: string | null; message: string; status: string; applicant_response: string | null; requested_at: string; responded_at: string | null; }
 
 interface Business {
@@ -46,7 +47,8 @@ export default function ApproveBusinesses() {
   const [requestType, setRequestType] = useState<'clarification' | 'additional_information' | 'document_replacement'>('clarification');
   const [requestMessage, setRequestMessage] = useState('');
   const [documentKey, setDocumentKey] = useState('');
-  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});\n  const [originalDocumentsByBusiness, setOriginalDocumentsByBusiness] = useState<Record<string, OriginalApplicationDocument[]>>({});
+  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});
+  const [originalDocumentsByBusiness, setOriginalDocumentsByBusiness] = useState<Record<string, OriginalApplicationDocument[]>>({});
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
   const [reviewRequestsByBusiness, setReviewRequestsByBusiness] = useState<Record<string, ReviewRequest[]>>({});
 
