@@ -8,6 +8,8 @@ interface Director {
   idPhoto?: string;
 }
 
+interface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
+
 interface Business {
   id: string;
   registered_name: string;
@@ -41,6 +43,8 @@ export default function ApproveBusinesses() {
   const [requestType, setRequestType] = useState<'clarification' | 'additional_information' | 'document_replacement'>('clarification');
   const [requestMessage, setRequestMessage] = useState('');
   const [documentKey, setDocumentKey] = useState('');
+  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});
+  const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPendingBusinesses();
@@ -132,6 +136,21 @@ export default function ApproveBusinesses() {
       setRequestType('clarification');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not send the request');
+    }
+  };
+
+  const loadApplicationDocuments = async (businessId: string) => {
+    setLoadingDocumentsId(businessId);
+    try {
+      const query = new URLSearchParams({ businessId });
+      const response = await fetch(`/.netlify/functions/get-business-application-documents?${query.toString()}`, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not load documents');
+      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not load documents');
+    } finally {
+      setLoadingDocumentsId(null);
     }
   };
 
@@ -297,6 +316,13 @@ export default function ApproveBusinesses() {
                     </p>
                     <div className="flex flex-wrap justify-end gap-3">
                       <button
+                        onClick={() => loadApplicationDocuments(business.id)}
+                        disabled={loadingDocumentsId === business.id}
+                        className="px-5 py-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 font-medium disabled:opacity-50"
+                      >
+                        {loadingDocumentsId === business.id ? 'Loading documents…' : 'View uploaded documents'}
+                      </button>
+                      <button
                         onClick={() => setRequestingId(requestingId === business.id ? null : business.id)}
                         className="px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium"
                       >
@@ -317,6 +343,24 @@ export default function ApproveBusinesses() {
                       </button>
                     </div>
                   </div>
+                  {documentsByBusiness[business.id] && (
+                    <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
+                      <h3 className="font-semibold text-gray-900 mb-2">Applicant-uploaded documents</h3>
+                      {documentsByBusiness[business.id].length === 0 ? (
+                        <p className="text-sm text-gray-500">No additional documents have been uploaded.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {documentsByBusiness[business.id].map((doc) => (
+                            <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <span className="text-gray-700">{doc.document_key}: {doc.original_filename}</span>
+                              {doc.signedUrl ? <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-blue-700 underline">View / download</a> : <span className="text-red-600">File unavailable</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="mt-2 text-xs text-gray-500">Secure document links expire after 10 minutes.</p>
+                    </div>
+                  )}
                   {requestingId === business.id && (
                     <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5">
                       <h3 className="font-semibold text-gray-900 mb-3">Request information from applicant</h3>
