@@ -51,6 +51,8 @@ export default function ApproveBusinesses() {
   const [originalDocumentsByBusiness, setOriginalDocumentsByBusiness] = useState<Record<string, OriginalApplicationDocument[]>>({});
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
   const [reviewRequestsByBusiness, setReviewRequestsByBusiness] = useState<Record<string, ReviewRequest[]>>({});
+  const [resendingCardEmailId, setResendingCardEmailId] = useState<string | null>(null);
+  const [cardEmailFeedback, setCardEmailFeedback] = useState<Record<string, { success: boolean; message: string; sentAt?: string }>>({});
 
   useEffect(() => {
     fetchPendingBusinesses();
@@ -119,6 +121,29 @@ export default function ApproveBusinesses() {
       alert('An error occurred while approving');
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleResendCardValidationEmail = async (businessId: string) => {
+    setResendingCardEmailId(businessId);
+    setCardEmailFeedback((current) => {
+      const next = { ...current };
+      delete next[businessId];
+      return next;
+    });
+    try {
+      const response = await fetch('/.netlify/functions/resend-registration-card-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ businessId })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not resend the validation email');
+      setCardEmailFeedback((current) => ({ ...current, [businessId]: { success: true, message: data.message || 'Validation email accepted for sending.', sentAt: data.sentAt } }));
+    } catch (err) {
+      setCardEmailFeedback((current) => ({ ...current, [businessId]: { success: false, message: err instanceof Error ? err.message : 'Could not resend the validation email' } }));
+    } finally {
+      setResendingCardEmailId(null);
     }
   };
 
@@ -358,9 +383,26 @@ export default function ApproveBusinesses() {
                     </div>
                   </div>
                   {business.registration_payment_status !== 'verified' && (
-                    <p className="mt-3 text-right text-sm text-amber-700">
-                      Approval is locked until the applicant completes Peach card validation. Current status: {business.registration_payment_status || 'not_started'}.
-                    </p>
+                    <div className="mt-3 flex flex-col items-end gap-2">
+                      <p className="text-right text-sm text-amber-700">
+                        Approval is locked until the applicant completes Peach card validation. Current status: {business.registration_payment_status || 'not_started'}.
+                      </p>
+                      <button
+                        onClick={() => handleResendCardValidationEmail(business.id)}
+                        disabled={resendingCardEmailId === business.id}
+                        className="inline-flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendingCardEmailId === business.id ? (
+                          <><span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-700 border-t-transparent" /> Sending email…</>
+                        ) : '✉ Resend Peach validation email'}
+                      </button>
+                      {cardEmailFeedback[business.id] && (
+                        <p className={`text-right text-sm ${cardEmailFeedback[business.id].success ? 'text-green-700' : 'text-red-700'}`} role="status">
+                          {cardEmailFeedback[business.id].message}
+                          {cardEmailFeedback[business.id].sentAt ? ` Sent at ${new Date(cardEmailFeedback[business.id].sentAt!).toLocaleString()}.` : ''}
+                        </p>
+                      )}
+                    </div>
                   )}
                   {reviewRequestsByBusiness[business.id] && reviewRequestsByBusiness[business.id].length > 0 && (
                     <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
