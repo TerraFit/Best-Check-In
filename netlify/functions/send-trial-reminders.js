@@ -104,10 +104,6 @@ async function sendReminderEmail(business) {
             Upgrade Now →
           </a>
         </div>
-        
-        <p style="font-size: 12px; color: #6b7280;">
-          No credit card required to continue your trial. Add payment when you're ready.
-        </p>
       </div>
     `
   });
