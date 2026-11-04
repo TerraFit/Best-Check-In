@@ -67,9 +67,9 @@ export const handler = async () => {
               updated_at: new Date().toISOString(),
             }),
           });
-        } else if (isSuccess && metadata.purpose === 'fastcheckin_registration_card_mandate') {
-          // A registration-time zero-value card validation is not a paid subscription.
-          // Leave the application pending until the confirmation endpoint verifies the mandate.
+        } else if (isSuccess && isTrialCardSetup) {
+          // A zero-value card validation is never a paid subscription.
+          // Leave the account inactive until a server-side check confirms its mandate.
           await supabase(`businesses?id=eq.${encodeURIComponent(businessId)}`, {
             method: 'PATCH',
             headers: { Prefer: 'return=minimal' },
