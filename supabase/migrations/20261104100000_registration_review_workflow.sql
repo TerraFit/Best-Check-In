@@ -28,6 +28,8 @@ create table if not exists public.business_application_review_requests (
   requested_by text,
   requested_at timestamptz not null default now(),
   applicant_response text,
+  response_token_hash text,
+  response_token_expires_at timestamptz,
   responded_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
