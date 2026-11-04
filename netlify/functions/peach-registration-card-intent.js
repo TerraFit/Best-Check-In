@@ -11,9 +11,11 @@ function config() {
   const apiKey = process.env.PEACH_ORCHESTRATION_API_KEY;
   const profileId = process.env.PEACH_PROFILE_ID;
   const baseUrl = process.env.PEACH_ORCHESTRATION_BASE_URL?.replace(/\/$/, '');
-  if (!url || !key || !apiKey || !profileId || !baseUrl) throw new Error('Registration payment service is not configured');
+  const sdkUrl = process.env.PEACH_ORCHESTRATION_SDK_URL;
+  if (!url || !key || !apiKey || !profileId || !baseUrl || !sdkUrl) throw new Error('Registration payment service is not configured');
   if (!['https://app.sandbox-next.peachpayments.com', 'https://app.next.peachpayments.com'].includes(baseUrl)) throw new Error('Invalid Peach Orchestration base URL');
-  return { url, key, apiKey, profileId, baseUrl };
+  if (!sdkUrl.startsWith('https://sdk.') || !sdkUrl.includes('.peachpayments.com/')) throw new Error('Invalid Peach SDK URL');
+  return { url, key, apiKey, profileId, baseUrl, sdkUrl };
 }
 
 async function loadApplication(token) {
@@ -43,9 +45,8 @@ export const handler = async (event) => {
     const business = await loadApplication(registrationToken);
     if (!business || business.status !== 'pending') return reply(404, { error: 'Application not found or expired' });
     if (business.registration_payment_status === 'verified') return reply(409, { error: 'Card validation is already complete' });
-    if (business.registration_payment_intent_id) return reply(409, { error: 'A card validation session already exists. Please resume that session or contact support.' });
 
-    const { url, key, apiKey, profileId, baseUrl } = config();
+    const { url, key, apiKey, profileId, baseUrl, sdkUrl } = config();
     const plan = normalizePlanId(business.current_plan);
     const pricing = getPlanPricing(plan, business.billing_cycle || 'monthly', business.total_rooms);
     const customerId = `fc_${business.id}`;
@@ -100,7 +101,7 @@ export const handler = async (event) => {
       console.error('[peach-registration-card-intent] Failed to persist intent:', await update.text());
       return reply(500, { error: 'Could not save card validation session' });
     }
-    return reply(200, { success: true, clientSecret, paymentId, publishableKey: process.env.PEACH_PUBLISHABLE_KEY || null, baseUrl });
+    return reply(200, { success: true, clientSecret, paymentId, publishableKey: process.env.PEACH_PUBLISHABLE_KEY || null, baseUrl, sdkUrl });
   } catch (error) {
     console.error('[peach-registration-card-intent] Error:', error?.message || error);
     return reply(500, { error: 'Could not start card validation' });
