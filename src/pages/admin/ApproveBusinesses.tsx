@@ -4,11 +4,13 @@ import { getAuthHeader } from '../../utils/auth';
 
 interface Director {
   name: string;
-  idNumber: string;
+  id_number?: string;
+  idNumber?: string;
+  id_photo_url?: string;
   idPhoto?: string;
 }
 
-interface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
+interface OriginalApplicationDocument { id: string; document_key: string; director_name: string; original_filename: string; content_type: string; dataUrl: string; }\ninterface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
 interface ReviewRequest { id: string; request_type: string; document_key: string | null; message: string; status: string; applicant_response: string | null; requested_at: string; responded_at: string | null; }
 
 interface Business {
@@ -44,7 +46,7 @@ export default function ApproveBusinesses() {
   const [requestType, setRequestType] = useState<'clarification' | 'additional_information' | 'document_replacement'>('clarification');
   const [requestMessage, setRequestMessage] = useState('');
   const [documentKey, setDocumentKey] = useState('');
-  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});
+  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});\n  const [originalDocumentsByBusiness, setOriginalDocumentsByBusiness] = useState<Record<string, OriginalApplicationDocument[]>>({});
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
   const [reviewRequestsByBusiness, setReviewRequestsByBusiness] = useState<Record<string, ReviewRequest[]>>({});
 
@@ -148,7 +150,7 @@ export default function ApproveBusinesses() {
       const response = await fetch(`/.netlify/functions/get-business-application-documents?${query.toString()}`, { headers: { ...getAuthHeader() } });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not load documents');
-      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));
+      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));\n      setOriginalDocumentsByBusiness((current) => ({ ...current, [businessId]: data.originalDocuments || [] }));
       setReviewRequestsByBusiness((current) => ({ ...current, [businessId]: data.reviewRequests || [] }));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not load documents');
@@ -293,14 +295,14 @@ export default function ApproveBusinesses() {
                               <div className="flex items-start justify-between">
                                 <div>
                                   <p className="font-medium text-gray-900">{director.name}</p>
-                                  <p className="text-sm text-gray-600">ID: {director.idNumber}</p>
+                                  <p className="text-sm text-gray-600">ID: {director.id_number || director.idNumber || 'Not provided'}</p>
                                 </div>
-                                {director.idPhoto && (
+                                {(director.id_photo_url || director.idPhoto) && (
                                   <button
-                                    onClick={() => viewIdPhoto(director.idPhoto!, business.trading_name)}
+                                    onClick={() => viewIdPhoto((director.id_photo_url || director.idPhoto)!, business.trading_name)}
                                     className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors"
                                   >
-                                    View ID Photo
+                                    View original ID
                                   </button>
                                 )}
                               </div>
@@ -365,14 +367,28 @@ export default function ApproveBusinesses() {
                   )}
                   {documentsByBusiness[business.id] && (
                     <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
-                      <h3 className="font-semibold text-gray-900 mb-2">Applicant-uploaded documents</h3>
+                      {originalDocumentsByBusiness[business.id]?.length > 0 && (
+                        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <h4 className="font-semibold text-gray-900 mb-2">Original registration documents</h4>
+                          <ul className="space-y-2">
+                            {originalDocumentsByBusiness[business.id].map((doc) => (
+                              <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                <span className="text-gray-700">{doc.original_filename}</span>
+                                <button onClick={() => viewIdPhoto(doc.dataUrl, business.trading_name)} className="text-blue-700 underline">View original registration document</button>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-xs text-gray-600">Original files are retained separately and are never replaced by later uploads.</p>
+                        </div>
+                      )}
+                      <h3 className="font-semibold text-gray-900 mb-2">Replacement and additional documents</h3>
                       {documentsByBusiness[business.id].length === 0 ? (
-                        <p className="text-sm text-gray-500">No additional documents have been uploaded.</p>
+                        <p className="text-sm text-gray-500">No replacement or additional documents have been uploaded yet.</p>
                       ) : (
                         <ul className="space-y-2">
-                          {documentsByBusiness[business.id].map((doc) => (
+                          {documentsByBusiness[business.id].map((doc, index) => (
                             <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                              <span className="text-gray-700">{doc.document_key}: {doc.original_filename}</span>
+                              <span className="text-gray-700">{doc.document_key}: {doc.original_filename}{index === 0 ? " — Latest upload" : ""}</span>
                               {doc.signedUrl ? <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-blue-700 underline">View / download</a> : <span className="text-red-600">File unavailable</span>}
                             </li>
                           ))}
