@@ -57,7 +57,7 @@ export const handler = async (event) => {
         business_id: business.id,
         expires_at: expiresAt,
         email_send_status: 'sending',
-        created_by: auth.user?.id || auth.user?.email || 'superadmin'
+        created_by: auth.principal?.userId || auth.principal?.email || 'superadmin'
       }])
     });
     if (!tokenResponse.ok) {
