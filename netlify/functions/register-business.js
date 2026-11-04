@@ -280,7 +280,7 @@ export const handler = async (event) => {
     const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens`, {
       method: 'POST',
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify([{ token_hash: registrationTokenHash, business_id: businessId, expires_at: tokenExpiry.toISOString(), email_send_status: 'not_attempted', created_by: 'applicant_registration' }])
+      body: JSON.stringify([{ token_hash: registrationTokenHash, business_id: businessId, expires_at: tokenExpiry.toISOString() }])
     });
 
     if (!tokenResponse.ok) {
