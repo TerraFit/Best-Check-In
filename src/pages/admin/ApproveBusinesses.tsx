@@ -9,6 +9,7 @@ interface Director {
 }
 
 interface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
+interface ReviewRequest { id: string; request_type: string; document_key: string | null; message: string; status: string; applicant_response: string | null; requested_at: string; responded_at: string | null; }
 
 interface Business {
   id: string;
@@ -45,6 +46,7 @@ export default function ApproveBusinesses() {
   const [documentKey, setDocumentKey] = useState('');
   const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
+  const [reviewRequestsByBusiness, setReviewRequestsByBusiness] = useState<Record<string, ReviewRequest[]>>({});
 
   useEffect(() => {
     fetchPendingBusinesses();
@@ -147,6 +149,7 @@ export default function ApproveBusinesses() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not load documents');
       setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));
+      setReviewRequestsByBusiness((current) => ({ ...current, [businessId]: data.reviewRequests || [] }));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not load documents');
     } finally {
@@ -343,6 +346,23 @@ export default function ApproveBusinesses() {
                       </button>
                     </div>
                   </div>
+                  {reviewRequestsByBusiness[business.id] && reviewRequestsByBusiness[business.id].length > 0 && (
+                    <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3">Application review history</h3>
+                      <div className="space-y-4">
+                        {reviewRequestsByBusiness[business.id].map((item) => (
+                          <div key={item.id} className="border-b border-indigo-100 pb-3 last:border-0 last:pb-0">
+                            <div className="flex flex-wrap justify-between gap-2">
+                              <strong className="text-sm text-gray-800">{item.request_type.replaceAll('_', ' ')}{item.document_key ? ` — ${item.document_key}` : ''}</strong>
+                              <span className={item.status === 'responded' ? 'text-sm text-green-700' : 'text-sm text-amber-700'}>{item.status.replaceAll('_', ' ')}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{item.message}</p>
+                            {item.applicant_response && <div className="mt-2 rounded-lg bg-white p-3"><p className="text-xs font-semibold uppercase text-gray-500 mb-1">Applicant response</p><p className="whitespace-pre-wrap text-sm text-gray-800">{item.applicant_response}</p></div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {documentsByBusiness[business.id] && (
                     <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
                       <h3 className="font-semibold text-gray-900 mb-2">Applicant-uploaded documents</h3>
