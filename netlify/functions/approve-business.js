@@ -41,7 +41,7 @@ export const handler = async function(event) {
     console.log(`📝 Processing approval for business ID: ${businessId}`);
     const encodedBusinessId = encodeURIComponent(String(businessId));
 
-    const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}&select=id,trading_name,email,status`, {
+    const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}&select=id,trading_name,email,status,registration_payment_status,payment_mandate_id`, {
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
     });
 
@@ -63,6 +63,9 @@ export const handler = async function(event) {
     if (!business) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found' }) };
     if (business.status === 'approved') return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business is already approved' }) };
     if (business.status !== 'pending') return { statusCode: 400, headers, body: JSON.stringify({ error: `Business cannot be approved from status: ${business.status}` }) };
+    if (business.registration_payment_status !== 'verified' || !business.payment_mandate_id) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'The applicant must complete Peach card validation before approval.' }) };
+    }
 
     console.log(`✅ Business found: ${business.trading_name} (${business.email})`);
 
@@ -81,11 +84,18 @@ export const handler = async function(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to prepare business approval' }) };
     }
 
-    const now = new Date().toISOString();
+    const approvalTime = new Date();
+    const localParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(approvalTime);
+    const datePart = (type) => Number(localParts.find((part) => part.type === type)?.value);
+    const trialStart = new Date(Date.UTC(datePart('year'), datePart('month') - 1, datePart('day') + 1, 0, 0, 0) - (2 * 60 * 60 * 1000));
+    const trialEnd = new Date(trialStart.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const now = approvalTime.toISOString();
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodedBusinessId}`, {
       method: 'PATCH',
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify({ status: 'approved', approved_at: now, updated_at: now })
+      body: JSON.stringify({ status: 'approved', approved_at: now, subscription_status: 'trial', trial_scheduled_start: trialStart.toISOString(), trial_start: trialStart.toISOString(), trial_end: trialEnd.toISOString(), updated_at: now })
     });
 
     if (!updateResponse.ok) {
@@ -138,7 +148,7 @@ export const handler = async function(event) {
       console.warn('RESEND_API_KEY not configured - email not sent');
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business approved successfully', business: { id: updatedBusiness.id, trading_name: updatedBusiness.trading_name, email: updatedBusiness.email, status: updatedBusiness.status }, checkInUrl, qrCode: qrCodeDataUrl, emailSent, verificationLink }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business approved successfully', business: { id: updatedBusiness.id, trading_name: updatedBusiness.trading_name, email: updatedBusiness.email, status: updatedBusiness.status, trialStart: trialStart.toISOString(), trialEnd: trialEnd.toISOString() }, checkInUrl, qrCode: qrCodeDataUrl, emailSent, verificationLink }) };
   } catch (error) {
     console.error('Unhandled error in approve-business function:', error?.message || error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
