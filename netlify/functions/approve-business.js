@@ -67,6 +67,18 @@ export const handler = async function(event) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'The applicant must complete Peach card validation before approval.' }) };
     }
 
+    const reviewResponse = await fetch(`${supabaseUrl}/rest/v1/business_application_review_requests?business_id=eq.${encodedBusinessId}&status=eq.awaiting_applicant&select=id&limit=1`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+    });
+    if (!reviewResponse.ok) {
+      console.error('Could not verify outstanding review requests:', reviewResponse.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Could not verify application review status' }) };
+    }
+    const outstandingRequests = await reviewResponse.json();
+    if (outstandingRequests?.length) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'The applicant must respond to all outstanding information requests before approval.' }) };
+    }
+
     console.log(`✅ Business found: ${business.trading_name} (${business.email})`);
 
     const verificationToken = uuidv4();
