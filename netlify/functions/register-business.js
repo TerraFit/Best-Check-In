@@ -280,7 +280,7 @@ export const handler = async (event) => {
     const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens`, {
       method: 'POST',
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify([{ token_hash: registrationTokenHash, business_id: businessId, expires_at: tokenExpiry.toISOString() }])
+      body: JSON.stringify([{ token_hash: registrationTokenHash, business_id: businessId, expires_at: tokenExpiry.toISOString(), email_send_status: 'not_attempted', created_by: 'applicant_registration' }])
     });
 
     if (!tokenResponse.ok) {
@@ -306,10 +306,28 @@ export const handler = async (event) => {
           text: email.text
         });
         if (sendResult?.error) throw new Error(sendResult.error.message || 'Email provider rejected the message');
+        const auditResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+          method: 'PATCH',
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ email_send_status: 'accepted', email_sent_at: new Date().toISOString(), resend_email_id: sendResult?.data?.id || null, email_error: null })
+        });
+        if (!auditResponse.ok) console.error('Could not record registration email send status:', await auditResponse.text());
         applicationEmailSent = true;
       } catch (emailError) {
-        console.error('Registration continuation email failed:', emailError?.message || emailError);
+        const message = String(emailError?.message || 'Email could not be sent').slice(0, 500);
+        await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+          method: 'PATCH',
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ email_send_status: 'failed', email_error: message })
+        }).catch(() => undefined);
+        console.error('Registration continuation email failed:', message);
       }
+    } else {
+      await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+        method: 'PATCH',
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ email_send_status: 'not_configured', email_error: 'RESEND_API_KEY is not configured' })
+      }).catch(() => undefined);
     }
 
     // ============================================================
