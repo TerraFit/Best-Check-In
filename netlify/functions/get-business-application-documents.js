@@ -102,13 +102,34 @@ export const handler = async (event) => {
       };
     }));
 
+    // Keep original registration ID evidence separate from later replacement uploads.
+    const businessResponse = await fetch(
+      `${url}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=id,directors&limit=1`,
+      { headers: authHeaders }
+    );
+    const businessRows = await readSupabaseJson(businessResponse, 'Original registration document query');
+    const directors = Array.isArray(businessRows?.[0]?.directors) ? businessRows[0].directors : [];
+    const originalDocuments = directors.flatMap((director, index) => {
+      const dataUrl = typeof director?.id_photo_url === 'string' ? director.id_photo_url :
+        (typeof director?.idPhoto === 'string' ? director.idPhoto : '');
+      if (!dataUrl.startsWith('data:image/')) return [];
+      return [{
+        id: `original-director-id-${index}`,
+        document_key: 'Director ID',
+        director_name: director?.name || `Director ${index + 1}`,
+        original_filename: `Original registration ID — ${director?.name || `Director ${index + 1}`}`,
+        content_type: dataUrl.match(/^data:([^;]+)/)?.[1] || 'image/png',
+        dataUrl
+      }];
+    });
+
     const reviewResponse = await fetch(
       `${url}/rest/v1/business_application_review_requests?business_id=eq.${encodeURIComponent(businessId)}&select=id,request_type,document_key,message,status,applicant_response,requested_at,responded_at&order=requested_at.desc`,
       { headers: authHeaders }
     );
     const reviewRequests = await readSupabaseJson(reviewResponse, 'Application review history query');
 
-    return reply(200, { success: true, documents: signed, reviewRequests });
+    return reply(200, { success: true, originalDocuments, documents: signed, reviewRequests });
   } catch (error) {
     console.error('[get-business-application-documents] Error:', {
       message: error?.message || String(error),
