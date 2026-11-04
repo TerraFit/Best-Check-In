@@ -53,9 +53,9 @@ export const handler = async (event) => {
     let documentRow = null;
     if (file) {
       const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
-      if (!allowed.has(file.contentType) || typeof file.base64 !== 'string' || file.base64.length > 14 * 1024 * 1024) return reply(400, { error: 'Use a JPG, PNG, WebP or PDF file up to 10 MB' });
+      if (!allowed.has(file.contentType) || typeof file.base64 !== 'string' || file.base64.length > 5.6 * 1024 * 1024) return reply(400, { error: 'Use a JPG, PNG, WebP or PDF file up to 4 MB' });
       const bytes = Buffer.from(file.base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-      if (!bytes.length || bytes.length > 10 * 1024 * 1024) return reply(400, { error: 'The document must be 10 MB or smaller' });
+      if (!bytes.length || bytes.length > 4 * 1024 * 1024) return reply(400, { error: 'The document must be 4 MB or smaller' });
       const safeName = String(file.filename || 'replacement-document').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
       const path = `${request.business_id}/${request.id}/${crypto.randomUUID()}-${safeName}`;
       const upload = await fetch(`${url}/storage/v1/object/business-application-documents/${path.split('/').map(encodeURIComponent).join('/')}`, {
