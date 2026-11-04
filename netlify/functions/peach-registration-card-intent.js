@@ -79,7 +79,7 @@ export const handler = async (event) => {
           mandate_type: { multi_use: { amount: amountLimit, currency: pricing.currency || 'ZAR' } }
         },
         metadata: { business_id: business.id, purpose: 'fastcheckin_registration_card_mandate', plan_id: plan, billing_cycle: business.billing_cycle || 'monthly' },
-        return_url: `${process.env.URL || 'https://fastcheckin.co.za'}/registration-payment?token=${encodeURIComponent(registrationToken)}`,
+        return_url: `${process.env.DEPLOY_PRIME_URL || process.env.URL || 'https://fastcheckin.co.za'}/registration-payment?token=${encodeURIComponent(registrationToken)}`,
         is_iframe_redirection_enabled: true
       })
     });
