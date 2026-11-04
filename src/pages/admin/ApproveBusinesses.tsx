@@ -152,7 +152,8 @@ export default function ApproveBusinesses() {
       const response = await fetch(`/.netlify/functions/get-business-application-documents?${query.toString()}`, { headers: { ...getAuthHeader() } });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not load documents');
-      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));\n      setOriginalDocumentsByBusiness((current) => ({ ...current, [businessId]: data.originalDocuments || [] }));
+      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));
+      setOriginalDocumentsByBusiness((current) => ({ ...current, [businessId]: data.originalDocuments || [] }));
       setReviewRequestsByBusiness((current) => ({ ...current, [businessId]: data.reviewRequests || [] }));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not load documents');
