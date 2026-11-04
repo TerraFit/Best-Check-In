@@ -26,6 +26,7 @@ interface Business {
   seasons?: any;
   setup_complete?: boolean;
   created_at: string;
+  registration_payment_status?: string;
 }
 
 export default function ApproveBusinesses() {
@@ -36,6 +37,10 @@ export default function ApproveBusinesses() {
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [showIdModal, setShowIdModal] = useState(false);
   const [selectedIdPhoto, setSelectedIdPhoto] = useState('');
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [requestType, setRequestType] = useState<'clarification' | 'additional_information' | 'document_replacement'>('clarification');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [documentKey, setDocumentKey] = useState('');
 
   useEffect(() => {
     fetchPendingBusinesses();
@@ -100,6 +105,33 @@ export default function ApproveBusinesses() {
       alert('An error occurred while approving');
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleRequestInformation = async (businessId: string) => {
+    if (requestMessage.trim().length < 5) {
+      alert('Please explain what information or document is required.');
+      return;
+    }
+    if (requestType === 'document_replacement' && !documentKey.trim()) {
+      alert('Please identify the document that needs replacement.');
+      return;
+    }
+    try {
+      const response = await fetch('/.netlify/functions/request-business-application-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ businessId, requestType, documentKey: requestType === 'document_replacement' ? documentKey.trim() : null, message: requestMessage.trim() })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not send the request');
+      alert(data.emailSent ? 'Request sent to the applicant by email.' : 'Request saved, but the email could not be sent. Check the Resend configuration.');
+      setRequestingId(null);
+      setRequestMessage('');
+      setDocumentKey('');
+      setRequestType('clarification');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not send the request');
     }
   };
 
@@ -259,23 +291,61 @@ export default function ApproveBusinesses() {
                     </div>
                   </div>
 
-                  {/* Approve Button */}
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={() => handleApprove(business.id)}
-                      disabled={approvingId === business.id}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {approvingId === business.id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Approving...
-                        </>
-                      ) : (
-                        'Approve Business'
-                      )}
-                    </button>
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+                    <p className="text-sm text-gray-600">
+                      Card validation: <strong className={business.registration_payment_status === 'verified' ? 'text-green-700' : 'text-amber-700'}>{business.registration_payment_status || 'Not verified'}</strong>
+                    </p>
+                    <div className="flex flex-wrap justify-end gap-3">
+                      <button
+                        onClick={() => setRequestingId(requestingId === business.id ? null : business.id)}
+                        className="px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium"
+                      >
+                        Request more information
+                      </button>
+                      <button
+                        onClick={() => handleApprove(business.id)}
+                        disabled={approvingId === business.id || business.registration_payment_status !== 'verified'}
+                        title={business.registration_payment_status !== 'verified' ? 'Applicant must validate a card before approval' : 'Approve business'}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {approvingId === business.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            Approving...
+                          </>
+                        ) : 'Approve Business'}
+                      </button>
+                    </div>
                   </div>
+                  {requestingId === business.id && (
+                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5">
+                      <h3 className="font-semibold text-gray-900 mb-3">Request information from applicant</h3>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Request type
+                          <select value={requestType} onChange={(e) => setRequestType(e.target.value as typeof requestType)} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2">
+                            <option value="clarification">Clarification</option>
+                            <option value="additional_information">Additional information</option>
+                            <option value="document_replacement">Clearer / replacement document</option>
+                          </select>
+                        </label>
+                        {requestType === 'document_replacement' && (
+                          <label className="block text-sm font-medium text-gray-700">
+                            Document to replace
+                            <input value={documentKey} onChange={(e) => setDocumentKey(e.target.value)} placeholder="e.g. Director ID / proof of address" className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2" />
+                          </label>
+                        )}
+                        <label className="block text-sm font-medium text-gray-700">
+                          Message to applicant
+                          <textarea value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} rows={4} maxLength={4000} placeholder="Clearly explain what is missing or what needs to be clarified…" className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-3" />
+                        </label>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => setRequestingId(null)} className="px-4 py-2 rounded-lg bg-white text-gray-700 border">Cancel</button>
+                          <button onClick={() => handleRequestInformation(business.id)} className="px-5 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800">Send request</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
