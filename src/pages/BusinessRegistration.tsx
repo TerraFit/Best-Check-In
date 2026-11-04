@@ -513,13 +513,15 @@ export default function BusinessRegistration() {
       
       const data = await response.json();
       
-      if (response.ok) {
-        navigate('/registration-pending', {
+      if (response.ok && data.registrationToken) {
+        navigate(`/registration-payment?token=${encodeURIComponent(data.registrationToken)}`, {
           state: {
             businessName: businessData.tradingName,
             email: businessData.email
           }
         });
+      } else if (response.ok) {
+        throw new Error('The application was created, but the secure card validation link was not returned. Please contact support before submitting again.');
       } else {
         alert(data.error || 'Registration failed. Please try again.');
       }
