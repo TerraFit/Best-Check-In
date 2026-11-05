@@ -14,7 +14,9 @@ function config() {
   const baseUrl = process.env.PEACH_ORCHESTRATION_BASE_URL?.replace(/\/$/, '');
   const sdkUrl = process.env.PEACH_ORCHESTRATION_SDK_URL;
   if (!url || !key || !apiKey || !profileId || !baseUrl || !sdkUrl) throw new Error('Registration payment service is not configured');
-  if (!['https://app.sandbox-next.peachpayments.com', 'https://app.next.peachpayments.com'].includes(baseUrl)) throw new Error('Invalid Peach Orchestration base URL');
+  let parsedBaseUrl;
+  try { parsedBaseUrl = new URL(baseUrl); } catch { throw new Error('Invalid Peach Orchestration base URL'); }
+  if (parsedBaseUrl.protocol !== 'https:' || parsedBaseUrl.pathname !== '/' || !['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(parsedBaseUrl.hostname)) throw new Error('Invalid Peach Orchestration base URL');
   if (!sdkUrl.startsWith('https://sdk.') || !sdkUrl.includes('.peachpayments.com/')) throw new Error('Invalid Peach SDK URL');
   return { url, key, apiKey, profileId, baseUrl, sdkUrl };
 }
