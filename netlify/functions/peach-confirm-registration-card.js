@@ -16,7 +16,9 @@ export const handler = async (event) => {
     const apiKey = process.env.PEACH_ORCHESTRATION_API_KEY;
     const baseUrl = process.env.PEACH_ORCHESTRATION_BASE_URL?.replace(/\/$/, '');
     if (!supabaseUrl || !serviceKey || !apiKey || !baseUrl) return reply(500, { error: 'Registration payment service is not configured' });
-    if (!['https://app.sandbox-next.peachpayments.com', 'https://app.next.peachpayments.com'].includes(baseUrl)) return reply(500, { error: 'Invalid Peach Orchestration base URL' });
+    let parsedBaseUrl;
+    try { parsedBaseUrl = new URL(baseUrl); } catch { return reply(500, { error: 'Invalid Peach Orchestration base URL' }); }
+    if (parsedBaseUrl.protocol !== 'https:' || parsedBaseUrl.pathname !== '/' || !['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(parsedBaseUrl.hostname)) return reply(500, { error: 'Invalid Peach Orchestration base URL' });
 
     const tokenHash = hashToken(registrationToken);
     const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${tokenHash}&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=business_id&limit=1`, {
