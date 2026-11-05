@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import superAdminAuth from './_superAdminAuth.cjs';
 import { buildRegistrationCardEmail } from './lib/registration-card-email.js';
+import { getAppBaseUrl } from './lib/app-base-url.js';
 
 const { requireSuperAdmin, authFailure } = superAdminAuth;
 const headers = {
@@ -65,7 +66,7 @@ export const handler = async (event) => {
       return reply(500, { error: 'Could not create a secure validation link' });
     }
 
-    const appUrl = (process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.PUBLIC_APP_URL || process.env.URL || 'https://fastcheckin.co.za').replace(/\/$/, '');
+    const appUrl = getAppBaseUrl(event);
     const validationUrl = `${appUrl}/registration-payment?token=${encodeURIComponent(token)}`;
     const email = buildRegistrationCardEmail({ businessName: business.trading_name, validationUrl });
 
