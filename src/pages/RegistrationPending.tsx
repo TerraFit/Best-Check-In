@@ -4,6 +4,7 @@ export default function RegistrationPending() {
   const location = useLocation();
   const businessName = location.state?.businessName || 'your business';
   const email = location.state?.email || 'your email';
+  const cardValidated = Boolean(location.state?.cardValidated);
 
   return (
     <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
@@ -18,8 +19,9 @@ export default function RegistrationPending() {
           <p className="text-sm text-amber-700">Email: {email}</p>
         </div>
         <p className="text-gray-600 mb-6">
-          Your application has been received and will be reviewed shortly.
-          You will receive an email once your account is approved.
+          {cardValidated ? 'Your card has been validated successfully. No payment has been taken.' : 'Your application has been received and will be reviewed shortly.'}
+          {' '}Our team will review your application. If we need clarification or a clearer document, we will email you a secure link to respond or upload a replacement.
+          {' '}Once approved, you will receive your secure account setup link. Your 14-day free trial starts at 00:00 South African time on the day after approval.
         </p>
         <Link
           to="/"

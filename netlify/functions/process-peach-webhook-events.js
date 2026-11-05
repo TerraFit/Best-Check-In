@@ -52,9 +52,9 @@ export const handler = async () => {
 
         const isSuccess = eventStatus.includes('succeeded') || eventStatus === 'success' || event.event_status === 'succeeded';
         const isFailure = eventStatus.includes('failed') || eventStatus === 'failure' || event.event_status === 'failed';
-        const isTrialCardSetup = metadata.purpose === 'fastcheckin_trial_card_mandate';
+        const isTrialCardSetup = ['fastcheckin_trial_card_mandate', 'fastcheckin_registration_card_mandate'].includes(metadata.purpose);
 
-        if (isSuccess && isTrialCardSetup) {
+        if (isSuccess && isTrialCardSetup && mandateId) {
           await supabase(`businesses?id=eq.${encodeURIComponent(businessId)}`, {
             method: 'PATCH',
             headers: { Prefer: 'return=minimal' },
@@ -66,6 +66,14 @@ export const handler = async () => {
               payment_status: 'authorized',
               updated_at: new Date().toISOString(),
             }),
+          });
+        } else if (isSuccess && isTrialCardSetup) {
+          // A zero-value card validation is never a paid subscription.
+          // Leave the account inactive until a server-side check confirms its mandate.
+          await supabase(`businesses?id=eq.${encodeURIComponent(businessId)}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ payment_status: 'pending', payment_last_error: 'Peach has not supplied a verifiable recurring mandate yet', updated_at: new Date().toISOString() }),
           });
         } else if (isSuccess) {
           await supabase(`businesses?id=eq.${encodeURIComponent(businessId)}`, {
