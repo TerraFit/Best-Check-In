@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import { buildRegistrationCardEmail } from './lib/registration-card-email.js';
+import { getAppBaseUrl } from './lib/app-base-url.js';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -295,7 +296,7 @@ export const handler = async (event) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const appUrl = (process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || process.env.PUBLIC_APP_URL || process.env.URL || 'https://fastcheckin.co.za').replace(/\/$/, '');
+        const appUrl = getAppBaseUrl(event);
         const cardSetupLink = `${appUrl}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
         const email = buildRegistrationCardEmail({ businessName: business.trading_name, validationUrl: cardSetupLink });
         const sendResult = await resend.emails.send({
