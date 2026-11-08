@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'node:crypto';
 import { Resend } from 'resend';
+import { buildRegistrationCardEmail } from './lib/registration-card-email.js';
+import { getAppBaseUrl } from './lib/app-base-url.js';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -174,9 +177,9 @@ export const handler = async (event) => {
     // GENERATE IDs AND TOKENS
     // ============================================================
     const businessId = uuidv4();
-    const setupToken = uuidv4();
-    const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 48);
+    const registrationToken = uuidv4();
+    const registrationTokenHash = crypto.createHash('sha256').update(registrationToken).digest('hex');
+    const tokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     // ============================================================
     // CREATE PHYSICAL ADDRESS
@@ -210,9 +213,6 @@ export const handler = async (event) => {
     // ============================================================
     // CREATE BUSINESS RECORD (REST)
     // ============================================================
-    const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 14);
-
     const businessData = {
       id: businessId,
       business_number: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -238,9 +238,15 @@ export const handler = async (event) => {
       billing_cycle: business.billing_cycle || 'monthly',
       payment_method: 'pending',
       payment_status: 'pending',
+      registration_payment_status: 'pending_card',
+      registration_payment_intent_id: null,
+      registration_card_verified_at: null,
       status: 'pending',
       password_hash: null,
-      trial_end: trialEnd.toISOString(),
+      subscription_status: 'pending_approval',
+      trial_start: null,
+      trial_end: null,
+      trial_scheduled_start: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -270,55 +276,59 @@ export const handler = async (event) => {
 
     console.log('✅ Business record created:', businessId);
 
-    // ============================================================
-    // SAVE SETUP TOKEN (REST)
-    // ============================================================
-    const setupLink = `https://fastcheckin.co.za/set-password/${setupToken}`;
-    
-    const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/setup_tokens`, {
+    // Save only a hash of the short-lived applicant token. The token
+    // authorizes card setup and application follow-up, never dashboard access.
+    const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens`, {
       method: 'POST',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify([{
-        token: setupToken,
-        business_id: businessId,
-        email: business.email,
-        expires_at: tokenExpiry.toISOString()
-      }])
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify([{ token_hash: registrationTokenHash, business_id: businessId, expires_at: tokenExpiry.toISOString() }])
     });
 
     if (!tokenResponse.ok) {
-      console.error('Token save error:', await tokenResponse.text());
-    } else {
-      console.log('✅ Setup token saved');
+      console.error('Registration token save error:', await tokenResponse.text());
+      await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}`, {
+        method: 'DELETE', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+      }).catch(() => undefined);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Could not prepare secure card setup. Please try again.' }) };
     }
 
-    // ============================================================
-    // SEND SETUP EMAIL
-    // ============================================================
-    let emailSent = false;
+    let applicationEmailSent = false;
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        
-        await resend.emails.send({
-          from: 'FastCheckin <noreply@fastcheckin.co.za>',
+        const appUrl = getAppBaseUrl(event);
+        const cardSetupLink = `${appUrl}/registration-payment?token=${encodeURIComponent(registrationToken)}`;
+        const email = buildRegistrationCardEmail({ businessName: business.trading_name, validationUrl: cardSetupLink });
+        const sendResult = await resend.emails.send({
+          from: 'FastCheckIn <noreply@fastcheckin.co.za>',
           to: [business.email],
-          subject: `Complete Your FastCheckin Registration - ${business.trading_name}`,
-          html: generateWelcomeEmail(business.trading_name, setupLink)
+          subject: email.subject,
+          html: email.html,
+          text: email.text
         });
-        
-        console.log('✅ Setup email sent to:', business.email);
-        emailSent = true;
+        if (sendResult?.error) throw new Error(sendResult.error.message || 'Email provider rejected the message');
+        const auditResponse = await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+          method: 'PATCH',
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ email_send_status: 'accepted', email_sent_at: new Date().toISOString(), resend_email_id: sendResult?.data?.id || null, email_error: null })
+        });
+        if (!auditResponse.ok) console.error('Could not record registration email send status:', await auditResponse.text());
+        applicationEmailSent = true;
       } catch (emailError) {
-        console.error('❌ Email error:', emailError);
-        // Don't fail registration if email fails
+        const message = String(emailError?.message || 'Email could not be sent').slice(0, 500);
+        await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+          method: 'PATCH',
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ email_send_status: 'failed', email_error: message })
+        }).catch(() => undefined);
+        console.error('Registration continuation email failed:', message);
       }
     } else {
-      console.warn('⚠️ RESEND_API_KEY not configured');
+      await fetch(`${supabaseUrl}/rest/v1/registration_application_tokens?token_hash=eq.${registrationTokenHash}`, {
+        method: 'PATCH',
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ email_send_status: 'not_configured', email_error: 'RESEND_API_KEY is not configured' })
+      }).catch(() => undefined);
     }
 
     // ============================================================
@@ -330,11 +340,9 @@ export const handler = async (event) => {
       body: JSON.stringify({
         success: true,
         businessId: businessId,
-        setupLink: setupLink,
-        emailSent: emailSent,
-        message: emailSent 
-          ? 'Registration submitted successfully. Please check your email to complete setup.'
-          : 'Registration submitted. You will receive setup instructions via email shortly.'
+        registrationToken,
+        applicationEmailSent,
+        message: 'Application created. Complete card validation to submit it for review.'
       })
     };
 

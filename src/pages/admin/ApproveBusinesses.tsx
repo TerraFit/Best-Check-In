@@ -4,9 +4,15 @@ import { getAuthHeader } from '../../utils/auth';
 
 interface Director {
   name: string;
-  idNumber: string;
+  id_number?: string;
+  idNumber?: string;
+  id_photo_url?: string;
   idPhoto?: string;
 }
+
+interface OriginalApplicationDocument { id: string; document_key: string; director_name: string; original_filename: string; content_type: string; dataUrl: string; }
+interface ApplicationDocument { id: string; document_key: string; original_filename: string; content_type: string; created_at: string; signedUrl: string | null; }
+interface ReviewRequest { id: string; request_type: string; document_key: string | null; message: string; status: string; applicant_response: string | null; requested_at: string; responded_at: string | null; }
 
 interface Business {
   id: string;
@@ -26,6 +32,11 @@ interface Business {
   seasons?: any;
   setup_complete?: boolean;
   created_at: string;
+  registration_payment_status?: string;
+  registration_email_send_status?: string;
+  registration_email_last_attempt_at?: string | null;
+  registration_email_last_sent_at?: string | null;
+  registration_email_last_error?: string | null;
 }
 
 export default function ApproveBusinesses() {
@@ -36,6 +47,16 @@ export default function ApproveBusinesses() {
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [showIdModal, setShowIdModal] = useState(false);
   const [selectedIdPhoto, setSelectedIdPhoto] = useState('');
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [requestType, setRequestType] = useState<'clarification' | 'additional_information' | 'document_replacement'>('clarification');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [documentKey, setDocumentKey] = useState('');
+  const [documentsByBusiness, setDocumentsByBusiness] = useState<Record<string, ApplicationDocument[]>>({});
+  const [originalDocumentsByBusiness, setOriginalDocumentsByBusiness] = useState<Record<string, OriginalApplicationDocument[]>>({});
+  const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
+  const [reviewRequestsByBusiness, setReviewRequestsByBusiness] = useState<Record<string, ReviewRequest[]>>({});
+  const [resendingCardEmailId, setResendingCardEmailId] = useState<string | null>(null);
+  const [cardEmailFeedback, setCardEmailFeedback] = useState<Record<string, { success: boolean; message: string; sentAt?: string }>>({});
 
   useEffect(() => {
     fetchPendingBusinesses();
@@ -66,6 +87,10 @@ export default function ApproveBusinesses() {
       }
       
       setBusinesses(businessesList);
+
+      // Load review history and applicant-uploaded documents as part of the approval
+      // queue, rather than hiding them until an administrator clicks "View uploaded documents".
+      await Promise.all(businessesList.map((business: Business) => loadApplicationDocuments(business.id, true)));
     } catch (err) {
       console.error('Error fetching businesses:', err);
       setError(err instanceof Error ? err.message : 'Failed to load pending businesses');
@@ -100,6 +125,75 @@ export default function ApproveBusinesses() {
       alert('An error occurred while approving');
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleResendCardValidationEmail = async (businessId: string) => {
+    setResendingCardEmailId(businessId);
+    setCardEmailFeedback((current) => {
+      const next = { ...current };
+      delete next[businessId];
+      return next;
+    });
+    try {
+      const response = await fetch('/.netlify/functions/resend-registration-card-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ businessId })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not resend the validation email');
+      setCardEmailFeedback((current) => ({ ...current, [businessId]: { success: true, message: data.message || 'Validation email accepted for sending.', sentAt: data.sentAt } }));
+    } catch (err) {
+      setCardEmailFeedback((current) => ({ ...current, [businessId]: { success: false, message: err instanceof Error ? err.message : 'Could not resend the validation email' } }));
+    } finally {
+      setResendingCardEmailId(null);
+    }
+  };
+
+  const handleRequestInformation = async (businessId: string) => {
+    if (requestMessage.trim().length < 5) {
+      alert('Please explain what information or document is required.');
+      return;
+    }
+    if (requestType === 'document_replacement' && !documentKey.trim()) {
+      alert('Please identify the document that needs replacement.');
+      return;
+    }
+    try {
+      const response = await fetch('/.netlify/functions/request-business-application-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ businessId, requestType, documentKey: requestType === 'document_replacement' ? documentKey.trim() : null, message: requestMessage.trim() })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not send the request');
+      alert(data.emailSent ? 'Request sent to the applicant by email.' : 'Request saved, but the email could not be sent. Check the Resend configuration.');
+      await loadApplicationDocuments(businessId, true);
+      setRequestingId(null);
+      setRequestMessage('');
+      setDocumentKey('');
+      setRequestType('clarification');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not send the request');
+    }
+  };
+
+  const loadApplicationDocuments = async (businessId: string, silent = false) => {
+    setLoadingDocumentsId(businessId);
+    try {
+      const query = new URLSearchParams({ businessId });
+      const response = await fetch(`/.netlify/functions/get-business-application-documents?${query.toString()}`, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not load documents');
+      setDocumentsByBusiness((current) => ({ ...current, [businessId]: data.documents || [] }));
+      setOriginalDocumentsByBusiness((current) => ({ ...current, [businessId]: data.originalDocuments || [] }));
+      setReviewRequestsByBusiness((current) => ({ ...current, [businessId]: data.reviewRequests || [] }));
+    } catch (err) {
+      if (!silent) alert(err instanceof Error ? err.message : 'Could not load documents');
+      else console.error('Could not preload application review history:', err);
+    } finally {
+      setLoadingDocumentsId(null);
     }
   };
 
@@ -239,14 +333,14 @@ export default function ApproveBusinesses() {
                               <div className="flex items-start justify-between">
                                 <div>
                                   <p className="font-medium text-gray-900">{director.name}</p>
-                                  <p className="text-sm text-gray-600">ID: {director.idNumber}</p>
+                                  <p className="text-sm text-gray-600">ID: {director.id_number || director.idNumber || 'Not provided'}</p>
                                 </div>
-                                {director.idPhoto && (
+                                {(director.id_photo_url || director.idPhoto) && (
                                   <button
-                                    onClick={() => viewIdPhoto(director.idPhoto!, business.trading_name)}
+                                    onClick={() => viewIdPhoto((director.id_photo_url || director.idPhoto)!, business.trading_name)}
                                     className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors"
                                   >
-                                    View ID Photo
+                                    View original ID
                                   </button>
                                 )}
                               </div>
@@ -259,23 +353,146 @@ export default function ApproveBusinesses() {
                     </div>
                   </div>
 
-                  {/* Approve Button */}
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={() => handleApprove(business.id)}
-                      disabled={approvingId === business.id}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {approvingId === business.id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Approving...
-                        </>
-                      ) : (
-                        'Approve Business'
-                      )}
-                    </button>
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+                    <p className="text-sm text-gray-600">
+                      Card validation: <strong className={business.registration_payment_status === 'verified' ? 'text-green-700' : 'text-amber-700'}>{business.registration_payment_status || 'Not verified'}</strong>
+                    </p>
+                    <div className="flex flex-wrap justify-end gap-3">
+                      <button
+                        onClick={() => loadApplicationDocuments(business.id)}
+                        disabled={loadingDocumentsId === business.id}
+                        className="px-5 py-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 font-medium disabled:opacity-50"
+                      >
+                        {loadingDocumentsId === business.id ? 'Loading documents…' : 'View uploaded documents'}
+                      </button>
+                      <button
+                        onClick={() => setRequestingId(requestingId === business.id ? null : business.id)}
+                        className="px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium"
+                      >
+                        Request more information
+                      </button>
+                      <button
+                        onClick={() => handleApprove(business.id)}
+                        disabled={approvingId === business.id || business.registration_payment_status !== 'verified'}
+                        title={business.registration_payment_status !== 'verified' ? 'Peach card validation must be completed before approval' : 'Approve business'}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {approvingId === business.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            Approving...
+                          </>
+                        ) : 'Approve Business'}
+                      </button>
+                    </div>
                   </div>
+                  {business.registration_payment_status !== 'verified' && (
+                    <div className="mt-3 flex flex-col items-end gap-2">
+                      <p className="text-right text-sm text-amber-700">
+                        Approval is locked until the applicant completes Peach card validation. Current status: {business.registration_payment_status || 'not_started'}.
+                      </p>
+                      <button
+                        onClick={() => handleResendCardValidationEmail(business.id)}
+                        disabled={resendingCardEmailId === business.id}
+                        className="inline-flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendingCardEmailId === business.id ? (
+                          <><span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-700 border-t-transparent" /> Sending email…</>
+                        ) : '✉ Resend Peach validation email'}
+                      </button>
+                      {business.registration_email_send_status && !['not_attempted', 'not_available'].includes(business.registration_email_send_status) && (
+                        <p className="text-right text-xs text-gray-500">
+                          Last email attempt: {business.registration_email_send_status}
+                          {business.registration_email_last_attempt_at ? ` · ${new Date(business.registration_email_last_attempt_at).toLocaleString()}` : ''}
+                          {business.registration_email_last_error ? ` · ${business.registration_email_last_error}` : ''}
+                        </p>
+                      )}
+                      {cardEmailFeedback[business.id] && (
+                        <p className={`text-right text-sm ${cardEmailFeedback[business.id].success ? 'text-green-700' : 'text-red-700'}`} role="status">
+                          {cardEmailFeedback[business.id].message}
+                          {cardEmailFeedback[business.id].sentAt ? ` Sent at ${new Date(cardEmailFeedback[business.id].sentAt!).toLocaleString()}.` : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {reviewRequestsByBusiness[business.id] && reviewRequestsByBusiness[business.id].length > 0 && (
+                    <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3">Application review history</h3>
+                      <div className="space-y-4">
+                        {reviewRequestsByBusiness[business.id].map((item) => (
+                          <div key={item.id} className="border-b border-indigo-100 pb-3 last:border-0 last:pb-0">
+                            <div className="flex flex-wrap justify-between gap-2">
+                              <strong className="text-sm text-gray-800">{item.request_type.replaceAll('_', ' ')}{item.document_key ? ` — ${item.document_key}` : ''}</strong>
+                              <span className={item.status === 'responded' ? 'text-sm text-green-700' : 'text-sm text-amber-700'}>{item.status.replaceAll('_', ' ')}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{item.message}</p>
+                            {item.applicant_response && <div className="mt-2 rounded-lg bg-white p-3"><p className="text-xs font-semibold uppercase text-gray-500 mb-1">Applicant response</p><p className="whitespace-pre-wrap text-sm text-gray-800">{item.applicant_response}</p></div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {documentsByBusiness[business.id] && (
+                    <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
+                      {originalDocumentsByBusiness[business.id]?.length > 0 && (
+                        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <h4 className="font-semibold text-gray-900 mb-2">Original registration documents</h4>
+                          <ul className="space-y-2">
+                            {originalDocumentsByBusiness[business.id].map((doc) => (
+                              <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                <span className="text-gray-700">{doc.original_filename}</span>
+                                <button onClick={() => viewIdPhoto(doc.dataUrl, business.trading_name)} className="text-blue-700 underline">View original registration document</button>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-xs text-gray-600">Original files are retained separately and are never replaced by later uploads.</p>
+                        </div>
+                      )}
+                      <h3 className="font-semibold text-gray-900 mb-2">Replacement and additional documents</h3>
+                      {documentsByBusiness[business.id].length === 0 ? (
+                        <p className="text-sm text-gray-500">No replacement or additional documents have been uploaded yet.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {documentsByBusiness[business.id].map((doc, index) => (
+                            <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <span className="text-gray-700">{doc.document_key}: {doc.original_filename}{index === 0 ? " — Latest upload" : ""}</span>
+                              {doc.signedUrl ? <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-blue-700 underline">View / download</a> : <span className="text-red-600">File unavailable</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="mt-2 text-xs text-gray-500">Secure document links expire after 10 minutes.</p>
+                    </div>
+                  )}
+                  {requestingId === business.id && (
+                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5">
+                      <h3 className="font-semibold text-gray-900 mb-3">Request information from applicant</h3>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Request type
+                          <select value={requestType} onChange={(e) => setRequestType(e.target.value as typeof requestType)} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2">
+                            <option value="clarification">Clarification</option>
+                            <option value="additional_information">Additional information</option>
+                            <option value="document_replacement">Clearer / replacement document</option>
+                          </select>
+                        </label>
+                        {requestType === 'document_replacement' && (
+                          <label className="block text-sm font-medium text-gray-700">
+                            Document to replace
+                            <input value={documentKey} onChange={(e) => setDocumentKey(e.target.value)} placeholder="e.g. Director ID / proof of address" className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2" />
+                          </label>
+                        )}
+                        <label className="block text-sm font-medium text-gray-700">
+                          Message to applicant
+                          <textarea value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} rows={4} maxLength={4000} placeholder="Clearly explain what is missing or what needs to be clarified…" className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-3" />
+                        </label>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => setRequestingId(null)} className="px-4 py-2 rounded-lg bg-white text-gray-700 border">Cancel</button>
+                          <button onClick={() => handleRequestInformation(business.id)} className="px-5 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800">Send request</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
