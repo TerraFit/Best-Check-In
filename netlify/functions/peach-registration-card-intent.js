@@ -86,10 +86,56 @@ export const handler = async (event) => {
         is_iframe_redirection_enabled: true
       })
     });
-    const peach = await peachResponse.json().catch(() => ({}));
+    const responseContentType = peachResponse.headers.get('content-type') || 'unknown';
+    const responseRequestId = peachResponse.headers.get('x-request-id')
+      || peachResponse.headers.get('request-id')
+      || peachResponse.headers.get('trace-id')
+      || null;
+    const responseText = await peachResponse.text();
+    let peach = {};
+    let responseFormat = 'non_json';
+    try {
+      peach = responseText ? JSON.parse(responseText) : {};
+      responseFormat = 'json';
+    } catch {
+      // Do not return or log raw upstream response bodies.
+    }
+
+    const safeDiagnosticText = (value) => {
+      if (typeof value !== 'string') return null;
+      return value
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[redacted-email]')
+        .replace(/Bearer\\s+\\S+/gi, 'Bearer [redacted]')
+        .replace(/(?:registrationToken|token)=([^&\\s]+)/gi, '$1=[redacted]')
+        .replace(/\\s+/g, ' ')
+        .trim()
+        .slice(0, 240) || null;
+    };
+    const peachErrorCode = safeDiagnosticText(
+      peach.error_code || peach.code || peach.error?.code || peach.type
+    );
+    const peachErrorMessage = safeDiagnosticText(
+      peach.error_message || peach.message || peach.error?.message || peach.error_description
+    );
+
     if (!peachResponse.ok) {
-      console.error('[peach-registration-card-intent] Peach error:', peach);
-      return reply(502, { error: peach.error_message || 'Peach could not start card validation' });
+      const diagnostic = {
+        provider: 'Peach',
+        httpStatus: peachResponse.status,
+        httpStatusText: peachResponse.statusText || null,
+        responseContentType,
+        responseFormat,
+        requestId: responseRequestId,
+        errorCode: peachErrorCode
+      };
+      console.error('[peach-registration-card-intent] Peach API rejected request:', diagnostic);
+      return reply(502, {
+        error: 'Peach could not start card validation',
+        diagnostic: {
+          ...diagnostic,
+          message: peachErrorMessage
+        }
+      });
     }
     const paymentId = peach.id || peach.payment_id;
     const clientSecret = peach.client_secret || peach.clientSecret;
