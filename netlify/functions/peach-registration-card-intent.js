@@ -105,7 +105,7 @@ export const handler = async (event) => {
       if (typeof value !== 'string') return null;
       return value
         .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
-        .replace(/Bearer\s+\\S+/gi, 'Bearer [redacted]')
+        .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
         .replace(/(?:registrationToken|token)=([^&\s]+)/gi, '$1=[redacted]')
         .replace(/\s+/g, ' ')
         .trim()
