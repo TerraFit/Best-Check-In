@@ -235,8 +235,8 @@ export const handler = async (event) => {
         body: JSON.stringify({
           business_id: businessId, room_id: task.room_id,
           event_type: inspection_status ? `housekeeping_inspection_${inspection_status}` : `housekeeping_task_${status || 'updated'}`,
-          source: 'staff', severity: 'info', booking_id: task.booking_id, guest_name: task.guest_name,
-          details: { task_id: taskId, task_type: task.task_type, is_checkout: task.is_checkout, status: next.status, inspection_status: next.inspection_status, room_patch: roomPatch },
+          source: principal.actorType || 'staff', severity: 'info', booking_id: task.booking_id, guest_name: task.guest_name,
+          details: { task_id: taskId, task_type: task.task_type, is_checkout: task.is_checkout, status: next.status, inspection_status: next.inspection_status, room_patch: roomPatch, performed_by: principal.employeeId || principal.userId || null, performed_by_type: principal.actorType || null, performed_by_name: principal.name || principal.email || null },
         }),
       });
     } catch (e) { console.warn('room_events', e.message); }
