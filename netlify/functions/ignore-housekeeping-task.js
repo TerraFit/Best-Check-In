@@ -143,7 +143,7 @@ export const handler = async (event) => {
           business_id: businessId,
           room_id: task.room_id,
           event_type: 'housekeeping_task_ignored',
-          source: 'staff',
+          source: principal.actorType || 'staff',
           severity: 'info',
           booking_id: task.booking_id,
           guest_name: task.guest_name,
@@ -156,6 +156,9 @@ export const handler = async (event) => {
             audit_reason: auditReason,
             previous_status: task.status,
             status: 'skipped',
+            performed_by: principal.employeeId || principal.userId || null,
+            performed_by_type: principal.actorType || null,
+            performed_by_name: principal.name || principal.email || null,
           },
         }),
       });
