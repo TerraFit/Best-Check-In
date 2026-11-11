@@ -169,7 +169,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
         const started = session?.started_at || task.started_at;
         const waiting = waitingSince(task);
         const room = task.room_name || `Room ${task.room_number ?? '—'}`;
-        return <article key={task.id} className="rounded-xl border border-gray-200 p-3">
+        return <article key={task.id} onMouseLeave={() => { if (expanded === task.id) setExpanded(null); }} className="rounded-xl border border-gray-200 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="font-semibold text-gray-900">{room}</p>
@@ -177,7 +177,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
             </div>
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${session ? 'bg-blue-100 text-blue-800' : task.is_overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{session ? 'In progress' : task.is_overdue ? 'Overdue · pending' : 'Pending'}</span>
-              <button type="button" aria-label={`Show details for ${room}`} aria-expanded={expanded === task.id} title="Show task details" onClick={() => void toggleDetails(task)} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 text-sm font-bold text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">i</button>
+              <button type="button" aria-label={`Show details for ${room}`} aria-expanded={expanded === task.id} title="Show task details" onMouseEnter={() => { if (expanded !== task.id) void toggleDetails(task); }} onClick={() => void toggleDetails(task)} onFocus={() => { if (expanded !== task.id) void toggleDetails(task); }} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 text-sm font-bold text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">i</button>
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
