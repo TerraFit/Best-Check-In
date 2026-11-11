@@ -152,7 +152,7 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
         ? <>Started by <strong className="text-gray-700">{session.employee_name || 'Unknown employee'}</strong> · Running <strong className="text-gray-700">{elapsedLabel(started)}</strong></>
         : <>Waiting <strong className="text-gray-700">{elapsedLabel(waitingFrom)}</strong></>}
       </span>
-      <span className="text-xs text-gray-500">Assigned: <strong className="text-gray-700">{task.assigned_staff_name || 'Any housekeeper'}</strong></span>
+      
       <button type="button" aria-label={expanded ? 'Hide task information' : 'Show task information'} aria-expanded={expanded} title="Task information and reported issues" onClick={() => void toggleDetails()} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-xs font-bold text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">i</button>
       <button type="button" disabled={busy} onClick={() => void complete()} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Working…' : 'Complete'}</button>
       <button type="button" disabled={busy || (task.status === 'in_progress' && !session)} onClick={() => void skip()} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 disabled:opacity-50">Skip</button>
