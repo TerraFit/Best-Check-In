@@ -75,12 +75,12 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
     const reason = window.prompt(
       task.active_session
         ? 'Optional note for the administrator completion record:'
-        : 'Why is this pending task being marked complete by an administrator? This will be recorded in the task notes.',
+        : 'Why is this task being marked complete by an administrator? This will be recorded in the task notes.',
       task.active_session ? '' : 'Completed by administrator',
     );
     if (reason === null) return;
     if (!task.active_session && !reason.trim()) {
-      setError('Please enter a reason for completing a task that has not been started.');
+      setError('Please enter a reason for the administrator completion override.');
       return;
     }
     if (task.active_session && (task.active_session.issues_reported_count || 0) > 0) {
@@ -118,6 +118,10 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
 
   const skip = async (task: HousekeepingTask) => {
     if (busyId) return;
+    if (task.status === 'in_progress' && !task.active_session) {
+      setError('This task is marked in progress but has no active session. Refresh or investigate it before skipping; its execution history must not be overwritten.');
+      return;
+    }
     const reason = window.prompt(
       task.active_session
         ? 'Reason for cancelling this active service (required; the session history will be retained):'
@@ -167,6 +171,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
         const taskIssues = issues[task.id] || [];
         const openIssues = taskIssues.filter((issue) => !['resolved', 'verified', 'dismissed'].includes(issue.status));
         const started = session?.started_at || task.started_at;
+        const runningWithoutSession = task.status === 'in_progress' && !session;
         const waiting = waitingSince(task);
         const room = task.room_name || `Room ${task.room_number ?? '—'}`;
         return <article key={task.id} onMouseLeave={() => { if (expanded === task.id) setExpanded(null); }} className="rounded-xl border border-gray-200 p-3">
@@ -181,7 +186,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-            {session ? <><span>Started by <strong>{session.employee_name || 'Unknown employee'}</strong></span><span>Running <strong>{elapsedLabel(started)}</strong></span><span>Checklist <strong>{session.checklist_completed_count || 0}/{session.checklist_total_count || 0}</strong></span></> : <span>Waiting <strong>{elapsedLabel(waiting)}</strong></span>}
+            {session || runningWithoutSession ? <><span>Started by <strong>{session?.employee_name || 'Unknown employee — session record unavailable'}</strong></span><span>Running <strong>{elapsedLabel(started)}</strong></span>{session && <span>Checklist <strong>{session.checklist_completed_count || 0}/{session.checklist_total_count || 0}</strong></span>}</> : <span>Waiting <strong>{elapsedLabel(waiting)}</strong></span>}
             <span>Assigned: <strong>{task.assigned_staff_name || 'Any housekeeper'}</strong></span>
             {(session?.issues_reported_count || 0) > 0 && <span className="font-semibold text-orange-700">{session?.issues_reported_count} issue(s) reported</span>}
           </div>
@@ -196,7 +201,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
             </div>
             <div className="border-t border-gray-200 pt-2">
               <p className="font-semibold">Reported issues</p>
-              {!session ? <p className="mt-1 text-gray-500">No service session has been started, so no session-linked issues are available.</p>
+              {!session ? <p className="mt-1 text-gray-500">{runningWithoutSession ? 'The task is marked in progress but its session record is missing; session-linked issues cannot be retrieved.' : 'No service session has been started, so no session-linked issues are available.'}</p>
                 : !issues[task.id] ? <p className="mt-1 text-gray-500">Loading issues…</p>
                 : !taskIssues.length ? <p className="mt-1 text-gray-500">No issues reported for this session.</p>
                 : taskIssues.map((issue) => <div key={issue.id} className="mt-2 rounded-md border border-gray-200 bg-white p-2">
@@ -209,7 +214,7 @@ export default function AdminHousekeepingTaskActions({ businessId }: Props) {
           </div>}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(busyId)} onClick={() => void complete(task)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busyId === task.id ? 'Working…' : 'Complete'}</button>
-            <button type="button" disabled={Boolean(busyId)} onClick={() => void skip(task)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 disabled:opacity-50">Skip</button>
+            <button type="button" disabled={Boolean(busyId) || (task.status === 'in_progress' && !session)} onClick={() => void skip(task)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 disabled:opacity-50">Skip</button>
           </div>
         </article>;
       })}
