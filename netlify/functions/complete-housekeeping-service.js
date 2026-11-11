@@ -188,6 +188,35 @@ export const handler = async (event) => {
     );
     if (!roomRes.ok) console.error('complete-housekeeping-service room status update failed:', roomRes.status);
 
+    // Preserve an audit trail for both staff completion and business-dashboard overrides.
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: write,
+        body: JSON.stringify({
+          business_id: businessId,
+          room_id: session.room_id,
+          event_type: 'housekeeping_task_completed',
+          source: principal.actorType || 'staff',
+          severity: 'info',
+          booking_id: session.booking_id,
+          details: {
+            task_id: session.housekeeping_task_id,
+            session_id: session.id,
+            status: 'completed',
+            performed_by: principal.employeeId || principal.userId || null,
+            performed_by_type: principal.actorType || null,
+            performed_by_name: principal.name || principal.email || null,
+            checklist_completed_count: safeChecklistCompletedCount,
+            checklist_total_count: checklistTotalCount,
+            issues_reported_count: issuesReportedCount,
+          },
+        }),
+      });
+    } catch (auditError) {
+      console.warn('complete-housekeeping-service audit event failed:', auditError?.message || auditError);
+    }
+
     return {
       statusCode: 200,
       headers,
