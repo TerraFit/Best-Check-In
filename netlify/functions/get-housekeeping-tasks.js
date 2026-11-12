@@ -31,6 +31,21 @@ function upstreamFailure(status, context) {
   return { statusCode: 502, error: 'Failed to fetch housekeeping data' };
 }
 
+async function fetchAllRows(url, headers, pageSize = 1000) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await fetch(url, {
+      headers: { ...headers, 'Range-Unit': 'items', Range: `${offset}-${offset + pageSize - 1}` },
+    });
+    if (!response.ok) return { ok: false, status: response.status, rows: [] };
+    const page = await response.json();
+    if (!Array.isArray(page)) return { ok: false, status: 502, rows: [] };
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return { ok: true, rows };
+}
+
 exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
@@ -63,9 +78,9 @@ exports.handler = async (event) => {
     // the most recently updated task is authoritative, so older task records never
     // create duplicate cards or override a newer status.
     const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
-    const allRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=updated_at.desc,created_at.desc,scheduled_date.desc`, { headers: restHeaders });
+    const allRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=updated_at.desc,created_at.desc,scheduled_date.desc,id.asc`, restHeaders);
     if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'latest room tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-    const allTasks = await allRes.json();
+    const allTasks = allRes.rows;
     const latestByRoom = new Map();
     const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
     const recency = (task) => new Date(task.updated_at || task.created_at || task.scheduled_date || 0).getTime() || 0;
@@ -105,18 +120,18 @@ exports.handler = async (event) => {
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
     const roomsById = {};
     if (roomIds.length) {
-      const roomsLookup = await fetch(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&id=in.(${roomIds.map(encodeURIComponent).join(',')})&select=id,room_type,floor,housekeeping_status,occupancy_status,availability_status,active`, { headers: restHeaders });
+      const roomsLookup = await fetchAllRows(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&id=in.(${roomIds.map(encodeURIComponent).join(',')})&select=id,room_type,floor,housekeeping_status,occupancy_status,availability_status,active`, restHeaders);
       if (!roomsLookup.ok) console.error('get-housekeeping-tasks rooms lookup failed:', { status: roomsLookup.status });
-      else for (const room of await roomsLookup.json()) roomsById[room.id] = room;
+      else for (const room of roomsLookup.rows) roomsById[room.id] = room;
     }
 
     const activeSessionsByTask = {};
-    const sessionsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&status=eq.active&select=${SESSION_SELECT}&order=started_at.desc`, { headers: restHeaders });
+    const sessionsRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&status=eq.active&select=${SESSION_SELECT}&order=started_at.desc,id.asc`, restHeaders);
     if (!sessionsRes.ok) {
       const e = upstreamFailure(sessionsRes.status, 'active service sessions');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    for (const session of await sessionsRes.json()) {
+    for (const session of sessionsRes.rows) {
       const taskKey = session.housekeeping_task_id || session.task_id;
       if (taskKey && !activeSessionsByTask[taskKey]) activeSessionsByTask[taskKey] = session;
     }
@@ -133,12 +148,15 @@ exports.handler = async (event) => {
       !task.is_checkout &&
       task.scheduled_date < todayStr,
     );
-    const skippedRefreshRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.skipped&task_type=eq.refresh&is_checkout=eq.false&scheduled_date=lt.${encodeURIComponent(todayStr)}&select=id,room_id,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
-      { headers: restHeaders },
+    const skippedRefreshRes = await fetchAllRows(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.skipped&task_type=eq.refresh&is_checkout=eq.false&scheduled_date=lt.${encodeURIComponent(todayStr)}&select=id,room_id,room_number,room_name,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
+      restHeaders,
     );
-    const skippedRefreshTasks = skippedRefreshRes.ok ? await skippedRefreshRes.json() : [];
-    if (!skippedRefreshRes.ok) console.error('get-housekeeping-tasks skipped Refresh lookup failed:', { status: skippedRefreshRes.status });
+    if (!skippedRefreshRes.ok) {
+      const e = upstreamFailure(skippedRefreshRes.status, 'skipped Refresh history');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const skippedRefreshTasks = skippedRefreshRes.rows;
 
     const compareTasks = (a, b) =>
       String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
@@ -182,19 +200,31 @@ exports.handler = async (event) => {
       can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
-    const roomsRes = await fetch(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`, { headers: restHeaders });
-    const rooms = roomsRes.ok ? await roomsRes.json() : [];
-    if (!roomsRes.ok) console.error('get-housekeeping-tasks stats rooms lookup failed:', { status: roomsRes.status });
-    const todayTasksRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`, { headers: restHeaders });
-    const todayOpenTasks = todayTasksRes.ok ? await todayTasksRes.json() : [];
-    if (!todayTasksRes.ok) console.error('get-housekeeping-tasks today stats lookup failed:', { status: todayTasksRes.status });
-    const completedTodayRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`, { headers: restHeaders });
-    const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
-    if (!completedTodayRes.ok) console.error('get-housekeeping-tasks completed stats lookup failed:', { status: completedTodayRes.status });
-    const overdueRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id`, { headers: restHeaders });
-    const historicalOverdueTasks = overdueRes.ok ? await overdueRes.json() : [];
+    const roomsRes = await fetchAllRows(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`, restHeaders);
+    if (!roomsRes.ok) {
+      const e = upstreamFailure(roomsRes.status, 'stats rooms lookup');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const rooms = roomsRes.rows;
+    const todayTasksRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`, restHeaders);
+    if (!todayTasksRes.ok) {
+      const e = upstreamFailure(todayTasksRes.status, 'today stats tasks');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const todayOpenTasks = todayTasksRes.rows;
+    const completedTodayRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`, restHeaders);
+    if (!completedTodayRes.ok) {
+      const e = upstreamFailure(completedTodayRes.status, 'completed today stats');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const completedToday = completedTodayRes.rows;
+    const overdueRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id`, restHeaders);
+    if (!overdueRes.ok) {
+      const e = upstreamFailure(overdueRes.status, 'overdue stats');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const historicalOverdueTasks = overdueRes.rows;
     const overdueTasks = [...historicalOverdueTasks, ...todayOpenTasks.filter((task) => isOverdue(task))];
-    if (!overdueRes.ok) console.error('get-housekeeping-tasks overdue stats lookup failed:', { status: overdueRes.status });
 
     let roomsReady = 0, roomsNotReady = 0, roomsCleaning = 0, roomsAwaiting = 0, roomsMaintenance = 0;
     for (const r of rooms) {
