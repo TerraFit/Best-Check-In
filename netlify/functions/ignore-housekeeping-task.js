@@ -128,6 +128,37 @@ export const handler = async (event) => {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'This room is occupied or reserved and cannot be marked unavailable for maintenance.', code: 'ROOM_NOT_VACANT' }) };
     }
 
+    if (adminOverride) {
+      const intentRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: writeHeaders,
+        body: JSON.stringify({
+          business_id: businessId,
+          room_id: task.room_id,
+          event_type: 'housekeeping_admin_skip_requested',
+          source: 'business_admin',
+          severity: 'info',
+          booking_id: task.booking_id,
+          guest_name: task.guest_name,
+          details: {
+            task_id: task.id,
+            task_type: task.task_type,
+            reason: normalizedReason,
+            details: normalizedDetails || null,
+            previous_status: task.status,
+            intended_status: normalizedReason === 'Already cleaned' ? 'completed' : 'skipped',
+            outcome: 'requested',
+            performed_by: principal.employeeId || principal.userId || null,
+            performed_by_type: principal.actorType || null,
+          },
+        }),
+      });
+      if (!intentRes.ok) {
+        console.error('ignore-housekeeping-task admin audit intent failed:', intentRes.status);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'The administrator action was not applied because its audit record could not be saved.', code: 'AUDIT_WRITE_FAILED', state_updated: false }) };
+      }
+    }
+
     const activeRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&housekeeping_task_id=eq.${encodeURIComponent(task.id)}&status=eq.active&select=id`,
       { headers: restHeaders },
