@@ -63,6 +63,9 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unsupported ignore reason' }) };
     }
     const normalizedDetails = typeof details === 'string' ? details.trim() : '';
+    if (adminOverride !== true && ['Already cleaned', 'Maintenance'].includes(normalizedReason)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'This room-state action is reserved for administrators' }) };
+    }
     if (normalizedReason === 'Other' && !normalizedDetails) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Details are required when the reason is Other' }) };
     }
