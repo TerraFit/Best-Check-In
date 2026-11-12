@@ -95,7 +95,7 @@ export const handler = async (event) => {
     const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
-    if (adminOverride === true && !requireBusinessPermission(principal, 'canManageSettings')) {
+    if (adminOverride === true && !principalPermissions(principal).has('canManageSettings')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Administrator permission required for this housekeeping completion override' }) };
     }
 
@@ -244,7 +244,7 @@ export const handler = async (event) => {
       roomPatch.updated_at = new Date().toISOString();
       const roomUpdateRes = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'PATCH',
-        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
         body: JSON.stringify(roomPatch),
       }).catch((e) => { console.warn('room patch failed', e.message); return null; });
       if (!roomUpdateRes?.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'The task was updated, but the room status could not be synchronized. Refresh the Rooms tab and investigate.', code: 'ROOM_SYNC_FAILED', state_updated: true }) };
