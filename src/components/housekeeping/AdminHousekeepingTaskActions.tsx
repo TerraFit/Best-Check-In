@@ -33,7 +33,7 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skipOpen, setSkipOpen] = useState(false);
-  const [skipReason, setSkipReason] = useState('Already cleaned');
+  const [skipReason, setSkipReason] = useState('');
   const [skipDetails, setSkipDetails] = useState('');
 
   // Keep administrator controls out of the employee portal.
@@ -126,7 +126,7 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
         details: skipDetails.trim() || undefined,
       });
       setSkipOpen(false);
-      setSkipReason('Already cleaned');
+      setSkipReason('');
       setSkipDetails('');
       await onAction();
     } catch (e) {
@@ -152,23 +152,21 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
     {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
     {skipOpen && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
       <div role="dialog" aria-modal="true" aria-labelledby={`admin-skip-title-${task.id}`} className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-4">
-        <div><h3 id={`admin-skip-title-${task.id}`} className="text-base font-bold text-gray-900">Skip housekeeping · {task.room_name || task.room_number}</h3><p className="mt-1 text-xs text-gray-500">Choose the outcome for this room. The selected option updates the housekeeping record and, where applicable, room availability.</p></div>
+        <div><h3 id={`admin-skip-title-${task.id}`} className="text-base font-bold text-gray-900">Skip housekeeping · {task.room_name || task.room_number}</h3><p className="mt-1 text-xs text-gray-500">Choose why this task is being skipped. The corresponding housekeeping and room status will be updated.</p></div>
         <label className="block text-xs font-semibold text-gray-700">Reason
-          <select value={skipReason} onChange={(event) => setSkipReason(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal">
-            <option value="Already cleaned">Already cleaned — mark cleaned and inspected</option>
-            <option value="Maintenance">Maintenance — remove from allocation</option>
-            <option value="Client did not want the room cleaned">Client declined cleaning</option>
-            <option value="Room was unavailable">Room unavailable</option>
-            <option value="Service was no longer required">Service no longer required</option>
-            <option value="Other">Other</option>
+          <select value={skipReason} onChange={(event) => { setSkipReason(event.target.value); setSkipDetails(''); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal">
+            <option value="">Select a reason…</option>
+            <option value="Already cleaned">Already cleaned and inspected — mark room Ready</option>
+            <option value="Maintenance">Maintenance required — make room unavailable</option>
+            <option value="Other">Other reason</option>
           </select>
         </label>
-        {skipReason === 'Other' && <label className="block text-xs font-semibold text-gray-700">Details
+        {skipReason === 'Other' && <label className="block text-xs font-semibold text-gray-700">Please specify the reason
           <textarea value={skipDetails} onChange={(event) => setSkipDetails(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" placeholder="Explain why this task is being skipped" />
         </label>}
-        {skipReason === 'Already cleaned' && <p className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">The task will be marked completed with inspection approved, and the room housekeeping status will become Ready.</p>}
-        {skipReason === 'Maintenance' && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">The room availability will change to Maintenance and its housekeeping status to Not ready.</p>}
-        <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setSkipOpen(false)} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700">Cancel</button><button type="button" disabled={busy || (skipReason === 'Other' && !skipDetails.trim())} onClick={() => void skip()} className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Confirm Skip'}</button></div>
+        {skipReason === 'Already cleaned' && <p className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">The task will be marked completed and inspected, and the room will become Ready for allocation.</p>}
+        {skipReason === 'Maintenance' && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">The room will be marked unavailable for allocation and its status will update in the Rooms tab.</p>}
+        <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setSkipOpen(false)} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700">Cancel</button><button type="button" disabled={busy || !skipReason || (skipReason === 'Other' && !skipDetails.trim())} onClick={() => void skip()} className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Confirm Skip'}</button></div>
       </div>
     </div>}
     {expanded && <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-700 space-y-2">
