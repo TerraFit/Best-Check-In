@@ -13,6 +13,8 @@ const { resolvePermissions } = rbac;
 
 const IGNORE_REASONS = new Set([
   'Room was cleaned but not recorded',
+  'Already cleaned',
+  'Maintenance',
   'Client did not want the room cleaned',
   'Room was unavailable',
   'Service was no longer required',
@@ -95,8 +97,8 @@ export const handler = async (event) => {
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    if (task.status !== 'pending') {
-      return { statusCode: 409, headers, body: JSON.stringify({ error: 'Only pending housekeeping tasks can be ignored' }) };
+    if (!['pending', 'in_progress'].includes(task.status)) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'Only pending or active housekeeping tasks can be skipped' }) };
     }
 
     const activeRes = await fetch(
@@ -107,24 +109,37 @@ export const handler = async (event) => {
       const e = upstream(activeRes.status, 'active session lookup');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    if ((await activeRes.json()).length) {
-      return { statusCode: 409, headers, body: JSON.stringify({ error: 'This housekeeping task has an active service session and cannot be ignored', code: 'ACTIVE_SERVICE_SESSION' }) };
+    const activeSessions = await activeRes.json();
+    if (activeSessions.length && task.status !== 'in_progress') {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'An active service session exists for a task not marked in progress. Refresh and investigate before skipping.', code: 'TASK_SESSION_MISMATCH' }) };
     }
-
     const now = new Date().toISOString();
+    // Preserve an active execution record when an administrator skips an in-progress task.
+    for (const session of activeSessions) {
+      const cancelRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${encodeURIComponent(session.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=eq.active`,
+        { method: 'PATCH', headers: writeHeaders, body: JSON.stringify({
+          status: 'cancelled', completed_at: now, cancelled_at: now,
+          cancelled_by: principal.employeeId || principal.userId || null,
+          cancellation_reason: `Administrator skip: ${normalizedReason}`, updated_at: now,
+        }) },
+      );
+      if (!cancelRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to close the active service session safely' }) };
+    }
     const auditReason = normalizedReason === 'Other'
       ? `Other: ${normalizedDetails}`
       : normalizedDetails ? `${normalizedReason}: ${normalizedDetails}` : normalizedReason;
     const previousNotes = typeof task.notes === 'string' && task.notes.trim() ? task.notes.trim() : '';
     const nextNotes = previousNotes ? `${previousNotes}\nIgnored: ${auditReason}` : `Ignored: ${auditReason}`;
 
+    const alreadyCleaned = normalizedReason === 'Already cleaned' || normalizedReason === 'Room was cleaned but not recorded';
+    const nextStatus = alreadyCleaned ? 'completed' : 'skipped';
+    const taskPatch = alreadyCleaned
+      ? { status: 'completed', completed_at: now, inspection_status: 'approved', notes: nextNotes, updated_at: now }
+      : { status: 'skipped', notes: nextNotes, updated_at: now };
     const updateRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(task.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=eq.pending`,
-      {
-        method: 'PATCH',
-        headers: writeHeaders,
-        body: JSON.stringify({ status: 'skipped', notes: nextNotes, updated_at: now }),
-      },
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(task.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=in.(pending,in_progress)`,
+      { method: 'PATCH', headers: writeHeaders, body: JSON.stringify(taskPatch) },
     );
     if (!updateRes.ok) {
       console.error('ignore-housekeeping-task task update failed:', updateRes.status);
@@ -135,6 +150,22 @@ export const handler = async (event) => {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'This housekeeping task was already changed; refresh the task list and try again', code: 'TASK_CHANGED' }) };
     }
 
+    const roomPatch = alreadyCleaned
+      ? { housekeeping_status: 'ready', ...(task.is_checkout ? { occupancy_status: 'vacant' } : {}) }
+      : normalizedReason === 'Maintenance'
+        ? { availability_status: 'maintenance', housekeeping_status: 'not_ready', unavailable_reason: 'Maintenance' }
+        : null;
+    if (roomPatch) {
+      const roomUpdate = await fetch(
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`,
+        { method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ ...roomPatch, updated_at: now }) },
+      );
+      if (!roomUpdate.ok) {
+        console.error('ignore-housekeeping-task room update failed:', roomUpdate.status);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'Task was updated but the room status could not be synchronized. Refresh the Rooms tab and contact support if it remains inconsistent.' }) };
+      }
+    }
+
     try {
       await fetch(`${supabaseUrl}/rest/v1/room_events`, {
         method: 'POST',
@@ -142,7 +173,7 @@ export const handler = async (event) => {
         body: JSON.stringify({
           business_id: businessId,
           room_id: task.room_id,
-          event_type: 'housekeeping_task_ignored',
+          event_type: alreadyCleaned ? 'housekeeping_marked_already_cleaned' : normalizedReason === 'Maintenance' ? 'room_marked_maintenance' : 'housekeeping_task_ignored',
           source: principal.actorType || 'staff',
           severity: 'info',
           booking_id: task.booking_id,
@@ -155,7 +186,8 @@ export const handler = async (event) => {
             details: normalizedDetails || null,
             audit_reason: auditReason,
             previous_status: task.status,
-            status: 'skipped',
+            status: nextStatus,
+            room_patch: roomPatch,
             performed_by: principal.employeeId || principal.userId || null,
             performed_by_type: principal.actorType || null,
             performed_by_name: principal.name || principal.email || null,
@@ -169,7 +201,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, task: updatedRows[0], reason: normalizedReason, details: normalizedDetails || null }),
+      body: JSON.stringify({ success: true, task: updatedRows[0], reason: normalizedReason, details: normalizedDetails || null, room_patch: roomPatch, status: nextStatus }),
     };
   } catch (error) {
     console.error('ignore-housekeeping-task fatal:', error);
