@@ -21,8 +21,8 @@ export const handler = async (event) => {
 
   const actor = requireBusinessActor(event);
   if (!actor.ok) return authFailure(actor, headers);
-  if (!requireBusinessPermission(actor.principal, 'canApproveRoomChanges')) {
-    return authFailure({ status: 403, error: 'Missing permission: canApproveRoomChanges' }, headers);
+  if (!requireBusinessPermission(actor.principal, 'canManageSettings')) {
+    return authFailure({ status: 403, error: 'Administrator permission required for bulk housekeeping room-readiness actions' }, headers);
   }
 
   try {
@@ -70,24 +70,6 @@ export const handler = async (event) => {
         continue;
       }
 
-      const patchUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(room.id)}&business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&availability_status=eq.available&occupancy_status=eq.vacant`;
-      const patchResponse = await fetch(patchUrl, {
-        method: 'PATCH',
-        headers: writeHeaders,
-        body: JSON.stringify({ housekeeping_status: 'ready', updated_at: new Date().toISOString() }),
-      });
-      if (!patchResponse.ok) {
-        console.error('admin-bulk-room-readiness room update failed:', patchResponse.status);
-        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Update failed.' });
-        continue;
-      }
-      const rows = await patchResponse.json().catch(() => []);
-      if (!Array.isArray(rows) || rows.length !== 1) {
-        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room state changed during the update.' });
-        continue;
-      }
-      updated.push(room);
-
       const eventType = action === 'approved' ? 'admin_bulk_housekeeping_approved' : 'admin_bulk_housekeeping_skipped';
       const eventPayload = {
         business_id: businessId,
@@ -96,14 +78,55 @@ export const handler = async (event) => {
         source: 'system',
         severity: 'info',
         performed_by: typeof actorId === 'string' && UUID.test(actorId) ? actorId : null,
-        details: { action, actor_type: actor.principal.actorType || 'business', actor_id: actorId, note: 'Room marked ready using owner/admin bulk housekeeping shortcut.' },
+        details: { action, outcome: 'requested', actor_type: actor.principal.actorType || 'business', actor_id: actorId, note: 'Room marked ready using owner/admin bulk housekeeping shortcut.' },
       };
+      // Persist the audit intent before changing room state. If the audit store
+      // is unavailable, do not perform an unlogged administrative mutation.
       const auditResponse = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
         method: 'POST',
-        headers: { ...writeHeaders, Prefer: 'return=minimal' },
+        headers: { ...writeHeaders, Prefer: 'return=representation' },
         body: JSON.stringify(eventPayload),
       });
-      if (!auditResponse.ok) console.error('admin-bulk-room-readiness audit event failed:', auditResponse.status, room.id);
+      if (!auditResponse.ok) {
+        console.error('admin-bulk-room-readiness audit event failed:', auditResponse.status, room.id);
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Audit event could not be recorded; no change was made.' });
+        continue;
+      }
+      const auditRows = await auditResponse.json().catch(() => []);
+      const auditId = Array.isArray(auditRows) ? auditRows[0]?.id : null;
+
+      const patchUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(room.id)}&business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&availability_status=eq.available&occupancy_status=eq.vacant`;
+      const patchResponse = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: writeHeaders,
+        body: JSON.stringify({ housekeeping_status: 'ready', updated_at: new Date().toISOString() }),
+      });
+      if (!patchResponse.ok) {
+        console.error('admin-bulk-room-readiness room update failed:', patchResponse.status);
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Update failed after audit was recorded.' });
+        if (auditId) await fetch(`${supabaseUrl}/rest/v1/room_events?id=eq.${encodeURIComponent(auditId)}&business_id=eq.${encodeURIComponent(businessId)}`, {
+          method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ details: { ...eventPayload.details, outcome: 'failed', failure: 'Room update failed.' } }),
+        }).catch(() => {});
+        continue;
+      }
+      const rows = await patchResponse.json().catch(() => []);
+      if (!Array.isArray(rows) || rows.length !== 1) {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room state changed during the update.' });
+        if (auditId) await fetch(`${supabaseUrl}/rest/v1/room_events?id=eq.${encodeURIComponent(auditId)}&business_id=eq.${encodeURIComponent(businessId)}`, {
+          method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ details: { ...eventPayload.details, outcome: 'not_applied', failure: 'Room state changed during the update.' } }),
+        }).catch(() => {});
+        continue;
+      }
+      updated.push(room);
+      if (auditId) {
+        const finalAudit = await fetch(`${supabaseUrl}/rest/v1/room_events?id=eq.${encodeURIComponent(auditId)}&business_id=eq.${encodeURIComponent(businessId)}`, {
+          method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ details: { ...eventPayload.details, outcome: 'completed' } }),
+        });
+        if (!finalAudit.ok) {
+          console.error('admin-bulk-room-readiness audit finalization failed:', finalAudit.status, room.id);
+          return response(500, headers, { success: false, partial: true, updated: updated.length, notChanged: unchanged.length, error: 'Some rooms were updated, but audit finalization failed. Review the Room Events history before retrying.', code: 'AUDIT_FINALIZATION_FAILED' });
+        }
+      }
     }
 
     return response(200, headers, {
