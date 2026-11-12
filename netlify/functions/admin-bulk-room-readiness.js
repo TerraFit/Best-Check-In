@@ -1,9 +1,21 @@
 // netlify/functions/admin-bulk-room-readiness.js
 // Owner/business-dashboard administrative shortcut. Does not mutate housekeeping tasks or sessions.
 import auth from './_auth.cjs';
+import * as rbac from './_rbac.js';
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function hasAdministratorPermission(principal) {
+  if (principal?.actorType === 'business') return true;
+  return rbac.resolvePermissions({
+    actorType: principal?.actorType,
+    role: principal?.role,
+    permission_set: principal?.permissions,
+    permissions: principal?.permissions,
+    active: principal?.active,
+  }).has('canManageSettings');
+}
 
 function response(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
@@ -21,7 +33,7 @@ export const handler = async (event) => {
 
   const actor = requireBusinessActor(event);
   if (!actor.ok) return authFailure(actor, headers);
-  if (!requireBusinessPermission(actor.principal, 'canManageSettings')) {
+  if (!hasAdministratorPermission(actor.principal)) {
     return authFailure({ status: 403, error: 'Administrator permission required for bulk housekeeping room-readiness actions' }, headers);
   }
 
