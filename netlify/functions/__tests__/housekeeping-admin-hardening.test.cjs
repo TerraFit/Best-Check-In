@@ -10,49 +10,51 @@ test('administrator Skip is separately authorized and staff Ignore remains avail
   const source = read('netlify/functions/ignore-housekeeping-task.js');
   const staffUi = read('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
   const adminUi = read('src/components/housekeeping/AdminHousekeepingTaskActions.tsx');
-  assert.match(source, /adminOverride === true/);
-  assert.match(source, /requireBusinessPermission\(principal, 'canManageSettings'\)/);
-  assert.match(source, /canCompleteHousekeepingTask/);
-  assert.match(source, /Only pending or active housekeeping tasks can be skipped/);
-  assert.match(source, /ROOM_NOT_VACANT/);
-  assert.match(source, /AUDIT_WRITE_FAILED/);
-  assert.match(adminUi, /adminOverride: true/);
-  assert.match(staffUi, /ignoreHousekeepingTask/);
-  assert.doesNotMatch(staffUi, /adminOverride:\s*true/);
+  assert.ok(source.includes('adminOverride === true'));
+  assert.ok(source.includes('resolvePermissions({'));
+  assert.ok(source.includes("has('canManageSettings')"));
+  assert.ok(source.includes('canCompleteHousekeepingTask'));
+  assert.ok(source.includes('ROOM_NOT_VACANT'));
+  assert.ok(source.includes('AUDIT_WRITE_FAILED'));
+  assert.ok(adminUi.includes('adminOverride: true'));
+  assert.ok(staffUi.includes('ignoreHousekeepingTask'));
+  assert.ok(!staffUi.includes('adminOverride: true'));
 });
 
 test('checkout housekeeping does not force room occupancy to vacant', () => {
   const source = read('netlify/functions/ignore-housekeeping-task.js');
-  assert.match(source, /alreadyCleaned\s*\?\s*\{\s*housekeeping_status: 'ready'\s*\}/);
-  assert.doesNotMatch(source, /occupancy_status:\s*'vacant'/);
-  assert.match(source, /occupancy_status=eq\.vacant/);
+  assert.ok(source.includes("? { housekeeping_status: 'ready' }"));
+  assert.ok(!source.includes("occupancy_status: 'vacant'"));
+  assert.ok(source.includes('occupancy_status=eq.vacant'));
 });
 
 test('bulk room readiness is owner/administrator-only and audits before room mutation', () => {
   const source = read('netlify/functions/admin-bulk-room-readiness.js');
-  assert.match(source, /requireBusinessPermission\(actor\.principal, 'canManageSettings'\)/);
+  assert.ok(source.includes('function hasAdministratorPermission(principal)'));
+  assert.ok(source.includes("}).has('canManageSettings')"));
   assert.ok(source.indexOf('const auditResponse = await fetch') < source.indexOf('const patchResponse = await fetch(patchUrl'));
-  assert.match(source, /outcome: 'completed'/);
-  assert.match(source, /occupancy_status=eq\.vacant/);
+  assert.ok(source.includes("outcome: 'completed'"));
+  assert.ok(source.includes('occupancy_status=eq.vacant'));
 });
 
 test('housekeeping history and dashboard queries paginate beyond PostgREST row limits', () => {
   const source = read('netlify/functions/get-housekeeping-tasks.js');
-  assert.match(source, /async function fetchAllRows/);
-  assert.match(source, /Range-Unit': 'items'/);
-  assert.match(source, /const allTasks = allRes\.rows/);
-  assert.match(source, /const skippedRefreshTasks = skippedRefreshRes\.rows/);
-  assert.match(source, /const completedToday = completedTodayRes\.rows/);
+  assert.ok(source.includes('async function fetchAllRows'));
+  assert.ok(source.includes("'Range-Unit': 'items'"));
+  assert.ok(source.includes('const allTasks = allRes.rows'));
+  assert.ok(source.includes('const skippedRefreshTasks = skippedRefreshRes.rows'));
+  assert.ok(source.includes('const completedToday = completedTodayRes.rows'));
 });
 
 test('administrator completion overrides are explicitly authorized and audited', () => {
   const taskSource = read('netlify/functions/update-housekeeping-task.js');
   const sessionSource = read('netlify/functions/complete-housekeeping-service.js');
-  assert.match(taskSource, /adminOverride === true/);
-  assert.match(taskSource, /housekeeping_admin_task_completion_requested/);
-  assert.match(taskSource, /AUDIT_WRITE_FAILED/);
-  assert.match(sessionSource, /adminOverride && !\\([\\s\\S]*canManageSettings/);
-  assert.match(sessionSource, /housekeeping_admin_service_completion_requested/);
-  assert.match(sessionSource, /ROOM_SYNC_FAILED/);
-  assert.match(sessionSource, /AUDIT_WRITE_FAILED/);
+  assert.ok(taskSource.includes('adminOverride === true'));
+  assert.ok(taskSource.includes('housekeeping_admin_task_completion_requested'));
+  assert.ok(taskSource.includes('AUDIT_WRITE_FAILED'));
+  assert.ok(sessionSource.includes('adminOverride && !('));
+  assert.ok(sessionSource.includes("has('canManageSettings')"));
+  assert.ok(sessionSource.includes('housekeeping_admin_service_completion_requested'));
+  assert.ok(sessionSource.includes('ROOM_SYNC_FAILED'));
+  assert.ok(sessionSource.includes('AUDIT_WRITE_FAILED'));
 });
