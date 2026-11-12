@@ -124,6 +124,7 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
         taskId: task.id,
         reason: skipReason,
         details: skipDetails.trim() || undefined,
+        adminOverride: true,
       });
       setSkipOpen(false);
       setSkipReason('');
