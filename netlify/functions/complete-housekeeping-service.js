@@ -52,7 +52,13 @@ export const handler = async (event) => {
 
     const principal = identity.principal;
     const adminOverride = body?.adminOverride === true;
-    if (adminOverride && !requireBusinessPermission(principal, 'canManageSettings')) {
+    if (adminOverride && !(principal.actorType === 'business' || rbac.resolvePermissions({
+      actorType: principal.actorType,
+      role: principal.role,
+      permission_set: principal.permissions,
+      permissions: principal.permissions,
+      active: principal.active,
+    }).has('canManageSettings'))) {
       return response(403, headers, { success: false, error: 'Administrator permission required for this housekeeping completion override' });
     }
     const requestedBusinessId = body?.businessId || null;
