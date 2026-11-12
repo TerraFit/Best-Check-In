@@ -194,10 +194,10 @@ export const handler = async (event) => {
       ? `Other: ${normalizedDetails}`
       : normalizedDetails ? `${normalizedReason}: ${normalizedDetails}` : normalizedReason;
     const previousNotes = typeof task.notes === 'string' && task.notes.trim() ? task.notes.trim() : '';
-    const auditLabel = normalizedReason === 'Already cleaned' || normalizedReason === 'Room was cleaned but not recorded' ? 'Marked already cleaned' : normalizedReason === 'Maintenance' ? 'Marked maintenance' : 'Skipped';
+    const auditLabel = normalizedReason === 'Already cleaned' ? 'Marked already cleaned' : normalizedReason === 'Maintenance' ? 'Marked maintenance' : 'Skipped';
     const nextNotes = previousNotes ? `${previousNotes}\n${auditLabel}: ${auditReason}` : `${auditLabel}: ${auditReason}`;
 
-    const alreadyCleaned = normalizedReason === 'Already cleaned' || normalizedReason === 'Room was cleaned but not recorded';
+    const alreadyCleaned = normalizedReason === 'Already cleaned';
     const nextStatus = alreadyCleaned ? 'completed' : 'skipped';
     const taskPatch = alreadyCleaned
       ? { status: 'completed', completed_at: now, completed_by: principal.employeeId || principal.userId || null, inspection_status: 'approved', notes: nextNotes, updated_at: now }
