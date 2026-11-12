@@ -82,7 +82,13 @@ export const handler = async (event) => {
     // room-state override is separately asserted server-side and cannot be
     // obtained by merely having the staff task-completion permission.
     if (adminOverride === true) {
-      if (!requireBusinessPermission(principal, 'canManageSettings')) {
+      if (!(principal.actorType === 'business' || resolvePermissions({
+        actorType: principal.actorType,
+        role: principal.role,
+        permission_set: principal.permissions,
+        permissions: principal.permissions,
+        active: principal.active,
+      }).has('canManageSettings'))) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Administrator permission required for this room-state override' }) };
       }
     } else if (!hasPermission(principal, 'canCompleteHousekeepingTask')) {
