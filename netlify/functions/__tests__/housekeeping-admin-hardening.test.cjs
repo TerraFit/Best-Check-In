@@ -21,6 +21,14 @@ test('administrator Skip is separately authorized and staff Ignore remains avail
   assert.ok(!staffUi.includes('adminOverride: true'));
 });
 
+test('employee Ignore cannot mark a room ready or approve it as already cleaned', () => {
+  const source = read('netlify/functions/ignore-housekeeping-task.js');
+  assert.ok(source.includes("if (adminOverride !== true && ['Already cleaned', 'Maintenance'].includes(normalizedReason))"));
+  assert.ok(source.includes("const alreadyCleaned = normalizedReason === 'Already cleaned';"));
+  assert.ok(source.includes("const nextStatus = alreadyCleaned ? 'completed' : 'skipped';"));
+  assert.ok(source.includes("const roomPatch = alreadyCleaned"));
+});
+
 test('checkout housekeeping does not force room occupancy to vacant', () => {
   const source = read('netlify/functions/ignore-housekeeping-task.js');
   assert.ok(source.includes("? { housekeeping_status: 'ready' }"));
