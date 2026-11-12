@@ -59,32 +59,48 @@ exports.handler = async (event) => {
       return task.scheduled_date === todayStr && now >= cutoffToday;
     };
 
-    let tasks;
-    if (view === 'today') {
-      const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
-      const openRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lte.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)${roomFilter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc`, { headers: restHeaders });
-      if (!openRes.ok) return (() => { const e = upstreamFailure(openRes.status, 'open tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      const completedRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}${roomFilter}&select=${TASK_SELECT}&order=completed_at.asc`, { headers: restHeaders });
-      if (!completedRes.ok) return (() => { const e = upstreamFailure(completedRes.status, 'completed tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      const combined = [...await openRes.json(), ...await completedRes.json()];
-      const byId = new Map();
-      for (const task of combined) byId.set(task.id, task);
-      tasks = [...byId.values()].sort((a, b) => {
-        const aDate = a.status === 'completed' ? (a.completed_at || a.scheduled_date) : a.scheduled_date;
-        const bDate = b.status === 'completed' ? (b.completed_at || b.scheduled_date) : b.scheduled_date;
-        return String(aDate).localeCompare(String(bDate));
-      });
-    } else {
-      let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
-      if (roomId) filter += `&room_id=eq.${encodeURIComponent(roomId)}`;
-      if (view === 'pending') filter += '&status=in.(pending,in_progress)';
-      else if (view === 'completed') filter += '&status=eq.completed';
-      else if (status) filter += `&status=eq.${encodeURIComponent(status)}`;
-      const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc`, { headers: restHeaders });
-      if (!res.ok) return (() => { const e = upstreamFailure(res.status, 'tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      tasks = await res.json();
+    // Fetch the room's complete task history first. The dashboard is room-oriented:
+    // the most recently updated task is authoritative, so older task records never
+    // create duplicate cards or override a newer status.
+    const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
+    const allRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=updated_at.desc,created_at.desc,scheduled_date.desc`, { headers: restHeaders });
+    if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'latest room tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
+    const allTasks = await allRes.json();
+    const latestByRoom = new Map();
+    const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
+    const recency = (task) => new Date(task.updated_at || task.created_at || task.scheduled_date || 0).getTime() || 0;
+    for (const task of allTasks) {
+      const key = roomKey(task);
+      const current = latestByRoom.get(key);
+      if (!current || recency(task) > recency(current) ||
+          (recency(task) === recency(current) && String(task.id) > String(current.id))) {
+        latestByRoom.set(key, task);
+      }
     }
-
+    const latestTasks = [...latestByRoom.values()];
+    if (view === 'today') {
+      // Pending work belongs exclusively in Pending. Today shows active work due
+      // by today and tasks completed today; a latest pending status suppresses
+      // the room from this view.
+      tasks = latestTasks.filter((task) =>
+        task.scheduled_date <= todayStr &&
+        (task.status === 'in_progress' ||
+          (task.status === 'completed' && task.completed_at &&
+            new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart))
+      );
+    } else if (view === 'pending') {
+      tasks = latestTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
+    } else if (view === 'completed') {
+      tasks = latestTasks.filter((task) => task.status === 'completed');
+    } else if (status) {
+      tasks = latestTasks.filter((task) => task.status === status);
+    } else {
+      tasks = latestTasks;
+    }
+    tasks.sort((a, b) =>
+      String(a.scheduled_date || '').localeCompare(String(b.scheduled_date || '')) ||
+      String(a.room_number || '').localeCompare(String(b.room_number || ''))
+    );
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
     const roomsById = {};
     if (roomIds.length) {
