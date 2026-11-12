@@ -114,6 +114,23 @@ export const handler = async (event) => {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
     }
 
+    if (adminOverride) {
+      const intentRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          business_id: scope.businessId,
+          room_id: session.room_id,
+          event_type: 'housekeeping_admin_service_completion_requested',
+          source: 'business_admin',
+          severity: 'info',
+          booking_id: session.booking_id,
+          details: { task_id: session.housekeeping_task_id, session_id: session.id, outcome: 'requested', performed_by: principal.employeeId || principal.userId || null, performed_by_type: principal.actorType || null },
+        }),
+      });
+      if (!intentRes.ok) return response(500, headers, { success: false, error: 'The administrator completion was not applied because its audit record could not be saved.', code: 'AUDIT_WRITE_FAILED', state_updated: false });
+    }
+
     const startedAt = new Date(session.started_at).getTime();
     if (!Number.isFinite(startedAt)) return response(500, headers, { success: false, error: 'Invalid service session timestamp' });
 
