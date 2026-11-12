@@ -87,12 +87,14 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
           checklistTotalCount: session.checklist_total_count || 0,
           issuesReportedCount: session.issues_reported_count || 0,
           notes: reason.trim() || session.notes || undefined,
+          adminOverride: true,
         });
       } else {
         await updateHousekeepingTask({
           businessId,
           taskId: task.id,
           status: 'completed',
+          adminOverride: true,
           notes: [task.notes, `Administrator completion: ${reason.trim()}`].filter(Boolean).join('\\n'),
         });
       }
