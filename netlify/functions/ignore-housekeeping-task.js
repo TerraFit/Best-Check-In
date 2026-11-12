@@ -8,7 +8,7 @@
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
 
-const { requireBusinessActor, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 const { resolvePermissions } = rbac;
 
 const IGNORE_REASONS = new Set([
@@ -53,7 +53,7 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
     }
 
-    const { businessId: requestedBusinessId, taskId, reason, details } = body;
+    const { businessId: requestedBusinessId, taskId, reason, details, adminOverride = false } = body;
     if (!taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
     if (!reason || typeof reason !== 'string' || !reason.trim()) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'An ignore reason is required' }) };
@@ -75,7 +75,14 @@ export const handler = async (event) => {
     const principal = authResult.principal;
     const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
-    if (!hasPermission(principal, 'canCompleteHousekeepingTask')) {
+    // Employee-portal Ignore remains permission-based. The administrator-only
+    // room-state override is separately asserted server-side and cannot be
+    // obtained by merely having the staff task-completion permission.
+    if (adminOverride === true) {
+      if (!requireBusinessPermission(principal, 'canManageSettings')) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Administrator permission required for this room-state override' }) };
+      }
+    } else if (!hasPermission(principal, 'canCompleteHousekeepingTask')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canCompleteHousekeepingTask' }) };
     }
 
@@ -99,6 +106,23 @@ export const handler = async (event) => {
 
     if (!['pending', 'in_progress'].includes(task.status)) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'Only pending or active housekeeping tasks can be skipped' }) };
+    }
+
+    // Validate the linked room before changing task/session state. Maintenance
+    // must never take an occupied or reserved room offline. Checkout housekeeping
+    // marks cleanliness only; it must not rewrite guest occupancy.
+    const roomRes = await fetch(
+      `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}&select=id,occupancy_status,availability_status,active,housekeeping_status`,
+      { headers: restHeaders },
+    );
+    if (!roomRes.ok) {
+      const e = upstream(roomRes.status, 'room lookup');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const room = (await roomRes.json())[0];
+    if (!room) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Room not found for this housekeeping task' }) };
+    if (normalizedReason === 'Maintenance' && String(room.occupancy_status || '').toLowerCase() !== 'vacant') {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'This room is occupied or reserved and cannot be marked unavailable for maintenance.', code: 'ROOM_NOT_VACANT' }) };
     }
 
     const activeRes = await fetch(
@@ -152,23 +176,27 @@ export const handler = async (event) => {
     }
 
     const roomPatch = alreadyCleaned
-      ? { housekeeping_status: 'ready', ...(task.is_checkout ? { occupancy_status: 'vacant' } : {}) }
+      ? { housekeeping_status: 'ready' }
       : normalizedReason === 'Maintenance'
         ? { availability_status: 'maintenance', housekeeping_status: 'not_ready', unavailable_reason: 'Maintenance' }
         : null;
     if (roomPatch) {
       const roomUpdate = await fetch(
-        `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`,
+        `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}${normalizedReason === 'Maintenance' ? '&occupancy_status=eq.vacant' : ''}`,
         { method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ ...roomPatch, updated_at: now }) },
       );
       if (!roomUpdate.ok) {
         console.error('ignore-housekeeping-task room update failed:', roomUpdate.status);
-        return { statusCode: 500, headers, body: JSON.stringify({ error: 'Task was updated but the room status could not be synchronized. Refresh the Rooms tab and contact support if it remains inconsistent.' }) };
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'Task was updated but the room status could not be synchronized. Refresh the Rooms tab and contact support if it remains inconsistent.', code: 'ROOM_SYNC_FAILED', task_updated: true }) };
+      }
+      const roomRows = await roomUpdate.json().catch(() => []);
+      if (!Array.isArray(roomRows) || roomRows.length !== 1) {
+        return { statusCode: 409, headers, body: JSON.stringify({ error: 'Room state changed while this action was being saved. The task was updated; refresh both tabs and review the room.', code: 'ROOM_STATE_CHANGED', task_updated: true }) };
       }
     }
 
     try {
-      await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+      const auditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
         method: 'POST',
         headers: writeHeaders,
         body: JSON.stringify({
@@ -195,8 +223,13 @@ export const handler = async (event) => {
           },
         }),
       });
+      if (!auditRes.ok) {
+        console.error('room_events ignore audit failed:', auditRes.status);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'The housekeeping action was applied, but its audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
+      }
     } catch (error) {
-      console.warn('room_events ignore audit failed:', error?.message || error);
+      console.error('room_events ignore audit failed:', error?.message || error);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'The housekeeping action was applied, but its audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
     }
 
     return {
