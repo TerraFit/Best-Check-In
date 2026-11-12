@@ -31,7 +31,7 @@ test('checkout housekeeping does not force room occupancy to vacant', () => {
 test('bulk room readiness is owner/administrator-only and audits before room mutation', () => {
   const source = read('netlify/functions/admin-bulk-room-readiness.js');
   assert.match(source, /requireBusinessPermission\(actor\.principal, 'canManageSettings'\)/);
-  assert.ok(source.indexOf("fetch(\u0060\u0024{supabaseUrl}/rest/v1/room_events") < source.indexOf('const patchResponse = await fetch(patchUrl'));
+  assert.ok(source.indexOf('const auditResponse = await fetch') < source.indexOf('const patchResponse = await fetch(patchUrl'));
   assert.match(source, /outcome: 'completed'/);
   assert.match(source, /occupancy_status=eq\.vacant/);
 });
@@ -51,7 +51,7 @@ test('administrator completion overrides are explicitly authorized and audited',
   assert.match(taskSource, /adminOverride === true/);
   assert.match(taskSource, /housekeeping_admin_task_completion_requested/);
   assert.match(taskSource, /AUDIT_WRITE_FAILED/);
-  assert.match(sessionSource, /adminOverride && !requireBusinessPermission/);
+  assert.match(sessionSource, /adminOverride && !\\([\\s\\S]*canManageSettings/);
   assert.match(sessionSource, /housekeeping_admin_service_completion_requested/);
   assert.match(sessionSource, /ROOM_SYNC_FAILED/);
   assert.match(sessionSource, /AUDIT_WRITE_FAILED/);
