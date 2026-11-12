@@ -78,6 +78,7 @@ exports.handler = async (event) => {
       }
     }
     const latestTasks = [...latestByRoom.values()];
+    let tasks = [];
     if (view === 'today') {
       // Pending work belongs exclusively in Pending. Today shows active work due
       // by today and tasks completed today; a latest pending status suppresses
@@ -139,7 +140,6 @@ exports.handler = async (event) => {
     const skippedRefreshTasks = skippedRefreshRes.ok ? await skippedRefreshRes.json() : [];
     if (!skippedRefreshRes.ok) console.error('get-housekeeping-tasks skipped Refresh lookup failed:', { status: skippedRefreshRes.status });
 
-    const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
     const compareTasks = (a, b) =>
       String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
       String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
