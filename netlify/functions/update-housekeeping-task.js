@@ -161,6 +161,24 @@ export const handler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
     }
 
+    if (adminOverride) {
+      const intentRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          business_id: businessId,
+          room_id: task.room_id,
+          event_type: 'housekeeping_admin_task_completion_requested',
+          source: 'business_admin',
+          severity: 'info',
+          booking_id: task.booking_id,
+          guest_name: task.guest_name,
+          details: { task_id: task.id, intended_status: status || task.status, notes: typeof notes === 'string' ? notes.slice(0, 500) : null, outcome: 'requested', performed_by: principal.employeeId || principal.userId || null, performed_by_type: principal.actorType || null },
+        }),
+      });
+      if (!intentRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'The administrator completion was not applied because its audit record could not be saved.', code: 'AUDIT_WRITE_FAILED', state_updated: false }) };
+    }
+
     if (!adminOverride && hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
       if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
