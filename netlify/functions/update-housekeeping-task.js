@@ -4,7 +4,7 @@
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
 
-const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const { resolvePermissions } = rbac;
 
 const STATUS_PERMISSIONS = Object.freeze({
