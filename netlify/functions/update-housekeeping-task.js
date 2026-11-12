@@ -4,7 +4,7 @@
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
 
-const { requireBusinessActor, resolveTenant, authFailure } = auth;
+const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 const { resolvePermissions } = rbac;
 
 const STATUS_PERMISSIONS = Object.freeze({
@@ -84,7 +84,7 @@ export const handler = async (event) => {
 
     const {
       businessId: requestedBusinessId, taskId, status, notes,
-      assigned_staff_id, assigned_staff_name, inspection_status,
+      assigned_staff_id, assigned_staff_name, inspection_status, adminOverride = false,
     } = body;
     if (!taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
 
@@ -95,6 +95,9 @@ export const handler = async (event) => {
     const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
+    if (adminOverride === true && !requireBusinessPermission(principal, 'canManageSettings')) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Administrator permission required for this housekeeping completion override' }) };
+    }
 
     const hasStatusMutation = status !== undefined;
     const hasAssignmentMutation = assigned_staff_id !== undefined || assigned_staff_name !== undefined;
@@ -121,7 +124,7 @@ export const handler = async (event) => {
     if (status === 'pending' && !hasPermission(principal, 'canAssignHousekeepingTasks')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canAssignHousekeepingTasks' }) };
     }
-    if (status && STATUS_PERMISSIONS[status] && !hasPermission(principal, STATUS_PERMISSIONS[status])) {
+    if (!adminOverride && status && STATUS_PERMISSIONS[status] && !hasPermission(principal, STATUS_PERMISSIONS[status])) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${STATUS_PERMISSIONS[status]}` }) };
     }
 
@@ -154,11 +157,11 @@ export const handler = async (event) => {
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    if ((status && STATUS_PERMISSIONS[status]) && !canOverrideTaskExecution(principal, task)) {
+    if (!adminOverride && (status && STATUS_PERMISSIONS[status]) && !canOverrideTaskExecution(principal, task)) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
     }
 
-    if (hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
+    if (!adminOverride && hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
       if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
       }
@@ -221,15 +224,18 @@ export const handler = async (event) => {
 
     if (roomPatch && task.room_id) {
       roomPatch.updated_at = new Date().toISOString();
-      await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
+      const roomUpdateRes = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(task.room_id)}&business_id=eq.${encodeURIComponent(businessId)}`, {
         method: 'PATCH',
         headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify(roomPatch),
-      }).catch((e) => console.warn('room patch failed', e.message));
+      }).catch((e) => { console.warn('room patch failed', e.message); return null; });
+      if (!roomUpdateRes?.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'The task was updated, but the room status could not be synchronized. Refresh the Rooms tab and investigate.', code: 'ROOM_SYNC_FAILED', state_updated: true }) };
+      const roomRows = await roomUpdateRes.json().catch(() => []);
+      if (!Array.isArray(roomRows) || roomRows.length !== 1) return { statusCode: 409, headers, body: JSON.stringify({ error: 'The task was updated, but the room state could not be confirmed. Refresh and investigate.', code: 'ROOM_STATE_CHANGED', state_updated: true }) };
     }
 
     try {
-      await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+      const auditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
         method: 'POST',
         headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +245,11 @@ export const handler = async (event) => {
           details: { task_id: taskId, task_type: task.task_type, is_checkout: task.is_checkout, status: next.status, inspection_status: next.inspection_status, room_patch: roomPatch, performed_by: principal.employeeId || principal.userId || null, performed_by_type: principal.actorType || null, performed_by_name: principal.name || principal.email || null },
         }),
       });
-    } catch (e) { console.warn('room_events', e.message); }
+      if (!auditRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'The task and room were updated, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
+    } catch (e) {
+      console.error('room_events audit failed:', e.message);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'The task and room were updated, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, task: next, room_patch: roomPatch }) };
   } catch (error) {
