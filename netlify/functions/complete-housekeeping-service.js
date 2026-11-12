@@ -5,7 +5,7 @@
 
 import auth from './_auth.cjs';
 import rbac from './_rbac.cjs';
-const { requireBusinessActor, requireBusinessPermission, resolveTenant } = auth;
+const { requireBusinessActor, resolveTenant } = auth;
 
 const MANAGEMENT_ROLES = new Set(['general_manager', 'manager', 'director', 'supervisor', 'team_leader', 'foreman']);
 
