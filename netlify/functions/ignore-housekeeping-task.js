@@ -265,6 +265,43 @@ export const handler = async (event) => {
         }
         const clearedRows = await clearRes.json().catch(() => null);
         if (!Array.isArray(clearedRows)) {
+          // The PATCH may have succeeded even if its representation was lost.
+          // Record the candidate IDs as unconfirmed rather than silently leaving
+          // a state-changing operation without an audit trail.
+          const unconfirmedAuditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+            method: 'POST',
+            headers: writeHeaders,
+            body: JSON.stringify({
+              business_id: businessId,
+              room_id: task.room_id,
+              event_type: 'housekeeping_previous_pending_tasks_cleanup_unconfirmed',
+              source: principal.actorType || 'staff',
+              severity: 'warning',
+              booking_id: task.booking_id,
+              guest_name: task.guest_name,
+              details: {
+                current_task_id: task.id,
+                reason: normalizedReason,
+                outcome: 'unconfirmed',
+                expected_count: clearedPreviousTasks.length,
+                changed_count: null,
+                candidate_tasks: clearedPreviousTasks.map((item) => ({
+                  task_id: item.id,
+                  booking_id: item.booking_id,
+                  guest_name: item.guest_name,
+                  scheduled_date: item.scheduled_date,
+                  previous_status: item.status,
+                  resulting_status: 'unknown',
+                })),
+                performed_by: principal.employeeId || principal.userId || null,
+                performed_by_type: principal.actorType || null,
+                performed_by_name: principal.name || principal.email || null,
+              },
+            }),
+          });
+          if (!unconfirmedAuditRes.ok) {
+            return { statusCode: 500, headers, body: JSON.stringify({ error: 'Previous task updates may have been applied and the audit record could not be saved. Contact an administrator immediately.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
+          }
           return { statusCode: 500, headers, body: JSON.stringify({ error: 'Previous housekeeping task updates may have been applied, but the changed rows could not be confirmed. Refresh and ask an administrator to review the room.', code: 'PREVIOUS_TASKS_UNCONFIRMED', state_updated: true }) };
         }
 
