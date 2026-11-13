@@ -138,6 +138,142 @@ test('bulk readiness handler leaves rooms untouched when a task is in progress o
   }
 });
 
+
+test('employee service start wins the room-version race and admin readiness cannot overwrite it', async () => {
+  const { handler: startHandler } = await import('../start-housekeeping-service.js');
+  const { handler: adminHandler } = await import('../admin-bulk-room-readiness.js');
+  const employeeId = '33333333-3333-4333-8333-333333333333';
+  const initialVersion = '2026-11-13T10:00:00.000Z';
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    task_type: 'refresh', assigned_staff_id: employeeId, assigned_staff_name: 'Housekeeper',
+    booking_id: null,
+  };
+  const room = {
+    id: ROOM_ID, room_number: '1', room_name: 'Stone', room_type: 'Luxury',
+    active: true, availability_status: 'available', occupancy_status: 'vacant',
+    housekeeping_status: 'ready', updated_at: initialVersion,
+  };
+  let activeTask = { ...task };
+  let sessionCreated = false;
+  let sessionCheckCount = 0;
+  let startResult = null;
+  const calls = [];
+
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ target, method, body });
+
+    if (target.includes('/rooms?id=in.(')) return jsonResponse([{ ...room }]);
+    if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_sessions?') && target.includes('status=eq.active')) {
+      sessionCheckCount += 1;
+      const snapshot = [];
+      return {
+        ok: true, status: 200,
+        json: async () => {
+          // Return the final active-work snapshot first, then let the employee
+          // claim the same room before the administrator issues its PATCH.
+          if (sessionCheckCount === 2) {
+            startResult = await startHandler({
+              ...authEvent({ employee: true, permissions: ['canStartHousekeepingTask'] }),
+              httpMethod: 'POST',
+              body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, serviceType: 'refresh' }),
+            });
+          }
+          return snapshot;
+        },
+        text: async () => '[]',
+      };
+    }
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'GET') return jsonResponse([{ ...activeTask }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([{ ...room }]);
+    if (target.includes('/housekeeping_service_settings?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_targets?')) return jsonResponse([]);
+
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') {
+      if (target.includes('updated_at=eq.')) {
+        const expectedVersion = decodeURIComponent(target.split('updated_at=eq.')[1].split('&')[0]);
+        if (room.updated_at !== expectedVersion) return jsonResponse([]);
+      }
+      Object.assign(room, body);
+      return jsonResponse([{ ...room }]);
+    }
+    if (target.includes('/housekeeping_service_sessions') && method === 'POST') {
+      sessionCreated = true;
+      return jsonResponse([{
+        id: 'session-race-1', business_id: BUSINESS_ID, room_id: ROOM_ID,
+        housekeeping_task_id: TASK_ID, status: 'active',
+      }]);
+    }
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'PATCH') {
+      if (activeTask.status !== 'pending') return jsonResponse([]);
+      activeTask = { ...activeTask, ...body };
+      return jsonResponse([{ ...activeTask }]);
+    }
+    if (target.includes('/room_events') && method === 'POST') return jsonResponse([{ id: 'audit-race-1' }]);
+    if (target.includes('/room_events') && method === 'PATCH') return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const adminResult = await adminHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, roomIds: [ROOM_ID], action: 'approved' }),
+    });
+
+    assert.equal(startResult?.statusCode, 200, 'employee start should successfully claim the room first');
+    assert.equal(sessionCreated, true);
+    assert.equal(activeTask.status, 'in_progress');
+    assert.equal(room.housekeeping_status, 'cleaning_in_progress');
+    assert.equal(adminResult.statusCode, 200);
+    const payload = JSON.parse(adminResult.body);
+    assert.equal(payload.updated, 0, 'administrator compare-and-set must not overwrite the employee claim');
+    assert.equal(payload.notChanged, 1);
+    assert.match(payload.unchanged[0].reason, /state changed/i);
+    const adminRoomPatch = calls.find((call) =>
+      call.method === 'PATCH' && call.target.includes('/rooms?id=eq.') && call.body?.housekeeping_status === 'ready');
+    assert.ok(adminRoomPatch, 'administrator must attempt its guarded compare-and-set');
+    assert.match(adminRoomPatch.target, /updated_at=eq\./, 'administrator update must be version-conditional');
+  });
+});
+
+test('employee start fails closed when its room-version claim loses to a concurrent room update', async () => {
+  const { handler } = await import('../start-housekeeping-service.js');
+  const employeeId = '33333333-3333-4333-8333-333333333333';
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    assigned_staff_id: employeeId, booking_id: null,
+  };
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    calls.push({ target, method });
+    if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID)) return jsonResponse([{ ...task }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([{
+      id: ROOM_ID, room_type: 'Luxury', housekeeping_status: 'ready',
+      updated_at: '2026-11-13T10:00:00.000Z',
+    }]);
+    if (target.includes('/housekeeping_service_settings?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_targets?')) return jsonResponse([]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canStartHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, serviceType: 'refresh' }),
+    });
+    assert.equal(result.statusCode, 409);
+    assert.equal(JSON.parse(result.body).code, 'ROOM_STATE_CHANGED');
+    assert.equal(calls.some((call) => call.method === 'POST' && call.target.includes('/housekeeping_service_sessions')), false);
+  });
+});
+
 test('Today handler keeps overdue pending work visible when a newer completed-today task exists for the room', async () => {
   const { handler } = await import('../get-housekeeping-tasks.js');
   const overduePending = {
