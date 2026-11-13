@@ -21,6 +21,20 @@ test('administrator Skip is separately authorized and staff Ignore remains avail
   assert.ok(!staffUi.includes('adminOverride: true'));
 });
 
+test('employee confirms cleaned room and closes older pending tasks for that room without deleting history', () => {
+  const source = read('netlify/functions/ignore-housekeeping-task.js');
+  assert.ok(source.includes("normalizedReason === 'Room was cleaned but not recorded'"));
+  assert.ok(source.includes('&status=eq.pending&scheduled_date=lte.'));
+  assert.ok(source.includes('&id=neq.'));
+  assert.ok(source.includes("status: 'skipped'"));
+  assert.ok(source.includes('cleared_previous_pending_tasks'));
+  assert.ok(source.includes('PREVIOUS_TASKS_CHANGED'));
+  assert.ok(source.includes('cleared_previous_pending_tasks: clearedPreviousTasks.length'));
+  // Employee confirmation must not acquire the administrator-only room-ready patch.
+  assert.ok(source.includes("const alreadyCleaned = normalizedReason === 'Already cleaned';"));
+  assert.ok(source.includes("if (adminOverride !== true && ['Already cleaned', 'Maintenance'].includes(normalizedReason))"));
+});
+
 test('employee Ignore cannot mark a room ready or approve it as already cleaned', () => {
   const source = read('netlify/functions/ignore-housekeeping-task.js');
   assert.ok(source.includes("if (adminOverride !== true && ['Already cleaned', 'Maintenance'].includes(normalizedReason))"));
