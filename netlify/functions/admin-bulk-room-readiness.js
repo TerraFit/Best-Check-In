@@ -17,6 +17,12 @@ function hasAdministratorPermission(principal) {
   }).has('canManageSettings');
 }
 
+function nextRoomVersion(currentVersion) {
+  const previousMs = Date.parse(currentVersion);
+  const nowMs = Date.now();
+  return new Date(Number.isFinite(previousMs) ? Math.max(nowMs, previousMs + 1) : nowMs).toISOString();
+}
+
 function response(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
@@ -98,7 +104,7 @@ export const handler = async (event) => {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room is inactive, unavailable, or occupied/reserved.' });
         continue;
       }
-      if (!room.updated_at) {
+      if (!room.updated_at || !Number.isFinite(Date.parse(room.updated_at))) {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room state cannot be safely version-checked; no change was made.' });
         continue;
       }
@@ -167,7 +173,7 @@ export const handler = async (event) => {
       const patchResponse = await fetch(patchUrl, {
         method: 'PATCH',
         headers: writeHeaders,
-        body: JSON.stringify({ housekeeping_status: 'ready', updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ housekeeping_status: 'ready', updated_at: nextRoomVersion(room.updated_at) }),
       });
       if (!patchResponse.ok) {
         console.error('admin-bulk-room-readiness room update failed:', patchResponse.status);
