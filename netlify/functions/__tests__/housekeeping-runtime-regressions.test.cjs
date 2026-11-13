@@ -72,7 +72,7 @@ test('ignore handler returns an audited 409 for partial previous-task cleanup', 
     if (String(url).includes('/housekeeping_tasks?id=eq.' + TASK_ID)) return jsonResponse([task]);
     if (String(url).includes('/rooms?id=eq.' + ROOM_ID)) return jsonResponse([room]);
     if (String(url).includes('/housekeeping_service_sessions?')) return jsonResponse([]);
-    if (String(url).includes('/housekeeping_tasks?') && String(url).includes('status=eq.pending')) return jsonResponse(previousTasks);
+    if (method === 'GET' && String(url).includes('/housekeeping_tasks?') && String(url).includes('status=eq.pending')) return jsonResponse(previousTasks);
     if (method === 'PATCH' && String(url).includes('/housekeeping_tasks?id=in.')) return jsonResponse([{ ...previousTasks[0], status: 'skipped' }]);
     if (method === 'POST' && String(url).includes('/room_events')) return jsonResponse([{ id: 'audit-1' }]);
     throw new Error('Unexpected Supabase request: ' + method + ' ' + url);
