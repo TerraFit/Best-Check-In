@@ -165,6 +165,45 @@ export const handler = async (event) => {
       }
     }
 
+    // When staff confirm that the room was cleaned outside FastCheckIn, older
+    // pending tasks for the same room are obsolete. Close only tasks due on or
+    // before this task's scheduled date; future guest services remain untouched.
+    // These records are retained as skipped for audit/history, never deleted.
+    let clearedPreviousTasks = [];
+    if (normalizedReason === 'Room was cleaned but not recorded') {
+      const previousTasksRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(task.room_id)}&status=eq.pending&scheduled_date=lte.${encodeURIComponent(task.scheduled_date)}&id=neq.${encodeURIComponent(task.id)}&select=id,booking_id,guest_name,scheduled_date,status&order=scheduled_date.asc,created_at.asc,id.asc`,
+        { headers: restHeaders },
+      );
+      if (!previousTasksRes.ok) {
+        const e = upstream(previousTasksRes.status, 'previous pending room tasks lookup');
+        return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+      }
+      clearedPreviousTasks = await previousTasksRes.json();
+      if (clearedPreviousTasks.length) {
+        const previousIds = clearedPreviousTasks.map((item) => encodeURIComponent(item.id)).join(',');
+        const clearRes = await fetch(
+          `${supabaseUrl}/rest/v1/housekeeping_tasks?id=in.(${previousIds})&business_id=eq.${encodeURIComponent(businessId)}&status=eq.pending`,
+          {
+            method: 'PATCH',
+            headers: writeHeaders,
+            body: JSON.stringify({
+              status: 'skipped',
+              updated_at: new Date().toISOString(),
+            }),
+          },
+        );
+        if (!clearRes.ok) {
+          console.error('ignore-housekeeping-task previous pending task cleanup failed:', clearRes.status);
+          return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to clear previous pending cleaning tasks safely' }) };
+        }
+        const clearedRows = await clearRes.json();
+        if (!Array.isArray(clearedRows) || clearedRows.length !== clearedPreviousTasks.length) {
+          return { statusCode: 409, headers, body: JSON.stringify({ error: 'One or more previous housekeeping tasks changed while this action was being saved. Refresh the task list and review the room.', code: 'PREVIOUS_TASKS_CHANGED' }) };
+        }
+      }
+    }
+
     const activeRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&housekeeping_task_id=eq.${encodeURIComponent(task.id)}&status=eq.active&select=id`,
       { headers: restHeaders },
@@ -257,6 +296,13 @@ export const handler = async (event) => {
             previous_status: task.status,
             status: nextStatus,
             room_patch: roomPatch,
+            cleared_previous_pending_tasks: clearedPreviousTasks.map((item) => ({
+              task_id: item.id,
+              booking_id: item.booking_id,
+              guest_name: item.guest_name,
+              scheduled_date: item.scheduled_date,
+              previous_status: item.status,
+            })),
             performed_by: principal.employeeId || principal.userId || null,
             performed_by_type: principal.actorType || null,
             performed_by_name: principal.name || principal.email || null,
@@ -275,7 +321,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, task: updatedRows[0], reason: normalizedReason, details: normalizedDetails || null, room_patch: roomPatch, status: nextStatus }),
+      body: JSON.stringify({ success: true, task: updatedRows[0], reason: normalizedReason, details: normalizedDetails || null, room_patch: roomPatch, status: nextStatus, cleared_previous_pending_tasks: clearedPreviousTasks.length }),
     };
   } catch (error) {
     console.error('ignore-housekeeping-task fatal:', error);
