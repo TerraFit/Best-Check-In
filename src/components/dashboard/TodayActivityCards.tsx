@@ -59,7 +59,7 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
     const restrictions = guest.food_restrictions || {};
     const labels = Object.entries(restrictions)
       .filter(([key, value]) => value === true && key !== 'other_text' && !(key === 'other' && String(restrictions.other_text || '').trim()))
-      .map(([key]) => key === 'other' ? 'Other' : key.replace(/_/g, ' '));
+      .map(([key]) => t(`dietary_${key}`));
     const otherText = typeof restrictions.other_text === 'string' ? restrictions.other_text.trim() : '';
     if (otherText) labels.push(otherText);
     return labels.join(', ');
@@ -114,7 +114,7 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
                     )}
                     {hasDietaryRestrictions(guest) && (
                       <p className="text-xs text-amber-800 mt-1 whitespace-normal">
-                        <strong>Food restrictions:</strong> {getDietaryRestrictionText(guest)}
+                        <strong>{t('checkin_dietary_title')}:</strong> {getDietaryRestrictionText(guest)}
                       </p>
                     )}
                   </div>
