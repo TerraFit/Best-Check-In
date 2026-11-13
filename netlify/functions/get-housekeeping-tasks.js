@@ -4,7 +4,8 @@
 // Phase 0: authentication is mandatory and business scope is JWT-bound.
 // Read access does not require a live employee-status lookup; execution endpoints do.
 
-const { authenticateHousekeepingService, resolveBusinessId } = require('./_housekeepingServiceAuth.cjs');
+import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
+const { authenticateHousekeepingService, resolveBusinessId } = housekeepingServiceAuth;
 
 const TASK_SELECT = [
   'id', 'business_id', 'room_id', 'room_number', 'room_name', 'booking_id', 'guest_name',
@@ -46,7 +47,7 @@ async function fetchAllRows(url, headers, pageSize = 1000) {
   return { ok: true, rows };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
@@ -99,12 +100,19 @@ exports.handler = async (event) => {
     if (view === 'today') {
       // Today includes pending/in-progress work due today or overdue, plus
       // tasks completed today. Pending must not disappear from the Today view.
-      const todayCandidates = allTasks.filter((task) =>
-        (['pending', 'in_progress'].includes(task.status) && task.scheduled_date <= todayStr) ||
-        (task.status === 'completed' && task.completed_at &&
-          new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart)
+      const dueOpenTasks = allTasks.filter((task) =>
+        ['pending', 'in_progress'].includes(task.status) && task.scheduled_date <= todayStr
       );
-      tasks = latestPerRoom(todayCandidates);
+      const completedTodayTasks = allTasks.filter((task) =>
+        task.status === 'completed' && task.completed_at &&
+        new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart
+      );
+      // Outstanding due work always takes precedence over a completed-today
+      // history row for the same room. Keep the dashboard to one card per room.
+      const latestDueOpenByRoom = latestPerRoom(dueOpenTasks);
+      const roomsWithDueOpenWork = new Set(latestDueOpenByRoom.map(roomKey));
+      const completedForOtherRooms = completedTodayTasks.filter((task) => !roomsWithDueOpenWork.has(roomKey(task)));
+      tasks = [...latestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
     } else if (view === 'pending') {
       const openTasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
       const dueTasks = openTasks.filter((task) => task.scheduled_date <= todayStr);
