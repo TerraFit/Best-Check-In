@@ -21,6 +21,23 @@ function response(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
+async function checkActiveHousekeepingWork(supabaseUrl, businessId, roomId, readHeaders) {
+  const taskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}&status=eq.in_progress&select=id,status`;
+  const sessionUrl = `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}&status=eq.active&select=id,status`;
+  try {
+    const [taskResponse, sessionResponse] = await Promise.all([
+      fetch(taskUrl, { headers: readHeaders }),
+      fetch(sessionUrl, { headers: readHeaders }),
+    ]);
+    if (!taskResponse.ok || !sessionResponse.ok) return { ok: false };
+    const [tasks, sessions] = await Promise.all([taskResponse.json(), sessionResponse.json()]);
+    if (!Array.isArray(tasks) || !Array.isArray(sessions)) return { ok: false };
+    return { ok: true, active: tasks.length > 0 || sessions.length > 0 };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -81,6 +98,19 @@ export const handler = async (event) => {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room is inactive, unavailable, or occupied/reserved.' });
         continue;
       }
+      if (room.housekeeping_status === 'cleaning_in_progress') {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'A housekeeping service is currently in progress.' });
+        continue;
+      }
+      const activeWork = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders);
+      if (!activeWork.ok) {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Unable to verify active housekeeping work; no change was made.' });
+        continue;
+      }
+      if (activeWork.active) {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'An in-progress housekeeping task or active service session must be completed first.' });
+        continue;
+      }
 
       const eventType = action === 'approved' ? 'admin_bulk_housekeeping_approved' : 'admin_bulk_housekeeping_skipped';
       const eventPayload = {
@@ -106,6 +136,25 @@ export const handler = async (event) => {
       }
       const auditRows = await auditResponse.json().catch(() => []);
       const auditId = Array.isArray(auditRows) ? auditRows[0]?.id : null;
+
+      // Recheck after writing the audit intent to narrow the race window between
+      // eligibility validation and the room-state mutation. Fail closed on lookup errors.
+      const finalWorkCheck = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders);
+      if (!finalWorkCheck.ok || finalWorkCheck.active) {
+        if (auditId) {
+          await fetch(`${supabaseUrl}/rest/v1/room_events?id=eq.${encodeURIComponent(auditId)}&business_id=eq.${encodeURIComponent(businessId)}`, {
+            method: 'PATCH',
+            headers: writeHeaders,
+            body: JSON.stringify({ details: {
+              ...eventPayload.details,
+              outcome: 'not_applied',
+              failure: finalWorkCheck.ok ? 'Housekeeping work became active before room readiness could be changed.' : 'Active housekeeping work could not be rechecked.',
+            } }),
+          }).catch(() => {});
+        }
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: finalWorkCheck.ok ? 'Housekeeping work became active before the room could be marked ready.' : 'Unable to recheck active housekeeping work; no change was made.' });
+        continue;
+      }
 
       const patchUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(room.id)}&business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&availability_status=eq.available&occupancy_status=eq.vacant`;
       const patchResponse = await fetch(patchUrl, {
