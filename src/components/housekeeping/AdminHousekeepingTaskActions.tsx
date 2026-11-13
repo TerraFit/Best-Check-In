@@ -7,7 +7,7 @@ import {
 } from '../../services/housekeepingApi';
 import type { HousekeepingTask } from '../../types/housekeeping';
 import type { HousekeepingIssue } from '../../types/housekeepingIssues';
-import { getAuthHeader, getEmployeeAuth } from '../../utils/auth';
+import { getAuthHeader } from '../../utils/auth';
 
 interface Props {
   businessId: string;
@@ -36,8 +36,10 @@ export default function AdminHousekeepingTaskActions({ businessId, task, onActio
   const [skipReason, setSkipReason] = useState('');
   const [skipDetails, setSkipDetails] = useState('');
 
-  // Keep administrator controls out of the employee portal.
-  if (getEmployeeAuth() || !['pending', 'in_progress'].includes(task.status)) return null;
+  // Hide administrator controls only on employee-facing routes. A stale
+  // employee session can coexist with a valid business dashboard session.
+  const isEmployeePortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/employee');
+  if (isEmployeePortal || !['pending', 'in_progress'].includes(task.status)) return null;
 
   const session = task.active_session;
   const started = session?.started_at || task.started_at;
