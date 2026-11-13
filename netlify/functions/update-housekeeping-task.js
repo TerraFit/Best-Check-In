@@ -86,6 +86,10 @@ export const handler = async (event) => {
       businessId: requestedBusinessId, taskId, status, notes,
       assigned_staff_id, assigned_staff_name, inspection_status, adminOverride = false,
     } = body;
+    if (typeof adminOverride !== 'boolean') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'adminOverride must be a boolean' }) };
+    }
+    const isAdminOverride = adminOverride === true;
     if (!taskId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'taskId required' }) };
 
     const authResult = requireBusinessActor(event);
@@ -95,7 +99,7 @@ export const handler = async (event) => {
     const scope = resolveTenant(principal, requestedBusinessId || null);
     if (!scope.ok) return { statusCode: scope.status, headers, body: JSON.stringify({ error: scope.error }) };
     const businessId = scope.businessId;
-    if (adminOverride === true && !principalPermissions(principal).has('canManageSettings')) {
+    if (isAdminOverride && !principalPermissions(principal).has('canManageSettings')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Administrator permission required for this housekeeping completion override' }) };
     }
 
@@ -124,7 +128,7 @@ export const handler = async (event) => {
     if (status === 'pending' && !hasPermission(principal, 'canAssignHousekeepingTasks')) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Missing permission: canAssignHousekeepingTasks' }) };
     }
-    if (!adminOverride && status && STATUS_PERMISSIONS[status] && !hasPermission(principal, STATUS_PERMISSIONS[status])) {
+    if (!isAdminOverride && status && STATUS_PERMISSIONS[status] && !hasPermission(principal, STATUS_PERMISSIONS[status])) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: `Missing permission: ${STATUS_PERMISSIONS[status]}` }) };
     }
 
@@ -157,11 +161,11 @@ export const handler = async (event) => {
     const task = (await taskRes.json())[0];
     if (!task) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Task not found' }) };
 
-    if (!adminOverride && (status && STATUS_PERMISSIONS[status]) && !canOverrideTaskExecution(principal, task)) {
+    if (!isAdminOverride && (status && STATUS_PERMISSIONS[status]) && !canOverrideTaskExecution(principal, task)) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task is assigned to another employee' }) };
     }
 
-    if (adminOverride) {
+    if (isAdminOverride) {
       const intentRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/room_events`, {
         method: 'POST',
         headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
@@ -179,7 +183,7 @@ export const handler = async (event) => {
       if (!intentRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'The administrator completion was not applied because its audit record could not be saved.', code: 'AUDIT_WRITE_FAILED', state_updated: false }) };
     }
 
-    if (!adminOverride && hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
+    if (!isAdminOverride && hasNotesMutation && !hasAssignmentMutation && !hasInspectionMutation && !status) {
       if (!canOverrideTaskExecution(principal, task)) {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden: task notes may only be edited by an authorized task executor or manager' }) };
       }
