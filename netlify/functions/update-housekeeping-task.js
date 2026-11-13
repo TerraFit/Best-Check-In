@@ -24,6 +24,10 @@ function principalPermissions(principal) {
   });
 }
 
+export function isValidAdminOverride(value) {
+  return typeof value === 'boolean';
+}
+
 function hasPermission(principal, permission) {
   if (!principal) return false;
   if (principal.actorType === 'business') return true;
@@ -86,7 +90,7 @@ export const handler = async (event) => {
       businessId: requestedBusinessId, taskId, status, notes,
       assigned_staff_id, assigned_staff_name, inspection_status, adminOverride = false,
     } = body;
-    if (typeof adminOverride !== 'boolean') {
+    if (!isValidAdminOverride(adminOverride)) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'adminOverride must be a boolean' }) };
     }
     const isAdminOverride = adminOverride === true;
