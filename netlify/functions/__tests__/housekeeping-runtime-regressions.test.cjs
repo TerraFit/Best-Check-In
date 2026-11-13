@@ -110,7 +110,7 @@ test('bulk readiness handler leaves rooms untouched when a task is in progress o
           return jsonResponse([{
             id: ROOM_ID, room_number: '1', room_name: 'Stone',
             active: true, availability_status: 'available', occupancy_status: 'vacant',
-            housekeeping_status: 'ready',
+            housekeeping_status: 'ready', updated_at: '2026-11-13T10:00:00.000Z',
           }]);
         }
         if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) {
