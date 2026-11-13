@@ -67,10 +67,12 @@ test('administrator completion overrides are explicitly authorized and audited',
   assert.ok(sessionSource.includes('AUDIT_WRITE_FAILED'));
 });
 
-test('Today includes pending services due today and task views retain independent room services', () => {
+test('Today includes pending due services while keeping one operational card per room', () => {
   const source = read('netlify/functions/get-housekeeping-tasks.js');
   assert.match(source, /\['pending', 'in_progress'\]\.includes\(task\.status\) && task\.scheduled_date <= todayStr/);
-  assert.match(source, /if \(view === 'pending'\)[\s\S]*?allTasks\.filter\(\(task\) => \['pending', 'in_progress'\]\.includes\(task\.status\)\)/);
-  assert.match(source, /if \(view === 'completed'\)[\s\S]*?allTasks\.filter\(\(task\) => task\.status === 'completed'\)/);
-  assert.doesNotMatch(source, /latestByRoom/);
+  assert.match(source, /const todayCandidates = allTasks\.filter/);
+  assert.match(source, /tasks = latestPerRoom\(todayCandidates\)/);
+  assert.match(source, /const roomsWithDueTasks = new Set\(dueTasks\.map\(roomKey\)\)/);
+  assert.match(source, /const latestPerRoom = \(candidateTasks\)/);
+  assert.match(source, /if \(view === 'completed'\)[\s\S]*?latestPerRoom\(allTasks\.filter\(\(task\) => task\.status === 'completed'\)\)/);
 });
