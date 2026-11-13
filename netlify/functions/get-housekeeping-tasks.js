@@ -74,35 +74,53 @@ exports.handler = async (event) => {
       return task.scheduled_date === todayStr && now >= cutoffToday;
     };
 
-    // A room can have multiple independent services (for example, today's
-    // Refresh and tomorrow's checkout Full Service). Keep task records distinct:
-    // reducing history to one task per room can hide work that is still due.
+    // Keep the operational dashboard room-oriented: one card per room.
+    // Select from the tasks relevant to the current view before collapsing history,
+    // so a future checkout task cannot hide a Refresh due today.
     const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
     const allRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc,id.asc`, restHeaders);
     if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'housekeeping tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
     const allTasks = allRes.rows;
     const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
+    const recency = (task) => new Date(task.updated_at || task.created_at || task.scheduled_date || 0).getTime() || 0;
+    const latestPerRoom = (candidateTasks) => {
+      const latestByRoom = new Map();
+      for (const task of candidateTasks) {
+        const key = roomKey(task);
+        const current = latestByRoom.get(key);
+        if (!current || recency(task) > recency(current) ||
+            (recency(task) === recency(current) && String(task.id) > String(current.id))) {
+          latestByRoom.set(key, task);
+        }
+      }
+      return [...latestByRoom.values()];
+    };
     let tasks = [];
     if (view === 'today') {
-      // Today includes all pending/in-progress work due today or overdue,
-      // plus work completed today. Pending tasks must not disappear from Today.
-      tasks = allTasks.filter((task) =>
+      // Today includes pending/in-progress work due today or overdue, plus
+      // tasks completed today. Pending must not disappear from the Today view.
+      const todayCandidates = allTasks.filter((task) =>
         (['pending', 'in_progress'].includes(task.status) && task.scheduled_date <= todayStr) ||
         (task.status === 'completed' && task.completed_at &&
           new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart)
       );
+      tasks = latestPerRoom(todayCandidates);
     } else if (view === 'pending') {
-      tasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
+      const openTasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
+      const dueTasks = openTasks.filter((task) => task.scheduled_date <= todayStr);
+      const roomsWithDueTasks = new Set(dueTasks.map(roomKey));
+      // Show current/overdue work before future scheduled services for the same room.
+      const futureTasks = openTasks.filter((task) => task.scheduled_date > todayStr && !roomsWithDueTasks.has(roomKey(task)));
+      tasks = latestPerRoom([...dueTasks, ...futureTasks]);
     } else if (view === 'completed') {
-      tasks = allTasks.filter((task) => task.status === 'completed');
+      tasks = latestPerRoom(allTasks.filter((task) => task.status === 'completed'));
     } else if (status) {
-      tasks = allTasks.filter((task) => task.status === status);
+      tasks = latestPerRoom(allTasks.filter((task) => task.status === status));
     } else {
-      tasks = allTasks;
+      tasks = latestPerRoom(allTasks);
     }
     tasks.sort((a, b) =>
       String(a.scheduled_date || '').localeCompare(String(b.scheduled_date || '')) ||
-      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.room_number || '').localeCompare(String(b.room_number || ''))
     );
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
