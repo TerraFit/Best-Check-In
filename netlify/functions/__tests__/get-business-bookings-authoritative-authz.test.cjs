@@ -28,11 +28,13 @@ function token({
   role,
   permissionSet,
   employeeId,
+  department,
   active = true
 } = {}) {
   const userMetadata = {
     business_id: businessId,
-    active
+    active,
+    ...(department ? { department } : {})
   };
 
   if (employeeId) userMetadata.employee_id = employeeId;
@@ -359,4 +361,83 @@ test('booking data-layer failure does not expose booking data', async () => {
 
   assert.equal(response.statusCode, 500);
   assert.doesNotMatch(response.body, /Guest A/);
+});
+test('business overview booking payload preserves Other text when its checkbox flag is false', async () => {
+  global.fetch = async (url) => {
+    if (String(url).includes('/bookings?')) {
+      return jsonResponse(
+        [{ id: 'booking-other', business_id: 'biz-a', guest_name: 'Laureen De Koning' }],
+        200,
+        { 'content-range': '0-0/1' }
+      );
+    }
+    return jsonResponse([{
+      booking_id: 'booking-other',
+      other: false,
+      other_text: 'Pregnant. I can’t have much lactose; a little bit is fine if it is in dishes'
+    }]);
+  };
+
+  const response = await loadHandler()(
+    event({ businessId: 'biz-a', token: token({ businessId: 'biz-a' }) })
+  );
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.bookings[0].food_restrictions.other, false);
+  assert.equal(
+    body.bookings[0].food_restrictions.other_text,
+    'Pregnant. I can’t have much lactose; a little bit is fine if it is in dishes'
+  );
+});
+
+
+test('employee without food-restriction permission does not receive dietary data', async () => {
+  const urls = [];
+  global.fetch = async (url) => {
+    urls.push(String(url));
+    if (String(url).includes('/bookings?')) {
+      return jsonResponse(
+        [{ id: 'booking-private', business_id: 'biz-a', guest_name: 'Guest A' }],
+        200,
+        { 'content-range': '0-0/1' }
+      );
+    }
+    throw new Error('Food restrictions must not be queried for this employee');
+  };
+
+  const response = await loadHandler()(
+    event({
+      businessId: 'biz-a',
+      token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: ['canManageBookings'] })
+    })
+  );
+
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.bookings[0].food_restrictions, null);
+  assert.equal(urls.length, 1);
+});
+
+
+test('front-office department receives dietary data through its effective permission', async () => {
+  global.fetch = async (url) => {
+    if (String(url).includes('/bookings?')) {
+      return jsonResponse(
+        [{ id: 'booking-frontdesk', business_id: 'biz-a', guest_name: 'Guest A' }],
+        200,
+        { 'content-range': '0-0/1' }
+      );
+    }
+    return jsonResponse([{ booking_id: 'booking-frontdesk', other: false, other_text: 'No dairy' }]);
+  };
+
+  const response = await loadHandler()(
+    event({
+      businessId: 'biz-a',
+      token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', department: 'front_office', permissionSet: ['canManageBookings'] })
+    })
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).bookings[0].food_restrictions.other_text, 'No dairy');
 });

@@ -37,6 +37,16 @@ const DEFAULT_RESTRICTIONS: FoodRestrictions = {
   other_text: ''
 };
 
+const normalizeFoodRestrictions = (value?: Partial<FoodRestrictions> | null): FoodRestrictions => {
+  const normalized = { ...DEFAULT_RESTRICTIONS, ...(value || {}) };
+  // A saved free-text requirement is itself an active restriction, even if
+  // older records have a missing or false `other` checkbox flag.
+  if (typeof normalized.other_text === 'string' && normalized.other_text.trim()) {
+    normalized.other = true;
+  }
+  return normalized;
+};
+
 const DIETARY_OPTION_KEYS = [
   { key: 'vegetarian', labelKey: 'dietary_vegetarian', icon: '🥬' },
   { key: 'vegan', labelKey: 'dietary_vegan', icon: '🌱' },
@@ -141,8 +151,8 @@ export default function GuestDetailsModal({
   }, [isOpen, bookingId, fetchGuestDetails]);
 
   useEffect(() => {
-    if (guestDetails?.food_restrictions) {
-      setRestrictions(guestDetails.food_restrictions);
+    if (guestDetails) {
+      setRestrictions(normalizeFoodRestrictions(guestDetails.food_restrictions));
       setHasUnsavedChanges(false);
     }
     if (guestDetails) {
@@ -174,8 +184,7 @@ export default function GuestDetailsModal({
     setShowUnsavedWarning(false);
     setHasUnsavedChanges(false);
     setIsEditingStay(false);
-    if (guestDetails?.food_restrictions) setRestrictions(guestDetails.food_restrictions);
-    else setRestrictions(DEFAULT_RESTRICTIONS);
+    setRestrictions(normalizeFoodRestrictions(guestDetails?.food_restrictions));
     if (guestDetails) {
       setStayEditData({
         check_in_date: guestDetails.check_in_date || '',
@@ -468,6 +477,7 @@ export default function GuestDetailsModal({
                   />
                 )}
 
+                {guestDetails.can_view_food_restrictions !== false && (
                 <section>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -521,6 +531,7 @@ export default function GuestDetailsModal({
                     </div>
                   )}
                 </section>
+                )}
 
                 <section className="pt-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-100 pt-4">

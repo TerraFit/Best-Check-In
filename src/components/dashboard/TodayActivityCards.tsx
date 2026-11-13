@@ -55,10 +55,17 @@ function ReadinessDot({ tone }: { tone?: ReadinessDotTone | null }) {
 export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActivityCardsProps) {
   const { t } = useTranslation();
 
-  const hasDietaryRestrictions = (guest: Guest): boolean => {
+  const getDietaryRestrictionText = (guest: Guest): string => {
     const restrictions = guest.food_restrictions || {};
-    return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+    const labels = Object.entries(restrictions)
+      .filter(([key, value]) => value === true && key !== 'other_text' && !(key === 'other' && String(restrictions.other_text || '').trim()))
+      .map(([key]) => t(`dietary_${key}`));
+    const otherText = typeof restrictions.other_text === 'string' ? restrictions.other_text.trim() : '';
+    if (otherText) labels.push(otherText);
+    return labels.join(', ');
   };
+
+  const hasDietaryRestrictions = (guest: Guest): boolean => Boolean(getDietaryRestrictionText(guest));
 
   const renderGuestList = (
     guests: Guest[],
@@ -103,6 +110,11 @@ export function TodayActivityCards({ arrivals, stayovers, checkouts }: TodayActi
                       <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1.5 truncate">
                         <ReadinessDot tone={guest.readinessTone} />
                         <span className="truncate">{roomLabel}</span>
+                      </p>
+                    )}
+                    {hasDietaryRestrictions(guest) && (
+                      <p className="text-xs text-amber-800 mt-1 whitespace-normal">
+                        <strong>{t('checkin_dietary_title')}:</strong> {getDietaryRestrictionText(guest)}
                       </p>
                     )}
                   </div>

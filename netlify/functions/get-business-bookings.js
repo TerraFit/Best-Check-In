@@ -3,6 +3,7 @@
 // Filters (status, province, city, country, search) applied at DB level BEFORE pagination.
 
 import auth from './_auth.cjs';
+import { resolvePermissions } from './_rbac.js';
 
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
@@ -76,6 +77,15 @@ export const handler = async (event) => {
   const scope = resolveTenant(actor.principal, q.businessId || null);
   if (!scope.ok) return authFailure(scope, headers);
   const targetBusinessId = scope.businessId;
+  const canViewFoodRestrictions = actor.principal.actorType === 'business' ||
+    resolvePermissions({
+      actorType: actor.principal.actorType,
+      role: actor.principal.role,
+      permission_set: actor.principal.permissions,
+      active: actor.principal.active,
+      department: actor.principal.department,
+      additional_departments: actor.principal.additional_departments
+    }).has('canViewGuestFoodRestrictions');
 
   try {
     const {
@@ -164,7 +174,9 @@ export const handler = async (event) => {
     const totalPages = Math.max(1, Math.ceil(totalBookings / limitNum));
 
     if (bookings.length > 0) {
-      try {
+      if (!canViewFoodRestrictions) {
+        bookings.forEach((booking) => { booking.food_restrictions = null; });
+      } else try {
         const bookingIds = bookings.map((booking) => booking.id).filter(Boolean);
         const encodedIds = bookingIds.map((id) => encodeParam(id)).join(',');
         const restrictionsResponse = await fetch(

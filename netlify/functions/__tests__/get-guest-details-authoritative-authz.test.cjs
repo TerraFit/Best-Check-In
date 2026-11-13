@@ -29,8 +29,8 @@ function setConfiguredEnv() {
   process.env.SUPABASE_JWT_SECRET = 'test-secret';
 }
 
-function token({ businessId = 'biz-a', permissionSet = ['canViewGuestDetails'], role = 'manager', employeeId = 'emp-1', active = true } = {}) {
-  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
+function token({ businessId = 'biz-a', permissionSet = ['canViewGuestDetails'], role = 'manager', department = 'front_office', employeeId = 'emp-1', active = true } = {}) {
+  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, department, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
 }
 
 function restoreEnv() { process.env = { ...ORIGINAL_ENV }; global.fetch = originalFetch; }
@@ -54,6 +54,7 @@ test('business actor without employee record is accepted with business-owner gue
   const handler = loadHandler();
   const response = await handler(event({ bookingId: 'booking-1', token: ownerToken }));
   assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).can_view_food_restrictions, true);
   assert.equal(fetchCalls, 2);
 });
 
@@ -76,6 +77,29 @@ test('tenant substitution is rejected before booking access', async () => {
 test('authorized employee lookup is tenant-bound and returns guest details', async () => {
   setConfiguredEnv(); const urls = [];
   global.fetch = async (url) => { urls.push(String(url)); if (urls.length === 1) return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_name: 'Jane Doe', guest_first_name: 'Jane', guest_last_name: 'Doe', guest_email: 'jane@example.com', guest_phone: '+410000000', guest_country: 'CH', arriving_from: 'Zurich', next_destination: 'Cape Town', adults: 2, children: 1, check_in_date: '2026-09-01', check_out_date: '2026-09-03', nights: 2, room_id: 'room-1', room_number: 3, room_name: 'Stone' }]); return jsonResponse([{ booking_id: 'booking-1', vegetarian: false, vegan: false, other: true, other_text: 'No dairy' }]); };
-  const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1', token: token() })); assert.equal(response.statusCode, 200); const body = JSON.parse(response.body); assert.equal(body.business_id, 'biz-a'); assert.equal(body.guest_email, 'jane@example.com'); assert.equal(body.food_restrictions.other_text, 'No dairy'); assert.equal(urls.length, 2); assert.match(urls[0], /bookings\?/); assert.match(urls[0], /business_id=eq\.biz-a/); assert.match(urls[0], /id=eq\.booking-1/); assert.match(urls[1], /booking_food_restrictions\?/); assert.match(urls[1], /booking_id=eq\.booking-1/);
+  const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1', token: token() })); assert.equal(response.statusCode, 200); const body = JSON.parse(response.body); assert.equal(body.business_id, 'biz-a'); assert.equal(body.guest_email, 'jane@example.com'); assert.equal(body.food_restrictions.other_text, 'No dairy'); assert.equal(body.can_view_food_restrictions, true); assert.equal(urls.length, 2); assert.match(urls[0], /bookings\?/); assert.match(urls[0], /business_id=eq\.biz-a/); assert.match(urls[0], /id=eq\.booking-1/); assert.match(urls[1], /booking_food_restrictions\?/); assert.match(urls[1], /booking_id=eq\.booking-1/);
 });
 test('booking data-layer failure does not expose guest details', async () => { setConfiguredEnv(); global.fetch = async () => ({ ok: false, status: 500, statusText: 'Internal Server Error', text: async () => 'database failure' }); const handler = loadHandler(); const response = await handler(event({ bookingId: 'booking-1', token: token() })); assert.equal(response.statusCode, 404); assert.doesNotMatch(response.body, /database failure/); });
+
+test('employee with guest-detail but without food-restriction permission receives no dietary data', async () => {
+  setConfiguredEnv();
+  let fetchCalls = 0;
+  global.fetch = async (url) => {
+    fetchCalls += 1;
+    if (String(url).includes('/booking_food_restrictions?')) {
+      throw new Error('Food restrictions must not be queried for this employee');
+    }
+    return jsonResponse([{ id: 'booking-1', business_id: 'biz-a', guest_name: 'Jane Doe', adults: 1, children: 0 }]);
+  };
+
+  const handler = loadHandler();
+  const response = await handler(event({
+    bookingId: 'booking-1',
+    token: token({ permissionSet: ['canViewGuestDetails'], department: 'administration' })
+  }));
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).food_restrictions, null);
+  assert.equal(JSON.parse(response.body).can_view_food_restrictions, false);
+  assert.equal(fetchCalls, 1);
+});

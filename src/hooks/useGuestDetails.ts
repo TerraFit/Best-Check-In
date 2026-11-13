@@ -19,6 +19,7 @@ export function useGuestDetails() {
     console.log('🔍 useGuestDetails: Fetching guest details for:', bookingId);
     setLoading(true);
     setError(null);
+    setGuestDetails(null);
     try {
       const response = await fetch(`/.netlify/functions/get-guest-details?bookingId=${encodeURIComponent(bookingId)}`, { headers: { ...getAuthHeader(), 'Content-Type': 'application/json' } });
       console.log('📡 useGuestDetails: Response status:', response.status);
