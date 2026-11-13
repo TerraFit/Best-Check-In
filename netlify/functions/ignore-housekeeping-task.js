@@ -226,6 +226,38 @@ export const handler = async (event) => {
         if (!Array.isArray(clearedRows) || clearedRows.length !== clearedPreviousTasks.length) {
           return { statusCode: 409, headers, body: JSON.stringify({ error: 'One or more previous housekeeping tasks changed while this action was being saved. Refresh the task list and review the room.', code: 'PREVIOUS_TASKS_CHANGED' }) };
         }
+        const previousAuditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+          method: 'POST',
+          headers: writeHeaders,
+          body: JSON.stringify({
+            business_id: businessId,
+            room_id: task.room_id,
+            event_type: 'housekeeping_previous_pending_tasks_cleared',
+            source: principal.actorType || 'staff',
+            severity: 'info',
+            booking_id: task.booking_id,
+            guest_name: task.guest_name,
+            details: {
+              current_task_id: task.id,
+              reason: normalizedReason,
+              cleared_tasks: clearedPreviousTasks.map((item) => ({
+                task_id: item.id,
+                booking_id: item.booking_id,
+                guest_name: item.guest_name,
+                scheduled_date: item.scheduled_date,
+                previous_status: item.status,
+                new_status: 'skipped',
+              })),
+              performed_by: principal.employeeId || principal.userId || null,
+              performed_by_type: principal.actorType || null,
+              performed_by_name: principal.name || principal.email || null,
+            },
+          }),
+        });
+        if (!previousAuditRes.ok) {
+          console.error('ignore-housekeeping-task previous task audit failed:', previousAuditRes.status);
+          return { statusCode: 500, headers, body: JSON.stringify({ error: 'Previous pending tasks were cleared, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true }) };
+        }
       }
     }
 
