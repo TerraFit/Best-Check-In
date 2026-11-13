@@ -34,7 +34,7 @@ export const handler = async (event) => {
     const booking = Array.isArray(bookingData) ? bookingData[0] : null;
     if (!booking || String(booking.business_id) !== String(businessId)) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
     let restrictions = null;
-    try {
+    if (requireBusinessPermission(authResult.principal, 'canViewGuestFoodRestrictions')) try {
       const restrictionsResponse = await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodedBookingId}&select=*`, { headers: restHeaders });
       if (restrictionsResponse.ok) {
         const restrictionsData = await restrictionsResponse.json();
