@@ -28,11 +28,13 @@ function token({
   role,
   permissionSet,
   employeeId,
+  department,
   active = true
 } = {}) {
   const userMetadata = {
     business_id: businessId,
-    active
+    active,
+    ...(department ? { department } : {})
   };
 
   if (employeeId) userMetadata.employee_id = employeeId;
@@ -414,4 +416,28 @@ test('employee without food-restriction permission does not receive dietary data
   const body = JSON.parse(response.body);
   assert.equal(body.bookings[0].food_restrictions, null);
   assert.equal(urls.length, 1);
+});
+
+
+test('front-office department receives dietary data through its effective permission', async () => {
+  global.fetch = async (url) => {
+    if (String(url).includes('/bookings?')) {
+      return jsonResponse(
+        [{ id: 'booking-frontdesk', business_id: 'biz-a', guest_name: 'Guest A' }],
+        200,
+        { 'content-range': '0-0/1' }
+      );
+    }
+    return jsonResponse([{ booking_id: 'booking-frontdesk', other: false, other_text: 'No dairy' }]);
+  };
+
+  const response = await loadHandler()(
+    event({
+      businessId: 'biz-a',
+      token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', department: 'front_office', permissionSet: ['canManageBookings'] })
+    })
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).bookings[0].food_restrictions.other_text, 'No dairy');
 });
