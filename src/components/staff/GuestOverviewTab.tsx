@@ -76,7 +76,7 @@ export function GuestOverviewTab({
     const restrictions = guest?.food_restrictions || {};
     const labels = Object.entries(restrictions)
       .filter(([key, value]) => value === true && key !== 'other_text' && !(key === 'other' && String(restrictions.other_text || '').trim()))
-      .map(([key]) => key === 'other' ? 'Other' : key.replace(/_/g, ' '));
+      .map(([key]) => t(`dietary_${key}`));
     const otherText = typeof restrictions.other_text === 'string' ? restrictions.other_text.trim() : '';
     if (otherText) labels.push(otherText);
     return labels.join(', ');
@@ -102,7 +102,7 @@ export function GuestOverviewTab({
           )}
           {hasDietaryRestrictions(guest) && (
             <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1 mt-2">
-              <strong>⚠️ Food restrictions:</strong> {getDietaryRestrictionText(guest)}
+              <strong>⚠️ {t('checkin_dietary_title')}:</strong> {getDietaryRestrictionText(guest)}
             </p>
           )}
           <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
@@ -173,7 +173,7 @@ export function GuestOverviewTab({
                         </p>
                         {hasDietaryRestrictions(guest) && (
                           <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1 mt-2">
-                            <strong>⚠️ Food restrictions:</strong> {getDietaryRestrictionText(guest)}
+                            <strong>⚠️ {t('checkin_dietary_title')}:</strong> {getDietaryRestrictionText(guest)}
                           </p>
                         )}
                       </div>
