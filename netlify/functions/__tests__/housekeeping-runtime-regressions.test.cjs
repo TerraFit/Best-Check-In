@@ -19,7 +19,7 @@ function authEvent({ employee = false, permissions = [] } = {}) {
     role: 'authenticated',
     user_metadata: userMetadata,
   }, SECRET, { issuer: 'fastcheckin', expiresIn: '5m' });
-  return { headers: { authorization: \`Bearer \${token}\` } };
+  return { headers: { authorization: `Bearer ${token}` } };
 }
 
 function jsonResponse(data, status = 200) {
@@ -100,7 +100,7 @@ test('ignore handler returns an audited 409 for partial previous-task cleanup', 
 test('bulk readiness handler leaves rooms untouched when a task is in progress or a session is active', async (t) => {
   const { handler } = await import('../admin-bulk-room-readiness.js');
   for (const activeKind of ['task', 'session']) {
-    await t.test(\`blocks active \${activeKind}\`, async () => {
+    await t.test(`blocks active ${activeKind}`, async () => {
       const calls = [];
       await withSupabaseMock(async (url, options = {}) => {
         const method = options.method || 'GET';
