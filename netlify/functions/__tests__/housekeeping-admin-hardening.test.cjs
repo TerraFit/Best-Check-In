@@ -144,6 +144,8 @@ test('partial previous-task cleanup audits the rows actually changed before retu
   const source = read('netlify/functions/ignore-housekeeping-task.js');
   assert.ok(source.includes('const cleanupAudit = buildPreviousTaskCleanupAudit(clearedPreviousTasks, clearedRows);'));
   assert.ok(source.indexOf('const previousAuditRes = await fetch') < source.indexOf('if (cleanupAudit.partial)'));
+  assert.ok(source.includes('housekeeping_previous_pending_tasks_cleanup_unconfirmed'));
+  assert.ok(source.includes("outcome: 'unconfirmed'"));
   assert.ok(source.includes('expected_count: cleanupAudit.expectedCount'));
   assert.ok(source.includes('changed_count: cleanupAudit.changedCount'));
 });
