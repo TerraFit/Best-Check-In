@@ -29,6 +29,8 @@ test('employee confirms cleaned room and closes older pending tasks for that roo
   assert.ok(source.includes("status: 'skipped'"));
   assert.ok(source.includes('cleared_previous_pending_tasks'));
   assert.ok(source.includes('PREVIOUS_TASKS_CHANGED'));
+  assert.ok(source.indexOf('const activeRes = await fetch') < source.indexOf('let clearedPreviousTasks'));
+  assert.ok(source.indexOf('for (const session of activeSessions)') < source.indexOf('let clearedPreviousTasks'));
   assert.ok(source.includes('cleared_previous_pending_tasks: clearedPreviousTasks.length'));
   // Employee confirmation must not acquire the administrator-only room-ready patch.
   assert.ok(source.includes("const alreadyCleaned = normalizedReason === 'Already cleaned';"));
