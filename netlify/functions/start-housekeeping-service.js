@@ -43,9 +43,15 @@ async function assertEmployeeActive(principal, headers) {
   }
 }
 
+function nextRoomVersion(currentVersion) {
+  const previousMs = Date.parse(currentVersion);
+  const nowMs = Date.now();
+  return new Date(Number.isFinite(previousMs) ? Math.max(nowMs, previousMs + 1) : nowMs).toISOString();
+}
+
 async function releaseRoomClaim({ supabaseUrl, write, businessId, roomId, claimedAt, previousStatus }) {
   try {
-    const releasedAt = new Date().toISOString();
+    const releasedAt = nextRoomVersion(claimedAt);
     const result = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(roomId)}&business_id=eq.${encodeURIComponent(businessId)}&updated_at=eq.${encodeURIComponent(claimedAt)}`, {
       method: 'PATCH',
       headers: write,
@@ -115,7 +121,7 @@ export const handler = async (event) => {
     if (!roomRes.ok) { console.error('housekeeping room lookup failed:', roomRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load room' }) }; }
     const room = (await roomRes.json())[0];
     if (!room) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Room not found' }) };
-    if (!room.updated_at) return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Room state cannot be safely claimed. Refresh and try again.', code: 'ROOM_STATE_VERSION_MISSING' }) };
+    if (!room.updated_at || !Number.isFinite(Date.parse(room.updated_at))) return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Room state cannot be safely claimed. Refresh and try again.', code: 'ROOM_STATE_VERSION_MISSING' }) };
     if (room.housekeeping_status === 'cleaning_in_progress') return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Housekeeping is already in progress for this room.', code: 'ROOM_CLEANING_IN_PROGRESS' }) };
 
     let settings = null;
@@ -133,11 +139,12 @@ export const handler = async (event) => {
     // Claim the room using an optimistic compare-and-set on its version. The
     // administrator readiness endpoint uses the same version guard, so only
     // one of the competing state transitions can succeed.
+    const roomClaimVersion = nextRoomVersion(room.updated_at);
     const claimUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}&updated_at=eq.${q(room.updated_at)}`;
     const claimRes = await fetch(claimUrl, {
       method: 'PATCH',
       headers: write,
-      body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }),
+      body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: roomClaimVersion }),
     });
     if (!claimRes.ok) {
       console.error('housekeeping room claim failed:', claimRes.status);
@@ -147,7 +154,7 @@ export const handler = async (event) => {
     if (!Array.isArray(claimedRows) || claimedRows.length !== 1) {
       return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Room state changed while housekeeping was starting. Refresh and try again.', code: 'ROOM_STATE_CHANGED' }) };
     }
-    const claimedAt = claimedRows[0].updated_at || startedAt;
+    const claimedAt = claimedRows[0].updated_at || roomClaimVersion;
 
     const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, { method: 'POST', headers: write, body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: principal.employeeId, employee_name: principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }) });
     if (!sessionRes.ok) {
