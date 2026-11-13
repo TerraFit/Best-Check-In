@@ -78,7 +78,7 @@ export const handler = async (event) => {
     const readHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const writeHeaders = { ...readHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const inFilter = uniqueIds.join(',');
-    const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${inFilter})&business_id=eq.${encodeURIComponent(businessId)}&select=id,room_number,room_name,active,availability_status,occupancy_status,housekeeping_status`;
+    const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${inFilter})&business_id=eq.${encodeURIComponent(businessId)}&select=id,room_number,room_name,active,availability_status,occupancy_status,housekeeping_status,updated_at`;
     const roomResponse = await fetch(roomUrl, { headers: readHeaders });
     if (!roomResponse.ok) return response(502, headers, { error: 'Unable to validate selected rooms.' });
     const rooms = await roomResponse.json();
@@ -96,6 +96,10 @@ export const handler = async (event) => {
         room.occupancy_status === 'vacant';
       if (!eligible) {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room is inactive, unavailable, or occupied/reserved.' });
+        continue;
+      }
+      if (!room.updated_at) {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Room state cannot be safely version-checked; no change was made.' });
         continue;
       }
       if (room.housekeeping_status === 'cleaning_in_progress') {
@@ -156,7 +160,10 @@ export const handler = async (event) => {
         continue;
       }
 
-      const patchUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(room.id)}&business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&availability_status=eq.available&occupancy_status=eq.vacant`;
+      // Compare-and-set against the exact room version read above. The employee
+      // start endpoint claims the same room row first; PostgreSQL serializes the
+      // conditional UPDATE so only one transition can win this race.
+      const patchUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(room.id)}&business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&availability_status=eq.available&occupancy_status=eq.vacant&updated_at=eq.${encodeURIComponent(room.updated_at)}`;
       const patchResponse = await fetch(patchUrl, {
         method: 'PATCH',
         headers: writeHeaders,
