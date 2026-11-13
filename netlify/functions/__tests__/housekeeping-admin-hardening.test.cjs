@@ -66,3 +66,11 @@ test('administrator completion overrides are explicitly authorized and audited',
   assert.ok(sessionSource.includes('ROOM_SYNC_FAILED'));
   assert.ok(sessionSource.includes('AUDIT_WRITE_FAILED'));
 });
+
+test('Today includes pending services due today and task views retain independent room services', () => {
+  const source = read('netlify/functions/get-housekeeping-tasks.js');
+  assert.match(source, /\['pending', 'in_progress'\]\.includes\(task\.status\) && task\.scheduled_date <= todayStr/);
+  assert.match(source, /if \(view === 'pending'\)[\s\S]*?allTasks\.filter\(\(task\) => \['pending', 'in_progress'\]\.includes\(task\.status\)\)/);
+  assert.match(source, /if \(view === 'completed'\)[\s\S]*?allTasks\.filter\(\(task\) => task\.status === 'completed'\)/);
+  assert.doesNotMatch(source, /latestByRoom/);
+});
