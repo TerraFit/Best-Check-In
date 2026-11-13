@@ -20,6 +20,31 @@ const IGNORE_REASONS = new Set([
   'Service was no longer required',
 ]);
 
+export function canIgnoreTaskStatus(taskStatus, isAdminOverride) {
+  return taskStatus === 'pending' || (isAdminOverride === true && taskStatus === 'in_progress');
+}
+
+export function buildPreviousTaskCleanupAudit(candidateTasks, changedRows) {
+  const previousById = new Map(candidateTasks.map((item) => [String(item.id), item]));
+  const clearedTasks = changedRows.map((row) => {
+    const previous = previousById.get(String(row.id));
+    return previous ? { ...previous, new_status: row.status || 'skipped' } : {
+      task_id: row.id,
+      booking_id: row.booking_id || null,
+      guest_name: row.guest_name || null,
+      scheduled_date: row.scheduled_date || null,
+      previous_status: 'pending',
+      new_status: row.status || 'skipped',
+    };
+  });
+  return {
+    expectedCount: candidateTasks.length,
+    changedCount: clearedTasks.length,
+    partial: clearedTasks.length !== candidateTasks.length,
+    clearedTasks,
+  };
+}
+
 function hasPermission(principal, permission) {
   if (!principal) return false;
   if (principal.actorType === 'business' || principal.actorType === 'super_admin') return true;
@@ -120,7 +145,7 @@ export const handler = async (event) => {
     // Employees may only Ignore pending tasks. Cancelling an active service
     // session is an administrator-only action and must never be reachable by
     // calling this endpoint directly from an employee token.
-    if (task.status !== 'pending' && !(isAdminOverride && task.status === 'in_progress')) {
+    if (!canIgnoreTaskStatus(task.status, isAdminOverride)) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: isAdminOverride ? 'Only pending or active housekeeping tasks can be skipped' : 'Only pending housekeeping tasks can be ignored by staff', code: task.status === 'in_progress' ? 'ACTIVE_TASK_ADMIN_ONLY' : 'TASK_NOT_PENDING' }) };
     }
 
@@ -242,18 +267,8 @@ export const handler = async (event) => {
         // Audit the rows that actually changed, not merely the rows we intended
         // to change. This preserves an accurate trail even when a concurrent
         // update means only part of the candidate set was skipped.
-        const previousById = new Map(clearedPreviousTasks.map((item) => [String(item.id), item]));
-        const actuallyCleared = clearedRows.map((row) => {
-          const previous = previousById.get(String(row.id));
-          return previous ? { ...previous, new_status: row.status || 'skipped' } : {
-            task_id: row.id,
-            booking_id: row.booking_id || null,
-            guest_name: row.guest_name || null,
-            scheduled_date: row.scheduled_date || null,
-            previous_status: 'pending',
-            new_status: row.status || 'skipped',
-          };
-        });
+        const cleanupAudit = buildPreviousTaskCleanupAudit(clearedPreviousTasks, clearedRows);
+        const actuallyCleared = cleanupAudit.clearedTasks;
         const previousAuditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
           method: 'POST',
           headers: writeHeaders,
@@ -268,9 +283,9 @@ export const handler = async (event) => {
             details: {
               current_task_id: task.id,
               reason: normalizedReason,
-              expected_count: clearedPreviousTasks.length,
-              changed_count: actuallyCleared.length,
-              partial: actuallyCleared.length !== clearedPreviousTasks.length,
+              expected_count: cleanupAudit.expectedCount,
+              changed_count: cleanupAudit.changedCount,
+              partial: cleanupAudit.partial,
               cleared_tasks: actuallyCleared.map((item) => ({
                 task_id: item.id || item.task_id,
                 booking_id: item.booking_id,
@@ -290,7 +305,7 @@ export const handler = async (event) => {
           return { statusCode: 500, headers, body: JSON.stringify({ error: 'Previous pending tasks were changed, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true, changed_count: actuallyCleared.length }) };
         }
         clearedPreviousTasks = actuallyCleared;
-        if (clearedRows.length !== previousById.size) {
+        if (cleanupAudit.partial) {
           return { statusCode: 409, headers, body: JSON.stringify({ error: 'Some previous housekeeping tasks were cleared, but others changed concurrently. The changed tasks have been audited; refresh and review the remaining room tasks.', code: 'PREVIOUS_TASKS_CHANGED', state_updated: true, changed_count: clearedRows.length, expected_count: previousById.size }) };
         }
       }
