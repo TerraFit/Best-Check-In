@@ -165,6 +165,31 @@ export const handler = async (event) => {
       }
     }
 
+    const activeRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&housekeeping_task_id=eq.${encodeURIComponent(task.id)}&status=eq.active&select=id`,
+      { headers: restHeaders },
+    );
+    if (!activeRes.ok) {
+      const e = upstream(activeRes.status, 'active session lookup');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const activeSessions = await activeRes.json();
+    if (activeSessions.length && task.status !== 'in_progress') {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'An active service session exists for a task not marked in progress. Refresh and investigate before skipping.', code: 'TASK_SESSION_MISMATCH' }) };
+    }
+    const now = new Date().toISOString();
+    // Preserve an active execution record when an administrator skips an in-progress task.
+    for (const session of activeSessions) {
+      const cancelRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${encodeURIComponent(session.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=eq.active`,
+        { method: 'PATCH', headers: writeHeaders, body: JSON.stringify({
+          status: 'cancelled', completed_at: now, cancelled_at: now,
+          cancelled_by: principal.employeeId || principal.userId || null,
+          cancellation_reason: `Administrator skip: ${normalizedReason}`, updated_at: now,
+        }) },
+      );
+      if (!cancelRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to close the active service session safely' }) };
+    }
     // When staff confirm that the room was cleaned outside FastCheckIn, older
     // pending tasks for the same room are obsolete. Close only tasks due on or
     // before this task's scheduled date; future guest services remain untouched.
@@ -204,31 +229,6 @@ export const handler = async (event) => {
       }
     }
 
-    const activeRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&housekeeping_task_id=eq.${encodeURIComponent(task.id)}&status=eq.active&select=id`,
-      { headers: restHeaders },
-    );
-    if (!activeRes.ok) {
-      const e = upstream(activeRes.status, 'active session lookup');
-      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
-    }
-    const activeSessions = await activeRes.json();
-    if (activeSessions.length && task.status !== 'in_progress') {
-      return { statusCode: 409, headers, body: JSON.stringify({ error: 'An active service session exists for a task not marked in progress. Refresh and investigate before skipping.', code: 'TASK_SESSION_MISMATCH' }) };
-    }
-    const now = new Date().toISOString();
-    // Preserve an active execution record when an administrator skips an in-progress task.
-    for (const session of activeSessions) {
-      const cancelRes = await fetch(
-        `${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${encodeURIComponent(session.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=eq.active`,
-        { method: 'PATCH', headers: writeHeaders, body: JSON.stringify({
-          status: 'cancelled', completed_at: now, cancelled_at: now,
-          cancelled_by: principal.employeeId || principal.userId || null,
-          cancellation_reason: `Administrator skip: ${normalizedReason}`, updated_at: now,
-        }) },
-      );
-      if (!cancelRes.ok) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Unable to close the active service session safely' }) };
-    }
     const auditReason = normalizedReason === 'Other'
       ? `Other: ${normalizedDetails}`
       : normalizedDetails ? `${normalizedReason}: ${normalizedDetails}` : normalizedReason;
