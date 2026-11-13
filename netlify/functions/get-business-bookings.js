@@ -164,7 +164,9 @@ export const handler = async (event) => {
     const totalPages = Math.max(1, Math.ceil(totalBookings / limitNum));
 
     if (bookings.length > 0) {
-      try {
+      if (!requireBusinessPermission(actor.principal, 'canViewGuestFoodRestrictions')) {
+        bookings.forEach((booking) => { booking.food_restrictions = null; });
+      } else try {
         const bookingIds = bookings.map((booking) => booking.id).filter(Boolean);
         const encodedIds = bookingIds.map((id) => encodeParam(id)).join(',');
         const restrictionsResponse = await fetch(
