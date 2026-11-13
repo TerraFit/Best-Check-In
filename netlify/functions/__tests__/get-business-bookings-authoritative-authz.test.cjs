@@ -387,3 +387,31 @@ test('business overview booking payload preserves Other text when its checkbox f
     'Pregnant. I can’t have much lactose; a little bit is fine if it is in dishes'
   );
 });
+
+
+test('employee without food-restriction permission does not receive dietary data', async () => {
+  const urls = [];
+  global.fetch = async (url) => {
+    urls.push(String(url));
+    if (String(url).includes('/bookings?')) {
+      return jsonResponse(
+        [{ id: 'booking-private', business_id: 'biz-a', guest_name: 'Guest A' }],
+        200,
+        { 'content-range': '0-0/1' }
+      );
+    }
+    throw new Error('Food restrictions must not be queried for this employee');
+  };
+
+  const response = await loadHandler()(
+    event({
+      businessId: 'biz-a',
+      token: token({ businessId: 'biz-a', role: 'employee', employeeId: 'employee-1', permissionSet: ['canManageBookings'] })
+    })
+  );
+
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.bookings[0].food_restrictions, null);
+  assert.equal(urls.length, 1);
+});
