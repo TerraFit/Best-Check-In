@@ -155,7 +155,8 @@ export const handler = async (event) => {
       console.error('housekeeping session creation failed:', sessionRes.status);
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
     }
-    const session = (await sessionRes.json())[0];
+    const sessionRows = await sessionRes.json().catch(() => []);
+    const session = Array.isArray(sessionRows) ? sessionRows[0] : null;
     if (!session) {
       await releaseRoomClaim({ supabaseUrl, write, businessId, roomId: room.id, claimedAt, previousStatus: room.housekeeping_status });
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
