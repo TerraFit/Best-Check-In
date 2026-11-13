@@ -347,7 +347,7 @@ export const handler = async (event) => {
         }
         clearedPreviousTasks = actuallyCleared;
         if (cleanupAudit.partial) {
-          return { statusCode: 409, headers, body: JSON.stringify({ error: 'Some previous housekeeping tasks were cleared, but others changed concurrently. The changed tasks have been audited; refresh and review the remaining room tasks.', code: 'PREVIOUS_TASKS_CHANGED', state_updated: true, changed_count: clearedRows.length, expected_count: previousById.size }) };
+          return { statusCode: 409, headers, body: JSON.stringify({ error: 'Some previous housekeeping tasks were cleared, but others changed concurrently. The changed tasks have been audited; refresh and review the remaining room tasks.', code: 'PREVIOUS_TASKS_CHANGED', state_updated: true, changed_count: clearedRows.length, expected_count: cleanupAudit.expectedCount }) };
         }
       }
     }
