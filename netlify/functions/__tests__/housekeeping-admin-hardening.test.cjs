@@ -94,3 +94,55 @@ test('Today includes pending due services while keeping one operational card per
   assert.match(source, /const latestPerRoom = \(candidateTasks\)/);
   assert.match(source, /if \(view === 'completed'\)[\s\S]*?latestPerRoom\(allTasks\.filter\(\(task\) => task\.status === 'completed'\)\)/);
 });
+
+
+test('adminOverride accepts only booleans and never treats truthy strings as authorization', async () => {
+  const { isValidAdminOverride } = await import('../update-housekeeping-task.js');
+  const { isValidAdminOverride: ignoreOverrideValidator } = await import('../ignore-housekeeping-task.js').catch(() => ({ isValidAdminOverride: undefined }));
+  assert.equal(isValidAdminOverride(false), true);
+  assert.equal(isValidAdminOverride(true), true);
+  assert.equal(isValidAdminOverride('true'), false);
+  assert.equal(isValidAdminOverride(1), false);
+  assert.equal(isValidAdminOverride({}), false);
+  assert.equal(ignoreOverrideValidator, undefined);
+  const updateSource = read('netlify/functions/update-housekeeping-task.js');
+  const ignoreSource = read('netlify/functions/ignore-housekeeping-task.js');
+  assert.ok(updateSource.includes('const isAdminOverride = adminOverride === true;'));
+  assert.ok(ignoreSource.includes('const isAdminOverride = adminOverride === true;'));
+  assert.ok(!updateSource.includes('if (adminOverride)'));
+  assert.ok(!ignoreSource.includes('if (adminOverride)'));
+});
+
+test('staff cannot Ignore an in-progress task or cancel its active service session', async () => {
+  const { canIgnoreTaskStatus } = await import('../ignore-housekeeping-task.js');
+  assert.equal(canIgnoreTaskStatus('pending', false), true);
+  assert.equal(canIgnoreTaskStatus('in_progress', false), false);
+  assert.equal(canIgnoreTaskStatus('completed', false), false);
+  assert.equal(canIgnoreTaskStatus('in_progress', true), true);
+  assert.equal(canIgnoreTaskStatus('pending', true), true);
+  const source = read('netlify/functions/ignore-housekeeping-task.js');
+  assert.ok(source.includes('ACTIVE_TASK_ADMIN_ONLY'));
+  assert.ok(source.includes('ACTIVE_SERVICE_SESSION_ADMIN_ONLY'));
+  assert.ok(source.includes('if (activeSessions.length && !isAdminOverride)'));
+  assert.ok(source.includes('Only an authorized administrator can cancel active service sessions'));
+});
+
+test('partial previous-task cleanup audits the rows actually changed before returning conflict', async () => {
+  const { buildPreviousTaskCleanupAudit } = await import('../ignore-housekeeping-task.js');
+  const candidates = [
+    { id: 'old-1', booking_id: 'booking-1', guest_name: 'Guest One', scheduled_date: '2026-11-10', status: 'pending' },
+    { id: 'old-2', booking_id: 'booking-2', guest_name: 'Guest Two', scheduled_date: '2026-11-11', status: 'pending' },
+  ];
+  const actual = [{ id: 'old-1', status: 'skipped' }];
+  const audit = buildPreviousTaskCleanupAudit(candidates, actual);
+  assert.equal(audit.expectedCount, 2);
+  assert.equal(audit.changedCount, 1);
+  assert.equal(audit.partial, true);
+  assert.deepEqual(audit.clearedTasks.map((task) => task.id), ['old-1']);
+  assert.equal(audit.clearedTasks[0].booking_id, 'booking-1');
+  const source = read('netlify/functions/ignore-housekeeping-task.js');
+  assert.ok(source.includes('const cleanupAudit = buildPreviousTaskCleanupAudit(clearedPreviousTasks, clearedRows);'));
+  assert.ok(source.indexOf('const previousAuditRes = await fetch') < source.indexOf('if (cleanupAudit.partial)'));
+  assert.ok(source.includes('expected_count: cleanupAudit.expectedCount'));
+  assert.ok(source.includes('changed_count: cleanupAudit.changedCount'));
+});
