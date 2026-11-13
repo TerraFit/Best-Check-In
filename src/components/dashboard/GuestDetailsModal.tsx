@@ -477,6 +477,7 @@ export default function GuestDetailsModal({
                   />
                 )}
 
+                {guestDetails.can_view_food_restrictions !== false && (
                 <section>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -530,6 +531,7 @@ export default function GuestDetailsModal({
                     </div>
                   )}
                 </section>
+                )}
 
                 <section className="pt-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 border-t border-gray-100 pt-4">
