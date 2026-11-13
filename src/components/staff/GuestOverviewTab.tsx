@@ -72,10 +72,17 @@ export function GuestOverviewTab({
     return phone;
   };
 
-  const hasDietaryRestrictions = (guest: any): boolean => {
-    const restrictions = guest.food_restrictions || {};
-    return Object.entries(restrictions).some(([key, val]) => val === true && key !== 'other_text');
+  const getDietaryRestrictionText = (guest: any): string => {
+    const restrictions = guest?.food_restrictions || {};
+    const labels = Object.entries(restrictions)
+      .filter(([key, value]) => value === true && key !== 'other_text' && !(key === 'other' && String(restrictions.other_text || '').trim()))
+      .map(([key]) => key === 'other' ? 'Other' : key.replace(/_/g, ' '));
+    const otherText = typeof restrictions.other_text === 'string' ? restrictions.other_text.trim() : '';
+    if (otherText) labels.push(otherText);
+    return labels.join(', ');
   };
+
+  const hasDietaryRestrictions = (guest: any): boolean => Boolean(getDietaryRestrictionText(guest));
 
   const renderGuestRow = (guest: any, hoverClass: string) => {
     const roomLabel = formatGuestRoom(guest);
@@ -92,6 +99,11 @@ export function GuestOverviewTab({
           )}
           {roomLabel && (
             <p className="text-xs text-stone-600 mt-0.5 truncate">🏨 {roomLabel}</p>
+          )}
+          {hasDietaryRestrictions(guest) && (
+            <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1 mt-2">
+              <strong>⚠️ Food restrictions:</strong> {getDietaryRestrictionText(guest)}
+            </p>
           )}
           <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
             <Phone size={12} /> {formatPhone(guest.guest_phone)}
@@ -159,6 +171,11 @@ export function GuestOverviewTab({
                         <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
                           <Calendar size={12} /> Check-out: {guest.check_out_date || 'N/A'}
                         </p>
+                        {hasDietaryRestrictions(guest) && (
+                          <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1 mt-2">
+                            <strong>⚠️ Food restrictions:</strong> {getDietaryRestrictionText(guest)}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {hasDietaryRestrictions(guest) && (
