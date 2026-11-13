@@ -74,47 +74,35 @@ exports.handler = async (event) => {
       return task.scheduled_date === todayStr && now >= cutoffToday;
     };
 
-    // Fetch the room's complete task history first. The dashboard is room-oriented:
-    // the most recently updated task is authoritative, so older task records never
-    // create duplicate cards or override a newer status.
+    // A room can have multiple independent services (for example, today's
+    // Refresh and tomorrow's checkout Full Service). Keep task records distinct:
+    // reducing history to one task per room can hide work that is still due.
     const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
-    const allRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=updated_at.desc,created_at.desc,scheduled_date.desc,id.asc`, restHeaders);
-    if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'latest room tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
+    const allRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc,id.asc`, restHeaders);
+    if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'housekeeping tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
     const allTasks = allRes.rows;
-    const latestByRoom = new Map();
     const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
-    const recency = (task) => new Date(task.updated_at || task.created_at || task.scheduled_date || 0).getTime() || 0;
-    for (const task of allTasks) {
-      const key = roomKey(task);
-      const current = latestByRoom.get(key);
-      if (!current || recency(task) > recency(current) ||
-          (recency(task) === recency(current) && String(task.id) > String(current.id))) {
-        latestByRoom.set(key, task);
-      }
-    }
-    const latestTasks = [...latestByRoom.values()];
     let tasks = [];
     if (view === 'today') {
-      // Pending work belongs exclusively in Pending. Today shows active work due
-      // by today and tasks completed today; a latest pending status suppresses
-      // the room from this view.
-      tasks = latestTasks.filter((task) =>
-        task.scheduled_date <= todayStr &&
-        (task.status === 'in_progress' ||
-          (task.status === 'completed' && task.completed_at &&
-            new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart))
+      // Today includes all pending/in-progress work due today or overdue,
+      // plus work completed today. Pending tasks must not disappear from Today.
+      tasks = allTasks.filter((task) =>
+        (['pending', 'in_progress'].includes(task.status) && task.scheduled_date <= todayStr) ||
+        (task.status === 'completed' && task.completed_at &&
+          new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart)
       );
     } else if (view === 'pending') {
-      tasks = latestTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
+      tasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
     } else if (view === 'completed') {
-      tasks = latestTasks.filter((task) => task.status === 'completed');
+      tasks = allTasks.filter((task) => task.status === 'completed');
     } else if (status) {
-      tasks = latestTasks.filter((task) => task.status === status);
+      tasks = allTasks.filter((task) => task.status === status);
     } else {
-      tasks = latestTasks;
+      tasks = allTasks;
     }
     tasks.sort((a, b) =>
       String(a.scheduled_date || '').localeCompare(String(b.scheduled_date || '')) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.room_number || '').localeCompare(String(b.room_number || ''))
     );
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
