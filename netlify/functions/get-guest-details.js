@@ -1,6 +1,7 @@
 // netlify/functions/get-guest-details.js
 // Guest details are sensitive tenant-scoped data and require authoritative server authorization.
 import auth from './_auth.cjs';
+import { resolvePermissions } from './_rbac.js';
 
 const { requireBusinessActor, requireBusinessPermission, resolveTenant, authFailure } = auth;
 
@@ -33,7 +34,15 @@ export const handler = async (event) => {
     const bookingData = await bookingResponse.json();
     const booking = Array.isArray(bookingData) ? bookingData[0] : null;
     if (!booking || String(booking.business_id) !== String(businessId)) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
-    const canViewFoodRestrictions = requireBusinessPermission(authResult.principal, 'canViewGuestFoodRestrictions');
+    const canViewFoodRestrictions = authResult.principal.actorType === 'business' ||
+      resolvePermissions({
+        actorType: authResult.principal.actorType,
+        role: authResult.principal.role,
+        permission_set: authResult.principal.permissions,
+        active: authResult.principal.active,
+        department: authResult.principal.department,
+        additional_departments: authResult.principal.additional_departments
+      }).has('canViewGuestFoodRestrictions');
     let restrictions = null;
     if (canViewFoodRestrictions) try {
       const restrictionsResponse = await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodedBookingId}&select=*`, { headers: restHeaders });
