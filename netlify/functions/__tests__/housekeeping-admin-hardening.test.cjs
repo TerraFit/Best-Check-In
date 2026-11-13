@@ -28,6 +28,8 @@ test('employee confirms cleaned room and closes older pending tasks for that roo
   assert.ok(source.includes('&id=neq.'));
   assert.ok(source.includes("status: 'skipped'"));
   assert.ok(source.includes('cleared_previous_pending_tasks'));
+  assert.ok(source.includes('housekeeping_previous_pending_tasks_cleared'));
+  assert.ok(source.includes('Previous pending tasks were cleared, but the audit event could not be saved'));
   assert.ok(source.includes('PREVIOUS_TASKS_CHANGED'));
   assert.ok(source.indexOf('const activeRes = await fetch') < source.indexOf('let clearedPreviousTasks'));
   assert.ok(source.indexOf('for (const session of activeSessions)') < source.indexOf('let clearedPreviousTasks'));
