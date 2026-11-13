@@ -97,14 +97,15 @@ test('Today includes pending due services while keeping one operational card per
 
 
 test('adminOverride accepts only booleans and never treats truthy strings as authorization', async () => {
-  const { isValidAdminOverride } = await import('../update-housekeeping-task.js');
-  const { isValidAdminOverride: ignoreOverrideValidator } = await import('../ignore-housekeeping-task.js').catch(() => ({ isValidAdminOverride: undefined }));
-  assert.equal(isValidAdminOverride(false), true);
-  assert.equal(isValidAdminOverride(true), true);
-  assert.equal(isValidAdminOverride('true'), false);
-  assert.equal(isValidAdminOverride(1), false);
-  assert.equal(isValidAdminOverride({}), false);
-  assert.equal(ignoreOverrideValidator, undefined);
+  const { isValidAdminOverride: isUpdateOverrideValid } = await import('../update-housekeeping-task.js');
+  const { isValidAdminOverride: isIgnoreOverrideValid } = await import('../ignore-housekeeping-task.js');
+  for (const validate of [isUpdateOverrideValid, isIgnoreOverrideValid]) {
+    assert.equal(validate(false), true);
+    assert.equal(validate(true), true);
+    assert.equal(validate('true'), false);
+    assert.equal(validate(1), false);
+    assert.equal(validate({}), false);
+  }
   const updateSource = read('netlify/functions/update-housekeeping-task.js');
   const ignoreSource = read('netlify/functions/ignore-housekeeping-task.js');
   assert.ok(updateSource.includes('const isAdminOverride = adminOverride === true;'));
