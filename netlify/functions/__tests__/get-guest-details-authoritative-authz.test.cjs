@@ -29,8 +29,8 @@ function setConfiguredEnv() {
   process.env.SUPABASE_JWT_SECRET = 'test-secret';
 }
 
-function token({ businessId = 'biz-a', permissionSet = ['canViewGuestDetails', 'canViewGuestFoodRestrictions'], role = 'manager', employeeId = 'emp-1', active = true } = {}) {
-  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
+function token({ businessId = 'biz-a', permissionSet = ['canViewGuestDetails'], role = 'manager', department = 'front_office', employeeId = 'emp-1', active = true } = {}) {
+  return jwt.sign({ sub: employeeId, email: 'employee@example.com', user_metadata: { business_id: businessId, employee_id: employeeId, staff_role: role, department, permission_set: permissionSet, active } }, process.env.SUPABASE_JWT_SECRET, { issuer: process.env.FASTCHECKIN_JWT_ISSUER || 'fastcheckin' });
 }
 
 function restoreEnv() { process.env = { ...ORIGINAL_ENV }; global.fetch = originalFetch; }
