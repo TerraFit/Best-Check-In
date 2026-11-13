@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchRooms } from '../../services/roomApi';
-import { getAuthHeader, getEmployeeAuth } from '../../utils/auth';
+import { getAuthHeader } from '../../utils/auth';
 import type { Room } from '../../types/room';
 
 interface Props { businessId: string; }
@@ -48,8 +48,11 @@ export default function AdminBulkRoomReadiness({ businessId }: Props) {
   const eligibleRooms = useMemo(() => rooms.filter((room) => !blockedReason(room)), [rooms]);
   const allSelected = eligibleRooms.length > 0 && eligibleRooms.every((room) => selected.includes(room.id));
 
-  // Employee sessions use the separate employee portal and must never see these controls.
-  if (getEmployeeAuth()) return null;
+  // Hide these controls only on employee-facing routes. A stale employee session
+  // can coexist with a valid business session, so session presence alone is not
+  // a reliable way to identify the active dashboard.
+  const isEmployeePortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/employee');
+  if (isEmployeePortal) return null;
 
   const toggleAll = () => setSelected((current) => allSelected
     ? current.filter((id) => !eligibleRooms.some((room) => room.id === id))
