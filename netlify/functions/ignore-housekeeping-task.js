@@ -20,6 +20,10 @@ const IGNORE_REASONS = new Set([
   'Service was no longer required',
 ]);
 
+export function isValidAdminOverride(value) {
+  return typeof value === 'boolean';
+}
+
 export function canIgnoreTaskStatus(taskStatus, isAdminOverride) {
   return taskStatus === 'pending' || (isAdminOverride === true && taskStatus === 'in_progress');
 }
@@ -79,7 +83,7 @@ export const handler = async (event) => {
     }
 
     const { businessId: requestedBusinessId, taskId, reason, details, adminOverride = false } = body;
-    if (typeof adminOverride !== 'boolean') {
+    if (!isValidAdminOverride(adminOverride)) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'adminOverride must be a boolean' }) };
     }
     const isAdminOverride = adminOverride === true;
