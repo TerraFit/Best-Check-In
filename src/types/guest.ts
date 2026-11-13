@@ -16,6 +16,7 @@ export interface GuestDetails {
   booking_reference?: string;
   nights?: number;
   food_restrictions?: FoodRestrictions;
+  can_view_food_restrictions?: boolean;
   // Room Operations (Phase 1) — optional for backward compatibility
   room_id?: string | null;
   room_number?: number | null;
