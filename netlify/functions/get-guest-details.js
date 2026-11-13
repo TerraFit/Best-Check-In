@@ -33,8 +33,9 @@ export const handler = async (event) => {
     const bookingData = await bookingResponse.json();
     const booking = Array.isArray(bookingData) ? bookingData[0] : null;
     if (!booking || String(booking.business_id) !== String(businessId)) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+    const canViewFoodRestrictions = requireBusinessPermission(authResult.principal, 'canViewGuestFoodRestrictions');
     let restrictions = null;
-    if (requireBusinessPermission(authResult.principal, 'canViewGuestFoodRestrictions')) try {
+    if (canViewFoodRestrictions) try {
       const restrictionsResponse = await fetch(`${supabaseUrl}/rest/v1/booking_food_restrictions?booking_id=eq.${encodedBookingId}&select=*`, { headers: restHeaders });
       if (restrictionsResponse.ok) {
         const restrictionsData = await restrictionsResponse.json();
@@ -52,7 +53,8 @@ export const handler = async (event) => {
       guests: (booking.adults || 0) + (booking.children || 0), adults: booking.adults || 0, children: booking.children || 0,
       check_in_date: booking.check_in_date, check_out_date: booking.check_out_date || '', nights: booking.nights || 1,
       booking_reference: String(booking.id).substring(0, 8).toUpperCase(), room_id: booking.room_id || null,
-      room_number: booking.room_number ?? null, room_name: booking.room_name || null, food_restrictions: restrictions || null
+      room_number: booking.room_number ?? null, room_name: booking.room_name || null, food_restrictions: restrictions || null,
+      can_view_food_restrictions: canViewFoodRestrictions
     };
     return { statusCode: 200, headers, body: JSON.stringify(guestDetails) };
   } catch (error) {
