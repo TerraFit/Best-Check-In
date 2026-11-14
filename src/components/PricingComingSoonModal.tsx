@@ -5,7 +5,7 @@ import { useTranslation } from '../i18n';
 
 type Props = { open: boolean; onClose: () => void };
 
-const ENTERPRISE_MESSAGE = 'Enterprise multi-establishment portfolio management with high-level business analytics is coming soon. Complete the form, and we will contact you as soon as this unique portfolio management solution becomes available.';
+const ENTERPRISE_MESSAGE = 'Enterprise is designed for businesses managing 2 or more establishments. The base price covers up to 21 combined rooms; additional five-room blocks are charged beyond that, with applicable Enterprise volume discounts. Complete the form and we will contact you when centralised portfolio management and consolidated analytics become available.';
 
 export default function PricingComingSoonModal({ open, onClose }: Props) {
   const { t } = useTranslation();

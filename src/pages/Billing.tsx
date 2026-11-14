@@ -569,7 +569,7 @@ export default function Billing() {
           <p className="text-amber-600 font-semibold mb-4">{t('billing_custom_pricing')}</p>
           <p className="text-stone-600 mb-6">{t('billing_enterprise_desc')}</p>
           <ul className="flex flex-wrap justify-center gap-6 mb-6 text-stone-600 text-sm">
-            <li>✓ 20+ rooms</li>
+            <li>✓ 2+ establishments</li>
             <li>✓ Multi-property support</li>
             <li>✓ Dedicated onboarding</li>
             <li>✓ API access (coming soon)</li>

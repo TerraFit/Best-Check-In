@@ -30,7 +30,8 @@ test('shared engine uses five-room blocks and the agreed package minimums', () =
   assert.equal(packageAcceptsRoomCount('business', 20), false);
   assert.equal(packageAcceptsRoomCount('business', 21), true);
   assert.equal(packageAcceptsRoomCount('business', 500), true);
-  assert.equal(packageAcceptsRoomCount('enterprise', 20), false);
+  assert.equal(packageAcceptsRoomCount('enterprise', 1), true);
+  assert.equal(packageAcceptsRoomCount('enterprise', 20), true);
   assert.equal(packageAcceptsRoomCount('enterprise', 21), true);
 });
 
@@ -41,8 +42,12 @@ test('customer-facing subscription prices are rounded to whole currency units', 
   assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 0);
   assert.equal(calculateSubscriptionMonthlyPrice(21, 'business'), 2260);
   assert.equal(calculateSubscriptionMonthlyPrice(26, 'business'), 2609);
-  assert.equal(calculateSubscriptionMonthlyPrice(20, 'enterprise'), 0);
+  assert.equal(calculateSubscriptionMonthlyPrice(12, 'enterprise'), 2616);
+  assert.equal(calculateSubscriptionMonthlyPrice(20, 'enterprise'), 2616);
   assert.equal(calculateSubscriptionMonthlyPrice(21, 'enterprise'), 2616);
+  assert.equal(calculateSubscriptionMonthlyPrice(22, 'enterprise'), 2965);
+  assert.equal(calculateSubscriptionMonthlyPrice(27, 'enterprise'), 3314);
+  assert.equal(calculateSubscriptionMonthlyPrice(51, 'enterprise'), 4501);
   assert.equal(calculateSubscriptionAnnualPrice(1, 'starter'), 3839);
   assert.equal(calculateSubscriptionAnnualPrice(6, 'growth'), 7139);
   assert.equal(calculateSubscriptionAnnualPrice(11, 'pro'), 10439);
@@ -71,12 +76,16 @@ test('Enterprise additional-establishment fees are rounded to whole ZAR', () => 
   assert.equal(calculateEnterpriseAdditionalEstablishmentMonthlyFee(10), 254);
 });
 
-test('Enterprise portfolio pricing requires at least two establishments and 21 combined rooms', () => {
+test('Enterprise portfolio eligibility requires 2+ establishments; base pricing includes up to 21 combined rooms', () => {
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(1, 1), 0);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 1), 0);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 1), 0);
   assert.equal(calculateEnterprisePortfolioAnnualPrice(20, 1), 0);
-  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 0);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(12, 2), 2616);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(20, 2), 2616);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(22, 2), 2965);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(27, 2), 3314);
+  assert.equal(calculateEnterprisePortfolioMonthlyPrice(51, 2), 4501);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 2), 2616);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 3), 2915);
   assert.equal(calculateEnterprisePortfolioMonthlyPrice(21, 5), 3513);
