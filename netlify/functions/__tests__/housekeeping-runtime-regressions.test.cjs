@@ -365,3 +365,48 @@ test('housekeeping views select one appropriate room task and calculate oldest R
   const all = await runView('all');
   assert.equal(all.id, 'future-task', 'All should show the latest record by update recency while retaining older records in storage');
 });
+
+
+test('employee Ignore reason cleaned but not recorded completes task and sends room for inspection', async () => {
+  const { handler } = await import('../ignore-housekeeping-task.js');
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    task_type: 'refresh', scheduled_date: '2026-11-15', booking_id: null,
+    guest_name: 'Guest', notes: '',
+  };
+  const room = { id: ROOM_ID, occupancy_status: 'occupied', availability_status: 'available', active: true, housekeeping_status: 'not_ready' };
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ target, method, body });
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'GET') return jsonResponse([task]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([room]);
+    if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending') && method === 'GET') return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'PATCH') return jsonResponse([{ ...task, ...body }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') return jsonResponse([{ ...room, ...body }]);
+    if (target.includes('/room_events') && method === 'POST') return jsonResponse([{ id: 'audit-cleaned-1' }]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canCompleteHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, reason: 'Room was cleaned but not recorded' }),
+    });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.status, 'completed');
+    assert.equal(payload.task.status, 'completed');
+    assert.equal(payload.task.inspection_status, 'pending');
+    assert.deepEqual(payload.room_patch, { housekeeping_status: 'awaiting_inspection' });
+    const taskPatch = calls.find((call) => call.method === 'PATCH' && call.target.includes('/housekeeping_tasks?id=eq.'));
+    assert.equal(taskPatch.body.status, 'completed');
+    assert.equal(taskPatch.body.inspection_status, 'pending');
+    const roomPatch = calls.find((call) => call.method === 'PATCH' && call.target.includes('/rooms?id=eq.'));
+    assert.equal(roomPatch.body.housekeeping_status, 'awaiting_inspection');
+    const audit = calls.find((call) => call.method === 'POST' && call.target.includes('/room_events'));
+    assert.equal(audit.body.event_type, 'housekeeping_task_completed_outside_app');
+  });
+});
