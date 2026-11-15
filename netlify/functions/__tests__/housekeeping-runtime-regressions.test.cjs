@@ -315,3 +315,53 @@ test('Today handler keeps overdue pending work visible when a newer completed-to
     assert.equal(payload.tasks[0].status, 'pending');
   });
 });
+
+
+test('housekeeping views select one appropriate room task and calculate oldest Refresh eligibility from full history', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const tasks = [
+    { id: 'refresh-oldest', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'refresh', is_checkout: false, scheduled_date: '2026-11-10', status: 'pending', created_at: '2026-11-10T06:00:00Z', updated_at: '2026-11-14T10:00:00Z' },
+    { id: 'refresh-newer', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'refresh', is_checkout: false, scheduled_date: '2026-11-11', status: 'pending', created_at: '2026-11-11T06:00:00Z', updated_at: '2026-11-12T10:00:00Z' },
+    { id: 'completed-older', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: true, scheduled_date: '2026-11-12', status: 'completed', completed_at: '2026-11-12T10:00:00+02:00', created_at: '2026-11-12T06:00:00Z', updated_at: '2026-11-12T11:00:00Z' },
+    { id: 'completed-latest', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: true, scheduled_date: '2026-11-13', status: 'completed', completed_at: '2026-11-13T10:00:00+02:00', created_at: '2026-11-13T06:00:00Z', updated_at: '2026-11-13T12:00:00Z' },
+    { id: 'future-task', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: false, scheduled_date: '2026-11-20', status: 'pending', created_at: '2026-11-14T06:00:00Z', updated_at: '2026-11-14T12:00:00Z' },
+  ];
+
+  const runView = async (view) => {
+    let selected;
+    await withSupabaseMock(async (url) => {
+      const target = String(url);
+      if (target.includes('/housekeeping_tasks?') && target.includes('order=scheduled_date.asc')) return jsonResponse(tasks);
+      if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.skipped')) return jsonResponse([]);
+      if (target.includes('/rooms?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-15')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-15')) return jsonResponse([]);
+      throw new Error('Unexpected Supabase request: GET ' + target);
+    }, async () => {
+      const result = await handler({
+        ...authEvent({ employee: true, permissions: ['canViewHousekeeping', 'canCompleteHousekeepingTask'] }),
+        httpMethod: 'GET',
+        queryStringParameters: { businessId: BUSINESS_ID, view, date: '2026-11-15' },
+      });
+      assert.equal(result.statusCode, 200, view);
+      selected = JSON.parse(result.body).tasks;
+    });
+    assert.equal(selected.length, 1, view + ' must display exactly one card for the room');
+    return selected[0];
+  };
+
+  const today = await runView('today');
+  assert.equal(today.id, 'refresh-oldest', 'Today should expose the oldest overdue open task');
+  assert.equal(today.can_skip_oldest, true, 'skip eligibility must consider every overdue Refresh record, not only the displayed card');
+
+  const pending = await runView('pending');
+  assert.equal(pending.id, 'refresh-oldest', 'Pending should expose the oldest due task before newer or future work');
+
+  const completed = await runView('completed');
+  assert.equal(completed.id, 'completed-latest', 'Completed should show the latest completed record for the room');
+
+  const all = await runView('all');
+  assert.equal(all.id, 'future-task', 'All should show the latest record by update recency while retaining older records in storage');
+});
