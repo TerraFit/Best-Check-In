@@ -116,7 +116,8 @@ test('completion closes older pending room tasks but preserves future services',
   assert.ok(cleanupCall, 'older pending task should be closed after successful service completion');
   const cleanupBody = JSON.parse(cleanupCall.options.body);
   assert.equal(cleanupBody.status, 'skipped');
-  assert.match(cleanupCall.url, /scheduled_date=lte\.2026-11-15/);
+  const cleanupLookup = calls.find((call) => !call.options.method && call.url.includes('/housekeeping_tasks?') && call.url.includes('status=eq.pending'));
+  assert.match(cleanupLookup.url, /scheduled_date=lte\.2026-11-15/);
   const currentTaskPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=eq.task-1'));
   assert.equal(JSON.parse(currentTaskPatch.options.body).status, 'completed');
   assert.equal(JSON.parse(currentTaskPatch.options.body).inspection_status, 'pending');
