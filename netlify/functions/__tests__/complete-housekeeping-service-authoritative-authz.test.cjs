@@ -56,7 +56,7 @@ beforeEach(() => {
       if (options.method === 'PATCH' && u.includes('id=in.(')) return response(200, previousPendingTasks.map((task) => ({ ...task, status: 'skipped' })));
       if (options.method === 'PATCH') return response(200, [{ id: 'task-1', status: 'completed', inspection_status: 'pending' }]);
       if (u.includes('id=eq.task-1')) return response(200, [{ id: 'task-1', business_id: 'biz-1', room_id: 'room-1', status: linkedTaskStatus, scheduled_date: '2026-11-15' }]);
-      if (u.includes('status=eq.pending')) return response(200, previousPendingTasks);
+      if (u.includes('status=eq.pending')) return response(200, previousPendingTasks.filter((task) => task.scheduled_date <= '2026-11-15'));
     }
     if (u.includes('/rooms')) return options.method === 'PATCH' ? response(200, [{ id: 'room-1', housekeeping_status: 'awaiting_inspection' }]) : response(200, []);
     if (u.includes('/room_events')) return response(201, [{ id: 'event-1' }]);
@@ -109,6 +109,7 @@ test('OPTIONS remains public preflight', async () => { const r = await handler(e
 test('completion closes older pending room tasks but preserves future services', async () => {
   previousPendingTasks = [
     { id: 'old-task-1', booking_id: 'booking-old', guest_name: 'Previous Guest', scheduled_date: '2026-11-08', status: 'pending', notes: null },
+    { id: 'future-task-1', booking_id: 'booking-future', guest_name: 'Future Guest', scheduled_date: '2026-11-20', status: 'pending', notes: null },
   ];
   const r = await complete(housekeeper());
   assert.equal(r.statusCode, 200);
@@ -116,6 +117,8 @@ test('completion closes older pending room tasks but preserves future services',
   assert.ok(cleanupCall, 'older pending task should be closed after successful service completion');
   const cleanupBody = JSON.parse(cleanupCall.options.body);
   assert.equal(cleanupBody.status, 'skipped');
+  assert.match(cleanupCall.url, /id=in\.\(old-task-1\)/);
+  assert.doesNotMatch(cleanupCall.url, /future-task-1/);
   const cleanupLookup = calls.find((call) => !call.options.method && call.url.includes('/housekeeping_tasks?') && call.url.includes('status=eq.pending'));
   assert.match(cleanupLookup.url, /scheduled_date=lte\.2026-11-15/);
   const currentTaskPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=eq.task-1'));
