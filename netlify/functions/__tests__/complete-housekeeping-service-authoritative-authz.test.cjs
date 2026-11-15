@@ -122,7 +122,7 @@ test('completion closes older pending room tasks but preserves future services',
   assert.match(cleanupCall.url, /id=in\.\(old-task-1\)/);
   assert.doesNotMatch(cleanupCall.url, /future-task-1/);
   const cleanupLookup = calls.find((call) => !call.options.method && call.url.includes('/housekeeping_tasks?') && call.url.includes('status=eq.pending'));
-  assert.match(cleanupLookup.url, /scheduled_date=lte\.2026-11-15/);
+  assert.ok(cleanupLookup.url.includes('scheduled_date=lte.' + completionLocalDate));
   const currentTaskPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=eq.task-1'));
   assert.equal(JSON.parse(currentTaskPatch.options.body).status, 'completed');
   assert.equal(JSON.parse(currentTaskPatch.options.body).inspection_status, 'pending');
