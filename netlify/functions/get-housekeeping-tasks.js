@@ -100,15 +100,20 @@ export const handler = async (event) => {
       String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
       String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.id).localeCompare(String(b.id));
-    // Operational queues expose the oldest scheduled open task per room so an older overdue service is not hidden by a newer update.
-    const oldestPerRoom = (candidateTasks) => {
-      const oldestByRoom = new Map();
+    // Operational queues keep an active service visible first. Otherwise they expose
+    // the oldest scheduled open task so an older overdue service is not hidden by a newer update.
+    const priorityOpenPerRoom = (candidateTasks) => {
+      const selectedByRoom = new Map();
       for (const task of candidateTasks) {
         const key = roomKey(task);
-        const current = oldestByRoom.get(key);
-        if (!current || compareTaskOrder(task, current) < 0) oldestByRoom.set(key, task);
+        const current = selectedByRoom.get(key);
+        if (!current ||
+            (task.status === 'in_progress' && current.status !== 'in_progress') ||
+            (task.status === current.status && compareTaskOrder(task, current) < 0)) {
+          selectedByRoom.set(key, task);
+        }
       }
-      return [...oldestByRoom.values()];
+      return [...selectedByRoom.values()];
     };
     let tasks = [];
     if (view === 'today') {
@@ -123,7 +128,7 @@ export const handler = async (event) => {
       );
       // Outstanding due work always takes precedence over a completed-today
       // history row for the same room. Keep the dashboard to one card per room.
-      const oldestDueOpenByRoom = oldestPerRoom(dueOpenTasks);
+      const oldestDueOpenByRoom = priorityOpenPerRoom(dueOpenTasks);
       const roomsWithDueOpenWork = new Set(oldestDueOpenByRoom.map(roomKey));
       const completedForOtherRooms = completedTodayTasks.filter((task) => !roomsWithDueOpenWork.has(roomKey(task)));
       tasks = [...oldestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
@@ -133,7 +138,7 @@ export const handler = async (event) => {
       const roomsWithDueTasks = new Set(dueTasks.map(roomKey));
       // Show current/overdue work before future scheduled services for the same room.
       const futureTasks = openTasks.filter((task) => task.scheduled_date > todayStr && !roomsWithDueTasks.has(roomKey(task)));
-      tasks = [...oldestPerRoom(dueTasks), ...oldestPerRoom(futureTasks)];
+      tasks = [...priorityOpenPerRoom(dueTasks), ...priorityOpenPerRoom(futureTasks)];
     } else if (view === 'completed') {
       tasks = latestPerRoom(allTasks.filter((task) => task.status === 'completed'));
     } else if (status) {
