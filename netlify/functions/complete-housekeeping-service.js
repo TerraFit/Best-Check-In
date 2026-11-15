@@ -235,11 +235,17 @@ export const handler = async (event) => {
       return response(409, headers, { success: false, error: 'The service and task were completed, but the room state could not be confirmed. Refresh the Rooms tab and investigate.', code: 'ROOM_STATE_CHANGED', state_updated: true });
     }
 
-    // A completed service supersedes any older pending task records for the
-    // same room up to the service's scheduled date. Keep future services intact
-    // and retain superseded rows as skipped for history rather than deleting them.
+    // A service completed now supersedes every pending task for this room
+    // due through today's South African local date. Future-dated services remain
+    // intact, and superseded rows are retained as skipped for history.
+    const completedLocalDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(completedAt));
     const previousTasksRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${q(businessId)}&room_id=eq.${q(session.room_id)}&status=eq.pending&scheduled_date=lte.${q(linkedTask.scheduled_date)}&id=neq.${q(linkedTask.id)}&select=id,booking_id,guest_name,scheduled_date,status,notes&order=scheduled_date.asc,created_at.asc,id.asc`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${q(businessId)}&room_id=eq.${q(session.room_id)}&status=eq.pending&scheduled_date=lte.${q(completedLocalDate)}&id=neq.${q(linkedTask.id)}&select=id,booking_id,guest_name,scheduled_date,status,notes&order=scheduled_date.asc,created_at.asc,id.asc`,
       { headers: read }
     );
     if (!previousTasksRes.ok) {
