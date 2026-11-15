@@ -96,6 +96,20 @@ export const handler = async (event) => {
       }
       return [...latestByRoom.values()];
     };
+    const compareTaskOrder = (a, b) =>
+      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+      String(a.id).localeCompare(String(b.id));
+    // Operational queues expose the oldest scheduled open task per room so an older overdue service is not hidden by a newer update.
+    const oldestPerRoom = (candidateTasks) => {
+      const oldestByRoom = new Map();
+      for (const task of candidateTasks) {
+        const key = roomKey(task);
+        const current = oldestByRoom.get(key);
+        if (!current || compareTaskOrder(task, current) < 0) oldestByRoom.set(key, task);
+      }
+      return [...oldestByRoom.values()];
+    };
     let tasks = [];
     if (view === 'today') {
       // Today includes pending/in-progress work due today or overdue, plus
@@ -109,17 +123,17 @@ export const handler = async (event) => {
       );
       // Outstanding due work always takes precedence over a completed-today
       // history row for the same room. Keep the dashboard to one card per room.
-      const latestDueOpenByRoom = latestPerRoom(dueOpenTasks);
-      const roomsWithDueOpenWork = new Set(latestDueOpenByRoom.map(roomKey));
+      const oldestDueOpenByRoom = oldestPerRoom(dueOpenTasks);
+      const roomsWithDueOpenWork = new Set(oldestDueOpenByRoom.map(roomKey));
       const completedForOtherRooms = completedTodayTasks.filter((task) => !roomsWithDueOpenWork.has(roomKey(task)));
-      tasks = [...latestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
+      tasks = [...oldestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
     } else if (view === 'pending') {
       const openTasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
       const dueTasks = openTasks.filter((task) => task.scheduled_date <= todayStr);
       const roomsWithDueTasks = new Set(dueTasks.map(roomKey));
       // Show current/overdue work before future scheduled services for the same room.
       const futureTasks = openTasks.filter((task) => task.scheduled_date > todayStr && !roomsWithDueTasks.has(roomKey(task)));
-      tasks = latestPerRoom([...dueTasks, ...futureTasks]);
+      tasks = [...oldestPerRoom(dueTasks), ...oldestPerRoom(futureTasks)];
     } else if (view === 'completed') {
       tasks = latestPerRoom(allTasks.filter((task) => task.status === 'completed'));
     } else if (status) {
@@ -156,7 +170,7 @@ export const handler = async (event) => {
     // or an older overdue Refresh has already been skipped. This makes the next-oldest
     // task eligible immediately after the oldest is skipped, without allowing a lone
     // first-time overdue Refresh to be skipped.
-    const overdueRefreshOpen = tasks.filter((task) =>
+    const overdueRefreshOpen = allTasks.filter((task) =>
       task.status === 'pending' &&
       task.task_type === 'refresh' &&
       !task.is_checkout &&
@@ -172,10 +186,6 @@ export const handler = async (event) => {
     }
     const skippedRefreshTasks = skippedRefreshRes.rows;
 
-    const compareTasks = (a, b) =>
-      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
-      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
-      String(a.id).localeCompare(String(b.id));
     const openByRoom = new Map();
     for (const task of overdueRefreshOpen) {
       const key = roomKey(task);
@@ -183,7 +193,7 @@ export const handler = async (event) => {
       list.push(task);
       openByRoom.set(key, list);
     }
-    for (const list of openByRoom.values()) list.sort(compareTasks);
+    for (const list of openByRoom.values()) list.sort(compareTaskOrder);
 
     const skippedByRoom = new Map();
     for (const task of skippedRefreshTasks) {
@@ -197,7 +207,7 @@ export const handler = async (event) => {
     for (const [key, list] of openByRoom.entries()) {
       if (!list.length) continue;
       const oldestOpen = list[0];
-      const priorSkipped = (skippedByRoom.get(key) || []).some((skipped) => compareTasks(skipped, oldestOpen) < 0);
+      const priorSkipped = (skippedByRoom.get(key) || []).some((skipped) => compareTaskOrder(skipped, oldestOpen) < 0);
       if (list.length >= 2 || priorSkipped) canSkipTaskIds.add(oldestOpen.id);
     }
 
