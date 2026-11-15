@@ -90,10 +90,10 @@ test('Today includes pending due services while keeping one operational card per
   assert.match(source, /\['pending', 'in_progress'\]\.includes\(task\.status\) && task\.scheduled_date <= todayStr/);
   assert.match(source, /const dueOpenTasks = allTasks\.filter/);
   assert.match(source, /const completedTodayTasks = allTasks\.filter/);
-  assert.match(source, /const roomsWithDueOpenWork = new Set\(latestDueOpenByRoom\.map\(roomKey\)\)/);
-  assert.match(source, /tasks = \[\.\.\.latestDueOpenByRoom, \.\.\.latestPerRoom\(completedForOtherRooms\)\]/);
+  assert.match(source, /const roomsWithDueOpenWork = new Set\(oldestDueOpenByRoom\.map\(roomKey\)\)/);
+  assert.match(source, /tasks = \[\.\.\.oldestDueOpenByRoom, \.\.\.latestPerRoom\(completedForOtherRooms\)\]/);
   assert.match(source, /const roomsWithDueTasks = new Set\(dueTasks\.map\(roomKey\)\)/);
-  assert.match(source, /const latestPerRoom = \(candidateTasks\)/);
+  assert.match(source, /const latestPerRoom = \(candidateTasks\)/);\n  assert.match(source, /const priorityOpenPerRoom = \(candidateTasks\)/);\n  assert.match(source, /const overdueRefreshOpen = allTasks\.filter/);
   assert.match(source, /if \(view === 'completed'\)[\s\S]*?latestPerRoom\(allTasks\.filter\(\(task\) => task\.status === 'completed'\)\)/);
 });
 
