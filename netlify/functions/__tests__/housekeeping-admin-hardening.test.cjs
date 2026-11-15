@@ -34,8 +34,10 @@ test('employee confirms cleaned room and closes older pending tasks for that roo
   assert.ok(source.indexOf('const activeRes = await fetch') < source.indexOf('let clearedPreviousTasks'));
   assert.ok(source.indexOf('for (const session of activeSessions)') < source.indexOf('let clearedPreviousTasks'));
   assert.ok(source.includes('cleared_previous_pending_tasks: clearedPreviousTasks.length'));
-  // Employee confirmation must not acquire the administrator-only room-ready patch.
-  assert.ok(source.includes("const alreadyCleaned = normalizedReason === 'Already cleaned';"));
+  // Staff confirmation completes the service but leaves it awaiting administrator inspection.
+  assert.ok(source.includes("const cleanedOutsideApp = normalizedReason === 'Room was cleaned but not recorded';"));
+  assert.ok(source.includes("inspection_status: cleanedOutsideApp ? 'pending' : 'approved'"));
+  assert.ok(source.includes("? { housekeeping_status: 'awaiting_inspection' }"));
   assert.ok(source.includes("if (!isAdminOverride && ['Already cleaned', 'Maintenance'].includes(normalizedReason))"));
 });
 
@@ -43,8 +45,9 @@ test('employee Ignore cannot mark a room ready or approve it as already cleaned'
   const source = read('netlify/functions/ignore-housekeeping-task.js');
   assert.ok(source.includes("if (!isAdminOverride && ['Already cleaned', 'Maintenance'].includes(normalizedReason))"));
   assert.ok(source.includes("const alreadyCleaned = normalizedReason === 'Already cleaned';"));
-  assert.ok(source.includes("const nextStatus = alreadyCleaned ? 'completed' : 'skipped';"));
-  assert.ok(source.includes("const roomPatch = alreadyCleaned"));
+  assert.ok(source.includes("const completedAsCleaned = alreadyCleaned || cleanedOutsideApp;"));
+  assert.ok(source.includes("const nextStatus = completedAsCleaned ? 'completed' : 'skipped';"));
+  assert.ok(source.includes("const roomPatch = cleanedOutsideApp"));
 });
 
 test('checkout housekeeping does not force room occupancy to vacant', () => {
