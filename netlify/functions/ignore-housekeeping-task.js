@@ -188,7 +188,7 @@ export const handler = async (event) => {
             reason: normalizedReason,
             details: normalizedDetails || null,
             previous_status: task.status,
-            intended_status: normalizedReason === 'Already cleaned' ? 'completed' : 'skipped',
+            intended_status: ['Already cleaned', 'Room was cleaned but not recorded'].includes(normalizedReason) ? 'completed' : 'skipped',
             outcome: 'requested',
             performed_by: principal.employeeId || principal.userId || null,
             performed_by_type: principal.actorType || null,
@@ -356,13 +356,15 @@ export const handler = async (event) => {
       ? `Other: ${normalizedDetails}`
       : normalizedDetails ? `${normalizedReason}: ${normalizedDetails}` : normalizedReason;
     const previousNotes = typeof task.notes === 'string' && task.notes.trim() ? task.notes.trim() : '';
-    const auditLabel = normalizedReason === 'Already cleaned' ? 'Marked already cleaned' : normalizedReason === 'Maintenance' ? 'Marked maintenance' : 'Skipped';
+    const auditLabel = normalizedReason === 'Room was cleaned but not recorded' ? 'Completed outside FastCheckIn' : normalizedReason === 'Already cleaned' ? 'Marked already cleaned' : normalizedReason === 'Maintenance' ? 'Marked maintenance' : 'Skipped';
     const nextNotes = previousNotes ? `${previousNotes}\n${auditLabel}: ${auditReason}` : `${auditLabel}: ${auditReason}`;
 
     const alreadyCleaned = normalizedReason === 'Already cleaned';
-    const nextStatus = alreadyCleaned ? 'completed' : 'skipped';
-    const taskPatch = alreadyCleaned
-      ? { status: 'completed', completed_at: now, completed_by: principal.employeeId || principal.userId || null, inspection_status: 'approved', notes: nextNotes, updated_at: now }
+    const cleanedOutsideApp = normalizedReason === 'Room was cleaned but not recorded';
+    const completedAsCleaned = alreadyCleaned || cleanedOutsideApp;
+    const nextStatus = completedAsCleaned ? 'completed' : 'skipped';
+    const taskPatch = completedAsCleaned
+      ? { status: 'completed', completed_at: now, completed_by: principal.employeeId || principal.userId || null, inspection_status: cleanedOutsideApp ? 'pending' : 'approved', notes: nextNotes, updated_at: now }
       : { status: 'skipped', notes: nextNotes, updated_at: now };
     const updateRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(task.id)}&business_id=eq.${encodeURIComponent(businessId)}&status=in.(pending,in_progress)`,
@@ -377,8 +379,10 @@ export const handler = async (event) => {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'This housekeeping task was already changed; refresh the task list and try again', code: 'TASK_CHANGED' }) };
     }
 
-    const roomPatch = alreadyCleaned
-      ? { housekeeping_status: 'ready' }
+    const roomPatch = cleanedOutsideApp
+      ? { housekeeping_status: 'awaiting_inspection' }
+      : alreadyCleaned
+        ? { housekeeping_status: 'ready' }
       : normalizedReason === 'Maintenance'
         ? { availability_status: 'maintenance', housekeeping_status: 'not_ready', unavailable_reason: 'Maintenance' }
         : null;
@@ -404,7 +408,7 @@ export const handler = async (event) => {
         body: JSON.stringify({
           business_id: businessId,
           room_id: task.room_id,
-          event_type: alreadyCleaned ? 'housekeeping_marked_already_cleaned' : normalizedReason === 'Maintenance' ? 'room_marked_maintenance' : 'housekeeping_task_ignored',
+          event_type: cleanedOutsideApp ? 'housekeeping_task_completed_outside_app' : alreadyCleaned ? 'housekeeping_marked_already_cleaned' : normalizedReason === 'Maintenance' ? 'room_marked_maintenance' : 'housekeeping_task_ignored',
           source: principal.actorType || 'staff',
           severity: 'info',
           booking_id: task.booking_id,
