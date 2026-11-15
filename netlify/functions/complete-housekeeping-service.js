@@ -127,7 +127,7 @@ export const handler = async (event) => {
     if (!linkedTask) return response(404, headers, { success: false, error: 'The housekeeping task linked to this service session no longer exists' });
     if (String(linkedTask.room_id) !== String(session.room_id)) return response(409, headers, { success: false, error: 'The service session and housekeeping task refer to different rooms', code: 'TASK_ROOM_MISMATCH' });
     if (linkedTask.status !== 'in_progress') return response(409, headers, { success: false, error: 'The housekeeping task is no longer in progress. Refresh the task list and ask an administrator to review it.', code: 'TASK_NOT_IN_PROGRESS' });
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(linkedTask.scheduled_date || ''))) return response(409, headers, { success: false, error: 'The linked housekeeping task has no valid scheduled date; completion was not applied.', code: 'TASK_SCHEDULE_INVALID' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(linkedTask.scheduled_date || ''))) return response(409, headers, { success: false, error: 'The linked housekeeping task has no valid scheduled date; completion was not applied.', code: 'TASK_SCHEDULE_INVALID' });
 
     if (!adminOverride && !management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
