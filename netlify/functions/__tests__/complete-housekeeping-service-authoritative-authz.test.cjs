@@ -53,7 +53,8 @@ beforeEach(() => {
       return response(200, [{ ...SESSION, status: sessionStatus }]);
     }
     if (u.includes('/housekeeping_tasks')) {
-      if (options.method === 'PATCH') return response(200, [{ id: 'task-1', status: 'completed' }]);
+      if (options.method === 'PATCH' && u.includes('id=in.(')) return response(200, previousPendingTasks.map((task) => ({ ...task, status: 'skipped' })));
+      if (options.method === 'PATCH') return response(200, [{ id: 'task-1', status: 'completed', inspection_status: 'pending' }]);
       if (u.includes('id=eq.task-1')) return response(200, [{ id: 'task-1', business_id: 'biz-1', room_id: 'room-1', status: linkedTaskStatus, scheduled_date: '2026-11-15' }]);
       if (u.includes('status=eq.pending')) return response(200, previousPendingTasks);
     }
@@ -115,6 +116,12 @@ test('completion closes older pending room tasks but preserves future services',
   assert.ok(cleanupCall, 'older pending task should be closed after successful service completion');
   const cleanupBody = JSON.parse(cleanupCall.options.body);
   assert.equal(cleanupBody.status, 'skipped');
+  assert.match(cleanupCall.url, /scheduled_date=lte\.2026-11-15/);
+  const currentTaskPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=eq.task-1'));
+  assert.equal(JSON.parse(currentTaskPatch.options.body).status, 'completed');
+  assert.equal(JSON.parse(currentTaskPatch.options.body).inspection_status, 'pending');
+  const roomPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/rooms'));
+  assert.equal(JSON.parse(roomPatch.options.body).housekeeping_status, 'awaiting_inspection');
   const cleanupAudit = calls.find((call) => call.options.method === 'POST' && call.url.includes('/room_events') && JSON.parse(call.options.body).event_type === 'housekeeping_previous_pending_tasks_cleared');
   assert.ok(cleanupAudit, 'superseded tasks must be audited');
   assert.equal(JSON.parse(cleanupAudit.options.body).details.cleared_tasks[0].task_id, 'old-task-1');
