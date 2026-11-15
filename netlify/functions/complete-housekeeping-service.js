@@ -255,7 +255,6 @@ export const handler = async (event) => {
           headers: write,
           body: JSON.stringify({
             status: 'skipped',
-            notes: 'Superseded by a subsequently completed housekeeping service.',
             updated_at: completedAt,
           }),
         }
