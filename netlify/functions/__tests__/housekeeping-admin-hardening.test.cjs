@@ -64,6 +64,10 @@ test('bulk room readiness is owner/administrator-only and audits before room mut
   assert.ok(source.indexOf('const auditResponse = await fetch') < source.indexOf('const patchResponse = await fetch(patchUrl'));
   assert.ok(source.includes("outcome: 'completed'"));
   assert.ok(source.includes('occupancy_status=eq.vacant'));
+  assert.ok(source.includes('scheduled_date=lte.${southAfricanDateString()}'));
+  assert.ok(source.includes('A due pending housekeeping task must be completed or resolved'));
+  assert.ok(source.includes('A due pending housekeeping task remains open'));
+  assert.ok(source.includes("timeZone: 'Africa/Johannesburg'"));
 });
 
 test('housekeeping history and dashboard queries paginate beyond PostgREST row limits', () => {
