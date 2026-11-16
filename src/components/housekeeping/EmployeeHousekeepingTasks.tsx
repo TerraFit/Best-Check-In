@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchHousekeepingTasks, startHousekeepingService, skipOldestOverdueHousekeepingService, ignoreHousekeepingTask } from '../../services/housekeepingApi';
 import type { HousekeepingTask } from '../../types/housekeeping';
 import type { HousekeepingServiceSession } from '../../types/housekeepingServicePerformance';
@@ -30,8 +30,38 @@ const SKIP_REASONS = [
 export default function EmployeeHousekeepingTasks({ businessId, employeeId, employeeName, principal }: Props) {
   const [tasks, setTasks] = useState<HousekeepingTask[]>([]); const [loading, setLoading] = useState(true); const [now, setNow] = useState(() => new Date()); const [error, setError] = useState<string | null>(null); const [selectedTask, setSelectedTask] = useState<HousekeepingTask | null>(null); const [selectedSession, setSelectedSession] = useState<HousekeepingServiceSession | null>(null); const [startingTaskId, setStartingTaskId] = useState<string | null>(null); const [showLostFound, setShowLostFound] = useState(false); const [lostFoundRoom, setLostFoundRoom] = useState<string | null>(null); const [lostFoundSuccess, setLostFoundSuccess] = useState<string | null>(null); const [skipTask, setSkipTask] = useState<HousekeepingTask | null>(null); const [skipReason, setSkipReason] = useState(''); const [skipOther, setSkipOther] = useState(''); const [skipBusy, setSkipBusy] = useState(false); const [ignoreTask, setIgnoreTask] = useState<HousekeepingTask | null>(null); const [ignoreReason, setIgnoreReason] = useState(''); const [ignoreOther, setIgnoreOther] = useState(''); const [ignoreBusy, setIgnoreBusy] = useState(false);
   const canStart = hasPermission(principal, 'canStartHousekeepingTask'); const canComplete = hasPermission(principal, 'canCompleteHousekeepingTask'); const canOverride = hasPermission(principal, 'canManageHousekeeping'); const canExecute = canStart || canComplete; const canSkip = canComplete || canOverride;
-  const loadTasks = useCallback(async () => { setLoading(true); setError(null); try { const result = await fetchHousekeepingTasks({ businessId, view: 'today' }); setTasks(result.tasks); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.'); } finally { setLoading(false); } }, [businessId]);
-  useEffect(() => { void loadTasks(); }, [loadTasks]);
+  const loadSequence = useRef(0);
+  const loadTasks = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestId = ++loadSequence.current;
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchHousekeepingTasks({ businessId, view: 'today' });
+      if (requestId === loadSequence.current) setTasks(result.tasks);
+    } catch (err) {
+      if (requestId === loadSequence.current) setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.');
+    } finally {
+      if (requestId === loadSequence.current && !silent) setLoading(false);
+    }
+  }, [businessId]);
+  useEffect(() => {
+    void loadTasks();
+    return () => { loadSequence.current += 1; };
+  }, [loadTasks]);
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadTasks({ silent: true });
+    };
+    const handleFocus = () => refreshWhenVisible();
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', handleFocus);
+    const refreshTimer = window.setInterval(refreshWhenVisible, 2 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', handleFocus);
+      window.clearInterval(refreshTimer);
+    };
+  }, [loadTasks]);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(timer); }, []);
   const today = localDateString(now);
   const buckets = useMemo(() => { const grouped: Record<TaskBucket, HousekeepingTask[]> = { behind: [], in_progress: [], pending: [], completed_today: [] }; for (const task of tasks) { const bucket = bucketForTask(task, today, now); if (bucket) grouped[bucket].push(task); } return grouped; }, [tasks, today, now]);
