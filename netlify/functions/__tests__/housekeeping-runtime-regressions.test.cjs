@@ -176,7 +176,7 @@ test('employee service start wins the room-version race and admin readiness cann
     if (target.includes('/rooms?id=in.(')) return jsonResponse([{ ...room }]);
     if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
     if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) return jsonResponse([]);
-    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending')) return jsonResponse([]);
+    if (method === 'GET' && target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending') && target.includes('scheduled_date=lte.')) return jsonResponse([]);
     if (target.includes('/housekeeping_service_sessions?') && target.includes('status=eq.active')) {
       sessionCheckCount += 1;
       const snapshot = [];
