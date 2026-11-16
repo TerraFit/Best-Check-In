@@ -90,15 +90,15 @@ test('administrator completion overrides are explicitly authorized and audited',
 
 test('Today includes pending due services while keeping one operational card per room', () => {
   const source = read('netlify/functions/get-housekeeping-tasks.js');
-  assert.match(source, /\['pending', 'in_progress'\]\.includes\(task\.status\) && task\.scheduled_date <= todayStr/);
-  assert.match(source, /const dueOpenTasks = allTasks\.filter/);
+  assert.match(source, /const dueOpenTasks = unsupersededOpenTasks\.filter\(\(task\) => task\.scheduled_date <= todayStr\)/);
+  assert.match(source, /const unsupersededOpenTasks = allTasks\.filter/);
   assert.match(source, /const completedTodayTasks = allTasks\.filter/);
   assert.match(source, /const roomsWithDueOpenWork = new Set\(oldestDueOpenByRoom\.map\(roomKey\)\)/);
   assert.match(source, /tasks = \[\.\.\.oldestDueOpenByRoom, \.\.\.latestPerRoom\(completedForOtherRooms\)\]/);
   assert.match(source, /const roomsWithDueTasks = new Set\(dueTasks\.map\(roomKey\)\)/);
   assert.match(source, /const latestPerRoom = \(candidateTasks\)/);
   assert.match(source, /const priorityOpenPerRoom = \(candidateTasks\)/);
-  assert.match(source, /const overdueRefreshOpen = allTasks\.filter/);
+  assert.match(source, /const overdueRefreshOpen = unsupersededOpenTasks\.filter/);
   assert.match(source, /if \(view === 'completed'\)[\s\S]*?latestPerRoom\(allTasks\.filter\(\(task\) => task\.status === 'completed'\)\)/);
 });
 
