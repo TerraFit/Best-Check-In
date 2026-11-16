@@ -352,7 +352,12 @@ test('Today and Pending hide due tasks superseded by a newer administrator-appro
       });
       assert.equal(result.statusCode, 200, view);
       const payload = JSON.parse(result.body);
-      assert.equal(payload.tasks.length, 0, view + ' must not show stale work superseded by approved completion');
+      if (view === 'today') {
+        assert.equal(payload.tasks.length, 1, 'Today should retain the approved completion as the room status');
+        assert.equal(payload.tasks[0].id, 'approved-completion');
+      } else {
+        assert.equal(payload.tasks.length, 0, 'Pending must not show stale work superseded by approved completion');
+      }
       assert.equal(payload.stats.overdue, 0, view + ' overdue count must agree with the task queue');
     });
   };
