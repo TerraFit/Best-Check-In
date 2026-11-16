@@ -254,13 +254,13 @@ export const handler = async (event) => {
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
     const rooms = roomsRes.rows;
-    const todayTasksRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`, restHeaders);
+    const todayTasksRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,room_id,task_type,status,scheduled_date,is_checkout`, restHeaders);
     if (!todayTasksRes.ok) {
       const e = upstreamFailure(todayTasksRes.status, 'today stats tasks');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
     const todayOpenTasks = todayTasksRes.rows.filter((task) => !isSupersededByApprovedCompletion(task));
-    const completedTodayRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`, restHeaders);
+    const completedTodayRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id,room_id,scheduled_date`, restHeaders);
     if (!completedTodayRes.ok) {
       const e = upstreamFailure(completedTodayRes.status, 'completed today stats');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
