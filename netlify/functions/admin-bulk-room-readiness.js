@@ -27,18 +27,38 @@ function response(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
+function southAfricanDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 async function checkActiveHousekeepingWork(supabaseUrl, businessId, roomId, readHeaders) {
-  const taskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}&status=eq.in_progress&select=id,status`;
-  const sessionUrl = `${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}&status=eq.active&select=id,status`;
+  const roomFilter = `business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}`;
+  const activeTaskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?${roomFilter}&status=eq.in_progress&select=id,status`;
+  const pendingTaskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?${roomFilter}&status=eq.pending&scheduled_date=lte.${southAfricanDateString()}&select=id,status,scheduled_date`;
+  const sessionUrl = `${supabaseUrl}/rest/v1/housekeeping_service_sessions?${roomFilter}&status=eq.active&select=id,status`;
   try {
-    const [taskResponse, sessionResponse] = await Promise.all([
-      fetch(taskUrl, { headers: readHeaders }),
+    const [activeTaskResponse, pendingTaskResponse, sessionResponse] = await Promise.all([
+      fetch(activeTaskUrl, { headers: readHeaders }),
+      fetch(pendingTaskUrl, { headers: readHeaders }),
       fetch(sessionUrl, { headers: readHeaders }),
     ]);
-    if (!taskResponse.ok || !sessionResponse.ok) return { ok: false };
-    const [tasks, sessions] = await Promise.all([taskResponse.json(), sessionResponse.json()]);
-    if (!Array.isArray(tasks) || !Array.isArray(sessions)) return { ok: false };
-    return { ok: true, active: tasks.length > 0 || sessions.length > 0 };
+    if (!activeTaskResponse.ok || !pendingTaskResponse.ok || !sessionResponse.ok) return { ok: false };
+    const [activeTasks, pendingTasks, sessions] = await Promise.all([
+      activeTaskResponse.json(), pendingTaskResponse.json(), sessionResponse.json(),
+    ]);
+    if (!Array.isArray(activeTasks) || !Array.isArray(pendingTasks) || !Array.isArray(sessions)) return { ok: false };
+    return {
+      ok: true,
+      active: activeTasks.length > 0 || sessions.length > 0,
+      duePending: pendingTasks.length > 0,
+    };
   } catch {
     return { ok: false };
   }
@@ -121,6 +141,10 @@ export const handler = async (event) => {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'An in-progress housekeeping task or active service session must be completed first.' });
         continue;
       }
+      if (activeWork.duePending) {
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'A due pending housekeeping task must be completed or resolved before the room can be marked ready.' });
+        continue;
+      }
 
       const eventType = action === 'approved' ? 'admin_bulk_housekeeping_approved' : 'admin_bulk_housekeeping_skipped';
       const eventPayload = {
@@ -150,19 +174,25 @@ export const handler = async (event) => {
       // Recheck after writing the audit intent to narrow the race window between
       // eligibility validation and the room-state mutation. Fail closed on lookup errors.
       const finalWorkCheck = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders);
-      if (!finalWorkCheck.ok || finalWorkCheck.active) {
+      if (!finalWorkCheck.ok || finalWorkCheck.active || finalWorkCheck.duePending) {
+        const failure = !finalWorkCheck.ok
+          ? 'Housekeeping work could not be rechecked.'
+          : finalWorkCheck.active
+            ? 'Housekeeping work became active before room readiness could be changed.'
+            : 'A due pending housekeeping task remained open before room readiness could be changed.';
         if (auditId) {
           await fetch(`${supabaseUrl}/rest/v1/room_events?id=eq.${encodeURIComponent(auditId)}&business_id=eq.${encodeURIComponent(businessId)}`, {
             method: 'PATCH',
             headers: writeHeaders,
-            body: JSON.stringify({ details: {
-              ...eventPayload.details,
-              outcome: 'not_applied',
-              failure: finalWorkCheck.ok ? 'Housekeeping work became active before room readiness could be changed.' : 'Active housekeeping work could not be rechecked.',
-            } }),
+            body: JSON.stringify({ details: { ...eventPayload.details, outcome: 'not_applied', failure } }),
           }).catch(() => {});
         }
-        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: finalWorkCheck.ok ? 'Housekeeping work became active before the room could be marked ready.' : 'Unable to recheck active housekeeping work; no change was made.' });
+        const reason = !finalWorkCheck.ok
+          ? 'Unable to recheck housekeeping work; no change was made.'
+          : finalWorkCheck.active
+            ? 'Housekeeping work became active before the room could be marked ready.'
+            : 'A due pending housekeeping task remains open; resolve it before marking the room ready.';
+        unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason });
         continue;
       }
 
