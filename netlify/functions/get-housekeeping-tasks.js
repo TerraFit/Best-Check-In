@@ -266,7 +266,7 @@ export const handler = async (event) => {
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
     const completedToday = completedTodayRes.rows;
-    const overdueRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id`, restHeaders);
+    const overdueRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,room_id,scheduled_date`, restHeaders);
     if (!overdueRes.ok) {
       const e = upstreamFailure(overdueRes.status, 'overdue stats');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
