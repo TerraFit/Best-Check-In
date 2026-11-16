@@ -70,6 +70,18 @@ test('bulk room readiness is owner/administrator-only and audits before room mut
   assert.ok(source.includes("timeZone: 'Africa/Johannesburg'"));
 });
 
+test('employee housekeeping queue refreshes on focus and visibility without changing staff actions', () => {
+  const source = read('src/components/housekeeping/EmployeeHousekeepingTasks.tsx');
+  assert.ok(source.includes("document.visibilityState === 'visible'"));
+  assert.ok(source.includes("document.addEventListener('visibilitychange', refreshWhenVisible)"));
+  assert.ok(source.includes("window.addEventListener('focus', handleFocus)"));
+  assert.ok(source.includes('2 * 60 * 1000'));
+  assert.ok(source.includes('loadTasks({ silent: true })'));
+  assert.ok(source.includes('startHousekeepingService'));
+  assert.ok(source.includes('Resume Service'));
+  assert.ok(source.includes('HousekeepingServiceModal'));
+});
+
 test('housekeeping history and dashboard queries paginate beyond PostgREST row limits', () => {
   const source = read('netlify/functions/get-housekeeping-tasks.js');
   assert.ok(source.includes('async function fetchAllRows'));
