@@ -100,6 +100,27 @@ export const handler = async (event) => {
       String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
       String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.id).localeCompare(String(b.id));
+
+    // An administrator-approved completion is authoritative for the room through
+    // that service date. Older/equal pending rows are stale history, not work for
+    // the employee queue. A completion awaiting inspection does NOT suppress work.
+    const latestApprovedCompletionByRoom = new Map();
+    for (const task of allTasks) {
+      if (task.status !== 'completed' || task.inspection_status !== 'approved') continue;
+      const key = roomKey(task);
+      const current = latestApprovedCompletionByRoom.get(key);
+      if (!current || String(task.scheduled_date || '') > String(current.scheduled_date || '')) {
+        latestApprovedCompletionByRoom.set(key, task);
+      }
+    }
+    const isSupersededByApprovedCompletion = (task) => {
+      const approved = latestApprovedCompletionByRoom.get(roomKey(task));
+      return Boolean(approved && String(task.scheduled_date || '') <= String(approved.scheduled_date || ''));
+    };
+    const unsupersededOpenTasks = allTasks.filter((task) =>
+      ['pending', 'in_progress'].includes(task.status) && !isSupersededByApprovedCompletion(task)
+    );
+
     // Operational queues keep an active service visible first. Otherwise they expose
     // the oldest scheduled open task so an older overdue service is not hidden by a newer update.
     const priorityOpenPerRoom = (candidateTasks) => {
@@ -119,9 +140,7 @@ export const handler = async (event) => {
     if (view === 'today') {
       // Today includes pending/in-progress work due today or overdue, plus
       // tasks completed today. Pending must not disappear from the Today view.
-      const dueOpenTasks = allTasks.filter((task) =>
-        ['pending', 'in_progress'].includes(task.status) && task.scheduled_date <= todayStr
-      );
+      const dueOpenTasks = unsupersededOpenTasks.filter((task) => task.scheduled_date <= todayStr);
       const completedTodayTasks = allTasks.filter((task) =>
         task.status === 'completed' && task.completed_at &&
         new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart
@@ -133,7 +152,7 @@ export const handler = async (event) => {
       const completedForOtherRooms = completedTodayTasks.filter((task) => !roomsWithDueOpenWork.has(roomKey(task)));
       tasks = [...oldestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
     } else if (view === 'pending') {
-      const openTasks = allTasks.filter((task) => ['pending', 'in_progress'].includes(task.status));
+      const openTasks = unsupersededOpenTasks;
       const dueTasks = openTasks.filter((task) => task.scheduled_date <= todayStr);
       const roomsWithDueTasks = new Set(dueTasks.map(roomKey));
       // Show current/overdue work before future scheduled services for the same room.
@@ -175,7 +194,7 @@ export const handler = async (event) => {
     // or an older overdue Refresh has already been skipped. This makes the next-oldest
     // task eligible immediately after the oldest is skipped, without allowing a lone
     // first-time overdue Refresh to be skipped.
-    const overdueRefreshOpen = allTasks.filter((task) =>
+    const overdueRefreshOpen = unsupersededOpenTasks.filter((task) =>
       task.status === 'pending' &&
       task.task_type === 'refresh' &&
       !task.is_checkout &&
@@ -240,7 +259,7 @@ export const handler = async (event) => {
       const e = upstreamFailure(todayTasksRes.status, 'today stats tasks');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    const todayOpenTasks = todayTasksRes.rows;
+    const todayOpenTasks = todayTasksRes.rows.filter((task) => !isSupersededByApprovedCompletion(task));
     const completedTodayRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`, restHeaders);
     if (!completedTodayRes.ok) {
       const e = upstreamFailure(completedTodayRes.status, 'completed today stats');
@@ -252,7 +271,7 @@ export const handler = async (event) => {
       const e = upstreamFailure(overdueRes.status, 'overdue stats');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    const historicalOverdueTasks = overdueRes.rows;
+    const historicalOverdueTasks = overdueRes.rows.filter((task) => !isSupersededByApprovedCompletion(task));
     const overdueTasks = [...historicalOverdueTasks, ...todayOpenTasks.filter((task) => isOverdue(task))];
 
     let roomsReady = 0, roomsNotReady = 0, roomsCleaning = 0, roomsAwaiting = 0, roomsMaintenance = 0;
