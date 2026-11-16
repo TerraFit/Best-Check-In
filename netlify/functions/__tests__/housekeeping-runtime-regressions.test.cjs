@@ -317,6 +317,49 @@ test('Today handler keeps overdue pending work visible when a newer completed-to
 });
 
 
+test('Today and Pending hide due tasks superseded by a newer administrator-approved completion', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const olderPending = {
+    id: 'older-pending', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'refresh', scheduled_date: '2026-11-12',
+    status: 'pending', is_checkout: false, created_at: '2026-11-12T06:00:00Z',
+    updated_at: '2026-11-12T06:30:00Z',
+  };
+  const approvedCompletion = {
+    id: 'approved-completion', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'full_service', scheduled_date: '2026-11-13',
+    status: 'completed', inspection_status: 'approved', is_checkout: true,
+    completed_at: '2026-11-13T10:00:00+02:00', created_at: '2026-11-13T09:00:00Z',
+    updated_at: '2026-11-13T12:00:00Z',
+  };
+  const tasks = [olderPending, approvedCompletion];
+  const runView = async (view) => {
+    await withSupabaseMock(async (url) => {
+      const target = String(url);
+      if (target.includes('/housekeeping_tasks?') && target.includes('order=scheduled_date.asc')) return jsonResponse(tasks);
+      if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.skipped')) return jsonResponse([]);
+      if (target.includes('/rooms?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-13')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-13')) return jsonResponse([]);
+      throw new Error('Unexpected Supabase request: GET ' + target);
+    }, async () => {
+      const result = await handler({
+        ...authEvent({ employee: true, permissions: ['canViewHousekeeping', 'canCompleteHousekeepingTask'] }),
+        httpMethod: 'GET',
+        queryStringParameters: { businessId: BUSINESS_ID, view, date: '2026-11-13' },
+      });
+      assert.equal(result.statusCode, 200, view);
+      const payload = JSON.parse(result.body);
+      assert.equal(payload.tasks.length, 0, view + ' must not show stale work superseded by approved completion');
+      assert.equal(payload.stats.overdue, 0, view + ' overdue count must agree with the task queue');
+    });
+  };
+  await runView('today');
+  await runView('pending');
+});
+
 test('housekeeping views select one appropriate room task and calculate oldest Refresh eligibility from full history', async () => {
   const { handler } = await import('../get-housekeeping-tasks.js');
   const tasks = [
