@@ -41,7 +41,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
     } catch (err) {
       if (requestId === loadSequence.current) setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.');
     } finally {
-      if (requestId === loadSequence.current && !silent) setLoading(false);
+      if (requestId === loadSequence.current) setLoading(false);
     }
   }, [businessId]);
   useEffect(() => {
