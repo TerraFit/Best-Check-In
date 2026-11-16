@@ -342,7 +342,10 @@ test('Today and Pending hide due tasks superseded by a newer administrator-appro
       if (target.includes('/rooms?')) return jsonResponse([]);
       if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-13')) return jsonResponse([]);
       if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
-      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-13')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-13')) {
+        assert.match(target, /select=id,room_id,scheduled_date/, 'overdue reconciliation must fetch the room identity and task date');
+        return jsonResponse([olderPending]);
+      }
       throw new Error('Unexpected Supabase request: GET ' + target);
     }, async () => {
       const result = await handler({
