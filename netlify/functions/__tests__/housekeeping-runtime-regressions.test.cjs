@@ -97,9 +97,9 @@ test('ignore handler returns an audited 409 for partial previous-task cleanup', 
   });
 });
 
-test('bulk readiness handler leaves rooms untouched when a task is in progress or a session is active', async (t) => {
+test('bulk readiness handler leaves rooms untouched when active or due pending housekeeping work remains', async (t) => {
   const { handler } = await import('../admin-bulk-room-readiness.js');
-  for (const activeKind of ['task', 'session']) {
+  for (const activeKind of ['task', 'session', 'pending']) {
     await t.test(`blocks active ${activeKind}`, async () => {
       const calls = [];
       await withSupabaseMock(async (url, options = {}) => {
@@ -116,6 +116,9 @@ test('bulk readiness handler leaves rooms untouched when a task is in progress o
         if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) {
           return jsonResponse(activeKind === 'task' ? [{ id: TASK_ID, status: 'in_progress' }] : []);
         }
+        if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending')) {
+          return jsonResponse(activeKind === 'pending' ? [{ id: TASK_ID, status: 'pending', scheduled_date: '2026-11-16' }] : []);
+        }
         if (target.includes('/housekeeping_service_sessions?')) {
           return jsonResponse(activeKind === 'session' ? [{ id: 'session-1', status: 'active' }] : []);
         }
@@ -130,7 +133,11 @@ test('bulk readiness handler leaves rooms untouched when a task is in progress o
         const payload = JSON.parse(result.body);
         assert.equal(payload.updated, 0);
         assert.equal(payload.notChanged, 1);
-        assert.match(payload.unchanged[0].reason, /in.progress|active service session/i);
+        if (activeKind === 'pending') {
+          assert.match(payload.unchanged[0].reason, /due pending housekeeping task/i);
+        } else {
+          assert.match(payload.unchanged[0].reason, /in.progress|active service session/i);
+        }
         assert.equal(calls.some((call) => call.method === 'PATCH' && call.url.includes('/rooms?id=eq.')), false);
         assert.equal(calls.some((call) => call.method === 'POST' && call.url.includes('/room_events')), false);
       });
@@ -169,6 +176,7 @@ test('employee service start wins the room-version race and admin readiness cann
     if (target.includes('/rooms?id=in.(')) return jsonResponse([{ ...room }]);
     if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
     if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending')) return jsonResponse([]);
     if (target.includes('/housekeeping_service_sessions?') && target.includes('status=eq.active')) {
       sessionCheckCount += 1;
       const snapshot = [];
