@@ -64,10 +64,12 @@ test('bulk room readiness is owner/administrator-only and audits before room mut
   assert.ok(source.indexOf('const auditResponse = await fetch') < source.indexOf('const patchResponse = await fetch(patchUrl'));
   assert.ok(source.includes("outcome: 'completed'"));
   assert.ok(source.includes('occupancy_status=eq.vacant'));
-  assert.ok(source.includes('scheduled_date=lte.${southAfricanDateString()}'));
+  assert.ok(source.includes('scheduled_date=lte.${encodeURIComponent(todayStr)}'));
   assert.ok(source.includes('A due pending housekeeping task must be completed or resolved'));
   assert.ok(source.includes('A due pending housekeeping task remains open'));
-  assert.ok(source.includes("timeZone: 'Africa/Johannesburg'"));
+  assert.ok(source.includes('resolveHousekeepingTimezone'));
+  assert.ok(source.includes('dateStringInTimezone'));
+  assert.ok(!source.includes('Africa/Johannesburg'));
 });
 
 test('employee housekeeping queue refreshes on focus and visibility without changing staff actions', () => {
@@ -87,6 +89,9 @@ test('housekeeping history and dashboard queries paginate beyond PostgREST row l
   assert.ok(source.includes('async function fetchAllRows'));
   assert.ok(source.includes("'Range-Unit': 'items'"));
   assert.ok(source.includes('const allTasks = allRes.rows'));
+  assert.ok(source.includes('resolveHousekeepingTimezone'));
+  assert.ok(source.includes('zonedDateTimeToUtc'));
+  assert.ok(source.includes('timezone, businessId'));
   assert.ok(source.includes('const skippedRefreshTasks = skippedRefreshRes.rows'));
   assert.ok(source.includes('const completedToday = completedTodayRes.rows'));
 });
