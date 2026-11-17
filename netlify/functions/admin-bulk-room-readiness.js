@@ -2,6 +2,7 @@
 // Owner/business-dashboard administrative shortcut. Does not mutate housekeeping tasks or sessions.
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
+import { resolveHousekeepingTimezone, dateStringInTimezone } from './lib/housekeeping-timezone.js';
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,21 +28,10 @@ function response(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
-function southAfricanDateString(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Johannesburg',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const get = (type) => parts.find((part) => part.type === type)?.value || '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
-
-async function checkActiveHousekeepingWork(supabaseUrl, businessId, roomId, readHeaders) {
+async function checkActiveHousekeepingWork(supabaseUrl, businessId, roomId, readHeaders, todayStr) {
   const roomFilter = `business_id=eq.${encodeURIComponent(businessId)}&room_id=eq.${encodeURIComponent(roomId)}`;
   const activeTaskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?${roomFilter}&status=eq.in_progress&select=id,status`;
-  const pendingTaskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?${roomFilter}&status=eq.pending&scheduled_date=lte.${southAfricanDateString()}&select=id,status,scheduled_date`;
+  const pendingTaskUrl = `${supabaseUrl}/rest/v1/housekeeping_tasks?${roomFilter}&status=eq.pending&scheduled_date=lte.${encodeURIComponent(todayStr)}&select=id,status,scheduled_date`;
   const sessionUrl = `${supabaseUrl}/rest/v1/housekeeping_service_sessions?${roomFilter}&status=eq.active&select=id,status`;
   try {
     const [activeTaskResponse, pendingTaskResponse, sessionResponse] = await Promise.all([
@@ -103,6 +93,12 @@ export const handler = async (event) => {
 
     const readHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const writeHeaders = { ...readHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, { headers: readHeaders });
+    if (!businessResponse.ok) return response(502, headers, { error: 'Unable to determine the property's local timezone.' });
+    const businessRows = await businessResponse.json().catch(() => []);
+    if (!Array.isArray(businessRows) || !businessRows.length) return response(404, headers, { error: 'Business not found.' });
+    const timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {});
+    const todayStr = dateStringInTimezone(new Date(), timezone);
     const inFilter = uniqueIds.join(',');
     const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${inFilter})&business_id=eq.${encodeURIComponent(businessId)}&select=id,room_number,room_name,active,availability_status,occupancy_status,housekeeping_status,updated_at`;
     const roomResponse = await fetch(roomUrl, { headers: readHeaders });
@@ -132,7 +128,7 @@ export const handler = async (event) => {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'A housekeeping service is currently in progress.' });
         continue;
       }
-      const activeWork = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders);
+      const activeWork = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders, todayStr);
       if (!activeWork.ok) {
         unchanged.push({ id: room.id, room: room.room_name || room.room_number, reason: 'Unable to verify active housekeeping work; no change was made.' });
         continue;
@@ -173,7 +169,7 @@ export const handler = async (event) => {
 
       // Recheck after writing the audit intent to narrow the race window between
       // eligibility validation and the room-state mutation. Fail closed on lookup errors.
-      const finalWorkCheck = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders);
+      const finalWorkCheck = await checkActiveHousekeepingWork(supabaseUrl, businessId, room.id, readHeaders, todayStr);
       if (!finalWorkCheck.ok || finalWorkCheck.active || finalWorkCheck.duePending) {
         const failure = !finalWorkCheck.ok
           ? 'Housekeeping work could not be rechecked.'
