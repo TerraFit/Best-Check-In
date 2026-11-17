@@ -169,4 +169,14 @@ function zonedDateTimeToUtc(dateString, timeString, timezone) {
   return new Date(guess);
 }
 
-module.exports = { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc, HousekeepingTimezoneError };
+function isHousekeepingTaskOverdue(task, today, now = new Date(), timezone) {
+  if (!task || !['pending', 'in_progress'].includes(task.status)) return false;
+  if (String(task.scheduled_date || '') < today) return true;
+  if (String(task.scheduled_date || '') !== today) return false;
+  return now >= zonedDateTimeToUtc(today, '14:00:00', timezone);
+}
+
+module.exports = {
+  resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays,
+  zonedDateTimeToUtc, isHousekeepingTaskOverdue, HousekeepingTimezoneError,
+};
