@@ -6,7 +6,7 @@ import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, ca
 import PricingComingSoonModal from '../components/PricingComingSoonModal';
 import { useMarket } from '../context/MarketContext';
 
-// SADC Countries only
+// Supported registration markets (SADC plus selected international markets)
 const REGISTRATION_COUNTRIES = [
   'South Africa',
   'Angola',
