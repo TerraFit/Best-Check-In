@@ -95,7 +95,7 @@ export const handler = async (event) => {
     const readHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const writeHeaders = { ...readHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, { headers: readHeaders });
-    if (!businessResponse.ok) return response(502, headers, { error: 'Unable to determine the property's local timezone.' });
+    if (!businessResponse.ok) return response(502, headers, { error: "Unable to determine the property's local timezone." });
     const businessRows = await businessResponse.json().catch(() => []);
     if (!Array.isArray(businessRows) || !businessRows.length) return response(404, headers, { error: 'Business not found.' });
     const timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {});
