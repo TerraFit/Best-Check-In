@@ -82,6 +82,8 @@ test('employee housekeeping queue refreshes on focus and visibility without chan
   assert.ok(source.includes('startHousekeepingService'));
   assert.ok(source.includes('Resume Service'));
   assert.ok(source.includes('HousekeepingServiceModal'));
+  assert.ok(source.includes('localTimeString(now, timezone)'));
+  assert.ok(!source.includes('T14:00:00+02:00'));
 });
 
 test('housekeeping history and dashboard queries paginate beyond PostgREST row limits', () => {
@@ -176,4 +178,11 @@ test('partial previous-task cleanup audits the rows actually changed before retu
   assert.ok(source.includes("outcome: 'unconfirmed'"));
   assert.ok(source.includes('expected_count: cleanupAudit.expectedCount'));
   assert.ok(source.includes('changed_count: cleanupAudit.changedCount'));
+});
+
+test('business dashboard displays overdue urgency using the shared property-local task date', () => {
+  const source = read('src/pages/tabs/HousekeepingTab.tsx');
+  assert.ok(source.includes('isOverdueTask(task, businessToday, now, businessTimezone)'));
+  assert.ok(source.includes("setBusinessTimezone(data.timezone || 'Etc/UTC')"));
+  assert.ok(source.includes("displayStatus === 'overdue'"));
 });
