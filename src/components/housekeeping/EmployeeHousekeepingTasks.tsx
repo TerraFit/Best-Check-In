@@ -38,9 +38,9 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
     setError(null);
     try {
       const result = await fetchHousekeepingTasks({ businessId, view: 'today' });
-      if (requestId === loadSequence.current) { setTasks(result.tasks); if (!result.timezone) throw new Error('The property timezone is not configured. Please contact the administrator.'); setBusinessTimezone(result.timezone); }
+      if (requestId === loadSequence.current) { if (!result.timezone) throw new Error('The property timezone is not configured. Please contact the administrator.'); setBusinessTimezone(result.timezone); setTasks(result.tasks); }
     } catch (err) {
-      if (requestId === loadSequence.current) setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.');
+      if (requestId === loadSequence.current) { setTasks([]); setBusinessTimezone(null); setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.'); }
     } finally {
       if (requestId === loadSequence.current) setLoading(false);
     }
