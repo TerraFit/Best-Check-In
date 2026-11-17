@@ -2,7 +2,8 @@
 // Owner/business-dashboard administrative shortcut. Does not mutate housekeeping tasks or sessions.
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
-import { resolveHousekeepingTimezone, dateStringInTimezone } from './lib/housekeeping-timezone.js';
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { resolveHousekeepingTimezone, dateStringInTimezone } = housekeepingTimezone;
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
