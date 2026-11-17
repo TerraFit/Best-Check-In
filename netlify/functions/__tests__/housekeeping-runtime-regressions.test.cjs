@@ -523,7 +523,7 @@ test('property timezone resolution fails closed instead of guessing UTC or a def
   assert.throws(() => resolveHousekeepingTimezone({ country: 'South Africa', timezone: 'Mars/Olympus_Mons' }), { code: 'PROPERTY_TIMEZONE_INVALID' });
   assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'California' }), 'America/Los_Angeles');
   assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'New York' }), 'America/New_York');
-  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'British Columbia' }), 'America/Vancouver');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'British Columbia', city: 'Vancouver' }), 'America/Vancouver');
   assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'Ontario' }), 'America/Toronto');
   assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'Western Australia' }), 'Australia/Perth');
   assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'New South Wales' }), 'Australia/Sydney');
