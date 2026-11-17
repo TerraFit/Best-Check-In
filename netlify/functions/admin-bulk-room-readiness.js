@@ -98,7 +98,11 @@ export const handler = async (event) => {
     if (!businessResponse.ok) return response(502, headers, { error: "Unable to determine the property's local timezone." });
     const businessRows = await businessResponse.json().catch(() => []);
     if (!Array.isArray(businessRows) || !businessRows.length) return response(404, headers, { error: 'Business not found.' });
-    const timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {});
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return response(422, headers, { error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' });
+    }
     const todayStr = dateStringInTimezone(new Date(), timezone);
     const inFilter = uniqueIds.join(',');
     const roomUrl = `${supabaseUrl}/rest/v1/rooms?id=in.(${inFilter})&business_id=eq.${encodeURIComponent(businessId)}&select=id,room_number,room_name,active,availability_status,occupancy_status,housekeeping_status,updated_at`;
