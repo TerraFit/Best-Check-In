@@ -6,7 +6,8 @@
 
 import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
 const { authenticateHousekeepingService, resolveBusinessId } = housekeepingServiceAuth;
-import { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc } from './lib/housekeeping-timezone.js';
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc } = housekeepingTimezone;
 
 const TASK_SELECT = [
   'id', 'business_id', 'room_id', 'room_number', 'room_name', 'booking_id', 'guest_name',
