@@ -474,7 +474,8 @@ test('employee Ignore reason cleaned but not recorded completes task and sends r
 });
 
 test('housekeeping timezone follows the registered property country and handles DST-aware local cutoffs', async () => {
-  const { resolveHousekeepingTimezone, dateStringInTimezone, zonedDateTimeToUtc } = await import('../lib/housekeeping-timezone.js');
+  const timezoneHelpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { resolveHousekeepingTimezone, dateStringInTimezone, zonedDateTimeToUtc } = timezoneHelpers;
   assert.equal(resolveHousekeepingTimezone({ country: 'Namibia' }), 'Africa/Windhoek');
   assert.equal(resolveHousekeepingTimezone({ country: 'Botswana' }), 'Africa/Gaborone');
   assert.equal(resolveHousekeepingTimezone({ country: 'Egypt' }), 'Africa/Cairo');
