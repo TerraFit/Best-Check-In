@@ -509,3 +509,54 @@ test('housekeeping API returns the registered business timezone for every portal
     assert.equal(payload.today, timezoneHelpers.dateStringInTimezone(new Date(), 'Europe/London'));
   }, { country: 'United Kingdom', city: 'London', province: 'England' });
 });
+
+
+test('property timezone resolution fails closed instead of guessing UTC or a default region', async () => {
+  const helpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { resolveHousekeepingTimezone } = helpers;
+  assert.throws(() => resolveHousekeepingTimezone({}), { code: 'PROPERTY_TIMEZONE_UNRESOLVED' });
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Atlantis' }), { code: 'PROPERTY_TIMEZONE_UNRESOLVED' });
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Canada' }), /Canada spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Australia' }), /Australia spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Brazil' }), /Brazil spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'South Africa', timezone: 'Mars/Olympus_Mons' }), { code: 'PROPERTY_TIMEZONE_INVALID' });
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'California' }), 'America/Los_Angeles');
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'New York' }), 'America/New_York');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'British Columbia' }), 'America/Vancouver');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'Ontario' }), 'America/Toronto');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'Western Australia' }), 'Australia/Perth');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'New South Wales' }), 'Australia/Sydney');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Acre' }), 'America/Rio_Branco');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas', city: 'Manaus' }), 'America/Manaus');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Sao Paulo' }), 'America/Sao_Paulo');
+  assert.equal(resolveHousekeepingTimezone({ country: 'South Africa', timezone: 'Africa/Johannesburg' }), 'Africa/Johannesburg');
+});
+
+test('14:00 overdue cutoff is inclusive, property-local, and DST-aware', async () => {
+  const helpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { zonedDateTimeToUtc, isHousekeepingTaskOverdue } = helpers;
+  const task = { status: 'pending', scheduled_date: '2026-11-17' };
+  const londonCutoff = zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Europe/London');
+  assert.equal(isHousekeepingTaskOverdue(task, '2026-11-17', new Date(londonCutoff.getTime() - 1), 'Europe/London'), false);
+  assert.equal(isHousekeepingTaskOverdue(task, '2026-11-17', londonCutoff, 'Europe/London'), true);
+  assert.equal(isHousekeepingTaskOverdue({ ...task, status: 'completed' }, '2026-11-17', londonCutoff, 'Europe/London'), false);
+  assert.equal(zonedDateTimeToUtc('2026-03-29', '14:00:00', 'Europe/London').toISOString(), '2026-03-29T13:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-10-25', '14:00:00', 'Europe/London').toISOString(), '2026-10-25T14:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'America/Los_Angeles').toISOString(), '2026-11-17T22:00:00.000Z');
+});
+
+test('housekeeping task API rejects an unresolved property timezone with a configuration error', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  await withSupabaseMock(async () => { throw new Error('No task queries should run after timezone resolution fails'); }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canViewHousekeeping'] }),
+      httpMethod: 'GET',
+      queryStringParameters: { businessId: BUSINESS_ID, view: 'today' },
+    });
+    assert.equal(result.statusCode, 422);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+    assert.match(payload.error, /physical address|timezone/i);
+  }, { country: 'Unknown Country' });
+});
