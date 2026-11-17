@@ -31,7 +31,7 @@ function jsonResponse(data, status = 200) {
   };
 }
 
-async function withSupabaseMock(fetchMock, run) {
+async function withSupabaseMock(fetchMock, run, businessAddress = { country: 'South Africa', province: 'Eastern Cape', city: 'Jeffreys Bay' }) {
   const previousFetch = global.fetch;
   const previousEnv = {
     SUPABASE_URL: process.env.SUPABASE_URL,
@@ -42,7 +42,7 @@ async function withSupabaseMock(fetchMock, run) {
   process.env.SUPABASE_SERVICE_KEY = 'service-test-key';
   process.env.SUPABASE_JWT_SECRET = SECRET;
   global.fetch = async (url, options = {}) => {
-    if (String(url).includes('/businesses?')) return jsonResponse([{ physical_address: { country: 'South Africa', province: 'Eastern Cape', city: 'Jeffreys Bay' } }]);
+    if (String(url).includes('/businesses?')) return jsonResponse([{ physical_address: businessAddress }]);
     return fetchMock(url, options);
   };
   try {
@@ -486,4 +486,26 @@ test('housekeeping timezone follows the registered property country and handles 
   assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Europe/London').toISOString(), '2026-11-17T14:00:00.000Z');
   assert.equal(zonedDateTimeToUtc('2026-07-17', '14:00:00', 'Europe/London').toISOString(), '2026-07-17T13:00:00.000Z');
   assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Africa/Windhoek').toISOString(), '2026-11-17T12:00:00.000Z');
+});
+
+test('housekeeping API returns the registered business timezone for every portal', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const timezoneHelpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  await withSupabaseMock(async (url) => {
+    const target = String(url);
+    if (target.includes('/housekeeping_tasks?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (target.includes('/rooms?')) return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: GET ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canViewHousekeeping'] }),
+      httpMethod: 'GET',
+      queryStringParameters: { businessId: BUSINESS_ID, view: 'all' },
+    });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.timezone, 'Europe/London');
+    assert.equal(payload.today, timezoneHelpers.dateStringInTimezone(new Date(), 'Europe/London'));
+  }, { country: 'United Kingdom', city: 'London', province: 'England' });
 });
