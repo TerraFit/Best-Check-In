@@ -29,7 +29,7 @@ const SKIP_REASONS = [
   { value: 'Other', key: 'housekeeping_skip_reason_other' },
 ] as const;
 export default function EmployeeHousekeepingTasks({ businessId, employeeId, employeeName, principal }: Props) {
-  const [tasks, setTasks] = useState<HousekeepingTask[]>([]); const [businessTimezone, setBusinessTimezone] = useState('Etc/UTC'); const [loading, setLoading] = useState(true); const [now, setNow] = useState(() => new Date()); const [error, setError] = useState<string | null>(null); const [selectedTask, setSelectedTask] = useState<HousekeepingTask | null>(null); const [selectedSession, setSelectedSession] = useState<HousekeepingServiceSession | null>(null); const [startingTaskId, setStartingTaskId] = useState<string | null>(null); const [showLostFound, setShowLostFound] = useState(false); const [lostFoundRoom, setLostFoundRoom] = useState<string | null>(null); const [lostFoundSuccess, setLostFoundSuccess] = useState<string | null>(null); const [skipTask, setSkipTask] = useState<HousekeepingTask | null>(null); const [skipReason, setSkipReason] = useState(''); const [skipOther, setSkipOther] = useState(''); const [skipBusy, setSkipBusy] = useState(false); const [ignoreTask, setIgnoreTask] = useState<HousekeepingTask | null>(null); const [ignoreReason, setIgnoreReason] = useState(''); const [ignoreOther, setIgnoreOther] = useState(''); const [ignoreBusy, setIgnoreBusy] = useState(false);
+  const [tasks, setTasks] = useState<HousekeepingTask[]>([]); const [businessTimezone, setBusinessTimezone] = useState<string | null>(null); const [loading, setLoading] = useState(true); const [now, setNow] = useState(() => new Date()); const [error, setError] = useState<string | null>(null); const [selectedTask, setSelectedTask] = useState<HousekeepingTask | null>(null); const [selectedSession, setSelectedSession] = useState<HousekeepingServiceSession | null>(null); const [startingTaskId, setStartingTaskId] = useState<string | null>(null); const [showLostFound, setShowLostFound] = useState(false); const [lostFoundRoom, setLostFoundRoom] = useState<string | null>(null); const [lostFoundSuccess, setLostFoundSuccess] = useState<string | null>(null); const [skipTask, setSkipTask] = useState<HousekeepingTask | null>(null); const [skipReason, setSkipReason] = useState(''); const [skipOther, setSkipOther] = useState(''); const [skipBusy, setSkipBusy] = useState(false); const [ignoreTask, setIgnoreTask] = useState<HousekeepingTask | null>(null); const [ignoreReason, setIgnoreReason] = useState(''); const [ignoreOther, setIgnoreOther] = useState(''); const [ignoreBusy, setIgnoreBusy] = useState(false);
   const canStart = hasPermission(principal, 'canStartHousekeepingTask'); const canComplete = hasPermission(principal, 'canCompleteHousekeepingTask'); const canOverride = hasPermission(principal, 'canManageHousekeeping'); const canExecute = canStart || canComplete; const canSkip = canComplete || canOverride;
   const loadSequence = useRef(0);
   const loadTasks = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -38,7 +38,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
     setError(null);
     try {
       const result = await fetchHousekeepingTasks({ businessId, view: 'today' });
-      if (requestId === loadSequence.current) { setTasks(result.tasks); setBusinessTimezone(result.timezone || 'Etc/UTC'); }
+      if (requestId === loadSequence.current) { setTasks(result.tasks); if (!result.timezone) throw new Error('The property timezone is not configured. Please contact the administrator.'); setBusinessTimezone(result.timezone); }
     } catch (err) {
       if (requestId === loadSequence.current) setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.');
     } finally {
@@ -64,8 +64,8 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
     };
   }, [loadTasks]);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(timer); }, []);
-  const today = localDateString(now, businessTimezone);
-  const buckets = useMemo(() => { const grouped: Record<TaskBucket, HousekeepingTask[]> = { behind: [], in_progress: [], pending: [], completed_today: [] }; for (const task of tasks) { const bucket = bucketForTask(task, today, now, businessTimezone); if (bucket) grouped[bucket].push(task); } return grouped; }, [tasks, today, now, businessTimezone]);
+  const today = businessTimezone ? localDateString(now, businessTimezone) : ''; 
+  const buckets = useMemo(() => { const grouped: Record<TaskBucket, HousekeepingTask[]> = { behind: [], in_progress: [], pending: [], completed_today: [] }; for (const task of tasks) { const bucket = businessTimezone ? bucketForTask(task, today, now, businessTimezone) : null; if (bucket) grouped[bucket].push(task); } return grouped; }, [tasks, today, now, businessTimezone]);
   const skippableTaskIds = useMemo(() => new Set(tasks.filter((task) => task.can_skip_oldest).map((task) => task.id)), [tasks]);
   const skipValue = skipReason === 'Other' ? skipOther.trim() : skipReason.trim();
   const ignoreValue = ignoreReason === 'Other' ? ignoreOther.trim() : ignoreReason.trim();
