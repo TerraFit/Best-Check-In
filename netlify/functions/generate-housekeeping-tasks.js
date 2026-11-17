@@ -299,7 +299,11 @@ exports.handler = async (event) => {
     if (!businessResponse.ok) return { statusCode: 502, headers, body: JSON.stringify({ error: 'Unable to determine the property timezone.' }) };
     const businessRows = await businessResponse.json().catch(() => []);
     if (!Array.isArray(businessRows) || !businessRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found.' }) };
-    const timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {});
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return { statusCode: 422, headers, body: JSON.stringify({ error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' }) };
+    }
     const todayStr = dateStringInTimezone(new Date(), timezone);
 
     async function insertTask(payload) {
