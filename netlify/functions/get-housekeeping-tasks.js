@@ -6,6 +6,7 @@
 
 import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
 const { authenticateHousekeepingService, resolveBusinessId } = housekeepingServiceAuth;
+import { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc } from './lib/housekeeping-timezone.js';
 
 const TASK_SELECT = [
   'id', 'business_id', 'room_id', 'room_number', 'room_name', 'booking_id', 'guest_name',
@@ -64,11 +65,18 @@ export const handler = async (event) => {
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const restHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
-    const todayStr = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const todayStart = new Date(`${todayStr}T00:00:00+02:00`);
-    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const businessRes = await fetchAllRows(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, restHeaders);
+    if (!businessRes.ok || !businessRes.rows.length) {
+      const e = upstreamFailure(businessRes.status || 404, 'business timezone');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const timezone = resolveHousekeepingTimezone(businessRes.rows[0].physical_address || {});
     const now = new Date();
-    const cutoffToday = new Date(`${todayStr}T14:00:00+02:00`);
+    const todayStr = date || dateStringInTimezone(now, timezone);
+    const tomorrowStr = addCalendarDays(todayStr, 1);
+    const todayStart = zonedDateTimeToUtc(todayStr, '00:00:00', timezone);
+    const tomorrowStart = zonedDateTimeToUtc(tomorrowStr, '00:00:00', timezone);
+    const cutoffToday = zonedDateTimeToUtc(todayStr, '14:00:00', timezone);
     const isOverdue = (task) => {
       if (!['pending', 'in_progress'].includes(task.status)) return false;
       if (task.scheduled_date < todayStr) return true;
@@ -244,7 +252,7 @@ export const handler = async (event) => {
       // the operational queue. The authoritative endpoint re-checks this server-side.
       can_ignore: task.status === 'pending' && !activeSessionsByTask[task.id],
       is_overdue: isOverdue(task),
-      overdue_since: isOverdue(task) ? (task.scheduled_date < todayStr ? `${task.scheduled_date}T14:00:00+02:00` : `${todayStr}T14:00:00+02:00`) : null,
+      overdue_since: isOverdue(task) ? zonedDateTimeToUtc(task.scheduled_date < todayStr ? task.scheduled_date : todayStr, '14:00:00', timezone).toISOString() : null,
       can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
@@ -291,7 +299,7 @@ export const handler = async (event) => {
       full_service_due: todayOpenTasks.filter((t) => t.task_type === 'full_service').length,
       completed_today: completedToday.length, overdue: overdueTasks.length,
     };
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, businessId }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, timezone, businessId }) };
   } catch (error) {
     console.error('get-housekeeping-tasks fatal:', error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch housekeeping tasks' }) };
