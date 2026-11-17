@@ -41,7 +41,10 @@ async function withSupabaseMock(fetchMock, run) {
   process.env.SUPABASE_URL = 'https://supabase.test';
   process.env.SUPABASE_SERVICE_KEY = 'service-test-key';
   process.env.SUPABASE_JWT_SECRET = SECRET;
-  global.fetch = fetchMock;
+  global.fetch = async (url, options = {}) => {
+    if (String(url).includes('/businesses?')) return jsonResponse([{ physical_address: { country: 'South Africa', province: 'Eastern Cape', city: 'Jeffreys Bay' } }]);
+    return fetchMock(url, options);
+  };
   try {
     await run();
   } finally {
@@ -468,4 +471,18 @@ test('employee Ignore reason cleaned but not recorded completes task and sends r
     const audit = calls.find((call) => call.method === 'POST' && call.target.includes('/room_events'));
     assert.equal(audit.body.event_type, 'housekeeping_task_completed_outside_app');
   });
+});
+
+test('housekeeping timezone follows the registered property country and handles DST-aware local cutoffs', async () => {
+  const { resolveHousekeepingTimezone, dateStringInTimezone, zonedDateTimeToUtc } = await import('../lib/housekeeping-timezone.js');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Namibia' }), 'Africa/Windhoek');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Botswana' }), 'Africa/Gaborone');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Egypt' }), 'Africa/Cairo');
+  assert.equal(resolveHousekeepingTimezone({ country: 'United Kingdom' }), 'Europe/London');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Acre' }), 'America/Rio_Branco');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas', city: 'Manaus' }), 'America/Manaus');
+  assert.equal(dateStringInTimezone(new Date('2026-11-17T13:30:00.000Z'), 'America/Sao_Paulo'), '2026-11-17');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Europe/London').toISOString(), '2026-11-17T14:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-07-17', '14:00:00', 'Europe/London').toISOString(), '2026-07-17T13:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Africa/Windhoek').toISOString(), '2026-11-17T12:00:00.000Z');
 });
