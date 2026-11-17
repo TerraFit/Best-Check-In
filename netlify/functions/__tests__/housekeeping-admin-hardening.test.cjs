@@ -83,6 +83,8 @@ test('employee housekeeping queue refreshes on focus and visibility without chan
   assert.ok(source.includes('Resume Service'));
   assert.ok(source.includes('HousekeepingServiceModal'));
   assert.ok(source.includes('localTimeString(now, timezone)'));
+  assert.ok(source.includes("if (!result.timezone) throw new Error('The property timezone is not configured."));
+  assert.ok(!source.includes("result.timezone || 'Etc/UTC'"));
   assert.ok(!source.includes('T14:00:00+02:00'));
 });
 
@@ -183,6 +185,7 @@ test('partial previous-task cleanup audits the rows actually changed before retu
 test('business dashboard displays overdue urgency using the shared property-local task date', () => {
   const source = read('src/pages/tabs/HousekeepingTab.tsx');
   assert.ok(source.includes('isOverdueTask(task, businessToday, now, businessTimezone)'));
-  assert.ok(source.includes("setBusinessTimezone(data.timezone || 'Etc/UTC')"));
+  assert.ok(source.includes("if (!data.timezone) throw new Error('The property timezone is not configured."));
+  assert.ok(!source.includes("data.timezone || 'Etc/UTC'"));
   assert.ok(source.includes("displayStatus === 'overdue'"));
 });
