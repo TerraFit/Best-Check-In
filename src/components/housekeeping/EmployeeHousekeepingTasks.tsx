@@ -40,7 +40,7 @@ export default function EmployeeHousekeepingTasks({ businessId, employeeId, empl
       const result = await fetchHousekeepingTasks({ businessId, view: 'today' });
       if (requestId === loadSequence.current) { if (!result.timezone) throw new Error('The property timezone is not configured. Please contact the administrator.'); setBusinessTimezone(result.timezone); setTasks(result.tasks); }
     } catch (err) {
-      if (requestId === loadSequence.current) { setTasks([]); setBusinessTimezone(null); setError(err instanceof Error ? err.message : 'Unable to load housekeeping tasks.'); }
+      if (requestId === loadSequence.current) { const message = err instanceof Error ? err.message : 'Unable to load housekeeping tasks.'; const timezoneFailure = err instanceof Error && ((err as Error & { code?: string }).code?.startsWith('PROPERTY_TIMEZONE') || /property timezone|timezone could not be determined|physical address/i.test(message)); if (timezoneFailure) { setTasks([]); setBusinessTimezone(null); } setError(message); }
     } finally {
       if (requestId === loadSequence.current) setLoading(false);
     }
