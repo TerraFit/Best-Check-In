@@ -71,7 +71,11 @@ export const handler = async (event) => {
       const e = upstreamFailure(businessRes.status || 404, 'business timezone');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    const timezone = resolveHousekeepingTimezone(businessRes.rows[0].physical_address || {});
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRes.rows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return { statusCode: 422, headers, body: JSON.stringify({ error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' }) };
+    }
     const now = new Date();
     const todayStr = date || dateStringInTimezone(now, timezone);
     const tomorrowStr = addCalendarDays(todayStr, 1);
