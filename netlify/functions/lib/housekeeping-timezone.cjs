@@ -3,60 +3,22 @@
 // browser locale, billing currency, and server timezone must never override it.
 
 const COUNTRY_TIMEZONES = {
-  'south africa': 'Africa/Johannesburg',
-  'namibia': 'Africa/Windhoek',
-  'botswana': 'Africa/Gaborone',
-  'egypt': 'Africa/Cairo',
-  'united kingdom': 'Europe/London',
-  'uk': 'Europe/London',
-  'great britain': 'Europe/London',
-  'united kingdom of great britain and northern ireland': 'Europe/London',
-  'england': 'Europe/London',
-  'scotland': 'Europe/London',
-  'wales': 'Europe/London',
-  'northern ireland': 'Europe/London',
-  'brazil': 'America/Sao_Paulo',
-  'brasil': 'America/Sao_Paulo',
-  'angola': 'Africa/Luanda',
-  'lesotho': 'Africa/Maseru',
-  'eswatini': 'Africa/Mbabane',
-  'swaziland': 'Africa/Mbabane',
-  'zimbabwe': 'Africa/Harare',
-  'zambia': 'Africa/Lusaka',
-  'mozambique': 'Africa/Maputo',
-  'malawi': 'Africa/Blantyre',
-  'tanzania': 'Africa/Dar_es_Salaam',
-  'mauritius': 'Indian/Mauritius',
-  'seychelles': 'Indian/Mahe',
-  'madagascar': 'Indian/Antananarivo',
-  'comoros': 'Indian/Comoro',
-  'democratic republic of congo': 'Africa/Kinshasa',
-  'republic of congo': 'Africa/Brazzaville',
-  'ghana': 'Africa/Accra',
-  'kenya': 'Africa/Nairobi',
-  'nigeria': 'Africa/Lagos',
-  'uganda': 'Africa/Kampala',
-  'rwanda': 'Africa/Kigali',
-  'united states': 'America/New_York',
-  'usa': 'America/New_York',
-  'canada': 'America/Toronto',
-  'australia': 'Australia/Sydney',
-  'new zealand': 'Pacific/Auckland',
-  'india': 'Asia/Kolkata',
-  'china': 'Asia/Shanghai',
-  'japan': 'Asia/Tokyo',
-  'singapore': 'Asia/Singapore',
-  'united arab emirates': 'Asia/Dubai',
-  'uae': 'Asia/Dubai',
-  'saudi arabia': 'Asia/Riyadh',
-  'france': 'Europe/Paris',
-  'germany': 'Europe/Berlin',
-  'netherlands': 'Europe/Amsterdam',
-  'spain': 'Europe/Madrid',
-  'italy': 'Europe/Rome',
-  'portugal': 'Europe/Lisbon',
-  'switzerland': 'Europe/Zurich',
-  'ireland': 'Europe/Dublin',
+  'south africa': 'Africa/Johannesburg', 'namibia': 'Africa/Windhoek',
+  'botswana': 'Africa/Gaborone', 'egypt': 'Africa/Cairo',
+  'united kingdom': 'Europe/London', 'uk': 'Europe/London',
+  'great britain': 'Europe/London', 'united kingdom of great britain and northern ireland': 'Europe/London',
+  'england': 'Europe/London', 'scotland': 'Europe/London', 'wales': 'Europe/London', 'northern ireland': 'Europe/London',
+  'angola': 'Africa/Luanda', 'lesotho': 'Africa/Maseru', 'eswatini': 'Africa/Mbabane', 'swaziland': 'Africa/Mbabane',
+  'zimbabwe': 'Africa/Harare', 'zambia': 'Africa/Lusaka', 'mozambique': 'Africa/Maputo', 'malawi': 'Africa/Blantyre',
+  'tanzania': 'Africa/Dar_es_Salaam', 'mauritius': 'Indian/Mauritius', 'seychelles': 'Indian/Mahe',
+  'madagascar': 'Indian/Antananarivo', 'comoros': 'Indian/Comoro', 'democratic republic of congo': 'Africa/Kinshasa',
+  'republic of congo': 'Africa/Brazzaville', 'ghana': 'Africa/Accra', 'kenya': 'Africa/Nairobi',
+  'nigeria': 'Africa/Lagos', 'uganda': 'Africa/Kampala', 'rwanda': 'Africa/Kigali',
+  'new zealand': 'Pacific/Auckland', 'india': 'Asia/Kolkata', 'china': 'Asia/Shanghai',
+  'japan': 'Asia/Tokyo', 'singapore': 'Asia/Singapore', 'united arab emirates': 'Asia/Dubai',
+  'uae': 'Asia/Dubai', 'saudi arabia': 'Asia/Riyadh', 'france': 'Europe/Paris',
+  'germany': 'Europe/Berlin', 'netherlands': 'Europe/Amsterdam', 'spain': 'Europe/Madrid',
+  'italy': 'Europe/Rome', 'portugal': 'Europe/Lisbon', 'switzerland': 'Europe/Zurich', 'ireland': 'Europe/Dublin',
 };
 
 const BRAZIL_STATE_TIMEZONES = {
@@ -70,22 +32,37 @@ const BRAZIL_STATE_TIMEZONES = {
   TO: 'America/Araguaina', TOCANTINS: 'America/Araguaina',
   BA: 'America/Bahia', BAHIA: 'America/Bahia',
   MA: 'America/Fortaleza', MARANHAO: 'America/Fortaleza',
-  PI: 'America/Fortaleza', PIAUI: 'America/Fortaleza',
-  CE: 'America/Fortaleza', CEARA: 'America/Fortaleza',
+  PI: 'America/Fortaleza', PIAUI: 'America/Fortaleza', CE: 'America/Fortaleza', CEARA: 'America/Fortaleza',
   RN: 'America/Fortaleza', 'RIO GRANDE DO NORTE': 'America/Fortaleza',
   PB: 'America/Fortaleza', PARAIBA: 'America/Fortaleza',
   PE: 'America/Recife', PERNAMBUCO: 'America/Recife',
-  AL: 'America/Maceio', ALAGOAS: 'America/Maceio',
-  SE: 'America/Maceio', SERGIPE: 'America/Maceio',
+  AL: 'America/Maceio', ALAGOAS: 'America/Maceio', SE: 'America/Maceio', SERGIPE: 'America/Maceio',
   DF: 'America/Sao_Paulo', 'DISTRITO FEDERAL': 'America/Sao_Paulo',
-  GO: 'America/Sao_Paulo', GOIAS: 'America/Sao_Paulo',
-  MG: 'America/Sao_Paulo', 'MINAS GERAIS': 'America/Sao_Paulo',
-  ES: 'America/Sao_Paulo', 'ESPIRITO SANTO': 'America/Sao_Paulo',
-  RJ: 'America/Sao_Paulo', 'RIO DE JANEIRO': 'America/Sao_Paulo',
-  SP: 'America/Sao_Paulo', 'SAO PAULO': 'America/Sao_Paulo',
-  PR: 'America/Sao_Paulo', PARANA: 'America/Sao_Paulo',
-  SC: 'America/Sao_Paulo', 'SANTA CATARINA': 'America/Sao_Paulo',
-  RS: 'America/Sao_Paulo', 'RIO GRANDE DO SUL': 'America/Sao_Paulo',
+  GO: 'America/Sao_Paulo', GOIAS: 'America/Sao_Paulo', MG: 'America/Sao_Paulo', 'MINAS GERAIS': 'America/Sao_Paulo',
+  ES: 'America/Sao_Paulo', 'ESPIRITO SANTO': 'America/Sao_Paulo', RJ: 'America/Sao_Paulo', 'RIO DE JANEIRO': 'America/Sao_Paulo',
+  SP: 'America/Sao_Paulo', 'SAO PAULO': 'America/Sao_Paulo', PR: 'America/Sao_Paulo', PARANA: 'America/Sao_Paulo',
+  SC: 'America/Sao_Paulo', 'SANTA CATARINA': 'America/Sao_Paulo', RS: 'America/Sao_Paulo', 'RIO GRANDE DO SUL': 'America/Sao_Paulo',
+};
+
+const US_STATE_TIMEZONES = {
+  'NEW YORK':'America/New_York','NEW JERSEY':'America/New_York','MASSACHUSETTS':'America/New_York','FLORIDA':'America/New_York',
+  'GEORGIA':'America/New_York','PENNSYLVANIA':'America/New_York','OHIO':'America/New_York','MICHIGAN':'America/Detroit',
+  'ILLINOIS':'America/Chicago','TEXAS':'America/Chicago','MINNESOTA':'America/Chicago','WISCONSIN':'America/Chicago',
+  'COLORADO':'America/Denver','UTAH':'America/Denver','NEW MEXICO':'America/Denver','ARIZONA':'America/Phoenix',
+  'CALIFORNIA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','OREGON':'America/Los_Angeles','NEVADA':'America/Los_Angeles',
+  'ALASKA':'America/Anchorage','HAWAII':'Pacific/Honolulu',
+};
+const CANADA_PROVINCE_TIMEZONES = {
+  'ONTARIO':'America/Toronto','QUEBEC':'America/Toronto','BRITISH COLUMBIA':'America/Vancouver',
+  'ALBERTA':'America/Edmonton','SASKATCHEWAN':'America/Regina','MANITOBA':'America/Winnipeg',
+  'NOVA SCOTIA':'America/Halifax','NEW BRUNSWICK':'America/Moncton','NEWFOUNDLAND AND LABRADOR':'America/St_Johns',
+  'PRINCE EDWARD ISLAND':'America/Halifax','YUKON':'America/Whitehorse','NORTHWEST TERRITORIES':'America/Yellowknife','NUNAVUT':'America/Iqaluit',
+};
+const AUSTRALIA_STATE_TIMEZONES = {
+  'NEW SOUTH WALES':'Australia/Sydney','NSW':'Australia/Sydney','VICTORIA':'Australia/Melbourne','VIC':'Australia/Melbourne',
+  'QUEENSLAND':'Australia/Brisbane','QLD':'Australia/Brisbane','SOUTH AUSTRALIA':'Australia/Adelaide','SA':'Australia/Adelaide',
+  'WESTERN AUSTRALIA':'Australia/Perth','WA':'Australia/Perth','TASMANIA':'Australia/Hobart','TAS':'Australia/Hobart',
+  'NORTHERN TERRITORY':'Australia/Darwin','NT':'Australia/Darwin','AUSTRALIAN CAPITAL TERRITORY':'Australia/Sydney','ACT':'Australia/Sydney',
 };
 
 function validTimezone(value) {
@@ -95,27 +72,60 @@ function validTimezone(value) {
 }
 
 function normalized(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toUpperCase();
+}
+
+class HousekeepingTimezoneError extends Error {
+  constructor(message, code = 'PROPERTY_TIMEZONE_UNRESOLVED') {
+    super(message);
+    this.name = 'HousekeepingTimezoneError';
+    this.code = code;
+  }
 }
 
 function resolveHousekeepingTimezone(address = {}) {
-  if (validTimezone(address.timezone || address.time_zone)) return (address.timezone || address.time_zone).trim();
-  const country = normalized(address.country || address.country_name);
-  if (country === 'BRAZIL' || country === 'BRASIL') {
-    const province = normalized(address.province || address.state || address.region);
-    const city = normalized(address.city);
-    if (city === 'RIO BRANCO' || city === 'CRUZEIRO DO SUL') return 'America/Rio_Branco';
-    if (city === 'EIRUNEPE' || city === 'TEFE' || city === 'TABATINGA') return 'America/Eirunepe';
-    if (city === 'MANAUS') return 'America/Manaus';
-    if (city === 'PORTO VELHO') return 'America/Porto_Velho';
-    if (city === 'BOA VISTA') return 'America/Boa_Vista';
-    if (city === 'CUIABA') return 'America/Cuiaba';
-    if (city === 'CAMPO GRANDE') return 'America/Campo_Grande';
-    if (city === 'BELEM' || city === 'MACAPA') return 'America/Belem';
-    if (city === 'FERNANDO DE NORONHA') return 'America/Noronha';
-    return BRAZIL_STATE_TIMEZONES[province] || COUNTRY_TIMEZONES.brazil;
+  if (!address || typeof address !== 'object' || Array.isArray(address)) {
+    throw new HousekeepingTimezoneError('The property physical address is missing. Add the property timezone or complete its physical address.');
   }
-  return COUNTRY_TIMEZONES[country.toLowerCase()] || 'Etc/UTC';
+  const explicit = address.timezone ?? address.time_zone;
+  if (explicit !== undefined && explicit !== null && String(explicit).trim()) {
+    if (!validTimezone(explicit)) throw new HousekeepingTimezoneError('The property timezone is invalid. Enter a valid IANA timezone, such as Africa/Johannesburg.', 'PROPERTY_TIMEZONE_INVALID');
+    return String(explicit).trim();
+  }
+  const country = normalized(address.country || address.country_name);
+  const province = normalized(address.province || address.state || address.region);
+  const city = normalized(address.city);
+  if (!country) throw new HousekeepingTimezoneError('The property country is missing. Complete the physical address or set an IANA timezone.');
+  if (country === 'BRAZIL' || country === 'BRASIL') {
+    const cityZones = {
+      'RIO BRANCO':'America/Rio_Branco','CRUZEIRO DO SUL':'America/Rio_Branco',
+      'EIRUNEPE':'America/Eirunepe','TEFE':'America/Eirunepe','TABATINGA':'America/Eirunepe',
+      'MANAUS':'America/Manaus','PORTO VELHO':'America/Porto_Velho','BOA VISTA':'America/Boa_Vista',
+      'CUIABA':'America/Cuiaba','CAMPO GRANDE':'America/Campo_Grande','BELEM':'America/Belem','MACAPA':'America/Belem',
+      'FERNANDO DE NORONHA':'America/Noronha',
+    };
+    const zone = cityZones[city] || BRAZIL_STATE_TIMEZONES[province];
+    if (zone) return zone;
+    throw new HousekeepingTimezoneError('Brazil spans multiple timezones. Add the property state/city or set its IANA timezone.');
+  }
+  if (['UNITED STATES','USA','US'].includes(country)) {
+    const zone = US_STATE_TIMEZONES[province];
+    if (zone) return zone;
+    throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
+  }
+  if (country === 'CANADA') {
+    const zone = CANADA_PROVINCE_TIMEZONES[province];
+    if (zone) return zone;
+    throw new HousekeepingTimezoneError('Canada spans multiple timezones. Add the property province/territory or set its IANA timezone.');
+  }
+  if (country === 'AUSTRALIA') {
+    const zone = AUSTRALIA_STATE_TIMEZONES[province];
+    if (zone) return zone;
+    throw new HousekeepingTimezoneError('Australia spans multiple timezones. Add the property state/territory or set its IANA timezone.');
+  }
+  const zone = COUNTRY_TIMEZONES[country.toLowerCase()];
+  if (zone) return zone;
+  throw new HousekeepingTimezoneError('The property timezone could not be determined from its physical address. Set an explicit IANA timezone or complete the regional address details.');
 }
 
 function dateParts(date, timezone) {
@@ -126,7 +136,8 @@ function dateParts(date, timezone) {
   return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
 }
 
-function dateStringInTimezone(date = new Date(), timezone = 'Etc/UTC') {
+function dateStringInTimezone(date = new Date(), timezone) {
+  if (!validTimezone(timezone)) throw new HousekeepingTimezoneError('A valid property timezone is required to calculate housekeeping dates.');
   const parts = dateParts(date, timezone);
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
@@ -139,7 +150,8 @@ function addCalendarDays(dateString, days) {
 
 // Convert a wall-clock time in an IANA timezone to a UTC Date. Iterative offset
 // correction handles DST offsets without assuming a fixed UTC offset.
-function zonedDateTimeToUtc(dateString, timeString, timezone = 'Etc/UTC') {
+function zonedDateTimeToUtc(dateString, timeString, timezone) {
+  if (!validTimezone(timezone)) throw new HousekeepingTimezoneError('A valid property timezone is required to calculate housekeeping dates.');
   const [year, month, day] = dateString.split('-').map(Number);
   const [hour, minute, second = 0] = timeString.split(':').map(Number);
   const target = Date.UTC(year, month - 1, day, hour, minute, second);
@@ -157,4 +169,4 @@ function zonedDateTimeToUtc(dateString, timeString, timezone = 'Etc/UTC') {
   return new Date(guess);
 }
 
-module.exports = { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc };
+module.exports = { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc, HousekeepingTimezoneError };
