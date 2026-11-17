@@ -7,15 +7,7 @@ const {
   authenticateHousekeepingServiceLive,
   resolveBusinessId,
 } = require('./_housekeepingServiceAuth.cjs');
-
-function todayInJohannesburg() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Johannesburg',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
+const { resolveHousekeepingTimezone, dateStringInTimezone } = require('./lib/housekeeping-timezone.cjs');
 
 function parseDate(iso) {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -303,6 +295,12 @@ exports.handler = async (event) => {
       'Content-Type': 'application/json',
       Prefer: 'return=minimal',
     };
+    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, { headers: restGet });
+    if (!businessResponse.ok) return { statusCode: 502, headers, body: JSON.stringify({ error: 'Unable to determine the property timezone.' }) };
+    const businessRows = await businessResponse.json().catch(() => []);
+    if (!Array.isArray(businessRows) || !businessRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found.' }) };
+    const timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {});
+    const todayStr = dateStringInTimezone(new Date(), timezone);
 
     async function insertTask(payload) {
       logPayload(payload);
@@ -416,7 +414,6 @@ exports.handler = async (event) => {
     }
 
     const policy = settings.policy || 'standard';
-    const todayStr = todayInJohannesburg();
 
     let bookingQuery =
       `bookings?business_id=eq.${businessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;
