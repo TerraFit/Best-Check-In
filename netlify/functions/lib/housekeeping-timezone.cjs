@@ -45,18 +45,25 @@ const BRAZIL_STATE_TIMEZONES = {
 };
 
 const US_STATE_TIMEZONES = {
-  'NEW YORK':'America/New_York','NY':'America/New_York','NEW JERSEY':'America/New_York','NJ':'America/New_York','MASSACHUSETTS':'America/New_York','MA':'America/New_York','FLORIDA':'America/New_York','FL':'America/New_York',
-  'GEORGIA':'America/New_York','GA':'America/New_York','PENNSYLVANIA':'America/New_York','PA':'America/New_York','OHIO':'America/New_York','OH':'America/New_York','MICHIGAN':'America/Detroit','MI':'America/Detroit',
-  'ILLINOIS':'America/Chicago','IL':'America/Chicago','TEXAS':'America/Chicago','TX':'America/Chicago','MINNESOTA':'America/Chicago','MN':'America/Chicago','WISCONSIN':'America/Chicago','WI':'America/Chicago',
+  'NEW YORK':'America/New_York','NY':'America/New_York','NEW JERSEY':'America/New_York','NJ':'America/New_York','MASSACHUSETTS':'America/New_York','MA':'America/New_York',
+  'GEORGIA':'America/New_York','GA':'America/New_York','PENNSYLVANIA':'America/New_York','PA':'America/New_York','OHIO':'America/New_York','OH':'America/New_York',
+  'ILLINOIS':'America/Chicago','IL':'America/Chicago','MINNESOTA':'America/Chicago','MN':'America/Chicago','WISCONSIN':'America/Chicago','WI':'America/Chicago',
   'COLORADO':'America/Denver','CO':'America/Denver','UTAH':'America/Denver','UT':'America/Denver','NEW MEXICO':'America/Denver','NM':'America/Denver','ARIZONA':'America/Phoenix','AZ':'America/Phoenix',
   'CALIFORNIA':'America/Los_Angeles','CA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','WA':'America/Los_Angeles','OREGON':'America/Los_Angeles','OR':'America/Los_Angeles','NEVADA':'America/Los_Angeles','NV':'America/Los_Angeles',
   'ALASKA':'America/Anchorage','AK':'America/Anchorage','HAWAII':'Pacific/Honolulu','HI':'Pacific/Honolulu',
 };
 const CANADA_PROVINCE_TIMEZONES = {
-  'ONTARIO':'America/Toronto','QUEBEC':'America/Toronto','BRITISH COLUMBIA':'America/Vancouver',
   'ALBERTA':'America/Edmonton','SASKATCHEWAN':'America/Regina','MANITOBA':'America/Winnipeg',
   'NOVA SCOTIA':'America/Halifax','NEW BRUNSWICK':'America/Moncton','NEWFOUNDLAND AND LABRADOR':'America/St_Johns',
-  'PRINCE EDWARD ISLAND':'America/Halifax','YUKON':'America/Whitehorse','NORTHWEST TERRITORIES':'America/Yellowknife','NUNAVUT':'America/Iqaluit',
+  'PRINCE EDWARD ISLAND':'America/Halifax','YUKON':'America/Whitehorse',
+};
+const CANADA_CITY_TIMEZONES = {
+  'TORONTO':'America/Toronto','OTTAWA':'America/Toronto','MONTREAL':'America/Toronto','QUEBEC CITY':'America/Toronto',
+  'VANCOUVER':'America/Vancouver','VICTORIA':'America/Vancouver','KAMLOOPS':'America/Vancouver',
+  'WINNIPEG':'America/Winnipeg','REGINA':'America/Regina','SASKATOON':'America/Regina',
+  'CALGARY':'America/Edmonton','EDMONTON':'America/Edmonton','HALIFAX':'America/Halifax',
+  'FREDERICTON':'America/Moncton','ST JOHNS': 'America/St_Johns','WHITEHORSE':'America/Whitehorse',
+  'YELLOWKNIFE':'America/Yellowknife','IQALUIT':'America/Iqaluit',
 };
 const AUSTRALIA_STATE_TIMEZONES = {
   'NEW SOUTH WALES':'Australia/Sydney','NSW':'Australia/Sydney','VICTORIA':'Australia/Melbourne','VIC':'Australia/Melbourne',
@@ -72,7 +79,7 @@ function validTimezone(value) {
 }
 
 function normalized(value) {
-  return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toUpperCase();
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
 }
 
 class HousekeepingTimezoneError extends Error {
@@ -109,14 +116,15 @@ function resolveHousekeepingTimezone(address = {}) {
     throw new HousekeepingTimezoneError('Brazil spans multiple timezones. Add the property state/city or set its IANA timezone.');
   }
   if (['UNITED STATES','UNITED STATES OF AMERICA','USA','US'].includes(country)) {
-    const zone = US_STATE_TIMEZONES[province];
+    const usCityZones = { 'NEW YORK':'America/New_York','LOS ANGELES':'America/Los_Angeles','SAN FRANCISCO':'America/Los_Angeles','SAN DIEGO':'America/Los_Angeles','SEATTLE':'America/Los_Angeles','PORTLAND':'America/Los_Angeles','CHICAGO':'America/Chicago','DALLAS':'America/Chicago','HOUSTON':'America/Chicago','AUSTIN':'America/Chicago','EL PASO':'America/Denver','PHOENIX':'America/Phoenix','DENVER':'America/Denver','MIAMI':'America/New_York','ORLANDO':'America/New_York','PENSACOLA':'America/Chicago','DETROIT':'America/Detroit','ANCHORAGE':'America/Anchorage','HONOLULU':'Pacific/Honolulu' };
+    const zone = usCityZones[city] || US_STATE_TIMEZONES[province];
     if (zone) return zone;
     throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
   }
   if (country === 'CANADA') {
-    const zone = CANADA_PROVINCE_TIMEZONES[province];
+    const zone = CANADA_CITY_TIMEZONES[city] || CANADA_PROVINCE_TIMEZONES[province];
     if (zone) return zone;
-    throw new HousekeepingTimezoneError('Canada spans multiple timezones. Add the property province/territory or set its IANA timezone.');
+    throw new HousekeepingTimezoneError('Canada spans multiple timezones. Add a recognised property city/province or set its IANA timezone.');
   }
   if (country === 'AUSTRALIA') {
     const zone = AUSTRALIA_STATE_TIMEZONES[province];
