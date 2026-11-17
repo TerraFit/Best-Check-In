@@ -116,7 +116,7 @@ function resolveHousekeepingTimezone(address = {}) {
     throw new HousekeepingTimezoneError('Brazil spans multiple timezones. Add the property state/city or set its IANA timezone.');
   }
   if (['UNITED STATES','UNITED STATES OF AMERICA','USA','US'].includes(country)) {
-    const usCityZones = { 'NEW YORK':'America/New_York','LOS ANGELES':'America/Los_Angeles','SAN FRANCISCO':'America/Los_Angeles','SAN DIEGO':'America/Los_Angeles','SEATTLE':'America/Los_Angeles','PORTLAND':'America/Los_Angeles','CHICAGO':'America/Chicago','DALLAS':'America/Chicago','HOUSTON':'America/Chicago','AUSTIN':'America/Chicago','EL PASO':'America/Denver','PHOENIX':'America/Phoenix','DENVER':'America/Denver','MIAMI':'America/New_York','ORLANDO':'America/New_York','PENSACOLA':'America/Chicago','DETROIT':'America/Detroit','ANCHORAGE':'America/Anchorage','HONOLULU':'Pacific/Honolulu' };
+    const usCityZones = { 'NEW YORK':'America/New_York','LOS ANGELES':'America/Los_Angeles','SAN FRANCISCO':'America/Los_Angeles','SAN DIEGO':'America/Los_Angeles','SEATTLE':'America/Los_Angeles','CHICAGO':'America/Chicago','DALLAS':'America/Chicago','HOUSTON':'America/Chicago','AUSTIN':'America/Chicago','EL PASO':'America/Denver','PHOENIX':'America/Phoenix','DENVER':'America/Denver','MIAMI':'America/New_York','ORLANDO':'America/New_York','PENSACOLA':'America/Chicago','DETROIT':'America/Detroit','ANCHORAGE':'America/Anchorage','HONOLULU':'Pacific/Honolulu' };
     const zone = usCityZones[city] || US_STATE_TIMEZONES[province];
     if (zone) return zone;
     throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
