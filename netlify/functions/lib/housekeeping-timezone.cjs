@@ -45,12 +45,12 @@ const BRAZIL_STATE_TIMEZONES = {
 };
 
 const US_STATE_TIMEZONES = {
-  'NEW YORK':'America/New_York','NEW JERSEY':'America/New_York','MASSACHUSETTS':'America/New_York','FLORIDA':'America/New_York',
-  'GEORGIA':'America/New_York','PENNSYLVANIA':'America/New_York','OHIO':'America/New_York','MICHIGAN':'America/Detroit',
-  'ILLINOIS':'America/Chicago','TEXAS':'America/Chicago','MINNESOTA':'America/Chicago','WISCONSIN':'America/Chicago',
-  'COLORADO':'America/Denver','UTAH':'America/Denver','NEW MEXICO':'America/Denver','ARIZONA':'America/Phoenix',
-  'CALIFORNIA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','OREGON':'America/Los_Angeles','NEVADA':'America/Los_Angeles',
-  'ALASKA':'America/Anchorage','HAWAII':'Pacific/Honolulu',
+  'NEW YORK':'America/New_York','NY':'America/New_York','NEW JERSEY':'America/New_York','NJ':'America/New_York','MASSACHUSETTS':'America/New_York','MA':'America/New_York','FLORIDA':'America/New_York','FL':'America/New_York',
+  'GEORGIA':'America/New_York','GA':'America/New_York','PENNSYLVANIA':'America/New_York','PA':'America/New_York','OHIO':'America/New_York','OH':'America/New_York','MICHIGAN':'America/Detroit','MI':'America/Detroit',
+  'ILLINOIS':'America/Chicago','IL':'America/Chicago','TEXAS':'America/Chicago','TX':'America/Chicago','MINNESOTA':'America/Chicago','MN':'America/Chicago','WISCONSIN':'America/Chicago','WI':'America/Chicago',
+  'COLORADO':'America/Denver','CO':'America/Denver','UTAH':'America/Denver','UT':'America/Denver','NEW MEXICO':'America/Denver','NM':'America/Denver','ARIZONA':'America/Phoenix','AZ':'America/Phoenix',
+  'CALIFORNIA':'America/Los_Angeles','CA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','WA':'America/Los_Angeles','OREGON':'America/Los_Angeles','OR':'America/Los_Angeles','NEVADA':'America/Los_Angeles','NV':'America/Los_Angeles',
+  'ALASKA':'America/Anchorage','AK':'America/Anchorage','HAWAII':'Pacific/Honolulu','HI':'Pacific/Honolulu',
 };
 const CANADA_PROVINCE_TIMEZONES = {
   'ONTARIO':'America/Toronto','QUEBEC':'America/Toronto','BRITISH COLUMBIA':'America/Vancouver',
@@ -108,7 +108,7 @@ function resolveHousekeepingTimezone(address = {}) {
     if (zone) return zone;
     throw new HousekeepingTimezoneError('Brazil spans multiple timezones. Add the property state/city or set its IANA timezone.');
   }
-  if (['UNITED STATES','USA','US'].includes(country)) {
+  if (['UNITED STATES','UNITED STATES OF AMERICA','USA','US'].includes(country)) {
     const zone = US_STATE_TIMEZONES[province];
     if (zone) return zone;
     throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
