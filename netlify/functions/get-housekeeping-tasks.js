@@ -7,7 +7,7 @@
 import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
 const { authenticateHousekeepingService, resolveBusinessId } = housekeepingServiceAuth;
 import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
-const { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc } = housekeepingTimezone;
+const { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc, isHousekeepingTaskOverdue } = housekeepingTimezone;
 
 const TASK_SELECT = [
   'id', 'business_id', 'room_id', 'room_number', 'room_name', 'booking_id', 'guest_name',
@@ -81,12 +81,7 @@ export const handler = async (event) => {
     const tomorrowStr = addCalendarDays(todayStr, 1);
     const todayStart = zonedDateTimeToUtc(todayStr, '00:00:00', timezone);
     const tomorrowStart = zonedDateTimeToUtc(tomorrowStr, '00:00:00', timezone);
-    const cutoffToday = zonedDateTimeToUtc(todayStr, '14:00:00', timezone);
-    const isOverdue = (task) => {
-      if (!['pending', 'in_progress'].includes(task.status)) return false;
-      if (task.scheduled_date < todayStr) return true;
-      return task.scheduled_date === todayStr && now >= cutoffToday;
-    };
+    const isOverdue = (task) => isHousekeepingTaskOverdue(task, todayStr, now, timezone);
 
     // Keep the operational dashboard room-oriented: one card per room.
     // Select from the tasks relevant to the current view before collapsing history,
