@@ -522,6 +522,8 @@ test('property timezone resolution fails closed instead of guessing UTC or a def
   assert.throws(() => resolveHousekeepingTimezone({ country: 'Brazil' }), /Brazil spans multiple timezones/);
   assert.throws(() => resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas' }), /Brazil spans multiple timezones/);
   assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Oregon' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', city: 'Portland' }), /United States spans multiple timezones/);
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'Oregon', city: 'Portland' }), 'America/Los_Angeles');
   assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Nevada' }), /United States spans multiple timezones/);
   assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Arizona' }), /United States spans multiple timezones/);
   assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Alaska' }), /United States spans multiple timezones/);
