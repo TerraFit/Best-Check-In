@@ -236,7 +236,7 @@ class InsertError extends Error {
 /** Statuses that mean staff already own the room — do not overwrite */
 const IN_WORKFLOW = ['cleaning_in_progress', 'awaiting_inspection'];
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
