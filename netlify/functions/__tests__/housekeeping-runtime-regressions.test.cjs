@@ -576,3 +576,47 @@ test('housekeeping task API rejects an unresolved property timezone with a confi
     assert.match(payload.error, /physical address|timezone/i);
   }, { country: 'Unknown Country' });
 });
+
+
+test('all date-sensitive housekeeping mutations fail closed when property timezone is unresolved', async () => {
+  const { handler: generateHandler } = await import('../generate-housekeeping-tasks.js');
+  const { handler: skipHandler } = await import('../skip-oldest-housekeeping-service.js');
+  const { handler: bulkHandler } = await import('../admin-bulk-room-readiness.js');
+  const unresolvedAddress = { country: 'Unknown Country', province: 'Unknown Region', city: 'Unknown City' };
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No downstream query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const generated = await generateHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, regenerate: false }),
+    });
+    assert.equal(generated.statusCode, 422);
+    assert.equal(JSON.parse(generated.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No downstream query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const skipped = await skipHandler({
+      ...authEvent({ employee: true, permissions: ['canCompleteHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, reason: 'Room was unavailable' }),
+    });
+    assert.equal(skipped.statusCode, 422);
+    assert.equal(JSON.parse(skipped.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No room or task query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const bulk = await bulkHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, roomIds: [ROOM_ID], action: 'approved' }),
+    });
+    assert.equal(bulk.statusCode, 422);
+    assert.equal(JSON.parse(bulk.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+});
