@@ -11,21 +11,21 @@ const COUNTRY_TIMEZONES = {
   'angola': 'Africa/Luanda', 'lesotho': 'Africa/Maseru', 'eswatini': 'Africa/Mbabane', 'swaziland': 'Africa/Mbabane',
   'zimbabwe': 'Africa/Harare', 'zambia': 'Africa/Lusaka', 'mozambique': 'Africa/Maputo', 'malawi': 'Africa/Blantyre',
   'tanzania': 'Africa/Dar_es_Salaam', 'mauritius': 'Indian/Mauritius', 'seychelles': 'Indian/Mahe',
-  'madagascar': 'Indian/Antananarivo', 'comoros': 'Indian/Comoro', 'democratic republic of congo': 'Africa/Kinshasa',
+  'madagascar': 'Indian/Antananarivo', 'comoros': 'Indian/Comoro',
   'republic of congo': 'Africa/Brazzaville', 'ghana': 'Africa/Accra', 'kenya': 'Africa/Nairobi',
   'nigeria': 'Africa/Lagos', 'uganda': 'Africa/Kampala', 'rwanda': 'Africa/Kigali',
   'new zealand': 'Pacific/Auckland', 'india': 'Asia/Kolkata', 'china': 'Asia/Shanghai',
   'japan': 'Asia/Tokyo', 'singapore': 'Asia/Singapore', 'united arab emirates': 'Asia/Dubai',
   'uae': 'Asia/Dubai', 'saudi arabia': 'Asia/Riyadh', 'france': 'Europe/Paris',
   'germany': 'Europe/Berlin', 'netherlands': 'Europe/Amsterdam', 'spain': 'Europe/Madrid',
-  'italy': 'Europe/Rome', 'portugal': 'Europe/Lisbon', 'switzerland': 'Europe/Zurich', 'ireland': 'Europe/Dublin',
+  'italy': 'Europe/Rome', 'switzerland': 'Europe/Zurich', 'ireland': 'Europe/Dublin',
 };
 
 const BRAZIL_STATE_TIMEZONES = {
   AC: 'America/Rio_Branco', ACRE: 'America/Rio_Branco',
   RO: 'America/Porto_Velho', RONDONIA: 'America/Porto_Velho',
   RR: 'America/Boa_Vista', RORAIMA: 'America/Boa_Vista',
-  AM: 'America/Manaus', AMAZONAS: 'America/Manaus',
+  // Amazonas spans multiple IANA zones; resolve by city or explicit timezone.
   MT: 'America/Cuiaba', 'MATO GROSSO': 'America/Cuiaba',
   MS: 'America/Campo_Grande', 'MATO GROSSO DO SUL': 'America/Campo_Grande',
   PA: 'America/Belem', PARA: 'America/Belem', AP: 'America/Belem', AMAPA: 'America/Belem',
@@ -48,9 +48,9 @@ const US_STATE_TIMEZONES = {
   'NEW YORK':'America/New_York','NY':'America/New_York','NEW JERSEY':'America/New_York','NJ':'America/New_York','MASSACHUSETTS':'America/New_York','MA':'America/New_York',
   'GEORGIA':'America/New_York','GA':'America/New_York','PENNSYLVANIA':'America/New_York','PA':'America/New_York','OHIO':'America/New_York','OH':'America/New_York',
   'ILLINOIS':'America/Chicago','IL':'America/Chicago','MINNESOTA':'America/Chicago','MN':'America/Chicago','WISCONSIN':'America/Chicago','WI':'America/Chicago',
-  'COLORADO':'America/Denver','CO':'America/Denver','UTAH':'America/Denver','UT':'America/Denver','NEW MEXICO':'America/Denver','NM':'America/Denver','ARIZONA':'America/Phoenix','AZ':'America/Phoenix',
-  'CALIFORNIA':'America/Los_Angeles','CA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','WA':'America/Los_Angeles','OREGON':'America/Los_Angeles','OR':'America/Los_Angeles','NEVADA':'America/Los_Angeles','NV':'America/Los_Angeles',
-  'ALASKA':'America/Anchorage','AK':'America/Anchorage','HAWAII':'Pacific/Honolulu','HI':'Pacific/Honolulu',
+  'COLORADO':'America/Denver','CO':'America/Denver','UTAH':'America/Denver','UT':'America/Denver','NEW MEXICO':'America/Denver','NM':'America/Denver',
+  'CALIFORNIA':'America/Los_Angeles','CA':'America/Los_Angeles','WASHINGTON':'America/Los_Angeles','WA':'America/Los_Angeles',
+  'HAWAII':'Pacific/Honolulu','HI':'Pacific/Honolulu',
 };
 const CANADA_PROVINCE_TIMEZONES = {
   'ALBERTA':'America/Edmonton','SASKATCHEWAN':'America/Regina','MANITOBA':'America/Winnipeg',
@@ -116,10 +116,21 @@ function resolveHousekeepingTimezone(address = {}) {
     throw new HousekeepingTimezoneError('Brazil spans multiple timezones. Add the property state/city or set its IANA timezone.');
   }
   if (['UNITED STATES','UNITED STATES OF AMERICA','USA','US'].includes(country)) {
-    const usCityZones = { 'NEW YORK':'America/New_York','LOS ANGELES':'America/Los_Angeles','SAN FRANCISCO':'America/Los_Angeles','SAN DIEGO':'America/Los_Angeles','SEATTLE':'America/Los_Angeles','CHICAGO':'America/Chicago','DALLAS':'America/Chicago','HOUSTON':'America/Chicago','AUSTIN':'America/Chicago','EL PASO':'America/Denver','PHOENIX':'America/Phoenix','DENVER':'America/Denver','MIAMI':'America/New_York','ORLANDO':'America/New_York','PENSACOLA':'America/Chicago','DETROIT':'America/Detroit','ANCHORAGE':'America/Anchorage','HONOLULU':'Pacific/Honolulu' };
+    const usCityZones = { 'NEW YORK':'America/New_York','LOS ANGELES':'America/Los_Angeles','SAN FRANCISCO':'America/Los_Angeles','SAN DIEGO':'America/Los_Angeles','SEATTLE':'America/Los_Angeles','PORTLAND':'America/Los_Angeles','CHICAGO':'America/Chicago','DALLAS':'America/Chicago','HOUSTON':'America/Chicago','AUSTIN':'America/Chicago','EL PASO':'America/Denver','PHOENIX':'America/Phoenix','TUCSON':'America/Phoenix','LAS VEGAS':'America/Los_Angeles','RENO':'America/Los_Angeles','DENVER':'America/Denver','MIAMI':'America/New_York','ORLANDO':'America/New_York','PENSACOLA':'America/Chicago','DETROIT':'America/Detroit','ANCHORAGE':'America/Anchorage','HONOLULU':'Pacific/Honolulu' };
     const zone = usCityZones[city] || US_STATE_TIMEZONES[province];
     if (zone) return zone;
     throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
+  }
+  if (country === 'SPAIN') {
+    if (province === 'CANARY ISLANDS' || ['LAS PALMAS','SANTA CRUZ DE TENERIFE'].includes(city)) return 'Atlantic/Canary';
+    if (city || province) return 'Europe/Madrid';
+    throw new HousekeepingTimezoneError('Spain requires a property city or province to distinguish mainland Spain from the Canary Islands.');
+  }
+  if (country === 'PORTUGAL') {
+    if (province === 'AZORES' || ['PONTA DELGADA','ANGRA DO HEROISMO','HORTA'].includes(city)) return 'Atlantic/Azores';
+    if (province === 'MADEIRA' || city === 'FUNCHAL') return 'Europe/Lisbon';
+    if (city || province) return 'Europe/Lisbon';
+    throw new HousekeepingTimezoneError('Portugal requires a property city or region to distinguish mainland Portugal from the Azores.');
   }
   if (country === 'CANADA') {
     const zone = CANADA_CITY_TIMEZONES[city] || CANADA_PROVINCE_TIMEZONES[province];
@@ -127,7 +138,8 @@ function resolveHousekeepingTimezone(address = {}) {
     throw new HousekeepingTimezoneError('Canada spans multiple timezones. Add a recognised property city/province or set its IANA timezone.');
   }
   if (country === 'AUSTRALIA') {
-    const zone = AUSTRALIA_STATE_TIMEZONES[province];
+    const australianCityZones = { 'EUCLA':'Australia/Eucla','LORD HOWE ISLAND':'Australia/Lord_Howe','BROKEN HILL':'Australia/Broken_Hill' };
+    const zone = australianCityZones[city] || AUSTRALIA_STATE_TIMEZONES[province];
     if (zone) return zone;
     throw new HousekeepingTimezoneError('Australia spans multiple timezones. Add the property state/territory or set its IANA timezone.');
   }
