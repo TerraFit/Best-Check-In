@@ -1,0 +1,624 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const jwt = require('jsonwebtoken');
+
+const BUSINESS_ID = '7417fcbb-7771-4d44-8c7f-ccef573fa24b';
+const ROOM_ID = '11111111-1111-4111-8111-111111111111';
+const TASK_ID = '22222222-2222-4222-8222-222222222222';
+const SECRET = 'housekeeping-handler-test-secret';
+
+function authEvent({ employee = false, permissions = [] } = {}) {
+  const userMetadata = { business_id: BUSINESS_ID };
+  if (employee) {
+    userMetadata.employee_id = '33333333-3333-4333-8333-333333333333';
+    userMetadata.staff_role = 'housekeeper';
+    userMetadata.permission_set = permissions;
+  }
+  const token = jwt.sign({
+    sub: employee ? userMetadata.employee_id : '44444444-4444-4444-8444-444444444444',
+    role: 'authenticated',
+    user_metadata: userMetadata,
+  }, SECRET, { issuer: 'fastcheckin', expiresIn: '5m' });
+  return { headers: { authorization: `Bearer ${token}` } };
+}
+
+function jsonResponse(data, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => data,
+    text: async () => JSON.stringify(data),
+  };
+}
+
+async function withSupabaseMock(fetchMock, run, businessAddress = { country: 'South Africa', province: 'Eastern Cape', city: 'Jeffreys Bay' }) {
+  const previousFetch = global.fetch;
+  const previousEnv = {
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+    SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
+  };
+  process.env.SUPABASE_URL = 'https://supabase.test';
+  process.env.SUPABASE_SERVICE_KEY = 'service-test-key';
+  process.env.SUPABASE_JWT_SECRET = SECRET;
+  global.fetch = async (url, options = {}) => {
+    if (String(url).includes('/businesses?')) return jsonResponse([{ physical_address: businessAddress }]);
+    return fetchMock(url, options);
+  };
+  try {
+    await run();
+  } finally {
+    global.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test('ignore handler returns an audited 409 for partial previous-task cleanup', async () => {
+  const { handler } = await import('../ignore-housekeeping-task.js');
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    task_type: 'refresh', scheduled_date: '2026-11-13', booking_id: null,
+    guest_name: 'Current Guest', notes: '',
+  };
+  const room = { id: ROOM_ID, occupancy_status: 'occupied', availability_status: 'available', active: true, housekeeping_status: 'not_ready' };
+  const previousTasks = [
+    { id: 'old-1', booking_id: 'booking-1', guest_name: 'Guest One', scheduled_date: '2026-11-11', status: 'pending' },
+    { id: 'old-2', booking_id: 'booking-2', guest_name: 'Guest Two', scheduled_date: '2026-11-12', status: 'pending' },
+  ];
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const method = options.method || 'GET';
+    calls.push({ url: String(url), method, body: options.body ? JSON.parse(options.body) : null });
+    if (String(url).includes('/housekeeping_tasks?id=eq.' + TASK_ID)) return jsonResponse([task]);
+    if (String(url).includes('/rooms?id=eq.' + ROOM_ID)) return jsonResponse([room]);
+    if (String(url).includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (method === 'GET' && String(url).includes('/housekeeping_tasks?') && String(url).includes('status=eq.pending')) return jsonResponse(previousTasks);
+    if (method === 'PATCH' && String(url).includes('/housekeeping_tasks?id=in.')) return jsonResponse([{ ...previousTasks[0], status: 'skipped' }]);
+    if (method === 'POST' && String(url).includes('/room_events')) return jsonResponse([{ id: 'audit-1' }]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + url);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canCompleteHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, reason: 'Room was cleaned but not recorded' }),
+    });
+    assert.equal(result.statusCode, 409);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.code, 'PREVIOUS_TASKS_CHANGED');
+    assert.equal(payload.state_updated, true);
+    assert.equal(payload.changed_count, 1);
+    assert.equal(payload.expected_count, 2);
+    const audit = calls.find((call) => call.method === 'POST' && call.url.includes('/room_events'));
+    assert.ok(audit, 'partial cleanup must be audited before returning conflict');
+    assert.equal(audit.body.details.expected_count, 2);
+    assert.equal(audit.body.details.changed_count, 1);
+    assert.equal(audit.body.details.partial, true);
+    assert.deepEqual(audit.body.details.cleared_tasks.map((item) => item.task_id), ['old-1']);
+  });
+});
+
+test('bulk readiness handler leaves rooms untouched when active or due pending housekeeping work remains', async (t) => {
+  const { handler } = await import('../admin-bulk-room-readiness.js');
+  for (const activeKind of ['task', 'session', 'pending']) {
+    await t.test(`blocks active ${activeKind}`, async () => {
+      const calls = [];
+      await withSupabaseMock(async (url, options = {}) => {
+        const method = options.method || 'GET';
+        const target = String(url);
+        calls.push({ url: target, method });
+        if (target.includes('/rooms?id=in.(')) {
+          return jsonResponse([{
+            id: ROOM_ID, room_number: '1', room_name: 'Stone',
+            active: true, availability_status: 'available', occupancy_status: 'vacant',
+            housekeeping_status: 'ready', updated_at: '2026-11-13T10:00:00.000Z',
+          }]);
+        }
+        if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) {
+          return jsonResponse(activeKind === 'task' ? [{ id: TASK_ID, status: 'in_progress' }] : []);
+        }
+        if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending')) {
+          return jsonResponse(activeKind === 'pending' ? [{ id: TASK_ID, status: 'pending', scheduled_date: '2026-11-16' }] : []);
+        }
+        if (target.includes('/housekeeping_service_sessions?')) {
+          return jsonResponse(activeKind === 'session' ? [{ id: 'session-1', status: 'active' }] : []);
+        }
+        throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+      }, async () => {
+        const result = await handler({
+          ...authEvent(),
+          httpMethod: 'POST',
+          body: JSON.stringify({ businessId: BUSINESS_ID, roomIds: [ROOM_ID], action: 'approved' }),
+        });
+        assert.equal(result.statusCode, 200);
+        const payload = JSON.parse(result.body);
+        assert.equal(payload.updated, 0);
+        assert.equal(payload.notChanged, 1);
+        if (activeKind === 'pending') {
+          assert.match(payload.unchanged[0].reason, /due pending housekeeping task/i);
+        } else {
+          assert.match(payload.unchanged[0].reason, /in.progress|active service session/i);
+        }
+        assert.equal(calls.some((call) => call.method === 'PATCH' && call.url.includes('/rooms?id=eq.')), false);
+        assert.equal(calls.some((call) => call.method === 'POST' && call.url.includes('/room_events')), false);
+      });
+    });
+  }
+});
+
+
+test('employee service start wins the room-version race and admin readiness cannot overwrite it', async () => {
+  const { handler: startHandler } = await import('../start-housekeeping-service.js');
+  const { handler: adminHandler } = await import('../admin-bulk-room-readiness.js');
+  const employeeId = '33333333-3333-4333-8333-333333333333';
+  const initialVersion = '2026-11-13T10:00:00.000Z';
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    task_type: 'refresh', assigned_staff_id: employeeId, assigned_staff_name: 'Housekeeper',
+    booking_id: null,
+  };
+  const room = {
+    id: ROOM_ID, room_number: '1', room_name: 'Stone', room_type: 'Luxury',
+    active: true, availability_status: 'available', occupancy_status: 'vacant',
+    housekeeping_status: 'ready', updated_at: initialVersion,
+  };
+  let activeTask = { ...task };
+  let sessionCreated = false;
+  let sessionCheckCount = 0;
+  let startResult = null;
+  const calls = [];
+
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ target, method, body });
+
+    if (target.includes('/rooms?id=in.(')) return jsonResponse([{ ...room }]);
+    if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.in_progress')) return jsonResponse([]);
+    if (method === 'GET' && target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending') && target.includes('scheduled_date=lte.')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_sessions?') && target.includes('status=eq.active')) {
+      sessionCheckCount += 1;
+      const snapshot = [];
+      return {
+        ok: true, status: 200,
+        json: async () => {
+          // Return the final active-work snapshot first, then let the employee
+          // claim the same room before the administrator issues its PATCH.
+          if (sessionCheckCount === 2) {
+            startResult = await startHandler({
+              ...authEvent({ employee: true, permissions: ['canStartHousekeepingTask'] }),
+              httpMethod: 'POST',
+              body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, serviceType: 'refresh' }),
+            });
+          }
+          return snapshot;
+        },
+        text: async () => '[]',
+      };
+    }
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'GET') return jsonResponse([{ ...activeTask }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([{ ...room }]);
+    if (target.includes('/housekeeping_service_settings?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_targets?')) return jsonResponse([]);
+
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') {
+      if (target.includes('updated_at=eq.')) {
+        const expectedVersion = decodeURIComponent(target.split('updated_at=eq.')[1].split('&')[0]);
+        if (room.updated_at !== expectedVersion) return jsonResponse([]);
+      }
+      Object.assign(room, body);
+      return jsonResponse([{ ...room }]);
+    }
+    if (target.includes('/housekeeping_service_sessions') && method === 'POST') {
+      sessionCreated = true;
+      return jsonResponse([{
+        id: 'session-race-1', business_id: BUSINESS_ID, room_id: ROOM_ID,
+        housekeeping_task_id: TASK_ID, status: 'active',
+      }]);
+    }
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'PATCH') {
+      if (activeTask.status !== 'pending') return jsonResponse([]);
+      activeTask = { ...activeTask, ...body };
+      return jsonResponse([{ ...activeTask }]);
+    }
+    if (target.includes('/room_events') && method === 'POST') return jsonResponse([{ id: 'audit-race-1' }]);
+    if (target.includes('/room_events') && method === 'PATCH') return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const adminResult = await adminHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, roomIds: [ROOM_ID], action: 'approved' }),
+    });
+
+    assert.equal(startResult?.statusCode, 200, 'employee start should successfully claim the room first');
+    assert.equal(sessionCreated, true);
+    assert.equal(activeTask.status, 'in_progress');
+    assert.equal(room.housekeeping_status, 'cleaning_in_progress');
+    assert.equal(adminResult.statusCode, 200);
+    const payload = JSON.parse(adminResult.body);
+    assert.equal(payload.updated, 0, 'administrator compare-and-set must not overwrite the employee claim');
+    assert.equal(payload.notChanged, 1);
+    assert.match(payload.unchanged[0].reason, /state changed/i);
+    const adminRoomPatch = calls.find((call) =>
+      call.method === 'PATCH' && call.target.includes('/rooms?id=eq.') && call.body?.housekeeping_status === 'ready');
+    assert.ok(adminRoomPatch, 'administrator must attempt its guarded compare-and-set');
+    assert.match(adminRoomPatch.target, /updated_at=eq\./, 'administrator update must be version-conditional');
+  });
+});
+
+test('employee start fails closed when its room-version claim loses to a concurrent room update', async () => {
+  const { handler } = await import('../start-housekeeping-service.js');
+  const employeeId = '33333333-3333-4333-8333-333333333333';
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    assigned_staff_id: employeeId, booking_id: null,
+  };
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    calls.push({ target, method });
+    if (target.includes('/employees?')) return jsonResponse([{ id: employeeId, business_id: BUSINESS_ID, status: 'active' }]);
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID)) return jsonResponse([{ ...task }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([{
+      id: ROOM_ID, room_type: 'Luxury', housekeeping_status: 'ready',
+      updated_at: '2026-11-13T10:00:00.000Z',
+    }]);
+    if (target.includes('/housekeeping_service_settings?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_targets?')) return jsonResponse([]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canStartHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, serviceType: 'refresh' }),
+    });
+    assert.equal(result.statusCode, 409);
+    assert.equal(JSON.parse(result.body).code, 'ROOM_STATE_CHANGED');
+    assert.equal(calls.some((call) => call.method === 'POST' && call.target.includes('/housekeeping_service_sessions')), false);
+  });
+});
+
+test('Today handler keeps overdue pending work visible when a newer completed-today task exists for the room', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const overduePending = {
+    id: 'overdue-pending', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'refresh', scheduled_date: '2026-11-12',
+    status: 'pending', is_checkout: false, created_at: '2026-11-12T06:00:00Z',
+    updated_at: '2026-11-12T06:30:00Z',
+  };
+  const completedToday = {
+    id: 'completed-today', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'full_service', scheduled_date: '2026-11-13',
+    status: 'completed', is_checkout: true, completed_at: '2026-11-13T10:00:00+02:00',
+    created_at: '2026-11-13T09:00:00Z', updated_at: '2026-11-13T12:00:00Z',
+  };
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    calls.push(target);
+    if (target.includes('/housekeeping_tasks?') && target.includes('order=scheduled_date.asc')) {
+      return jsonResponse([overduePending, completedToday]);
+    }
+    if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.skipped')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-13')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-13')) return jsonResponse([]);
+    if (target.includes('/rooms?')) return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: GET ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canViewHousekeeping', 'canCompleteHousekeepingTask'] }),
+      httpMethod: 'GET',
+      queryStringParameters: { businessId: BUSINESS_ID, view: 'today', date: '2026-11-13' },
+    });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.tasks.length, 1);
+    assert.equal(payload.tasks[0].id, 'overdue-pending');
+    assert.equal(payload.tasks[0].status, 'pending');
+  });
+});
+
+
+test('Today and Pending hide due tasks superseded by a newer administrator-approved completion', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const olderPending = {
+    id: 'older-pending', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'refresh', scheduled_date: '2026-11-12',
+    status: 'pending', is_checkout: false, created_at: '2026-11-12T06:00:00Z',
+    updated_at: '2026-11-12T06:30:00Z',
+  };
+  const approvedCompletion = {
+    id: 'approved-completion', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1',
+    room_name: 'Stone', task_type: 'full_service', scheduled_date: '2026-11-13',
+    status: 'completed', inspection_status: 'approved', is_checkout: true,
+    completed_at: '2026-11-13T10:00:00+02:00', created_at: '2026-11-13T09:00:00Z',
+    updated_at: '2026-11-13T12:00:00Z',
+  };
+  const tasks = [olderPending, approvedCompletion];
+  const runView = async (view) => {
+    await withSupabaseMock(async (url) => {
+      const target = String(url);
+      if (target.includes('/housekeeping_tasks?') && target.includes('order=scheduled_date.asc')) return jsonResponse(tasks);
+      if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.skipped')) return jsonResponse([]);
+      if (target.includes('/rooms?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-13')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-13')) {
+        assert.match(target, /select=id,room_id,scheduled_date/, 'overdue reconciliation must fetch the room identity and task date');
+        return jsonResponse([olderPending]);
+      }
+      throw new Error('Unexpected Supabase request: GET ' + target);
+    }, async () => {
+      const result = await handler({
+        ...authEvent({ employee: true, permissions: ['canViewHousekeeping', 'canCompleteHousekeepingTask'] }),
+        httpMethod: 'GET',
+        queryStringParameters: { businessId: BUSINESS_ID, view, date: '2026-11-13' },
+      });
+      assert.equal(result.statusCode, 200, view);
+      const payload = JSON.parse(result.body);
+      if (view === 'today') {
+        assert.equal(payload.tasks.length, 1, 'Today should retain the approved completion as the room status');
+        assert.equal(payload.tasks[0].id, 'approved-completion');
+      } else {
+        assert.equal(payload.tasks.length, 0, 'Pending must not show stale work superseded by approved completion');
+      }
+      assert.equal(payload.stats.overdue, 0, view + ' overdue count must agree with the task queue');
+    });
+  };
+  await runView('today');
+  await runView('pending');
+});
+
+test('housekeeping views select one appropriate room task and calculate oldest Refresh eligibility from full history', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const tasks = [
+    { id: 'refresh-oldest', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'refresh', is_checkout: false, scheduled_date: '2026-11-10', status: 'pending', created_at: '2026-11-10T06:00:00Z', updated_at: '2026-11-14T10:00:00Z' },
+    { id: 'refresh-newer', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'refresh', is_checkout: false, scheduled_date: '2026-11-11', status: 'pending', created_at: '2026-11-11T06:00:00Z', updated_at: '2026-11-12T10:00:00Z' },
+    { id: 'completed-older', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: true, scheduled_date: '2026-11-12', status: 'completed', completed_at: '2026-11-12T10:00:00+02:00', created_at: '2026-11-12T06:00:00Z', updated_at: '2026-11-12T11:00:00Z' },
+    { id: 'completed-latest', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: true, scheduled_date: '2026-11-13', status: 'completed', completed_at: '2026-11-13T10:00:00+02:00', created_at: '2026-11-13T06:00:00Z', updated_at: '2026-11-13T12:00:00Z' },
+    { id: 'future-task', business_id: BUSINESS_ID, room_id: ROOM_ID, room_number: '1', room_name: 'Stone', task_type: 'full_service', is_checkout: false, scheduled_date: '2026-11-20', status: 'pending', created_at: '2026-11-14T06:00:00Z', updated_at: '2026-11-14T12:00:00Z' },
+  ];
+
+  const runView = async (view) => {
+    let selected;
+    await withSupabaseMock(async (url) => {
+      const target = String(url);
+      if (target.includes('/housekeeping_tasks?') && target.includes('order=scheduled_date.asc')) return jsonResponse(tasks);
+      if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.skipped')) return jsonResponse([]);
+      if (target.includes('/rooms?')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=eq.2026-11-15')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.completed&completed_at=')) return jsonResponse([]);
+      if (target.includes('/housekeeping_tasks?') && target.includes('scheduled_date=lt.2026-11-15')) return jsonResponse([]);
+      throw new Error('Unexpected Supabase request: GET ' + target);
+    }, async () => {
+      const result = await handler({
+        ...authEvent({ employee: true, permissions: ['canViewHousekeeping', 'canCompleteHousekeepingTask'] }),
+        httpMethod: 'GET',
+        queryStringParameters: { businessId: BUSINESS_ID, view, date: '2026-11-15' },
+      });
+      assert.equal(result.statusCode, 200, view);
+      selected = JSON.parse(result.body).tasks;
+    });
+    assert.equal(selected.length, 1, view + ' must display exactly one card for the room');
+    return selected[0];
+  };
+
+  const today = await runView('today');
+  assert.equal(today.id, 'refresh-oldest', 'Today should expose the oldest overdue open task');
+  assert.equal(today.can_skip_oldest, true, 'skip eligibility must consider every overdue Refresh record, not only the displayed card');
+
+  const pending = await runView('pending');
+  assert.equal(pending.id, 'refresh-oldest', 'Pending should expose the oldest due task before newer or future work');
+
+  const completed = await runView('completed');
+  assert.equal(completed.id, 'completed-latest', 'Completed should show the latest completed record for the room');
+
+  const all = await runView('all');
+  assert.equal(all.id, 'future-task', 'All should show the latest record by update recency while retaining older records in storage');
+});
+
+
+test('employee Ignore reason cleaned but not recorded completes task and sends room for inspection', async () => {
+  const { handler } = await import('../ignore-housekeeping-task.js');
+  const task = {
+    id: TASK_ID, business_id: BUSINESS_ID, room_id: ROOM_ID, status: 'pending',
+    task_type: 'refresh', scheduled_date: '2026-11-15', booking_id: null,
+    guest_name: 'Guest', notes: '',
+  };
+  const room = { id: ROOM_ID, occupancy_status: 'occupied', availability_status: 'available', active: true, housekeeping_status: 'not_ready' };
+  const calls = [];
+  await withSupabaseMock(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ target, method, body });
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'GET') return jsonResponse([task]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'GET') return jsonResponse([room]);
+    if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?') && target.includes('status=eq.pending') && method === 'GET') return jsonResponse([]);
+    if (target.includes('/housekeeping_tasks?id=eq.' + TASK_ID) && method === 'PATCH') return jsonResponse([{ ...task, ...body }]);
+    if (target.includes('/rooms?id=eq.' + ROOM_ID) && method === 'PATCH') return jsonResponse([{ ...room, ...body }]);
+    if (target.includes('/room_events') && method === 'POST') return jsonResponse([{ id: 'audit-cleaned-1' }]);
+    throw new Error('Unexpected Supabase request: ' + method + ' ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canCompleteHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, reason: 'Room was cleaned but not recorded' }),
+    });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.status, 'completed');
+    assert.equal(payload.task.status, 'completed');
+    assert.equal(payload.task.inspection_status, 'pending');
+    assert.deepEqual(payload.room_patch, { housekeeping_status: 'awaiting_inspection' });
+    const taskPatch = calls.find((call) => call.method === 'PATCH' && call.target.includes('/housekeeping_tasks?id=eq.'));
+    assert.equal(taskPatch.body.status, 'completed');
+    assert.equal(taskPatch.body.inspection_status, 'pending');
+    const roomPatch = calls.find((call) => call.method === 'PATCH' && call.target.includes('/rooms?id=eq.'));
+    assert.equal(roomPatch.body.housekeeping_status, 'awaiting_inspection');
+    const audit = calls.find((call) => call.method === 'POST' && call.target.includes('/room_events'));
+    assert.equal(audit.body.event_type, 'housekeeping_task_completed_outside_app');
+  });
+});
+
+test('housekeeping timezone follows the registered property country and handles DST-aware local cutoffs', async () => {
+  const timezoneHelpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { resolveHousekeepingTimezone, dateStringInTimezone, zonedDateTimeToUtc } = timezoneHelpers;
+  assert.equal(resolveHousekeepingTimezone({ country: 'Namibia' }), 'Africa/Windhoek');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Botswana' }), 'Africa/Gaborone');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Egypt' }), 'Africa/Cairo');
+  assert.equal(resolveHousekeepingTimezone({ country: 'United Kingdom' }), 'Europe/London');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Acre' }), 'America/Rio_Branco');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas', city: 'Manaus' }), 'America/Manaus');
+  assert.equal(dateStringInTimezone(new Date('2026-11-17T13:30:00.000Z'), 'America/Sao_Paulo'), '2026-11-17');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Europe/London').toISOString(), '2026-11-17T14:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-07-17', '14:00:00', 'Europe/London').toISOString(), '2026-07-17T13:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Africa/Windhoek').toISOString(), '2026-11-17T12:00:00.000Z');
+});
+
+test('housekeeping API returns the registered business timezone for every portal', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  const timezoneHelpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  await withSupabaseMock(async (url) => {
+    const target = String(url);
+    if (target.includes('/housekeeping_tasks?')) return jsonResponse([]);
+    if (target.includes('/housekeeping_service_sessions?')) return jsonResponse([]);
+    if (target.includes('/rooms?')) return jsonResponse([]);
+    throw new Error('Unexpected Supabase request: GET ' + target);
+  }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canViewHousekeeping'] }),
+      httpMethod: 'GET',
+      queryStringParameters: { businessId: BUSINESS_ID, view: 'all' },
+    });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.timezone, 'Europe/London');
+    assert.equal(payload.today, timezoneHelpers.dateStringInTimezone(new Date(), 'Europe/London'));
+  }, { country: 'United Kingdom', city: 'London', province: 'England' });
+});
+
+
+test('property timezone resolution fails closed instead of guessing UTC or a default region', async () => {
+  const helpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { resolveHousekeepingTimezone } = helpers;
+  assert.throws(() => resolveHousekeepingTimezone({}), { code: 'PROPERTY_TIMEZONE_UNRESOLVED' });
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Atlantis' }), { code: 'PROPERTY_TIMEZONE_UNRESOLVED' });
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Canada' }), /Canada spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Australia' }), /Australia spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Brazil' }), /Brazil spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas' }), /Brazil spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Oregon' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', city: 'Portland' }), /United States spans multiple timezones/);
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'Oregon', city: 'Portland' }), 'America/Los_Angeles');
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Nevada' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Arizona' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'United States', state: 'Alaska' }), /United States spans multiple timezones/);
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Portugal' }), /Portugal requires a property city or region/);
+  assert.equal(resolveHousekeepingTimezone({ country: 'Portugal', province: 'Azores' }), 'Atlantic/Azores');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Portugal', city: 'Lisbon' }), 'Europe/Lisbon');
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Spain' }), /Spain requires a property city or province/);
+  assert.equal(resolveHousekeepingTimezone({ country: 'Spain', province: 'Canary Islands' }), 'Atlantic/Canary');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Spain', city: 'Madrid' }), 'Europe/Madrid');
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'Democratic Republic of Congo' }), { code: 'PROPERTY_TIMEZONE_UNRESOLVED' });
+  assert.equal(resolveHousekeepingTimezone({ country: 'Democratic Republic of Congo', province: 'Kinshasa' }), 'Africa/Kinshasa');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Democratic Republic of Congo', province: 'Nord-Kivu' }), 'Africa/Lubumbashi');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Democratic Republic of Congo', city: 'Goma' }), 'Africa/Lubumbashi');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Australia', province: 'New South Wales', city: 'Broken Hill' }), 'Australia/Broken_Hill');
+  assert.throws(() => resolveHousekeepingTimezone({ country: 'South Africa', timezone: 'Mars/Olympus_Mons' }), { code: 'PROPERTY_TIMEZONE_INVALID' });
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'California' }), 'America/Los_Angeles');
+  assert.equal(resolveHousekeepingTimezone({ country: 'United States', state: 'New York' }), 'America/New_York');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'British Columbia', city: 'Vancouver' }), 'America/Vancouver');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Canada', province: 'Ontario', city: 'Toronto' }), 'America/Toronto');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'Western Australia' }), 'Australia/Perth');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Australia', state: 'New South Wales' }), 'Australia/Sydney');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Acre' }), 'America/Rio_Branco');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Amazonas', city: 'Manaus' }), 'America/Manaus');
+  assert.equal(resolveHousekeepingTimezone({ country: 'Brazil', province: 'Sao Paulo' }), 'America/Sao_Paulo');
+  assert.equal(resolveHousekeepingTimezone({ country: 'South Africa', timezone: 'Africa/Johannesburg' }), 'Africa/Johannesburg');
+});
+
+test('14:00 overdue cutoff is inclusive, property-local, and DST-aware', async () => {
+  const helpers = (await import('../lib/housekeeping-timezone.cjs')).default;
+  const { zonedDateTimeToUtc, isHousekeepingTaskOverdue } = helpers;
+  const task = { status: 'pending', scheduled_date: '2026-11-17' };
+  const londonCutoff = zonedDateTimeToUtc('2026-11-17', '14:00:00', 'Europe/London');
+  assert.equal(isHousekeepingTaskOverdue(task, '2026-11-17', new Date(londonCutoff.getTime() - 1), 'Europe/London'), false);
+  assert.equal(isHousekeepingTaskOverdue(task, '2026-11-17', londonCutoff, 'Europe/London'), true);
+  assert.equal(isHousekeepingTaskOverdue({ ...task, status: 'completed' }, '2026-11-17', londonCutoff, 'Europe/London'), false);
+  assert.equal(zonedDateTimeToUtc('2026-03-29', '14:00:00', 'Europe/London').toISOString(), '2026-03-29T13:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-10-25', '14:00:00', 'Europe/London').toISOString(), '2026-10-25T14:00:00.000Z');
+  assert.equal(zonedDateTimeToUtc('2026-11-17', '14:00:00', 'America/Los_Angeles').toISOString(), '2026-11-17T22:00:00.000Z');
+});
+
+test('housekeeping task API rejects an unresolved property timezone with a configuration error', async () => {
+  const { handler } = await import('../get-housekeeping-tasks.js');
+  await withSupabaseMock(async () => { throw new Error('No task queries should run after timezone resolution fails'); }, async () => {
+    const result = await handler({
+      ...authEvent({ employee: true, permissions: ['canViewHousekeeping'] }),
+      httpMethod: 'GET',
+      queryStringParameters: { businessId: BUSINESS_ID, view: 'today' },
+    });
+    assert.equal(result.statusCode, 422);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+    assert.match(payload.error, /physical address|timezone/i);
+  }, { country: 'Unknown Country' });
+});
+
+
+test('all date-sensitive housekeeping mutations fail closed when property timezone is unresolved', async () => {
+  const { handler: generateHandler } = await import('../generate-housekeeping-tasks.js');
+  const { handler: skipHandler } = await import('../skip-oldest-housekeeping-service.js');
+  const { handler: bulkHandler } = await import('../admin-bulk-room-readiness.js');
+  const unresolvedAddress = { country: 'Unknown Country', province: 'Unknown Region', city: 'Unknown City' };
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No downstream query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const generated = await generateHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, regenerate: false }),
+    });
+    assert.equal(generated.statusCode, 422);
+    assert.equal(JSON.parse(generated.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No downstream query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const skipped = await skipHandler({
+      ...authEvent({ employee: true, permissions: ['canCompleteHousekeepingTask'] }),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, taskId: TASK_ID, reason: 'Room was unavailable' }),
+    });
+    assert.equal(skipped.statusCode, 422);
+    assert.equal(JSON.parse(skipped.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+
+  await withSupabaseMock(async (url) => {
+    throw new Error('No room or task query should run after timezone resolution fails: ' + url);
+  }, async () => {
+    const bulk = await bulkHandler({
+      ...authEvent(),
+      httpMethod: 'POST',
+      body: JSON.stringify({ businessId: BUSINESS_ID, roomIds: [ROOM_ID], action: 'approved' }),
+    });
+    assert.equal(bulk.statusCode, 422);
+    assert.equal(JSON.parse(bulk.body).code, 'PROPERTY_TIMEZONE_UNRESOLVED');
+  }, unresolvedAddress);
+});

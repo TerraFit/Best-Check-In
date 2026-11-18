@@ -4,7 +4,10 @@
 // Phase 0: authentication is mandatory and business scope is JWT-bound.
 // Read access does not require a live employee-status lookup; execution endpoints do.
 
-const { authenticateHousekeepingService, resolveBusinessId } = require('./_housekeepingServiceAuth.cjs');
+import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
+const { authenticateHousekeepingService, resolveBusinessId } = housekeepingServiceAuth;
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { resolveHousekeepingTimezone, dateStringInTimezone, addCalendarDays, zonedDateTimeToUtc, isHousekeepingTaskOverdue } = housekeepingTimezone;
 
 const TASK_SELECT = [
   'id', 'business_id', 'room_id', 'room_number', 'room_name', 'booking_id', 'guest_name',
@@ -31,7 +34,22 @@ function upstreamFailure(status, context) {
   return { statusCode: 502, error: 'Failed to fetch housekeeping data' };
 }
 
-exports.handler = async (event) => {
+async function fetchAllRows(url, headers, pageSize = 1000) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await fetch(url, {
+      headers: { ...headers, 'Range-Unit': 'items', Range: `${offset}-${offset + pageSize - 1}` },
+    });
+    if (!response.ok) return { ok: false, status: response.status, rows: [] };
+    const page = await response.json();
+    if (!Array.isArray(page)) return { ok: false, status: 502, rows: [] };
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return { ok: true, rows };
+}
+
+export const handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'GET') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
@@ -48,58 +66,132 @@ exports.handler = async (event) => {
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !key) return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server configuration error' }) };
     const restHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
-    const todayStr = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const todayStart = new Date(`${todayStr}T00:00:00+02:00`);
-    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-    const now = new Date();
-    const cutoffToday = new Date(`${todayStr}T14:00:00+02:00`);
-    const isOverdue = (task) => {
-      if (!['pending', 'in_progress'].includes(task.status)) return false;
-      if (task.scheduled_date < todayStr) return true;
-      return task.scheduled_date === todayStr && now >= cutoffToday;
-    };
-
-    let tasks;
-    if (view === 'today') {
-      const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
-      const openRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lte.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)${roomFilter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc`, { headers: restHeaders });
-      if (!openRes.ok) return (() => { const e = upstreamFailure(openRes.status, 'open tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      const completedRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}${roomFilter}&select=${TASK_SELECT}&order=completed_at.asc`, { headers: restHeaders });
-      if (!completedRes.ok) return (() => { const e = upstreamFailure(completedRes.status, 'completed tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      const combined = [...await openRes.json(), ...await completedRes.json()];
-      const byId = new Map();
-      for (const task of combined) byId.set(task.id, task);
-      tasks = [...byId.values()].sort((a, b) => {
-        const aDate = a.status === 'completed' ? (a.completed_at || a.scheduled_date) : a.scheduled_date;
-        const bDate = b.status === 'completed' ? (b.completed_at || b.scheduled_date) : b.scheduled_date;
-        return String(aDate).localeCompare(String(bDate));
-      });
-    } else {
-      let filter = `business_id=eq.${encodeURIComponent(businessId)}`;
-      if (roomId) filter += `&room_id=eq.${encodeURIComponent(roomId)}`;
-      if (view === 'pending') filter += '&status=in.(pending,in_progress)';
-      else if (view === 'completed') filter += '&status=eq.completed';
-      else if (status) filter += `&status=eq.${encodeURIComponent(status)}`;
-      const res = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?${filter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc`, { headers: restHeaders });
-      if (!res.ok) return (() => { const e = upstreamFailure(res.status, 'tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
-      tasks = await res.json();
+    const businessRes = await fetchAllRows(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, restHeaders);
+    if (!businessRes.ok || !businessRes.rows.length) {
+      const e = upstreamFailure(businessRes.status || 404, 'business timezone');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRes.rows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return { statusCode: 422, headers, body: JSON.stringify({ error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' }) };
+    }
+    const now = new Date();
+    const todayStr = date || dateStringInTimezone(now, timezone);
+    const tomorrowStr = addCalendarDays(todayStr, 1);
+    const todayStart = zonedDateTimeToUtc(todayStr, '00:00:00', timezone);
+    const tomorrowStart = zonedDateTimeToUtc(tomorrowStr, '00:00:00', timezone);
+    const isOverdue = (task) => isHousekeepingTaskOverdue(task, todayStr, now, timezone);
 
+    // Keep the operational dashboard room-oriented: one card per room.
+    // Select from the tasks relevant to the current view before collapsing history,
+    // so a future checkout task cannot hide a Refresh due today.
+    const roomFilter = roomId ? `&room_id=eq.${encodeURIComponent(roomId)}` : '';
+    const allRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}${roomFilter}&select=${TASK_SELECT}&order=scheduled_date.asc,created_at.asc,id.asc`, restHeaders);
+    if (!allRes.ok) return (() => { const e = upstreamFailure(allRes.status, 'housekeeping tasks'); return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) }; })();
+    const allTasks = allRes.rows;
+    const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
+    const recency = (task) => new Date(task.updated_at || task.created_at || task.scheduled_date || 0).getTime() || 0;
+    const latestPerRoom = (candidateTasks) => {
+      const latestByRoom = new Map();
+      for (const task of candidateTasks) {
+        const key = roomKey(task);
+        const current = latestByRoom.get(key);
+        if (!current || recency(task) > recency(current) ||
+            (recency(task) === recency(current) && String(task.id) > String(current.id))) {
+          latestByRoom.set(key, task);
+        }
+      }
+      return [...latestByRoom.values()];
+    };
+    const compareTaskOrder = (a, b) =>
+      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+      String(a.id).localeCompare(String(b.id));
+
+    // An administrator-approved completion is authoritative for the room through
+    // that service date. Older/equal pending rows are stale history, not work for
+    // the employee queue. A completion awaiting inspection does NOT suppress work.
+    const latestApprovedCompletionByRoom = new Map();
+    for (const task of allTasks) {
+      if (task.status !== 'completed' || task.inspection_status !== 'approved') continue;
+      const key = roomKey(task);
+      const current = latestApprovedCompletionByRoom.get(key);
+      if (!current || String(task.scheduled_date || '') > String(current.scheduled_date || '')) {
+        latestApprovedCompletionByRoom.set(key, task);
+      }
+    }
+    const isSupersededByApprovedCompletion = (task) => {
+      const approved = latestApprovedCompletionByRoom.get(roomKey(task));
+      return Boolean(approved && String(task.scheduled_date || '') <= String(approved.scheduled_date || ''));
+    };
+    const unsupersededOpenTasks = allTasks.filter((task) =>
+      ['pending', 'in_progress'].includes(task.status) && !isSupersededByApprovedCompletion(task)
+    );
+
+    // Operational queues keep an active service visible first. Otherwise they expose
+    // the oldest scheduled open task so an older overdue service is not hidden by a newer update.
+    const priorityOpenPerRoom = (candidateTasks) => {
+      const selectedByRoom = new Map();
+      for (const task of candidateTasks) {
+        const key = roomKey(task);
+        const current = selectedByRoom.get(key);
+        if (!current ||
+            (task.status === 'in_progress' && current.status !== 'in_progress') ||
+            (task.status === current.status && compareTaskOrder(task, current) < 0)) {
+          selectedByRoom.set(key, task);
+        }
+      }
+      return [...selectedByRoom.values()];
+    };
+    let tasks = [];
+    if (view === 'today') {
+      // Today includes pending/in-progress work due today or overdue, plus
+      // tasks completed today. Pending must not disappear from the Today view.
+      const dueOpenTasks = unsupersededOpenTasks.filter((task) => task.scheduled_date <= todayStr);
+      const completedTodayTasks = allTasks.filter((task) =>
+        task.status === 'completed' && task.completed_at &&
+        new Date(task.completed_at) >= todayStart && new Date(task.completed_at) < tomorrowStart
+      );
+      // Outstanding due work always takes precedence over a completed-today
+      // history row for the same room. Keep the dashboard to one card per room.
+      const oldestDueOpenByRoom = priorityOpenPerRoom(dueOpenTasks);
+      const roomsWithDueOpenWork = new Set(oldestDueOpenByRoom.map(roomKey));
+      const completedForOtherRooms = completedTodayTasks.filter((task) => !roomsWithDueOpenWork.has(roomKey(task)));
+      tasks = [...oldestDueOpenByRoom, ...latestPerRoom(completedForOtherRooms)];
+    } else if (view === 'pending') {
+      const openTasks = unsupersededOpenTasks;
+      const dueTasks = openTasks.filter((task) => task.scheduled_date <= todayStr);
+      const roomsWithDueTasks = new Set(dueTasks.map(roomKey));
+      // Show current/overdue work before future scheduled services for the same room.
+      const futureTasks = openTasks.filter((task) => task.scheduled_date > todayStr && !roomsWithDueTasks.has(roomKey(task)));
+      tasks = [...priorityOpenPerRoom(dueTasks), ...priorityOpenPerRoom(futureTasks)];
+    } else if (view === 'completed') {
+      tasks = latestPerRoom(allTasks.filter((task) => task.status === 'completed'));
+    } else if (status) {
+      tasks = latestPerRoom(allTasks.filter((task) => task.status === status));
+    } else {
+      tasks = latestPerRoom(allTasks);
+    }
+    tasks.sort((a, b) =>
+      String(a.scheduled_date || '').localeCompare(String(b.scheduled_date || '')) ||
+      String(a.room_number || '').localeCompare(String(b.room_number || ''))
+    );
     const roomIds = [...new Set(tasks.map((t) => t.room_id).filter(Boolean))];
     const roomsById = {};
     if (roomIds.length) {
-      const roomsLookup = await fetch(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&id=in.(${roomIds.map(encodeURIComponent).join(',')})&select=id,room_type,floor,housekeeping_status,occupancy_status,availability_status,active`, { headers: restHeaders });
+      const roomsLookup = await fetchAllRows(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&id=in.(${roomIds.map(encodeURIComponent).join(',')})&select=id,room_type,floor,housekeeping_status,occupancy_status,availability_status,active`, restHeaders);
       if (!roomsLookup.ok) console.error('get-housekeeping-tasks rooms lookup failed:', { status: roomsLookup.status });
-      else for (const room of await roomsLookup.json()) roomsById[room.id] = room;
+      else for (const room of roomsLookup.rows) roomsById[room.id] = room;
     }
 
     const activeSessionsByTask = {};
-    const sessionsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&status=eq.active&select=${SESSION_SELECT}&order=started_at.desc`, { headers: restHeaders });
+    const sessionsRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?business_id=eq.${encodeURIComponent(businessId)}&status=eq.active&select=${SESSION_SELECT}&order=started_at.desc,id.asc`, restHeaders);
     if (!sessionsRes.ok) {
       const e = upstreamFailure(sessionsRes.status, 'active service sessions');
       return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
     }
-    for (const session of await sessionsRes.json()) {
+    for (const session of sessionsRes.rows) {
       const taskKey = session.housekeeping_task_id || session.task_id;
       if (taskKey && !activeSessionsByTask[taskKey]) activeSessionsByTask[taskKey] = session;
     }
@@ -110,24 +202,22 @@ exports.handler = async (event) => {
     // or an older overdue Refresh has already been skipped. This makes the next-oldest
     // task eligible immediately after the oldest is skipped, without allowing a lone
     // first-time overdue Refresh to be skipped.
-    const overdueRefreshOpen = tasks.filter((task) =>
+    const overdueRefreshOpen = unsupersededOpenTasks.filter((task) =>
       task.status === 'pending' &&
       task.task_type === 'refresh' &&
       !task.is_checkout &&
       task.scheduled_date < todayStr,
     );
-    const skippedRefreshRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.skipped&task_type=eq.refresh&is_checkout=eq.false&scheduled_date=lt.${encodeURIComponent(todayStr)}&select=id,room_id,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
-      { headers: restHeaders },
+    const skippedRefreshRes = await fetchAllRows(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.skipped&task_type=eq.refresh&is_checkout=eq.false&scheduled_date=lt.${encodeURIComponent(todayStr)}&select=id,room_id,room_number,room_name,scheduled_date,created_at&order=scheduled_date.asc,created_at.asc,id.asc`,
+      restHeaders,
     );
-    const skippedRefreshTasks = skippedRefreshRes.ok ? await skippedRefreshRes.json() : [];
-    if (!skippedRefreshRes.ok) console.error('get-housekeeping-tasks skipped Refresh lookup failed:', { status: skippedRefreshRes.status });
+    if (!skippedRefreshRes.ok) {
+      const e = upstreamFailure(skippedRefreshRes.status, 'skipped Refresh history');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const skippedRefreshTasks = skippedRefreshRes.rows;
 
-    const roomKey = (task) => task.room_id || `room:${task.room_number ?? ''}:${task.room_name ?? ''}`;
-    const compareTasks = (a, b) =>
-      String(a.scheduled_date).localeCompare(String(b.scheduled_date)) ||
-      String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
-      String(a.id).localeCompare(String(b.id));
     const openByRoom = new Map();
     for (const task of overdueRefreshOpen) {
       const key = roomKey(task);
@@ -135,7 +225,7 @@ exports.handler = async (event) => {
       list.push(task);
       openByRoom.set(key, list);
     }
-    for (const list of openByRoom.values()) list.sort(compareTasks);
+    for (const list of openByRoom.values()) list.sort(compareTaskOrder);
 
     const skippedByRoom = new Map();
     for (const task of skippedRefreshTasks) {
@@ -149,7 +239,7 @@ exports.handler = async (event) => {
     for (const [key, list] of openByRoom.entries()) {
       if (!list.length) continue;
       const oldestOpen = list[0];
-      const priorSkipped = (skippedByRoom.get(key) || []).some((skipped) => compareTasks(skipped, oldestOpen) < 0);
+      const priorSkipped = (skippedByRoom.get(key) || []).some((skipped) => compareTaskOrder(skipped, oldestOpen) < 0);
       if (list.length >= 2 || priorSkipped) canSkipTaskIds.add(oldestOpen.id);
     }
 
@@ -162,23 +252,35 @@ exports.handler = async (event) => {
       // the operational queue. The authoritative endpoint re-checks this server-side.
       can_ignore: task.status === 'pending' && !activeSessionsByTask[task.id],
       is_overdue: isOverdue(task),
-      overdue_since: isOverdue(task) ? (task.scheduled_date < todayStr ? `${task.scheduled_date}T14:00:00+02:00` : `${todayStr}T14:00:00+02:00`) : null,
+      overdue_since: isOverdue(task) ? zonedDateTimeToUtc(task.scheduled_date < todayStr ? task.scheduled_date : todayStr, '14:00:00', timezone).toISOString() : null,
       can_skip_oldest: canSkipTaskIds.has(task.id),
     }));
 
-    const roomsRes = await fetch(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`, { headers: restHeaders });
-    const rooms = roomsRes.ok ? await roomsRes.json() : [];
-    if (!roomsRes.ok) console.error('get-housekeeping-tasks stats rooms lookup failed:', { status: roomsRes.status });
-    const todayTasksRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,task_type,status,scheduled_date,is_checkout`, { headers: restHeaders });
-    const todayOpenTasks = todayTasksRes.ok ? await todayTasksRes.json() : [];
-    if (!todayTasksRes.ok) console.error('get-housekeeping-tasks today stats lookup failed:', { status: todayTasksRes.status });
-    const completedTodayRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id`, { headers: restHeaders });
-    const completedToday = completedTodayRes.ok ? await completedTodayRes.json() : [];
-    if (!completedTodayRes.ok) console.error('get-housekeeping-tasks completed stats lookup failed:', { status: completedTodayRes.status });
-    const overdueRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id`, { headers: restHeaders });
-    const historicalOverdueTasks = overdueRes.ok ? await overdueRes.json() : [];
+    const roomsRes = await fetchAllRows(`${supabaseUrl}/rest/v1/rooms?business_id=eq.${encodeURIComponent(businessId)}&active=eq.true&select=id,housekeeping_status,occupancy_status,availability_status,active`, restHeaders);
+    if (!roomsRes.ok) {
+      const e = upstreamFailure(roomsRes.status, 'stats rooms lookup');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const rooms = roomsRes.rows;
+    const todayTasksRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=eq.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,room_id,task_type,status,scheduled_date,is_checkout`, restHeaders);
+    if (!todayTasksRes.ok) {
+      const e = upstreamFailure(todayTasksRes.status, 'today stats tasks');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const todayOpenTasks = todayTasksRes.rows.filter((task) => !isSupersededByApprovedCompletion(task));
+    const completedTodayRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&status=eq.completed&completed_at=gte.${encodeURIComponent(todayStart.toISOString())}&completed_at=lt.${encodeURIComponent(tomorrowStart.toISOString())}&select=id,room_id,scheduled_date`, restHeaders);
+    if (!completedTodayRes.ok) {
+      const e = upstreamFailure(completedTodayRes.status, 'completed today stats');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const completedToday = completedTodayRes.rows;
+    const overdueRes = await fetchAllRows(`${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${encodeURIComponent(businessId)}&scheduled_date=lt.${encodeURIComponent(todayStr)}&status=in.(pending,in_progress)&select=id,room_id,scheduled_date`, restHeaders);
+    if (!overdueRes.ok) {
+      const e = upstreamFailure(overdueRes.status, 'overdue stats');
+      return { statusCode: e.statusCode, headers, body: JSON.stringify({ error: e.error }) };
+    }
+    const historicalOverdueTasks = overdueRes.rows.filter((task) => !isSupersededByApprovedCompletion(task));
     const overdueTasks = [...historicalOverdueTasks, ...todayOpenTasks.filter((task) => isOverdue(task))];
-    if (!overdueRes.ok) console.error('get-housekeeping-tasks overdue stats lookup failed:', { status: overdueRes.status });
 
     let roomsReady = 0, roomsNotReady = 0, roomsCleaning = 0, roomsAwaiting = 0, roomsMaintenance = 0;
     for (const r of rooms) {
@@ -197,7 +299,7 @@ exports.handler = async (event) => {
       full_service_due: todayOpenTasks.filter((t) => t.task_type === 'full_service').length,
       completed_today: completedToday.length, overdue: overdueTasks.length,
     };
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, businessId }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, tasks: enrichedTasks, stats, today: todayStr, timezone, businessId }) };
   } catch (error) {
     console.error('get-housekeeping-tasks fatal:', error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch housekeeping tasks' }) };

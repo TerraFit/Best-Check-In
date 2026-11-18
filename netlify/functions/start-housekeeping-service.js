@@ -43,6 +43,30 @@ async function assertEmployeeActive(principal, headers) {
   }
 }
 
+function nextRoomVersion(currentVersion) {
+  const previousMs = Date.parse(currentVersion);
+  const nowMs = Date.now();
+  return new Date(Number.isFinite(previousMs) ? Math.max(nowMs, previousMs + 1) : nowMs).toISOString();
+}
+
+async function releaseRoomClaim({ supabaseUrl, write, businessId, roomId, claimedAt, previousStatus }) {
+  try {
+    const releasedAt = nextRoomVersion(claimedAt);
+    const result = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${encodeURIComponent(roomId)}&business_id=eq.${encodeURIComponent(businessId)}&updated_at=eq.${encodeURIComponent(claimedAt)}`, {
+      method: 'PATCH',
+      headers: write,
+      body: JSON.stringify({ housekeeping_status: previousStatus || 'not_ready', updated_at: releasedAt }),
+    });
+    if (!result.ok) console.error('housekeeping room claim rollback failed:', result.status, roomId);
+    else {
+      const rows = await result.json().catch(() => []);
+      if (!Array.isArray(rows) || rows.length !== 1) console.warn('housekeeping room claim was not rolled back because the room changed again:', roomId);
+    }
+  } catch (error) {
+    console.error('housekeeping room claim rollback failed:', error?.message || error);
+  }
+}
+
 export const handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
@@ -93,10 +117,12 @@ export const handler = async (event) => {
     const currentEmployeeId = String(principal.employeeId || '');
     if (!isManagement(principal) && assignedEmployeeId && assignedEmployeeId !== currentEmployeeId) return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: 'Forbidden: housekeeping task is assigned to another employee' }) };
 
-    const roomRes = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(task.room_id)}&business_id=eq.${q(businessId)}&select=id,room_type,room_name,room_number`, { headers: read });
+    const roomRes = await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(task.room_id)}&business_id=eq.${q(businessId)}&select=id,room_type,room_name,room_number,housekeeping_status,updated_at`, { headers: read });
     if (!roomRes.ok) { console.error('housekeeping room lookup failed:', roomRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to load room' }) }; }
     const room = (await roomRes.json())[0];
     if (!room) return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'Room not found' }) };
+    if (!room.updated_at || !Number.isFinite(Date.parse(room.updated_at))) return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Room state cannot be safely claimed. Refresh and try again.', code: 'ROOM_STATE_VERSION_MISSING' }) };
+    if (room.housekeeping_status === 'cleaning_in_progress') return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Housekeeping is already in progress for this room.', code: 'ROOM_CLEANING_IN_PROGRESS' }) };
 
     let settings = null;
     const settingsRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_settings?business_id=eq.${q(businessId)}&select=*&limit=1`, { headers: read });
@@ -110,19 +136,48 @@ export const handler = async (event) => {
     const warningMinutes = Number(settings?.warning_minutes ?? 15);
     const startedAt = new Date().toISOString();
 
-    const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, { method: 'POST', headers: write, body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: principal.employeeId, employee_name: principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }) });
-    if (!sessionRes.ok) { console.error('housekeeping session creation failed:', sessionRes.status); return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) }; }
-    const session = (await sessionRes.json())[0];
-    if (!session) return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
+    // Claim the room using an optimistic compare-and-set on its version. The
+    // administrator readiness endpoint uses the same version guard, so only
+    // one of the competing state transitions can succeed.
+    const roomClaimVersion = nextRoomVersion(room.updated_at);
+    const claimUrl = `${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}&updated_at=eq.${q(room.updated_at)}`;
+    const claimRes = await fetch(claimUrl, {
+      method: 'PATCH',
+      headers: write,
+      body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: roomClaimVersion }),
+    });
+    if (!claimRes.ok) {
+      console.error('housekeeping room claim failed:', claimRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Unable to reserve the room for housekeeping.' }) };
+    }
+    const claimedRows = await claimRes.json().catch(() => []);
+    if (!Array.isArray(claimedRows) || claimedRows.length !== 1) {
+      return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'Room state changed while housekeeping was starting. Refresh and try again.', code: 'ROOM_STATE_CHANGED' }) };
+    }
+    const claimedAt = claimedRows[0].updated_at || roomClaimVersion;
 
-    const taskRes2 = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(task.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'in_progress', started_at: startedAt, updated_at: startedAt }) });
-    if (!taskRes2.ok) {
-      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'cancelled', updated_at: new Date().toISOString() }) }).catch(() => {});
-      console.error('housekeeping task start update failed:', taskRes2.status);
+    const sessionRes = await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions`, { method: 'POST', headers: write, body: JSON.stringify({ business_id: businessId, housekeeping_task_id: task.id, room_id: room.id, booking_id: task.booking_id || null, employee_id: principal.employeeId, employee_name: principal.employeeName || task.assigned_staff_name || null, service_type: serviceType, room_type_snapshot: room.room_type || null, target_minutes_snapshot: targetMinutes, warning_minutes_snapshot: warningMinutes, started_at: startedAt, status: 'active', checklist_completed_count: 0, checklist_total_count: 0, issues_reported_count: 0, quality_result: 'pending', checklist_state: {} }) });
+    if (!sessionRes.ok) {
+      await releaseRoomClaim({ supabaseUrl, write, businessId, roomId: room.id, claimedAt, previousStatus: room.housekeeping_status });
+      console.error('housekeeping session creation failed:', sessionRes.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
+    }
+    const sessionRows = await sessionRes.json().catch(() => []);
+    const session = Array.isArray(sessionRows) ? sessionRows[0] : null;
+    if (!session) {
+      await releaseRoomClaim({ supabaseUrl, write, businessId, roomId: room.id, claimedAt, previousStatus: room.housekeeping_status });
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
     }
 
-    await fetch(`${supabaseUrl}/rest/v1/rooms?id=eq.${q(room.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: { ...write, Prefer: 'return=minimal' }, body: JSON.stringify({ housekeeping_status: 'cleaning_in_progress', updated_at: startedAt }) }).catch((error) => console.warn('room status update failed:', error?.message || error));
+    const taskRes2 = await fetch(`${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(task.id)}&business_id=eq.${q(businessId)}&status=eq.pending`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'in_progress', started_at: startedAt, updated_at: startedAt }) });
+    const startedTasks = taskRes2.ok ? await taskRes2.json().catch(() => []) : [];
+    if (!taskRes2.ok || !Array.isArray(startedTasks) || startedTasks.length !== 1) {
+      await fetch(`${supabaseUrl}/rest/v1/housekeeping_service_sessions?id=eq.${q(session.id)}&business_id=eq.${q(businessId)}`, { method: 'PATCH', headers: write, body: JSON.stringify({ status: 'cancelled', updated_at: new Date().toISOString() }) }).catch(() => {});
+      await releaseRoomClaim({ supabaseUrl, write, businessId, roomId: room.id, claimedAt, previousStatus: room.housekeeping_status });
+      if (taskRes2.ok) return { statusCode: 409, headers, body: JSON.stringify({ success: false, error: 'The housekeeping task changed while the service was starting. Refresh and try again.', code: 'TASK_STATE_CHANGED' }) };
+      console.error('housekeeping task start update failed:', taskRes2.status);
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to start housekeeping service' }) };
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, session, timer: { startedAt, targetMinutes, warningMinutes, finalCountdownSeconds: Number(settings?.final_countdown_seconds ?? 5), voiceEnabled: settings?.voice_enabled ?? true, soundEnabled: settings?.sound_enabled ?? true } }) };
   } catch (error) {

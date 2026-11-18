@@ -11,6 +11,9 @@ let handler;
 let calls;
 let fail;
 let sessionStatus = 'active';
+let previousPendingTasks = [];
+let linkedTaskStatus = 'in_progress';
+let completionLocalDate = '';
 
 const SESSION = {
   id: 'session-1', business_id: 'biz-1', housekeeping_task_id: 'task-1', room_id: 'room-1',
@@ -32,6 +35,9 @@ beforeEach(() => {
   calls = [];
   fail = null;
   sessionStatus = 'active';
+  previousPendingTasks = [];
+  linkedTaskStatus = 'in_progress';
+  completionLocalDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   global.fetch = async (url, options = {}) => {
     const u = String(url);
     calls.push({ url: u, options });
@@ -48,10 +54,14 @@ beforeEach(() => {
       }
       return response(200, [{ ...SESSION, status: sessionStatus }]);
     }
-    if (u.includes('/housekeeping_tasks')) return options.method === 'PATCH'
-      ? response(200, [{ id: 'task-1', status: 'completed' }])
-      : response(200, [{ id: 'task-1', business_id: 'biz-1', status: 'completed' }]);
-    if (u.includes('/rooms')) return response(204, []);
+    if (u.includes('/housekeeping_tasks')) {
+      if (options.method === 'PATCH' && u.includes('id=in.(')) return response(200, previousPendingTasks.filter((task) => task.scheduled_date <= completionLocalDate).map((task) => ({ ...task, status: 'skipped' })));
+      if (options.method === 'PATCH') return response(200, [{ id: 'task-1', status: 'completed', inspection_status: 'pending' }]);
+      if (u.includes('id=eq.task-1')) return response(200, [{ id: 'task-1', business_id: 'biz-1', room_id: 'room-1', status: linkedTaskStatus, scheduled_date: '2026-11-15' }]);
+      if (u.includes('status=eq.pending')) return response(200, previousPendingTasks.filter((task) => task.scheduled_date <= completionLocalDate));
+    }
+    if (u.includes('/rooms')) return options.method === 'PATCH' ? response(200, [{ id: 'room-1', housekeeping_status: 'awaiting_inspection' }]) : response(200, []);
+    if (u.includes('/room_events')) return response(201, [{ id: 'event-1' }]);
     return response(404, []);
   };
 });
@@ -93,6 +103,40 @@ test('non-active session cannot be completed twice', async () => { sessionStatus
 test('session update failure is sanitized', async () => { fail = { match: '/housekeeping_service_sessions?id=eq.session-1', method: 'PATCH', status: 500, body: 'SECRET_SESSION_UPDATE_DETAILS' }; const r = await complete(housekeeper()); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_SESSION_UPDATE_DETAILS')); });
 test('task transition failure is sanitized and compensates session completion', async () => { fail = { match: '/housekeeping_tasks?id=eq.task-1', method: 'PATCH', status: 500, body: 'SECRET_TASK_UPDATE_DETAILS' }; const r = await complete(housekeeper()); assert.equal(r.statusCode, 500); assert.ok(!r.body.includes('SECRET_TASK_UPDATE_DETAILS')); assert.equal(calls.filter((c) => c.options.method === 'PATCH' && c.url.includes('status=eq.completed')).length, 1); });
 test('checklist counts are bounded and non-negative', async () => { const r = await complete(housekeeper(), { sessionId: 'session-1', checklistCompletedCount: 999, checklistTotalCount: 27, issuesReportedCount: -5 }); assert.equal(r.statusCode, 200); const payload = JSON.parse(r.body); assert.equal(payload.session.checklist_completed_count, 27); assert.equal(payload.session.checklist_total_count, 27); assert.equal(payload.session.issues_reported_count, 0); });
-test('completion duration is server-derived from persisted started_at', async () => { const r = await complete(housekeeper(), { sessionId: 'session-1', actualSeconds: 1 }); assert.equal(r.statusCode, 200); const payload = JSON.parse(r.body); assert.ok(payload.performance.actualSeconds >= 0); assert.notEqual(payload.session.actual_seconds, 1); });
+test('completion duration is server-derived from persisted started_at', async () => { const r = await complete(housekeeper(), { sessionId: 'session-1', actualSeconds: 999999 }); assert.equal(r.statusCode, 200); const payload = JSON.parse(r.body); assert.ok(payload.performance.actualSeconds >= 0); assert.notEqual(payload.session.actual_seconds, 999999); });
 test('wrong HTTP method is rejected', async () => { const r = await handler(event(null, {}, 'GET')); assert.equal(r.statusCode, 405); });
 test('OPTIONS remains public preflight', async () => { const r = await handler(event(null, {}, 'OPTIONS')); assert.equal(r.statusCode, 204); });
+
+
+test('completion closes older pending room tasks but preserves future services', async () => {
+  previousPendingTasks = [
+    { id: 'old-task-1', booking_id: 'booking-old', guest_name: 'Previous Guest', scheduled_date: '2026-11-08', status: 'pending', notes: null },
+    { id: 'future-task-1', booking_id: 'booking-future', guest_name: 'Future Guest', scheduled_date: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), status: 'pending', notes: null },
+  ];
+  const r = await complete(housekeeper());
+  assert.equal(r.statusCode, 200);
+  const cleanupCall = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=in.'));
+  assert.ok(cleanupCall, 'older pending task should be closed after successful service completion');
+  const cleanupBody = JSON.parse(cleanupCall.options.body);
+  assert.equal(cleanupBody.status, 'skipped');
+  assert.match(cleanupCall.url, /id=in\.\(old-task-1\)/);
+  assert.doesNotMatch(cleanupCall.url, /future-task-1/);
+  const cleanupLookup = calls.find((call) => !call.options.method && call.url.includes('/housekeeping_tasks?') && call.url.includes('status=eq.pending'));
+  assert.ok(cleanupLookup.url.includes('scheduled_date=lte.' + completionLocalDate));
+  const currentTaskPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/housekeeping_tasks?id=eq.task-1'));
+  assert.equal(JSON.parse(currentTaskPatch.options.body).status, 'completed');
+  assert.equal(JSON.parse(currentTaskPatch.options.body).inspection_status, 'pending');
+  const roomPatch = calls.find((call) => call.options.method === 'PATCH' && call.url.includes('/rooms'));
+  assert.equal(JSON.parse(roomPatch.options.body).housekeeping_status, 'awaiting_inspection');
+  const cleanupAudit = calls.find((call) => call.options.method === 'POST' && call.url.includes('/room_events') && JSON.parse(call.options.body).event_type === 'housekeeping_previous_pending_tasks_cleared');
+  assert.ok(cleanupAudit, 'superseded tasks must be audited');
+  assert.equal(JSON.parse(cleanupAudit.options.body).details.cleared_tasks[0].task_id, 'old-task-1');
+});
+
+test('completion only transitions the in-progress task linked to the service session', async () => {
+  linkedTaskStatus = 'pending';
+  const r = await complete(housekeeper());
+  assert.equal(r.statusCode, 409);
+  assert.equal(JSON.parse(r.body).code, 'TASK_NOT_IN_PROGRESS');
+  assert.equal(calls.filter((call) => call.options.method === 'PATCH').length, 0);
+});

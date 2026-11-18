@@ -3,19 +3,10 @@
 // Generate focuses on TODAY's operational tasks.
 // Room readiness: task creation → not_ready (until Start → Cleaning → Inspection → Ready).
 
-const {
-  authenticateHousekeepingServiceLive,
-  resolveBusinessId,
-} = require('./_housekeepingServiceAuth.cjs');
-
-function todayInJohannesburg() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Johannesburg',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
+import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { authenticateHousekeepingServiceLive, resolveBusinessId } = housekeepingServiceAuth;
+const { resolveHousekeepingTimezone, dateStringInTimezone } = housekeepingTimezone;
 
 function parseDate(iso) {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -245,7 +236,7 @@ class InsertError extends Error {
 /** Statuses that mean staff already own the room — do not overwrite */
 const IN_WORKFLOW = ['cleaning_in_progress', 'awaiting_inspection'];
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -303,6 +294,16 @@ exports.handler = async (event) => {
       'Content-Type': 'application/json',
       Prefer: 'return=minimal',
     };
+    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, { headers: restGet });
+    if (!businessResponse.ok) return { statusCode: 502, headers, body: JSON.stringify({ error: 'Unable to determine the property timezone.' }) };
+    const businessRows = await businessResponse.json().catch(() => []);
+    if (!Array.isArray(businessRows) || !businessRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found.' }) };
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return { statusCode: 422, headers, body: JSON.stringify({ error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' }) };
+    }
+    const todayStr = dateStringInTimezone(new Date(), timezone);
 
     async function insertTask(payload) {
       logPayload(payload);
@@ -416,7 +417,6 @@ exports.handler = async (event) => {
     }
 
     const policy = settings.policy || 'standard';
-    const todayStr = todayInJohannesburg();
 
     let bookingQuery =
       `bookings?business_id=eq.${businessId}&or=(room_id.not.is.null,room_number.not.is.null)&select=id,guest_name,check_in_date,check_out_date,room_id,room_number,room_name,status`;

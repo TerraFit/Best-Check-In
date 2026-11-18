@@ -51,6 +51,16 @@ export const handler = async (event) => {
     if (!identity.ok) return response(identity.status || 401, headers, { success: false, error: identity.error });
 
     const principal = identity.principal;
+    const adminOverride = body?.adminOverride === true;
+    if (adminOverride && !(principal.actorType === 'business' || rbac.resolvePermissions({
+      actorType: principal.actorType,
+      role: principal.role,
+      permission_set: principal.permissions,
+      permissions: principal.permissions,
+      active: principal.active,
+    }).has('canManageSettings'))) {
+      return response(403, headers, { success: false, error: 'Administrator permission required for this housekeeping completion override' });
+    }
     const requestedBusinessId = body?.businessId || null;
     const scope = resolveTenant(principal, requestedBusinessId);
     if (!scope.ok) return response(scope.status, headers, { success: false, error: scope.error });
@@ -69,8 +79,8 @@ export const handler = async (event) => {
       }
     }
 
-    const management = isManagement(principal);
-    const canComplete = principal.actorType === 'business'
+    const management = adminOverride || isManagement(principal);
+    const canComplete = adminOverride || principal.actorType === 'business'
       || management
       || rbac.requirePermission(principal, 'canCompleteHousekeepingTask');
     if (!canComplete) return response(403, headers, { success: false, error: 'Missing permission: canCompleteHousekeepingTask' });
@@ -106,8 +116,38 @@ export const handler = async (event) => {
     if (!session) return response(404, headers, { success: false, error: 'Service session not found' });
     if (session.status !== 'active') return response(409, headers, { success: false, error: `Service session is already ${session.status}` });
 
-    if (!management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
+    // Resolve the exact task linked to this active session before changing any
+    // state. Completion must transition the task that the employee actually worked.
+    const linkedTaskRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(session.housekeeping_task_id)}&business_id=eq.${q(businessId)}&select=id,room_id,status,scheduled_date`,
+      { headers: read }
+    );
+    if (!linkedTaskRes.ok) return response(500, headers, { success: false, error: 'Unable to verify the housekeeping task linked to this service session' });
+    const linkedTask = (await linkedTaskRes.json())[0];
+    if (!linkedTask) return response(404, headers, { success: false, error: 'The housekeeping task linked to this service session no longer exists' });
+    if (String(linkedTask.room_id) !== String(session.room_id)) return response(409, headers, { success: false, error: 'The service session and housekeeping task refer to different rooms', code: 'TASK_ROOM_MISMATCH' });
+    if (linkedTask.status !== 'in_progress') return response(409, headers, { success: false, error: 'The housekeeping task is no longer in progress. Refresh the task list and ask an administrator to review it.', code: 'TASK_NOT_IN_PROGRESS' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(linkedTask.scheduled_date || ''))) return response(409, headers, { success: false, error: 'The linked housekeeping task has no valid scheduled date; completion was not applied.', code: 'TASK_SCHEDULE_INVALID' });
+
+    if (!adminOverride && !management && String(session.employee_id || '') !== String(principal.employeeId || '')) {
       return response(403, headers, { success: false, error: 'Forbidden: service session belongs to another employee' });
+    }
+
+    if (adminOverride) {
+      const intentRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          business_id: scope.businessId,
+          room_id: session.room_id,
+          event_type: 'housekeeping_admin_service_completion_requested',
+          source: 'business_admin',
+          severity: 'info',
+          booking_id: session.booking_id,
+          details: { task_id: session.housekeeping_task_id, session_id: session.id, outcome: 'requested', performed_by: principal.employeeId || principal.userId || null, performed_by_type: principal.actorType || null },
+        }),
+      });
+      if (!intentRes.ok) return response(500, headers, { success: false, error: 'The administrator completion was not applied because its audit record could not be saved.', code: 'AUDIT_WRITE_FAILED', state_updated: false });
     }
 
     const startedAt = new Date(session.started_at).getTime();
@@ -152,7 +192,7 @@ export const handler = async (event) => {
     }
 
     const taskRes = await fetch(
-      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(session.housekeeping_task_id)}&business_id=eq.${q(businessId)}`,
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${q(session.housekeeping_task_id)}&business_id=eq.${q(businessId)}&status=eq.in_progress`,
       {
         method: 'PATCH',
         headers: write,
@@ -182,11 +222,131 @@ export const handler = async (event) => {
       `${supabaseUrl}/rest/v1/rooms?id=eq.${q(session.room_id)}&business_id=eq.${q(businessId)}`,
       {
         method: 'PATCH',
-        headers: { ...write, Prefer: 'return=minimal' },
+        headers: { ...write, Prefer: 'return=representation' },
         body: JSON.stringify({ housekeeping_status: 'awaiting_inspection', updated_at: completedAt }),
       }
     );
-    if (!roomRes.ok) console.error('complete-housekeeping-service room status update failed:', roomRes.status);
+    if (!roomRes.ok) {
+      console.error('complete-housekeeping-service room status update failed:', roomRes.status);
+      return response(500, headers, { success: false, error: 'The service and task were completed, but the room could not be moved to awaiting inspection. Refresh the Rooms tab and investigate.', code: 'ROOM_SYNC_FAILED', state_updated: true });
+    }
+    const roomRows = await roomRes.json().catch(() => []);
+    if (!Array.isArray(roomRows) || roomRows.length !== 1) {
+      return response(409, headers, { success: false, error: 'The service and task were completed, but the room state could not be confirmed. Refresh the Rooms tab and investigate.', code: 'ROOM_STATE_CHANGED', state_updated: true });
+    }
+
+    // A service completed now supersedes every pending task for this room
+    // due through today's South African local date. Future-dated services remain
+    // intact, and superseded rows are retained as skipped for history.
+    const completedLocalDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(completedAt));
+    const previousTasksRes = await fetch(
+      `${supabaseUrl}/rest/v1/housekeeping_tasks?business_id=eq.${q(businessId)}&room_id=eq.${q(session.room_id)}&status=eq.pending&scheduled_date=lte.${q(completedLocalDate)}&id=neq.${q(linkedTask.id)}&select=id,booking_id,guest_name,scheduled_date,status,notes&order=scheduled_date.asc,created_at.asc,id.asc`,
+      { headers: read }
+    );
+    if (!previousTasksRes.ok) {
+      return response(500, headers, { success: false, error: 'The service is complete, but older pending housekeeping tasks could not be checked. Refresh the room and contact an administrator.', code: 'PREVIOUS_TASKS_LOOKUP_FAILED', state_updated: true });
+    }
+    const previousTasks = await previousTasksRes.json();
+    if (previousTasks.length) {
+      const previousIds = previousTasks.map((item) => q(item.id)).join(',');
+      const cleanupRes = await fetch(
+        `${supabaseUrl}/rest/v1/housekeeping_tasks?id=in.(${previousIds})&business_id=eq.${q(businessId)}&status=eq.pending`,
+        {
+          method: 'PATCH',
+          headers: write,
+          body: JSON.stringify({
+            status: 'skipped',
+            updated_at: completedAt,
+          }),
+        }
+      );
+      if (!cleanupRes.ok) {
+        return response(500, headers, { success: false, error: 'The service is complete, but older pending housekeeping tasks could not be closed. Refresh the room and contact an administrator.', code: 'PREVIOUS_TASKS_CLEANUP_FAILED', state_updated: true });
+      }
+      const cleanedRows = await cleanupRes.json().catch(() => null);
+      if (!Array.isArray(cleanedRows)) {
+        return response(500, headers, { success: false, error: 'The service is complete, but the status of older pending housekeeping tasks could not be confirmed. Refresh the room and contact an administrator.', code: 'PREVIOUS_TASKS_CLEANUP_UNCONFIRMED', state_updated: true });
+      }
+      const cleanupAuditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: write,
+        body: JSON.stringify({
+          business_id: businessId,
+          room_id: session.room_id,
+          event_type: 'housekeeping_previous_pending_tasks_cleared',
+          source: principal.actorType || 'staff',
+          severity: 'info',
+          booking_id: session.booking_id,
+          details: {
+            current_task_id: linkedTask.id,
+            session_id: session.id,
+            reason: 'superseded_by_completed_service',
+            expected_count: previousTasks.length,
+            changed_count: cleanedRows.length,
+            partial: cleanedRows.length !== previousTasks.length,
+            cleared_tasks: cleanedRows.map((row) => {
+              const previous = previousTasks.find((item) => String(item.id) === String(row.id));
+              return {
+                task_id: row.id,
+                booking_id: previous?.booking_id || null,
+                guest_name: previous?.guest_name || null,
+                scheduled_date: previous?.scheduled_date || null,
+                previous_status: 'pending',
+                new_status: row.status || 'skipped',
+              };
+            }),
+            performed_by: principal.employeeId || principal.userId || null,
+            performed_by_type: principal.actorType || null,
+            performed_by_name: principal.name || principal.email || null,
+          },
+        }),
+      });
+      if (!cleanupAuditRes.ok) {
+        return response(500, headers, { success: false, error: 'The service is complete and older pending tasks were updated, but their audit record could not be saved. Contact an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true });
+      }
+      if (cleanedRows.length !== previousTasks.length) {
+        return response(409, headers, { success: false, error: 'The service is complete, but some older pending tasks changed concurrently. Refresh and review the room task list.', code: 'PREVIOUS_TASKS_CHANGED', state_updated: true, changed_count: cleanedRows.length, expected_count: previousTasks.length });
+      }
+    }
+
+    // Preserve an audit trail for both staff completion and business-dashboard overrides.
+    try {
+      const auditRes = await fetch(`${supabaseUrl}/rest/v1/room_events`, {
+        method: 'POST',
+        headers: write,
+        body: JSON.stringify({
+          business_id: businessId,
+          room_id: session.room_id,
+          event_type: 'housekeeping_task_completed',
+          source: principal.actorType || 'staff',
+          severity: 'info',
+          booking_id: session.booking_id,
+          details: {
+            task_id: session.housekeeping_task_id,
+            session_id: session.id,
+            status: 'completed',
+            performed_by: principal.employeeId || principal.userId || null,
+            performed_by_type: principal.actorType || null,
+            performed_by_name: principal.name || principal.email || null,
+            checklist_completed_count: safeChecklistCompletedCount,
+            checklist_total_count: checklistTotalCount,
+            issues_reported_count: issuesReportedCount,
+          },
+        }),
+      });
+      if (!auditRes.ok) {
+        console.error('complete-housekeeping-service audit event failed:', auditRes.status);
+        return response(500, headers, { success: false, error: 'The service, task and room were updated, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true });
+      }
+    } catch (auditError) {
+      console.error('complete-housekeeping-service audit event failed:', auditError?.message || auditError);
+      return response(500, headers, { success: false, error: 'The service, task and room were updated, but the audit event could not be saved. Please report this to an administrator.', code: 'AUDIT_WRITE_FAILED', state_updated: true });
+    }
 
     return {
       statusCode: 200,

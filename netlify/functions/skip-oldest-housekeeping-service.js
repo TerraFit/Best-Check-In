@@ -5,6 +5,8 @@
 
 import auth from './_auth.cjs';
 import * as rbac from './_rbac.js';
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { resolveHousekeepingTimezone, dateStringInTimezone } = housekeepingTimezone;
 
 const { requireBusinessActor, resolveTenant, authFailure } = auth;
 const { resolvePermissions } = rbac;
@@ -26,15 +28,6 @@ function hasPermission(principal, permission) {
     permissions: principal.permissions,
     active: principal.active,
   }).has(permission);
-}
-
-function todaySouthAfrica() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Johannesburg',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 }
 
 function upstream(status, context) {
@@ -90,7 +83,16 @@ export const handler = async (event) => {
     const restHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
     const writeHeaders = { ...restHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const businessId = scope.businessId;
-    const today = todaySouthAfrica();
+    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&select=physical_address`, { headers: restHeaders });
+    if (!businessResponse.ok) return { statusCode: 502, headers, body: JSON.stringify({ error: 'Unable to determine the property timezone.' }) };
+    const businessRows = await businessResponse.json().catch(() => []);
+    if (!Array.isArray(businessRows) || !businessRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Business not found.' }) };
+    let timezone;
+    try { timezone = resolveHousekeepingTimezone(businessRows[0].physical_address || {}); }
+    catch (timezoneError) {
+      return { statusCode: 422, headers, body: JSON.stringify({ error: timezoneError.message, code: timezoneError.code || 'PROPERTY_TIMEZONE_UNRESOLVED' }) };
+    }
+    const today = dateStringInTimezone(new Date(), timezone);
 
     const taskRes = await fetch(
       `${supabaseUrl}/rest/v1/housekeeping_tasks?id=eq.${encodeURIComponent(taskId)}&business_id=eq.${encodeURIComponent(businessId)}&select=*`,

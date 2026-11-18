@@ -6,8 +6,8 @@ import { calculateSubscriptionMonthlyPrice, calculateSubscriptionAnnualPrice, ca
 import PricingComingSoonModal from '../components/PricingComingSoonModal';
 import { useMarket } from '../context/MarketContext';
 
-// SADC Countries only
-const SADC_COUNTRIES = [
+// Supported registration markets (SADC plus selected international markets)
+const REGISTRATION_COUNTRIES = [
   'South Africa',
   'Angola',
   'Botswana',
@@ -23,7 +23,10 @@ const SADC_COUNTRIES = [
   'Seychelles',
   'Tanzania',
   'Zambia',
-  'Zimbabwe'
+  'Zimbabwe',
+  'Egypt',
+  'United Kingdom',
+  'Brazil'
 ];
 
 // Establishment Types
@@ -116,7 +119,10 @@ const REGIONS_BY_COUNTRY: Record<string, string[]> = {
   'Zimbabwe': [
     'Bulawayo', 'Harare', 'Manicaland', 'Mashonaland Central', 'Mashonaland East',
     'Mashonaland West', 'Masvingo', 'Matabeleland North', 'Matabeleland South', 'Midlands'
-  ]
+  ],
+  'Egypt': ['Cairo', 'Alexandria', 'Giza', 'Luxor', 'Aswan', 'Red Sea', 'South Sinai', 'Other'],
+  'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
+  'Brazil': ['Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará', 'Distrito Federal', 'Espírito Santo', 'Goiás', 'Maranhão', 'Mato Grosso', 'Mato Grosso do Sul', 'Minas Gerais', 'Pará', 'Paraíba', 'Paraná', 'Pernambuco', 'Piauí', 'Rio de Janeiro', 'Rio Grande do Norte', 'Rio Grande do Sul', 'Rondônia', 'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins']
 };
 
 // Get region label based on country
@@ -137,7 +143,10 @@ const getRegionLabel = (country: string): string => {
     'Democratic Republic of Congo': 'Province',
     'Seychelles': 'District',
     'Madagascar': 'Region',
-    'Comoros': 'Island'
+    'Comoros': 'Island',
+    'Egypt': 'Governorate',
+    'United Kingdom': 'Country',
+    'Brazil': 'State'
   };
   return labels[country] || 'Region';
 };
@@ -1012,7 +1021,7 @@ export default function BusinessRegistration() {
                       required
                     >
                       <option value="">{t('reg_select_country')}</option>
-                      {SADC_COUNTRIES.map(c => (
+                      {REGISTRATION_COUNTRIES.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -1140,7 +1149,7 @@ export default function BusinessRegistration() {
                         className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white"
                       >
                         <option value="">{t('reg_select_country')}</option>
-                        {SADC_COUNTRIES.map(c => (
+                        {REGISTRATION_COUNTRIES.map(c => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
