@@ -103,6 +103,19 @@ function resolveHousekeepingTimezone(address = {}) {
   const province = normalized(address.province || address.state || address.region);
   const city = normalized(address.city);
   if (!country) throw new HousekeepingTimezoneError('The property country is missing. Complete the physical address or set an IANA timezone.');
+  if (country === 'DEMOCRATIC REPUBLIC OF CONGO' || country === 'DR CONGO' || country === 'DRC') {
+    const cityZones = {
+      'KINSHASA':'Africa/Kinshasa','MATADI':'Africa/Kinshasa','BOMA':'Africa/Kinshasa',
+      'LUBUMBASHI':'Africa/Lubumbashi','GOMA':'Africa/Lubumbashi','BUKAVU':'Africa/Lubumbashi',
+      'KISANGANI':'Africa/Lubumbashi','MBUJI-MAYI':'Africa/Lubumbashi','KANANGA':'Africa/Lubumbashi',
+    };
+    const easternProvinces = new Set(['KATANGA','NORD-KIVU','NORTH KIVU','SUD-KIVU','SOUTH KIVU','ORIENTALE','MANIEMA','KASAI-ORIENTAL']);
+    const westernProvinces = new Set(['KINSHASA','BANDUNDU','BAS-CONGO','KONGO CENTRAL','EQUATEUR','KASAI-OCCIDENTAL']);
+    if (cityZones[city]) return cityZones[city];
+    if (easternProvinces.has(province)) return 'Africa/Lubumbashi';
+    if (westernProvinces.has(province)) return 'Africa/Kinshasa';
+    throw new HousekeepingTimezoneError('The Democratic Republic of the Congo spans two timezones. Add a recognised province/city or set its IANA timezone.');
+  }
   if (country === 'BRAZIL' || country === 'BRASIL') {
     const cityZones = {
       'RIO BRANCO':'America/Rio_Branco','CRUZEIRO DO SUL':'America/Rio_Branco',
@@ -122,7 +135,7 @@ function resolveHousekeepingTimezone(address = {}) {
     throw new HousekeepingTimezoneError('The United States spans multiple timezones. Add the property state or set its IANA timezone.');
   }
   if (country === 'SPAIN') {
-    if (province === 'CANARY ISLANDS' || ['LAS PALMAS','SANTA CRUZ DE TENERIFE'].includes(city)) return 'Atlantic/Canary';
+    if (['CANARY ISLANDS','LAS PALMAS','SANTA CRUZ DE TENERIFE'].includes(province) || ['LAS PALMAS','SANTA CRUZ DE TENERIFE'].includes(city)) return 'Atlantic/Canary';
     if (city || province) return 'Europe/Madrid';
     throw new HousekeepingTimezoneError('Spain requires a property city or province to distinguish mainland Spain from the Canary Islands.');
   }
