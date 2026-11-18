@@ -3,11 +3,10 @@
 // Generate focuses on TODAY's operational tasks.
 // Room readiness: task creation → not_ready (until Start → Cleaning → Inspection → Ready).
 
-const {
-  authenticateHousekeepingServiceLive,
-  resolveBusinessId,
-} = require('./_housekeepingServiceAuth.cjs');
-const { resolveHousekeepingTimezone, dateStringInTimezone } = require('./lib/housekeeping-timezone.cjs');
+import housekeepingServiceAuth from './_housekeepingServiceAuth.cjs';
+import housekeepingTimezone from './lib/housekeeping-timezone.cjs';
+const { authenticateHousekeepingServiceLive, resolveBusinessId } = housekeepingServiceAuth;
+const { resolveHousekeepingTimezone, dateStringInTimezone } = housekeepingTimezone;
 
 function parseDate(iso) {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
