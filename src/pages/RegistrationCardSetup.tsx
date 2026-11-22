@@ -195,7 +195,35 @@ export default function RegistrationCardSetup() {
         setStatus('Complete any additional bank verification requested by your bank. You will return here automatically.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Card validation failed. Please try again.');
+      const sdkMessage = err instanceof Error ? err.message : 'Card validation could not be completed.';
+      // The SDK error is not the authoritative payment state. Reconcile with
+      // Peach server-side before deciding whether the shopper can retry.
+      try {
+        const verification = await verifyWithServer();
+        if (!verification.verified && verification.retryable) {
+          setSession(null);
+          setError('');
+          await startNewOrResumeSession();
+          setStatus(
+            verification.peachStatus === 'failed' || verification.peachStatus === 'cancelled'
+              ? 'The previous card attempt was unsuccessful. A fresh validation session is ready; please enter your card details again.'
+              : 'Peach has made the card session available for another attempt. Please review your card details and try again.'
+          );
+        } else if (!verification.verified) {
+          setError(sdkMessage);
+          setStatus(
+            verification.peachStatus
+              ? `Peach reports “${verification.peachStatus}”. We have not started another attempt. Check the status again shortly.`
+              : 'Peach has not confirmed a retryable result. Check the status again before trying another card.'
+          );
+        }
+      } catch (verificationError) {
+        setError(
+          verificationError instanceof Error
+            ? `${sdkMessage} We could not verify the result with Peach: ${verificationError.message}`
+            : sdkMessage
+        );
+      }
     } finally {
       confirmingRef.current = false;
       setSubmitting(false);
