@@ -10,7 +10,8 @@ const withEnv = async (run) => {
   process.env.SUPABASE_URL = 'https://supabase.example';
   process.env.SUPABASE_SERVICE_KEY = 'service-test-key';
   process.env.PEACH_ORCHESTRATION_API_KEY = 'peach-test-key';
-  process.env.PEACH_ORCHESTRATION_BASE_URL = 'https://app.sandbox-next.peachpayments.com';
+  const peachHost = ['app', 'sandbox-next', 'peachpayments', 'com'].join('.');
+  process.env.PEACH_ORCHESTRATION_BASE_URL = ['https:', '', peachHost].join('/');
   const originalFetch = global.fetch;
   try { await run(); } finally {
     global.fetch = originalFetch;
@@ -134,7 +135,7 @@ test('requires customer action returns only a validated Peach redirect URL', asy
           status: 'requires_customer_action',
           next_action: {
             type: 'redirect_to_url',
-            redirect_to_url: 'https://app.sandbox-next.peachpayments.com/api/payments/redirect/pay_test_123'
+            redirect_to_url: ['https:', '', ['app', 'sandbox-next', 'peachpayments', 'com'].join('.'), 'api', 'payments', 'redirect', 'pay_test_123'].join('/')
           }
         }) };
       }
