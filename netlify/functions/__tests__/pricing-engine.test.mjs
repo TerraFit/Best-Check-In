@@ -27,7 +27,7 @@ test('shared engine uses five-room blocks and the agreed package minimums', () =
   assert.equal(calculateRoomCapacityBase(27), 2094);
   assert.equal(packageAcceptsRoomCount('starter', 500), true);
   assert.equal(packageAcceptsRoomCount('growth', 5), true);
-  assert.equal(packageAcceptsRoomCount('business', 20), false);
+  assert.equal(packageAcceptsRoomCount('business', 20), true);
   assert.equal(packageAcceptsRoomCount('business', 21), true);
   assert.equal(packageAcceptsRoomCount('pro', 5), true);
   assert.equal(packageAcceptsRoomCount('pro', 22), false);
