@@ -36,6 +36,12 @@ export default function RegistrationCardSetup() {
     }
     if (response.status === 202) {
       setStatus(data.message || 'Peach is confirming your card. Please check again in a moment.');
+      if (data.redirectUrl) {
+        const redirect = new URL(data.redirectUrl);
+        if (redirect.protocol === 'https:' && ['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(redirect.hostname)) {
+          window.location.assign(data.redirectUrl);
+        }
+      }
       return { verified: false, retryable: Boolean(data.retryable), peachStatus: data.peachStatus };
     }
     if (response.status === 409 && data.code === 'no_payment_intent') {
@@ -54,6 +60,12 @@ export default function RegistrationCardSetup() {
     if (!response.ok) throw new Error(data.error || 'Could not prepare card validation.');
     if (data.pending) {
       setStatus(data.message || 'Your existing Peach card validation is still processing. Please check again shortly.');
+      if (data.redirectUrl) {
+        const redirect = new URL(data.redirectUrl);
+        if (redirect.protocol === 'https:' && ['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(redirect.hostname)) {
+          window.location.assign(data.redirectUrl);
+        }
+      }
       return;
     }
     if (!data.publishableKey || !data.clientSecret || !data.sdkUrl || !data.baseUrl) {
