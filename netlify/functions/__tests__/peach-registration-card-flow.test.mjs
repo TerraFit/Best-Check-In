@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
 const { handler } = await import('../peach-confirm-registration-card.js');
+const { handler: intentHandler } = await import('../peach-registration-card-intent.js');
 
-const envKeys = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'PEACH_ORCHESTRATION_API_KEY', 'PEACH_ORCHESTRATION_BASE_URL'];
+const envKeys = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'PEACH_ORCHESTRATION_API_KEY', 'PEACH_ORCHESTRATION_BASE_URL', 'PEACH_PROFILE_ID', 'PEACH_ORCHESTRATION_SDK_URL', 'PEACH_PUBLISHABLE_KEY'];
 const withEnv = async (run) => {
   const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   process.env.SUPABASE_URL = 'https://supabase.example';
@@ -12,6 +13,9 @@ const withEnv = async (run) => {
   process.env.PEACH_ORCHESTRATION_API_KEY = 'peach-test-key';
   const peachHost = ['app', 'sandbox-next', 'peachpayments', 'com'].join('.');
   process.env.PEACH_ORCHESTRATION_BASE_URL = ['https:', '', peachHost].join('/');
+  process.env.PEACH_PROFILE_ID = 'profile-test';
+  process.env.PEACH_ORCHESTRATION_SDK_URL = ['https:', '', ['sdk', 'sandbox-next', 'peachpayments', 'com'].join('.'), 'assets', 'v1', ''].join('/');
+  process.env.PEACH_PUBLISHABLE_KEY = 'publishable-test-key';
   const originalFetch = global.fetch;
   try { await run(); } finally {
     global.fetch = originalFetch;
@@ -81,6 +85,62 @@ test('Peach return is force-synchronised and a succeeded mandate is recorded', a
     assert.equal(result.statusCode, 200);
     assert.equal(JSON.parse(result.body).verified, true);
     assert.equal(patched, true);
+  });
+});
+
+test('intent endpoint replaces a terminal failed Peach payment with a fresh intent', async () => {
+  await withEnv(async () => {
+    let created = false;
+    let savedNewIntent = false;
+    global.fetch = async (url, options = {}) => {
+      const target = String(url);
+      if (target.includes('/registration_application_tokens?')) {
+        return { ok: true, json: async () => [{ business_id: 'business-1' }] };
+      }
+      if (target.includes('/rest/v1/businesses?') && options.method !== 'PATCH') {
+        return { ok: true, json: async () => [{
+          id: 'business-1',
+          trading_name: 'Test Lodge',
+          email: 'test@example.com',
+          phone: null,
+          current_plan: 'pro',
+          billing_cycle: 'monthly',
+          total_rooms: 5,
+          status: 'pending',
+          registration_payment_status: 'intent_created',
+          registration_payment_intent_id: 'pay_test_failed'
+        }] };
+      }
+      if (target.includes('/api/payments/pay_test_failed?force_sync=true')) {
+        return { ok: true, json: async () => ({ id: 'pay_test_failed', status: 'failed' }) };
+      }
+      if (target.endsWith('/api/payments') && options.method === 'POST') {
+        created = true;
+        const payload = JSON.parse(options.body);
+        assert.equal(payload.amount, 0);
+        assert.equal(payload.confirm, false);
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: { get: () => null },
+          text: async () => JSON.stringify({ id: 'pay_test_fresh', client_secret: 'secret_fresh' })
+        };
+      }
+      if (target.includes('/rest/v1/businesses?id=eq.business-1&status=eq.pending') && options.method === 'PATCH') {
+        savedNewIntent = true;
+        assert.equal(JSON.parse(options.body).registration_payment_intent_id, 'pay_test_fresh');
+        return { ok: true, text: async () => '' };
+      }
+      throw new Error(`Unexpected fetch: ${target}`);
+    };
+    const result = await intentHandler(event());
+    const body = JSON.parse(result.body);
+    assert.equal(result.statusCode, 200);
+    assert.equal(body.paymentId, 'pay_test_fresh');
+    assert.equal(body.clientSecret, 'secret_fresh');
+    assert.equal(created, true);
+    assert.equal(savedNewIntent, true);
   });
 });
 
