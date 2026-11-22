@@ -202,6 +202,9 @@ export default function RegistrationCardSetup() {
       try {
         const verification = await verifyWithServer();
         if (!verification.verified && verification.retryable) {
+          // This is a local retry, not a 3DS redirect: allow the old Element
+          // to unmount before the replacement session mounts into its host.
+          confirmingRef.current = false;
           setSession(null);
           setError('');
           const sessionReady = await startNewOrResumeSession();
