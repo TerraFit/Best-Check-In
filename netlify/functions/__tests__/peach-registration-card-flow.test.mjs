@@ -50,7 +50,7 @@ test('Peach return is force-synchronised and a succeeded mandate is recorded', a
       if (target.includes('/registration_application_tokens?')) {
         return { ok: true, json: async () => [{ business_id: 'business-1' }] };
       }
-      if (target.includes('/businesses?')) {
+      if (target.includes('/businesses?') && options.method !== 'PATCH') {
         return { ok: true, json: async () => [{
           id: 'business-1',
           registration_payment_status: 'intent_created',
