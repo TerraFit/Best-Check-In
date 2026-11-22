@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getCurrentLanguage } from '../i18n/languageService';
 
 declare global {
   interface Window {
@@ -8,6 +9,17 @@ declare global {
 }
 
 type PeachSession = { clientSecret: string; paymentId: string; publishableKey: string; baseUrl: string; sdkUrl: string };
+
+// Peach Web SDK supports a defined set of locale codes. FastCheckIn has additional
+// languages (notably Afrikaans), so unsupported selections deliberately fall back
+// to English instead of allowing browser tags such as "fr-FR" to reach the SDK.
+const PEACH_SUPPORTED_LOCALES = new Set([
+  'en', 'he', 'fr', 'ar', 'ja', 'de', 'es', 'ca', 'pt', 'it', 'pl', 'nl', 'sv', 'ru', 'zh'
+]);
+const getPeachLocale = (): string => {
+  const selectedLanguage = getCurrentLanguage();
+  return PEACH_SUPPORTED_LOCALES.has(selectedLanguage) ? selectedLanguage : 'en';
+};
 
 export default function RegistrationCardSetup() {
   const [params] = useSearchParams();
@@ -140,7 +152,7 @@ export default function RegistrationCardSetup() {
         const container = paymentContainerRef.current;
         if (!container || !container.isConnected) throw new Error('The secure card form could not be mounted. Please reload this page.');
         const hyper = window.Hyper(session.publishableKey, { customBackendUrl: session.baseUrl + '/api' });
-        const elements = hyper.elements({ clientSecret: session.clientSecret, locale: 'auto' });
+        const elements = hyper.elements({ clientSecret: session.clientSecret, locale: getPeachLocale(), loader: 'auto' });
         const paymentElement = elements.create('payment', { layout: 'tabs', paymentMethodOrder: ['card'] });
         mountedContainer = container;
         mountedElement = paymentElement;
