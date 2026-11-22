@@ -69,14 +69,29 @@ export const handler = async (event) => {
 
     if (status !== 'succeeded' || !mandateId || !customerId) {
       const retryable = ['failed', 'cancelled', 'requires_payment_method'].includes(status);
+      let redirectUrl = null;
+      const candidateRedirect = peach.next_action?.type === 'redirect_to_url'
+        ? peach.next_action.redirect_to_url
+        : null;
+      if (candidateRedirect) {
+        try {
+          const parsedRedirect = new URL(candidateRedirect);
+          if (parsedRedirect.protocol === 'https:' && parsedRedirect.hostname === parsedBaseUrl.hostname) {
+            redirectUrl = candidateRedirect;
+          }
+        } catch { /* Ignore malformed provider redirect URLs. */ }
+      }
       return reply(202, {
         success: false,
         verified: false,
         peachStatus: status || 'unknown',
         retryable,
+        redirectUrl,
         message: retryable
           ? 'The previous card attempt was not completed. You can safely try card validation again.'
-          : 'Peach is still confirming your card. Please wait a moment and check again.'
+          : redirectUrl
+            ? 'Your bank requires one more secure verification step. Redirecting you to Peach…'
+            : 'Peach is still confirming your card. Please wait a moment and check again.'
       });
     }
 
