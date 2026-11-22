@@ -54,6 +54,55 @@ export const handler = async (event) => {
     const pricing = getPlanPricing(plan, business.billing_cycle || 'monthly', business.total_rooms);
     const customerId = `fc_${business.id}`;
     const acceptedAt = new Date().toISOString();
+    // Reconcile an existing intent before creating another. A shopper may
+    // return from Peach without browser query parameters, or reload mid-3DS.
+    if (business.registration_payment_intent_id) {
+      const existingResponse = await fetch(`${baseUrl}/api/payments/${encodeURIComponent(business.registration_payment_intent_id)}?force_sync=true`, {
+        headers: { 'api-key': apiKey, Accept: 'application/json' }
+      });
+      const existing = await existingResponse.json().catch(() => ({}));
+      if (!existingResponse.ok) return reply(502, { error: 'Could not resume the existing Peach card validation session.' });
+      const existingStatus = String(existing.status || existing.payment_status || '').toLowerCase();
+      if (existingStatus === 'succeeded') {
+        return reply(409, { error: 'Card validation has already completed. Please check its status.' });
+      }
+      if (['processing', 'requires_customer_action', 'requires_action'].includes(existingStatus)) {
+        const nextActionUrl = existing.next_action?.type === 'redirect_to_url'
+          ? existing.next_action.redirect_to_url
+          : null;
+        return reply(202, {
+          success: true,
+          pending: true,
+          peachStatus: existingStatus,
+          redirectUrl: nextActionUrl,
+          message: nextActionUrl
+            ? 'Your bank requires one more secure verification step. Redirecting you to Peach…'
+            : 'Your existing Peach card validation is still processing. Please check again shortly.'
+        });
+      }
+      const existingClientSecret = existing.client_secret || existing.clientSecret;
+      if (existingClientSecret && ['requires_payment_method', 'requires_confirmation'].includes(existingStatus)) {
+        return reply(200, {
+          success: true,
+          clientSecret: existingClientSecret,
+          paymentId: business.registration_payment_intent_id,
+          publishableKey: process.env.PEACH_PUBLISHABLE_KEY || null,
+          baseUrl,
+          sdkUrl
+        });
+      }
+      if (!['failed', 'cancelled', 'requires_payment_method'].includes(existingStatus)) {
+        return reply(202, {
+          success: true,
+          pending: true,
+          peachStatus: existingStatus || 'unknown',
+          message: 'Your existing Peach card validation is being checked. Please try checking its status again shortly.'
+        });
+      }
+      // A failed/cancelled intent, or an empty requires_payment_method intent
+      // with no resumable client secret, can be replaced by a fresh attempt.
+    }
+
     const amountLimit = Math.ceil(Number(pricing.amount || 0) * 1.3 * 100);
     if (!Number.isFinite(amountLimit) || amountLimit <= 0) return reply(400, { error: 'Selected subscription pricing is invalid' });
 
