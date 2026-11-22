@@ -26,20 +26,47 @@ test('shared engine uses five-room blocks and the agreed package minimums', () =
   assert.equal(calculateRoomCapacityBase(6), 698);
   assert.equal(calculateRoomCapacityBase(27), 2094);
   assert.equal(packageAcceptsRoomCount('starter', 500), true);
-  assert.equal(packageAcceptsRoomCount('growth', 5), false);
+  assert.equal(packageAcceptsRoomCount('growth', 5), true);
   assert.equal(packageAcceptsRoomCount('business', 20), false);
   assert.equal(packageAcceptsRoomCount('business', 21), true);
+  assert.equal(packageAcceptsRoomCount('pro', 5), true);
+  assert.equal(packageAcceptsRoomCount('pro', 22), false);
   assert.equal(packageAcceptsRoomCount('business', 500), true);
   assert.equal(packageAcceptsRoomCount('enterprise', 1), true);
   assert.equal(packageAcceptsRoomCount('enterprise', 20), true);
   assert.equal(packageAcceptsRoomCount('enterprise', 21), true);
 });
 
+test('room count sets the minimum required package while higher tiers remain selectable', () => {
+  const tiers = ['starter', 'growth', 'pro', 'business', 'enterprise'];
+  const cases = [
+    [5,  ['starter', 'growth', 'pro', 'business', 'enterprise']],
+    [6,  ['growth', 'pro', 'business', 'enterprise']],
+    [10, ['growth', 'pro', 'business', 'enterprise']],
+    [11, ['pro', 'business', 'enterprise']],
+    [20, ['pro', 'business', 'enterprise']],
+    [21, ['business', 'enterprise']],
+    [22, ['business', 'enterprise']],
+  ];
+  for (const [rooms, eligible] of cases) {
+    for (const tier of tiers) {
+      assert.equal(
+        packageAcceptsRoomCount(tier, rooms),
+        eligible.includes(tier),
+        `${rooms} rooms: ${tier} eligibility`
+      );
+    }
+  }
+});
+
 test('customer-facing subscription prices are rounded to whole currency units', () => {
   assert.equal(calculateSubscriptionMonthlyPrice(1, 'starter'), 349);
   assert.equal(calculateSubscriptionMonthlyPrice(6, 'growth'), 649);
   assert.equal(calculateSubscriptionMonthlyPrice(11, 'pro'), 949);
-  assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 0);
+  assert.equal(calculateSubscriptionMonthlyPrice(5, 'growth'), 649);
+  assert.equal(calculateSubscriptionMonthlyPrice(5, 'pro'), 949);
+  assert.equal(calculateSubscriptionMonthlyPrice(5, 'business'), 2260);
+  assert.equal(calculateSubscriptionMonthlyPrice(20, 'business'), 2260);
   assert.equal(calculateSubscriptionMonthlyPrice(21, 'business'), 2260);
   assert.equal(calculateSubscriptionMonthlyPrice(26, 'business'), 2609);
   assert.equal(calculateSubscriptionMonthlyPrice(12, 'enterprise'), 2616);
@@ -109,8 +136,9 @@ test('Enterprise is enquiry-only and is blocked from online payment pricing', ()
 test('Netlify package pricing uses the shared engine and rejects ineligible room counts', () => {
   assert.equal(getPlanPricing('starter', 'monthly', 1).amount, 349);
   assert.equal(getPlanPricing('growth', 'monthly', 10).amount, 649);
-  assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 0);
-  assert.equal(getPlanPricing('business', 'monthly', 20).amount, 0);
+  assert.equal(getPlanPricing('growth', 'monthly', 5).amount, 649);
+  assert.equal(getPlanPricing('pro', 'monthly', 5).amount, 949);
+  assert.equal(getPlanPricing('business', 'monthly', 20).amount, 2260);
   assert.equal(getPlanPricing('business', 'monthly', 21).amount, 2260);
   assert.equal(getPlanPricing('business', 'monthly', 51).amount, 3970);
   assert.equal(getPlanPricing('business', 'yearly', 51).amount, 43670);
