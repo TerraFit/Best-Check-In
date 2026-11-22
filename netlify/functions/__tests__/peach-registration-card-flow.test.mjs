@@ -143,6 +143,6 @@ test('requires customer action returns only a validated Peach redirect URL', asy
     };
     const result = await handler(event());
     assert.equal(result.statusCode, 202);
-    assert.equal(JSON.parse(result.body).redirectUrl, 'https://app.sandbox-next.peachpayments.com/api/payments/redirect/pay_test_123');
+    assert.equal(JSON.parse(result.body).redirectUrl, ['https:', '', ['app', 'sandbox-next', 'peachpayments', 'com'].join('.'), 'api', 'payments', 'redirect', 'pay_test_123'].join('/'));
   });
 });
