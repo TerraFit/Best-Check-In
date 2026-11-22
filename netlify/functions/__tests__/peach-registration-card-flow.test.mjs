@@ -84,6 +84,35 @@ test('Peach return is force-synchronised and a succeeded mandate is recorded', a
   });
 });
 
+test('failed Peach intent is reported as retryable so the client can request a fresh session', async () => {
+  await withEnv(async () => {
+    global.fetch = async (url) => {
+      const target = String(url);
+      if (target.includes('/registration_application_tokens?')) {
+        return { ok: true, json: async () => [{ business_id: 'business-1' }] };
+      }
+      if (target.includes('/businesses?')) {
+        return { ok: true, json: async () => [{
+          id: 'business-1',
+          registration_payment_status: 'intent_created',
+          registration_payment_intent_id: 'pay_test_failed',
+          payment_customer_id: 'fc_business-1'
+        }] };
+      }
+      if (target.includes('/api/payments/pay_test_failed?force_sync=true')) {
+        return { ok: true, json: async () => ({ id: 'pay_test_failed', status: 'failed' }) };
+      }
+      throw new Error(`Unexpected fetch: ${target}`);
+    };
+    const result = await handler(event());
+    const body = JSON.parse(result.body);
+    assert.equal(result.statusCode, 202);
+    assert.equal(body.verified, false);
+    assert.equal(body.peachStatus, 'failed');
+    assert.equal(body.retryable, true);
+  });
+});
+
 test('processing intent remains pending and is not marked verified', async () => {
   await withEnv(async () => {
     let patched = false;
