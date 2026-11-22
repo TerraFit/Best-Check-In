@@ -146,7 +146,9 @@ export default function RegistrationCardSetup() {
         hyperRef.current = hyper;
         elementsRef.current = elements;
         paymentElementRef.current = paymentElement;
-        paymentElement.mount(container);
+        // Hyper's documented Payment Element mount API accepts a CSS selector string.
+        // Passing the DOM node here triggers the SDK's internal selector parsing (i.split).
+        paymentElement.mount('#peach-registration-payment-element');
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Could not load secure card form.');
       }
