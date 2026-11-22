@@ -16,11 +16,52 @@ export default function RegistrationCardSetup() {
   const hyperRef = useRef<any>(null);
   const elementsRef = useRef<any>(null);
   const paymentElementRef = useRef<any>(null);
+  const paymentContainerRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<PeachSession | null>(null);
   const [status, setStatus] = useState('Preparing secure card validation…');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const verifyWithServer = async () => {
+    const response = await fetch('/.netlify/functions/peach-confirm-registration-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registrationToken: token })
+    });
+    const data = await response.json();
+    if (response.ok && data.verified) {
+      navigate('/registration-pending', { replace: true, state: { cardValidated: true } });
+      return { verified: true, retryable: false };
+    }
+    if (response.status === 202) {
+      setStatus(data.message || 'Peach is confirming your card. Please check again in a moment.');
+      return { verified: false, retryable: Boolean(data.retryable), peachStatus: data.peachStatus };
+    }
+    if (response.status === 409 && data.code === 'no_payment_intent') {
+      return { verified: false, retryable: true, noPaymentIntent: true };
+    }
+    throw new Error(data.error || 'Card validation could not be confirmed.');
+  };
+
+  const startNewOrResumeSession = async () => {
+    const response = await fetch('/.netlify/functions/peach-registration-card-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registrationToken: token })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not prepare card validation.');
+    if (data.pending) {
+      setStatus(data.message || 'Your existing Peach card validation is still processing. Please check again shortly.');
+      return;
+    }
+    if (!data.publishableKey || !data.clientSecret || !data.sdkUrl || !data.baseUrl) {
+      throw new Error('Peach payment configuration is incomplete. Please contact support.');
+    }
+    setSession(data as PeachSession);
+    setStatus('Enter your card details below. No payment will be taken now.');
+  };
 
   useEffect(() => {
     let active = true;
@@ -31,38 +72,20 @@ export default function RegistrationCardSetup() {
         return;
       }
       try {
-        const returnedPayment = params.has('payment_intent') || params.has('payment_intent_client_secret') || params.has('redirect_status');
-        if (returnedPayment) {
-          const verifyResponse = await fetch('/.netlify/functions/peach-confirm-registration-card', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ registrationToken: token })
-          });
-          const verifyData = await verifyResponse.json();
-          if (verifyResponse.ok && verifyData.verified) {
-            navigate('/registration-pending', { replace: true, state: { cardValidated: true } });
-            return;
-          }
-          if (verifyResponse.status === 202) {
-            setStatus(verifyData.message || 'Peach is confirming your card. Refresh this page in a moment to check again.');
-            return;
-          }
-          throw new Error(verifyData.error || 'Could not verify the card validation result.');
+        // Peach's documented return uses payment_id and status (not only the
+        // Stripe-compatible payment_intent / redirect_status names). Always
+        // reconcile against Peach so a clean return URL is also recoverable.
+        const returnedFromPeach = ['payment_id', 'payment_intent', 'payment_intent_client_secret', 'payment_intent_id', 'status', 'redirect_status']
+          .some((key) => params.has(key));
+        if (returnedFromPeach) setStatus('Peach returned your card validation. Confirming the result securely…');
+
+        const verification = await verifyWithServer();
+        if (!active || verification.verified) return;
+        if (!verification.retryable) {
+          setLoading(false);
+          return;
         }
-        const response = await fetch('/.netlify/functions/peach-registration-card-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registrationToken: token })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Could not prepare card validation.');
-        if (!active) return;
-        if (!data.publishableKey || !data.clientSecret || !data.sdkUrl || !data.baseUrl) {
-          throw new Error('Peach payment configuration is incomplete. Please contact support.');
-        }
-        const nextSession = data as PeachSession;
-        setSession(nextSession);
-        setStatus('Enter your card details below. No payment will be taken now.');
+        await startNewOrResumeSession();
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Could not prepare card validation.');
       } finally {
@@ -71,11 +94,14 @@ export default function RegistrationCardSetup() {
     };
     start();
     return () => { active = false; };
-  }, [token, params, navigate]);
+  }, [token, navigate]);
 
   useEffect(() => {
     if (!session) return;
     let active = true;
+    let mountedElement: any = null;
+    let mountedContainer: HTMLDivElement | null = null;
+
     const mount = async () => {
       try {
         if (!window.Hyper) {
@@ -97,13 +123,17 @@ export default function RegistrationCardSetup() {
           });
         }
         if (!active || !window.Hyper) return;
+        const container = paymentContainerRef.current;
+        if (!container || !container.isConnected) throw new Error('The secure card form could not be mounted. Please reload this page.');
         const hyper = window.Hyper(session.publishableKey, { customBackendUrl: session.baseUrl + '/api' });
         const elements = hyper.elements({ clientSecret: session.clientSecret, locale: 'auto' });
         const paymentElement = elements.create('payment', { layout: 'tabs', paymentMethodOrder: ['card'] });
+        mountedContainer = container;
+        mountedElement = paymentElement;
         hyperRef.current = hyper;
         elementsRef.current = elements;
         paymentElementRef.current = paymentElement;
-        paymentElement.mount('#peach-registration-payment-element');
+        paymentElement.mount(container);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Could not load secure card form.');
       }
@@ -111,32 +141,16 @@ export default function RegistrationCardSetup() {
     mount();
     return () => {
       active = false;
-      try { paymentElementRef.current?.unmount(); } catch { /* ignore SDK teardown */ }
-      paymentElementRef.current = null;
-      elementsRef.current = null;
-      hyperRef.current = null;
+      // Peach can navigate away for 3DS while React is tearing down this route.
+      // Only ask the SDK to unmount while its original host node still exists.
+      if (mountedElement && mountedContainer?.isConnected) {
+        try { mountedElement.unmount(); } catch { /* SDK may already have torn itself down */ }
+      }
+      if (paymentElementRef.current === mountedElement) paymentElementRef.current = null;
+      if (elementsRef.current && paymentElementRef.current === null) elementsRef.current = null;
+      if (hyperRef.current && paymentElementRef.current === null) hyperRef.current = null;
     };
   }, [session]);
-
-  const verifyWithServer = async () => {
-    const response = await fetch('/.netlify/functions/peach-confirm-registration-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registrationToken: token })
-    });
-    const data = await response.json();
-    if (response.ok && data.verified) {
-      navigate('/registration-pending', { replace: true, state: { cardValidated: true } });
-      return true;
-    }
-    if (response.status === 202) {
-      setStatus(data.message || 'Peach is confirming your card. Please try again in a moment.');
-      return false;
-    }
-    throw new Error(data.error || 'Card validation could not be confirmed.');
-  };
-
-
 
   const handleConfirm = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -150,17 +164,35 @@ export default function RegistrationCardSetup() {
       setStatus('Confirming your card securely with Peach Payments…');
       const result = await hyperRef.current.confirmPayment({
         elements: elementsRef.current,
-        confirmParams: { return_url: window.location.href }
+        confirmParams: {
+          return_url: `${window.location.origin}/registration-payment?token=${encodeURIComponent(token)}`
+        },
+        redirect: 'if_required'
       });
       if (result?.error) throw new Error(result.error.message || 'Card validation was not completed.');
       if (result?.paymentIntent?.status === 'succeeded') {
         setStatus('Card validated. Verifying the recurring mandate…');
         await verifyWithServer();
+      } else if (result?.paymentIntent?.status) {
+        setStatus('Peach is processing your card validation. We will confirm the result before continuing.');
       } else {
-        setStatus('Complete any additional bank verification requested by your bank.');
+        setStatus('Complete any additional bank verification requested by your bank. You will return here automatically.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Card validation failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      const result = await verifyWithServer();
+      if (!result.verified && result.retryable) await startNewOrResumeSession();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not verify card validation.');
     } finally {
       setSubmitting(false);
     }
@@ -180,20 +212,22 @@ export default function RegistrationCardSetup() {
         {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {loading ? (
           <p className="py-8 text-center text-stone-600">{status}</p>
-        ) : !session ? (
-          <div className="space-y-4 text-center">
-            <p className="text-sm text-stone-600">{status}</p>
-            <button type="button" onClick={() => verifyWithServer().catch((err) => setError(err instanceof Error ? err.message : 'Could not verify card validation.'))} className="w-full rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700">Check card validation status</button>
-          </div>
-        ) : (
+        ) : session ? (
           <form onSubmit={handleConfirm} className="space-y-5">
-            <div id="peach-registration-payment-element" className="min-h-20" />
+            <div id="peach-registration-payment-element" ref={paymentContainerRef} className="min-h-20" />
             <p className="text-xs text-stone-500">Your card details are collected directly by Peach Payments. FastCheckIn does not receive or store your card number or security code.</p>
-            <button type="submit" disabled={!session || submitting || Boolean(error)} className="w-full rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={submitting || Boolean(error)} className="w-full rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? 'Validating card…' : 'Validate card and continue'}
             </button>
             <p aria-live="polite" className="text-center text-sm text-stone-600">{status}</p>
           </form>
+        ) : (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-stone-600">{status}</p>
+            <button type="button" onClick={handleCheckStatus} disabled={submitting} className="w-full rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700 disabled:opacity-50">
+              {submitting ? 'Checking…' : 'Check card validation status'}
+            </button>
+          </div>
         )}
         <p className="mt-6 text-center text-xs text-stone-500">Your application remains pending until FastCheckIn has reviewed and approved it.</p>
       </div>
