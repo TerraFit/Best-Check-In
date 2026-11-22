@@ -51,7 +51,7 @@ export default function RegistrationCardSetup() {
     throw new Error(data.error || 'Card validation could not be confirmed.');
   };
 
-  const startNewOrResumeSession = async () => {
+  const startNewOrResumeSession = async (): Promise<boolean> => {
     const response = await fetch('/.netlify/functions/peach-registration-card-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,13 +67,14 @@ export default function RegistrationCardSetup() {
           window.location.assign(data.redirectUrl);
         }
       }
-      return;
+      return false;
     }
     if (!data.publishableKey || !data.clientSecret || !data.sdkUrl || !data.baseUrl) {
       throw new Error('Peach payment configuration is incomplete. Please contact support.');
     }
     setSession(data as PeachSession);
     setStatus('Enter your card details below. No payment will be taken now.');
+    return true;
   };
 
   useEffect(() => {
@@ -203,12 +204,14 @@ export default function RegistrationCardSetup() {
         if (!verification.verified && verification.retryable) {
           setSession(null);
           setError('');
-          await startNewOrResumeSession();
-          setStatus(
-            verification.peachStatus === 'failed' || verification.peachStatus === 'cancelled'
-              ? 'The previous card attempt was unsuccessful. A fresh validation session is ready; please enter your card details again.'
-              : 'Peach has made the card session available for another attempt. Please review your card details and try again.'
-          );
+          const sessionReady = await startNewOrResumeSession();
+          if (sessionReady) {
+            setStatus(
+              verification.peachStatus === 'failed' || verification.peachStatus === 'cancelled'
+                ? 'The previous card attempt was unsuccessful. A fresh validation session is ready; please enter your card details again.'
+                : 'Peach has made the card session available for another attempt. Please review your card details and try again.'
+            );
+          }
         } else if (!verification.verified) {
           setError(sdkMessage);
           setStatus(
