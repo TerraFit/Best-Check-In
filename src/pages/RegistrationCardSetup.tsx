@@ -17,6 +17,7 @@ export default function RegistrationCardSetup() {
   const elementsRef = useRef<any>(null);
   const paymentElementRef = useRef<any>(null);
   const paymentContainerRef = useRef<HTMLDivElement>(null);
+  const confirmingRef = useRef(false);
   const [session, setSession] = useState<PeachSession | null>(null);
   const [status, setStatus] = useState('Preparing secure card validation…');
   const [error, setError] = useState('');
@@ -155,7 +156,7 @@ export default function RegistrationCardSetup() {
       active = false;
       // Peach can navigate away for 3DS while React is tearing down this route.
       // Only ask the SDK to unmount while its original host node still exists.
-      if (mountedElement && mountedContainer?.isConnected) {
+      if (!confirmingRef.current && mountedElement && mountedContainer?.isConnected) {
         try { mountedElement.unmount(); } catch { /* SDK may already have torn itself down */ }
       }
       if (paymentElementRef.current === mountedElement) paymentElementRef.current = null;
@@ -172,6 +173,7 @@ export default function RegistrationCardSetup() {
       return;
     }
     setSubmitting(true);
+    confirmingRef.current = true;
     try {
       setStatus('Confirming your card securely with Peach Payments…');
       const result = await hyperRef.current.confirmPayment({
@@ -193,6 +195,7 @@ export default function RegistrationCardSetup() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Card validation failed. Please try again.');
     } finally {
+      confirmingRef.current = false;
       setSubmitting(false);
     }
   };
