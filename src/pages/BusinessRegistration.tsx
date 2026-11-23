@@ -380,7 +380,7 @@ export default function BusinessRegistration() {
   };
 
   // Validate Phase 2
-  const validatePhase2 = (): boolean => {
+  const validatePhase2 = (emailValue = directorData.email, confirmEmailValue = directorData.confirmEmail): boolean => {
     if (!directorData.name) {
       alert(t('error_first_name_required'));
       return false;
@@ -397,11 +397,13 @@ export default function BusinessRegistration() {
       alert(t('error_photo_required'));
       return false;
     }
-    if (!directorData.email) {
+    if (!emailValue.trim()) {
       alert(t('error_invalid_email'));
       return false;
     }
-    if (directorData.email !== directorData.confirmEmail) {
+    const normalizedEmail = emailValue.trim().toLowerCase();
+    const normalizedConfirmation = confirmEmailValue.trim().toLowerCase();
+    if (normalizedEmail !== normalizedConfirmation) {
       alert(t('error_passwords_mismatch'));
       return false;
     }
@@ -424,9 +426,21 @@ export default function BusinessRegistration() {
   };
 
   // Phase 2 Submit
-  const handlePhase2Submit = (e: React.FormEvent) => {
+  const handlePhase2Submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (validatePhase2()) {
+
+    // Read the live form values as well as React state. Some browsers/password
+    // managers can populate an input without dispatching the React onChange event.
+    const formData = new FormData(e.currentTarget);
+    const emailValue = String(formData.get('directorEmail') ?? directorData.email).trim();
+    const confirmEmailValue = String(formData.get('directorConfirmEmail') ?? directorData.confirmEmail).trim();
+
+    if (validatePhase2(emailValue, confirmEmailValue)) {
+      setDirectorData((current) => ({
+        ...current,
+        email: emailValue,
+        confirmEmail: confirmEmailValue
+      }));
       setPhase(3);
       setTimeout(() => {
         document.getElementById('registration-form')?.scrollIntoView({ behavior: 'smooth' });
@@ -962,8 +976,8 @@ export default function BusinessRegistration() {
                 {!directorData.sameAddress && <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_residential_address')}</label><textarea rows={3} value={directorData.address} onChange={(e) => setDirectorData({ ...directorData, address: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>}
                 <h3 className="text-lg font-semibold text-white mt-6 mb-4 border-b border-stone-700 pb-2">{t('login_contact_information')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_email_label')} *</label><input type="email" value={directorData.email} onChange={(e) => setDirectorData({ ...directorData, email: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
-                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_confirm_email')} *</label><input type="email" value={directorData.confirmEmail} onChange={(e) => setDirectorData({ ...directorData, confirmEmail: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_email_label')} *</label><input type="email" name="directorEmail" autoComplete="email" value={directorData.email} onChange={(e) => setDirectorData({ ...directorData, email: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
+                  <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_confirm_email')} *</label><input type="email" name="directorConfirmEmail" autoComplete="off" value={directorData.confirmEmail} onChange={(e) => setDirectorData({ ...directorData, confirmEmail: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
                   <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_fixed_phone')}</label><input type="tel" value={directorData.fixedPhone} onChange={(e) => setDirectorData({ ...directorData, fixedPhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" /></div>
                   <div><label className="block text-sm font-medium text-stone-300 mb-1">{t('login_mobile_phone')} *</label><input type="tel" value={directorData.mobilePhone} onChange={(e) => setDirectorData({ ...directorData, mobilePhone: e.target.value })} className="w-full px-4 py-2 bg-stone-700 border border-stone-600 rounded-lg text-white" required /></div>
                 </div>
