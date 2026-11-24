@@ -1,5 +1,4 @@
 import { Resend } from 'resend';
-import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
 import superAdminAuth from './_superAdminAuth.cjs';
 
@@ -165,7 +164,7 @@ function generateWelcomeEmail(businessName, checkInUrl, qrCodeDataUrl, trialStar
     <p><strong>Your 14-day free trial</strong><br>Starts: ${trialStartLabel} (South African time)<br>Trial ends: ${trialEndLabel} (South African time)</p>
     <p>No subscription amount was taken during registration. We will remind you before your free trial ends, and you may cancel your subscription at any time.</p>
     <p style="text-align:center;margin:26px 0"><a class="button" href="${loginUrl}">Open your business dashboard</a></p>
-    <div class="qr-box">${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="Guest check-in QR code">` : '<p>Your QR code is available in your dashboard.'}<p><strong>Guest check-in is now enabled</strong></p><p style="font-size:13px;word-break:break-all">${checkInUrl}</p></div>
+    <div class="qr-box">${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="Guest check-in QR code">`  : '<p>Your QR code is available in your dashboard.</p>'}<p><strong>Guest check-in is now enabled</strong></p><p style="font-size:13px;word-break:break-all">${checkInUrl}</p></div>
     <p>From your dashboard, you can customise your guest check-in page, download your QR code and manage your property.</p>
     <p class="muted">If you have not yet completed account setup, use the secure account setup link in your application confirmation email or contact FastCheckIn support.</p>
     <p>FastCheckIn · <a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></div></div></body></html>`;
