@@ -51,7 +51,8 @@ export default function RegistrationCardSetup() {
           state: {
             cardValidated: true,
             businessName: data.businessName || 'your business',
-            email: data.email || 'your email'
+            email: data.email || 'your email',
+            confirmationEmailSent: Boolean(data.confirmationEmailSent)
           }
         });
         return { verified: true, retryable: false };
