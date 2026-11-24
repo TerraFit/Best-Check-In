@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import QRCode from 'qrcode';
+import { getAppBaseUrl } from './lib/app-base-url.js';
 import superAdminAuth from './_superAdminAuth.cjs';
 
 const { requireSuperAdmin, authFailure } = superAdminAuth;
@@ -113,7 +114,8 @@ export const handler = async function(event) {
 
     console.log(`✅ Business status updated to approved for: ${business.trading_name}`);
 
-    const checkInUrl = `https://fastcheckin.co.za/checkin/${business.id}`;
+    const appBaseUrl = getAppBaseUrl(event);
+    const checkInUrl = `${appBaseUrl}/checkin/${business.id}`;
     let qrCodeDataUrl = null;
     let qrBuffer = null;
     try {
@@ -132,7 +134,7 @@ export const handler = async function(event) {
           from: 'FastCheckin <welcome@fastcheckin.co.za>',
           to: [business.email],
           subject: `Your FastCheckIn application has been approved`,
-          html: generateWelcomeEmail(business.trading_name, checkInUrl, qrCodeDataUrl, trialStart, trialEnd),
+          html: generateWelcomeEmail(business.trading_name, checkInUrl, qrCodeDataUrl, trialStart, trialEnd, appBaseUrl),
           attachments: qrBuffer ? [{ filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`, content: qrBuffer.toString('base64'), encoding: 'base64', contentType: 'image/png' }] : undefined
         });
         console.log('✅ Welcome email sent successfully:', emailResult.id);
@@ -151,11 +153,11 @@ export const handler = async function(event) {
   }
 };
 
-function generateWelcomeEmail(businessName, checkInUrl, qrCodeDataUrl, trialStart, trialEnd) {
+function generateWelcomeEmail(businessName, checkInUrl, qrCodeDataUrl, trialStart, trialEnd, appBaseUrl) {
   const dateOptions = { timeZone: 'Africa/Johannesburg', dateStyle: 'long', timeStyle: 'short' };
   const trialStartLabel = new Intl.DateTimeFormat('en-ZA', dateOptions).format(new Date(trialStart));
   const trialEndLabel = new Intl.DateTimeFormat('en-ZA', dateOptions).format(new Date(trialEnd));
-  const loginUrl = 'https://fastcheckin.co.za/business/login';
+  const loginUrl = `${appBaseUrl}/business/login`;
   return `
     <!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FastCheckIn application approved</title>
     <style>body{font-family:Arial,sans-serif;background:#f5f5f5;color:#263238;line-height:1.6;margin:0;padding:24px}.container{max-width:600px;margin:auto;background:#fff;border-radius:14px;overflow:hidden}.header{background:#172b3a;color:#fff;padding:28px}.content{padding:30px}.button{display:inline-block;background:#c66a20;color:#fff;padding:14px 24px;text-decoration:none;border-radius:7px;font-weight:bold}.qr-box{background:#f3f4f6;padding:24px;border-radius:12px;text-align:center;margin:24px 0}.qr-box img{max-width:200px}.muted{font-size:12px;color:#687782}</style></head>
