@@ -16,21 +16,22 @@ export default function BusinessPending() {
         </h1>
         
         <p className="text-stone-600 mb-6">
-          Your business registration is currently being reviewed by our team.
+          Your application is being reviewed. You can access your business dashboard while we verify the information and documents you submitted.
         </p>
         
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-amber-800 text-sm">
-            This usually takes 24-48 hours. You'll receive an email once your account is approved.
+            You are responsible for ensuring that the information you supplied is accurate and complete. FastCheckIn will complete review and approval within 48 business hours. Live guest check-in becomes available once approved.
           </p>
         </div>
         
         <Link
-          to="/"
-          className="inline-block bg-stone-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-stone-800 transition-colors"
+          to="/business/dashboard"
+          className="inline-block bg-orange-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-orange-700 transition-colors"
         >
-          Return to Home
+          Open Business Dashboard
         </Link>
+        <div className="mt-4"><Link to="/" className="text-sm text-stone-500 hover:text-stone-700">Return to Home</Link></div>
       </div>
     </div>
   );

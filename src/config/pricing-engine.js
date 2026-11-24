@@ -22,9 +22,14 @@ export function normalizeRoomCount(rooms) {
 }
 export function packageAcceptsRoomCount(packageName, rooms) {
   if (!PACKAGE_IDS.includes(packageName)) return false;
-  // Enterprise eligibility is based on 2+ establishments, validated by the portfolio calculator.
-  if (packageName === 'enterprise') return normalizeRoomCount(rooms) >= 1;
-  return normalizeRoomCount(rooms) >= PACKAGE_MIN_ROOMS[packageName];
+  // Room count determines the minimum tier required, not the minimum room
+  // count a selected tier must contain. Owners may always choose a higher tier.
+  // Enterprise is the highest tier; its 2+ establishment qualification is
+  // validated separately by the portfolio calculator.
+  const roomCount = normalizeRoomCount(rooms);
+  const minimumRequiredPackage = ['starter', 'growth', 'pro', 'business']
+    .reduce((required, tier) => roomCount >= PACKAGE_MIN_ROOMS[tier] ? tier : required, 'starter');
+  return PACKAGE_IDS.indexOf(packageName) >= PACKAGE_IDS.indexOf(minimumRequiredPackage);
 }
 export function calculateRoomCapacityBase(rooms) {
   return Math.ceil(normalizeRoomCount(rooms) / ROOM_BLOCK_SIZE) * ROOM_BLOCK_MONTHLY_PRICE;
@@ -56,7 +61,11 @@ export function calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapaci
     ? (isVolumeEligible ? getBusinessEnterpriseVolumeDiscountRate(rooms) : 0)
     : Number(roomCapacityDiscountRate) || 0;
   const discount = isVolumeEligible ? Math.min(1, Math.max(0, requestedDiscount)) : 0;
-  return Math.round(calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName]);
+  const roomBasedPrice = calculateRoomCapacityBase(rooms) * (1 - discount) + PACKAGE_MONTHLY_SURCHARGES[packageName];
+  const packageStartingPrice = calculateRoomCapacityBase(PACKAGE_MIN_ROOMS[packageName]) + PACKAGE_MONTHLY_SURCHARGES[packageName];
+  // An upgrade below the tier's normal room threshold is charged at that
+  // tier's existing starting price, never below the lower package's price.
+  return Math.round(Math.max(roomBasedPrice, packageStartingPrice));
 }
 export function calculateSubscriptionAnnualPrice(rooms, packageName, roomCapacityDiscountRate = null) {
   return Math.round(calculateSubscriptionMonthlyPrice(rooms, packageName, roomCapacityDiscountRate) * ANNUAL_BILLING_MONTHS);

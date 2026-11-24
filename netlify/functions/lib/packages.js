@@ -128,7 +128,8 @@ export function getPlanPricing(planId, billingCycle = 'monthly', rooms = null, e
   const discountRate = explicitDiscountRate === null
     ? ((pkg.id === 'business' || pkg.id === 'enterprise') ? getBusinessEnterpriseVolumeDiscountRate(roomCount) : 0)
     : explicitDiscountRate;
-  const amount = billingCycle === 'yearly'
+  const normalizedCycle = ['annual', 'yearly'].includes(String(billingCycle || '').toLowerCase()) ? 'yearly' : 'monthly';
+  const amount = normalizedCycle === 'yearly'
     ? calculateSubscriptionAnnualPrice(roomCount, pkg.id, discountRate)
     : calculateSubscriptionMonthlyPrice(roomCount, pkg.id, discountRate);
   return { amount, currency: pkg.currency, contactSales: false, rooms: roomCount, discountRate };

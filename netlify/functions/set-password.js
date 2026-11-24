@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 
 export const handler = async (event) => {
   const headers = {
@@ -57,7 +58,7 @@ export const handler = async (event) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const rpcResponse = await fetch(
-      `${supabaseUrl}/rest/v1/rpc/set_business_password_with_setup_token`,
+      `${supabaseUrl}/rest/v1/rpc/set_business_password_with_application_token`,
       {
         method: 'POST',
         headers: {
@@ -66,7 +67,7 @@ export const handler = async (event) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          p_token: token,
+          p_token_hash: crypto.createHash('sha256').update(token).digest('hex'),
           p_password_hash: passwordHash
         })
       }

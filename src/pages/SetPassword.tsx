@@ -17,7 +17,7 @@ export default function SetPassword() {
     // Verify token is valid
     const verifyToken = async () => {
       try {
-        const response = await fetch(`/.netlify/functions/verify-setup-token?token=${token}`);
+        const response = await fetch(`/.netlify/functions/verify-application-setup-token?token=${token}`);
         const data = await response.json();
         if (!data.valid) {
           setValidToken(false);
