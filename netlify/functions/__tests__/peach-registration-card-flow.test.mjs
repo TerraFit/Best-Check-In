@@ -16,6 +16,7 @@ const withEnv = async (run) => {
   process.env.PEACH_PROFILE_ID = 'profile-test';
   process.env.PEACH_ORCHESTRATION_SDK_URL = ['https:', '', ['sdk', 'sandbox-next', 'peachpayments', 'com'].join('.'), 'assets', 'v1', ''].join('/');
   process.env.PEACH_PUBLISHABLE_KEY = 'publishable-test-key';
+  delete process.env.RESEND_API_KEY;
   const originalFetch = global.fetch;
   try { await run(); } finally {
     global.fetch = originalFetch;
