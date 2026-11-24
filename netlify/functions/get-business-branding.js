@@ -52,7 +52,8 @@ export const handler = async function(event) {
     // IMPORTANT: this endpoint is intentionally public for QR check-in.
     // Only approved, active establishments may expose guest-facing branding.
     // Never add private business/contact/subscription/director fields here.
-    const select = PUBLIC_BRANDING_FIELDS.join(',');
+    const brandingFields = hasAuthorization ? [...PUBLIC_BRANDING_FIELDS, 'status'] : PUBLIC_BRANDING_FIELDS;
+    const select = brandingFields.join(',');
     const response = await fetch(
       `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&${statusFilter}select=${select}`,
       {
@@ -79,7 +80,7 @@ export const handler = async function(event) {
     // Defense in depth: never echo unexpected columns even if an upstream
     // data source returns more fields than requested by the SELECT clause.
     const publicBusiness = Object.fromEntries(
-      PUBLIC_BRANDING_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(business, field))
+      brandingFields.filter((field) => Object.prototype.hasOwnProperty.call(business, field))
         .map((field) => [field, business[field]])
     );
 
