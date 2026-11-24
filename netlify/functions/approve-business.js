@@ -81,21 +81,6 @@ export const handler = async function(event) {
 
     console.log(`✅ Business found: ${business.trading_name} (${business.email})`);
 
-    const verificationToken = uuidv4();
-    const verificationLink = `https://fastcheckin.co.za/verify-email/${verificationToken}`;
-
-    const verificationResponse = await fetch(`${supabaseUrl}/rest/v1/email_verifications`, {
-      method: 'POST',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([{ token: verificationToken, business_id: business.id, email: business.email, expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() }])
-    });
-
-    if (!verificationResponse.ok) {
-      const errorText = await verificationResponse.text();
-      console.error('Error creating email verification:', verificationResponse.status, errorText);
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to prepare business approval' }) };
-    }
-
     const approvalTime = new Date();
     const localParts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -147,8 +132,8 @@ export const handler = async function(event) {
         const emailResult = await resend.emails.send({
           from: 'FastCheckin <welcome@fastcheckin.co.za>',
           to: [business.email],
-          subject: `🎉 Welcome to FastCheckin, ${business.trading_name}!`,
-          html: generateWelcomeEmail(business.trading_name, verificationLink, checkInUrl, qrCodeDataUrl),
+          subject: `Your FastCheckIn application has been approved`,
+          html: generateWelcomeEmail(business.trading_name, checkInUrl, qrCodeDataUrl, trialStart, trialEnd),
           attachments: qrBuffer ? [{ filename: `${business.trading_name.toLowerCase().replace(/\s+/g, '-')}-qr-code.png`, content: qrBuffer.toString('base64'), encoding: 'base64', contentType: 'image/png' }] : undefined
         });
         console.log('✅ Welcome email sent successfully:', emailResult.id);
@@ -160,16 +145,28 @@ export const handler = async function(event) {
       console.warn('RESEND_API_KEY not configured - email not sent');
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business approved successfully', business: { id: updatedBusiness.id, trading_name: updatedBusiness.trading_name, email: updatedBusiness.email, status: updatedBusiness.status, trialStart: trialStart.toISOString(), trialEnd: trialEnd.toISOString() }, checkInUrl, qrCode: qrCodeDataUrl, emailSent, verificationLink }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Business approved successfully', business: { id: updatedBusiness.id, trading_name: updatedBusiness.trading_name, email: updatedBusiness.email, status: updatedBusiness.status, trialStart: trialStart.toISOString(), trialEnd: trialEnd.toISOString() }, checkInUrl, qrCode: qrCodeDataUrl, emailSent }) };
   } catch (error) {
     console.error('Unhandled error in approve-business function:', error?.message || error);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };
 
-function generateWelcomeEmail(businessName, verificationLink, checkInUrl, qrCodeDataUrl) {
+function generateWelcomeEmail(businessName, checkInUrl, qrCodeDataUrl, trialStart, trialEnd) {
+  const dateOptions = { timeZone: 'Africa/Johannesburg', dateStyle: 'long', timeStyle: 'short' };
+  const trialStartLabel = new Intl.DateTimeFormat('en-ZA', dateOptions).format(new Date(trialStart));
+  const trialEndLabel = new Intl.DateTimeFormat('en-ZA', dateOptions).format(new Date(trialEnd));
+  const loginUrl = 'https://fastcheckin.co.za/business/login';
   return `
-    <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Welcome to FastCheckin</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#1e1e1e;background-color:#f5f5f5;margin:0;padding:0}.container{max-width:600px;margin:40px auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.1)}.header{background:linear-gradient(135deg,#f59e0b 0%,#f97316 100%);padding:40px 30px;text-align:center}.header h1{color:white;margin:0;font-size:28px;font-weight:700}.content{padding:40px 30px}.qr-box{background:#f3f4f6;padding:30px;border-radius:16px;margin:30px 0;text-align:center}.qr-box img{display:block;margin:0 auto 20px;max-width:200px;border:4px solid white;box-shadow:0 4px 12px rgba(0,0,0,.1);border-radius:16px}.button{display:inline-block;background:#f59e0b;color:white;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;margin:20px 0}.next-steps{background:#e8f4fd;padding:20px;border-radius:12px;margin:30px 0}.footer{background:#f9fafb;padding:24px 30px;text-align:center;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb}</style></head>
-    <body><div class="container"><div class="header"><h1>Welcome to FastCheckin!</h1></div><div class="content"><h2 style="color:#333;margin-bottom:20px;">Hello ${businessName}!</h2><p style="color:#555;line-height:1.6;">Your business has been approved! You're now ready to start using FastCheckin for digital guest check-ins.</p><div class="qr-box">${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : '<p>QR code generation failed. Please log in to download your QR code.</p>'}<p style="color:#333;font-weight:bold;margin:10px 0;">Scan to check in guests</p><p style="color:#777;font-size:14px;word-break:break-all;">${checkInUrl}</p></div><div class="next-steps"><h3 style="color:#0284c7;margin:0 0 10px 0;">✨ Next Steps:</h3><ol style="color:#555;line-height:1.8;margin:0;padding-left:20px;"><li><strong>Verify your email</strong> - Click the button below to set up your password</li><li><strong>Download your QR code</strong> - Print and display at your reception</li><li><strong>Customize your check-in page</strong> - Add your logo and colors</li><li><strong>Start accepting guest check-ins</strong> - Guests scan and complete registration</li></ol></div><div style="text-align:center;"><a href="${verificationLink}" class="button">✓ Verify Email & Set Password</a></div><p style="font-size:12px;color:#6b7280;text-align:center;margin-top:30px;">This verification link expires in 48 hours.</p></div><div class="footer"><p>FastCheckin - Seamless Check-in, Smarter Stay</p><p><a href="https://fastcheckin.co.za" style="color:#f59e0b;">www.fastcheckin.co.za</a></p><p>© ${new Date().getFullYear()} FastCheckin. All rights reserved.</p></div></div></body></html>`;
+    <!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FastCheckIn application approved</title>
+    <style>body{font-family:Arial,sans-serif;background:#f5f5f5;color:#263238;line-height:1.6;margin:0;padding:24px}.container{max-width:600px;margin:auto;background:#fff;border-radius:14px;overflow:hidden}.header{background:#172b3a;color:#fff;padding:28px}.content{padding:30px}.button{display:inline-block;background:#c66a20;color:#fff;padding:14px 24px;text-decoration:none;border-radius:7px;font-weight:bold}.qr-box{background:#f3f4f6;padding:24px;border-radius:12px;text-align:center;margin:24px 0}.qr-box img{max-width:200px}.muted{font-size:12px;color:#687782}</style></head>
+    <body><div class="container"><div class="header"><h1 style="margin:0">Your application is approved!</h1><p style="margin:6px 0 0">Hospitality, connected.</p></div><div class="content">
+    <p>Hello ${businessName},</p><p>Good news — your FastCheckIn application has been approved. Your business dashboard is ready. Sign in using the email address and password you created during account setup.</p>
+    <p><strong>Your 14-day free trial</strong><br>Starts: ${trialStartLabel} (South African time)<br>Trial ends: ${trialEndLabel} (South African time)</p>
+    <p>No subscription amount was taken during registration. We will remind you before your free trial ends, and you may cancel your subscription at any time.</p>
+    <p style="text-align:center;margin:26px 0"><a class="button" href="${loginUrl}">Open your business dashboard</a></p>
+    <div class="qr-box">${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="Guest check-in QR code">` : '<p>Your QR code is available in your dashboard.'}<p><strong>Guest check-in is now enabled</strong></p><p style="font-size:13px;word-break:break-all">${checkInUrl}</p></div>
+    <p>From your dashboard, you can customise your guest check-in page, download your QR code and manage your property.</p>
+    <p class="muted">If you have not yet completed account setup, use the secure account setup link in your application confirmation email or contact FastCheckIn support.</p>
+    <p>FastCheckIn · <a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></div></div></body></html>`;
 }
