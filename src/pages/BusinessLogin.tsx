@@ -69,11 +69,9 @@ export default function BusinessLogin() {
         console.log('✅ Token stored in localStorage');
         console.log('🔑 Verification:', localStorage.getItem('fastcheckin_auth'));
         
-        if (data.business.status === 'pending') {
-          window.location.href = '/business/pending';
-        } else {
-          window.location.href = '/business/dashboard';
-        }
+        // Pending applicants now use the business dashboard while their
+        // application is reviewed. Public guest check-in remains approval-gated.
+        window.location.href = '/business/dashboard';
       } else {
         console.log('❌ Login failed:', data.error);
         setError(data.error || t('login_error_invalid_credentials'));
