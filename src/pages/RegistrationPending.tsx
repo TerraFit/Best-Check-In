@@ -23,7 +23,7 @@ export default function RegistrationPending() {
           {cardValidated ? 'Your card has been validated successfully. No amount has been debited.' : 'Your application has been received.'}
         </p>
         <div className="text-left rounded-xl bg-stone-50 border border-stone-200 p-4 mb-6 text-sm text-gray-700 space-y-3">
-          <p><strong>Application review</strong><br />FastCheckIn will verify the information and supporting documents you submitted and aims to complete approval within 48 business hours. You are responsible for ensuring that your application information is accurate and complete.</p>
+          <p><strong>Application review</strong><br />FastCheckIn will verify the information and supporting documents you submitted and will complete review and approval within 48 business hours. You are responsible for ensuring that your application information is accurate and complete.</p>
           <p><strong>Your subscription</strong><br />No amount is taken now. Your 14-day free trial starts at 00:00 South African time on the day after approval. We will remind you before the trial ends, and you may cancel your subscription at any time.</p>
           <p><strong>Access your dashboard</strong><br />{confirmationEmailSent ? `We have sent an email to ${email} with a secure link to set up your business account.` : `Your card is validated, but we could not confirm delivery of the account setup email. Please contact FastCheckIn support for assistance.`} You can access your dashboard while the application is under review once your password is set. Live guest check-in becomes available once approved.</p>
           <p>After approval, we will email you confirmation and instructions for getting started with live guest check-in.</p>
