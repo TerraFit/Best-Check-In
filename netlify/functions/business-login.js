@@ -24,7 +24,7 @@ exports.handler = async function(event) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
     }
 
-    const url = `${process.env.SUPABASE_URL}/rest/v1/businesses?email=eq.${encodeURIComponent(normalizedEmail)}&select=id,trading_name,email,password_hash,status,setup_complete`;
+    const url = `${process.env.SUPABASE_URL}/rest/v1/businesses?email=eq.${encodeURIComponent(normalizedEmail)}&select=id,trading_name,email,password_hash,status,setup_complete,registration_payment_status`;
     const response = await fetch(url, {
       headers: {
         'apikey': process.env.SUPABASE_SERVICE_KEY,
@@ -40,9 +40,13 @@ exports.handler = async function(event) {
     const businesses = await response.json();
     const business = businesses?.[0];
 
-    // Only approved businesses may establish an application session. Keep the
-    // response generic so account state is not disclosed at the login boundary.
-    if (!business || business.status !== 'approved' || !business.password_hash) {
+    // Applicants with a validated mandate may sign in while their application is
+    // under review. Public guest check-in remains blocked until approval.
+    const canAccessDashboard = business && (
+      business.status === 'approved' ||
+      (business.status === 'pending' && business.registration_payment_status === 'verified')
+    );
+    if (!canAccessDashboard || !business.password_hash) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
     }
 
@@ -58,6 +62,7 @@ exports.handler = async function(event) {
           business_id: business.id,
           business_name: business.trading_name,
           email: business.email,
+          application_status: business.status,
           role: 'business'
         }
       },
