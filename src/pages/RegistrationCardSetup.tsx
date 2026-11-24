@@ -37,30 +37,47 @@ export default function RegistrationCardSetup() {
   const [submitting, setSubmitting] = useState(false);
 
   const verifyWithServer = async () => {
-    const response = await fetch('/.netlify/functions/peach-confirm-registration-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registrationToken: token })
-    });
-    const data = await response.json();
-    if (response.ok && data.verified) {
-      navigate('/registration-pending', { replace: true, state: { cardValidated: true } });
-      return { verified: true, retryable: false };
-    }
-    if (response.status === 202) {
-      setStatus(data.message || 'Peach is confirming your card. Please check again in a moment.');
-      if (data.redirectUrl) {
-        const redirect = new URL(data.redirectUrl);
-        if (redirect.protocol === 'https:' && ['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(redirect.hostname)) {
-          window.location.assign(data.redirectUrl);
-        }
+    const maxChecks = 15;
+    for (let attempt = 0; attempt < maxChecks; attempt += 1) {
+      const response = await fetch('/.netlify/functions/peach-confirm-registration-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationToken: token })
+      });
+      const data = await response.json();
+      if (response.ok && data.verified) {
+        navigate('/registration-pending', {
+          replace: true,
+          state: {
+            cardValidated: true,
+            businessName: data.businessName || 'your business',
+            email: data.email || 'your email'
+          }
+        });
+        return { verified: true, retryable: false };
       }
-      return { verified: false, retryable: Boolean(data.retryable), peachStatus: data.peachStatus };
+      if (response.status === 202) {
+        setStatus(data.message || 'Peach is confirming your card. Please wait while we verify the result.');
+        if (data.redirectUrl) {
+          const redirect = new URL(data.redirectUrl);
+          if (redirect.protocol === 'https:' && ['app.sandbox-next.peachpayments.com', 'app.next.peachpayments.com'].includes(redirect.hostname)) {
+            window.location.assign(data.redirectUrl);
+            return { verified: false, retryable: false, peachStatus: data.peachStatus };
+          }
+        }
+        if (data.retryable) return { verified: false, retryable: true, peachStatus: data.peachStatus };
+        if (attempt < maxChecks - 1) {
+          await new Promise(resolve => window.setTimeout(resolve, 2000));
+          continue;
+        }
+        return { verified: false, retryable: false, peachStatus: data.peachStatus };
+      }
+      if (response.status === 409 && data.code === 'no_payment_intent') {
+        return { verified: false, retryable: true, noPaymentIntent: true };
+      }
+      throw new Error(data.error || 'Card validation could not be confirmed.');
     }
-    if (response.status === 409 && data.code === 'no_payment_intent') {
-      return { verified: false, retryable: true, noPaymentIntent: true };
-    }
-    throw new Error(data.error || 'Card validation could not be confirmed.');
+    return { verified: false, retryable: false };
   };
 
   const startNewOrResumeSession = async (): Promise<boolean> => {
@@ -203,7 +220,8 @@ export default function RegistrationCardSetup() {
         setStatus('Card validated. Verifying the recurring mandate…');
         await verifyWithServer();
       } else if (result?.paymentIntent?.status) {
-        setStatus('Peach is processing your card validation. We will confirm the result before continuing.');
+        setStatus('Your card details have been submitted. Please wait while Peach confirms the mandate; do not validate the card again.');
+        await verifyWithServer();
       } else {
         setStatus('Complete any additional bank verification requested by your bank. You will return here automatically.');
       }
@@ -292,7 +310,7 @@ export default function RegistrationCardSetup() {
             </button>
           </div>
         )}
-        <p className="mt-6 text-center text-xs text-stone-500">Your application remains pending until FastCheckIn has reviewed and approved it.</p>
+        <p className="mt-6 text-center text-xs text-stone-500">Your application will be reviewed within 48 business hours. Live guest check-in becomes available once approved.</p>
       </div>
     </div>
   );
