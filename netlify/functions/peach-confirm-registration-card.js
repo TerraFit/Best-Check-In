@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import { getAppBaseUrl } from './lib/app-base-url.js';
+import { getPlanPricing, normalizePlanId } from './lib/packages.js';
 
 const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
 const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
@@ -22,7 +23,12 @@ const sendApplicationConfirmation = async ({ event, supabaseUrl, serviceKey, bus
   const businessName = String(business.trading_name || 'your business');
   const plan = String(business.current_plan || business.subscription_tier || 'selected package');
   const billingCycle = String(business.billing_cycle || 'monthly').toLowerCase();
-  const billingLabel = billingCycle === 'annual' || billingCycle === 'yearly' ? 'Annual billing' : 'Monthly billing';
+  const isAnnual = billingCycle === 'annual' || billingCycle === 'yearly';
+  const billingLabel = isAnnual ? 'Annual billing' : 'Monthly billing';
+  const pricing = getPlanPricing(normalizePlanId(plan), isAnnual ? 'yearly' : 'monthly', business.total_rooms);
+  const priceLabel = pricing.contactSales
+    ? 'Contact FastCheckIn for an Enterprise quotation'
+    : new Intl.NumberFormat('en-ZA', { style: 'currency', currency: pricing.currency || 'ZAR' }).format(pricing.amount) + (isAnnual ? ' per year' : ' per month');
   const safe = (value) => value.replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
   const name = safe(businessName);
   const safePlan = safe(plan.charAt(0).toUpperCase() + plan.slice(1));
@@ -31,7 +37,7 @@ const sendApplicationConfirmation = async ({ event, supabaseUrl, serviceKey, bus
     from: 'FastCheckIn <noreply@fastcheckin.co.za>',
     to: [business.email],
     subject: 'Your FastCheckIn application has been submitted',
-    html: `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,sans-serif;color:#263238"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden"><tr><td style="background:#172b3a;padding:28px;color:#fff"><h1 style="margin:0;font-size:24px">Application submitted</h1><p style="margin:8px 0 0">Hospitality, connected.</p></td></tr><tr><td style="padding:30px"><p>Hello ${name},</p><p>Thank you. Your FastCheckIn application has been received and your card has been validated successfully. <strong>No amount has been debited.</strong></p><h3>Application review</h3><p>Our team will verify the information and supporting documents you submitted within <strong>48 business hours</strong>. You are responsible for ensuring that the information and documents supplied in your application are accurate and complete. FastCheckIn's role is to verify the submitted information.</p><h3>Your subscription</h3><p>Package: <strong>${safePlan}</strong><br>${billingLabel}</p><p>Your card validation authorises the selected subscription for future billing. No subscription amount is taken now. Your <strong>14-day free trial</strong> starts at 00:00 South African time on the day after your application is approved. We will remind you before the free trial ends. You may cancel your subscription at any time.</p><h3>Set up your business dashboard</h3><p>Create your password using the secure link below. You can then sign in and access your business dashboard while your application is under review. Live guest check-in will become available once your application is approved.</p><p style="text-align:center;margin:28px 0"><a href="${setupUrl}" style="background:#c66a20;color:#fff;text-decoration:none;padding:14px 24px;border-radius:7px;font-weight:bold;display:inline-block">Set up your business account</a></p><p style="font-size:12px;color:#687782">This secure setup link expires in 48 hours and can only be used once. If it expires, contact FastCheckIn support.</p><p>Once your application is approved, we will email you confirmation and the instructions for getting started with live guest check-in.</p><p>FastCheckIn<br><a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></td></tr></table></td></tr></table></body></html>`,
+    html: `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,sans-serif;color:#263238"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden"><tr><td style="background:#172b3a;padding:28px;color:#fff"><h1 style="margin:0;font-size:24px">Application submitted</h1><p style="margin:8px 0 0">Hospitality, connected.</p></td></tr><tr><td style="padding:30px"><p>Hello ${name},</p><p>Thank you. Your FastCheckIn application has been received and your card has been validated successfully. <strong>No amount has been debited.</strong></p><h3>Application review</h3><p>Our team will verify the information and supporting documents you submitted within <strong>48 business hours</strong>. You are responsible for ensuring that the information and documents supplied in your application are accurate and complete. FastCheckIn's role is to verify the submitted information.</p><h3>Your subscription</h3><p>Package: <strong>${safePlan}</strong><br>${billingLabel}<br>Subscription fee: <strong>${priceLabel}</strong></p><p>Your card validation authorises the selected subscription for future billing. No subscription amount is taken now. Your <strong>14-day free trial</strong> starts at 00:00 South African time on the day after your application is approved. We will remind you before the free trial ends. You may cancel your subscription at any time.</p><h3>Set up your business dashboard</h3><p>Create your password using the secure link below. You can then sign in and access your business dashboard while your application is under review. Live guest check-in will become available once your application is approved.</p><p style="text-align:center;margin:28px 0"><a href="${setupUrl}" style="background:#c66a20;color:#fff;text-decoration:none;padding:14px 24px;border-radius:7px;font-weight:bold;display:inline-block">Set up your business account</a></p><p style="font-size:12px;color:#687782">This secure setup link expires in 48 hours and can only be used once. If it expires, contact FastCheckIn support.</p><p>Once your application is approved, we will email you confirmation and the instructions for getting started with live guest check-in.</p><p>FastCheckIn<br><a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></td></tr></table></td></tr></table></body></html>`,
     text: `Application submitted — FastCheckIn
 
 Hello ${businessName},
@@ -44,6 +50,7 @@ Our team will verify the information and supporting documents you submitted with
 YOUR SUBSCRIPTION
 Package: ${plan}
 Billing: ${billingLabel}
+Subscription fee: ${priceLabel}
 Your card validation authorises the selected subscription for future billing. No amount is taken now. Your 14-day free trial starts at 00:00 South African time on the day after approval. We will remind you before the trial ends. You may cancel at any time.
 
 SET UP YOUR BUSINESS DASHBOARD
@@ -95,7 +102,7 @@ export const handler = async (event) => {
     const businessId = tokenRows?.[0]?.business_id;
     if (!businessId) return reply(404, { error: 'Application not found or expired' });
 
-    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.pending&select=id,trading_name,email,current_plan,subscription_tier,billing_cycle,registration_confirmation_sent_at,registration_payment_intent_id,registration_payment_status,payment_customer_id&limit=1`, {
+    const businessResponse = await fetch(`${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.pending&select=id,trading_name,email,current_plan,subscription_tier,billing_cycle,total_rooms,registration_confirmation_sent_at,registration_payment_intent_id,registration_payment_status,payment_customer_id&limit=1`, {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
     });
     if (!businessResponse.ok) throw new Error('Application lookup failed');
