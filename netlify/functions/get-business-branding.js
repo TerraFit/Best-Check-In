@@ -1,6 +1,8 @@
 // netlify/functions/get-business-branding.js
 // Public check-in branding endpoint. Keep this response strictly limited to
-// fields required to render the guest-facing check-in experience.
+// fields required to render guest-facing check-in or the authenticated owner dashboard.
+import auth from './_auth.cjs';
+const { requireBusinessActor, resolveTenant, authFailure } = auth;
 
 const PUBLIC_BRANDING_FIELDS = [
   'id', 'trading_name', 'logo_url', 'hero_image_url', 'slogan', 'welcome_message',
@@ -24,7 +26,19 @@ export const handler = async function(event) {
   }
 
   try {
-    const businessId = event.queryStringParameters?.id;
+    const requestedBusinessId = event.queryStringParameters?.id;
+    const hasAuthorization = Boolean(event.headers?.authorization || event.headers?.Authorization);
+    let businessId = requestedBusinessId;
+    let statusFilter = 'status=eq.approved&service_paused=eq.false&';
+    if (hasAuthorization) {
+      const authentication = requireBusinessActor(event);
+      if (!authentication.ok) return authFailure(authentication, headers);
+      const tenant = resolveTenant(authentication.principal, requestedBusinessId);
+      if (!tenant.ok) return authFailure(tenant, headers);
+      businessId = tenant.businessId;
+      statusFilter = '';
+      headers['Cache-Control'] = 'private, no-store';
+    }
     if (!businessId) {
       return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Business ID required' }) };
     }
@@ -40,7 +54,7 @@ export const handler = async function(event) {
     // Never add private business/contact/subscription/director fields here.
     const select = PUBLIC_BRANDING_FIELDS.join(',');
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&status=eq.approved&service_paused=eq.false&select=${select}`,
+      `${supabaseUrl}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&${statusFilter}select=${select}`,
       {
         headers: {
           'apikey': supabaseKey,
