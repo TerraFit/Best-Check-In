@@ -16,7 +16,7 @@ export const handler = async function(event) {
     'Content-Type': 'application/json',
     'Cache-Control': 'public, max-age=300',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
