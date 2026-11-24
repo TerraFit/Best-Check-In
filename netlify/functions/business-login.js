@@ -1,10 +1,9 @@
 // netlify/functions/business-login.js
 // Business owner authentication boundary.
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
