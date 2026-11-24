@@ -58,6 +58,11 @@ test('Peach return is force-synchronised and a succeeded mandate is recorded', a
       if (target.includes('/businesses?') && options.method !== 'PATCH') {
         return { ok: true, json: async () => [{
           id: 'business-1',
+          trading_name: 'Test Lodge',
+          email: 'owner@example.com',
+          current_plan: 'pro',
+          billing_cycle: 'monthly',
+          total_rooms: 5,
           registration_payment_status: 'intent_created',
           registration_payment_intent_id: 'pay_test_123',
           payment_customer_id: 'fc_business-1'
@@ -84,6 +89,8 @@ test('Peach return is force-synchronised and a succeeded mandate is recorded', a
     const result = await handler(event());
     assert.equal(result.statusCode, 200);
     assert.equal(JSON.parse(result.body).verified, true);
+    assert.equal(JSON.parse(result.body).businessName, 'Test Lodge');
+    assert.equal(JSON.parse(result.body).email, 'owner@example.com');
     assert.equal(patched, true);
   });
 });
