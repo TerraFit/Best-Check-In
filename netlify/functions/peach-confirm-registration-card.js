@@ -8,10 +8,11 @@ const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const sendApplicationConfirmation = async ({ event, supabaseUrl, serviceKey, business }) => {
-  if (!business?.email || !process.env.RESEND_API_KEY || business.registration_confirmation_sent_at) return;
+  if (!business?.email || !process.env.RESEND_API_KEY) return false;
+  if (business.registration_confirmation_sent_at) return true;
   const setupToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(setupToken);
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/business_account_setup_tokens`, {
     method: 'POST',
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
@@ -37,7 +38,7 @@ const sendApplicationConfirmation = async ({ event, supabaseUrl, serviceKey, bus
     from: 'FastCheckIn <noreply@fastcheckin.co.za>',
     to: [business.email],
     subject: 'Your FastCheckIn application has been submitted',
-    html: `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,sans-serif;color:#263238"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden"><tr><td style="background:#172b3a;padding:28px;color:#fff"><h1 style="margin:0;font-size:24px">Application submitted</h1><p style="margin:8px 0 0">Hospitality, connected.</p></td></tr><tr><td style="padding:30px"><p>Hello ${name},</p><p>Thank you. Your FastCheckIn application has been received and your card has been validated successfully. <strong>No amount has been debited.</strong></p><h3>Application review</h3><p>Our team will verify the information and supporting documents you submitted within <strong>48 business hours</strong>. You are responsible for ensuring that the information and documents supplied in your application are accurate and complete. FastCheckIn's role is to verify the submitted information.</p><h3>Your subscription</h3><p>Package: <strong>${safePlan}</strong><br>${billingLabel}<br>Subscription fee: <strong>${priceLabel}</strong></p><p>Your card validation authorises the selected subscription for future billing. No subscription amount is taken now. Your <strong>14-day free trial</strong> starts at 00:00 South African time on the day after your application is approved. We will remind you before the free trial ends. You may cancel your subscription at any time.</p><h3>Set up your business dashboard</h3><p>Create your password using the secure link below. You can then sign in and access your business dashboard while your application is under review. Live guest check-in will become available once your application is approved.</p><p style="text-align:center;margin:28px 0"><a href="${setupUrl}" style="background:#c66a20;color:#fff;text-decoration:none;padding:14px 24px;border-radius:7px;font-weight:bold;display:inline-block">Set up your business account</a></p><p style="font-size:12px;color:#687782">This secure setup link expires in 48 hours and can only be used once. If it expires, contact FastCheckIn support.</p><p>Once your application is approved, we will email you confirmation and the instructions for getting started with live guest check-in.</p><p>FastCheckIn<br><a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></td></tr></table></td></tr></table></body></html>`,
+    html: `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,sans-serif;color:#263238"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden"><tr><td style="background:#172b3a;padding:28px;color:#fff"><h1 style="margin:0;font-size:24px">Application submitted</h1><p style="margin:8px 0 0">Hospitality, connected.</p></td></tr><tr><td style="padding:30px"><p>Hello ${name},</p><p>Thank you. Your FastCheckIn application has been received and your card has been validated successfully. <strong>No amount has been debited.</strong></p><h3>Application review</h3><p>Our team will verify the information and supporting documents you submitted within <strong>48 business hours</strong>. You are responsible for ensuring that the information and documents supplied in your application are accurate and complete. FastCheckIn's role is to verify the submitted information.</p><h3>Your subscription</h3><p>Package: <strong>${safePlan}</strong><br>${billingLabel}<br>Subscription fee: <strong>${priceLabel}</strong></p><p>Your card validation authorises the selected subscription for future billing. No subscription amount is taken now. Your <strong>14-day free trial</strong> starts at 00:00 South African time on the day after your application is approved. We will remind you before the free trial ends. You may cancel your subscription at any time.</p><h3>Set up your business dashboard</h3><p>Create your password using the secure link below. You can then sign in and access your business dashboard while your application is under review. Live guest check-in will become available once your application is approved.</p><p style="text-align:center;margin:28px 0"><a href="${setupUrl}" style="background:#c66a20;color:#fff;text-decoration:none;padding:14px 24px;border-radius:7px;font-weight:bold;display:inline-block">Set up your business account</a></p><p style="font-size:12px;color:#687782">This secure setup link expires in 7 days and can only be used once. If it expires, contact FastCheckIn support.</p><p>Once your application is approved, we will email you confirmation and the instructions for getting started with live guest check-in.</p><p>FastCheckIn<br><a href="https://fastcheckin.co.za">fastcheckin.co.za</a></p></td></tr></table></td></tr></table></body></html>`,
     text: `Application submitted — FastCheckIn
 
 Hello ${businessName},
@@ -57,7 +58,7 @@ SET UP YOUR BUSINESS DASHBOARD
 Create your password using this one-time secure link:
 ${setupUrl}
 
-You can sign in and use your business dashboard while the application is under review. Live guest check-in becomes available once approved. This link expires in 48 hours.
+You can sign in and use your business dashboard while the application is under review. Live guest check-in becomes available once approved. This link expires in 7 days.
 
 After approval, we will email confirmation and instructions for starting live guest check-in.
 
@@ -71,6 +72,7 @@ FastCheckIn — https://fastcheckin.co.za`
     body: JSON.stringify({ registration_confirmation_sent_at: stamp, updated_at: stamp })
   });
   if (!audit.ok) console.error('[peach-confirm-registration-card] Could not record confirmation email timestamp:', audit.status);
+  return true;
 };
 
 export const handler = async (event) => {
@@ -109,9 +111,10 @@ export const handler = async (event) => {
     const business = (await businessResponse.json())?.[0];
     if (!business) return reply(404, { error: 'Pending application not found' });
     if (business.registration_payment_status === 'verified') {
-      try { await sendApplicationConfirmation({ event, supabaseUrl, serviceKey, business }); }
+      let confirmationEmailSent = false;
+      try { confirmationEmailSent = await sendApplicationConfirmation({ event, supabaseUrl, serviceKey, business }); }
       catch (emailError) { console.error('[peach-confirm-registration-card] Confirmation email could not be sent:', emailError?.message || emailError); }
-      return reply(200, { success: true, verified: true, businessName: business.trading_name, email: business.email });
+      return reply(200, { success: true, verified: true, businessName: business.trading_name, email: business.email, confirmationEmailSent });
     }
 
     const paymentId = business.registration_payment_intent_id;
@@ -186,9 +189,10 @@ export const handler = async (event) => {
     if (!updateResponse.ok) throw new Error(`Could not save verified mandate (${updateResponse.status})`);
     const updated = await updateResponse.json();
     if (!Array.isArray(updated) || updated.length !== 1) return reply(409, { error: 'Application changed before card validation could be recorded' });
-    try { await sendApplicationConfirmation({ event, supabaseUrl, serviceKey, business: { ...business, registration_confirmation_sent_at: null } }); }
+    let confirmationEmailSent = false;
+    try { confirmationEmailSent = await sendApplicationConfirmation({ event, supabaseUrl, serviceKey, business: { ...business, registration_confirmation_sent_at: null } }); }
     catch (emailError) { console.error('[peach-confirm-registration-card] Confirmation email could not be sent:', emailError?.message || emailError); }
-    return reply(200, { success: true, verified: true, businessName: business.trading_name, email: business.email, message: 'Card validated. No payment has been taken.' });
+    return reply(200, { success: true, verified: true, businessName: business.trading_name, email: business.email, confirmationEmailSent, message: 'Card validated. No payment has been taken.' });
   } catch (error) {
     console.error('[peach-confirm-registration-card] Error:', error?.message || error);
     return reply(500, { error: 'Could not confirm card validation' });
