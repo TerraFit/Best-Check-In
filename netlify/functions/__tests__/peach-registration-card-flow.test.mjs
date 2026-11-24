@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 const { handler } = await import('../peach-confirm-registration-card.js');
 const { handler: intentHandler } = await import('../peach-registration-card-intent.js');
 
-const envKeys = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'PEACH_ORCHESTRATION_API_KEY', 'PEACH_ORCHESTRATION_BASE_URL', 'PEACH_PROFILE_ID', 'PEACH_ORCHESTRATION_SDK_URL', 'PEACH_PUBLISHABLE_KEY'];
+const envKeys = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'PEACH_ORCHESTRATION_API_KEY', 'PEACH_ORCHESTRATION_BASE_URL', 'PEACH_PROFILE_ID', 'PEACH_ORCHESTRATION_SDK_URL', 'PEACH_PUBLISHABLE_KEY', 'RESEND_API_KEY'];
 const withEnv = async (run) => {
   const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   process.env.SUPABASE_URL = 'https://supabase.example';
