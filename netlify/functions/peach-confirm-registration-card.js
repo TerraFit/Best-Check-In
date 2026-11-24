@@ -46,7 +46,7 @@ Hello ${businessName},
 Your application has been received and your card has been validated successfully. No amount has been debited.
 
 APPLICATION REVIEW
-Our team will verify the information and supporting documents you submitted within 48 business hours. You are responsible for ensuring the information and documents supplied are accurate and complete. FastCheckIn's role is to verify the submitted information.
+Our team will verify the information and supporting documents you submitted and aims to complete approval within 48 business hours. You are responsible for ensuring the information and documents supplied are accurate and complete. FastCheckIn's role is to verify the submitted information.
 
 YOUR SUBSCRIPTION
 Package: ${plan}
